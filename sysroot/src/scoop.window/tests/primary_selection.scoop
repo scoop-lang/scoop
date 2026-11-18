@@ -1,0 +1,63 @@
+package scoop.window
+
+import scoop.test.*
+
+@Test
+private class PrimarySelectionTest {
+    @Test
+    fun `primary ownership remains separate and an old claim cannot clear its replacement`() {
+        val handler = PrimarySelectionProbe()
+        Application().run(handler)
+        assertTrue(handler.finished)
+        assertFailsWith<WindowException> { handler.selection!!.readText() }
+        when (handler.claim) {
+            case Some(val value) -> {
+                assertFalse(value.isCurrent)
+                value.close()
+            }
+            case None -> {}
+        }
+    }
+}
+
+private class PrimarySelectionProbe: ApplicationHandler {
+    var selection: PrimarySelection? = None
+    var claim: PrimarySelectionClaim? = None
+    var finished = false
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val source = application.primarySelection
+                selection = Some(source)
+                assertFailsWith<IllegalArgumentException> { source.claimText("a\u{0}b") }
+                if (!source.isAvailable) {
+                    assertFalse(source.defaultPasteEnabled)
+                    assertEquals(None, source.readText())
+                    when (source.claimText("unavailable")) {
+                        case None -> {}
+                        case Some(_) -> fail(
+                            Some("PRIMARY must not fall back to the normal clipboard")
+                        )
+                    }
+                } else {
+                    val first = source.claimText("A😀\r\n中")!!
+                    assertTrue(first.isCurrent)
+                    assertEquals(Some("A😀\n中"), source.readText())
+                    val next = source.claimText("replacement")!!
+                    assertFalse(first.isCurrent)
+                    assertTrue(next.isCurrent)
+                    first.close()
+                    assertTrue(next.isCurrent)
+                    assertEquals(Some("replacement"), source.readText())
+                    claim = Some(next)
+                    next.close()
+                    next.close()
+                    assertFalse(next.isCurrent)
+                }
+                finished = true
+                application.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

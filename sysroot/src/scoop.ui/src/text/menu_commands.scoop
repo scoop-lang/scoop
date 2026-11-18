@@ -5,6 +5,7 @@ import scoop.window.TextCommandAvailability
 internal fun TextEditHost.refreshMenuCommands() {
     if (area.isClosed)
         return
+    refreshPrimarySelection()
     val selected = current.selection.range.start != current.selection.range.end
     val editable = options.enabled && !options.readOnly
     area.scope.textCommandAvailability =
@@ -31,6 +32,7 @@ internal fun SelectableTextHost.refreshMenuCommands() {
             case None -> false
         }
     val selected = selection.range.start != selection.range.end
+    refreshPrimarySelection(available)
     area.scope.textCommandAvailability =
         Some(
             TextCommandAvailability(

@@ -11,14 +11,21 @@ internal fun platformReadClipboard(mediaType: String): String? {
                     return@withUtf8Bytes nativeClipboardRead(bytes, length)
                 }
             }
+        return decodeClipboardText(result, "read clipboard")
+    }
+}
+
+internal fun decodeClipboardText(result: NativeClipboardText, operation: String): String? {
+    @Unsafe
+    {
         try {
-            checkNativeStatus(result.error, "read clipboard")
+            checkNativeStatus(result.error, operation)
             return when (result.bytes) {
                 case Some(val bytes) -> {
                     try {
                         Some(String.fromUtf8(bytes, result.length))
                     } catch (error: CharacterCodingException) {
-                        throw WindowException("read clipboard", WindowErrorKind.NativeFailure)
+                        throw WindowException(operation, WindowErrorKind.NativeFailure)
                     }
                 }
                 case None -> None
@@ -66,7 +73,7 @@ internal fun platformWriteClipboard(application: Ptr<Unit>, representations: Lis
 }
 
 @CLayout
-private struct NativeClipboardText(val bytes: Ptr<UInt8>?, val length: Long, val error: Long)
+internal struct NativeClipboardText(val bytes: Ptr<UInt8>?, val length: Long, val error: Long)
 
 @Extern(name = "scoop_window_clipboard_read")
 private fun nativeClipboardRead(mediaType: Ptr<UInt8>, length: Long): NativeClipboardText

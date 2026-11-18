@@ -21,7 +21,13 @@ internal fun applyTextBatch(original: TextInputState, batch: TextInputBatch): Te
                     state.caretRect,
                     state.revision
                 )
-                case Commit(val text, val replacement) -> replaceText(state, text, replacement, None, false)
+                case Commit(val text, val replacement) -> replaceText(
+                    state,
+                    text,
+                    replacement,
+                    None,
+                    false
+                )
                 case Preedit(val text, val selection, val replacement) -> replaceText(
                     state,
                     text,
@@ -29,7 +35,12 @@ internal fun applyTextBatch(original: TextInputState, batch: TextInputBatch): Te
                     selection,
                     true
                 )
-                case DeleteSurrounding(val before, val after) -> deleteSurrounding(state, before, after)
+                case DeleteSurrounding(val before, val after) -> deleteSurrounding(
+                    state,
+                    before,
+                    after
+                )
+                case SetSelection(val selection) -> selectText(state, selection)
             }
     }
     return TextInputState(
@@ -38,6 +49,25 @@ internal fun applyTextBatch(original: TextInputState, batch: TextInputBatch): Te
         state.markedRange,
         state.caretRect,
         original.revision + 1L
+    )
+}
+
+private fun selectText(state: TextInputState, selection: Utf8Selection): TextInputState {
+    val range = selection.range
+    checkTextRange(state.surroundingText.toByteArray(), range)
+    when (state.markedRange) {
+        case Some(val marked) -> requireWindow(
+            range.start >= marked.start && range.end <= marked.end,
+            "selection leaves active preedit"
+        )
+        case None -> {}
+    }
+    return TextInputState(
+        state.surroundingText,
+        selection,
+        state.markedRange,
+        state.caretRect,
+        state.revision
     )
 }
 

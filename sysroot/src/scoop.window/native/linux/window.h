@@ -94,7 +94,14 @@ typedef struct {
   SWWatch *watches;
   SWApplicationInputState input;
   void *drag_source;
+  GdkClipboard *primary_clipboard;
+  GdkContentProvider *primary_provider;
+  gulong primary_changed;
+  int64_t primary_generation;
 } SWApplication;
+SWClipboardText sw_read_clipboard(SWApplication *app, GdkClipboard *clipboard,
+                                  const uint8_t *type, int64_t length);
+void sw_primary_cleanup(SWApplication *app);
 struct SWWindow {
   SWApplication *application;
   SWWindow *owning_window;

@@ -189,5 +189,7 @@ internal fun otpOptions(input: InputOtpProps, projection: TextProjection): TextE
                     case Digits -> TextInputPurpose.Digits
                     else -> TextInputPurpose.Normal
                 },
-        softwareKeyboard = input.softwareKeyboard
+        softwareKeyboard = input.softwareKeyboard,
+        primarySelection = input.primarySelection,
+        automaticTextReplacement = input.automaticTextReplacement
     )

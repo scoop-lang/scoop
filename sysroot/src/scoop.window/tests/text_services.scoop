@@ -1,0 +1,82 @@
+package scoop.window
+
+import scoop.test.*
+
+@Test
+private class SystemTextServicesTest {
+    @Test
+    fun `native checking reports UTF8 ranges without acquiring window focus or changing documents`() {
+        val probe = TextServicesProbe()
+        Application().run(probe)
+        assertTrue(probe.finished)
+        assertFailsWith<WindowException> { probe.services!!.checkText("closed") }
+        assertFailsWith<WindowException> { probe.services!!.availableServices() }
+    }
+}
+
+private class TextServicesProbe: ApplicationHandler {
+    var services: SystemTextServices? = None
+    var finished = false
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val source = application.textServices
+                services = Some(source)
+                val capabilities = source.capabilities
+                assertEquals(
+                    0L,
+                    source.checkText("", TextCheckingOptions(false, false, false)).size
+                )
+                assertFailsWith<IllegalArgumentException> {
+                    source.checkText("text", TextCheckingOptions(language = Some("en\u{0}US")))
+                }
+                assertFailsWith<IllegalArgumentException> { source.performService("", "text") }
+                val text = "😀 spleling"
+                val findings =
+                    source.checkText(
+                        text,
+                        TextCheckingOptions(grammar = false, language = Some("en-US"))
+                    )
+                var checkedWord = false
+                for (finding in findings) {
+                    assertTrue(finding.range.start >= 0L && finding.range.end <= text.byteLength)
+                    val word = text.utf8Slice(finding.range)
+                    assertEquals(TextCheckKind.Spelling, finding.kind)
+                    if (word == "spleling") {
+                        checkedWord = true
+                        assertEquals(Utf8Range(5L, 13L), finding.range)
+                        assertTrue(finding.suggestions.size > 0L)
+                    }
+                }
+                // AppKit supplies the English checker; Windows languages may not be installed.
+                if (capabilities.grammar)
+                    assertTrue(checkedWord)
+                if (!capabilities.spelling)
+                    assertEquals(0L, findings.size)
+                for (service in source.availableServices()) {
+                    assertTrue(service.name.byteLength > 0L)
+                    assertTrue(service.label.byteLength > 0L)
+                }
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop text service lifecycle"
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                assertFalse(
+                    window.showTextDefinition(
+                        "definition",
+                        LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(20.0, 20.0))
+                    )
+                )
+                assertTrue(window.requestHapticFeedback() != HapticFeedbackRequest.Requested)
+                window.requestDestroy()
+                finished = true
+                application.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

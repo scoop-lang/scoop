@@ -1,0 +1,79 @@
+package scoop.ui.text
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class NativeTextSelectionTest {
+    @Test
+    fun `selection bypasses text policy and does not create an undo edit`() {
+        val editor = TextEditorState("A😀B")
+        val policy =
+            textEditPolicy {
+                transform { _ -> fail(Some("selection must not invoke text policy")) }
+            }
+        assertTrue(
+            editor.applyInput(
+                TextInputBatch(Some(0L), [TextInputOperation.SetSelection(Utf8Selection(5L, 1L))]),
+                policy
+            )
+        )
+        assertEquals("A😀B", editor.text)
+        assertEquals(Utf8Selection(5L, 1L), editor.selection)
+        assertEquals(1L, editor.revision)
+        assertFalse(editor.canUndo)
+        assertTrue(
+            editor.applyInput(
+                TextInputBatch(
+                    None,
+                    [TextInputOperation.Commit("中", TextReplacement.CurrentSelection)]
+                )
+            )
+        )
+        assertTrue(
+            editor.applyInput(
+                TextInputBatch(None, [TextInputOperation.SetSelection(Utf8Selection(0L, 0L))]),
+                policy
+            )
+        )
+        assertEquals("A中B", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("A😀B", editor.text)
+        assertEquals(Utf8Selection(5L, 1L), editor.selection)
+        assertFalse(editor.canUndo)
+    }
+    @Test
+    fun `a final native preedit selection survives policy mapping of the committed prefix`() {
+        val editor = TextEditorState("AB", Some(Utf8Selection(1L, 1L)))
+        val policy =
+            textEditPolicy {
+                transform {
+                    candidate ->
+                    assertEquals("AxB", candidate.after.text)
+                    TextEditDecision.Transform([TextEditReplacement(Utf8Range(1L, 2L), "yy")])
+                }
+            }
+        assertTrue(
+            editor.applyInput(
+                TextInputBatch(
+                    Some(0L),
+                    [
+                        TextInputOperation.Commit("x", TextReplacement.CurrentSelection),
+                        TextInputOperation.Preedit("😀中", None, TextReplacement.CurrentSelection),
+                        TextInputOperation.SetSelection(Utf8Selection(9L, 6L))
+                    ]
+                ),
+                policy
+            )
+        )
+        assertEquals("Ayy😀中B", editor.text)
+        assertEquals("AyyB", editor.committedText)
+        assertEquals(Some(Utf8Range(3L, 10L)), editor.markedRange)
+        assertEquals(Utf8Selection(10L, 7L), editor.selection)
+        assertTrue(editor.cancelComposition())
+        assertEquals("AyyB", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("AB", editor.text)
+        assertFalse(editor.canUndo)
+    }
+}

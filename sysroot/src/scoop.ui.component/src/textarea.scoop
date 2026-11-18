@@ -46,7 +46,9 @@ public class TextareaProps public constructor(
     public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
     public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
     public val inputPurpose: TextInputPurpose = TextInputPurpose.Normal,
-    public val softwareKeyboard: Boolean = true
+    public val softwareKeyboard: Boolean = true,
+    public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions(),
+    public val automaticTextReplacement: Boolean = false
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -94,7 +96,9 @@ private fun multilineInput(input: TextareaProps): TextFieldInput =
             touchScroll = input.touchScroll,
             scrollPhysics = input.scrollPhysics,
             inputPurpose = input.inputPurpose,
-            softwareKeyboard = input.softwareKeyboard
+            softwareKeyboard = input.softwareKeyboard,
+            primarySelection = input.primarySelection,
+            automaticTextReplacement = input.automaticTextReplacement
         ),
         input.rows,
         input.scrollbars,

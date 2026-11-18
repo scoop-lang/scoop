@@ -30,6 +30,8 @@ public open class InputBuilder internal constructor() {
     public var protectedText: Boolean = false
     public var inputPurpose: TextInputPurpose = TextInputPurpose.Normal
     public var softwareKeyboard: Boolean = true
+    public var primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions()
+    public var automaticTextReplacement: Boolean = false
     public var acceptDrops: Boolean = true
     public var drag: TextDragOptions = TextDragOptions()
     public var touch: TextTouchOptions = TextTouchOptions()
@@ -85,7 +87,9 @@ public open class InputBuilder internal constructor() {
             scrollPhysics,
             expansion,
             inputPurpose,
-            softwareKeyboard
+            softwareKeyboard,
+            primarySelection,
+            automaticTextReplacement
         )
 }
 
@@ -141,7 +145,9 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             touchScroll,
             scrollPhysics,
             inputPurpose,
-            softwareKeyboard
+            softwareKeyboard,
+            primarySelection,
+            automaticTextReplacement
         )
 }
 

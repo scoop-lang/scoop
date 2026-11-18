@@ -1,0 +1,76 @@
+package scoop.window
+
+/** A platform PRIMARY selection, separate from the explicit copy/paste clipboard. */
+public class PrimarySelection internal constructor(private val owner: ApplicationOwner) {
+    /** False when the backend only supplies a process-local placeholder. */
+    public val isAvailable: Boolean get() {
+        checkActive("query primary selection")
+        return platformPrimaryFlags(owner.native!!).and(1) != 0
+    }
+    /** Resolves the native middle-button preference, or the platform's enabled default. */
+    public val defaultPasteEnabled: Boolean get() {
+        checkActive("query primary paste preference")
+        return platformPrimaryFlags(owner.native!!).and(2) != 0
+    }
+    public fun readText(): String? {
+        checkActive("read primary selection")
+        return when (platformReadPrimary(owner.native!!)) {
+            case Some(val text) -> Some(clipboardText(text, false, true))
+            case None -> None
+        }
+    }
+    /** Claims one owned plain-text value; unavailable platforms return None. */
+    public fun claimText(text: String): PrimarySelectionClaim? {
+        checkActive("claim primary selection")
+        val value = clipboardText(text, true, true)
+        val generation = platformClaimPrimary(owner.native!!, value)
+        return if (generation == 0L)
+            None
+        else
+            Some(PrimarySelectionClaim(owner, generation))
+    }
+    internal fun checkActive(operation: String) {
+        owner.checkThread()
+        if (owner.native == None || owner.exiting)
+            throw WindowException(operation, WindowErrorKind.InvalidState)
+    }
+}
+
+/** Closing a claim never clears the contents of a later or external owner. */
+public class PrimarySelectionClaim internal constructor(
+    private val owner: ApplicationOwner,
+    private val generation: Long
+): Closeable {
+    private var closed = false
+    public val isCurrent: Boolean get() {
+        owner.checkThread()
+        if (closed || owner.exiting)
+            return false
+        return when (owner.native) {
+            case Some(val native) -> platformPrimaryCurrent(native, generation)
+            case None -> false
+        }
+    }
+    public override fun close() {
+        owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        when (owner.native) {
+            case Some(val native) -> platformReleasePrimary(native, generation)
+            case None -> {}
+        }
+    }
+}
+
+public val ActiveApplication.primarySelection: PrimarySelection get() {
+    val value = PrimarySelection(owner)
+    value.checkActive("get primary selection")
+    return value
+}
+
+public val Window.primarySelection: PrimarySelection get() {
+    val value = PrimarySelection(owner.application)
+    value.checkActive("get primary selection")
+    return value
+}

@@ -83,6 +83,30 @@ path = "native/darwin/text_menu.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/text_services.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/text_services.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/text_services.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/haptic.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/haptic.c"
+when = { os = ["linux", "windows"] }
+
+[[native.sources]]
+path = "native/windows/text_services.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
 path = "native/darwin/accessibility.m"
 when = { os = "darwin" }
 
@@ -773,4 +797,24 @@ when = { os = "windows" }
 
 [[test.sources]]
 path = "tests/software_keyboard.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/primary_selection.c"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/primary_selection.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/primary_selection.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_services.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_services.scoop"
 when = { os = "linux", env = "gnu" }

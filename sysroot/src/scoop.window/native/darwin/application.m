@@ -201,6 +201,10 @@ void scoop_window_application_stop(void *pointer) {
 void scoop_window_application_destroy(void *pointer) {
   SWApplication *owner = (__bridge_transfer SWApplication *)pointer;
   sw_preferences_stop(owner);
+  if (owner.textServicesMenu && NSApp.servicesMenu == owner.textServicesMenu)
+    NSApp.servicesMenu = owner.previousTextServicesMenu;
+  owner.textServicesMenu = nil;
+  owner.previousTextServicesMenu = nil;
   [NSNotificationCenter.defaultCenter removeObserver:owner];
   NSApp.delegate = nil;
   if (owner.timer) {

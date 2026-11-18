@@ -3,6 +3,7 @@ package scoop.ui.text
 import scoop.graphics.text.*
 import scoop.surface.FocusOrigin
 import scoop.ui.*
+import scoop.window.requestHapticFeedback
 
 internal fun createEditorContactPress(host: TextEditHost): ContactPress =
     ContactPress(
@@ -67,8 +68,18 @@ private fun editorTouchTap(host: TextEditHost, sample: ContactPressSample): Bool
 }
 
 private fun editorTouchHold(host: TextEditHost, sample: ContactPressSample) {
-    if (editorTouchReady(host))
-        editorContextMenu(host, Some(sample.contact.pointer), Some(sample.position), touch = true)
+    if (
+        editorTouchReady(host) &&
+            editorContextMenu(
+                host,
+                Some(sample.contact.pointer),
+                Some(sample.position),
+                touch = true
+            ) &&
+            !host.closed &&
+            host.options.touch.hapticFeedback
+    )
+        host.window.requestHapticFeedback()
 }
 
 internal fun createSelectableContactPress(host: SelectableTextHost): ContactPress =
@@ -120,13 +131,18 @@ private fun selectableTouchTap(host: SelectableTextHost, sample: ContactPressSam
 }
 
 private fun selectableTouchHold(host: SelectableTextHost, sample: ContactPressSample) {
-    if (selectableTouchReady(host))
-        selectableContextMenu(
-            host,
-            Some(sample.contact.pointer),
-            Some(sample.position),
-            touch = true
-        )
+    if (
+        selectableTouchReady(host) &&
+            selectableContextMenu(
+                host,
+                Some(sample.contact.pointer),
+                Some(sample.position),
+                touch = true
+            ) &&
+            !host.closed &&
+            host.options.touch.hapticFeedback
+    )
+        host.scope.nativeWindow.requestHapticFeedback()
 }
 
 internal fun editorTouchAxes(options: TextEditOptions): ScrollAxes =

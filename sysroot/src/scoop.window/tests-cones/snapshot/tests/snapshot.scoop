@@ -17,7 +17,7 @@ private class WindowsTextSnapshotTest {
             handler
         )
         assertTrue(handler.finished)
-        assertEquals(9, handler.edits)
+        assertEquals(10, handler.edits)
         assertEquals(2, handler.opens)
         assertEquals(1, handler.closes)
         assertFailsWith<WindowException> {
@@ -44,6 +44,7 @@ private class WindowsSnapshotHandler: ApplicationHandler {
                         windowAttributes {
                             this.title = "Windows TSF snapshot"
                             this.visible = false
+                            this.requestActivation = false
                         }
                     )
                 window = Some(created)
@@ -53,7 +54,9 @@ private class WindowsSnapshotHandler: ApplicationHandler {
                 )
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("Windows TSF snapshot deadline"))
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> opened(value!!)
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> opened(
+                value!!
+            )
             case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(val value))) -> {
                 closes += 1
                 assertEquals(connection, value)
@@ -114,7 +117,8 @@ private class WindowsSnapshotHandler: ApplicationHandler {
             assertTrue(window!!.publishTextInputCaret(value, 0L, Some(rect)))
             assertTrue(window!!.publishTextInputCaret(value, 0L, None))
             native(7)
-            window!!.requestDestroy()
+            native(12)
+            native(7)
         }
     }
 
@@ -122,6 +126,24 @@ private class WindowsSnapshotHandler: ApplicationHandler {
         edits += 1
         val origin = batch.origin!!
         assertEquals(connection!!, origin.connection)
+        if (opens == 2) {
+            assertEquals(10, edits)
+            assertEquals(1L, origin.sequence)
+            assertEquals(Some(0L), batch.baseRevision)
+            assertEquals(1L, batch.operations.size)
+            assertEquals(
+                TextInputOperation.SetSelection(Utf8Selection(12L, 8L)),
+                batch.operations[0L]
+            )
+            text = text.apply(batch)
+            assertEquals("external😀", text.surroundingText)
+            assertEquals(Utf8Selection(12L, 8L), text.selection)
+            assertTrue(window!!.publishTextInputState(connection!!, text, Some(origin)))
+            assertTrue(window!!.publishTextInputCaret(connection!!, text.revision, Some(rect)))
+            native(13)
+            window!!.requestDestroy()
+            return
+        }
         assertEquals(edits.toLong(), origin.sequence)
         if (edits == 9) {
             assertEquals(Some(28L), batch.baseRevision)
@@ -143,7 +165,7 @@ private class WindowsSnapshotHandler: ApplicationHandler {
             }
         assertEquals(expectedBase, batch.baseRevision)
         if (edits == 1) {
-            assertEquals(2L, batch.operations.size)
+            assertEquals(3L, batch.operations.size)
             when (val operation = batch.operations[0L]) {
                 case TextInputOperation.Preedit(val value, val selection, val replacement) -> {
                     assertEquals("仮", value)
@@ -155,11 +177,15 @@ private class WindowsSnapshotHandler: ApplicationHandler {
             when (val operation = batch.operations[1L]) {
                 case TextInputOperation.Preedit(val value, val selection, val replacement) -> {
                     assertEquals("仮😀", value)
-                    assertEquals(Some(Utf8Selection(3L, 7L)), selection)
+                    assertEquals(Some(Utf8Selection(7L, 7L)), selection)
                     assertEquals(TextReplacement.Range(Utf8Range(5L, 8L)), replacement)
                 }
                 else -> fail(Some("expected the second TSF projection"))
             }
+            assertEquals(
+                TextInputOperation.SetSelection(Utf8Selection(8L, 12L)),
+                batch.operations[2L]
+            )
         } else {
             assertEquals(1L, batch.operations.size)
         }

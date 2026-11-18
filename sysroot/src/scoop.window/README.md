@@ -1,8 +1,10 @@
 # scoop.window
 
+PRIMARY 使用 `application.primarySelection`／`window.primarySelection`，独立于普通 Clipboard；先查 `isAvailable`，`claimText` 返回可关闭的拥有凭据，旧凭据不会清掉后来者。GTK 仅在真实 X11／Wayland 协议存在时提供它，macOS／Windows 返回不可用。`application.textServices` 提供只读的拼写／语法／替换结果和平台文本 Services；范围以传入正文的 UTF-8 坐标表示。`window.showTextDefinition(text, anchor)` 和 `requestHapticFeedback` 分别请求实际可用的词典与触觉入口。能力、生命周期和限制见[文本服务核查](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
+
 面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit、Windows Win32，以及 Linux GNU 的 Wayland／X11 后端。
 
-库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期，也提供 GUI 文本剪贴板与低层无障碍投影。控件、文档布局、语义内容和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C native 构建。
+库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期，也提供 GUI 文本剪贴板与低层无障碍投影。控件、文档布局、语义内容和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C／C++ native 构建。
 
 ## 依赖与入口
 
@@ -56,7 +58,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 Windows 从 WM_POINTER 和对应查询复制触点，整条消息路径一致交回 DefWindowProc，并过滤 UI 的兼容鼠标副本；GTK 使用原始 GdkEventSequence／笔工具，通过捕获阶段的 GtkEventControllerLegacy 避免 GtkGestureClick 重复交付。AppKit 继续交付已识别的触控板手势，不把 NSTouch 设备坐标假装成窗口内直接触摸。Windows／GTK 原生实现和真实设备验收范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
 
-全屏控制／显示模式切换、全局 raw device、更多应用手势识别、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放当前提供下文的 AppKit 接收与 Window 拖出接口，UI source、文本事务和其他平台仍在实施。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
+全屏控制／显示模式切换、全局 raw device、更多应用手势识别、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放已提供 AppKit／OLE／GDK 来源与目标、UI source／target 及文本事务；各平台的实际验证范围见交互实施记录。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
 
 ## 系统交互偏好
 

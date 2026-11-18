@@ -201,8 +201,11 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
       return TF_E_NOLOCK;
     if (count != 1 || !selection)
       return E_NOTIMPL;
+    LONG previous_anchor = state->projection.anchor;
+    LONG previous_cursor = state->projection.cursor;
     HRESULT hr = sw_text_select(state, selection[0]);
-    if (SUCCEEDED(hr))
+    if (SUCCEEDED(hr) && (previous_anchor != state->projection.anchor ||
+                          previous_cursor != state->projection.cursor))
       sw_text_store_notify_selection(state);
     return hr;
   }

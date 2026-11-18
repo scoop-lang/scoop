@@ -518,6 +518,8 @@ InputProps／TextareaProps／InputOtpProps 及其 builder 提供 `contextMenu: T
 
 InputProps／TextareaProps 及 builder 提供 inputPurpose=TextInputPurpose.Normal、softwareKeyboard=true，所有输入包装透传；OTP 的 inputPurpose: TextInputPurpose?=None 按 Digits pattern 选 Digits，其余 pattern 选 Normal，显式值覆盖缺省。保护、原生请求结果及真实遮挡显露见[输入用途规范](SCOOP-WINDOW-TEXT-INPUT-PURPOSE-SPEC.md#3-ui-文本宿主)。用途不替代 OTP 或普通编辑策略。
 
+Input／Textarea／OTP 的 Props 与 builder 另提供 primarySelection=TextPrimarySelectionOptions() 和 automaticTextReplacement=false，InputGroup、ButtonGroup、Command、Combobox、SidebarInput 原样透传。contextMenu.systemServices 与 touch.hapticFeedback 沿共享文本宿主合同；Typography／SelectableStyledText 使用自己的 SelectableTextOptions 配置 PRIMARY。系统服务不绕过 OTP 的字符、长度或导入策略，不对受保护／遮蔽正文进行检查或导出。
+
 三类输入 Props／builder 提供 drag=TextDragOptions()，上述包装透传同一不可变配置。共享宿主实现选区拖出、只读 Copy、受保护用途的默认导出限制、完整 Move 与 SourceRetained 通知；OTP 的清洗／裁剪仍属于同一策略，有损接收不能被报告为完整 Move。drag 与 acceptDrops 独立。
 
 两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时使用按 body 字号／14 缩放的横向 10、纵向 8，Input 保持主题内缩。

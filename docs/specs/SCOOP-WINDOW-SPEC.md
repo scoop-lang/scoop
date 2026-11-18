@@ -50,6 +50,26 @@ mediaType 是无参数的具体 `text/<subtype>` MIME 名称，按 ASCII 小写�
 
 Windows 写入使用应用已有的隐藏宿主窗口取得 clipboard owner，不使用空 HWND 执行 EmptyClipboard／SetClipboardData；因此该入口无需依赖仍存活的业务窗口。
 
+#### 2.2.1 PRIMARY 选区
+
+`ActiveApplication.primarySelection` 与 `Window.primarySelection` 返回独立的 PrimarySelection 入口，不使用普通 Clipboard 作为回退。isAvailable 表示当前显示后端有原生 PRIMARY；defaultPasteEnabled 结合该能力与平台中键粘贴设置。readText() 区分无正文的 None 和已有空正文的 Some("")；claimText(text) 返回可关闭的 PrimarySelectionClaim，不可用返回 None，真实传输或写入错误仍报 WindowException。正文沿普通纯文本的 UTF-8、换行与 NUL 合同处理。
+
+claim 的 isCurrent 只表示它仍是当前原生选区内容的本地拥有者，不承诺接收进程已经读取。再次发布、外部拥有者接替或应用退出后旧 claim 不再 current；关闭只撤下这一 claim 仍拥有的内容，不能清掉后来的拥有者。claim 不持有窗口 lease，调用方按实际文本宿主生命期关闭；应用收尾释放仍持有的原生内容。获取、读写、查询与关闭沿同一 owner 线程，应用退出后 claim 可幂等关闭，普通读写仍拒绝。
+
+GTK 使用 gdk_display_get_primary_clipboard、GdkContentProvider 与真实内容所有权。GTK 4.18 在缺少 Wayland primary-selection 协议时返回普通 GdkClipboard 的进程内缓冲；该对象不算原生 PRIMARY，入口报告不可用。X11／Wayland 的实际跨程序传输分别验收，不自行实现另一套选区协议。macOS／Windows 不提供这一缓冲，明确返回不可用，不冒充普通剪贴板。
+
+#### 2.2.2 系统文本服务
+
+ActiveApplication.textServices 返回与活动应用同线程的 SystemTextServices。capabilities 分别报告 spelling、grammar、automaticReplacement、dictionary、services；能力表示存在公共调用入口，不承诺已安装某种语言、服务提供者或词典。checkText(text, TextCheckingOptions(spelling=true, grammar=true, replacements=false, language=None)) 返回 TextCheckFinding 数组，包含绝对 UTF-8 range、kind（Spelling／Grammar／Replacement）、description 和 suggestions。结果只描述传入的不可变正文，不持有或修改编辑模型；应用负责将结果绑定到原 revision，不能对已变正文直接应用旧范围。不支持的检查种类不产生伪造结果。
+
+macOS 使用 NSSpellChecker 的独立检查接口，显式检查支持拼写、语法细节和替换建议；replacements 只启用系统当前允许的拼写更正、引号、破折号和文本替换。Windows 使用 ISpellChecker，对语言实际提供的拼写错误、建议及更正结果逐项转换；未安装语言返回空结果，缺少语法公共提供者不报告 grammar 能力。GTK 不附带跨应用文本检查器，本轮明确报告不可用，应用可沿现有 TextEditPolicy 和范围装饰接入自己的检查器。不建立隐藏 NSTextView、另一份可写文档或另一套撤销历史。
+
+availableServices() 返回平台实际注册的文本 Services 的名称与标签；performService(name, text) 使用独立临时 pasteboard 发送文本，成功后返回其正文，提供者拒绝返回 None；不读写普通 Clipboard／PRIMARY，不隐式写回模型。系统选择的翻译等提供者可经该入口执行，不声明存在独立通用的翻译 API。应用关闭后以上方法报 InvalidState。原生菜单没有已安装、可执行的服务时不得显示占位项。
+
+Window.showTextDefinition(text, anchor) 使用调用方提供的当前可见内容坐标，在平台词典入口显示只读查询；无入口返回 false。调用方负责受保护文本及 Accepted 几何的资格。听写继续经同一原生文本输入连接产生 Commit／Preedit；不伪造一个未公开的启动听写命令。上述服务的真实提供者及系统 UI 在对应平台另行验收。
+
+Window.requestHapticFeedback(pattern=Generic) 返回 HapticFeedbackRequest（Requested／Unavailable／Unsupported），pattern 为 Generic、Alignment 或 LevelChange。Requested 只表示已调用原生反馈入口，不承诺机器连接了支持设备或一定产生感觉；不提供虚假的设备检测。macOS 使用 NSHapticFeedbackManager.defaultPerformer，隐藏、关闭中或输入被阻塞的窗口不请求；Windows／GTK 无对应普通窗口的公共统一入口时返回 Unsupported。调用方决定何时请求并提供关闭选项，不用声音、振动窗口或持续定时器替代触觉。
+
 ### 2.3 窗口活动状态观察
 
 `Window.activity` 返回自有 `WindowActivity(focused, visible, occluded)` 快照；`observeActivity(callback)` 返回 Closeable 登记，创建时记录当前快照，不内联调用 callback。窗口 owner 线程在原生 Focused／Occluded／GeometryChanged 事件派发前、setVisible 实际操作后比较当前快照，仅值变化时同步通知。回调可以读取状态、取消自身登记或关闭窗口；取消后不再接收当前批次余下通知，后注册的观察者不加入正在派发的批次。回调异常遵守所在普通业务调用的失败处理。
@@ -172,12 +192,13 @@ TextInputBatch 保存可选 baseRevision、origin 与有序的 TextInputOperatio
 | Preedit | text、可选 selection（相对 preedit，保留活动端）、replacement；空 text 清除组合 |
 | Commit | text、replacement；replacement 为 CurrentSelection 或 Range(Utf8Range)，范围引用该批前序操作产生的临时文本 |
 | DeleteSurrounding | beforeBytes、afterBytes；相对当前 selection 两侧，须校验长度与字符边界 |
+| SetSelection | 文档坐标的 Utf8Selection，保留活动端方向；只改变选区，不替换正文。存在 marked range 时两端须留在该范围内；先 ClearPreedit 可接受组合后再选择其他正文 |
 
 纯值批次开始时核对 baseRevision，按顺序在临时文本上解释范围，整批通过后发布一次新快照。任何范围或 revision 失效均拒绝整批，不能部分应用。AppKit 的 CurrentSelection Preedit／Commit 保持 baseRevision=None；只有引用实际已发布文档的显式范围使本批携带该文档的 baseRevision。取消组合产生空 Preedit，删除应用正在显示的组合内容；上层编辑器可据其组合事务恢复替换前基线。unmarkText 表示接受已经显示的组合，产生 ClearPreedit 而保留正文；它与 cancelComposition 不同，不能把接受组合变成删除或第二次插入。原生 insertText 接受实际纯文本及显式替换，包括空字符串和换行，普通未解释按键的 fallback 仍过滤控制键。原生 UTF-16 选区必须合法且不切断 surrogate pair，非法批次拒绝并撤销组合。
 
 AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选区。没有文档快照时，显式 replacement 只能引用已知 native marked segment，归一为整段 CurrentSelection 替换，选区先平移再转 UTF-8。有文档快照时，显式 replacement 使用文档坐标，按本批前序操作的临时文本转成 UTF-8；若较早排队编辑尚未处理或范围未知，则拒绝整批，不能退回 marked 局部索引或重新解释旧范围。过期的 managed baseRevision 同样拒绝整批，由宿主关闭到 Disabled 后用当前 state 重开连接。无效 native 批次丢弃全部待交付操作；仅在批次开始前已有 native preedit 时产生一次空 Preedit 撤销它，不能因拒绝一个新组合而误删应用原选区。
 
-`TextInputState.apply(batch)` 提供上述字节编辑规则的纯值实现，供输入归一和应用同步快照使用，不承担文档布局。CurrentSelection 在存在 marked range 时替换组合文本，否则替换 selection；ClearPreedit 只清除 marked 标记。Preedit 插入后设置 marked range，并把相对 selection 平移到新文本；Commit 清除组合，光标落在插入末尾。DeleteSurrounding 删除 selection 之前／之后指定字节，保留选区正文与活动端方向，清除组合标记。成功批次统一使 revision 加一，空批次保持原值；过期 revision 报 IllegalStateException，非法范围、尺寸或 revision 溢出报 IllegalArgumentException，原快照保持不变。
+`TextInputState.apply(batch)` 提供上述字节编辑规则的纯值实现，供输入归一和应用同步快照使用，不承担文档布局。CurrentSelection 在存在 marked range 时替换组合文本，否则替换 selection；ClearPreedit 只清除 marked 标记。Preedit 插入后设置 marked range，并把相对 selection 平移到新文本；Commit 清除组合，光标落在插入末尾。DeleteSurrounding 删除 selection 之前／之后指定字节，保留选区正文与活动端方向，清除组合标记。SetSelection 使用该批前序操作之后的文档坐标，保留正文和 marked range；原生文档选择携带 baseRevision，不以插入空字符串模拟选择。成功批次统一使 revision 加一，空批次保持原值；过期 revision 报 IllegalStateException，非法范围、尺寸或 revision 溢出报 IllegalArgumentException，原快照保持不变。
 
 Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力；原始接触不被已识别手势替代。
 

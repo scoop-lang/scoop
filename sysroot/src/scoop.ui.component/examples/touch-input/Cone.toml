@@ -13,3 +13,10 @@ kind = "executable"
 "scoop:scoop.ui.style" = "0.1.0"
 "scoop:scoop.ui.style.shadcn" = "0.1.0"
 "scoop:scoop.window" = "0.1.0"
+"scoop:scoop.graphics" = "0.1.0"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+
+[[test.sources]]
+path = "tests"

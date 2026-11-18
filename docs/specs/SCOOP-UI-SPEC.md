@@ -548,7 +548,7 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 原生 batch 先按原始操作顺序完整准备，再将已提交部分交给策略。末尾 preedit 的正文和选区保持原样，单行、字符和长度限制均不应用到临时组合；一个 batch 中先 Commit 后 Preedit 时，前面的提交照常过滤，后面的 preedit 通过区间映射重新接到过滤后的基线上。跨批更新保留同一组合基线；当前 policy 更新不改写活动 preedit，最终 Commit／ClearPreedit 使用当前策略。最终结果一次发布正文、方向选区、affinity、marked range、revision 和历史；一次接受的批次只产生一个最终编辑差量。显式变换及组合边界结束连续键入合并。
 
-拒绝普通编辑保留原文档和历史；拒绝已有组合的最终提交则恢复组合基线并结束 marked 状态。有效原生批次即使被拒绝也推进确认所需的 revision 并向相同 origin 发布真实快照，不依赖正文通知。Undo／Redo 回放已接受的差量，不重新运行策略。回调在现有 UI 纯求值边界执行，不能写 State 或重入编辑器；回调异常、非法区间在发布前失败，保留正文、组合、历史和原生快照，不将策略异常当作过期原生批次而重建连接。
+拒绝普通编辑保留原文档和历史；拒绝已有组合的最终提交则恢复组合基线并结束 marked 状态。有效原生批次即使被拒绝也推进确认所需的 revision 并向相同 origin 发布真实快照，不依赖正文通知。原生 SetSelection 沿同一批次改变方向选区并显露实际 cursor；单独选择不经过正文过滤、不创建 undo 编辑项，也不发送正文编辑通知。它中断后续 typing 合并；与插入或 preedit 同批时，最终选区在前序临时正文上解析，并随实际策略映射保留。Undo／Redo 回放已接受的差量，不重新运行策略。回调在现有 UI 纯求值边界执行，不能写 State 或重入编辑器；回调异常、非法区间在发布前失败，保留正文、组合、历史和原生快照，不将策略异常当作过期原生批次而重建连接。
 
 #### 7.5.2 公共纯文本编辑宿主
 
@@ -577,6 +577,16 @@ TextEditOptions.drag 默认为 TextDragOptions()，配置独立的选区拖出�
 `interaction` 只读取 owner 线程上最后发布的交互值，不借用输入区域或排版资源。关窗／卸载的失焦与离开通知继续更新该值，回调可同步读取；宿主关闭后仍可读取最后发布的值。该只读查询不以 ComponentScope.isMounted 拒绝，不恢复交互资格；更新、编辑命令及借用布局等操作仍要求有效宿主。
 
 TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink: Duration?=None、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
+
+两类文本宿主使用 TextPrimarySelectionOptions(publish=true, paste: Boolean?=None) 配置 PRIMARY。publish 控制将非空选区发布到平台真实选区缓冲；导出复用同一复制策略、投影和 protectedText 限制；显式 Copy Allow 不解除受保护／遮蔽正文的自动导出限制。paste=None 遵循平台中键设置，显式值可关闭或覆盖设置，但不会把不支持的后端变成普通 Clipboard。选择、所导出正文或配置确有变化时更新拥有内容；无变化的重绘不争夺 PRIMARY。选区清空、禁止导出、模型替换、禁用或关闭时释放自有 claim，旧 claim 不清理后来者。隐式导出遇到不可传输正文或平台写入失败时保留正常编辑，不在每帧重复尝试；应用显式调用 Window PRIMARY API 时仍取得原错误。
+
+可编辑宿主的中键粘贴在最近 Accepted 几何确定的落点执行，先读取原 PRIMARY 再改变本地选择；否则不能把本次落点变化发布成新 PRIMARY 后再误读自身。实际插入沿 Paste 的导入清洗、Reject／Transform、长度与字符策略，以及原组合、revision、撤销和通知事务；只读或禁用宿主不执行粘贴。它不改普通 Clipboard，不生成鼠标左键或按键，也不和普通左键拖选重复。缺失、过期落点及正文／目标在读取期间改变时拒绝旧请求。
+
+TextContextMenuOptions.systemServices 默认 true；仅在 PreferSystem 下附加平台实际可用的拼写／语法建议、词典与已注册文本 Services。建议与服务绑定原模型、revision、选区、配置和菜单会话；动作发生或异步／原生服务返回时重新核对，换模型、正文／选择改变、禁用、关闭或失去资格后不得作用于新目标。选择文本沿现有复制／plain-text 规则导出，protectedText、遮蔽投影和禁止复制时不交给系统服务；只读宿主仅提供读取操作，丢弃服务返回的替换文本。替换经既有 TextEditPolicy 与单次撤销事务，原生菜单完成通知不再次编辑。
+
+TextEditOptions.automaticTextReplacement 默认 false，Input／Textarea／OTP 及其组合入口透传。显式启用且平台提供更正能力时，只对本次原生输入完成的提交区域及其所在段落请求系统允许的替换；组合未完成、受保护／遮蔽正文、粘贴、拖放和程序替换不触发。替换与原提交合并为同一候选后再调用应用 policy，保留 UTF-8 映射、最终选择和单次撤销；结果过期不应用。连续拼写下划线、系统候选气泡及依赖完整 NSTextCheckingClient 几何的排版服务不由只读检查结果假冒。
+
+TextTouchOptions.hapticFeedback 默认 true；两类文本宿主仅在实际接受长按选择／菜单动作后请求一次 Generic 反馈。应用可关闭；不可用或不支持时保持原交互，不增加轮询或替代效果。
 
 TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 的显式值为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered／focusVisible 投影，实际焦点、指示与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
 

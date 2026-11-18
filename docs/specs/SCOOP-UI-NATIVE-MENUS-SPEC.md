@@ -58,9 +58,9 @@ DeleteSelection 仅删除当前非空选区，不等价于向前删除。TextEdi
 
 ## 6. 文本框内建上下文菜单
 
-`TextEditOptions.contextMenu` 为 TextContextMenuOptions，默认 mode=PreferSystem、selection=Platform、labels=None。TextContextMenuMode 提供 Disabled、StandardNative、PreferSystem；TextContextMenuSelection 提供 Platform、Preserve、PlaceCaret、SelectWord。`textContextMenu { ... }` 和 copy builder 构造该不可变值，labels 使用 Window 的 TextContextMenuLabels。Input／Textarea／InputOtp 及组合入口透传此选项；禁用内建菜单时保留自定义包装的正常输入路由。
+`TextEditOptions.contextMenu` 为 TextContextMenuOptions，默认 mode=PreferSystem、selection=Platform、labels=None、systemServices=true。TextContextMenuMode 提供 Disabled、StandardNative、PreferSystem；TextContextMenuSelection 提供 Platform、Preserve、PlaceCaret、SelectWord。`textContextMenu { ... }` 和 copy builder 构造该不可变值，labels 使用 Window 的 TextContextMenuLabels。Input／Textarea／InputOtp 及组合入口透传此选项；禁用内建菜单时保留自定义包装的正常输入路由。
 
-SelectableTextOptions 提供相同的 contextMenu 及默认值，SelectableTextHost.showContextMenu() 使用当前 Accepted 段落中的选区或插入位置作为键盘锚点；它不创建可写编辑宿主。菜单只保留 Copy／SelectAll 及二者之间的有效分隔线，复制使用 Accepted StyledText 的 alternateText；copy=false 禁用复制，disabled 不打开菜单。只读选择与可编辑宿主共用原生会话、最新可用性、标签和选区外点击策略。
+SelectableTextOptions 提供相同的 contextMenu 及默认值，SelectableTextHost.showContextMenu() 使用当前 Accepted 段落中的选区或插入位置作为键盘锚点；它不创建可写编辑宿主。标准编辑部分只保留 Copy／SelectAll 及二者之间的有效分隔线，复制使用 Accepted StyledText 的 alternateText；copy=false 禁用复制，disabled 不打开菜单。只读选择与可编辑宿主共用原生会话、最新可用性、标签和选区外点击策略。
 
 已通过 updateTextEditor／updateSelectableText 接入语义的宿主提供 ShowContextMenu，菜单模式为 Disabled 时不公布该动作。明确的语义菜单请求可先请求原目标焦点，再用上述 Accepted 锚点创建同一个菜单会话；等待实际焦点或已有会话时返回 Busy，缺少锚点或资格时拒绝。会话建立后返回 Completed，菜单后续运行沿现有延迟 native operation，不在同步 accessibility 回调中递归 tracking，也不复制系统菜单的语义树。完整规则见 [UI 无障碍规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#5-文本编辑宿主)。
 
@@ -75,3 +75,5 @@ TextTouchOptions 的长按使用同一选区与菜单操作，真实来源保留
 共享会话在更换编辑模型前失效；只读宿主在正文或行内替代文字变化时失效，单纯字体／颜色变化不取消菜单。打开过程中的焦点或选择回调若关闭宿主或替换文档，该次请求停止。两个宿主的菜单动作分别回到自己的 execute，不能落到当前任意焦点控件。辅助点击不启动文本拖选；公共 Press 对平台认可的辅助按下不建立主按钮激活候选，让正常菜单路由继续。
 
 菜单资源在首次使用时创建；没有请求不分配 OS 菜单。关闭先停止动作及观察，再取消 session／关闭 Menu，原生 tracking 与 Window lease 继续使用既有收尾。菜单创建／显示失败走所属根错误边界。没有后台轮询、额外事件循环或新增编译器机制。实际系统模板复用与回退遵守 Window 菜单规范第 6 节，不能把模板存在当作全部系统文本服务已支持。
+
+PreferSystem 的 systemServices 入口沿[UI 文本服务合同](SCOOP-UI-SPEC.md)附加实际可用的拼写／语法建议、词典及已注册文本 Services；StandardNative 仍只提供标准编辑项。只读菜单仅导出文本，不执行返回的替换；受保护、遮蔽或禁止复制的宿主不调用这些服务。每项服务保存目标、revision／选择与配置，动作执行及原生返回后核对当前资格；显示／完成通知不重复编辑。菜单项仍由原生 Menu 所有，不另造 accessibility 菜单树或隐藏编辑器。

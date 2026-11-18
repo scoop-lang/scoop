@@ -8,7 +8,9 @@ public struct TextContextMenuLabels(
     val copy: String? = None,
     val paste: String? = None,
     val deleteSelection: String? = None,
-    val selectAll: String? = None
+    val selectAll: String? = None,
+    val lookUp: String? = None,
+    val services: String? = None
 )
 
 public enum TextContextMenuSource {

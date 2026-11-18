@@ -14,15 +14,17 @@ public enum TextContextMenuSelection {
 public struct TextContextMenuOptions(
     val mode: TextContextMenuMode = TextContextMenuMode.PreferSystem,
     val selection: TextContextMenuSelection = TextContextMenuSelection.Platform,
-    val labels: TextContextMenuLabels? = None
+    val labels: TextContextMenuLabels? = None,
+    val systemServices: Boolean = true
 )
 
 public class TextContextMenuOptionsBuilder internal constructor(value: TextContextMenuOptions) {
     public var mode: TextContextMenuMode = value.mode
     public var selection: TextContextMenuSelection = value.selection
     public var labels: TextContextMenuLabels? = value.labels
+    public var systemServices: Boolean = value.systemServices
     internal fun snapshot(): TextContextMenuOptions =
-        TextContextMenuOptions(mode, selection, labels)
+        TextContextMenuOptions(mode, selection, labels, systemServices)
 }
 
 public fun textContextMenu(

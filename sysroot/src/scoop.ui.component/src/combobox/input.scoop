@@ -87,7 +87,9 @@ internal fun <T: Equals<T>> comboEditor(
                     TextFieldExpansion(control.open.value, { value -> control.semanticOpen(value) })
                 ),
                 field.inputPurpose,
-                field.softwareKeyboard
+                field.softwareKeyboard,
+                field.primarySelection,
+                field.automaticTextReplacement
             ),
             { current, mount -> Input(current, scope = mount) }
         )

@@ -131,6 +131,26 @@ internal fun prepareEditorInput(
                 completed = true
                 boundary = true
             }
+            case SetSelection(val selection) -> {
+                current = next
+                boundary = true
+                when (applied.markedRange) {
+                    case Some(val marked) -> if (pending.size > 0L) {
+                        val index = pending.size - 1L
+                        val value = pending[index]
+                        pending[index] =
+                            EditorPendingPreedit(
+                                value.range,
+                                value.text,
+                                Utf8Selection(
+                                    selection.anchor - marked.start,
+                                    selection.cursor - marked.start
+                                )
+                            )
+                    }
+                    case None -> {}
+                }
+            }
         }
         mapping =
             EditorComposedMap(mapping, editorOperationMap(beforeOperation, current, operation))
@@ -165,6 +185,7 @@ private fun explicitEditorRange(operation: TextInputOperation): Boolean =
     when (operation) {
         case Commit(_, TextReplacement.Range(_)) -> true
         case Preedit(_, _, TextReplacement.Range(_)) -> true
+        case SetSelection(_) -> true
         else -> false
     }
 
@@ -185,7 +206,8 @@ internal fun finishEditorInput(
     source: TextEditSource,
     singleLine: Boolean = false,
     kind: EditorEditKind = EditorEditKind.Typing,
-    selection: EditorSelection? = None
+    selection: EditorSelection? = None,
+    replacements: Array<TextEditReplacement> = []
 ): EditorPreparedEdit {
     if (!raw.completed) {
         val composition =
@@ -207,7 +229,15 @@ internal fun finishEditorInput(
         case None -> {}
     }
     val filtered =
-        filterEditorCandidate(raw.before, proposed, raw.committedSpans, source, policy, singleLine)
+        filterEditorCandidate(
+            raw.before,
+            proposed,
+            raw.committedSpans,
+            source,
+            policy,
+            singleLine,
+            replacements
+        )
     val result =
         when (filtered) {
             case Some(val value) -> value

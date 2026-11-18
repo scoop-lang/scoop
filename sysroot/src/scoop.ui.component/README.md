@@ -1,5 +1,7 @@
 # 自绘基础控件
 
+Input／Textarea／InputOtp 及其组合包装透传 `primarySelection` 和 `automaticTextReplacement`；后者默认 false。PreferSystem 文本菜单的 `systemServices` 默认 true，可单独关闭；受保护／遮蔽文本不发送到系统检查或 Services。Typography／SelectableStyledText 通过 `SelectableTextOptions.primarySelection` 配置选区导出。`TextTouchOptions.hapticFeedback=false` 关闭长按触觉请求。完整组合入口见[双窗口交互展示](examples/touch-input/README.md)，平台能力与限制见[文本服务核查](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
+
 直接触摸的剩余入口共用 UI 行为：Tooltip／HoverCard 的 `longPress` 默认启用且可配置，图表短按选中数据，侧栏隐藏动作可长按显示，候选列表、输入外边距及组合输入保留普通点击与滚动竞争。Input／Textarea 的 `inputPurpose`、`softwareKeyboard` 同时提供 Props 与 builder；OTP 默认按 Digits 模式提示数字键盘。软键盘的实际遮挡由文本宿主沿原滚动路径处理，不改变选区。用法见[触摸输入示例](examples/touch-input/README.md)；实际设备行为仍需对应平台验收。
 
 基础输入、选择、数值、菜单、Tab、模态、日期、表格、虚拟集合及会话控件使用同一默认语义入口。通过 Props 或 builder 的 `semantics = ComponentSemantics(...)` 覆盖 name、description、error、automationId、relations、hidden／ignored、busy／live；角色、checked／selected／expanded、禁用、只读、正文与动作取实际控件。三个桌面平台共用组件声明，AppKit／UIA／AT-SPI 的实际验收范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。完整消费者见[无障碍设置示例](examples/accessibility/README.md)。
@@ -114,7 +116,7 @@ Checkbox 可接收 `Binding<CheckState>`（Unchecked／Checked／Indeterminate�
 
 Input／Textarea／InputOtp 默认提供原生文本菜单。使用 `contextMenu { mode = TextContextMenuMode.StandardNative; selection = TextContextMenuSelection.Preserve }` 可选择标准菜单并保留选区外点击的选择；Disabled 关闭内建入口，PreferSystem 尽量复用可执行的系统模板。相关类型位于 `scoop.ui.text`，可选标签覆盖使用 `scoop.window.TextContextMenuLabels`。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 透传当前配置；需要应用自定义菜单时先关闭内建入口，再使用现有菜单包装。编辑动作始终进入同一个 TextEditorState，OTP 的长度与模式限制仍然有效。
 
-macOS 输入控件默认支持文本选区拖出及文本／URL 拖入。使用 `input(editor) { acceptDrops = false }` 关闭接收，使用 `drag = TextDragOptions(enabled = false)` 关闭导出；Textarea、InputOtp 与 Props 同名属性采用同样默认值，InputGroup、Command、Combobox、SidebarInput 等包装透传配置。drag 配置阈值、导出策略、Copy／Move 和完成通知，只读只能 Copy；SelectableStyledText.options.drag 与 Typography 的 `selection = Some(SelectableTextOptions(drag = ...))` 使用同一只读来源。落点、临时 caret、边缘滚动、composition 与 undo 由原 TextEditHost 处理。拖入复用 paste 和通用 policy，OTP 的清洗／裁剪不能伪装成完整 Move；同文档移动一次撤销，SourceRetained 表示目标已接收但源未删除。受保护输入可以导入，默认不拖出原文。具体合同及平台范围见[统一计划](../../../docs/ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)。
+输入控件默认接入文本选区拖出及文本／URL 拖入；三平台共用宿主，实际验证范围见交互实施记录。使用 `input(editor) { acceptDrops = false }` 关闭接收，使用 `drag = TextDragOptions(enabled = false)` 关闭导出；Textarea、InputOtp 与 Props 同名属性采用同样默认值，InputGroup、Command、Combobox、SidebarInput 等包装透传配置。drag 配置阈值、导出策略、Copy／Move 和完成通知，只读只能 Copy；SelectableStyledText.options.drag 与 Typography 的 `selection = Some(SelectableTextOptions(drag = ...))` 使用同一只读来源。落点、临时 caret、边缘滚动、composition 与 undo 由原 TextEditHost 处理。拖入复用 paste 和通用 policy，OTP 的清洗／裁剪不能伪装成完整 Move；同文档移动一次撤销，SourceRetained 表示目标已接收但源未删除。受保护输入可以导入，默认不拖出原文。具体合同及平台范围见[统一计划](../../../docs/ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)。
 
 SelectableStyledText 的 `options = SelectableTextOptions(contextMenu = textContextMenu { selection = TextContextMenuSelection.Preserve })` 配置只读 Copy／SelectAll 菜单，默认也使用 PreferSystem。Typography 的 `selection = Some(SelectableTextOptions(...))` 使用应用完整的选项；默认 `None` 从当前主题解析选区外观。正文与行内替代文字来自共享只读宿主，辅助点击不触发行内主按钮，键盘菜单沿现有焦点与 Accepted 选区定位。
 

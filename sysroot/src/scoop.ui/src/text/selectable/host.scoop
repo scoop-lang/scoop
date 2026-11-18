@@ -38,6 +38,7 @@ public class SelectableTextHost public constructor(
             event -> selectableHandle(this, context, event)
         }
     public val focus = scope.focusTarget(area)
+    internal val primarySelection = PrimaryTextSelection(scope.nativeWindow)
     internal val dataSource = createSelectableDragSource(this)
     internal val contextMenu =
         TextContextMenu(
@@ -173,6 +174,8 @@ public class SelectableTextHost public constructor(
                 (contextMenu.hasTarget && this.content.toPlainText() != content.toPlainText())
         )
             contextMenu.cancel()
+        if (textChanged)
+            primarySelection.close()
         this.fonts = fonts
         if (this.content !== content)
             semanticText = None
@@ -291,6 +294,7 @@ public class SelectableTextHost public constructor(
         failure = cleanupUi(failure) { semantics.close() }
         semanticLayout = None
         failure = cleanupUi(failure) { contextMenu.close() }
+        failure = cleanupUi(failure) { primarySelection.close() }
         failure = cleanupUi(failure) { touchPress.close() }
         failure = cleanupUi(failure) { touchHandles.close() }
         failure = cleanupUi(failure) { dataSource?.close() }

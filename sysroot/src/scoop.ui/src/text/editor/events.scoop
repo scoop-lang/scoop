@@ -58,6 +58,10 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
                     context.consume()
                 return
             }
+            if (button == MouseButton.Middle && editorPastePrimary(host, context.localPosition)) {
+                context.consume()
+                return
+            }
         }
         case Keyboard(val key) -> {
             if (textMenuKey(key) && host.showContextMenu()) {
@@ -205,7 +209,8 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
                             prepared,
                             host.options.policy,
                             TextEditSource.NativeInput,
-                            !host.options.multiline
+                            !host.options.multiline,
+                            replacements = editorNativeReplacements(host, prepared)
                         ).publish(host.current, true)
                         case None -> false
                     }
@@ -214,6 +219,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
                 }
             if (changed)
                 host.invalidate()
+            host.refreshMenuCommands()
             host.publishNative(batch.origin)
             host.notifyEdited(before, beforeCommitted)
         }

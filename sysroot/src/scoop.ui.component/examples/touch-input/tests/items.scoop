@@ -1,0 +1,39 @@
+package scoop.examples.touchinput
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class WorkshopReorderTest {
+    @Test
+    fun `local reorder preserves identities and completion does not delete the source twice`() {
+        val model = WorkshopItems()
+        val transfer = WorkshopTransfer(model, 3L, model.revision)
+        transfer.reordered = model.moveBefore(3L, 1L)
+        transfer.finish(DragResult.Dropped(DragEffect.Move))
+        assertEquals(200L, model.order.value.size)
+        assertEquals(3L, model.order.value[0L])
+        assertEquals(1L, model.order.value[1L])
+        val source = WorkshopItemSource(model, model.order.value)
+        assertEquals(Some(0L), source.indexOfKey(source.keyAt(0L)))
+        model.move(3L, 1L)
+        assertEquals(3L, model.order.value[1L])
+    }
+    @Test
+    fun `external move removes once while copy and changed sources keep the item`() {
+        val model = WorkshopItems()
+        val copy = WorkshopTransfer(model, 1L, model.revision)
+        copy.finish(DragResult.Dropped(DragEffect.Copy))
+        assertEquals(200L, model.order.value.size)
+        val moved = WorkshopTransfer(model, 1L, model.revision)
+        moved.finish(DragResult.Dropped(DragEffect.Move))
+        moved.finish(DragResult.Dropped(DragEffect.Move))
+        assertEquals(199L, model.order.value.size)
+        assertEquals(None, model.indexOf(1L))
+        val stale = WorkshopTransfer(model, 2L, model.revision)
+        model.move(2L, 1L)
+        stale.finish(DragResult.Dropped(DragEffect.Move))
+        assertEquals(Some(1L), model.indexOf(2L))
+        assertEquals(199L, model.order.value.size)
+    }
+}

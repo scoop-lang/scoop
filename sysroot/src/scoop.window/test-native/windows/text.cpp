@@ -28,7 +28,9 @@ struct EditSession : ITfEditSession {
       delete this;
     return remaining;
   }
-  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie) override { return body(); }
+  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie) override {
+    return body();
+  }
 };
 
 SWTextState *text_state(HWND hwnd) {
@@ -43,8 +45,8 @@ HRESULT edit(HWND hwnd, bool write, const std::function<HRESULT()> &body) {
   EditSession *session = new EditSession(body);
   HRESULT session_result = E_FAIL;
   DWORD flags = (write ? TF_ES_READWRITE : TF_ES_READ) | TF_ES_SYNC;
-  HRESULT hr = state->context->RequestEditSession(0, session, flags,
-                                                  &session_result);
+  HRESULT hr =
+      state->context->RequestEditSession(0, session, flags, &session_result);
   session->Release();
   return FAILED(hr) ? hr : session_result;
 }
@@ -72,8 +74,8 @@ HRESULT composition(HWND hwnd, bool start) {
   if (!store)
     return E_UNEXPECTED;
   ITfContextOwnerCompositionSink *sink = nullptr;
-  HRESULT hr = store->QueryInterface(IID_ITfContextOwnerCompositionSink,
-                                     (void **)&sink);
+  HRESULT hr =
+      store->QueryInterface(IID_ITfContextOwnerCompositionSink, (void **)&sink);
   if (FAILED(hr))
     return hr;
   if (start) {
@@ -99,8 +101,8 @@ HRESULT document(ITextStoreACP *store, const std::wstring &expected,
   WCHAR actual[256];
   ULONG count = 0, runs = 0;
   LONG next = 0;
-  HRESULT hr = store->GetText(0, -1, actual, 256, &count, nullptr, 0, &runs,
-                              &next);
+  HRESULT hr =
+      store->GetText(0, -1, actual, 256, &count, nullptr, 0, &runs, &next);
   if (FAILED(hr) || expected != std::wstring(actual, count))
     return E_FAIL;
   TS_SELECTION_ACP selection;
@@ -231,6 +233,32 @@ int32_t snapshot(HWND hwnd, int32_t phase) {
   case 11:
     hr = edit(hwnd, false, [&] { return caret(store, 3); });
     break;
+  case 12:
+    hr = edit(hwnd, true, [&] {
+      TS_SELECTION_ACP selection = {};
+      selection.acpStart = 8;
+      selection.acpEnd = 10;
+      selection.style.ase = TS_AE_START;
+      return store->SetSelection(1, &selection);
+    });
+    break;
+  case 13:
+    hr = edit(hwnd, true, [&] {
+      HRESULT result = document(store, L"external😀", 10, 8);
+      if (FAILED(result) || FAILED(caret(store, 8)))
+        return E_FAIL;
+      TS_SELECTION_ACP selection = {};
+      selection.acpStart = 8;
+      selection.acpEnd = 10;
+      selection.style.ase = TS_AE_START;
+      if (FAILED(store->SetSelection(1, &selection)))
+        return E_FAIL;
+      selection.acpStart = 9;
+      if (SUCCEEDED(store->SetSelection(1, &selection)))
+        return E_FAIL;
+      return document(store, L"external😀", 10, 8);
+    });
+    break;
   default:
     return 2;
   }
@@ -252,8 +280,8 @@ int32_t scoop_window_test_text(void *pointer) {
     WCHAR value[4];
     ULONG count, runs;
     LONG next;
-    if (SUCCEEDED(store->GetText(0, 1, value, 4, &count, nullptr, 0, &runs,
-                                &next)))
+    if (SUCCEEDED(
+            store->GetText(0, 1, value, 4, &count, nullptr, 0, &runs, &next)))
       return E_FAIL;
     RECT rect;
     BOOL clipped;
@@ -332,7 +360,8 @@ int32_t scoop_window_test_caret(HWND hwnd) {
     if (FAILED(result))
       return result;
     double scale = GetDpiForWindow(hwnd) / 96.0;
-    POINT first = {(LONG)std::lround(12 * scale), (LONG)std::lround(20 * scale)};
+    POINT first = {(LONG)std::lround(12 * scale),
+                   (LONG)std::lround(20 * scale)};
     POINT second = {(LONG)std::ceil(14 * scale), (LONG)std::ceil(38 * scale)};
     ClientToScreen(hwnd, &first);
     ClientToScreen(hwnd, &second);
@@ -355,8 +384,8 @@ static bool surface_caret(HWND hwnd, bool available, double x, double y,
       return no_caret(store);
     RECT rect;
     BOOL clipped = TRUE;
-    HRESULT result = store->GetTextExt(1, (LONG)cursor, (LONG)cursor, &rect,
-                                       &clipped);
+    HRESULT result =
+        store->GetTextExt(1, (LONG)cursor, (LONG)cursor, &rect, &clipped);
     if (FAILED(result))
       return result;
     double scale = GetDpiForWindow(hwnd) / 96.0;
@@ -365,8 +394,8 @@ static bool surface_caret(HWND hwnd, bool available, double x, double y,
                     (LONG)std::ceil((y + height) * scale)};
     ClientToScreen(hwnd, &first);
     ClientToScreen(hwnd, &second);
-    if (rect.left != first.x || rect.top != first.y ||
-        rect.right != second.x || rect.bottom != second.y || clipped)
+    if (rect.left != first.x || rect.top != first.y || rect.right != second.x ||
+        rect.bottom != second.y || clipped)
       return E_FAIL;
     if (query_point) {
       POINT center = {(rect.left + rect.right) / 2,

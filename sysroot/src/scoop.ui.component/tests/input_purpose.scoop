@@ -14,18 +14,27 @@ private class ContactInputOptionsTest {
         val input = InputBuilder()
         input.inputPurpose = TextInputPurpose.Email
         input.softwareKeyboard = false
+        input.primarySelection = TextPrimarySelectionOptions(false, Some(false))
+        input.automaticTextReplacement = true
         val first = input.inputProps(model)
         input.inputPurpose = TextInputPurpose.Search
         input.softwareKeyboard = true
         assertEquals(TextInputPurpose.Email, first.inputPurpose)
         assertFalse(first.softwareKeyboard)
+        assertFalse(first.primarySelection.publish)
+        assertEquals(Some(false), first.primarySelection.paste)
+        assertTrue(first.automaticTextReplacement)
         assertFalse(first.protectedText)
         val multiline = TextareaBuilder()
         multiline.inputPurpose = TextInputPurpose.Url
         multiline.softwareKeyboard = false
+        multiline.primarySelection = TextPrimarySelectionOptions(paste = Some(true))
+        multiline.automaticTextReplacement = true
         val second = multiline.textareaProps(model)
         assertEquals(TextInputPurpose.Url, second.inputPurpose)
         assertFalse(second.softwareKeyboard)
+        assertEquals(Some(true), second.primarySelection.paste)
+        assertTrue(second.automaticTextReplacement)
         val otp = InputOtpBuilder()
         assertEquals(
             TextInputPurpose.Digits,
@@ -38,9 +47,13 @@ private class ContactInputOptionsTest {
         )
         otp.inputPurpose = Some(TextInputPurpose.Decimal)
         otp.softwareKeyboard = false
+        otp.primarySelection = TextPrimarySelectionOptions(publish = false)
+        otp.automaticTextReplacement = true
         val pin = otpOptions(otp.snapshot(model, 4L), textProjection())
         assertEquals(TextInputPurpose.Decimal, pin.inputPurpose)
         assertFalse(pin.softwareKeyboard)
+        assertFalse(pin.primarySelection.publish)
+        assertTrue(pin.automaticTextReplacement)
     }
     @Test
     fun `hover popup touch configuration is independent from mouse delays and focus`() {

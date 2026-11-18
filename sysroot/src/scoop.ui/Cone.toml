@@ -236,3 +236,27 @@ when = { os = "windows" }
 [[test.sources]]
 path = "tests/window_timing.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/native_selection.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/native_selection.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/primary_selection.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/primary_selection.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_services.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_services.scoop"
+when = { os = "linux", env = "gnu" }

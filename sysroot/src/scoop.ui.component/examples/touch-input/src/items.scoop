@@ -1,0 +1,195 @@
+package scoop.examples.touchinput
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.label as panelLabel
+import scoop.window.*
+
+internal class WorkshopItems {
+    val order = state(Array<Long>(200L) { index -> index + 1L })
+    val status = state("Drag an item above another item, or use its Move up and Move down buttons.")
+    var revision = 0L
+
+    fun indexOf(id: Long): Long? {
+        for (index in 0L ..< order.value.size)
+            if (order.value[index] == id)
+                return Some(index)
+        return None
+    }
+    fun moveBefore(id: Long, target: Long): Boolean {
+        if (id == target || indexOf(id) == None || indexOf(target) == None)
+            return false
+        val next = ArrayList<Long>()
+        for (value in order.value) {
+            if (value == target)
+                next.add(id)
+            if (value != id)
+                next.add(value)
+        }
+        order.value = next.toArray()
+        revision += 1L
+        status.value = f"Moved item ${id} before item ${target}."
+        return true
+    }
+    fun move(id: Long, step: Long) {
+        val index = indexOf(id) ?: return
+        val target = index + step
+        if (target < 0L || target >= order.value.size)
+            return
+        val values = order.value
+        order.value =
+            Array<Long>(values.size) {
+                position -> if (position == index)
+                    values[target]
+                else
+                    if (position == target)
+                        id
+                    else
+                        values[position]
+            }
+        revision += 1L
+        status.value = f"Moved item ${id} to position ${target + 1L}."
+    }
+    fun remove(id: Long) {
+        if (indexOf(id) == None)
+            return
+        val next = ArrayList<Long>()
+        for (value in order.value)
+            if (value != id)
+                next.add(value)
+        order.value = next.toArray()
+        revision += 1L
+        status.value = f"Moved item ${id} to the destination."
+    }
+}
+
+internal class WorkshopItemSource(val model: WorkshopItems, val snapshot: Array<Long>): ItemSource {
+    public override val count: Long get() = snapshot.size
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(snapshot[index])
+    public override fun indexOfKey(key: ViewKey): Long? {
+        for (index in 0L ..< snapshot.size)
+            if (keyAt(index) == key)
+                return Some(index)
+        return None
+    }
+    public override fun build(index: Long): View {
+        val id = snapshot[index]
+        val count = snapshot.size
+        val model = this.model
+        val content =
+            row {
+                this.add(
+                    element(
+                        WorkshopRowInput(model, id),
+                        { value, scope -> WorkshopRow(value, scope) },
+                        [panelLabel(f"Drag item ${id}")]
+                    )
+                )
+                this.button(f"Move ${id} up", { model.move(id, -1L) }) { enabled = index > 0L }
+                this.button(f"Move ${id} down", { model.move(id, 1L) }) {
+                    enabled = index + 1L < count
+                }
+                this.spacing = 8.0
+            }
+        return contextMenu(
+            content,
+            menu {
+                item(ViewKey.Text("move-up"), "Move up", { model.move(id, -1L) }) {
+                    enabled = index > 0L
+                }
+                item(ViewKey.Text("move-down"), "Move down", { model.move(id, 1L) }) {
+                    enabled = index + 1L < count
+                }
+            }
+        )
+    }
+}
+
+internal class WorkshopTransfer(val model: WorkshopItems, val id: Long, val revision: Long) {
+    var reordered = false
+    fun finish(result: DragResult) {
+        when (result) {
+            case Dropped(DragEffect.Move) -> {
+                if (!reordered) {
+                    reordered = true
+                    if (model.revision == revision)
+                        model.remove(id)
+                    else
+                        model.status.value =
+                            "The destination accepted the item; the source was kept because the list changed."
+                }
+            }
+            else -> {}
+        }
+    }
+}
+
+private struct WorkshopRowInput(val model: WorkshopItems, val id: Long)
+
+private class WorkshopRow(
+    private val props: Props<WorkshopRowInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    public override fun onMount() {
+        scope.dragSource(area) {
+            _ ->
+            val input = props.value
+            val transfer = WorkshopTransfer(input.model, input.id, input.model.revision)
+            Some(
+                DragSourceData(
+                    DragContent.Text(f"Item ${input.id}"),
+                    DragEffects(true, true, false),
+                    Some(transfer),
+                    { result -> transfer.finish(result) }
+                )
+            )
+        }
+        scope.dropTarget(
+            area,
+            DropAreaHandlers({ offer, _ -> decision(offer) }, { request, _ -> receive(request) })
+        )
+    }
+    private fun transfer(offer: DropOffer): WorkshopTransfer? =
+        when (offer.localData) {
+            case Some(val value) -> value as? WorkshopTransfer
+            case None -> None
+        }
+    private fun decision(offer: DropOffer): DropDecision {
+        val value = transfer(offer) ?: return DropDecision.Reject
+        if (
+            value.model !==
+                props.value.model ||
+                value.model.revision !=
+                value.revision ||
+                value.id ==
+                props.value.id ||
+                !offer.effects.move ||
+                !offer.formats.text
+        )
+            return DropDecision.Reject
+        return DropDecision.Accept(DragFormat.Text, DragEffect.Move)
+    }
+    private fun receive(request: DropRequest): Boolean {
+        if (decision(request.offer) == DropDecision.Reject)
+            return false
+        val value = transfer(request.offer)!!
+        value.reordered = value.model.moveBefore(value.id, props.value.id)
+        return value.reordered
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(child.size.width, 40.0))),
+            Unit
+        )
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}

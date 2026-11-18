@@ -17,7 +17,8 @@ public class SelectableTextOptions public constructor(
     /** None preserves the original selected glyph colors in the active window. */
     public val selectionTextColor: Color? = None,
     /** None preserves the original selected glyph colors in an inactive window. */
-    public val inactiveSelectionTextColor: Color? = None
+    public val inactiveSelectionTextColor: Color? = None,
+    public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions()
 ) {
     internal fun check() {
         drag.check()

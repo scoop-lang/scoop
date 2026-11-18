@@ -47,7 +47,9 @@ public class InputProps public constructor(
     public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
     public val expansion: TextFieldExpansion? = None,
     public val inputPurpose: TextInputPurpose = TextInputPurpose.Normal,
-    public val softwareKeyboard: Boolean = true
+    public val softwareKeyboard: Boolean = true,
+    public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions(),
+    public val automaticTextReplacement: Boolean = false
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -87,7 +89,9 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
             touchScroll = input.touchScroll,
             scrollPhysics = input.scrollPhysics,
             inputPurpose = input.inputPurpose,
-            softwareKeyboard = input.softwareKeyboard
+            softwareKeyboard = input.softwareKeyboard,
+            primarySelection = input.primarySelection,
+            automaticTextReplacement = input.automaticTextReplacement
         ),
         1L,
         ScrollbarVisibility.Hidden,

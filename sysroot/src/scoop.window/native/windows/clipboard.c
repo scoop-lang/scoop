@@ -242,3 +242,38 @@ void scoop_window_clipboard_destroy(void *value) {
   }
   free(writer);
 }
+
+// These platforms have no native X11/Wayland PRIMARY buffer.
+typedef struct {
+  int64_t generation, error;
+} SWPrimaryClaim;
+
+int32_t scoop_window_primary_flags(void *application) {
+  (void)application;
+  return 0;
+}
+
+SWClipboardText scoop_window_primary_read(void *application) {
+  (void)application;
+  return (SWClipboardText){0};
+}
+
+SWPrimaryClaim scoop_window_primary_claim(void *application,
+                                          const uint8_t *text, int64_t length) {
+  (void)application;
+  (void)text;
+  (void)length;
+  return (SWPrimaryClaim){0};
+}
+
+int32_t scoop_window_primary_current(void *application, int64_t generation) {
+  (void)application;
+  (void)generation;
+  return 0;
+}
+
+int64_t scoop_window_primary_release(void *application, int64_t generation) {
+  (void)application;
+  (void)generation;
+  return 0;
+}

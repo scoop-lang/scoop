@@ -48,7 +48,9 @@ public class InputOtpProps public constructor(
     public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
     public val semantics: ComponentSemantics = ComponentSemantics(),
     public val inputPurpose: TextInputPurpose? = None,
-    public val softwareKeyboard: Boolean = true
+    public val softwareKeyboard: Boolean = true,
+    public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions(),
+    public val automaticTextReplacement: Boolean = false
 ) {
     init {
         requireComponent(length > 0L, "OTP length must be positive")

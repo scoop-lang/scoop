@@ -63,6 +63,7 @@ public class TextEditHost public constructor(
         ) { context, event -> editorHandle(this, context, event) }
     public val focus = scope.focusTarget(area, FocusOptions(visibility = FocusVisibility.Always))
     internal val keyboard = EditorKeyboard(this)
+    internal val primarySelection = PrimaryTextSelection(window)
     internal val contextMenu =
         TextContextMenu(
             scope,
@@ -278,8 +279,10 @@ public class TextEditHost public constructor(
             if (rebound)
                 current.detachHost(this)
         }
-        if (rebound)
+        if (rebound) {
             contextMenu.cancel()
+            primarySelection.close()
+        }
         if (rebound || this.options.protectedText != options.protectedText) {
             retireSemanticDocument()
         }
@@ -470,6 +473,7 @@ public class TextEditHost public constructor(
         failure = cleanupUi(failure) { retireSemanticDocument() }
         semanticLayout = None
         failure = cleanupUi(failure) { contextMenu.close() }
+        failure = cleanupUi(failure) { primarySelection.close() }
         failure = cleanupUi(failure) { keyboard.close() }
         failure = cleanupUi(failure) { touchPress.close() }
         failure = cleanupUi(failure) { touchPan.close() }

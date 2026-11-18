@@ -23,6 +23,8 @@ public class InputOtpBuilder internal constructor() {
     public var protectedText: Boolean = false
     public var inputPurpose: TextInputPurpose? = None
     public var softwareKeyboard: Boolean = true
+    public var primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions()
+    public var automaticTextReplacement: Boolean = false
     public var acceptDrops: Boolean = true
     public var drag: TextDragOptions = TextDragOptions()
     public var touch: TextTouchOptions = TextTouchOptions()
@@ -92,7 +94,9 @@ public class InputOtpBuilder internal constructor() {
             scrollPhysics,
             semantics,
             inputPurpose,
-            softwareKeyboard
+            softwareKeyboard,
+            primarySelection,
+            automaticTextReplacement
         )
 }
 

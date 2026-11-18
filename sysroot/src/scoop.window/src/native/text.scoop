@@ -113,6 +113,7 @@ internal fun copyNativeTextBatch(
                     1 -> TextInputOperation.Commit(text, replacement)
                     2 -> TextInputOperation.ClearPreedit
                     3 -> TextInputOperation.DeleteSurrounding(edit.anchor, edit.cursor)
+                    4 -> TextInputOperation.SetSelection(Utf8Selection(edit.anchor, edit.cursor))
                     else -> throw WindowException(
                         "unknown native text operation",
                         WindowErrorKind.NativeFailure

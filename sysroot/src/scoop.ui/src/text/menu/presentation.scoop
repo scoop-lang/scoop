@@ -4,9 +4,13 @@ import scoop.ui.*
 import scoop.surface.InputArea
 import scoop.window.*
 
+private enum TextMenuAction {
+    Edit(TextEditCommand), Service(TextMenuServiceAction)
+}
+
 private struct TextMenuItem(
     val id: MenuItemId,
-    val command: TextEditCommand,
+    val action: TextMenuAction,
     val label: String,
     val shortcut: ShortcutChord?
 )
@@ -64,7 +68,11 @@ internal class TextContextMenu(
             !window.isInputBlocked &&
             area.scope.isInputAllowed
 
-    fun open(template: TextContextMenuTemplate, placement: PopupPlacement): Boolean {
+    fun open(
+        template: TextContextMenuTemplate,
+        placement: PopupPlacement,
+        services: Array<TextMenuServiceAction> = []
+    ): Boolean {
         if (pending || !eligible())
             return false
         releaseCurrent()
@@ -72,6 +80,12 @@ internal class TextContextMenu(
         try {
             val items = ArrayList<TextMenuItem>()
             val availability = area.scope.textCommandAvailability ?: TextCommandAvailability()
+            for (service in services) {
+                val id = menu.insert(MenuItemDescription(service.label, enabled = service.valid()))
+                items.add(TextMenuItem(id, TextMenuAction.Service(service), service.label, None))
+            }
+            if (items.size > 0L)
+                menu.insert(MenuItemDescription(kind = MenuItemKind.Separator))
             var separator = false
             for (entry in template.entries)
                 when (entry) {
@@ -90,7 +104,7 @@ internal class TextContextMenu(
                                     shortcut = shortcut
                                 )
                             )
-                        items.add(TextMenuItem(id, command, label, shortcut))
+                        items.add(TextMenuItem(id, TextMenuAction.Edit(command), label, shortcut))
                     }
                 }
             val popup = window.showPopup(menu, placement)
@@ -145,8 +159,12 @@ internal class TextContextMenu(
                 session.invoked = true
                 val available = area.scope.textCommandAvailability ?: TextCommandAvailability()
                 try {
-                    if (textMenuAvailable(available, item.command))
-                        perform(item.command)
+                    when (item.action) {
+                        case Edit(val command) -> if (textMenuAvailable(available, command))
+                            perform(command)
+                        case Service(val service) -> if (service.valid())
+                            service.perform()
+                    }
                 } finally {
                     if (session.completed)
                         finish(session)
@@ -165,7 +183,11 @@ internal class TextContextMenu(
         }
         val available = area.scope.textCommandAvailability ?: TextCommandAvailability()
         for (item in session.items) {
-            val enabled = textMenuAvailable(available, item.command)
+            val enabled =
+                when (item.action) {
+                    case Edit(val command) -> textMenuAvailable(available, command)
+                    case Service(val service) -> service.valid()
+                }
             if (session.menu.description(item.id).enabled != enabled)
                 session.menu.update(
                     item.id,

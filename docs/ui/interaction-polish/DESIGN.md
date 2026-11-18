@@ -13,17 +13,17 @@
 | 滚动条 | ScrollArea／VirtualList／Textarea 共用行为配置、系统偏好、hover 宽度与深浅、闲置隐藏、独立命中条带、重复操作及统一 Overlay／Gutter、边缘显露留白 | 逻辑轴范围、原生位置与增减动作已接入；当前验证见实施记录，滚动实窗／平台验收待继续 |
 | 原生文本菜单 | 原生 popup、七种编辑角色及可用性；编辑／只读选择宿主共用三种菜单模式、右键选区、键盘入口和目标会话，输入控件提供独立 protectedText 用途 | 前台实窗与 Windows／GTK 验证、触摸入口、受保护文本的 provider／拖放及系统文本服务；已验证范围见实施记录 |
 | 多击选择 | 公共编辑器已有双击选词、三击选逻辑行、按词／行继续拖选，且已有实窗用例 | Windows 连续点击计数、Linux 系统阈值、平台真实事件及 Unicode／投影组合回归 |
-| 拖动 | 公共轴向 `Drag`；Window／AppKit source／target；UI DropArea 沿 Surface Accepted 输入路径接收，DragSource 接入阈值、延后准备、配对完成回调和挂载收尾 | 文本事务、预览细化及窗口内、同程序跨窗口、跨程序的完整系统会话与活动来源组合；已验证范围见实施记录 |
-| 文本拖放 | 已有拖选和越界自动滚动 | 从选区发起数据拖动、落点 caret、移动／复制、编辑策略与撤销 |
-| 触摸／手势 | 原生手势与 contact 路由、成组接管、Press／Drag、直接滚动、公共长按／swipe、文本短按／长按与多击／选区端点、双指缩放／旋转已接入 | 触摸数据拖放、软键盘、其余控件组合与完整设备验证 |
-| 视觉效果 | 动画、spring、部分控件回弹、主题 `Full／Reduced` | 通用滚动回弹、惯性来源去重、跟随系统减少动画；完善高对比度、缩放与命中体验 |
+| 拖动 | 公共轴向 `Drag`；Window 的 AppKit／OLE／GDK source／target；UI DropArea 沿 Surface Accepted 输入路径接收，DragSource 接入阈值、延后准备、配对完成回调和挂载收尾 | 文本事务、预览细化及窗口内、同程序跨窗口、跨程序的完整系统会话与活动来源组合；已验证范围见实施记录 |
+| 文本拖放 | 共享宿主已接入选区来源、落点 caret、边缘滚动、Copy／Move、导入策略、同文档单次 undo 与 SourceRetained | macOS 已确认的用户结果复用；其他平台与完整文件／活动来源矩阵集中验收 |
+| 触摸／手势 | 原生手势与 contact 路由、成组接管、Press／Drag、直接滚动、公共长按／swipe、文本短按／长按与多击／选区端点、双指缩放／旋转已接入 | 触摸数据拖放、软键盘及控件接入已完成本地整批验证；其余平台和真实设备验证 |
+| 视觉效果 | 动画、spring、部分控件回弹、主题 `Full／Reduced` | 通用回弹、惯性去重、减少动画与定时行为收尾已完成本地整批验证；其余平台验证及最后的配色打磨 |
 | accessibility | 完整设计；Window 语义资源、AppKit 基础投影及 UI scope／逻辑发布／场景、关系、内容合并／忽略、精确命中、基础／只读文本控件、Switch／Toggle／RadioGroup／ToggleGroup、Field 注释关系／必填属性及滚动轴已接入，定向通过范围见实施记录 | 完成内置控件、复杂控件关系、Accepted 实窗验收、全文本／虚拟集合、三平台 provider 和实际客户端，并补本轮交互的语义动作、非拖动替代入口、文本菜单及拖放通知；完整范围见统一实施计划 |
 
 源码核查的几个具体结论：
 
 - [ScrollBarControl](../../../sysroot/src/scoop.ui.component/src/scroll/bar.scoop)现已接入独立宽度／透明度过渡、闲置隐藏和按住重复，共享行为由 ScrollbarFeedback 管理；[ScrollBarsLayout](../../../sysroot/src/scoop.ui.component/src/scroll/decoration.scoop)的 `Auto` 只按滚动范围决定是否显示，不表示一段时间后隐藏。三个消费者已共享 Overlay／Gutter 配置和布局计算，Textarea 默认 Gutter；浮层遮挡通过 ScrollPadding 接入同一 ScrollViewport 与焦点显露。原生场景验证边界见实施记录。
 - [editorPress](../../../sysroot/src/scoop.ui/src/text/editor/pointer.scoop)及[编辑实窗用例](../../../sysroot/src/scoop.ui/tests-cones/editing/tests/scenarios.scoop)已有二／三击逻辑。S1 已在 [Windows 输入](../../../sysroot/src/scoop.window/native/windows/input/pointer.c)补齐三击及更多次数，并将 [Linux 输入](../../../sysroot/src/scoop.window/native/linux/input/pointer.c)改为消费 GTK 自身 count，移除固定 0.5 秒和 5 个物理像素的重复判断。Windows 生产计数算法的本地定向测试已通过；两个平台的原生输入用例仍待目标环境运行，不能据共享编辑行为或算法测试声明整条输入链通过。
-- [公共 Drag](../../../sysroot/src/scoop.ui/src/interaction/drag.scoop)只负责一段鼠标轴向交互，没有跨应用传输和落放目标。[PointerEvent](../../../sysroot/src/scoop.window/src/input/pointer.scoop)也尚无 touch contact 或数据拖放事件。
+- [公共 Drag](../../../sysroot/src/scoop.ui/src/interaction/drag.scoop)处理鼠标与直接接触的轴向交互；跨应用数据传输由独立 DragSource／DropArea 接入。Window 的 Pointer、Contact、Gesture 保留各自原生来源，Surface 在同一 Accepted 场景中路由和处理归属，不把触摸伪装成鼠标。
 - S1 已将 Window 系统偏好经 UI 根传给 [ThemeSource.read(scope)](../../../sysroot/src/scoop.ui.style/src/theme/source.scoop)和[文本选项](../../../sysroot/src/scoop.ui/src/text/editor/options.scoop)。caret 默认继承；四套主题消费减少动画、高对比度、减少透明度和文字缩放。已通过的离屏／实窗范围与剩余系统热切换验证分别记录，不以公共接口接入代替全部控件及设备验收。
 
 ## 2. 需要一起补齐的细节

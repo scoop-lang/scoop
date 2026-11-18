@@ -11,7 +11,8 @@ public class TextTouchOptions public constructor(
     public val longPressDelay: Duration? = Some(Duration.milliseconds(500L)),
     public val multiTap: Boolean = true,
     public val multiTapInterval: Duration? = None,
-    public val selectionHandles: TextSelectionHandleOptions = TextSelectionHandleOptions()
+    public val selectionHandles: TextSelectionHandleOptions = TextSelectionHandleOptions(),
+    public val hapticFeedback: Boolean = true
 ) {
     init {
         requireUi(threshold.isFinite() && threshold >= 0.0, "invalid text touch threshold")

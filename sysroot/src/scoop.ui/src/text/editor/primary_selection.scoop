@@ -1,0 +1,69 @@
+package scoop.ui.text
+
+import scoop.graphics.Point
+import scoop.surface.FocusOrigin
+import scoop.window.Utf8Range
+
+internal fun editorPastePrimary(host: TextEditHost, local: Point?): Boolean {
+    if (
+        host.closed ||
+            !host.options.enabled ||
+            host.options.readOnly ||
+            !host.area.scope.isInputAllowed ||
+            !editorTouchReady(host)
+    )
+        return false
+    val point = local ?: return false
+    val frame = host.accepted ?: return false
+    val state = host.current
+    val revision = state.revision
+    if (frame.display.source.text != state.text)
+        return false
+    val displayed = frame.layout.hitTest(point)
+    val position = frame.display.documentPosition(frame.display.mapping.reverse(displayed))
+    // Reading first preserves the old PRIMARY even when this click selects another position.
+    val text = host.primarySelection.read(host.options.primarySelection) ?: return false
+    val sameFrame =
+        when (host.accepted) {
+            case Some(val current) -> current === frame
+            case None -> false
+        }
+    if (
+        host.closed ||
+            host.current !==
+            state ||
+            state.revision !=
+            revision ||
+            !sameFrame ||
+            !host.options.enabled ||
+            host.options.readOnly ||
+            !host.area.scope.isInputAllowed
+    )
+        return false
+    host.area.requestFocus(FocusOrigin.Pointer)
+    if (
+        host.closed ||
+            host.current !==
+            state ||
+            state.revision !=
+            revision ||
+            !host.options.enabled ||
+            host.options.readOnly ||
+            !host.area.scope.isInputAllowed ||
+            !editorTouchReady(host)
+    )
+        return true
+    editorStopDrag(host, false)
+    host.perform(
+        {
+            editorApplyEdit(
+                host,
+                Utf8Range(position.byteOffset, position.byteOffset),
+                text,
+                TextEditSource.Paste
+            )
+        },
+        endComposition = true
+    )
+    return true
+}

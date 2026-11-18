@@ -109,7 +109,7 @@ internal fun selectableContextMenu(
     if (host.closed || !host.scope.isMounted || !sameMenuText(document, host.content))
         return false
     return if (popup)
-        host.contextMenu.open(template!!, placement)
+        host.contextMenu.open(template!!, placement, selectableSystemMenuActions(host))
     else
         true
 }
@@ -117,7 +117,7 @@ internal fun selectableContextMenu(
 private fun sameMenuText(before: StyledText, after: StyledText): Boolean =
     before === after || (before.text == after.text && before.toPlainText() == after.toPlainText())
 
-private fun selectableMenuAnchor(
+internal fun selectableMenuAnchor(
     host: SelectableTextHost,
     frame: SelectableFrame,
     bounds: Rect

@@ -40,9 +40,9 @@ static void clipboard_read(GObject *object, GAsyncResult *result,
   else
     read->done = true;
 }
-SWClipboardText scoop_window_clipboard_read(const uint8_t *type_bytes,
-                                            int64_t type_length) {
-  SWApplication *app = sw_application;
+SWClipboardText sw_read_clipboard(SWApplication *app, GdkClipboard *clipboard,
+                                  const uint8_t *type_bytes,
+                                  int64_t type_length) {
   if (app->error)
     return (SWClipboardText){.error = -3};
   // Keep the byte length so the shared layer can reject embedded NUL.
@@ -53,8 +53,8 @@ SWClipboardText scoop_window_clipboard_read(const uint8_t *type_bytes,
   const char *formats[] = {plain ? "text/plain;charset=utf-8" : mime,
                            plain ? "text/plain" : NULL, NULL};
   SWClipboardRead read = {.bytes = g_byte_array_new()};
-  gdk_clipboard_read_async(gdk_display_get_clipboard(app->display), formats,
-                           G_PRIORITY_DEFAULT, NULL, clipboard_read, &read);
+  gdk_clipboard_read_async(clipboard, formats, G_PRIORITY_DEFAULT, NULL,
+                           clipboard_read, &read);
   // GTK signals enqueue events; owner handlers and borrowed fd watches wait.
   while (!read.done)
     g_main_context_iteration(app->main_context, TRUE);
@@ -79,6 +79,12 @@ SWClipboardText scoop_window_clipboard_read(const uint8_t *type_bytes,
   }
   g_byte_array_unref(read.bytes);
   return result;
+}
+SWClipboardText scoop_window_clipboard_read(const uint8_t *type_bytes,
+                                            int64_t type_length) {
+  return sw_read_clipboard(sw_application,
+                           gdk_display_get_clipboard(sw_application->display),
+                           type_bytes, type_length);
 }
 SWResult scoop_window_clipboard_create(void) {
   return (SWResult){g_ptr_array_new_with_free_func(g_object_unref), 0};

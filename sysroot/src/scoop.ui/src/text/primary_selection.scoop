@@ -1,0 +1,99 @@
+package scoop.ui.text
+
+import scoop.graphics.text.TextRange
+import scoop.window.*
+
+/** PRIMARY is independent of Copy/Paste; None follows the platform middle-button preference. */
+public struct TextPrimarySelectionOptions(val publish: Boolean = true, val paste: Boolean? = None)
+
+/** Owns only the current export, never the explicit copy/paste clipboard. */
+internal class PrimaryTextSelection(window: Window): Closeable {
+    private val primary = window.primarySelection
+    private var claim: PrimarySelectionClaim? = None
+    private var selected: Utf8Selection? = None
+    private var exported: String? = None
+
+    internal val available: Boolean get() = primary.isAvailable
+
+    internal fun update(selection: Utf8Selection, text: String?) {
+        if (text == None || !primary.isAvailable) {
+            close()
+            return
+        }
+        if (selected == Some(selection) && exported == text)
+            return
+        selected = Some(selection)
+        exported = text
+        val previous = claim
+        claim = None
+        try {
+            claim = primary.claimText(text!!)
+        } catch (_: WindowException) {
+            // A failed implicit export must not interrupt editing or rendering.
+        } catch (_: IllegalArgumentException) {
+            // Native plain-text selection protocols cannot carry an embedded NUL.
+        } finally {
+            release(previous)
+        }
+    }
+
+    internal fun read(options: TextPrimarySelectionOptions): String? {
+        if (!primary.isAvailable || !(options.paste ?: primary.defaultPasteEnabled))
+            return None
+        return primary.readText()
+    }
+
+    public override fun close() {
+        val previous = claim
+        claim = None
+        selected = None
+        exported = None
+        release(previous)
+    }
+
+    private fun release(value: PrimarySelectionClaim?) {
+        try {
+            value?.close()
+        } catch (_: WindowException) {
+            // Implicit ownership cleanup cannot make an otherwise valid edit fail.
+        }
+    }
+}
+
+internal fun TextEditHost.refreshPrimarySelection() {
+    val range = current.selection.range
+    primarySelection.update(
+        current.selection,
+        if (
+            options.enabled &&
+                options.primarySelection.publish &&
+                copyAllowed &&
+                !options.protectedText &&
+                !options.projection.masked &&
+                range.start !=
+                range.end &&
+                primarySelection.available
+        )
+            Some(current.text.utf8Slice(range))
+        else
+            None
+    )
+}
+
+internal fun SelectableTextHost.refreshPrimarySelection(available: Boolean) {
+    val range = selection.range
+    primarySelection.update(
+        selection,
+        if (
+            available &&
+                options.primarySelection.publish &&
+                options.copy &&
+                range.start !=
+                range.end &&
+                primarySelection.available
+        )
+            Some(content.toPlainText(TextRange(range.start, range.end)))
+        else
+            None
+    )
+}

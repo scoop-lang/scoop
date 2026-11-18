@@ -35,6 +35,7 @@ static void display_closed(GdkDisplay *display, gboolean error, gpointer data) {
   sw_fail(data, EPIPE);
 }
 static void finish(SWApplication *app) {
+  sw_primary_cleanup(app);
   sw_preferences_stop(app);
   if (app->display_closed)
     g_signal_handler_disconnect(app->display, app->display_closed);

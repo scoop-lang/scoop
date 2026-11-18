@@ -110,12 +110,12 @@ internal fun editorContextMenu(
     if (host.closed || !host.scope.isMounted || host.current !== document)
         return false
     return if (popup)
-        host.contextMenu.open(template!!, placement)
+        host.contextMenu.open(template!!, placement, editorSystemMenuActions(host))
     else
         true
 }
 
-private fun editorMenuAnchor(host: TextEditHost, frame: EditorFrame, bounds: Rect): Rect? {
+internal fun editorMenuAnchor(host: TextEditHost, frame: EditorFrame, bounds: Rect): Rect? {
     when (val caret = host.area.visibleCaretBounds) {
         case Some(val rect) -> if (rect.height > 0.0)
             return Some(rect)

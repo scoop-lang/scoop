@@ -298,5 +298,7 @@ internal fun groupInputProps(
         input.touchScroll,
         input.scrollPhysics,
         inputPurpose = input.inputPurpose,
-        softwareKeyboard = input.softwareKeyboard
+        softwareKeyboard = input.softwareKeyboard,
+        primarySelection = input.primarySelection,
+        automaticTextReplacement = input.automaticTextReplacement
     )
