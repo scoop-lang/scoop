@@ -19,4 +19,6 @@ TextContextMenuOptions.systemServices 默认启用，仅用于 PreferSystem；�
 
 GTK 4.18.6 的公开 `gdk_display_get_primary_clipboard` 在 Wayland primary-selection 协议缺失时返回普通 GdkClipboard，仅能进程内保存内容。实现通过公开 GObject 类型身份识别这个占位，不调用 GTK 私有协议、不把普通 Clipboard 当作回退。`PrimarySelectionClaim.close()` 仅清自己仍拥有的内容；读取前后的 UI 目标核对以及“先读旧 PRIMARY，再改变选择”属于宿主的粘贴事务。
 
+2026-11-18 的 X11 跨进程检查已通过：公开 Window API 与 `xclip` 双向传输中文／emoji 和换行，外部拥有者接替后旧 claim 失效且关闭不影响新内容，重新认领及释放正常，普通 Clipboard 保持独立。当前用户 GNOME `wayland-0`／GTK 4.22.4 会话的只读查询报告 PRIMARY 可用，实际中键与跨程序收发待人工确认；此前私有 Weston 的无协议结果仅适用于该测试环境。
+
 核查依据为本机 SDK 的 NSSpellChecker.h、NSTextCheckingController.h、NSTextCheckingClient.h、NSView.h、NSApplication.h、NSHapticFeedback.h，Windows 的公开 ISpellChecker／ISpellCheckerFactory 接口，以及 GTK [4.18.6 gdkseat-wayland.c](https://gitlab.gnome.org/GNOME/gtk/-/blob/4.18.6/gdk/wayland/gdkseat-wayland.c) 与 [gdkdisplay.c](https://gitlab.gnome.org/GNOME/gtk/-/blob/4.18.6/gdk/gdkdisplay.c)。原始下载、探针和日志放在仓库外。
