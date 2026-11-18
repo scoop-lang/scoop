@@ -156,7 +156,7 @@ AppKit 的 accessibilityHitTest 从屏幕点经当前 NSWindow／NSView 转为�
 
 `SemanticProperties.selectionMode: SemanticSelectionMode?` 为实际挂载子项的选择容器声明 Single／Multiple；required 表示是否必须保留选择。它只用于 Group／List／RadioGroup／TabGroup／Table，不能与同一节点的虚拟集合选择快照同时声明。没有声明的普通列表不自动变成选择容器，平台不能从 role 猜测是否必选或多选。静态容器只遍历已挂载的选择后代，嵌套选择容器具有独立边界；虚拟集合仍从已发布的 selected keys 查询，不创建条目 View。
 
-Windows 使用 HWND 的 WM_GETOBJECT 返回 UIA Simple／Fragment／FragmentRoot。静态事实在原生不可变快照内读取；Action、按需集合描述和显式集合操作通过窗口 owner 消息调用原入口，不在 COM 线程调用 Scoop。同步等待不启动私有事件循环；owner 重入、发布中和关闭分别按既有 Busy／Unavailable 拒绝。COM 对象仅保留原生树和文档范围，窗口关闭使后续调用返回元素不可用。RuntimeId 使用窗口投影实例与稳定节点／按需代理身份，删除后复用 key 不复活旧对象。
+Windows 使用 HWND 的 WM_GETOBJECT 返回 UIA Simple／Fragment／FragmentRoot。静态事实在原生不可变快照内读取；Action、按需集合描述和显式集合操作通过窗口 owner 消息调用原入口，不在 COM 线程调用 Scoop。同步等待不启动私有事件循环；owner 重入、发布中和关闭分别按既有 Busy／Unavailable 拒绝。COM 对象仅保留原生树和文档范围，窗口关闭使后续调用返回元素不可用。直接宿于 HWND 的根在 GetRuntimeId 返回成功及空数组指针，由 UIA host 提供标识；其余元素使用 UiaAppendRuntimeId、窗口投影实例与稳定节点／按需代理身份，删除后复用 key 不复活旧对象。
 
 Windows 的屏幕坐标使用当前 HWND 客户区原点和 DPI 转换；UIA ClickablePoint 只转换已验证的 activationPoint。TextRange 使用 UTF-8 文档端点，UIA 与 AT-SPI 的文本参数按各自单位转换；普通 retained range 在同文档编辑时更新端点，替换或关闭后不可用。范围查询只读同一发布正文和匹配的原生布局；没有相应布局时，不假造字符边界或位置。
 

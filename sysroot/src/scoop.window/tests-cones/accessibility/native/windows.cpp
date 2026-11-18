@@ -110,6 +110,23 @@ extern "C" int32_t scoop_ax_test_windows_properties() {
     publish(tree, {heading, button});
     Com<IRawElementProviderSimple> title(swax::win::simple(tree->actual(1)));
     Com<IRawElementProviderSimple> control(swax::win::simple(tree->actual(2)));
+    Com<IRawElementProviderSimple> root(swax::win::simple(tree->actual(0)));
+    IRawElementProviderFragment *fragment = nullptr;
+    CHECK(root->QueryInterface(__uuidof(IRawElementProviderFragment),
+                               reinterpret_cast<void **>(&fragment)) == S_OK);
+    Com<IRawElementProviderFragment> rootFragment(fragment);
+    SAFEARRAY *identity = nullptr;
+    CHECK(rootFragment->GetRuntimeId(&identity) == S_OK && !identity);
+    CHECK(control->QueryInterface(__uuidof(IRawElementProviderFragment),
+                                  reinterpret_cast<void **>(&fragment)) ==
+          S_OK);
+    Com<IRawElementProviderFragment> childFragment(fragment);
+    CHECK(childFragment->GetRuntimeId(&identity) == S_OK && identity);
+    LONG first = 0, part = 0;
+    CHECK(SafeArrayGetElement(identity, &first, &part) == S_OK &&
+          part == UiaAppendRuntimeId);
+    SafeArrayDestroy(identity);
+    identity = nullptr;
     VARIANT value;
     CHECK(title->GetPropertyValue(UIA_HeadingLevelPropertyId, &value) == S_OK);
     CHECK(value.vt == VT_I4 && value.lVal == 80053);
@@ -125,6 +142,9 @@ extern "C" int32_t scoop_ax_test_windows_properties() {
     publish(tree, {disabled});
     CHECK(FAILED(invoke->Invoke()) && actions.count == 1);
     tree->close();
+    CHECK(rootFragment->GetRuntimeId(&identity) ==
+              static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE) &&
+          !identity);
     CHECK(control->GetPropertyValue(UIA_ControlTypePropertyId, &value) ==
           static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE));
     CHECK(invoke->Invoke() == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE) &&

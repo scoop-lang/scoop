@@ -33,7 +33,7 @@ accessibility 本轮实现队列覆盖 S2／S4／S5／S7／S10／S11 的相关�
 ### 二级待办：三个平台的功能验证
 
 - [ ] macOS：集中运行与独立 AX 客户端已通过，继续补齐 VoiceOver 及真实设备组合；已有真实捏合／旋转和拖放结果复用。
-- [ ] Windows：两个 LLVM-MinGW CRT 目标各 33 项原生接口与生命周期检查通过；MSVC 完整 UI／控件与外部 UIA 验收进行中，Narrator、实际拖放、触摸／笔和软键盘保留待验。
+- [ ] Windows：MSVC 完整 UI／控件构建、定向交互回归和独立 UIA 客户端已通过，两个 LLVM-MinGW CRT 目标各 33 项原生接口与生命周期检查通过；Narrator、实际拖放、触摸／笔和软键盘保留待验。
 - [ ] Linux：Wayland／X11 的原生生命周期与独立 AT-SPI 客户端已通过；继续补齐 Orca、实际拖放及触摸／笔设备组合，GTK 渲染环境限制见实施记录。
 - [ ] 按第 6、7 节关闭剩余跨功能、外部客户端和真实设备问题；平台缺陷返回一级修复，再做受影响的定向验证。
 
@@ -285,7 +285,7 @@ S9 的功能实现与本地适用验证完成；弹性边界、共享几何、�
 
 ### S10 Windows／Linux 完整 provider
 
-当前进展：下面四项平台实现已完成。macOS AX、Linux Wayland／X11 AT-SPI 的独立客户端检查已通过；Windows 两个 LLVM-MinGW CRT 目标的原生 UIA COM、文本与生命周期检查通过，MSVC 完整 UI 及外部客户端验收进行中。真实读屏器和设备组合仍在二级，详见实施记录。
+当前进展：下面四项平台实现已完成。macOS AX、Linux Wayland／X11 AT-SPI、Windows UIA 的独立客户端检查均已通过；Windows MSVC 完整 UI／控件构建与定向交互回归、两个 LLVM-MinGW CRT 目标的原生 UIA COM／文本／生命周期检查也已通过。真实读屏器和设备组合仍在二级，详见实施记录。
 
 **主要范围：** Window C／C++／GTK／GIO native，共享语义值与实际控件映射。沿 S2 的公共接口跟随 S5／S7，不增加平台专用上层控件源码。
 

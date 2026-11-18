@@ -192,6 +192,9 @@ HRESULT Node::GetRuntimeId(SAFEARRAY **result) {
   *result = nullptr;
   if (!tree || tree->closed || element->retired)
     return UIA_E_ELEMENTNOTAVAILABLE;
+  // UIA obtains the hosted root's identity from its HWND provider.
+  if (!element->reference.node && !element->reference.kind)
+    return S_OK;
   LONG values[] = {UiaAppendRuntimeId, static_cast<LONG>(tree->identity),
                    static_cast<LONG>(tree->identity >> 32),
                    static_cast<LONG>(element->serial),
