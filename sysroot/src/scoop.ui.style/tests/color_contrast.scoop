@@ -1,0 +1,94 @@
+package scoop.ui.style
+
+import scoop.graphics.Color
+import scoop.math.abs
+import scoop.math.pow
+import scoop.test.*
+
+@Test
+private class ThemeContrastTest {
+    @Test
+    fun `contrast pairing preserves sufficient colors and composites onto the actual canvas`() {
+        val original = ColorPair(Color.White, Color.Black)
+        assertEquals(original, contrastThemeColors(original, Color.Black))
+        for (canvas in [Color.White, Color.Black]) {
+            val requested = ColorPair(Color(0.9, 0.1, 0.2, 0.2), Color(0.8, 0.0, 0.1, 0.9))
+            val result = contrastThemeColors(requested, canvas)
+            val expected =
+                Color(
+                    requested.background.red * 0.2 + canvas.red * 0.8,
+                    requested.background.green * 0.2 + canvas.green * 0.8,
+                    requested.background.blue * 0.2 + canvas.blue * 0.8
+                )
+            assertTrue(abs(result.background.red - expected.red) < 0.000001)
+            assertTrue(abs(result.background.green - expected.green) < 0.000001)
+            assertTrue(abs(result.background.blue - expected.blue) < 0.000001)
+            contrastRatio(result, 7.0)
+        }
+    }
+
+    @Test
+    fun `contrast pairing adjusts impossible backgrounds and supports boundary ratios`() {
+        for (minimum in [1.0, 3.0, 4.5, 7.0, 21.0])
+            for (gray in [0.0, 0.25, 0.5, 0.75, 1.0]) {
+                val pair = ColorPair(Color(gray, gray, gray), Color(gray, gray, gray))
+                val result = contrastThemeColors(pair, Color.White, minimum)
+                contrastRatio(result, minimum)
+                assertEquals(result, contrastThemeColors(result, Color.White, minimum))
+            }
+        val middle = Color(0.5, 0.5, 0.5)
+        assertTrue(contrastThemeColors(ColorPair(middle, middle), Color.White).background != middle)
+        val bounded =
+            contrastThemeColors(ColorPair(Color(2.0, -1.0, 0.0), Color.White), Color.White, 3.0)
+        contrastRatio(bounded, 3.0)
+    }
+
+    @Test
+    fun `contrast pairing rejects nonfinite inputs invalid ratios and a translucent canvas`() {
+        val pair = ColorPair(Color.White, Color.Black)
+        for (minimum in [0.0, 22.0, 0.0 / 0.0, 1.0 / 0.0])
+            assertFailsWith<IllegalArgumentException> {
+                contrastThemeColors(pair, Color.White, minimum)
+            }
+        assertFailsWith<IllegalArgumentException> {
+            contrastThemeColors(pair, Color(0.0, 0.0, 0.0, 0.5))
+        }
+        for (value in [0.0 / 0.0, 1.0 / 0.0]) {
+            val invalid = Color(value, 0.0, 0.0)
+            assertFailsWith<IllegalArgumentException> {
+                contrastThemeColors(ColorPair(invalid, Color.Black), Color.White)
+            }
+            assertFailsWith<IllegalArgumentException> {
+                contrastThemeColors(ColorPair(Color.White, invalid), Color.White)
+            }
+            assertFailsWith<IllegalArgumentException> { contrastThemeColors(pair, invalid) }
+        }
+    }
+}
+
+private fun contrastRatio(pair: ColorPair, minimum: Double) {
+    assertEquals(1.0, pair.background.alpha)
+    assertEquals(1.0, pair.foreground.alpha)
+    val a = contrastLuminance(pair.background)
+    val b = contrastLuminance(pair.foreground)
+    val ratio =
+        if (a >= b)
+            (a + 0.05) / (b + 0.05)
+        else
+            (b + 0.05) / (a + 0.05)
+    assertTrue(ratio >= minimum - 0.000001, Some(f"contrast ${ratio} below ${minimum}"))
+}
+
+private fun contrastLuminance(color: Color): Double =
+    0.2126 *
+        contrastLinear(color.red) +
+        0.7152 *
+        contrastLinear(color.green) +
+        0.0722 *
+        contrastLinear(color.blue)
+
+private fun contrastLinear(value: Double): Double =
+    if (value <= 0.04045)
+        value / 12.92
+    else
+        pow((value + 0.055) / 1.055, 2.4)

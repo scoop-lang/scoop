@@ -12,7 +12,7 @@ internal class Showcase(private val model: ShowcaseModel, scope: ComponentScope)
     private var count: Int by state(0)
     private val name = TextEditorState("Scoop")
     private val notes = TextEditorState()
-    private val choices = Array<FocusHandle>(6L) { _ -> FocusHandle() }
+    private val choices = Array<FocusHandle>(7L) { _ -> FocusHandle() }
     public override fun onMount() {
         val items = Array<NavigationItem>(choices.size) { index -> NavigationItem(choices[index]) }
         scope.keyNavigation(
@@ -72,15 +72,17 @@ fun main() {
                                 windowAttributes {
                                     this.title = "Scoop — themes"
                                     this.size = LogicalSize(1120.0, 840.0)
+                                    requestActivation = false
                                 }
                             )
                         model.systemTheme(window.observedTheme)
-                        host.attach(
-                            window,
-                            { mount -> Showcase(model, scope = mount) },
-                            fonts = Some(fonts)
-                        )
-                        window.requestFocus()
+                        model.window =
+                            host.attach(
+                                window,
+                                { mount -> Showcase(model, scope = mount) },
+                                fonts = Some(fonts),
+                                preferences = model.preferences
+                            )
                     }
                     case Window(_, WindowEvent.ThemeChanged(val value)) -> model.systemTheme(value)
                     case Window(_, WindowEvent.CloseRequested) -> active.requestExit()

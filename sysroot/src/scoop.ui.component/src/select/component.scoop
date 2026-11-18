@@ -270,7 +270,7 @@ public class Select<T: Equals<T>> public constructor(
                                 weight = 400;
                                 fontSize = 14.0 * density;
                                 lineHeight = Some(20.0 / 14.0)
-                                if (input.value.value == None)
+                                if (input.value.value == None && !theme.preferences.highContrast)
                                     color = theme.tokens.palette.muted.foreground
                             }
                         text(
@@ -299,7 +299,10 @@ public class Select<T: Equals<T>> public constructor(
                     navigationIcon(
                         NavigationGlyph.Down,
                         16.0 * density,
-                        theme.tokens.palette.muted.foreground
+                        if (theme.preferences.highContrast)
+                            appearance.text.color
+                        else
+                            theme.tokens.palette.muted.foreground
                     )
             ) { shrink = 0.0 }
             if (input.style.surface.padding == None)
@@ -317,7 +320,6 @@ internal fun selectTriggerStyle(
     invalid: Boolean
 ): ButtonStyle {
     val density = theme.tokens.typography.body.fontSize / 14.0
-    val dark = theme.tokens.mode == ThemeMode.Dark
     val borderColor =
         if (invalid)
             (local.surface.validation ?: theme.tokens.validation).borderColor ?:
@@ -351,18 +353,7 @@ internal fun selectTriggerStyle(
                 padding = Some(Insets(8.0 * density, 0.0, 8.0 * density, 0.0))
             style =
                 styleOverride {
-                    background(
-                        Some(
-                            Paint(
-                                if (dark)
-                                    theme.tokens.palette.input.withAlpha(
-                                        theme.tokens.palette.input.alpha * 0.3
-                                    )
-                                else
-                                    Color.Transparent
-                            )
-                        )
-                    )
+                    background(Some(Paint(selectTriggerBackground(theme, false))))
                     border(Some(Border.all(1.0, borderColor)))
                     corners(
                         Corners.all(
@@ -382,23 +373,39 @@ internal fun selectTriggerStyle(
             local.states.copy {
                 hovered =
                     styleOverride {
-                        background(
-                            Some(
-                                Paint(
-                                    if (dark)
-                                        theme.tokens.palette.input.withAlpha(
-                                            theme.tokens.palette.input.alpha * 0.5
-                                        )
-                                    else
-                                        Color.Transparent
-                                )
-                            )
-                        )
+                        background(Some(Paint(selectTriggerBackground(theme, true))))
                     }.then(local.surface.style).then(local.states.hovered)
+                if (theme.preferences.highContrast)
+                    pressed =
+                        styleOverride {
+                            background(Some(Paint(selectTriggerBackground(theme, true))))
+                        }.then(local.surface.style).then(local.states.pressed)
                 focused =
                     styleOverride { border(Some(Border.all(1.0, focusColor))) }.then(
                         local.states.focused
                     )
             }
     }
+}
+
+internal fun selectTriggerBackground(theme: Theme, active: Boolean): Color {
+    val colors = theme.tokens.palette
+    if (theme.preferences.highContrast)
+        return if (active)
+            colors.muted.background
+        else
+            colors.background.background
+    return if (theme.tokens.mode == ThemeMode.Dark)
+        componentBackground(
+            theme,
+            colors.input.withAlpha(
+                colors.input.alpha *
+                    if (active)
+                        0.5
+                    else
+                        0.3
+            )
+        )
+    else
+        Color.Transparent
 }

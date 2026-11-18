@@ -8,13 +8,25 @@ private fun preferenceStatePairs(
     fill: StateColors,
     foreground: StateColors,
     canvas: Color,
-    contrast: Boolean
+    contrast: Boolean,
+    disabledOpacity: Double = 1.0
 ): PreferenceStatePairs {
     val normal = preferencePair(ColorPair(fill.normal, foreground.normal), canvas, contrast)
     val hovered = preferencePair(ColorPair(fill.hovered, foreground.hovered), canvas, contrast)
     val pressed = preferencePair(ColorPair(fill.pressed, foreground.pressed), canvas, contrast)
     val disabled =
-        preferencePair(ColorPair(fill.disabled, foreground.disabled), canvas, contrast, 4.5)
+        preferencePair(
+            ColorPair(
+                fill.disabled,
+                if (contrast)
+                    foreground.disabled.withAlpha(foreground.disabled.alpha * disabledOpacity)
+                else
+                    foreground.disabled
+            ),
+            canvas,
+            contrast,
+            4.5
+        )
     return PreferenceStatePairs(
         StateColors(normal.background, hovered.background, pressed.background, disabled.background),
         StateColors(normal.foreground, hovered.foreground, pressed.foreground, disabled.foreground)
@@ -59,21 +71,23 @@ internal fun preferenceOutline(
 internal fun preferenceSurfaces(
     parts: SurfaceParts,
     canvas: Color,
-    contrast: Boolean
+    contrast: Boolean,
+    disabledOpacity: Double
 ): SurfaceParts =
     SurfaceParts(
-        preferenceSurface(parts.plain, canvas, contrast, false),
-        preferenceSurface(parts.action, canvas, contrast, true),
-        preferenceSurface(parts.elevated, canvas, contrast, false)
+        preferenceSurface(parts.plain, canvas, contrast, false, disabledOpacity),
+        preferenceSurface(parts.action, canvas, contrast, true, disabledOpacity),
+        preferenceSurface(parts.elevated, canvas, contrast, false, disabledOpacity)
     )
 
 private fun preferenceSurface(
     part: SurfacePart,
     canvas: Color,
     contrast: Boolean,
-    action: Boolean
+    action: Boolean,
+    disabledOpacity: Double
 ): SurfacePart {
-    val colors = preferenceStatePairs(part.fill, part.foreground, canvas, contrast)
+    val colors = preferenceStatePairs(part.fill, part.foreground, canvas, contrast, disabledOpacity)
     val base = part.metrics
     val insets = base.borderInsets
     val metrics =
@@ -106,9 +120,11 @@ private fun preferenceSurface(
 private fun preferenceMarker(
     value: MarkerAppearance,
     canvas: Color,
-    contrast: Boolean
+    contrast: Boolean,
+    disabledOpacity: Double
 ): MarkerAppearance {
-    val selected = preferenceStatePairs(value.selected, value.mark, canvas, contrast)
+    val selected =
+        preferenceStatePairs(value.selected, value.mark, canvas, contrast, disabledOpacity)
     val empty = preferenceStatePairs(value.empty, value.border, canvas, false).fill
     return MarkerAppearance(
         empty,
@@ -124,7 +140,8 @@ private fun preferenceMarker(
 internal fun preferenceCheckbox(
     value: CheckboxPart,
     canvas: Color,
-    contrast: Boolean
+    contrast: Boolean,
+    disabledOpacity: Double
 ): CheckboxPart {
     val base = value.metrics
     val edges = base.borderInsets
@@ -146,10 +163,18 @@ internal fun preferenceCheckbox(
             )
         else
             base
-    return CheckboxPart(metrics, preferenceMarker(value.appearance, canvas, contrast))
+    return CheckboxPart(
+        metrics,
+        preferenceMarker(value.appearance, canvas, contrast, disabledOpacity)
+    )
 }
 
-internal fun preferenceRadio(value: RadioPart, canvas: Color, contrast: Boolean): RadioPart {
+internal fun preferenceRadio(
+    value: RadioPart,
+    canvas: Color,
+    contrast: Boolean,
+    disabledOpacity: Double
+): RadioPart {
     val base = value.metrics
     val metrics =
         if (contrast)
@@ -162,7 +187,7 @@ internal fun preferenceRadio(value: RadioPart, canvas: Color, contrast: Boolean)
             )
         else
             base
-    return RadioPart(metrics, preferenceMarker(value.appearance, canvas, contrast))
+    return RadioPart(metrics, preferenceMarker(value.appearance, canvas, contrast, disabledOpacity))
 }
 
 internal fun preferenceScrollbar(

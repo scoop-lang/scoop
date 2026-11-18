@@ -5,10 +5,11 @@ import scoop.ui.style.*
 import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.shadcn.shadcnTheme
 import scoop.window.Theme as WindowTheme
 
 internal enum ThemeChoice {
-    MacOS, Material, Fluent
+    MacOS, Material, Fluent, Shadcn
 }
 
 internal enum ModeChoice {
@@ -23,9 +24,35 @@ internal class ShowcaseModel {
     val glow = state(false)
     val blur = state(false)
     val shadow = state(false)
+    val highContrast = state(false)
+    val opaque = state(false)
+    val selected = state<String?>(None)
+    val menuOpen = state(false)
+    val panelOpen = state(false)
+    val result = state("Choose a preview action")
+    var window: UiWindow? = None
+    val preferences: UiPreferences get() =
+        UiPreferences(
+            highContrast = Some(highContrast.value),
+            reduceTransparency = Some(opaque.value)
+        )
     private var system = ThemeMode.Light
     private var resolvedChoice = ThemeChoice.MacOS
     private var resolvedMode = ThemeMode.Light
+    fun setHighContrast(value: Boolean) {
+        highContrast.value = value
+        updatePreferences()
+    }
+    fun setOpaque(value: Boolean) {
+        opaque.value = value
+        updatePreferences()
+    }
+    private fun updatePreferences() {
+        when (window) {
+            case Some(val current) -> current.preferences = preferences
+            case None -> {}
+        }
+    }
     fun select(value: ThemeChoice) {
         if (choice.value != value) {
             choice.value = value;
@@ -62,6 +89,7 @@ internal class ShowcaseModel {
                 case MacOS -> macosTheme(next);
                 case Material -> materialTheme(next);
                 case Fluent -> fluentTheme(next)
+                case Shadcn -> shadcnTheme(next)
             }
     }
 }

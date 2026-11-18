@@ -106,7 +106,12 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                         fontSize = 12.0 * density
                         lineHeight = Some(16.0 / 12.0)
                         weight = 500
-                        color = theme.tokens.palette.muted.foreground
+                        color =
+                            componentForeground(
+                                theme,
+                                theme.tokens.palette.muted.foreground,
+                                theme.tokens.palette.popover.background
+                            )
                     },
                     input.options.fonts
                 )
@@ -129,21 +134,27 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                 alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
             }
             case Separator(_) -> return panelFrame(
-                separator { thickness = 1.0 },
+                separator {
+                    thickness = 1.0
+                    color =
+                        Some(
+                            componentForeground(
+                                theme,
+                                theme.tokens.palette.border,
+                                theme.tokens.palette.popover.background,
+                                3.0
+                            )
+                        )
+                },
                 Insets(0.0, 4.0 * density, 0.0, 4.0 * density)
             )
             else -> {}
         }
         val item = menuItem(input.entry)!!
-        val active = highlighted.value || input.open.value
-        val color =
-            if (item.destructive)
-                theme.tokens.palette.destructive.background
-            else
-                if (active)
-                    theme.tokens.palette.accent.foreground
-                else
-                    theme.tokens.palette.popover.foreground
+        val enabled = input.options.enabled && item.enabled
+        val active = enabled && (highlighted.value || input.open.value)
+        val colors = menuRowColors(theme, item.destructive, active, enabled)
+        val color = colors.foreground
         val base =
             theme.tokens.typography.body.copy {
                 fontSize = 14.0 * density;
@@ -203,10 +214,17 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                                                 text.copy {
                                                     fontSize = 12.0 * density
                                                     this.color =
-                                                        if (active)
+                                                        if (active || !enabled)
                                                             text.color
                                                         else
-                                                            theme.tokens.palette.muted.foreground
+                                                            componentForeground(
+                                                                theme,
+                                                                theme.tokens.palette.muted.foreground,
+                                                                if (colors.background.alpha == 0.0)
+                                                                    theme.tokens.palette.popover.background
+                                                                else
+                                                                    colors.background
+                                                            )
                                                 }
                                             this.text(shortcutCaption(value.shortcutLabel(chord)))
                                         }
@@ -267,16 +285,16 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                 ButtonProps(
                     ButtonContent.Custom(child),
                     { activate() },
-                    enabled = input.options.enabled && item.enabled,
+                    enabled = enabled,
                     focus = choiceFocus(item.focus, input.focus!!),
                     variant = ButtonVariant.Ghost,
-                    style = menuRowStyle(item.style, theme, item.destructive, active),
+                    style = menuRowStyle(item.style, theme, item.destructive, active, enabled),
                     theme = input.options.theme,
                     semantics = semantics
                 ),
                 SemanticRole.MenuItem,
                 semantics.properties(
-                    enabled = input.options.enabled && item.enabled,
+                    enabled = enabled,
                     checked =
                         if (indicator)
                             Some(
@@ -374,26 +392,64 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
     }
 }
 
-internal fun menuRowStyle(
-    local: ButtonStyle,
+internal fun menuRowColors(
     theme: Theme,
     destructive: Boolean,
-    active: Boolean
-): ButtonStyle {
-    val density = theme.tokens.typography.body.fontSize / 14.0
+    active: Boolean,
+    enabled: Boolean = true
+): ColorPair {
+    val colors = theme.tokens.palette
+    if (!enabled)
+        return ColorPair(
+            Color.Transparent,
+            componentForeground(
+                theme,
+                if (theme.tokens.disabledOpacity < 1.0)
+                    colors.popover.foreground
+                else
+                    colors.disabledText,
+                colors.popover.background,
+                4.5
+            )
+        )
     val fill =
         if (!active)
             Color.Transparent
         else
             if (destructive)
-                theme.tokens.palette.destructive.background.withAlpha(
+                colors.destructive.background.withAlpha(
                     if (theme.tokens.mode == ThemeMode.Dark)
                         0.2
                     else
                         0.1
                 )
             else
-                theme.tokens.palette.accent.background
+                colors.accent.background
+    return componentSurfaceColors(
+        theme,
+        ColorPair(
+            fill,
+            if (destructive)
+                colors.destructive.background
+            else
+                if (active)
+                    colors.accent.foreground
+                else
+                    colors.popover.foreground
+        ),
+        colors.popover.background
+    )
+}
+
+internal fun menuRowStyle(
+    local: ButtonStyle,
+    theme: Theme,
+    destructive: Boolean,
+    active: Boolean,
+    enabled: Boolean = true
+): ButtonStyle {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val fill = menuRowColors(theme, destructive, active, enabled).background
     return local.copy {
         surface {
             if (suggestedSize == None)

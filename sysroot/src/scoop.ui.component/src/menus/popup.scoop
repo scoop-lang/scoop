@@ -134,7 +134,7 @@ internal class MenuPopup(
                         Some(
                             Border.all(
                                 1.0,
-                                theme.tokens.palette.background.foreground.withAlpha(0.1)
+                                componentPanelBorder(theme, theme.tokens.palette.popover)
                             )
                         )
                     )

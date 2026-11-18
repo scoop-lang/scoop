@@ -170,7 +170,7 @@ internal class SelectPanel(
             styleOverride {
                 background(Some(Paint(theme.tokens.palette.popover.background)))
                 border(
-                    Some(Border.all(1.0, theme.tokens.palette.background.foreground.withAlpha(0.1)))
+                    Some(Border.all(1.0, componentPanelBorder(theme, theme.tokens.palette.popover)))
                 )
                 corners(Corners.all(8.0 * density));
                 boxShadows(theme.tokens.effects.floating)

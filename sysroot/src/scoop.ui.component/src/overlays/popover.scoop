@@ -59,7 +59,11 @@ public class Popover public constructor(
         val titleStyle =
             titles.resolve(theme.tokens.typography.action, palette.popover.foreground, None)
         val descriptionStyle =
-            descriptions.resolve(theme.tokens.typography.body, palette.muted.foreground, None)
+            descriptions.resolve(
+                theme.tokens.typography.body,
+                componentForeground(theme, palette.muted.foreground, palette.popover.background),
+                None
+            )
         val content =
             popupColumn {
                 if (panelPresent(input.title) || panelPresent(input.description))
@@ -97,7 +101,7 @@ public class Popover public constructor(
                 Insets.all(10.0 * density),
                 styleOverride {
                     background(Some(Paint(palette.popover.background)))
-                    border(Some(Border.all(1.0, palette.background.foreground.withAlpha(0.1))))
+                    border(Some(Border.all(1.0, componentPanelBorder(theme, palette.popover))))
                     corners(Corners.all(8.0 * density))
                     boxShadows(theme.tokens.effects.floating)
                 }.then(input.style),

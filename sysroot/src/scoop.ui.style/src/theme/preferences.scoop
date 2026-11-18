@@ -47,6 +47,7 @@ internal fun resolveShapePreferences(base: ShapeTheme, preferences: ThemePrefere
         else
             base.tokens.palette
     val background = opaqueThemeColor(palette.background.background, canvas)
+    val disabledOpacity = themeUnit(base.tokens.disabledOpacity)
     val type = base.tokens.typography
     val typography =
         if (preferences.textScaleFactor != 1.0 || preferences.highContrast)
@@ -92,15 +93,15 @@ internal fun resolveShapePreferences(base: ShapeTheme, preferences: ThemePrefere
     return ShapeTheme(
         tokens,
         if (colors)
-            preferenceSurfaces(base.surfaces, background, preferences.highContrast)
+            preferenceSurfaces(base.surfaces, background, preferences.highContrast, disabledOpacity)
         else
             base.surfaces,
         if (colors)
-            preferenceCheckbox(base.checkbox, background, preferences.highContrast)
+            preferenceCheckbox(base.checkbox, background, preferences.highContrast, disabledOpacity)
         else
             base.checkbox,
         if (colors)
-            preferenceRadio(base.radio, background, preferences.highContrast)
+            preferenceRadio(base.radio, background, preferences.highContrast, disabledOpacity)
         else
             base.radio,
         if (colors)

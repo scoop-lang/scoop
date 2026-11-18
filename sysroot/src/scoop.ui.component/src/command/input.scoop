@@ -60,12 +60,19 @@ internal fun commandInput(
                 input.searchIcon ?:
                     makeIcon(searchIcon) {
                         size = 16.0 * density
-                        color = Some(theme.tokens.palette.muted.foreground)
+                        color =
+                            Some(
+                                componentForeground(
+                                    theme,
+                                    theme.tokens.palette.muted.foreground,
+                                    theme.tokens.palette.background.background,
+                                    3.0
+                                )
+                            )
                     },
                 key = ViewKey.Text("search")
             )
         )
-    val ink = theme.tokens.palette.input
     val group =
         component(
             InputGroupProps(
@@ -77,16 +84,34 @@ internal fun commandInput(
                 theme = field.theme,
                 surface =
                     field.style.surface.copy {
-                        style =
-                            styleOverride {
-                                background(Some(Paint(ink.withAlpha(ink.alpha * 0.3))))
-                                border(Some(Border.all(1.0, ink.withAlpha(ink.alpha * 0.3))))
-                                corners(Corners.all(8.0 * density))
-                                boxShadows([])
-                            }.then(field.style.surface.style)
+                        style = commandInputDecoration(theme).then(field.style.surface.style)
                     }
             ),
             { current, mount -> InputGroup(current, scope = mount) }
         )
     return panelFrame(group, Insets(16.0 * density, 16.0 * density, 16.0 * density, 4.0 * density))
+}
+
+internal fun commandInputDecoration(theme: Theme): StyleOverride {
+    val colors = theme.tokens.palette
+    val ink = colors.input.withAlpha(colors.input.alpha * 0.3)
+    return styleOverride {
+        background(
+            Some(
+                Paint(
+                    if (theme.preferences.highContrast)
+                        colors.background.background
+                    else
+                        componentBackground(theme, ink)
+                )
+            )
+        )
+        border(
+            Some(
+                Border.all(1.0, componentForeground(theme, ink, colors.background.background, 3.0))
+            )
+        )
+        corners(Corners.all(8.0 * theme.tokens.typography.body.fontSize / 14.0))
+        boxShadows([])
+    }
 }

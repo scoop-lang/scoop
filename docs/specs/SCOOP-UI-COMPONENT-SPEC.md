@@ -476,6 +476,10 @@ transition／selectionTransition 还提供同名 Unit 设置方法，将同一�
 
 此前 ComponentDefaults 的固定视觉默认值方案由 ThemeSource／Theme 取代。应用在实际运行入口绑定稳定 ThemeSource；控件挂载保存来源，在 render 通过 ThemeSource.read(scope) 取得当前根偏好解析后的 Theme，其余局部属性继续继承主题。减少动画、高对比度、减少透明度和文字缩放的解析规则见主题规范第 6.1 节；来源的基础 State 不被根覆盖改写。显式来源可经 Props 提供，组合控件向子标签转交；不存在自动挂载树 Provider。切换风格、明暗或效果保持组件实例、State、区域和焦点，只更新 Props、必要布局及绘图资源。
 
+自绘菜单、弹出层、Card／Alert／Modal／Toast 的默认文字和边框以实际表面为背景解析：高对比度的文字配对至少 7:1，默认边界至少 3:1，危险操作尽量保留原有色调；标题、说明及快捷键不能只借用另一个底色上的对比度结果。必要的配对调整复用 Style.contrastThemeColors。减少透明度把默认半透明底色与装饰合成到对应表面。Select 触发器的文字与悬停／按下底色沿同一语义配对，默认占位和图标同步处理。无填充状态保留，用户的 surface、text、states、popupStyle 等明确覆盖最后应用；不改变菜单行为、输入、逻辑焦点、语义身份或生命周期。
+
+菜单及 Select 候选项禁用时，默认正文、快捷键和选择标记采用同一禁用文字色，不保留悬停底色；高对比度下对实际弹出表面的对比度至少 4.5:1。主题已经用整体 disabledOpacity 表达禁用时，不再重复衰减文字；显式文字和自定义内容仍由应用决定。
+
 控件或其 Element 通过 ComponentScope.resource 登记自己创建的资源，或登记拥有可替换资源的缓存对象；输入区域和动画通过作用域的对应入口取得。卸载沿框架的子先父顺序清理，应用不为 Label／Button／Checkbox 逐个 use。借用的 Image／Path／字体、Binding 与外部模型不得由控件擅自关闭。
 
 Element 构造、update、measure、paint 或回调失败沿框架与 Surface 的统一关闭路径传播。缓存创建及替换失败不得遗留新取得的资源；清理错误不能阻断其余对象收尾。控件库不另建窗口状态机、异常恢复树或动画时钟。

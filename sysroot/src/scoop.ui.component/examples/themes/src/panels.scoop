@@ -1,0 +1,67 @@
+package scoop.examples.ui.themes
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.alert as makeAlert
+import scoop.ui.component.card as makeCard
+import scoop.window.*
+
+internal fun showcasePanels(model: ShowcaseModel): View =
+    row {
+        spacing = 12.0
+        alignment = CrossAlignment.Center
+        select(model.selected.binding()) {
+            width = Some(180.0)
+            placeholder = "Select a color"
+            enabled = model.enabled.value
+            for (name in ["Blue", "Green", "Orange"])
+                item(Choice(ViewKey.Text(name), name, name))
+            item(Choice(ViewKey.Text("disabled"), "disabled", "Unavailable", false))
+        }
+        dropdownMenu(
+            model.menuOpen.binding(),
+            menu {
+                label(ViewKey.Text("heading"), "Actions")
+                item(
+                    ViewKey.Text("open"),
+                    "Open preview",
+                    { model.result.value = "Open selected" }
+                ) {
+                    shortcut =
+                        Some(
+                            ShortcutChord(
+                                ShortcutKey.Logical(LogicalKey.Character("o")),
+                                ShortcutModifiers(primary = true)
+                            )
+                        )
+                }
+                item(ViewKey.Text("disabled"), "Unavailable", {}) { enabled = false }
+                separator(ViewKey.Text("separator"))
+                item(
+                    ViewKey.Text("delete"),
+                    "Delete preview",
+                    { model.result.value = "Delete selected" }
+                ) { destructive = true }
+            }
+        ) {
+            trigger("Menu preview")
+            width = 260.0
+        }
+        popover(
+            model.panelOpen.binding(),
+            makeCard(
+                makeAlert(empty()) {
+                    title("Attention")
+                    description("Warning text follows the panel surface.")
+                    variant = AlertVariant.Destructive
+                }
+            ) {
+                title("Panel preview")
+                description("Description, border, and warning colors stay readable.")
+            }
+        ) {
+            trigger("Panel preview")
+            width = 360.0
+        }
+        label(model.result.value)
+    }

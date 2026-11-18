@@ -42,7 +42,12 @@ internal fun <T: Equals<T>> comboPopup(
                     input.empty,
                     theme.tokens.typography.body.copy {
                         fontSize = 14.0 * d;
-                        color = theme.tokens.palette.muted.foreground
+                        color =
+                            componentForeground(
+                                theme,
+                                theme.tokens.palette.muted.foreground,
+                                theme.tokens.palette.popover.background
+                            )
                     },
                     input.input.fonts,
                     true
@@ -101,7 +106,7 @@ internal fun <T: Equals<T>> comboPopup(
         Insets.all(4.0 * d),
         styleOverride {
             background(Some(Paint(ink.popover.background)))
-            border(Some(Border.all(1.0, ink.background.foreground.withAlpha(0.1))))
+            border(Some(Border.all(1.0, componentPanelBorder(theme, ink.popover))))
             corners(Corners.all(8.0 * d));
             boxShadows(theme.tokens.effects.floating)
         }.then(input.popupStyle),

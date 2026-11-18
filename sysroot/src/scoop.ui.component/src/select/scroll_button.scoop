@@ -132,7 +132,12 @@ internal class SelectScrollButton(
                                 if (can)
                                     color
                                 else
-                                    color.withAlpha(color.alpha * 0.3),
+                                    componentForeground(
+                                        input.theme,
+                                        color.withAlpha(color.alpha * 0.3),
+                                        input.theme.tokens.palette.popover.background,
+                                        3.0
+                                    ),
                                 PaintingStyle.Stroke,
                                 1.3333333333333333
                             )

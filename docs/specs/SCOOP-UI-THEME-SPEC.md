@@ -128,6 +128,8 @@ Surface／Checkbox 的 metrics 与 geometry 方法接收最后一个 direction: 
 
 `mixThemeColor` 在预乘 alpha 的 sRGB 通道数值上插值，alpha 同步线性插值，再还原为普通 Color；两端均透明时返回透明色，进度端点保留原值。StateColors 依次混合 normal／hovered 和 pressed，禁用直接使用 disabled。透明色中不可见的 RGB 不能在过渡中造成先变暗再变亮的闪色。
 
+`contrastThemeColors(pair: ColorPair, canvas: Color, minimum: Double = 7.0): ColorPair` 复用主题偏好的颜色配对算法，供实际底色不同于根背景的菜单、弹出层等默认装饰使用。颜色通道须有限，canvas 必须不透明，minimum 为有限的 1～21，非法参数抛出 IllegalArgumentException。计算按标准 sRGB 将颜色通道与源 alpha 截取到 0～1，先把 pair.background 合成到 canvas，再将前景向黑或白调整到指定相对亮度对比度；只有背景本身无法容纳该对比度时才调整背景。返回完整、不透明且满足 minimum 的配对；已经满足要求的颜色保留。它不读取系统偏好或改写主题，应用显式覆盖继续由调用方决定。
+
 `OutlineStyle(color, width, outset, borderColor: Color? = None)` 描述一个环及可选的外框颜色替换；None 表示保留部件自身边框，width=0 可省略环。它替代仅限焦点命名的旧描述，普通焦点仍通过部件及 Options 的 focus 配置。ThemeTokens.validation 是完整必需的 OutlineStyle，Surface／Checkbox／Radio Options 的 validation 可局部覆盖。四套主题显式提供验证外观；不根据具体主题名称分支。
 
 invalid 与 focusVisible 独立，前者是应用传入的展示状态，不改变焦点、输入资格或业务值。invalid 时选择 validation；否则只有 enabled 且 focusVisible 才选择 focus。禁用不显示普通焦点环；invalid 边框与环和控件一起合成，不单独再次降低 alpha。状态边框只替换颜色，保留同一份边宽，随后应用显式局部 Style 覆盖。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 ring: OutlineRing? 保存最终唯一的环，painter 直接绘制这个结果，不再自行重判焦点；invalid 与焦点不叠画两层环。metrics.focusOutset 为配置中焦点／验证两种环所需外扩的最大值，状态切换不改变内容布局。
@@ -207,7 +209,7 @@ Component 的挂载工厂在该入口构造实例，因此可以在构造阶段�
 
 - reduceMotion=true 将有效 ThemeMotion 设为 Reduced，主题原本的 Reduced 继续有效；普通皮肤的 Full 不能恢复根已关闭的动画。现有过渡、位移和不定进度动效通过同一有效 ThemeMotion 停止或立即到达目标，不增加时钟。恢复后按各控件已有的启动规则运行。
 - textScaleFactor 作用于 body／caption／action 的字体大小，保留字体族、字重及相对行高。控件用新文字度量重新布局和命中，不缩放整个 Canvas，也不改变窗口 DPI；控件明确的局部字号继续由应用决定。
-- highContrast=true 使用主题当前明暗模式作为不透明背景，将默认语义配色、表面与标记的实际颜色调整为高对比。稳定交互状态下，启用文字／选中标记与背景的对比度至少 7:1，禁用文字至少 4.5:1，控件边界／焦点至少 3:1；对比度使用 sRGB 相对亮度。取消会降低辨识度的整体禁用透明度，焦点环宽度至少 2 个逻辑单位；外环不再用固定颜色替换各状态已解析的边框。颜色仍保持可用的原色；不足时朝黑或白调整。这是内置主题的对比度策略，不冒充 OS 强制色调色板。
+- highContrast=true 使用主题当前明暗模式作为不透明背景，将默认语义配色、表面与标记的实际颜色调整为高对比。稳定交互状态下，启用文字／选中标记与背景的对比度至少 7:1，禁用文字至少 4.5:1，控件边界／焦点至少 3:1；对比度使用 sRGB 相对亮度。取消会降低辨识度的整体禁用透明度；基础主题用 disabledOpacity 表达的禁用文字和选中标记先将该衰减合成到实际底色，再满足禁用对比度，避免取消透明度后与启用状态完全同色。焦点环宽度至少 2 个逻辑单位；外环不再用固定颜色替换各状态已解析的边框。颜色仍保持可用的原色；不足时朝黑或白调整。这是内置主题的对比度策略，不冒充 OS 强制色调色板。
 - reduceTransparency=true 将默认填充颜色合成到对应的不透明背景，并去掉主题默认投影、辉光与模糊装饰；highContrast 同时采用这一处理。抗锯齿、图像内容与应用显式指定的绘图效果不被重写。局部颜色／样式覆盖仍归应用所有，应在相应界面单独验收对比度。
 
 上述变化沿根的既有显示依赖更新；实际排版、绘图与输入区域使用同一轮结果，保留挂载、编辑模型、IME 与焦点。测试同时检查四套主题的明暗配色和真实控件热切换，尤其验证停止动画后不继续请求帧。
@@ -226,9 +228,9 @@ ThemePainter 缓存考虑本轮主题参数、几何、效果和本帧采样值�
 
 实施顺序为 graphics 基础滤镜及通用嵌套 PaintContext → 公共 Style／装饰 → 主题协议与几何／绘图基础 → 三套主题及离屏展示 → 基础控件消费主题 → 完整展示示例和真实 UI 组合。上述基础批次及原有布局、生命周期、异步进度目标均已完成其 macOS 验收。本轮第 6.1 节新增偏好的实施与验证范围见 [UI 交互打磨记录](../ui/interaction-polish/PROGRESS.md)，不沿用历史批次的完成状态。每批格式、检查与定向测试通过后提交、推送、merge origin/main，正常缓存保留。
 
-主题展示示例并列显示四类公共部件和已实现控件的普通、hovered、pressed、disabled、selected／mixed 和 focused 状态；支持三风格、Light／Dark 和系统跟随。公共部件区域直接调用 Canvas 绘图，真实控件区域同时验证交互和主题切换。
+主题展示示例并列显示四类公共部件和已实现控件的普通、hovered、pressed、disabled、selected／mixed 和 focused 状态；支持四套风格、Light／Dark、系统跟随及窗口内高对比度／减少透明度开关。公共部件区域直接调用 Canvas 绘图，真实控件区域同时验证交互和主题切换，菜单、Select 和 Card／Alert 弹出面板展示实际表面的配色。
 
-展示的默认布局应在约 670 逻辑单位高的内容区域内显示状态表格、真实控件和效果开关。通过调整示例的排列与留白满足这一要求，不缩放整棵 UI 来掩盖主题尺寸差异；更小窗口继续遵守容器的显式 clip，首期不因此增加 ScrollView。
+展示的默认 1120×840 逻辑尺寸窗口完整显示状态表格、真实控件、偏好／效果开关和弹出预览入口。通过调整示例的排列与留白满足这一要求，不缩放整棵 UI 来掩盖主题尺寸差异；更小窗口继续遵守容器的显式 clip，首期不因此增加 ScrollView。
 
 所属 Cone 的 scoop.test 验证以下事实：
 

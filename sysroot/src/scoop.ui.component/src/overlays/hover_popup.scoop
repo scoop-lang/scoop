@@ -118,7 +118,7 @@ private class HoverPopup(private val read: () -> HoverPopupInput, scope: Compone
                     )
                 )
                 if (!passive) {
-                    border(Some(Border.all(1.0, palette.background.foreground.withAlpha(0.1))))
+                    border(Some(Border.all(1.0, componentPanelBorder(theme, palette.popover))))
                     boxShadows(theme.tokens.effects.floating)
                 }
             }.then(input.style)

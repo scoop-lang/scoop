@@ -214,7 +214,7 @@ internal class NavMenuPanel(
                                             Some(
                                                 Border.all(
                                                     1.0,
-                                                    palette.background.foreground.withAlpha(0.1)
+                                                    componentPanelBorder(theme, palette.popover)
                                                 )
                                             )
                                         )

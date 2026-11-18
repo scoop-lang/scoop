@@ -40,3 +40,59 @@ internal fun componentFocusWidth(theme: Theme, width: Double): Double =
         lowerBound(2.0, width)
     else
         width
+
+/** Default text and edges use their actual, already resolved opaque surface. */
+internal fun componentForeground(
+    theme: Theme,
+    color: Color,
+    background: Color,
+    minimum: Double = 7.0
+): Color =
+    if (theme.preferences.highContrast)
+        contrastThemeColors(ColorPair(background, color), background, minimum).foreground
+    else
+        componentBackground(theme, color, background)
+
+internal fun componentSurfaceColors(theme: Theme, pair: ColorPair, canvas: Color): ColorPair {
+    if (theme.preferences.highContrast) {
+        val resolved = contrastThemeColors(pair, canvas)
+        // No fill keeps the host's already resolved surface behind this content.
+        return ColorPair(
+            if (pair.background.alpha == 0.0)
+                Color.Transparent
+            else
+                resolved.background,
+            resolved.foreground
+        )
+    }
+    val background = componentBackground(theme, pair.background, canvas)
+    return ColorPair(
+        background,
+        componentBackground(
+            theme,
+            pair.foreground,
+            if (background.alpha == 0.0)
+                canvas
+            else
+                background
+        )
+    )
+}
+
+internal fun componentPanelBorder(
+    theme: Theme,
+    surface: ColorPair,
+    normal: Color = theme.tokens.palette.background.foreground.withAlpha(0.1)
+): Color = componentForeground(theme, normal, surface.background, 3.0)
+
+internal fun componentPanelSection(theme: Theme, surface: ColorPair): Color =
+    if (theme.preferences.highContrast)
+        surface.background
+    else
+        componentBackground(
+            theme,
+            theme.tokens.palette.muted.background.withAlpha(
+                theme.tokens.palette.muted.background.alpha * 0.5
+            ),
+            surface.background
+        )

@@ -110,6 +110,29 @@ private class ThemePreferencesTest {
                     contrastAtLeast(color, palette.background.background, 3.0)
                 contrastAtLeast(palette.disabledText, palette.background.background, 4.5)
                 assertEquals(1.0, theme.tokens.disabledOpacity)
+                if (base.tokens.disabledOpacity < 1.0) {
+                    val enabled = InteractionVisual()
+                    val disabled = InteractionVisual(enabled = false)
+                    assertTrue(
+                        theme.surfaceTextColor(SurfaceVisual(SurfaceKind.Action, enabled)) !=
+                            theme.surfaceTextColor(SurfaceVisual(SurfaceKind.Action, disabled))
+                    )
+                    val bounds = Rect(0.0, 0.0, 24.0, 24.0)
+                    assertTrue(
+                        theme.checkboxGeometry(
+                            bounds,
+                            CheckboxVisual(CheckMark.On, enabled)
+                        ).markColor !=
+                            theme.checkboxGeometry(
+                                bounds,
+                                CheckboxVisual(CheckMark.On, disabled)
+                            ).markColor
+                    )
+                    assertTrue(
+                        theme.radioGeometry(bounds, RadioVisual(true, enabled)).dotColor !=
+                            theme.radioGeometry(bounds, RadioVisual(true, disabled)).dotColor
+                    )
+                }
                 assertEquals(0L, theme.tokens.effects.raised.size)
                 assertEquals(0L, theme.tokens.effects.floating.size)
                 assertEquals(0L, theme.tokens.effects.emphasis.size)

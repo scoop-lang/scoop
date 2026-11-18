@@ -75,3 +75,11 @@ when = { os = "windows" }
 [[test.sources]]
 path = "tests-windows"
 when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/color_contrast.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/color_contrast.scoop"
+when = { os = "linux", env = "gnu" }
