@@ -114,7 +114,7 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 两个宿主都会在菜单模式未禁用时提供 ShowContextMenu。该明确动作可先请求真实焦点，再使用已经提交的 caret／选区锚点打开同一个菜单会话；等待焦点或已有会话结束返回 Busy，无有效锚点或当前资格时拒绝。读取或选择仍不抢焦点。菜单项目、复制策略、文档换绑和迟到动作沿原宿主规则；原生菜单继续提供自己的 accessibility 树。用例见[只读语义文本](tests-cones/accessibility-selectable/README.md)与[文本编辑实窗](tests-cones/editing/README.md)。
 
-`SemanticsReference` 持有实际挂载节点的可观察 id，可通过 `handle.bindReference` 或 `bindReferences` 绑定；关闭或换绑会清除旧身份。把这些 id 用于 `SemanticRelations`，即可让标签、说明、错误、controls、activeDescendant 和表头随真实目标更新。文本宿主沿同一文档维护保留范围，并把行内动作与替代文字对应到实际语义子对象；显露文字使用 Accepted 文本布局与原滚动视口，不另设编辑模型。
+`SemanticsReference` 持有实际挂载节点的可观察 id，可通过 `handle.bindReference` 或 `bindReferences` 绑定；重复绑定同一节点不会通知读取者，真实绑定、解绑或关闭会更新其身份。把这些 id 用于 `SemanticRelations`，即可让标签、说明、错误、controls、activeDescendant 和表头随真实目标更新。文本宿主沿同一文档维护保留范围，并把行内动作与替代文字对应到实际语义子对象；显露文字使用 Accepted 文本布局与原滚动视口，不另设编辑模型。
 
 登记工厂共用于 AppKit、Windows UIA 和 Linux AT-SPI。三平台构建、外部客户端与读屏器的验证范围分别记录于[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，实现存在不等于已完成平台验收。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)、[文本读取与编辑](tests-cones/accessibility-text/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
 

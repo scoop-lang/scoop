@@ -83,6 +83,10 @@ private class LinuxHandler: ApplicationHandler {
 
                         redraws += 1
                         if (stage == 0) {
+                            @Unsafe
+                            {
+                                assertTrue(exerciseGtkScaleNotification(value.owner.pointer!!))
+                            }
                             verifyShortcutLabels(value)
                             if (x11)
                                 @Unsafe
@@ -157,7 +161,22 @@ private class LinuxHandler: ApplicationHandler {
                 }
                 case Window(_, WindowEvent.Pointer(val event)) -> {
                     when (event) {
-                        case Button(_, val button, val phase, val clicks) -> {
+                        case Button(val pointer, val button, val phase, val clicks) -> {
+                            @Unsafe
+                            {
+                                when (lease!!.handle) {
+                                    case Gtk(_, val view) -> assertTrue(
+                                        matchesGtkContactPosition(
+                                            view,
+                                            pointer.logicalPosition.x,
+                                            pointer.logicalPosition.y
+                                        ),
+                                        Some(
+                                            "raw contact conversion must match the same GTK pointer event"
+                                        )
+                                    )
+                                }
+                            }
                             assertEquals(MouseButton.Left, button)
                             assertEquals(
                                 if (buttons % 2 == 0)

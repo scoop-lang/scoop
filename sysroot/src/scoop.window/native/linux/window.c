@@ -56,6 +56,18 @@ static void content_allocate(GtkWidget *widget, int width, int height,
   }
   sw_frame_layout(window);
 }
+static void content_scale_changed(GtkWidget *widget, GParamSpec *pspec,
+                                  gpointer data) {
+  SWWindow *window = data;
+  if (window->destroying || !window->configured)
+    return;
+  int width = gtk_widget_get_width(widget);
+  int height = gtk_widget_get_height(widget);
+  if (width > 0 && height > 0)
+    sw_set_geometry(window, width, height, gtk_widget_get_scale_factor(widget));
+  sw_frame_layout(window);
+  sw_accessibility_geometry(window);
+}
 static void content_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
   for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
        child = gtk_widget_get_next_sibling(child))
@@ -216,6 +228,8 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   gtk_widget_set_visible(window->header, window->frame_mode != 2);
   window->view = GTK_WIDGET(g_object_new(sw_content_get_type(), NULL));
   ((SWContent *)window->view)->owner = window;
+  g_signal_connect(window->view, "notify::scale-factor",
+                   G_CALLBACK(content_scale_changed), window);
   adw_toolbar_view_set_content(ADW_TOOLBAR_VIEW(window->toolbar), window->view);
   adw_window_set_content(ADW_WINDOW(window->window), window->toolbar);
   sw_transparency(window, window->transparent);

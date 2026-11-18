@@ -1,5 +1,14 @@
 package scoop.tests.window
 
+/** Arms an actual WM_TIMER callback on a hidden window, without posting WM_TIMER. */
+@Unsafe
+@Extern(name = "scoop_window_test_start_polling_timer")
+public fun startNativePollingTimer(window: Ptr<Unit>): Boolean
+
+@Unsafe
+@Extern(name = "scoop_window_test_polling_timer_fired")
+public fun nativePollingTimerFired(): Boolean
+
 /** Posts a real Win32 message to the application's HWND for protocol tests. */
 @Unsafe
 @Extern(name = "PostMessageW", lib = "user32")

@@ -1,5 +1,23 @@
 #include "../../native/windows/window.h"
 
+static bool polling_timer_fired;
+
+static void CALLBACK polling_timer(HWND hwnd, UINT message, UINT_PTR timer,
+                                   DWORD time) {
+  KillTimer(hwnd, timer);
+  polling_timer_fired = true;
+  PostMessageW(hwnd, WM_CHAR, 'A', 0);
+  PostMessageW(hwnd, WM_CHAR, 0xd83d, 0);
+  PostMessageW(hwnd, WM_CHAR, 0xde00, 0);
+}
+
+bool scoop_window_test_start_polling_timer(HWND hwnd) {
+  polling_timer_fired = false;
+  return SetTimer(hwnd, 0x53575054, 50, polling_timer) != 0;
+}
+
+bool scoop_window_test_polling_timer_fired(void) { return polling_timer_fired; }
+
 int32_t scoop_window_test_mouse_clicks(HWND hwnd) {
   POINT point = {24, 36}, previous;
   if (GetForegroundWindow() != hwnd || !IsWindowVisible(hwnd) ||

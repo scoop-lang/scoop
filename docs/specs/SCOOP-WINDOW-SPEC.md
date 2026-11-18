@@ -26,6 +26,8 @@ ApplicationProxy 提供跨线程 post 与 requestExit；post 为 `(ActiveApplica
 
 ControlFlow 为 Wait／Poll／WaitUntil(TimeMark)，默认 Wait；TimeMark 必须来自 MonotonicTimeSource。每轮消费有限快照，新增事件进入后续轮；锁内不执行用户代码，不递归调用 handler。OS 必须立即得到的普通查询使用已发布 native 状态，不等待可挂起的用户处理。accessibility 同步动作的有限 owner 入口是明确例外，遵守[无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)；不得据此重入业务、布局或事件循环。
 
+有限业务批次也必须给原生输入、绘制和定时消息留出处理机会。Win32 的普通 PeekMessage 优先返回 posted 消息，持续的应用唤醒不能据此饿死鼠标／触摸、窗框操作、WM_PAINT 或 WM_TIMER；每轮分别处理有限原生类别与普通队列，再进入等待。原生输入与 TranslateMessage 生成的字符保留正常队列次序，不能因只取硬件输入而让后续按键越过尚未交付的字符。
+
 run Context 在业务回调中恢复，外线程 post 不替换该 Context。用户异常终止业务派发并开始有序收尾；native bridge 捕获异常，不跨 C／ObjC 栈展开。最终清理通知继续执行，异常记录后继续关闭其他资源。
 
 ### 2.1 窗口所属的一次性定时回调
@@ -330,7 +332,9 @@ GTK 在首次内容分配前取得的焦点先保存在原生快照中；首次 
 
 GTK 的 toplevel `suspended` 状态按窗口 Occluded 报告，恢复时同步清除。compositor 暂停发送帧时，上层由已有的不可绘制处理和有限 deadline 收束动画与交互，不继续等待不会到达的帧。
 
-窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。内容尺寸请求按 GTK 的实际测量结果补入标题栏与窗口 CSS 内边距，不把这些装饰扣在应用请求的内容区内；窗口管理器及原生最小尺寸的约束仍由 GeometryChanged 确认。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
+窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。内容尺寸请求按 GTK 的实际测量结果补入标题栏与窗口 CSS 内边距，不把这些装饰扣在应用请求的内容区内；窗口管理器及原生最小尺寸的约束仍由 GeometryChanged 确认。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。内容尺寸分配和 widget 的 scale-factor 通知都更新同一完整 metrics；只有缩放变化、逻辑尺寸不变时，也发布 GeometryChanged，使渲染配置、输入场景和文本几何继续更新。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
+
+GTK 原始接触事件与原生鼠标控制器采用相同的内容逻辑坐标：先从 GdkEvent 的 surface 位置减去 GtkNative 的 surface translation，再通过 widget 变换进入实际内容视图。标题栏与阴影只扣除一次，不把桌面位置或分数显示比例乘入局部位置；物理接触位置使用该次窗口的 backing scale 换算。
 
 X11 的 outerBounds 查询实际原生顶层外框：沿 X11 窗口树取得 WM frame，读取其当前几何并转换到 GDK 桌面坐标；不能取得时返回 None。位置请求也以外框左上角的桌面坐标表达，在 WM 声明支持时使用 EWMH `_NET_MOVERESIZE_WINDOW` 的 NorthWest gravity，否则沿现有 X11 移动请求交给 WM。请求坐标先转换为 X11 原生单位，成功仍只代表 Requested。托盘定位使用这份实际外框尺寸，不以内容区冒充窗口尺寸。
 

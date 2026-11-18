@@ -8,6 +8,14 @@ public fun usesX11(window: Ptr<Unit>): Boolean
 @Extern(name = "scoop_test_gtk_input")
 public fun sendGtkInput(window: Ptr<Unit>, view: Ptr<Unit>): Int
 
+/** Compares raw-event conversion used by contacts with GTK's delivered mouse position. */
+@Extern(name = "scoop_test_gtk_contact_position")
+public fun matchesGtkContactPosition(view: Ptr<Unit>, x: Double, y: Double): Boolean
+
+/** Exercises scale notification with unchanged allocated logical dimensions. */
+@Extern(name = "scoop_test_gtk_scale_notification")
+public fun exerciseGtkScaleNotification(window: Ptr<Unit>): Boolean
+
 /** Whether the display has the compositor required for a transparent GTK window. */
 @Extern(name = "scoop_test_gtk_composited")
 public fun isComposited(window: Ptr<Unit>): Boolean

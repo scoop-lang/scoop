@@ -87,6 +87,7 @@ public class SemanticsHandle internal constructor(
         controller.changed()
     }
 
+    /** Retaining the same reference does not invalidate its render readers. */
     public fun bindReference(next: SemanticsReference?) {
         bindReferences(
             when (next) {

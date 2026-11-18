@@ -1,0 +1,136 @@
+package scoop.ui
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.accessibility.*
+
+@Test
+private class SemanticsReferenceTest {
+    @Test
+    fun `retained semantic references stay idle while rebinding and retirement notify readers`() {
+        val probe = SemanticReferenceProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(probe.finished)
+        assertEquals(None, probe.first.id)
+        assertEquals(None, probe.second.id)
+    }
+}
+
+private class SemanticReferenceProbe {
+    val first = SemanticsReference()
+    val second = SemanticsReference()
+    var primary: SemanticsHandle? = None
+    var alternate: SemanticsHandle? = None
+    var observedFirst: SemanticNodeId? = None
+    var observedSecond: SemanticNodeId? = None
+    var renders = 0
+    var finished = false
+    private var step = 0
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                host.attach(
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop semantic reference stability"
+                            visible = false
+                            requestActivation = false
+                        }
+                    ),
+                    { scope -> SemanticReferenceReader(this, scope) }
+                )
+                postStep(active)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"semantic reference timed out at ${step}")
+            )
+            else -> {}
+        }
+    }
+
+    private fun postStep(active: ActiveApplication) {
+        assertTrue(active.proxy().post { application -> advance(application) })
+    }
+
+    private fun advance(active: ActiveApplication) {
+        when (step) {
+            case 0 -> {
+                assertEquals(1, renders)
+                assertEquals(Some(primary!!.id), observedFirst)
+                assertEquals(observedFirst, observedSecond)
+                primary!!.bindReferences([second, first, first])
+                primary!!.bindReferences([first, second])
+            }
+            case 1 -> {
+                assertEquals(1, renders)
+                assertFailsWith<IllegalArgumentException> { alternate!!.bindReference(Some(first)) }
+                assertEquals(Some(primary!!.id), first.id)
+                primary!!.bindReference(Some(second))
+            }
+            case 2 -> {
+                assertEquals(2, renders)
+                assertEquals(None, observedFirst)
+                assertEquals(Some(primary!!.id), observedSecond)
+                alternate!!.bindReference(Some(first))
+            }
+            case 3 -> {
+                assertEquals(3, renders)
+                assertEquals(Some(alternate!!.id), observedFirst)
+                alternate!!.bindReference(Some(first))
+            }
+            case 4 -> {
+                assertEquals(3, renders)
+                alternate!!.close()
+            }
+            case 5 -> {
+                assertEquals(4, renders)
+                assertEquals(None, observedFirst)
+                assertEquals(Some(primary!!.id), observedSecond)
+                primary!!.bindReference(Some(first))
+            }
+            case 6 -> {
+                assertEquals(5, renders)
+                assertEquals(Some(primary!!.id), observedFirst)
+                assertEquals(None, observedSecond)
+                primary!!.close()
+            }
+            case 7 -> {
+                assertEquals(6, renders)
+                assertEquals(None, observedFirst)
+                assertEquals(None, observedSecond)
+                finished = true
+                active.requestExit()
+                return
+            }
+            else -> fail(Some("unexpected semantic reference step"))
+        }
+        step += 1
+        postStep(active)
+    }
+}
+
+private class SemanticReferenceReader(
+    private val probe: SemanticReferenceProbe,
+    scope: ComponentScope
+): Component(scope) {
+    init {
+        val primary = scope.semantics(SemanticRole.Button)
+        probe.primary = Some(primary)
+        probe.alternate = Some(scope.semantics(SemanticRole.Button))
+        primary.bindReferences([probe.first, probe.second])
+    }
+    public override fun render(): View {
+        probe.renders += 1
+        probe.observedFirst = probe.first.id
+        probe.observedSecond = probe.second.id
+        return empty()
+    }
+}

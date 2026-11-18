@@ -1,4 +1,5 @@
 #include "../window.h"
+#include "position.h"
 #include <math.h>
 
 static void enqueue_contact(SWWindow *window, SWContactData data,
@@ -34,25 +35,6 @@ bool sw_emulated_pointer(GtkEventController *controller) {
   return type == GDK_TOUCH_BEGIN || type == GDK_TOUCH_UPDATE ||
          type == GDK_TOUCH_END || type == GDK_TOUCH_CANCEL ||
          gdk_event_get_pointer_emulated(event);
-}
-
-static bool content_position(SWWindow *window, GdkEvent *event, double *x,
-                             double *y) {
-  double surface_x, surface_y, dx, dy;
-  if (!gdk_event_get_position(event, &surface_x, &surface_y))
-    return false;
-  GtkNative *native = gtk_widget_get_native(window->view);
-  if (!native || gtk_native_get_surface(native) != gdk_event_get_surface(event))
-    return false;
-  gtk_native_get_surface_transform(native, &dx, &dy);
-  graphene_point_t source = GRAPHENE_POINT_INIT(surface_x + dx, surface_y + dy);
-  graphene_point_t target;
-  if (!gtk_widget_compute_point(GTK_WIDGET(native), window->view, &source,
-                                &target))
-    return false;
-  *x = target.x;
-  *y = target.y;
-  return isfinite(*x) && isfinite(*y);
 }
 
 static gboolean contact_event(GtkEventControllerLegacy *controller,
@@ -94,7 +76,7 @@ static gboolean contact_event(GtkEventControllerLegacy *controller,
   if (!began && !entry)
     return TRUE;
   double x, y;
-  if (!content_position(window, event, &x, &y)) {
+  if (!sw_input_position(window->view, event, &x, &y)) {
     if (entry)
       cancel_contact(window, entry, SWPointerCaptureLost);
     return TRUE;

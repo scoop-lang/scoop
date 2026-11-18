@@ -14,7 +14,7 @@
 
 关闭单个 UI handle 只退休这个资源。框架先把仍由其他活动 scope／handle 拥有的直接语义子节点接到其原父级，清除已关闭的子项路由，然后按当前挂载关系重新发布；不会因替换父角色而误退役仍存活的子控件。显式子节点对已关闭父资源的引用同样移向原父级。真正卸载时，该挂载及其后代各自的资源全部退休。UI 不暴露底层 AccessibilityNode，避免绕过此归属规则。
 
-`SemanticsReference` 是跨声明位置借用同一挂载语义身份的轻量引用；`id` 可参与正常 render 依赖，未绑定或退休后为 None。`SemanticsHandle.bindReference(reference)` 只允许该 reference 绑定一个活动节点，换绑与关闭同步撤下旧引用，不产生焦点、View 或延迟重试。Component 的真实控件可以提供该引用供 controls／label／active descendant 关系使用。
+`SemanticsReference` 是跨声明位置借用同一挂载语义身份的轻量引用；`id` 可参与正常 render 依赖，未绑定或退休后为 None。`SemanticsHandle.bindReference(reference)` 只允许该 reference 绑定一个活动节点，换绑与关闭同步撤下旧引用，不产生焦点、View 或延迟重试。重复绑定同一节点不发布状态变化，也不使读取该 id 的 render 再次失效；`bindReferences` 保留、重排或重复列出同一引用同样如此。真实绑定、解绑和退休仍通知其依赖者。Component 的真实控件可以提供该引用供 controls／label／active descendant 关系使用。
 
 ## 2. 属性、动作与逻辑发布
 

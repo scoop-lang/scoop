@@ -38,6 +38,10 @@ when = { os = ["darwin", "windows"] }
 "scoop.tests:graphics-native" = { version = "0.1.0", path = "../scoop.graphics/test-native" }
 
 [[test.sources]]
+path = "tests/semantic_reference.scoop"
+when = { os = ["linux", "windows"] }
+
+[[test.sources]]
 path = "tests"
 when = { os = "darwin" }
 

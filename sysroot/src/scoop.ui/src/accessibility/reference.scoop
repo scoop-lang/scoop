@@ -29,6 +29,11 @@ public class SemanticsReference public constructor(): Equals<SemanticsReference>
     }
     internal fun attach(handle: SemanticsHandle) {
         checkTarget(handle)
+        when (owner) {
+            case Some(val previous) -> if (previous === handle)
+                return
+            case None -> {}
+        }
         owner = Some(handle)
         current.value = Some(handle.id)
     }

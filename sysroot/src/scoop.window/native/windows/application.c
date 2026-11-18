@@ -210,17 +210,34 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
 }
 
 int32_t scoop_window_application_run(SWApplication *app) {
+  static const struct {
+    UINT first, last, flags;
+  } queues[] = {{0, WM_APP - 1, PM_REMOVE},
+                {WM_PAINT, WM_PAINT, PM_REMOVE},
+                {WM_TIMER, WM_TIMER, PM_REMOVE},
+                {0, 0, PM_REMOVE}};
   while (!app->stopped) {
     MSG msg;
-    // A finite snapshot gives native input a turn even in explicit Poll mode.
-    for (int n = 0; n < 64 && PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE); ++n) {
-      if (msg.message == WM_QUIT)
-        return ERROR_CANCELLED;
-      if (!sw_menu_translate(app, &msg)) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+    // Keep native input and translated characters together; PM_QS_INPUT alone
+    // excludes posted WM_CHAR messages. Application wakes use WM_APP or above.
+    // Bound each category so neither continuous wakes nor native input can
+    // starve the other, and always give paint and timers a turn.
+    for (int n = 0; n < 16 && !app->stopped; ++n) {
+      bool dispatched = false;
+      for (size_t queue = 0; queue < ARRAYSIZE(queues) && !app->stopped;
+           ++queue) {
+        if (!PeekMessageW(&msg, NULL, queues[queue].first, queues[queue].last,
+                          queues[queue].flags))
+          continue;
+        dispatched = true;
+        if (msg.message == WM_QUIT)
+          return ERROR_CANCELLED;
+        if (!sw_menu_translate(app, &msg)) {
+          TranslateMessage(&msg);
+          DispatchMessageW(&msg);
+        }
       }
-      if (app->stopped)
+      if (!dispatched)
         break;
     }
     LONG error = InterlockedExchange(&app->error, 0);
