@@ -38,8 +38,17 @@ public class ResizableHandleOptions public constructor(
     public val withHandle: Boolean? = None,
     public val enabled: Boolean = true,
     public val focus: FocusOptions = FocusOptions(),
-    public val style: StyleOverride = styleOverride()
-)
+    public val style: StyleOverride = styleOverride(),
+    public val hitWidth: Double = 20.0,
+    public val semantics: ComponentSemantics = ComponentSemantics()
+) {
+    init {
+        requireComponent(
+            hitWidth.isFinite() && hitWidth > 0.0,
+            "resizable handle hit width must be finite and positive"
+        )
+    }
+}
 
 public class ResizableProps public constructor(
     public val sizes: Binding<Array<ResizableSize>>,

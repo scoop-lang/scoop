@@ -1,0 +1,213 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.TextRange
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+private class SelectableDragCandidate(val host: SelectableTextHost) {
+    val content = host.content
+    val selection = host.selection
+}
+
+/** Read-only source preparation reuses the paragraph's normal copy representation. */
+internal class SelectableDragSource(
+    private val host: SelectableTextHost,
+    create: (DragSourceOptions, (DragSourceStart) -> DragSourceData?) -> DragSource
+): Closeable {
+    private var closed = false
+    private var pending: SelectableDragCandidate? = None
+    private val binding = create(options()) { start -> prepare(start) }
+    private val enabled: Boolean get() =
+        !closed &&
+            !host.closed &&
+            host.scope.isMounted &&
+            host.options.enabled &&
+            host.area.scope.isInputAllowed &&
+            host.options.drag.effects.copy &&
+            textDragAllowed(host.options.drag, host.options.copy)
+    private fun options(): DragSourceOptions =
+        DragSourceOptions(
+            host.options.drag.threshold,
+            enabled,
+            contacts = host.options.touch.enabled
+        )
+
+    private fun valid(candidate: SelectableDragCandidate): Boolean =
+        enabled && candidate.content === host.content && candidate.selection == host.selection
+
+    fun update() {
+        if (closed)
+            return
+        if (host.closed || !host.scope.isMounted || binding.isClosed) {
+            close()
+            return
+        }
+        when (pending) {
+            case Some(val value) -> if (!valid(value))
+                pending = None
+            case None -> {}
+        }
+        binding.update(options()) { start -> prepare(start) }
+    }
+
+    fun cancelCandidate() {
+        pending = None
+    }
+
+    fun handle(context: RoutedEventContext, event: InputEvent): Boolean {
+        if (closed)
+            return false
+        when (event) {
+            case Contact(InputContactEvent.Began(val value)) -> {
+                if (context.phase != RoutedPhase.Default)
+                    return false
+                pending = None
+                if (
+                    !enabled ||
+                        !binding.hasContactCandidate(value.id) ||
+                        value.pointer.modifiers.shift ||
+                        host.touchHandles.contact?.start?.id ==
+                        Some(value.id)
+                )
+                    return false
+                val point = context.localPosition ?: return false
+                val frame = host.inputFrame() ?: return false
+                val range = host.selection.range
+                if (frame.content !== host.content || range.start == range.end)
+                    return false
+                var inside = false
+                for (box in frame.layout.selection(TextRange(range.start, range.end)))
+                    if (textMenuContains(box.rect, point)) {
+                        inside = true
+                        break
+                    }
+                if (!inside)
+                    return false
+                pending = Some(SelectableDragCandidate(host))
+                return advanceContact(context, event)
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (context.phase != RoutedPhase.Default)
+                    return false
+                val candidate = pending ?: return false
+                if (
+                    !valid(candidate) ||
+                        !binding.hasContactCandidate(value.id) ||
+                        host.touchHandles.contact?.start?.id !=
+                        None
+                ) {
+                    pending = None
+                    return false
+                }
+                return advanceContact(context, event)
+            }
+            case Contact(InputContactEvent.Ended(_)) -> {
+                pending = None
+                return false
+            }
+            case Pointer(
+                InputPointerEvent.Button(
+                    val pointer,
+                    MouseButton.Left,
+                    ElementState.Pressed,
+                    val count
+                )
+            ) -> {
+                if (context.phase == RoutedPhase.Capture || !hasCandidate()) {
+                    pending = None
+                    if (!enabled || count != 1 || pointer.state.modifiers.shift)
+                        return false
+                    val point = context.localPosition ?: return false
+                    val frame = host.inputFrame() ?: return false
+                    if (!(frame.content === host.content))
+                        return false
+                    val range = host.selection.range
+                    if (range.start == range.end)
+                        return false
+                    var inside = false
+                    for (box in frame.layout.selection(TextRange(range.start, range.end)))
+                        if (textMenuContains(box.rect, point)) {
+                            inside = true
+                            break
+                        }
+                    if (!inside)
+                        return false
+                    selectableStopDrag(host)
+                    pending = Some(SelectableDragCandidate(host))
+                }
+                if (context.phase == RoutedPhase.Default)
+                    binding.handle(context, event)
+                return true
+            }
+            case Pointer(InputPointerEvent.Moved(_)) -> {
+                val candidate = pending ?: return false
+                if (!valid(candidate)) {
+                    pending = None
+                    return false
+                }
+                if (context.phase == RoutedPhase.Default)
+                    binding.handle(context, event)
+                return true
+            }
+            case Pointer(
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+            ) -> {
+                val candidate = pending ?: return false
+                if (context.phase != RoutedPhase.Default)
+                    return true
+                pending = None
+                if (valid(candidate)) {
+                    val frame = host.inputFrame() ?: return true
+                    val point = context.localPosition ?: return true
+                    val position = frame.layout.hitTest(point)
+                    host.setSelection(position, position)
+                }
+                return true
+            }
+            else -> return false
+        }
+    }
+
+    private fun advanceContact(context: RoutedEventContext, event: InputEvent): Boolean {
+        binding.handle(context, event)
+        if (!binding.isDragging)
+            return false
+        host.touchPress.cancel()
+        host.touchHandles.hide()
+        return true
+    }
+
+    private fun hasCandidate(): Boolean =
+        when (pending) {
+            case Some(_) -> true
+            case None -> false
+        }
+
+    private fun prepare(start: DragSourceStart): DragSourceData? {
+        val candidate = pending ?: return None
+        pending = None
+        if (!valid(candidate) || start.press.modifiers.shift)
+            return None
+        val frame = host.inputFrame() ?: return None
+        if (!(frame.content === candidate.content))
+            return None
+        val range = candidate.selection.range
+        val text = frame.content.toPlainText(TextRange(range.start, range.end))
+        val notify = host.options.drag.onCompleted
+        return Some(
+            DragSourceData(DragContent.Text(text), DragEffects(true, false, false)) {
+                result -> notify(textDragResult(result))
+            }
+        )
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        pending = None
+        binding.close()
+    }
+}

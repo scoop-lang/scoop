@@ -37,7 +37,11 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
                 host.area.isFocusActive,
                 false
             )
-            case Pointer(InputPointerEvent.Cancelled(_, _)) -> editorStopDrag(host, false)
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                host.dataSource?.cancelCandidate()
+                editorStopDrag(host, false)
+            }
+            case Contact(InputContactEvent.Cancelled(_, _, _)) -> host.dataSource?.cancelCandidate()
             else -> {}
         }
         return
@@ -45,9 +49,38 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
     if (context.phase != RoutedPhase.Default || !host.options.enabled)
         return
     when (event) {
+        case Contact(InputContactEvent.Began(_)) -> host.revealNeeded = false
+        case Pointer(
+            InputPointerEvent.Button(val pointer, val button, ElementState.Pressed, _)
+        ) -> {
+            if (isContextMenuClick(button, pointer.state.modifiers)) {
+                if (editorContextMenu(host, Some(pointer.state), context.localPosition))
+                    context.consume()
+                return
+            }
+            if (button == MouseButton.Middle && editorPastePrimary(host, context.localPosition)) {
+                context.consume()
+                return
+            }
+        }
+        case Keyboard(val key) -> {
+            if (textMenuKey(key) && host.showContextMenu()) {
+                context.consume()
+                return
+            }
+        }
+        else -> {}
+    }
+    if (host.dataSource?.handle(context, event) ?: false) {
+        context.consume()
+        return
+    }
+    when (event) {
         case TextCommand(val command) -> if (host.execute(command))
             context.consume()
-        case Pointer(InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)) -> {
+        case Pointer(
+            InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)
+        ) -> {
             if (state == ElementState.Pressed)
                 editorPress(host, pointer, context.localPosition, count)
             else
@@ -60,24 +93,15 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
                 context.consume()
             }
         }
-        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
+        case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) -> {
             host.revealNeeded = false
-            host.scroll.cancelAnimation()
-            context.consumeScroll(host.appearance.textStyle.fontSize) {
-                amount ->
-                val consumed =
-                    host.scroll.scrollBy(
-                        Point(
-                            -amount.x,
-                            if (host.options.multiline)
-                                -amount.y
-                            else
-                                0.0
-                        ),
-                        ScrollOrigin.User
-                    )
-                Point(-consumed.x, -consumed.y)
-            }
+            host.viewport.consumeScroll(
+                context,
+                host.appearance.textStyle.fontSize,
+                editorTouchAxes(host.options),
+                phase = phase,
+                momentumPhase = momentum
+            )
         }
         case Keyboard(val key) -> {
             if (!host.area.isFocusActive || key.state != ElementState.Pressed || key.synthetic)
@@ -109,9 +133,12 @@ private fun editorFocused(host: TextEditHost, active: Boolean) {
     if (active) {
         host.current.attachHost(host)
         host.current.breakUndoGroup()
-        host.invalidate()
+        host.invalidate(cancelContacts = false)
         host.publishNative()
     } else {
+        host.keyboard.deactivate()
+        host.dataSource?.cancelCandidate()
+        host.contextMenu.cancel()
         host.retireConnection()
         editorStopDrag(host, false)
         host.blink.cancel()
@@ -135,6 +162,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
             if (host.connection != None && host.connection != connection)
                 return
             host.connection = None
+            host.keyboard.connectionClosed()
             host.sessionEnabled = false
             host.retiring = false
             if (host.current.ownsHost(host))
@@ -181,7 +209,8 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
                             prepared,
                             host.options.policy,
                             TextEditSource.NativeInput,
-                            !host.options.multiline
+                            !host.options.multiline,
+                            replacements = editorNativeReplacements(host, prepared)
                         ).publish(host.current, true)
                         case None -> false
                     }
@@ -190,6 +219,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
                 }
             if (changed)
                 host.invalidate()
+            host.refreshMenuCommands()
             host.publishNative(batch.origin)
             host.notifyEdited(before, beforeCommitted)
         }

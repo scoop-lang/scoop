@@ -6,7 +6,7 @@ import scoop.test.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
-import scoop.ui.text.TextEditorState
+import scoop.ui.text.*
 
 @Test
 private class ButtonGroupTest {
@@ -182,6 +182,10 @@ private class ButtonGroupTest {
         builder.input(editor) {
             this.theme = Some(alternate)
             this.readOnly = true
+            this.protectedText = true
+            this.primarySelection = TextPrimarySelectionOptions(publish = false)
+            this.automaticTextReplacement = true
+            contextMenu { mode = TextContextMenuMode.Disabled }
             this.labelTarget = Some(target)
         }
         builder.text("https://") {}
@@ -219,6 +223,11 @@ private class ButtonGroupTest {
                 assertSame(alternate, grouped.theme!!)
                 assertSame(target, grouped.labelTarget!!)
                 assertTrue(grouped.readOnly)
+                assertTrue(grouped.protectedText)
+                assertFalse(grouped.primarySelection.publish)
+                assertTrue(grouped.automaticTextReplacement)
+                assertEquals(input.contextMenu, grouped.contextMenu)
+                assertEquals(TextContextMenuMode.Disabled, grouped.contextMenu.mode)
                 assertEquals(position, grouped.group)
             }
             else -> fail(Some("missing typed input"))

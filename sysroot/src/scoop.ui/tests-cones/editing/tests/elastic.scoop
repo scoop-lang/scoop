@@ -1,0 +1,104 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.test.*
+import scoop.tests.surface.sendSurfaceScroll
+import scoop.ui.*
+import scoop.ui.text.*
+
+private fun editorNear(expected: Double, actual: Double) {
+    assertTrue(abs(expected - actual) < 0.001, Some(f"expected ${expected}, got ${actual}"))
+}
+
+internal fun textElasticStep(p: TextTouchProbe) {
+    val editor = p.editor!!
+    when (p.phase) {
+        0 -> {
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
+            p.scrollPhysics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Elastic,
+                    0.5,
+                    40.0,
+                    inertia = ScrollInertiaOptions(false)
+                )
+            p.touch = TextTouchOptions(longPressDelay = None)
+            p.changed()
+        }
+        1 -> {
+            assertTrue(editor.focus.handle.requestFocus())
+            p.savedPoint = p.point(5L)
+            p.viewportBounds = editor.area.visibleBounds!!
+            p.contact(401L, 0, p.savedPoint)
+            p.contact(401L, 1, Point(p.savedPoint.x, p.savedPoint.y + 40.0))
+        }
+        2 -> {
+            assertEquals(Point(0.0, 0.0), editor.scroll.offset)
+            editorNear(p.savedPoint.y + 40.0 / 3.0, p.point(5L).y)
+            assertEquals(p.viewportBounds, editor.area.visibleBounds!!)
+            assertTrue(
+                editor.area.hitTest(Point(p.viewportBounds.x + 2.0, p.viewportBounds.y + 2.0))
+            )
+            assertEquals(0L, p.model.selection.cursor)
+            p.contact(401L, 2, Point(p.savedPoint.x, p.savedPoint.y + 40.0))
+        }
+        3 -> {
+            assertFalse(editor.scroll.isAnimating)
+            editorNear(p.savedPoint.y, p.point(5L).y)
+            p.contact(402L, 0, p.savedPoint)
+            p.contact(402L, 1, Point(p.savedPoint.x, p.savedPoint.y + 60.0))
+        }
+        4 -> {
+            assertTrue(p.point(5L).y > p.savedPoint.y)
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(true) }
+            p.contact(402L, 2, Point(p.savedPoint.x, p.savedPoint.y + 60.0))
+        }
+        5 -> {
+            editorNear(p.savedPoint.y, p.point(5L).y)
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
+            p.appearance = TextEditAppearance(p.fonts, p.appearance.textStyle, reduceMotion = true)
+            p.changed()
+        }
+        6 -> {
+            p.contact(403L, 0, p.savedPoint)
+            p.contact(403L, 1, Point(p.savedPoint.x, p.savedPoint.y + 40.0))
+        }
+        7 -> {
+            editorNear(p.savedPoint.y, p.point(5L).y)
+            assertEquals(Point(0.0, 0.0), editor.scroll.offset)
+            p.contact(403L, 2, Point(p.savedPoint.x, p.savedPoint.y + 40.0))
+            p.appearance = TextEditAppearance(p.fonts, p.appearance.textStyle)
+            p.changed()
+        }
+        8 -> editor.scroll.scrollTo(Point(0.0, 50.0))
+        9 -> {
+            editorNear(p.savedPoint.y - 50.0, p.point(5L).y)
+            p.queued += 1
+            assertTrue(sendSurfaceScroll(p.window!!, 50.0, 50.0, 0, 100, true, 1, 0))
+        }
+        10 -> {
+            assertEquals(Point(0.0, 0.0), editor.scroll.offset)
+            assertTrue(p.point(5L).y > p.savedPoint.y)
+            assertEquals(p.viewportBounds, editor.area.visibleBounds!!)
+            editor.scroll.reveal(Rect(0.0, editor.scroll.content.height - 1.0, 1.0, 1.0))
+            p.queued += 1
+            assertTrue(sendSurfaceScroll(p.window!!, 50.0, 50.0, 0, 0, true, 4, 0))
+        }
+        11 -> {
+            assertEquals(editor.scroll.maximum.y, editor.scroll.offset.y)
+            editorNear(p.savedPoint.y - editor.scroll.offset.y, p.point(5L).y)
+            assertFalse(editor.scroll.isAnimating)
+            assertEquals(0L, p.model.selection.cursor)
+            p.gone = true
+            p.changed()
+        }
+        12 -> {
+            assertTrue(editor.isClosed)
+            assertFalse(p.frames!!.snapshot().required)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected elastic text phase"))
+    }
+}

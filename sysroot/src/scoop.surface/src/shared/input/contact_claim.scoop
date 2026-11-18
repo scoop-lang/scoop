@@ -1,0 +1,118 @@
+package scoop.surface
+
+import scoop.window.ContactId
+
+private class ContactClaimChange(
+    val route: InputContactRoute,
+    val previous: Array<InputScope>,
+    val next: Array<InputScope>
+)
+
+/** Atomically claims active contacts whose original paths contain this scope. */
+public fun InputScope.claimContacts(ids: Array<ContactId>): Boolean {
+    checkOpen()
+    requireInput(ids.size > 0L, "contact claim requires at least one identity")
+    for (index in 0L ..< ids.size)
+        for (previous in 0L ..< index)
+            requireInput(ids[index] != ids[previous], "contact claim identities must be unique")
+    return owner.claimContacts(this, ids)
+}
+
+/** Cancels only this scope's ownership of the specified contact. */
+public fun InputScope.cancelContactClaim(id: ContactId) {
+    owner.checkThread()
+    if (closed)
+        return
+    val route = owner.findContact(id) ?: return
+    if (sameScope(route.claimant, Some(this)))
+        owner.dispatch {
+            owner.cancelContact(route, InputCancelReason.ClaimCancelled, inputObservation())
+        }
+}
+
+internal fun InputRouter.claimContacts(scope: InputScope, ids: Array<ContactId>): Boolean {
+    val changes = ArrayList<ContactClaimChange>()
+    for (id in ids) {
+        val route = findContact(id) ?: return rejectContactClaim()
+        if (route.ending || !contactUsable(route))
+            return rejectContactClaim()
+        when (route.claimant) {
+            case Some(val current) -> if (current !== scope)
+                return rejectContactClaim()
+            case None -> {
+                val previous = route.scopes
+                var offset = 0L
+                while (offset < previous.size && previous[offset] !== scope)
+                    offset += 1L
+                if (offset == previous.size)
+                    return rejectContactClaim()
+                val start = offset
+                val next =
+                    Array<InputScope>(previous.size - start) { index -> previous[start + index] }
+                changes.add(ContactClaimChange(route, previous, next))
+            }
+        }
+    }
+    // Commit every owner before a cancellation callback can inspect another contact.
+    for (change in changes) {
+        change.route.claimant = Some(scope)
+        change.route.scopes = change.next
+    }
+    val time = inputObservation()
+    var failure: Throwable? = None
+    for (change in changes)
+        for (previous in change.previous) {
+            if (previous === scope)
+                break
+            failure =
+                cleanupFailure(failure) {
+                    notify(
+                        previous,
+                        InputEvent.Contact(
+                            InputContactEvent.Cancelled(
+                                change.route.latest.id,
+                                InputCancelReason.Claimed,
+                                time
+                            )
+                        ),
+                        time,
+                        Some(change.previous[0L]),
+                        terminal = true
+                    )
+                }
+        }
+    // Activity observers may invalidate one owner during the normal drain.
+    failure = cleanupFailure(failure) { dispatch {} }
+    var intact = !closed
+    for (id in ids) {
+        val route = findContact(id)
+        intact =
+            intact &&
+                when (route) {
+                    case Some(val current) -> sameScope(current.claimant, Some(scope)) &&
+                        contactUsable(current)
+                    case None -> false
+                }
+    }
+    val failed =
+        when (failure) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    if (!intact || failed) {
+        for (change in changes)
+            failure =
+                cleanupFailure(failure) {
+                    cancelContact(change.route, InputCancelReason.ClaimCancelled, time)
+                }
+        failure = cleanupFailure(failure) { dispatch {} }
+        throwFailure(failure)
+        return false
+    }
+    return true
+}
+
+private fun InputRouter.rejectContactClaim(): Boolean {
+    dispatch {}
+    return false
+}

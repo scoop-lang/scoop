@@ -1,0 +1,77 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.InputArea
+import scoop.window.*
+
+public struct DropAreaHandlers(
+    val offer: (DropOffer, Point) -> DropDecision,
+    val drop: (DropRequest, Point) -> Boolean,
+    val leave: () -> Unit = {}
+)
+
+public struct DropHover(val position: Point, val format: DragFormat, val effect: DragEffect)
+
+/** A scope-owned receiver that borrows an existing input area. */
+public class DropArea internal constructor(
+    private val scope: ComponentScope,
+    internal val controller: RootDrops,
+    internal val area: InputArea,
+    handlers: DropAreaHandlers,
+    enabled: Boolean
+): Closeable {
+    private val visual = state<DropHover?>(None)
+    private var current: DropAreaHandlers? = Some(handlers)
+    private var accepts = enabled
+    private var closed = false
+    internal var revision = 0uL
+
+    public val hover: DropHover? get() = visual.value
+    public val isClosed: Boolean get() {
+        val mounted = scope.isMounted
+        return closed || !mounted || area.isClosed
+    }
+    internal val available: Boolean get() = !isClosed && accepts && area.scope.isInputAllowed
+
+    public fun update(handlers: DropAreaHandlers, enabled: Boolean = true) {
+        checkDropMutation()
+        if (isClosed)
+            throw IllegalStateException(Some("drop area is no longer mounted"))
+        current = Some(handlers)
+        accepts = enabled
+        revision += 1uL
+        controller.updated(this)
+    }
+    internal fun offer(value: DropOffer, point: Point): DropDecision = current!!.offer(value, point)
+    internal fun receive(value: DropRequest, point: Point): Boolean = current!!.drop(value, point)
+    internal fun leave() {
+        current!!.leave()
+    }
+    internal fun publish(value: DropHover?) {
+        if (visual.value == value)
+            return
+        visual.value = value
+        if (scope.isMounted)
+            scope.requestFrame()
+    }
+    public override fun close() {
+        scope.isMounted
+        checkDropMutation()
+        if (closed)
+            return
+        closed = true
+        current = None
+        revision += 1uL
+        controller.retire(this)
+        publish(None)
+    }
+}
+
+internal fun checkDropMutation() {
+    when (currentEvaluation()) {
+        case Some(_) -> throw IllegalStateException(
+            Some("data drag bindings cannot change during render, measure, scene or draw")
+        )
+        case None -> {}
+    }
+}

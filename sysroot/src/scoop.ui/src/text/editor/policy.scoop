@@ -5,7 +5,7 @@ import scoop.ui.*
 import scoop.window.*
 
 public enum TextEditSource {
-    NativeInput, Paste, EditCommand, Programmatic
+    NativeInput, Paste, EditCommand, Programmatic, Accessibility, DragDrop
 }
 
 public struct TextEditReplacement(val range: Utf8Range, val text: String)

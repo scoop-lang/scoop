@@ -26,7 +26,7 @@ public class FieldStack public constructor(
     private val props: Props<FieldStackProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -100,7 +100,7 @@ public class FieldSet public constructor(
     private val props: Props<FieldSetProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }

@@ -1,0 +1,213 @@
+package scoop.ui.text
+
+import scoop.test.*
+import scoop.window.*
+
+private fun transfer(editor: TextEditorState): EditorTextTransfer =
+    EditorTextTransfer(editor, editor.selection.range, DragEffects(true, true, false), { true })
+
+private fun assertTransferRejected(edit: EditorPreparedEdit?) {
+    when (edit) {
+        case Some(_) -> fail(Some("lossy or stale Move must be rejected"))
+        case None -> {}
+    }
+}
+
+@Test
+private class TextDragEditTest {
+    @Test
+    fun `same document forward move is one Unicode edit and one reversible history item`() {
+        val editor = TextEditorState("甲😀乙XY", Some(Utf8Selection(10L, 3L)))
+        val original = editor.inputState
+        val source = transfer(editor)
+        val calls = ArrayList<TextEditSource>()
+        val policy =
+            textEditPolicy {
+                paste {
+                    value ->
+                    calls.add(value.source);
+                    TextEditDecision.Accept
+                }
+            }
+        val edit = prepareEditorMove(source, 12L, policy)!!
+        assertEquals(original, editor.inputState)
+        assertTrue(edit.publish(editor, false))
+        source.moved = true
+        assertEquals("甲XY😀乙", editor.text)
+        assertEquals(Utf8Selection(5L, 12L), editor.selection)
+        assertEquals(original.revision + 1L, editor.revision)
+        assertFalse(source.canMove)
+        assertTrue(editor.undo())
+        assertEquals(original.surroundingText, editor.text)
+        assertEquals(original.selection, editor.selection)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("甲XY😀乙", editor.text)
+        assertEquals(1L, calls.size)
+        assertEquals(TextEditSource.DragDrop, calls[0L])
+    }
+
+    @Test
+    fun `backward move adjusts the source once and selects the inserted text`() {
+        val editor = TextEditorState("ab😀cd", Some(Utf8Selection(6L, 8L)))
+        val edit = prepareEditorMove(transfer(editor), 1L, textEditPolicy())!!
+        assertTrue(edit.publish(editor, false))
+        assertEquals("acdb😀", editor.text)
+        assertEquals(Utf8Selection(1L, 3L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("ab😀cd", editor.text)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `dropping inside the source including both ends is a no-op`() {
+        for (position in [2L, 6L]) {
+            val editor = TextEditorState("ab😀cd", Some(Utf8Selection(6L, 2L)))
+            val before = editor.inputState
+            val edit =
+                prepareEditorMove(
+                    transfer(editor),
+                    position,
+                    textEditPolicy { paste { _ -> fail(Some("no-op must not import text")) } }
+                )!!
+            assertFalse(edit.publish(editor, false))
+            assertEquals(before, editor.inputState)
+            assertFalse(editor.canUndo)
+        }
+        val invalid = TextEditorState("ab😀cd", Some(Utf8Selection(2L, 6L)))
+        assertFailsWith<IllegalArgumentException> {
+            prepareEditorMove(transfer(invalid), 3L, textEditPolicy())
+        }
+        assertEquals("ab😀cd", invalid.text)
+    }
+
+    @Test
+    fun `a transformed same document move leaves the source and history untouched`() {
+        val editor = TextEditorState("abcdef", Some(Utf8Selection(1L, 3L)))
+        val before = editor.inputState
+        assertTransferRejected(
+            prepareEditorMove(
+                transfer(editor),
+                6L,
+                textEditPolicy {
+                    paste {
+                        value -> TextEditDecision.Transform(
+                            [TextEditReplacement(value.insertedRanges[0L], "X")]
+                        )
+                    }
+                }
+            )
+        )
+        assertEquals(before, editor.inputState)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `selection changes keep the source while any body change retires its revision`() {
+        val editor = TextEditorState("abcdef", Some(Utf8Selection(1L, 3L)))
+        val source = transfer(editor)
+        val bodyRevision = editor.contentRevision
+        assertTrue(editor.setSelection(Utf8Selection(0L, 0L)))
+        assertEquals(bodyRevision, editor.contentRevision)
+        assertTrue(source.canMove)
+        assertTrue(editor.replace(Utf8Range(5L, 6L), "Z"))
+        assertFalse(source.canMove)
+        assertTrue(editor.undo())
+        assertEquals("abcdef", editor.text)
+        assertFalse(source.canMove)
+        assertTransferRejected(prepareEditorMove(source, 6L, textEditPolicy()))
+        assertTransferRejected(prepareEditorDragRemoval(source, textEditPolicy()))
+    }
+
+    @Test
+    fun `Move rejects a partial import while Copy may accept its grapheme limit`() {
+        val editor = TextEditorState("ab")
+        val policy = textEditPolicy { maxLength = Some(3L) }
+        assertTransferRejected(prepareEditorDrop(editor, 1L, "😀Z", policy, complete = true))
+        assertEquals("ab", editor.text)
+        assertFalse(editor.canUndo)
+        assertTrue(prepareEditorDrop(editor, 1L, "😀Z", policy)!!.publish(editor, false))
+        assertEquals("a😀b", editor.text)
+        val single = TextEditorState("ab")
+        assertTransferRejected(prepareEditorDrop(single, 1L, "X\nY", textEditPolicy(), true, true))
+        assertEquals("ab", single.text)
+    }
+
+    @Test
+    fun `source deletion uses command policy and preserves the current selection on undo`() {
+        val editor = TextEditorState("abcdef", Some(Utf8Selection(3L, 1L)))
+        val source = transfer(editor)
+        assertTrue(editor.setSelection(Utf8Selection(5L, 5L)))
+        val calls = ArrayList<TextEditSource>()
+        val policy =
+            textEditPolicy {
+                paste { _ -> fail(Some("source deletion is not another paste")) }
+                transform {
+                    value ->
+                    calls.add(value.source);
+                    TextEditDecision.Accept
+                }
+            }
+        assertTrue(prepareEditorDragRemoval(source, policy)!!.publish(editor, false))
+        assertEquals("adef", editor.text)
+        assertEquals(1L, calls.size)
+        assertEquals(TextEditSource.EditCommand, calls[0L])
+        assertTrue(editor.undo())
+        assertEquals("abcdef", editor.text)
+        assertEquals(Utf8Selection(5L, 5L), editor.selection)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `source policy cannot reject deletion or rewrite unrelated text and still complete Move`() {
+        val editor = TextEditorState("abcdef", Some(Utf8Selection(1L, 3L)))
+        val source = transfer(editor)
+        val before = editor.inputState
+        assertTransferRejected(
+            prepareEditorDragRemoval(
+                source,
+                textEditPolicy { transform { _ -> TextEditDecision.Reject } }
+            )
+        )
+        assertTransferRejected(
+            prepareEditorDragRemoval(
+                source,
+                textEditPolicy {
+                    transform {
+                        _ -> TextEditDecision.Transform(
+                            [TextEditReplacement(Utf8Range(0L, 1L), "X")]
+                        )
+                    }
+                }
+            )
+        )
+        assertEquals(before, editor.inputState)
+        assertFalse(editor.canUndo)
+        val unavailable = EditorTextTransfer(editor, source.range, source.effects, { false })
+        assertTransferRejected(prepareEditorDragRemoval(unavailable, textEditPolicy()))
+    }
+
+    @Test
+    fun `export settings distinguish default policy explicit overrides and read-only effects`() {
+        val defaults = TextDragOptions()
+        defaults.check()
+        assertTrue(textDragAllowed(defaults, true))
+        assertFalse(textDragAllowed(defaults, false))
+        assertFalse(
+            textDragAllowed(
+                TextDragOptions(enabled = false, copyPolicy = TextCopyPolicy.Allow),
+                true
+            )
+        )
+        assertTrue(textDragAllowed(TextDragOptions(copyPolicy = TextCopyPolicy.Allow), false))
+        assertFalse(textDragAllowed(TextDragOptions(copyPolicy = TextCopyPolicy.Deny), true))
+        assertEquals(DragEffects(true, true, false), defaults.effects)
+        assertFailsWith<IllegalArgumentException> { TextDragOptions(threshold = -1.0).check() }
+        assertFailsWith<IllegalArgumentException> {
+            TextDragOptions(effects = DragEffects(false, false, true)).check()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TextDragOptions(effects = DragEffects(false, false, false)).check()
+        }
+    }
+}

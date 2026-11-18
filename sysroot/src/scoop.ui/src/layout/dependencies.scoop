@@ -9,6 +9,8 @@ internal class AnimationRead(val source: AnimationSource, val revision: Long)
 
 internal class DefaultFontRead(val source: RootFonts, val revision: Long)
 
+internal class PreferenceRead(val source: RootPreferences, val revision: Long)
+
 internal class FontRead(val watch: FontWatch, val revision: Long)
 
 /** Inputs of one completed layout or scene callback. */
@@ -17,9 +19,11 @@ internal class FrameInputs(
     val fonts: Array<FontRead> = [],
     val time: TimeMark? = None,
     val scrolls: Array<ScrollViewport> = [],
-    val defaults: Array<DefaultFontRead> = []
+    val defaults: Array<DefaultFontRead> = [],
+    val preferences: Array<PreferenceRead> = []
 ) {
-    val dynamic: Boolean get() = animations.size > 0L || time != None || defaults.size > 0L
+    val dynamic: Boolean get() =
+        animations.size > 0L || time != None || defaults.size > 0L || preferences.size > 0L
     val perFrame: Boolean get() = animations.size > 0L || time != None
     fun changed(mark: TimeMark): Boolean {
         if (frameChanged(mark))
@@ -36,6 +40,9 @@ internal class FrameInputs(
             if (read.source.revision != read.revision)
                 return true
         for (read in defaults)
+            if (read.source.revision != read.revision)
+                return true
+        for (read in preferences)
             if (read.source.revision != read.revision)
                 return true
         return false
@@ -56,6 +63,7 @@ internal class FrameReads(
     private val fonts = ArrayList<FontRead>()
     private val scrolls = ArrayList<ScrollViewport>()
     private val defaults = ArrayList<DefaultFontRead>()
+    private val preferences = ArrayList<PreferenceRead>()
     private var time = false
     public override fun read(source: AnimationSource) {
         for (previous in animations)
@@ -71,6 +79,12 @@ internal class FrameReads(
     }
     fun readTime() {
         time = true
+    }
+    fun readPreferences(source: RootPreferences) {
+        for (previous in preferences)
+            if (previous.source === source)
+                return
+        preferences.add(PreferenceRead(source, source.revision))
     }
     fun readScroll(value: ScrollViewport) {
         for (previous in scrolls)
@@ -91,6 +105,8 @@ internal class FrameReads(
             this.read(read.source)
         for (read in value.defaults)
             readDefaults(read.source)
+        for (read in value.preferences)
+            readPreferences(read.source)
         for (read in value.fonts) {
             var found = false
             for (previous in fonts)
@@ -113,7 +129,8 @@ internal class FrameReads(
             else
                 None,
             scrolls.toArray(),
-            defaults.toArray()
+            defaults.toArray(),
+            preferences.toArray()
         )
 }
 

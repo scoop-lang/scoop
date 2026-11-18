@@ -6,12 +6,13 @@ import scoop.surface.AnimationSpec
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public class Tooltip public constructor(
     private val props: Props<TooltipProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val popup = HoverPopup({ props.value.input })
+    private val popup = HoverPopup({ props.value.input }, scope)
     public override fun onMount() {
         popup.mount()
     }
@@ -22,7 +23,7 @@ public class HoverCard public constructor(
     private val props: Props<HoverCardProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val popup = HoverPopup({ props.value.input })
+    private val popup = HoverPopup({ props.value.input }, scope)
     public override fun onMount() {
         popup.mount()
     }
@@ -30,11 +31,13 @@ public class HoverCard public constructor(
 }
 
 /** Composition shared by the two hover families; Hover owns all input and deadline state. */
-private class HoverPopup(private val read: () -> HoverPopupInput) {
+private class HoverPopup(private val read: () -> HoverPopupInput, scope: ComponentScope) {
     private val local = state(false)
     private val anchor = LayoutAnchor()
+    private val semanticPopup = SemanticsReference()
+    private val localHandle = OverlayHandle()
     private val link = HoverPopupLink()
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val bodyStyle = ActionTextStyle()
     private val open = binding({ read().open?.value ?: local.value }, { next -> setOpen(next) })
     private val portalOpen =
@@ -62,6 +65,18 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
         val accepted = open.value
         if (previous != accepted)
             read().onOpenChange(accepted)
+    }
+    private fun setExpanded(value: Boolean): SemanticActionResult {
+        if (!read().hover.enabled)
+            return SemanticActionResult.Rejected
+        if (value)
+            setOpen(true)
+        else
+            (read().handle ?: localHandle).requestClose()
+        return if (open.value == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     fun render(): View {
         val input = read()
@@ -103,7 +118,7 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
                     )
                 )
                 if (!passive) {
-                    border(Some(Border.all(1.0, palette.background.foreground.withAlpha(0.1))))
+                    border(Some(Border.all(1.0, componentPanelBorder(theme, palette.popover))))
                     boxShadows(theme.tokens.effects.floating)
                 }
             }.then(input.style)
@@ -149,7 +164,28 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
                         popupArrowInk(input.arrow, density, visual.background.resolve(None))
                     ),
                     { current, mount -> PopupMotion(current, scope = mount) },
-                    [content]
+                    [
+                        semanticContent(
+                            content,
+                            if (passive)
+                                SemanticRole.Text
+                            else
+                                SemanticRole.Dialog,
+                            SemanticProperties(
+                                name = input.semantics.name,
+                                value =
+                                    if (passive)
+                                        candidateCaption(input.content)
+                                    else
+                                        None,
+                                readOnly = passive,
+                                enabled = input.hover.enabled
+                            ),
+                            actions = SemanticActions(dismiss = Some { setExpanded(false) }),
+                            mergeLabels = passive,
+                            reference = Some(semanticPopup)
+                        )
+                    ]
                 )
             ) {
                 placement =
@@ -160,7 +196,7 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
                         input.gap * density,
                         input.viewportPadding * density
                     )
-                handle = input.handle
+                handle = Some(input.handle ?: this @HoverPopup.localHandle)
                 dismiss = OverlayDismiss(true, OutsidePress.CloseAndContinue, true)
                 transition = PresenceOptions(motion, motion)
                 onClosed = { reason -> currentInputs().onClosed(reason) }
@@ -168,7 +204,30 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
         return element(
             HoverPopupLayoutProps(anchor, link, open, input.hover, passive),
             { current, mount -> HoverPopupLayout(current, scope = mount) },
-            [input.trigger, popup]
+            [
+                semanticContent(
+                    input.trigger,
+                    SemanticRole.Group,
+                    input.semantics.properties(
+                        enabled = input.hover.enabled,
+                        description = candidateCaption(input.content),
+                        expanded =
+                            if (passive)
+                                None
+                            else
+                                Some(open.value)
+                    ),
+                    actions =
+                        if (passive)
+                            SemanticActions()
+                        else
+                            SemanticActions(setExpanded = Some { value -> setExpanded(value) }),
+                    relations = semanticControls(input.semantics.relations, semanticPopup.id),
+                    mergeLabels = false,
+                    reference = input.semantics.reference
+                ),
+                popup
+            ]
         )
     }
 }

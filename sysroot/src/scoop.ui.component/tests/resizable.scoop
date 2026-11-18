@@ -140,10 +140,19 @@ private class ResizableModelTest {
             collapsible = true
         }
         builder.panel(ViewKey.Text("b"), empty())
-        builder.handle(ViewKey.Text("a")) { withHandle = Some(true) }
+        builder.handle(ViewKey.Text("a")) {
+            withHandle = Some(true);
+            hitWidth = 32.0
+        }
         val props = builder.snapshot(state<Array<ResizableSize>>([]).binding())
         assertEquals(2L, props.panels.size)
         assertEquals(Some(true), props.handles[0L].withHandle)
+        assertEquals(32.0, props.handles[0L].hitWidth)
+        assertEquals(20.0, ResizableHandleOptions(ViewKey.Text("a")).hitWidth)
+        for (value in [0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> {
+                ResizableHandleOptions(ViewKey.Text("a"), hitWidth = value)
+            }
         assertFailsWith<IllegalArgumentException> {
             resizableValues([ResizableSize(ViewKey.Position, 0.5)])
         }

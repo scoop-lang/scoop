@@ -1,0 +1,117 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal enum FieldAnnotationKind {
+    Label, Description, Error
+}
+
+/** A mounted annotation lends its real semantic node to the existing field connection. */
+internal class FieldAnnotation(private val scope: ComponentScope): Closeable {
+    val node = createComponentSemantics(scope, SemanticRole.Group)
+    private var currentKind = FieldAnnotationKind.Label
+    private var target: FieldTarget? = None
+    private var closed = false
+    val kind: FieldAnnotationKind get() = currentKind
+
+    init {
+        when (node) {
+            case Some(val handle) -> handle.mergeLabels = true
+            case None -> {}
+        }
+        scope.routeSemanticsChildren(node)
+    }
+
+    fun update(
+        target: FieldTarget?,
+        kind: FieldAnnotationKind,
+        options: ComponentSemantics,
+        enabled: Boolean = true
+    ) {
+        val handle = node ?: return
+        handle.update(options.properties(enabled = enabled), relations = options.relations)
+        val sameTarget = sameFieldTarget(this.target, target)
+        val kindChanged = currentKind != kind
+        if (!sameTarget)
+            this.target?.removeAnnotation(this)
+        this.target = target
+        currentKind = kind
+        if (!sameTarget)
+            target?.addAnnotation(this)
+        else
+            if (kindChanged)
+                target?.semanticsChanged()
+    }
+
+    fun nodeFor(source: SemanticsHandle): SemanticsHandle? {
+        if (closed || !scope.isMounted)
+            return None
+        val handle = node ?: return None
+        return if (!handle.isClosed && handle.id.window == source.id.window)
+            Some(handle)
+        else
+            None
+    }
+
+    fun scene(context: SceneContext) {
+        when (node) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        target?.removeAnnotation(this)
+        target = None
+    }
+}
+
+private class FieldAnnotationProps(
+    val target: FieldTarget?,
+    val kind: FieldAnnotationKind,
+    val semantics: ComponentSemantics
+)
+
+private class FieldAnnotationInk(
+    private val props: Props<FieldAnnotationProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val annotation = scope.resource { FieldAnnotation(scope) }
+
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        annotation.update(input.target, input.kind, input.semantics)
+        return UiInvalidation.None
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        annotation.scene(context)
+        context.children()
+    }
+}
+
+internal fun fieldAnnotated(
+    content: View,
+    target: FieldTarget?,
+    kind: FieldAnnotationKind,
+    semantics: ComponentSemantics = ComponentSemantics()
+): View =
+    element(
+        FieldAnnotationProps(target, kind, semantics),
+        { current, mount -> FieldAnnotationInk(current, scope = mount) },
+        [content]
+    )

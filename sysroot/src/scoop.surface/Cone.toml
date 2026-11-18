@@ -204,3 +204,31 @@ when = { os = "linux", env = "gnu" }
 name = "glib-2.0"
 kind = "dynamic"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_remainder.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_contact.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_contact_activity.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_contact_claim.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_contact_movement.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_gesture.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_hit.scoop"
+when = { os = "linux", env = "gnu" }

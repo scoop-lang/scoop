@@ -22,6 +22,7 @@ internal class VariableScene(private val probe: VariableProbe, scope: ComponentS
                         this.theme = Some(this @VariableScene.probe.theme)
                         this.handle = Some(this @VariableScene.probe.handle.value)
                         this.anchor = this @VariableScene.probe.anchor.value
+                        this.scrollPhysics = this @VariableScene.probe.physics.value
                     }
                 else
                     empty(),
@@ -59,7 +60,7 @@ private class VariablePanel(
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
-        context.measureChild(0L, Constraints.tight(Size(width.value, 60.0)))
+        context.measureChild(0L, Constraints.tight(Size(width.value, probe.height.value)))
         context.placeChild(0L, Point(20.0, 20.0))
         context.measureChild(1L, Constraints.tight(Size(0.0, 0.0)))
         context.placeChild(1L, Point(0.0, 0.0))
@@ -70,6 +71,7 @@ private class VariablePanel(
         val discard = probe.discardNext
         val before = probe.scroll.offset
         val beforeReading = probe.handle.value.reading
+        val revision = probe.scroll.requestRevision
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted && probe.lateRequest) {
                 probe.lateRequest = false
@@ -85,7 +87,10 @@ private class VariablePanel(
         }
         context.onFrameComplete {
             frame -> when (frame.submission) {
-                case Accepted -> probe.committed = ticket
+                case Accepted -> {
+                    probe.committed = ticket
+                    probe.presentedRevision = revision
+                }
                 case Discarded -> {
                     assertTrue(discard)
                     assertEquals(before, probe.scroll.offset)
@@ -178,11 +183,15 @@ private class VariableRow(
     }
     public override fun onMount() {
         record.mounts += 1
+        probe.alive += 1
+        if (probe.alive > probe.peak)
+            probe.peak = probe.alive
         record.area = Some(scope.createArea(focusable = true))
         scope.onDispose { record.disposed += 1 }
     }
     public override fun onUnmount() {
         record.unmounts += 1
+        probe.alive -= 1
         assertTrue(record.area!!.isClosed)
     }
 }

@@ -33,6 +33,9 @@ private class PublicTextEditHostTest {
                         }
                         assertTrue(probe.finished)
                         assertTrue(probe.systemIme.complete)
+                        assertTrue(probe.contextMenus.complete)
+                        assertTrue(probe.selectableMenus.complete)
+                        assertEquals("replacement", probe.primary.text)
                         assertEquals(3, probe.mounts)
                         assertEquals(probe.mounts, probe.unmounts)
                         assertEquals(1, probe.displayTest.mounts)
@@ -56,10 +59,16 @@ private class PublicTextEditHostTest {
                         assertFalse(probe.frames!!.snapshot().required)
                         assertFalse(fonts.isClosed)
                     } catch (error: Throwable) {
-                        println("editing phase=" + probe.phase.toString())
+                        println(
+                            f"editing phase=${probe.phase}, menus complete=${
+                                probe.contextMenus.complete
+                            }, destroyed=${probe.finished}"
+                        )
                         editingFailure(error)
                         throw error
                     } finally {
+                        probe.contextMenus.close()
+                        probe.selectableMenus.close()
                         try {
                             probe.frames?.close()
                         }
@@ -77,8 +86,10 @@ private class PublicTextEditHostTest {
 
 internal class EditProbe(val fonts: FontCollection) {
     val systemIme = SystemImeProbe()
+    val contextMenus = EditorContextMenuProbe()
+    val selectableMenus = SelectableMenuProbe()
     val displayTest = DisplayProbe()
-    val primary = TextEditorState("A😀éZ")
+    var primary = TextEditorState("A😀éZ")
     val multiline = TextEditorState("one two\nthree")
     val focus = Array<FocusHandle>(3L) { _ -> FocusHandle() }
     val fields = MutableArray<TextEditHost?>(3L) { _ -> None }
@@ -128,6 +139,7 @@ internal class EditProbe(val fonts: FontCollection) {
     var acceptedRevisions: Array<Long> = [-1L, -1L]
     var phase = 0
     var waiting = false
+    var popupPending = false
     var retriedFocus = false
     var finished = false
     var window: Window? = None
@@ -146,7 +158,7 @@ internal class EditProbe(val fonts: FontCollection) {
                     true
                 else
                     readonly,
-            enabled = index != 2L,
+            enabled = index != 2L && contextMenus.enabled,
             tab = tab,
             submit =
                 if (index == 1L)
@@ -154,10 +166,12 @@ internal class EditProbe(val fonts: FontCollection) {
                 else
                     TextSubmitKeys.Enter,
             paintCache = PaintCachePolicy.Tiles(64, 0),
-            caretBlink = blink,
+            caretBlink = Some(blink),
             policy = policy,
             projection = displayTest.projection,
-            copy = displayTest.copy
+            copy = displayTest.copy,
+            contextMenu = contextMenus.options,
+            protectedText = displayTest.protectedText
         )
     fun model(index: Long): TextEditorState =
         if (index == 1L)
@@ -188,6 +202,7 @@ internal class EditProbe(val fonts: FontCollection) {
     }
     fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
+            case PopupCompleted(_, _) -> popupPending = false
             case Resumed -> {
                 active = Some(application)
                 val native =
@@ -218,7 +233,7 @@ internal class EditProbe(val fonts: FontCollection) {
                     retriedFocus = true
                     window!!.requestFocus()
                 }
-                if (!finished && phase < 91 && !waiting && settled()) {
+                if (!finished && phase <= 91 && !waiting && settled()) {
                     waiting = true
                     assertTrue(
                         application.proxy().post {
@@ -246,7 +261,9 @@ internal class EditProbe(val fonts: FontCollection) {
     }
     private fun nativeFocused(): Boolean = window!!.isFocused
     private fun settled(): Boolean {
-        if (accepted == 0 || !nativeFocused() || frames!!.snapshot().required)
+        if (window!!.state != WindowState.Open)
+            return false
+        if (popupPending || accepted == 0 || !nativeFocused() || frames!!.snapshot().required)
             return false
         if (acceptedVersion != revision.value)
             return false

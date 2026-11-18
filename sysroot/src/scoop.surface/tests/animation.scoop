@@ -26,6 +26,51 @@ private fun animationNear(expected: Double, actual: Double, tolerance: Double = 
 @Test
 private class AnimationTest {
     @Test
+    fun `external spring velocity starts at the resting target and can be explicitly reset`() {
+        val clock = AnimationClock()
+        AnimationTimeline(clock).use {
+            timeline ->
+            val value = timeline.value(Point(0.0, 0.0))
+            val completed = ArrayList<Point>()
+            value.animateTo(
+                Point(0.0, 0.0),
+                AnimationSpec.Spring(200.0, 1.0),
+                initialVelocity = Some(AnimationVector(120.0, -60.0)),
+                onFinished = Some { result -> completed.add(result) }
+            )
+            assertEquals(AnimationVector(120.0, -60.0), value.velocity)
+            timeline.advanceTo(clock.at(50L))
+            assertTrue(value.value.x > 0.0)
+            assertTrue(value.value.y < 0.0)
+            val position = value.value
+            assertFailsWith<IllegalArgumentException> {
+                value.animateTo(Point(1.0, 1.0), initialVelocity = Some(AnimationVector()))
+            }
+            assertFailsWith<IllegalArgumentException> {
+                value.animateTo(
+                    Point(1.0, 1.0),
+                    AnimationSpec.Spring(),
+                    initialVelocity = Some(AnimationVector(0.0 / 0.0))
+                )
+            }
+            assertEquals(position, value.value)
+            assertEquals(AnimationState.Running, value.state)
+            value.animateTo(
+                Point(0.0, 0.0),
+                AnimationSpec.Spring(200.0, 1.0),
+                initialVelocity = Some(AnimationVector()),
+                onFinished = Some { result -> completed.add(result) }
+            )
+            assertEquals(AnimationVector(), value.velocity)
+            timeline.advanceTo(clock.at(5000L))
+            assertEquals(Point(0.0, 0.0), value.value)
+            assertEquals(AnimationState.Finished, value.state)
+            assertEquals(1L, completed.size)
+            assertFalse(timeline.hasWork)
+        }
+    }
+
+    @Test
     fun `tween values share the frame time and skip directly to completion`() {
         val clock = AnimationClock()
         val invalidations = ArrayList<Int>()

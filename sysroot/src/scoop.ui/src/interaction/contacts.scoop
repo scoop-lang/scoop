@@ -1,0 +1,18 @@
+package scoop.ui
+
+import scoop.window.ContactId
+
+internal fun rememberContact(contacts: ArrayList<ContactId>, id: ContactId) {
+    for (current in contacts)
+        if (current == id)
+            return
+    contacts.add(id)
+}
+
+internal fun forgetContact(contacts: ArrayList<ContactId>, id: ContactId) {
+    for (index in 0L ..< contacts.size)
+        if (contacts[index] == id) {
+            contacts.removeAt(index)
+            return
+        }
+}

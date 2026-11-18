@@ -1,0 +1,162 @@
+package scoop.tests.ui.carousel
+
+import scoop.test.*
+import scoop.tests.window.sendNativeGesture
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class CarouselSwipeWindowTest {
+    @Test
+    fun `native swipe carousel respects direction boundaries bindings and active drags`() {
+        val p =
+            CarouselProbe(exercise = Some({ value -> advanceCarouselSwipe(value) }), phases = 27)
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(4, p.mounts);
+            assertEquals(p.mounts, p.unmounts)
+            assertEquals(0, p.clicks);
+            assertEquals(1, p.cancels)
+            assertFalse(p.handle.isAttached);
+            assertFalse(p.viewport.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(f"carousel swipe phase=${p.phase}, selected=${p.handle.snapshot.index}")
+            reportCarouselFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+private fun carouselSwipe(p: CarouselProbe, x: Double = -1.0, y: Double = 0.0) {
+    @Unsafe
+    {
+        val lease = p.native!!.acquireNativeWindow()
+        try {
+            when (lease.handle) {
+                case AppKit(_, val view) -> sendNativeGesture(view, 2, 0, 150.0, 250.0, -x, -y)
+            }
+        } finally {
+            lease.close()
+        }
+    }
+}
+
+private fun advanceCarouselSwipe(p: CarouselProbe) {
+    when (p.phase) {
+        0 -> {
+            p.expect(0L, 0.0);
+            carouselSwipe(p)
+        }
+        1 -> {
+            p.expect(1L, 110.0);
+            carouselSwipe(p, 1.0)
+        }
+        2 -> {
+            p.expect(0L, 0.0);
+            carouselSwipe(p, 1.0)
+        }
+        3 -> {
+            p.expect(0L, 0.0);
+            assertEquals(2, p.selections)
+            p.nativeSwipe = false;
+            p.refresh()
+        }
+        4 -> carouselSwipe(p)
+        5 -> {
+            p.expect(0L, 0.0);
+            assertEquals(2, p.selections)
+            p.nativeSwipe = true;
+            p.reject = true;
+            p.refresh()
+        }
+        6 -> carouselSwipe(p)
+        7 -> {
+            p.expect(0L, 0.0);
+            assertEquals(2, p.selections)
+            p.reject = false;
+            p.rtl = true;
+            p.refresh()
+        }
+        8 -> carouselSwipe(p, 1.0)
+        9 -> {
+            p.expect(1L, 110.0);
+            carouselSwipe(p)
+        }
+        10 -> {
+            p.expect(0L, 0.0);
+            p.loop = true;
+            p.refresh()
+        }
+        11 -> carouselSwipe(p)
+        12 -> {
+            assertEquals(3L, p.handle.snapshot.index)
+            p.loop = false;
+            p.vertical = true;
+            p.selected.value = 0L;
+            p.refresh()
+        }
+        13 -> {
+            p.expect(0L, 0.0);
+            carouselSwipe(p, 0.0, -1.0)
+        }
+        14 -> {
+            p.expect(1L, 110.0);
+            carouselSwipe(p, 0.0, 1.0)
+        }
+        15 -> {
+            p.expect(0L, 0.0);
+            carouselSwipe(p, 1.0)
+        }
+        16 -> {
+            p.expect(0L, 0.0);
+            p.enabled = false;
+            p.refresh()
+        }
+        17 -> carouselSwipe(p, 0.0, -1.0)
+        18 -> {
+            p.expect(0L, 0.0)
+            p.enabled = true;
+            p.rtl = false;
+            p.vertical = false;
+            p.refresh()
+        }
+        19 -> p.press(200.0, 250.0, true)
+        20 -> p.move(120.0, 250.0)
+        21 -> {
+            assertTrue(p.handle.snapshot.dragging);
+            carouselSwipe(p)
+        }
+        22 -> {
+            p.expect(1L, 110.0);
+            assertFalse(p.handle.snapshot.dragging)
+            assertEquals(1, p.cancels);
+            p.press(120.0, 250.0, false)
+        }
+        23 -> {
+            p.expect(1L, 110.0);
+            assertEquals(8, p.selections)
+            p.quiet = Some(p.frames!!.snapshot())
+        }
+        24 -> assertEquals(p.quiet!!, p.frames!!.snapshot())
+        25 -> {
+            p.gone = true;
+            p.refresh()
+        }
+        26 -> {
+            assertFalse(p.handle.isAttached);
+            p.native!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected carousel swipe phase"))
+    }
+}

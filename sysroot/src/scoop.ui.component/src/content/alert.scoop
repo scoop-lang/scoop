@@ -27,7 +27,7 @@ public class Alert public constructor(
     private val props: Props<AlertProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     public override fun onMount() {
@@ -42,21 +42,29 @@ public class Alert public constructor(
         val titleStyle =
             titles.resolve(
                 theme.tokens.typography.action,
-                if (destructive)
-                    colors.destructive.background
-                else
-                    colors.card.foreground,
+                componentForeground(
+                    theme,
+                    if (destructive)
+                        colors.destructive.background
+                    else
+                        colors.card.foreground,
+                    colors.card.background
+                ),
                 None
             )
         val descriptionStyle =
             descriptions.resolve(
                 theme.tokens.typography.body,
-                if (destructive)
-                    colors.destructive.background.withAlpha(
-                        colors.destructive.background.alpha * 0.9
-                    )
-                else
-                    colors.muted.foreground,
+                componentForeground(
+                    theme,
+                    if (destructive)
+                        colors.destructive.background.withAlpha(
+                            colors.destructive.background.alpha * 0.9
+                        )
+                    else
+                        colors.muted.foreground,
+                    colors.card.background
+                ),
                 None
             )
         val text =
@@ -105,7 +113,14 @@ public class Alert public constructor(
             Insets(10.0 * density, 8.0 * density, 10.0 * density, 8.0 * density),
             styleOverride {
                 this.background(Some(Paint(colors.card.background)))
-                this.border(Some(Border.all(1.0, colors.border)))
+                this.border(
+                    Some(
+                        Border.all(
+                            1.0,
+                            componentForeground(theme, colors.border, colors.card.background, 3.0)
+                        )
+                    )
+                )
                 this.corners(Corners.all(theme.tokens.corners.medium))
             }.then(input.style)
         )

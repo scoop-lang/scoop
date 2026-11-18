@@ -1,0 +1,285 @@
+package scoop.ui
+
+import scoop.window.accessibility.*
+
+/** One scope-owned semantic identity, independent of drawing and input areas. */
+public class SemanticsHandle internal constructor(
+    internal val owner: MountedNode,
+    internal val controller: RootSemantics,
+    internal val resource: AccessibilityNode,
+    internal var explicitParent: SemanticsHandle?,
+    internal var parent: SemanticsHandle?
+): Closeable {
+    private var closed = false
+    private var references: Array<SemanticsReference> = []
+    internal var properties = SemanticProperties()
+    internal var actions = SemanticActions()
+    private var declaredRelations = SemanticRelations()
+    internal var focus: FocusTarget? = None
+    internal var merged = false
+    internal var revealPlacement: SemanticRevealPlacement? = None
+    internal var textBinding: SemanticTextBinding? = None
+    internal var textChild: SemanticTextChildBinding? = None
+    private var merging = false
+    internal var collectionSource: ItemSource? = None
+    internal var collectionItems: ItemSemantics? = None
+    internal var collectionViewport: ScrollViewport? = None
+    internal val generation: ULong get() = resource.contentRevision
+
+    public val id: SemanticNodeId get() = resource.id
+    public val role: SemanticRole get() = resource.role
+    /** Merges plain text leaves in this semantic container, retaining interactive children. */
+    public var mergeLabels: Boolean
+    get() {
+        checkOpen()
+        return merging
+    }
+    set(value) {
+        checkOpen()
+        checkSemanticsMutation()
+        if (merging == value)
+            return
+        merging = value
+        controller.contentChanged()
+    }
+
+    internal val mergeCandidate: Boolean get() {
+        if (
+            role !=
+                SemanticRole.Text ||
+                merging ||
+                properties.protectedText ||
+                properties.selection !=
+                None
+        )
+            return false
+        if (!actions.isEmpty)
+            return false
+        return when (focus) {
+            case None -> true;
+            case Some(_) -> false
+        }
+    }
+    /** Current same-root references, with retired targets removed. */
+    public val relations: SemanticRelations get() {
+        checkOpen()
+        return resource.relations
+    }
+    public val isClosed: Boolean get() {
+        owner.root.checkThread()
+        return !active
+    }
+    internal val active: Boolean get() =
+        !closed && owner.active && owner.root.isOpen && !resource.isClosed
+
+    /** The last accepted geometry matching the current semantic content. */
+    public val geometry: SemanticGeometry? get() {
+        checkOpen()
+        return resource.geometry
+    }
+
+    public fun announce(text: String, priority: SemanticLive = SemanticLive.Polite) {
+        checkOpen()
+        checkSemanticsMutation()
+        if (!owner.scope.input.isInputAllowed)
+            return
+        resource.announce(text, priority)
+        controller.changed()
+    }
+
+    /** Retaining the same reference does not invalidate its render readers. */
+    public fun bindReference(next: SemanticsReference?) {
+        bindReferences(
+            when (next) {
+                case Some(val value) -> [value];
+                case None -> []
+            }
+        )
+    }
+
+    /** Allows a component's public reference and its internal relationships to share one node. */
+    public fun bindReferences(next: Array<SemanticsReference>) {
+        checkOpen()
+        checkSemanticsMutation()
+        for (value in next)
+            value.checkTarget(this)
+        for (old in references) {
+            var retained = false
+            for (value in next)
+                if (value === old)
+                    retained = true
+            if (!retained)
+                old.detach(this)
+        }
+        for (value in next)
+            value.attach(this)
+        references = next
+    }
+
+    /** Replaces facts, callbacks and relations without changing identity or requesting a frame. */
+    public fun update(
+        properties: SemanticProperties,
+        actions: SemanticActions = SemanticActions(),
+        relations: SemanticRelations = SemanticRelations()
+    ) {
+        updateFacts(properties, actions, relations)
+        textBinding?.close()
+    }
+
+    internal fun updateText(
+        host: SemanticTextHost?,
+        properties: SemanticProperties,
+        actions: SemanticActions,
+        relations: SemanticRelations
+    ) {
+        updateFacts(properties, actions, relations)
+        when ((textBinding, host)) {
+            case(Some(val previous), Some(val current)) -> {
+                if (previous.host === current)
+                    return
+            }
+            else -> {}
+        }
+        textBinding?.close()
+        when (host) {
+            case Some(val current) -> {
+                current.binding?.close()
+                val binding = SemanticTextBinding(this, current)
+                textBinding = Some(binding)
+                current.binding = Some(binding)
+                owner.invalidateScene()
+            }
+            case None -> {}
+        }
+    }
+
+    private fun updateFacts(
+        properties: SemanticProperties,
+        actions: SemanticActions,
+        relations: SemanticRelations
+    ) {
+        checkOpen()
+        checkSemanticsMutation()
+        val candidate = mergeCandidate
+        val exposure =
+            this.properties.ignored !=
+                properties.ignored ||
+                this.properties.hidden !=
+                properties.hidden
+        resource.update(
+            semanticProperties(this, properties, merged),
+            semanticActions(this, actions),
+            if (declaredRelations == relations)
+                resource.relations
+            else
+                relations
+        )
+        this.properties = properties
+        this.actions = actions
+        declaredRelations = relations
+        if (exposure || candidate != mergeCandidate)
+            controller.contentChanged()
+        else
+            controller.changed()
+    }
+
+    /** Borrows the real focus target; binding never requests keyboard focus. */
+    public fun bindFocus(target: FocusTarget?) {
+        checkOpen()
+        checkSemanticsMutation()
+        when (target) {
+            case Some(val value) -> {
+                requireUi(
+                    value.active && value.node === owner,
+                    "semantic focus belongs to another mount"
+                )
+                controller.checkFocus(this, value)
+            }
+            case None -> {}
+        }
+        val candidate = mergeCandidate
+        focus = target
+        resource.update(
+            semanticProperties(this, properties, merged),
+            semanticActions(this, actions),
+            resource.relations
+        )
+        if (candidate != mergeCandidate)
+            controller.contentChanged()
+        else
+            controller.changed()
+    }
+
+    internal fun checkOpen() {
+        owner.root.checkThread()
+        if (!active)
+            throw IllegalStateException(Some("semantic node is no longer mounted"))
+    }
+
+    internal fun finishClose() {
+        if (closed)
+            return
+        closed = true
+        for (reference in references)
+            reference.detach(this)
+        references = []
+        collectionSource = None
+        collectionItems = None
+        collectionViewport = None
+        when (owner.lazySemantics) {
+            case Some(val current) -> if (current === this) {
+                owner.lazySemantics = None
+                owner.lazyItems?.unbindSemantics()
+            }
+            case None -> {}
+        }
+        when (owner.semanticItem) {
+            case Some(val current) -> if (current === this)
+                owner.semanticItem = None
+            case None -> {}
+        }
+        textBinding?.close()
+        textChild = None
+        actions = SemanticActions()
+        revealPlacement = None
+        declaredRelations = SemanticRelations()
+        focus = None
+        explicitParent = None
+        parent = None
+        when (val route = owner.semanticRoute) {
+            case Some(val value) -> if (value === this)
+                owner.semanticRoute = None
+            case None -> {}
+        }
+        for (index in 0L ..< owner.semanticHandles.size)
+            if (owner.semanticHandles[index] === this) {
+                owner.semanticHandles.removeAt(index)
+                break
+            }
+        owner.scope.forgetSemantics(this)
+    }
+
+    /** Retires this identity while preserving independently owned semantic children. */
+    public override fun close() {
+        owner.root.checkThread()
+        checkSemanticsMutation()
+        if (!closed)
+            controller.retire(this)
+    }
+}
+
+internal fun checkSemanticsMutation() {
+    when (currentEvaluation()) {
+        case Some(_) -> throw IllegalStateException(
+            Some("semantics cannot change during render, measure, scene or draw")
+        )
+        case None -> {}
+    }
+}
+
+internal fun sameSemantics(a: SemanticsHandle?, b: SemanticsHandle?): Boolean =
+    when ((a, b)) {
+        case(Some(val first), Some(val second)) -> first === second
+        case(None, None) -> true
+        else -> false
+    }

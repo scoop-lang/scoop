@@ -1,0 +1,165 @@
+package scoop.tests.ui.accessibility.reveal
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal class RevealRoot(private val probe: RevealProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val revision = probe.revision.value
+        return element(
+            revision,
+            { props, mount -> RevealPanel(probe, props, mount) },
+            [
+                element({ mount -> RevealEditor(probe, mount) }),
+                element(
+                    revision,
+                    { _, mount -> OuterViewport(probe, mount) },
+                    [
+                        element(
+                            revision,
+                            { _, mount -> InnerViewport(probe, mount) },
+                            [element(revision, { _, mount -> RevealLeaf(probe, mount) })]
+                        )
+                    ]
+                )
+            ]
+        )
+    }
+}
+
+private class RevealPanel(
+    private val probe: RevealProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    init {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(320.0, 40.0)))
+        context.placeChild(0L, Point(10.0, 10.0))
+        context.measureChild(1L, Constraints.tight(Size(240.0, 140.0)))
+        context.placeChild(1L, Point(20.0, 80.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(360.0, 260.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        val revision = props.value
+        if (probe.discardNext) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(380.0, 260.0))
+        }
+        context.onFrameComplete { frame -> probe.frame(frame, revision) }
+    }
+}
+
+private class RevealEditor(private val probe: RevealProbe, scope: ComponentScope): Element<
+    TextEditMeasurement
+>(scope) {
+    private val editor =
+        scope.resource {
+            TextEditHost(
+                scope,
+                probe.model,
+                probe.appearance,
+                TextEditOptions(caretBlink = Some(Duration.ZERO))
+            )
+        }
+    init {
+        probe.editor = Some(editor)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val value = editor.measure(constraints)
+        return LayoutResult(value.metrics, value, { value.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        editor.scene(context, measured)
+    }
+}
+
+private class OuterViewport(private val probe: RevealProbe, scope: ComponentScope): Element<
+    ScrollLayout
+>(scope) {
+    private val viewport = scope.scrollViewport(probe.outer)
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
+        context.measureChild(0L, Constraints.tight(Size(180.0, 100.0)))
+        context.placeChild(0L, Point(300.0, 160.0))
+        val value =
+            viewport.layout(
+                Size(240.0, 140.0),
+                Size(640.0, 420.0),
+                padding = ScrollPadding(10.0, 10.0, 20.0, 20.0)
+            )
+        return LayoutResult(LayoutMetrics(Size(240.0, 140.0)), value)
+    }
+    public override fun scene(context: SceneContext, measured: ScrollLayout) {
+        viewport.present(context, measured, Some { content -> content.children() })
+    }
+}
+
+private class InnerViewport(private val probe: RevealProbe, scope: ComponentScope): Element<
+    ScrollLayout
+>(scope) {
+    private val viewport = scope.scrollViewport(probe.inner)
+    init {
+        probe.innerViewport = Some(viewport)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
+        context.measureChild(0L, Constraints.tight(Size(500.0, 350.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        val value =
+            viewport.layout(
+                Size(180.0, 100.0),
+                Size(500.0, 350.0),
+                padding = ScrollPadding(5.0, 5.0, 15.0, 15.0)
+            )
+        return LayoutResult(LayoutMetrics(Size(180.0, 100.0)), value)
+    }
+    public override fun scene(context: SceneContext, measured: ScrollLayout) {
+        viewport.present(context, measured, Some { content -> content.children() })
+    }
+}
+
+/** The target deliberately has no input area or focus target. */
+private class RevealLeaf(private val probe: RevealProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    private val semantic = scope.semantics(SemanticRole.Text)
+    init {
+        probe.target = Some(semantic)
+    }
+    public override fun update(): UiInvalidation {
+        scope.input.enabled = probe.mode != 4
+        probe.updateTarget()
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(Size(500.0, 350.0)), Unit)
+
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val rect = Rect(310.0, 220.0, 40.0, 20.0)
+        context.withState {
+            content ->
+            if (probe.mode == 5)
+                content.clipRect(Rect(0.0, 0.0, 10.0, 10.0))
+            if (probe.mode != 6 && !semantic.isClosed)
+                content.semantics(semantic, rect)
+            content.draw { paint -> paint.canvas.drawRect(rect, Paint(Color(0.2, 0.5, 0.8))) }
+        }
+    }
+}

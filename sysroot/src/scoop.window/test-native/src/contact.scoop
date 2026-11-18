@@ -1,0 +1,24 @@
+package scoop.tests.window
+
+/** Queues a controlled contact payload; this is not real screen input. */
+@Extern(name = "scoop_window_test_contact")
+public fun sendNativeContact(
+    view: Ptr<Unit>,
+    identity: Long,
+    kind: Int,
+    phase: Int,
+    x: Double,
+    y: Double
+)
+
+/** A controlled monotonic timestamp makes contact-velocity tests independent of queue latency. */
+@Extern(name = "scoop_window_test_contact_timed")
+public fun sendNativeContactTimed(
+    view: Ptr<Unit>,
+    identity: Long,
+    kind: Int,
+    phase: Int,
+    x: Double,
+    y: Double,
+    milliseconds: Long
+)

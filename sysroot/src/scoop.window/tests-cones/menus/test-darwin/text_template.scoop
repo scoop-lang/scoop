@@ -1,0 +1,36 @@
+package scoop.tests.window.menus
+
+import scoop.test.*
+import scoop.window.*
+
+internal fun checkPlatformTextTemplate(application: ActiveApplication) {
+    val template = application.textContextMenuTemplate()
+    assertEquals(TextContextMenuSource.SystemTemplate, template.source)
+    assertTrue(template.selectWordOutsideSelection)
+    for (
+        (role, command) in [
+            (4, TextEditCommand.Cut),
+            (5, TextEditCommand.Copy),
+            (6, TextEditCommand.Paste)
+        ]
+    ) {
+        @Unsafe
+        {
+            assertEquals(
+                1,
+                textMenuTitle(template, command).withUtf8Bytes {
+                    bytes,
+                    length -> @Unsafe
+                    {
+                        return@withUtf8Bytes nativeDefaultTextMenuTitle(role, bytes, length)
+                    }
+                }
+            )
+        }
+    }
+    assertTrue(isContextMenuClick(MouseButton.Left, textMenuModifiers(control = true)))
+    assertFalse(isContextMenuClick(MouseButton.Left, textMenuModifiers(control = true, alt = true)))
+}
+
+@Extern(name = "scoop_test_default_text_menu_title")
+private fun nativeDefaultTextMenuTitle(role: Int, bytes: Ptr<UInt8>, length: Long): Int

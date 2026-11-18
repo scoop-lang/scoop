@@ -1,0 +1,30 @@
+package scoop.ui.text
+
+import scoop.window.*
+
+/** A rejected destination must not publish the composition fallback used by native input. */
+internal fun prepareEditorDrop(
+    editor: TextEditorState,
+    position: Long,
+    text: String,
+    policy: TextEditPolicy,
+    singleLine: Boolean = false,
+    complete: Boolean = false
+): EditorPreparedEdit? {
+    val operations = ArrayList<TextInputOperation>()
+    if (editor.isComposing)
+        operations.add(TextInputOperation.ClearPreedit)
+    operations.add(
+        TextInputOperation.Commit(text, TextReplacement.Range(Utf8Range(position, position)))
+    )
+    val raw =
+        prepareEditorInput(editor, TextInputBatch(Some(editor.revision), operations.toArray()))!!
+    val result =
+        finishEditorInput(raw, policy, TextEditSource.DragDrop, singleLine, EditorEditKind.Separate)
+    if (complete)
+        return completeEditorTransfer(raw, result)
+    return if (result.accepted)
+        Some(result)
+    else
+        None
+}

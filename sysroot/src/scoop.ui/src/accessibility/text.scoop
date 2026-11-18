@@ -1,0 +1,49 @@
+package scoop.ui
+
+import scoop.ui.text.NativeTextSource
+
+/** One real text host and its reusable native source, without retaining a second document. */
+internal class SemanticTextHost: Closeable {
+    var binding: SemanticTextBinding? = None
+    var source: NativeTextSource? = None
+
+    fun replaceSource(value: NativeTextSource) {
+        source?.close()
+        source = Some(value)
+    }
+
+    public override fun close() {
+        binding?.close()
+        source?.close()
+        source = None
+    }
+}
+
+/** Binding identity prevents a discarded or detached host from republishing its geometry. */
+internal class SemanticTextBinding(
+    val handle: SemanticsHandle,
+    val host: SemanticTextHost
+): Closeable {
+    var path: Array<ScrollReveal>? = None
+    private var closed = false
+    val active: Boolean get() = !closed
+
+    public override fun close() {
+        if (!active)
+            return
+        closed = true
+        path = None
+        handle.textBinding = None
+        host.binding = None
+        host.source?.close()
+        host.source = None
+        if (handle.active) {
+            handle.resource.textDocument = None
+            @Unsafe
+            {
+                handle.resource.setTextGeometry(None)
+            }
+            handle.controller.changed()
+        }
+    }
+}

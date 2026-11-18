@@ -98,7 +98,7 @@ internal class LayoutResultEditor(
                     scope,
                     state,
                     TextEditAppearance(fonts, text, text),
-                    TextEditOptions(multiline = true, caretBlink = Duration.ZERO)
+                    TextEditOptions(multiline = true, caretBlink = Some(Duration.ZERO))
                 )
             }
         host = Some(editor)

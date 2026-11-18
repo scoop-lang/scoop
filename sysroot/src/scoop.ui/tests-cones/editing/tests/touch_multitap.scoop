@@ -1,0 +1,122 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun textTouchMultiTap(p: TextTouchProbe) {
+    when (p.phase) {
+        0 -> {
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = None,
+                    multiTapInterval = Some(Duration.seconds(10L))
+                )
+            p.menu = p.menu.copy { mode = TextContextMenuMode.Disabled }
+            p.changed()
+        }
+        1 -> touchTap(p, 5L)
+        2 -> {
+            touchSelection(p, 5L, 5L);
+            touchTap(p, 5L)
+        }
+        3 -> {
+            touchSelection(p, 4L, 7L);
+            touchTap(p, 5L)
+        }
+        4 -> {
+            touchSelection(p, 0L, 16L);
+            touchTap(p, 5L)
+        }
+        5 -> {
+            touchSelection(p, 0L, 16L);
+            touchTap(p, 11L)
+        }
+        6 -> {
+            touchSelection(p, 11L, 11L);
+            touchTap(p, 11L, pen = true)
+        }
+        7 -> {
+            touchSelection(p, 11L, 11L);
+            touchTap(p, 11L, pen = true)
+        }
+        8 -> {
+            touchSelection(p, 11L, 15L);
+            touchTap(p, 11L, pen = true)
+        }
+        9 -> {
+            touchSelection(p, 0L, 16L);
+            p.model.setSelection(Utf8Selection(0L, 0L))
+        }
+        10 -> touchTap(p, 5L)
+        11 -> {
+            touchSelection(p, 5L, 5L);
+            p.model.setSelection(Utf8Selection(0L, 0L))
+        }
+        12 -> touchTap(p, 5L)
+        13 -> {
+            touchSelection(p, 5L, 5L);
+            touchTap(p, 5L)
+        }
+        14 -> {
+            touchSelection(p, 4L, 7L)
+            p.touch = TextTouchOptions(longPressDelay = None, multiTap = false)
+            p.changed()
+        }
+        15 -> touchTap(p, 5L)
+        16 -> {
+            touchSelection(p, 5L, 5L);
+            touchTap(p, 5L)
+        }
+        17 -> {
+            touchSelection(p, 5L, 5L)
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = None,
+                    multiTapInterval = Some(Duration.milliseconds(40L))
+                )
+            p.changed()
+        }
+        18 -> touchTap(p, 5L)
+        19 -> p.pause(100L)
+        20 -> touchTap(p, 5L)
+        21 -> {
+            touchSelection(p, 5L, 5L)
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = None,
+                    multiTapInterval = Some(Duration.seconds(10L))
+                )
+            p.changed()
+        }
+        else -> textTouchMultiTapEdges(p)
+    }
+}
+
+internal fun touchTap(
+    p: TextTouchProbe,
+    byte: Long,
+    readonly: Boolean = false,
+    pen: Boolean = false
+) {
+    p.tapAt(100L + p.phase.toLong(), p.point(byte, readonly), pen)
+}
+
+internal fun touchSelection(
+    p: TextTouchProbe,
+    anchor: Long,
+    cursor: Long,
+    readonly: Boolean = false
+) {
+    assertEquals(
+        Utf8Selection(anchor, cursor),
+        if (readonly)
+            p.selectable!!.selection
+        else
+            p.model.selection
+    )
+}

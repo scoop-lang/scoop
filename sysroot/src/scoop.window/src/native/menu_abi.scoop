@@ -33,6 +33,21 @@ internal fun nativeMenuAppend(
     modifiers: Int
 ): Long
 
+@Extern(name = "scoop_window_menu_text_services")
+internal fun nativeMenuTextServices(
+    menu: Ptr<Unit>,
+    item: Long,
+    text: Ptr<UInt8>,
+    length: Long,
+    acceptReplacement: Int
+): Long
+
+@CLayout
+internal struct NativeMenuText(val bytes: Ptr<UInt8>, val length: Long)
+
+@Extern(name = "scoop_window_menu_event_text")
+internal fun nativeMenuEventText(event: Ptr<Unit>): NativeMenuText
+
 @Extern(name = "scoop_window_menu_image")
 internal fun nativeMenuImage(
     menu: Ptr<Unit>,

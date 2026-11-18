@@ -24,7 +24,10 @@ internal class ScrollScene(private val probe: ScrollProbe, scope: ComponentScope
                     )
                 else
                     empty(),
-                element({ mount -> SecondViewport(probe, scope = mount) }),
+                element(
+                    SecondViewportProps(probe.padding.value, probe.edgePoint.value),
+                    { props, mount -> SecondViewport(probe, props, scope = mount) }
+                ),
                 component({ mount -> ScrollObserver(probe, scope = mount) })
             ]
         )
@@ -164,12 +167,20 @@ private class FirstViewport(
     }
 }
 
-private class SecondViewport(private val probe: ScrollProbe, scope: ComponentScope): Element<
-    ScrollLayout
->(scope) {
+private struct SecondViewportProps(val padding: ScrollPadding, val edgePoint: Point)
+
+private class SecondViewport(
+    private val probe: ScrollProbe,
+    private val props: Props<SecondViewportProps>,
+    scope: ComponentScope
+): Element<ScrollLayout>(scope) {
     private var viewport: ScrollViewport? = None
+    private val edge = scope.createArea(focusable = true) { _, _ -> }
+    private val edgeFocus = scope.focusTarget(edge, FocusOptions(Some(probe.edgeFocus)))
     public override fun onMount() {
         viewport = Some(scope.scrollViewport(probe.second))
+        probe.secondScope = Some(scope)
+        probe.edgeArea = Some(edge)
         scope.resource {
             probe.second.observeIntent {
                 event ->
@@ -196,7 +207,13 @@ private class SecondViewport(private val probe: ScrollProbe, scope: ComponentSco
                 Some(ScrollAdjustment(probe.second.requestRevision, Point(99.0, 220.0)))
             else
                 probe.adjustment
-        val layout = viewport!!.layout(Size(100.0, 80.0), Size(200.0, 300.0), adjustment)
+        val layout =
+            viewport!!.layout(
+                Size(100.0, 80.0),
+                Size(200.0, 300.0),
+                adjustment,
+                props.value.padding
+            )
         val snapshot = layout.snapshot
         if (probe.checkAnimationRange && moving) {
             assertTrue(snapshot.offset.x >= 14.99 && snapshot.offset.x <= 45.01)
@@ -230,7 +247,12 @@ private class SecondViewport(private val probe: ScrollProbe, scope: ComponentSco
                 }
             }
         }
-        viewport!!.present(context, measured)
+        val point = props.value.edgePoint
+        viewport!!.present(
+            context,
+            measured,
+            Some { content -> content.place(edge, Rect(point.x, point.y, 1.0, 1.0)) }
+        )
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted) {
                 probe.secondShown = snapshot.offset

@@ -1,0 +1,98 @@
+package scoop.ui.component
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+/** Resolve default translucent decoration over its known surface, preserving absent fills. */
+internal fun componentBackground(
+    theme: Theme,
+    color: Color,
+    background: Color = theme.tokens.palette.background.background
+): Color =
+    if (
+        (theme.preferences.highContrast || theme.preferences.reduceTransparency) &&
+            color.alpha >
+            0.0 &&
+            color.alpha <
+            1.0
+    )
+        mixThemeColor(background, color.withAlpha(1.0), color.alpha)
+    else
+        color
+
+/** High contrast colors have already been resolved against this theme surface. */
+internal fun componentTint(
+    theme: Theme,
+    color: Color,
+    amount: Double,
+    background: Color = theme.tokens.palette.background.background
+): Color =
+    if (amount == 0.0)
+        Color.Transparent
+    else
+        if (theme.preferences.highContrast)
+            color
+        else
+            componentBackground(theme, color.withAlpha(color.alpha * amount), background)
+
+internal fun componentFocusWidth(theme: Theme, width: Double): Double =
+    if (theme.preferences.highContrast)
+        lowerBound(2.0, width)
+    else
+        width
+
+/** Default text and edges use their actual, already resolved opaque surface. */
+internal fun componentForeground(
+    theme: Theme,
+    color: Color,
+    background: Color,
+    minimum: Double = 7.0
+): Color =
+    if (theme.preferences.highContrast)
+        contrastThemeColors(ColorPair(background, color), background, minimum).foreground
+    else
+        componentBackground(theme, color, background)
+
+internal fun componentSurfaceColors(theme: Theme, pair: ColorPair, canvas: Color): ColorPair {
+    if (theme.preferences.highContrast) {
+        val resolved = contrastThemeColors(pair, canvas)
+        // No fill keeps the host's already resolved surface behind this content.
+        return ColorPair(
+            if (pair.background.alpha == 0.0)
+                Color.Transparent
+            else
+                resolved.background,
+            resolved.foreground
+        )
+    }
+    val background = componentBackground(theme, pair.background, canvas)
+    return ColorPair(
+        background,
+        componentBackground(
+            theme,
+            pair.foreground,
+            if (background.alpha == 0.0)
+                canvas
+            else
+                background
+        )
+    )
+}
+
+internal fun componentPanelBorder(
+    theme: Theme,
+    surface: ColorPair,
+    normal: Color = theme.tokens.palette.background.foreground.withAlpha(0.1)
+): Color = componentForeground(theme, normal, surface.background, 3.0)
+
+internal fun componentPanelSection(theme: Theme, surface: ColorPair): Color =
+    if (theme.preferences.highContrast)
+        surface.background
+    else
+        componentBackground(
+            theme,
+            theme.tokens.palette.muted.background.withAlpha(
+                theme.tokens.palette.muted.background.alpha * 0.5
+            ),
+            surface.background
+        )

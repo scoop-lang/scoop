@@ -11,6 +11,20 @@ import scoop.window.*
 @Test
 private class InputOtpTest {
     @Test
+    fun `drop import uses the same OTP separator character and length policy`() {
+        val model = TextEditorState("12")
+        val policy = otpPolicy(InputOtpPattern.Digits, 6L)
+        assertTrue(model.applyEdit(Utf8Range(2L, 2L), "-3 45-67", policy, TextEditSource.DragDrop))
+        assertEquals("123456", model.text)
+        val before = model.inputState
+        assertFalse(model.applyEdit(Utf8Range(0L, 6L), "12X", policy, TextEditSource.DragDrop))
+        assertEquals(before, model.inputState)
+        assertTrue(model.undo())
+        assertEquals("12", model.text)
+        assertFalse(model.canUndo)
+    }
+
+    @Test
     fun `paste cleans inserted separators and truncates once with one undo item`() {
         val model = TextEditorState()
         val policy = otpPolicy(InputOtpPattern.Digits, 6L)

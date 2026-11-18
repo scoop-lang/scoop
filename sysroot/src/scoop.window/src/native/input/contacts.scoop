@@ -1,0 +1,66 @@
+package scoop.window
+
+@CLayout
+internal struct NativeContactData(
+    val id: Long,
+    val device: Long,
+    val modifiers: Long,
+    val kind: Int,
+    val phase: Int,
+    val cancelReason: Int,
+    val hasDevice: Int,
+    val hasPressure: Int,
+    val x: Double,
+    val y: Double,
+    val physicalX: Double,
+    val physicalY: Double,
+    val scale: Double,
+    val pressure: Double
+)
+
+@Extern(name = "scoop_window_event_contact")
+internal fun nativeEventContact(event: Ptr<Unit>): NativeContactData
+
+internal fun copyContactEvent(header: NativeEventHeader, data: NativeContactData): ContactEvent {
+    val id = ContactId(data.id)
+    val time = copyInputTime(header)
+    if (data.phase == 3)
+        return ContactEvent.Cancelled(id, copyPointerCancelReason(data.cancelReason), time)
+    val kind =
+        when (data.kind) {
+            0 -> ContactKind.Touch
+            1 -> ContactKind.Pen
+            else -> throw WindowException(
+                "unknown native contact kind",
+                WindowErrorKind.NativeFailure
+            )
+        }
+    val pointer =
+        PointerState(
+            LogicalPosition(data.x, data.y),
+            PhysicalPosition(data.physicalX, data.physicalY),
+            data.scale,
+            platformModifiers(data.modifiers),
+            time,
+            if (data.hasDevice != 0)
+                Some(DeviceId(data.device))
+            else
+                None
+        )
+    val value =
+        ContactState(
+            id,
+            kind,
+            pointer,
+            if (data.hasPressure != 0)
+                Some(data.pressure)
+            else
+                None
+        )
+    return when (data.phase) {
+        0 -> ContactEvent.Began(value)
+        1 -> ContactEvent.Moved(value)
+        2 -> ContactEvent.Ended(value)
+        else -> throw WindowException("unknown native contact phase", WindowErrorKind.NativeFailure)
+    }
+}

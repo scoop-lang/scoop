@@ -1,0 +1,121 @@
+package scoop.window
+
+/** Explicit application translations override corresponding platform titles. */
+public struct TextContextMenuLabels(
+    val undo: String? = None,
+    val redo: String? = None,
+    val cut: String? = None,
+    val copy: String? = None,
+    val paste: String? = None,
+    val deleteSelection: String? = None,
+    val selectAll: String? = None,
+    val lookUp: String? = None,
+    val services: String? = None
+)
+
+public enum TextContextMenuSource {
+    Standard, SystemTemplate
+}
+
+/** A display description with no native ownership or implicit edit target. */
+public enum TextContextMenuEntry {
+    Command(val command: TextEditCommand, val label: String, val shortcut: ShortcutChord?),
+    Separator
+}
+
+public class TextContextMenuTemplate internal constructor(
+    public val entries: Array<TextContextMenuEntry>,
+    public val source: TextContextMenuSource,
+    public val selectWordOutsideSelection: Boolean
+)
+
+/** Reads a platform template without creating an editor, menu session or text document. */
+public fun ActiveApplication.textContextMenuTemplate(
+    preferSystem: Boolean = true,
+    labels: TextContextMenuLabels? = None
+): TextContextMenuTemplate {
+    owner.requireRunning("read text context menu template")
+    val template = platformTextContextMenuTemplate(preferSystem)
+    val overrides = labels ?: return template
+    val entries =
+        Array<TextContextMenuEntry>(template.entries.size) {
+            index -> when (val entry = template.entries[index]) {
+                case Command(val command, val label, val shortcut) -> TextContextMenuEntry.Command(
+                    command,
+                    textMenuLabel(command, overrides) ?: label,
+                    shortcut
+                )
+                case Separator -> TextContextMenuEntry.Separator
+            }
+        }
+    return TextContextMenuTemplate(entries, template.source, template.selectWordOutsideSelection)
+}
+
+/** Preserves the physical button event while recognizing the platform's auxiliary click. */
+public fun isContextMenuClick(button: MouseButton, modifiers: Modifiers): Boolean =
+    button ==
+        MouseButton.Right ||
+        (
+            platformPrimaryModifier() ==
+                PrimaryModifier.Super &&
+                button ==
+                MouseButton.Left &&
+                modifiers.control &&
+                !modifiers.alt &&
+                !modifiers.superKey
+        )
+
+internal fun standardTextContextMenuTemplate(redoWithY: Boolean): TextContextMenuTemplate {
+    val roles = [8, 9, 0, 4, 5, 6, 10, 0, 7]
+    val labels = ["Undo", "Redo", "", "Cut", "Copy", "Paste", "Delete", "", "Select All"]
+    return TextContextMenuTemplate(
+        Array<TextContextMenuEntry>(roles.size) {
+            index -> if (roles[index] == 0)
+                TextContextMenuEntry.Separator
+            else {
+                val command = menuTextCommand(roles[index])
+                TextContextMenuEntry.Command(
+                    command,
+                    labels[index],
+                    textMenuShortcut(command, redoWithY)
+                )
+            }
+        },
+        TextContextMenuSource.Standard,
+        false
+    )
+}
+
+internal fun textMenuShortcut(command: TextEditCommand, redoWithY: Boolean): ShortcutChord? {
+    val key =
+        when (command) {
+            case Undo -> "z"
+            case Redo -> if (redoWithY)
+                "y"
+            else
+                "z"
+            case Cut -> "x"
+            case Copy -> "c"
+            case Paste -> "v"
+            case SelectAll -> "a"
+            else -> return None
+        }
+    return Some(
+        ShortcutChord(
+            ShortcutKey.Logical(LogicalKey.Character(key)),
+            ShortcutModifiers(primary = true, shift = command == TextEditCommand.Redo && !redoWithY)
+        )
+    )
+}
+
+private fun textMenuLabel(command: TextEditCommand, labels: TextContextMenuLabels): String? =
+    when (command) {
+        case Undo -> labels.undo
+        case Redo -> labels.redo
+        case Cut -> labels.cut
+        case Copy -> labels.copy
+        case Paste -> labels.paste
+        case DeleteSelection -> labels.deleteSelection
+        case SelectAll -> labels.selectAll
+        else -> None
+    }

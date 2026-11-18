@@ -1,0 +1,132 @@
+package scoop.tests.ui.scrollpan
+
+import scoop.graphics.Point
+import scoop.test.*
+import scoop.ui.*
+
+internal fun panWheelStep(p: PanProbe): Boolean {
+    when (p.phase) {
+        0 -> {
+            p.innerPhysics = elasticScroll()
+            p.outerPhysics = elasticScroll()
+            p.changed()
+        }
+        1 -> p.wheel(30, false)
+        2 -> {
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            p.wheel(30)
+        }
+        3 -> {
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.wheel(40, phase = 1)
+        }
+        4 -> {
+            assertTrue(p.outerLayout!!.overscroll.y > 0.0)
+            assertEquals(Point(0.0, 0.0), p.innerLayout!!.overscroll)
+            p.wheel(-20, phase = 2)
+        }
+        5 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            scrollNear(8.0, p.outerLayout!!.overscroll.y)
+            p.animatedSteps = true
+            p.wheel(0, phase = 4)
+        }
+        6 -> {
+            assertTrue(p.outer.isAnimating)
+            p.animatedSteps = false
+            p.wheel(-10, momentum = 1)
+        }
+        7 -> {
+            assertFalse(p.inner.isAnimating)
+            assertFalse(p.outer.isAnimating)
+            assertEquals(Point(0.0, 10.0), p.inner.offset)
+            p.wheel(-20, momentum = 2)
+        }
+        8 -> {
+            assertEquals(Point(0.0, 30.0), p.inner.offset)
+            p.wheel(0, momentum = 3)
+        }
+        9 -> {
+            assertEquals(Point(0.0, 30.0), p.inner.offset)
+            assertFalse(p.inner.isAnimating)
+            p.reset()
+            p.chain = ScrollChain.Contain
+            p.changed()
+        }
+        10 -> p.wheel(40, phase = 1)
+        11 -> {
+            assertTrue(p.innerLayout!!.overscroll.y > 0.0)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.beforeIntents = p.userIntents
+            p.wheel(0, phase = 4)
+        }
+        12 -> {
+            assertEquals(Point(0.0, 0.0), p.innerLayout!!.overscroll)
+            assertFalse(p.inner.isAnimating)
+            assertEquals(p.beforeIntents, p.userIntents)
+            p.chain = ScrollChain.Chain
+            p.scale = 2.0
+            p.changed()
+        }
+        13 -> p.wheel(40, phase = 1)
+        14 -> {
+            scrollNear(8.0, p.outerLayout!!.overscroll.y)
+            p.wheel(0, phase = 4)
+        }
+        15 -> {
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            assertFalse(p.outer.isAnimating)
+            p.scale = 1.0
+            p.outerPhysics = ScrollPhysicsOptions(ScrollBoundary.Hard)
+            p.changed()
+        }
+        16 -> p.wheel(40, phase = 1)
+        17 -> {
+            assertEquals(Point(0.0, 0.0), p.innerLayout!!.overscroll)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.wheel(0, phase = 4)
+            p.outerPhysics = elasticScroll()
+            p.changed()
+        }
+        18 -> {
+            p.overridePosition = true
+            p.wheel(-40, phase = 1)
+        }
+        19 -> {
+            assertEquals(Point(0.0, 75.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.innerLayout!!.overscroll)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.wheel(0, phase = 4)
+        }
+        20 -> {
+            assertEquals(Point(0.0, 75.0), p.inner.offset)
+            p.reset()
+        }
+        21 -> p.wheel(0, phase = 1, horizontal = 40)
+        22 -> {
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            assertTrue(p.outerLayout!!.overscroll.x > 0.0)
+            p.wheel(0, phase = 2, horizontal = -20)
+        }
+        23 -> {
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            scrollNear(8.0, p.outerLayout!!.overscroll.x)
+            p.wheel(0, phase = 2, horizontal = -40)
+        }
+        24 -> {
+            assertEquals(Point(20.0, 0.0), p.outer.offset)
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.wheel(0, phase = 4)
+        }
+        25 -> {
+            assertEquals(Point(20.0, 0.0), p.outer.offset)
+            assertFalse(p.frames!!.snapshot().required)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected elastic wheel phase"))
+    }
+    return true
+}

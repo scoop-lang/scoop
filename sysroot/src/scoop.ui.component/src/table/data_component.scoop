@@ -4,6 +4,8 @@ import scoop.collections.HashSet
 import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
+import scoop.ui.component.frame as dataTableFrame
 
 internal class DataTablePlan<Row>(
     val state: DataTableState<Row>,
@@ -13,6 +15,31 @@ internal class DataTablePlan<Row>(
     val appearance: TableAppearance
 ) {
     val columns: Array<TableColumn<Row>> = visible()
+    val semanticHeaders =
+        Array<SemanticsReference>(
+            columns.size +
+                if (selection)
+                    1L
+                else
+                    0L
+        ) { _ -> SemanticsReference() }
+    val columnKeys =
+        Array<SemanticItemKey>(semanticHeaders.size) {
+            index -> if (selection && index == 0L)
+                SemanticItemKey.Text("selection")
+            else
+                SemanticItemKey.Text(
+                    f"column:${
+                        columns[
+                            index -
+                                if (selection)
+                                    1L
+                                else
+                                    0L
+                        ].id
+                    }"
+                )
+        }
     val tracks = makeTracks()
     private fun visible(): Array<TableColumn<Row>> {
         val result = ArrayList<TableColumn<Row>>()
@@ -56,7 +83,7 @@ public class DataTable<Row> public constructor(
     private val props: Props<DataTableProps<Row>>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val horizontal = ScrollState()
     private val vertical = ScrollState()
     private val menuOpen = state(false)
@@ -107,28 +134,35 @@ public class DataTable<Row> public constructor(
         val rows = model.result.rows
         val selected = model.selectedKeys
         val items = DataTableItems(input, geometry, rows, selected)
+        val list =
+            virtualList(
+                items,
+                when (input.itemExtent) {
+                    case Fixed(val value) -> ItemExtent.Fixed(value * density);
+                    case Variable(val value) -> ItemExtent.Variable(value * density)
+                }
+            ) {
+                itemSemantics = Some(items.semantics())
+                collectionSemantics = input.semantics
+                this.height = Some(input.bodyHeight * density)
+                this.state = Some(input.vertical ?: this @DataTable.vertical)
+                this.handle = input.handle
+                this.overscan = 48.0 * density
+                this.enabled = input.enabled
+                this.theme = input.theme
+            }
         val body =
-            if (rows.count == 0L)
-                frame(appearance.content(input.empty, dim = true)) {
-                    this.height = Some(input.bodyHeight * density)
-                    this.alignment = Alignment(AxisAlignment.Center, AxisAlignment.Center)
-                    this.padding = Some(Insets.all(appearance.padding))
-                }
-            else
-                virtualList(
-                    items,
-                    when (input.itemExtent) {
-                        case Fixed(val value) -> ItemExtent.Fixed(value * density);
-                        case Variable(val value) -> ItemExtent.Variable(value * density)
-                    }
-                ) {
-                    this.height = Some(input.bodyHeight * density)
-                    this.state = Some(input.vertical ?: this @DataTable.vertical)
-                    this.handle = input.handle
-                    this.overscan = 48.0 * density
-                    this.enabled = input.enabled
-                    this.theme = input.theme
-                }
+            stack {
+                add(list)
+                if (rows.count == 0L)
+                    add(
+                        dataTableFrame(appearance.content(input.empty, dim = true)) {
+                            this.height = Some(input.bodyHeight * density)
+                            this.alignment = Alignment(AxisAlignment.Center, AxisAlignment.Center)
+                            this.padding = Some(Insets.all(appearance.padding))
+                        }
+                    )
+            }
         val content =
             column {
                 this.spacing = 0.0
@@ -184,16 +218,114 @@ private class DataTableItems<Row>(
     private val input: DataTableProps<Row>,
     private val plan: DataTablePlan<Row>,
     private val rows: TableSource<Row>,
-    selected: Array<ViewKey>
+    private val selectedKeys: Array<ViewKey>
 ): ItemSource {
     private val selected = HashSet<ViewKey>()
     init {
-        for (key in selected)
+        for (key in selectedKeys)
             this.selected.add(key)
     }
     public override val count: Long get() = rows.count
     public override fun keyAt(index: Long): ViewKey = rows.keyAt(index)
     public override fun indexOfKey(key: ViewKey): Long? = rows.indexOfKey(key)
+    fun semantics(): ItemSemantics {
+        val selected = ArrayList<SemanticItemKey>()
+        for (key in selectedKeys)
+            if (rows.indexOfKey(key) != None)
+                selected.add(componentSemanticKey(key))
+        val columns =
+            Array<SemanticGridColumn>(plan.columnKeys.size) {
+                index -> SemanticGridColumn(
+                    plan.columnKeys[index],
+                    Some(
+                        if (input.selection && index == 0L)
+                            "Selection"
+                        else
+                            plan.columns[
+                                index -
+                                    if (input.selection)
+                                        1L
+                                    else
+                                        0L
+                            ].header
+                    ),
+                    plan.semanticHeaders[index].id
+                )
+            }
+        return ItemSemantics(
+            this,
+            { index -> describe(index) },
+            selection =
+                if (input.selection)
+                    Some(SemanticCollectionSelection(selected.toArray(), multiple = true))
+                else
+                    None,
+            setSelected =
+                if (input.selection)
+                    Some { key, value -> setSelected(key, value) }
+                else
+                    None,
+            grid = Some(SemanticGrid(columns, { key, column -> cell(key, column) }))
+        )
+    }
+    private fun setSelected(key: ViewKey, value: Boolean): SemanticActionResult {
+        if (!input.enabled)
+            return SemanticActionResult.Rejected
+        val current = input.state.result.rows
+        val index = current.indexOfKey(key) ?: return SemanticActionResult.Unavailable
+        if (!input.state.selectable(current.rowAt(index)))
+            return SemanticActionResult.Rejected
+        input.state.setSelected(key, value)
+        return if (input.state.isSelected(key) == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
+    private fun cell(key: SemanticItemKey, column: Long): SemanticItemProperties? {
+        val rowKey =
+            when (key) {
+                case Number(val value) -> ViewKey.Number(value);
+                case Text(val value) -> ViewKey.Text(value)
+            }
+        val index = rows.indexOfKey(rowKey) ?: return None
+        val row = rows.rowAt(index)
+        if (input.selection && column == 0L)
+            return Some(
+                SemanticItemProperties(
+                    name = Some("Select row"),
+                    enabled = input.enabled && input.state.selectable(row),
+                    selected = Some(selected.contains(rowKey))
+                )
+            )
+        val value =
+            plan.columns[
+                column -
+                    if (input.selection)
+                        1L
+                    else
+                        0L
+            ]
+        val text = value.semanticText ?: return None
+        return Some(
+            SemanticItemProperties(
+                name = Some(value.header),
+                value = Some(text(row)),
+                enabled = input.enabled
+            )
+        )
+    }
+    fun describe(index: Long): SemanticItemProperties? =
+        Some(
+            SemanticItemProperties(
+                name = dataTableRowText(plan.columns, rows.rowAt(index)),
+                enabled = input.enabled,
+                selected =
+                    if (input.selection)
+                        Some(selected.contains(rows.keyAt(index)))
+                    else
+                        None
+            )
+        )
     public override fun build(index: Long): View {
         val input = this.input
         val row = rows.rowAt(index)
@@ -211,6 +343,7 @@ private class DataTableItems<Row>(
                         ) {
                             this.enabled = input.enabled && input.state.selectable(row);
                             this.theme = input.theme
+                            this.semantics = ComponentSemantics(name = Some("Select row"))
                         }
                     ),
                     key = ViewKey.Text("selection")
@@ -228,7 +361,11 @@ private class DataTableItems<Row>(
             TableRowProps(cells.toArray(), selected = selected.contains(key)),
             plan.tracks,
             plan.appearance,
-            key
+            key,
+            rowIndex = index,
+            columnHeaders = plan.semanticHeaders,
+            columnKeys = plan.columnKeys,
+            logical = true
         )
     }
 }

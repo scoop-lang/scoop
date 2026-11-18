@@ -43,7 +43,7 @@ private class MenuWindowTest {
     }
 }
 
-internal class MenuProbe {
+internal class MenuProbe(val touch: MenuTouchScenario? = None) {
     val theme = ThemeSource(shadcnTheme())
     val fonts = FontCollection(false)
     val generation = state(0)
@@ -153,19 +153,23 @@ internal class MenuProbe {
                         rendered >=
                         generation.value &&
                         MonotonicTimeSource.markNow() >=
-                        ready
+                        ready &&
+                        (touch?.ready ?: true)
                 ) {
-                    menuStep(this);
+                    when (touch) {
+                        case Some(val scenario) -> scenario.advance(this)
+                        case None -> menuStep(this)
+                    }
                     phase += 1
                     ready = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()
-                if (phase < 72)
+                if (phase < (touch?.steps ?: 72))
                     wait(active)
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 72;
+                finished = phase == (touch?.steps ?: 72);
                 active.requestExit()
             }
             else -> {}

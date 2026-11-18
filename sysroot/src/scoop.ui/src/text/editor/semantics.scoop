@@ -1,0 +1,219 @@
+package scoop.ui.text
+
+import scoop.graphics.text.TextPosition
+import scoop.graphics.text.TextAffinity
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+/** Publishes this mount's existing editor and routes native actions through its real transactions. */
+public fun SemanticsHandle.updateTextEditor(
+    host: TextEditHost,
+    properties: SemanticProperties = SemanticProperties(),
+    relations: SemanticRelations = SemanticRelations(),
+    setExpanded: ((Boolean) -> SemanticActionResult)? = None
+) {
+    checkOpen()
+    checkSemanticsMutation()
+    host.checkOpen()
+    requireUi(
+        role == SemanticRole.TextField && owner === host.focus.node,
+        "text semantics require this mount's text field and editor"
+    )
+    val model = host.current
+    val revision = model.revision
+    val protectedText = properties.protectedText || host.options.protectedText
+    val readOnly = properties.readOnly || host.options.readOnly
+    val available = { !host.closed && host.current === model && model.revision == revision }
+    val writable =
+        {
+            host.options.enabled &&
+                !readOnly &&
+                !host.options.readOnly &&
+                host.area.scope.isInputAllowed
+        }
+    val select: ((Utf8Selection) -> SemanticActionResult)? =
+        if (protectedText)
+            None
+        else
+            Some {
+                selection -> if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    if (host.options.protectedText)
+                        SemanticActionResult.Unsupported
+                    else
+                        if (!host.options.enabled || !host.area.scope.isInputAllowed)
+                            SemanticActionResult.Rejected
+                        else
+                            semanticEditorSelect(host, selection)
+            }
+    val replace: ((Utf8Range, String) -> SemanticActionResult)? =
+        if (protectedText || readOnly)
+            None
+        else
+            Some {
+                range,
+                text -> if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    if (host.options.protectedText)
+                        SemanticActionResult.Unsupported
+                    else
+                        if (!writable())
+                            SemanticActionResult.Rejected
+                        else
+                            semanticEditorReplace(host, range, text)
+            }
+    val setValue: ((String) -> SemanticActionResult)? =
+        if (readOnly)
+            None
+        else
+            Some {
+                text -> if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    if (!writable())
+                        SemanticActionResult.Rejected
+                    else
+                        semanticEditorReplace(host, Utf8Range(0L, model.text.byteLength), text)
+            }
+    val showContextMenu: (() -> SemanticActionResult)? =
+        if (host.options.contextMenu.mode == TextContextMenuMode.Disabled)
+            None
+        else
+            Some {
+                if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    if (host.options.contextMenu.mode == TextContextMenuMode.Disabled)
+                        SemanticActionResult.Unsupported
+                    else
+                        semanticTextMenu(host.focus, host.contextMenu) {
+                            available() && host.showContextMenu()
+                        }
+            }
+    bindFocus(Some(host.focus))
+    updateText(
+        if (protectedText)
+            None
+        else
+            Some(host.semantics),
+        properties.copy {
+            value =
+                if (protectedText)
+                    None
+                else
+                    Some(model.text)
+            selection =
+                if (protectedText)
+                    None
+                else
+                    Some(model.selection)
+            enabled = properties.enabled && host.options.enabled
+            this.readOnly = readOnly
+            this.protectedText = protectedText
+            cursorAffinity =
+                if (!protectedText && model.cursor.affinity == TextAffinity.Upstream)
+                    SemanticTextAffinity.Upstream
+                else
+                    SemanticTextAffinity.Downstream
+        },
+        SemanticActions(
+            setValue = setValue,
+            setSelection = select,
+            replaceText = replace,
+            showContextMenu = showContextMenu,
+            revealText =
+                if (protectedText)
+                    None
+                else
+                    Some {
+                        range,
+                        scroll -> if (!available())
+                            SemanticActionResult.Unavailable
+                        else
+                            semanticEditorReveal(this, host, range, scroll)
+                    },
+            setExpanded =
+                when (setExpanded) {
+                    case Some(val change) -> Some {
+                        value -> if (!available())
+                            SemanticActionResult.Unavailable
+                        else
+                            if (!writable())
+                                SemanticActionResult.Rejected
+                            else
+                                change(value)
+                    }
+                    case None -> None
+                }
+        ),
+        relations
+    )
+    if (protectedText)
+        host.retireSemanticDocument()
+    resource.textDocument =
+        if (protectedText)
+            None
+        else
+            host.semanticTextDocument()
+}
+
+private fun semanticEditorReplace(
+    host: TextEditHost,
+    range: Utf8Range,
+    text: String
+): SemanticActionResult {
+    val edit =
+        prepareEditorEdit(
+            host.current,
+            range,
+            text,
+            host.options.policy,
+            TextEditSource.Accessibility,
+            !host.options.multiline
+        )
+    editorStopDrag(host, false)
+    host.perform({ edit.publish(host.current, false) }, endComposition = true)
+    return if (edit.accepted)
+        SemanticActionResult.Completed
+    else
+        SemanticActionResult.Rejected
+}
+
+private fun semanticEditorSelect(host: TextEditHost, value: Utf8Selection): SemanticActionResult {
+    val model = host.current
+    val selection = EditorSelection(TextPosition(value.anchor), TextPosition(value.cursor))
+    val edit =
+        if (model.isComposing)
+            Some(
+                finishEditorInput(
+                    prepareEditorInput(
+                        model,
+                        TextInputBatch(None, [TextInputOperation.ClearPreedit])
+                    )!!,
+                    host.options.policy,
+                    TextEditSource.EditCommand,
+                    !host.options.multiline,
+                    EditorEditKind.Separate,
+                    Some(selection)
+                )
+            )
+        else
+            None
+    editorStopDrag(host, false)
+    host.perform(
+        {
+            when (edit) {
+                case Some(val prepared) -> prepared.publish(model, false)
+                case None -> model.setSelection(selection.anchor, selection.cursor)
+            }
+        },
+        endComposition = true
+    )
+    return if (edit?.accepted ?: true)
+        SemanticActionResult.Completed
+    else
+        SemanticActionResult.Rejected
+}

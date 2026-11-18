@@ -1,0 +1,35 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+/** A Field owns its declaration; the control continues to own all editing and validation. */
+internal class FieldRequirement(private val scope: ComponentScope): Closeable {
+    private var target: FieldTarget? = None
+    private var required = false
+    private var closed = false
+
+    fun update(target: FieldTarget?, required: Boolean) {
+        val sameTarget = sameFieldTarget(this.target, target)
+        val changed = this.required != required
+        if (sameTarget && !changed)
+            return
+        if (!sameTarget)
+            this.target?.removeRequirement(this)
+        this.target = target
+        this.required = required
+        if (!sameTarget)
+            target?.addRequirement(this)
+        else
+            target?.semanticsChanged()
+    }
+    fun appliesTo(source: SemanticsHandle): Boolean =
+        !closed && required && scope.isMounted && scope.nativeWindow.id == source.id.window
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        target?.removeRequirement(this)
+        target = None
+    }
+}

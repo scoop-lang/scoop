@@ -1,0 +1,33 @@
+package scoop.ui.component
+
+import scoop.time.*
+
+/** One full wait per eligible autoplay step; interrupted time is never replayed. */
+internal class CarouselClock {
+    private var interval: Duration? = None
+    private var next: TimeMark? = None
+    val deadline: TimeMark? get() = next
+
+    fun configure(interval: Duration?, available: Boolean, now: TimeMark): Boolean {
+        val before = next
+        if (!available || interval == None)
+            cancel()
+        else
+            if (this.interval != interval || next == None) {
+                this.interval = interval
+                next = Some(now + interval!!)
+            }
+        return before != next
+    }
+    fun take(now: TimeMark): Boolean {
+        val due = next ?: return false
+        if (now < due)
+            return false
+        cancel()
+        return true
+    }
+    fun cancel() {
+        interval = None
+        next = None
+    }
+}

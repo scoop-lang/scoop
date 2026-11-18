@@ -1,0 +1,163 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.surface.FocusOrigin
+import scoop.ui.*
+import scoop.window.requestHapticFeedback
+
+internal fun createEditorContactPress(host: TextEditHost): ContactPress =
+    ContactPress(
+        host.scope,
+        host.area,
+        host.options.enabled && host.options.touch.enabled,
+        host.options.touch.threshold,
+        host.options.touch.longPressDelay,
+        host.options.touch.multiTap,
+        host.options.touch.multiTapInterval,
+        { editorTouchReady(host) },
+        Some({ sample -> editorTouchTap(host, sample) }),
+        { sample -> editorTouchHold(host, sample) }
+    )
+
+internal fun editorTouchReady(host: TextEditHost): Boolean {
+    if (host.closed || !host.scope.isMounted || host.contextMenu.pending)
+        return false
+    val frame = host.accepted ?: return false
+    return frame.editor ===
+        host.current &&
+        frame.revision ==
+        host.current.revision &&
+        frame.projection ===
+        host.options.projection &&
+        frame.display.source.text ==
+        host.current.text
+}
+
+private fun editorTouchTap(host: TextEditHost, sample: ContactPressSample): Boolean {
+    val document = host.current
+    if (!editorTouchReady(host) || !host.area.requestFocus(FocusOrigin.Pointer))
+        return false
+    if (!editorTouchReady(host) || host.current !== document)
+        return false
+    val frame = host.accepted!!
+    val displayed = frame.layout.hitTest(sample.position)
+    val position = frame.display.documentPosition(frame.display.mapping.reverse(displayed))
+    val unit = editorClickUnit(sample.count)
+    val range =
+        editorProjectedRange(
+            EditorInputLayout(frame.layout, frame.display, frame.caretStyle),
+            editorDragRange(frame.layout, displayed, unit)
+        )
+    val selection =
+        if (unit == EditorDragUnit.Character)
+            EditorSelection(position, position)
+        else
+            EditorSelection(
+                TextPosition(range.start),
+                TextPosition(range.end, TextAffinity.Upstream)
+            )
+    editorStopDrag(host, false)
+    host.touchHandles.show()
+    host.perform(
+        { editorSetSelection(host, selection) },
+        endComposition = true,
+        cancelContacts = false
+    )
+    host.keyboard.touch()
+    return !host.closed
+}
+
+private fun editorTouchHold(host: TextEditHost, sample: ContactPressSample) {
+    if (
+        editorTouchReady(host) &&
+            editorContextMenu(
+                host,
+                Some(sample.contact.pointer),
+                Some(sample.position),
+                touch = true
+            ) &&
+            !host.closed &&
+            host.options.touch.hapticFeedback
+    )
+        host.window.requestHapticFeedback()
+}
+
+internal fun createSelectableContactPress(host: SelectableTextHost): ContactPress =
+    ContactPress(
+        host.scope,
+        host.area,
+        host.options.enabled && host.options.touch.enabled,
+        host.options.touch.threshold,
+        host.options.touch.longPressDelay,
+        host.options.touch.multiTap,
+        host.options.touch.multiTapInterval,
+        { selectableTouchReady(host) },
+        Some({ sample -> selectableTouchTap(host, sample) }),
+        { sample -> selectableTouchHold(host, sample) }
+    )
+
+internal fun selectableTouchReady(host: SelectableTextHost): Boolean {
+    if (host.closed || !host.scope.isMounted || host.contextMenu.pending)
+        return false
+    return when (host.inputFrame()) {
+        case Some(_) -> true
+        case None -> false
+    }
+}
+
+private fun selectableTouchTap(host: SelectableTextHost, sample: ContactPressSample): Boolean {
+    val document = host.content
+    if (!selectableTouchReady(host) || !host.area.requestFocus(FocusOrigin.Pointer))
+        return false
+    if (!selectableTouchReady(host) || host.content !== document)
+        return false
+    val frame = host.inputFrame() ?: return false
+    val position = frame.layout.hitTest(sample.position)
+    val unit = editorClickUnit(sample.count)
+    val range = editorDragRange(TextEditLayout(frame.layout), position, unit)
+    val selection =
+        if (unit == EditorDragUnit.Character)
+            EditorSelection(position, position)
+        else
+            EditorSelection(
+                TextPosition(range.start),
+                TextPosition(range.end, TextAffinity.Upstream)
+            )
+    selectableStopDrag(host)
+    host.preferredX = None
+    host.touchHandles.show()
+    host.publishSelection(selection, cancelContacts = false)
+    return !host.closed
+}
+
+private fun selectableTouchHold(host: SelectableTextHost, sample: ContactPressSample) {
+    if (
+        selectableTouchReady(host) &&
+            selectableContextMenu(
+                host,
+                Some(sample.contact.pointer),
+                Some(sample.position),
+                touch = true
+            ) &&
+            !host.closed &&
+            host.options.touch.hapticFeedback
+    )
+        host.scope.nativeWindow.requestHapticFeedback()
+}
+
+internal fun editorTouchAxes(options: TextEditOptions): ScrollAxes =
+    if (options.multiline)
+        ScrollAxes.Both
+    else
+        ScrollAxes.Horizontal
+
+internal fun editorTouchScroll(options: TextEditOptions): TouchScrollOptions =
+    if (options.enabled)
+        options.touchScroll
+    else
+        TouchScrollOptions(
+            false,
+            options.touchScroll.threshold,
+            options.touchScroll.lockAxis,
+            options.touchScroll.claimAtBoundary
+        )

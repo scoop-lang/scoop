@@ -1,0 +1,208 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+
+private struct PreferenceStatePairs(val fill: StateColors, val foreground: StateColors)
+
+private fun preferenceStatePairs(
+    fill: StateColors,
+    foreground: StateColors,
+    canvas: Color,
+    contrast: Boolean,
+    disabledOpacity: Double = 1.0
+): PreferenceStatePairs {
+    val normal = preferencePair(ColorPair(fill.normal, foreground.normal), canvas, contrast)
+    val hovered = preferencePair(ColorPair(fill.hovered, foreground.hovered), canvas, contrast)
+    val pressed = preferencePair(ColorPair(fill.pressed, foreground.pressed), canvas, contrast)
+    val disabled =
+        preferencePair(
+            ColorPair(
+                fill.disabled,
+                if (contrast)
+                    foreground.disabled.withAlpha(foreground.disabled.alpha * disabledOpacity)
+                else
+                    foreground.disabled
+            ),
+            canvas,
+            contrast,
+            4.5
+        )
+    return PreferenceStatePairs(
+        StateColors(normal.background, hovered.background, pressed.background, disabled.background),
+        StateColors(normal.foreground, hovered.foreground, pressed.foreground, disabled.foreground)
+    )
+}
+
+private fun preferenceStateColors(
+    colors: StateColors,
+    backgrounds: StateColors,
+    minimum: Double,
+    contrast: Boolean
+): StateColors {
+    if (!contrast)
+        return StateColors(
+            opaqueThemeColor(colors.normal, backgrounds.normal),
+            opaqueThemeColor(colors.hovered, backgrounds.hovered),
+            opaqueThemeColor(colors.pressed, backgrounds.pressed),
+            opaqueThemeColor(colors.disabled, backgrounds.disabled)
+        )
+    return StateColors(
+        contrastThemeColor(colors.normal, backgrounds.normal, minimum),
+        contrastThemeColor(colors.hovered, backgrounds.hovered, minimum),
+        contrastThemeColor(colors.pressed, backgrounds.pressed, minimum),
+        contrastThemeColor(colors.disabled, backgrounds.disabled, minimum)
+    )
+}
+
+internal fun preferenceOutline(
+    value: OutlineStyle,
+    canvas: Color,
+    contrast: Boolean
+): OutlineStyle {
+    if (!contrast)
+        return value
+    return OutlineStyle(
+        contrastThemeColor(value.color, canvas, 3.0),
+        themeMax(2.0, value.width),
+        themeMax(2.0, value.outset)
+    )
+}
+
+internal fun preferenceSurfaces(
+    parts: SurfaceParts,
+    canvas: Color,
+    contrast: Boolean,
+    disabledOpacity: Double
+): SurfaceParts =
+    SurfaceParts(
+        preferenceSurface(parts.plain, canvas, contrast, false, disabledOpacity),
+        preferenceSurface(parts.action, canvas, contrast, true, disabledOpacity),
+        preferenceSurface(parts.elevated, canvas, contrast, false, disabledOpacity)
+    )
+
+private fun preferenceSurface(
+    part: SurfacePart,
+    canvas: Color,
+    contrast: Boolean,
+    action: Boolean,
+    disabledOpacity: Double
+): SurfacePart {
+    val colors = preferenceStatePairs(part.fill, part.foreground, canvas, contrast, disabledOpacity)
+    val base = part.metrics
+    val insets = base.borderInsets
+    val metrics =
+        if (contrast && action)
+            SurfaceMetrics(
+                base.suggestedSize,
+                base.minimumSize,
+                base.padding,
+                Insets(
+                    themeMax(1.0, insets.left),
+                    themeMax(1.0, insets.top),
+                    themeMax(1.0, insets.right),
+                    themeMax(1.0, insets.bottom)
+                ),
+                base.corners,
+                themeMax(2.0, base.focusOutset)
+            )
+        else
+            base
+    return SurfacePart(
+        metrics,
+        colors.fill,
+        preferenceStateColors(part.border, colors.fill, 3.0, contrast),
+        colors.foreground,
+        preferenceOutline(part.focus, canvas, contrast),
+        []
+    )
+}
+
+private fun preferenceMarker(
+    value: MarkerAppearance,
+    canvas: Color,
+    contrast: Boolean,
+    disabledOpacity: Double
+): MarkerAppearance {
+    val selected =
+        preferenceStatePairs(value.selected, value.mark, canvas, contrast, disabledOpacity)
+    val empty = preferenceStatePairs(value.empty, value.border, canvas, false).fill
+    return MarkerAppearance(
+        empty,
+        selected.fill,
+        preferenceStateColors(value.border, empty, 3.0, contrast),
+        preferenceStateColors(value.selectedBorder, selected.fill, 3.0, contrast),
+        selected.foreground,
+        preferenceOutline(value.focus, canvas, contrast),
+        []
+    )
+}
+
+internal fun preferenceCheckbox(
+    value: CheckboxPart,
+    canvas: Color,
+    contrast: Boolean,
+    disabledOpacity: Double
+): CheckboxPart {
+    val base = value.metrics
+    val edges = base.borderInsets
+    val metrics =
+        if (contrast)
+            CheckboxMetrics(
+                base.suggestedSize,
+                base.minimumSize,
+                Insets(
+                    themeMax(1.0, edges.left),
+                    themeMax(1.0, edges.top),
+                    themeMax(1.0, edges.right),
+                    themeMax(1.0, edges.bottom)
+                ),
+                base.corners,
+                base.markInset,
+                base.markWidth,
+                themeMax(2.0, base.focusOutset)
+            )
+        else
+            base
+    return CheckboxPart(
+        metrics,
+        preferenceMarker(value.appearance, canvas, contrast, disabledOpacity)
+    )
+}
+
+internal fun preferenceRadio(
+    value: RadioPart,
+    canvas: Color,
+    contrast: Boolean,
+    disabledOpacity: Double
+): RadioPart {
+    val base = value.metrics
+    val metrics =
+        if (contrast)
+            RadioMetrics(
+                base.suggestedSize,
+                base.minimumSize,
+                themeMax(1.0, base.ringWidth),
+                base.dotInset,
+                themeMax(2.0, base.focusOutset)
+            )
+        else
+            base
+    return RadioPart(metrics, preferenceMarker(value.appearance, canvas, contrast, disabledOpacity))
+}
+
+internal fun preferenceScrollbar(
+    value: ScrollbarPart,
+    canvas: Color,
+    contrast: Boolean
+): ScrollbarPart {
+    val track = preferenceStatePairs(value.track, value.thumb, canvas, false).fill
+    val button = preferenceStatePairs(value.button, value.arrow, canvas, contrast)
+    return ScrollbarPart(
+        value.metrics,
+        track,
+        preferenceStateColors(value.thumb, track, 3.0, contrast),
+        button.fill,
+        button.foreground,
+        value.arrowWidth
+    )
+}

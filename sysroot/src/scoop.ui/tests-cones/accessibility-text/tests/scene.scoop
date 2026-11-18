@@ -1,0 +1,86 @@
+package scoop.tests.ui.accessibility.text
+
+import scoop.graphics.Rect
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal struct EditorInput(val model: TextEditorState, val options: TextEditOptions)
+
+internal class TextRoot(private val probe: TextProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val model = probe.model.value
+        val inputState = model.inputState
+        val policy =
+            if (probe.importPolicy.value)
+                probe.policy
+            else
+                textEditPolicy()
+        val input =
+            EditorInput(
+                model,
+                TextEditOptions(
+                    multiline = probe.multiline.value,
+                    enabled = probe.enabled.value,
+                    readOnly = probe.readOnly.value,
+                    protectedText = probe.protectedText.value,
+                    copy = TextCopyPolicy.Allow,
+                    policy = policy
+                )
+            )
+        return element(input, { props, mount -> TextField(probe, props, mount) })
+    }
+}
+
+private class TextField(
+    private val probe: TextProbe,
+    private val props: Props<EditorInput>,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val semantic = scope.semantics(SemanticRole.TextField)
+    private val host =
+        scope.resource {
+            TextEditHost(scope, props.value.model, probe.appearance, props.value.options)
+        }
+    init {
+        probe.semantic = Some(semantic)
+        probe.editor = Some(host)
+        probe.mounts += 1
+        val wrong = scope.semantics(SemanticRole.Group)
+        assertFailsWith<IllegalArgumentException> { wrong.updateTextEditor(host) }
+        wrong.close()
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        host.update(
+            input.model,
+            probe.appearance,
+            input.options,
+            onEdited = { _ -> probe.edits += 1 }
+        )
+        semantic.updateTextEditor(
+            host,
+            SemanticProperties(name = Some("Document"), automationId = Some("document"))
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        probe.measures += 1
+        val result = host.measure(constraints)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        probe.scenes += 1
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+        host.scene(context, measured)
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.geometryReady()
+        }
+    }
+}

@@ -5,6 +5,7 @@ import scoop.test.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
+import scoop.window.TextContextMenuLabels
 
 @Test
 private class ComponentReceiverDslTests {
@@ -81,30 +82,86 @@ private class ComponentReceiverDslTests {
         textarea(model) {
             captured.add(this)
             rows = 6L
+            scrollbarBehavior { autoHide = Some(false) }
+            scrollbarBehavior { minimumHitThickness = Some(24.0) }
             wrap = false
             readOnly = true
             description = "details"
             projection = textMask()
             copy = TextCopyPolicy.Allow
+            protectedText = true
+            acceptDrops = false
+            drag = TextDragOptions(enabled = false)
+            contextMenu {
+                mode = TextContextMenuMode.StandardNative
+                selection = TextContextMenuSelection.Preserve
+            }
+            contextMenu { labels = Some(TextContextMenuLabels(copy = Some("Copy field"))) }
             onEdited = { value -> notifications.add(value) }
             style { text { weight = Some(500) } }
-            style { caretWidth = 2.0 }
+            style { caretWidth = Some(2.0) }
         }
         val props = captured[0L].textareaProps(model)
         captured[0L].rows = 2L
         assertSame(model, props.state)
         assertEquals(6L, props.rows)
+        captured[0L].scrollbarBehavior { autoHide = Some(true) }
+        assertEquals(Some(false), props.scrollbarBehavior.autoHide)
+        assertEquals(Some(24.0), props.scrollbarBehavior.minimumHitThickness)
+        assertEquals(ScrollbarPlacement.Gutter, props.scrollbarBehavior.placement)
         assertFalse(props.wrap)
         assertTrue(props.readOnly)
         assertEquals("details", props.description)
         assertSame(captured[0L].projection, props.projection)
         assertEquals(TextCopyPolicy.Allow, props.copy)
+        captured[0L].protectedText = false
+        assertTrue(props.protectedText)
+        captured[0L].acceptDrops = true
+        assertFalse(props.acceptDrops)
+        assertTrue(captured[0L].textareaProps(model).acceptDrops)
+        assertTrue(InputProps(model).acceptDrops)
+        assertTrue(InputProps(model).drag.enabled)
+        assertFalse(props.drag.enabled)
+        captured[0L].drag = TextDragOptions()
+        assertFalse(props.drag.enabled)
+        assertTrue(captured[0L].textareaProps(model).drag.enabled)
+        val input = InputBuilder()
+        input.acceptDrops = false
+        input.drag = props.drag
+        assertFalse(input.inputProps(model).acceptDrops)
+        assertSame(props.drag, input.inputProps(model).drag)
+        assertEquals(TextContextMenuMode.StandardNative, props.contextMenu.mode)
+        assertEquals(TextContextMenuSelection.Preserve, props.contextMenu.selection)
+        assertEquals(Some("Copy field"), props.contextMenu.labels!!.copy)
         assertEquals(0L, notifications.size)
         props.onEdited(model)
         assertSame(model, notifications[0L])
         assertEquals(Some(500), props.style.text!!.weight)
-        assertEquals(2.0, props.style.caretWidth)
+        assertEquals(Some(2.0), props.style.caretWidth)
         assertFailsWith<IllegalArgumentException> { textarea(model) { rows = 0L } }
+        val otp = InputOtpBuilder()
+        assertTrue(otp.snapshot(model, 6L).acceptDrops)
+        otp.acceptDrops = false
+        otp.drag = props.drag
+        otp.protectedText = true
+        otp.contextMenu { mode = TextContextMenuMode.Disabled }
+        val code = otp.snapshot(model, 6L)
+        otp.protectedText = false
+        assertTrue(code.protectedText)
+        otp.acceptDrops = true
+        assertFalse(code.acceptDrops)
+        val editOptions = otpOptions(code, textProjection())
+        assertFalse(editOptions.acceptDrops)
+        assertSame(props.drag, code.drag)
+        assertSame(code.drag, editOptions.drag)
+        otp.drag = TextDragOptions()
+        assertFalse(code.drag.enabled)
+        assertTrue(otp.snapshot(model, 6L).drag.enabled)
+        assertTrue(otp.snapshot(model, 6L).acceptDrops)
+        assertFalse(otp.snapshot(model, 6L).protectedText)
+        otp.contextMenu { mode = TextContextMenuMode.StandardNative }
+        assertEquals(TextContextMenuMode.Disabled, code.contextMenu.mode)
+        assertEquals(TextContextMenuMode.StandardNative, otp.snapshot(model, 6L).contextMenu.mode)
     }
 
     @Test

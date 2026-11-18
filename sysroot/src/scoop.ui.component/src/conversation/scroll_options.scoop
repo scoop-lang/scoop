@@ -53,7 +53,12 @@ public class MessageScrollerProps public constructor(
     public val theme: ThemeSource? = None,
     public val controls: View? = None,
     public val showControls: Boolean = true,
-    public val placeholder: View? = None
+    public val placeholder: View? = None,
+    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
+    public val itemSemantics: ItemSemantics? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val collectionSemantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(spacing, "invalid message spacing")
@@ -67,6 +72,13 @@ public class MessageScrollerProps public constructor(
             case None -> {}
         }
         itemEstimate(itemExtent)
+        when (itemSemantics) {
+            case Some(val items) -> requireComponent(
+                items.source === source,
+                "message semantics must describe the same transcript snapshot"
+            )
+            case None -> {}
+        }
     }
 }
 
@@ -84,9 +96,17 @@ public class MessageScrollerBuilder internal constructor() {
     public var controls: View? = None
     public var showControls: Boolean = true
     public var placeholder: View? = None
+    public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
     public var key: ViewKey = ViewKey.Position
+    public var itemSemantics: ItemSemantics? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
+    public var collectionSemantics: ComponentSemantics = ComponentSemantics()
     public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit) {
         scrollbar = scrollbar.copy(configure)
+    }
+    public fun scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit): Unit {
+        scrollbarBehavior = scrollbarBehavior.copy(configure)
     }
     public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
         focus = focus.copy(configure)
@@ -110,6 +130,11 @@ public class MessageScrollerBuilder internal constructor() {
             theme,
             controls,
             showControls,
-            placeholder
+            placeholder,
+            scrollbarBehavior,
+            scrollPhysics,
+            itemSemantics,
+            semantics,
+            collectionSemantics
         )
 }

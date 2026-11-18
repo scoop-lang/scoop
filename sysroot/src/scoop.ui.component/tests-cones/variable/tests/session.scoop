@@ -4,18 +4,27 @@ import scoop.graphics.*
 import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
 import scoop.tests.surface.*
+import scoop.tests.window.sendNativeContactTimed
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.ThemeSource
 import scoop.ui.style.macos.macosTheme
 import scoop.window.*
+import scoop.window.native.*
 
 @Test
 private class VariableListTest {
     @Test
     fun `variable lists preserve reading keys and resolve explicit positions across data and geometry changes`() {
-        val probe = VariableProbe()
+        run(false)
+    }
+    @Test
+    fun `variable reading anchors survive inertia rebound prepend growth and explicit reveals`() {
+        run(true)
+    }
+    private fun run(motion: Boolean) {
+        val probe = VariableProbe(motion)
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
                 host -> Application(
@@ -26,7 +35,10 @@ private class VariableListTest {
             assertEquals(1, probe.discarded)
             assertFalse(probe.scroll.isAttached)
             assertFalse(probe.handle.value.isAttached)
-            assertTrue(probe.rows.size < 100L)
+            if (!motion)
+                assertTrue(probe.rows.size < 100L)
+            assertEquals(0, probe.alive)
+            assertTrue(probe.peak <= 16)
             for (row in probe.rows) {
                 assertEquals(1, row.mounts)
                 assertEquals(1, row.unmounts)
@@ -41,6 +53,16 @@ private class VariableListTest {
             val count = probe.intents.size
             probe.scroll.scrollTo(Point(0.0, 0.0))
             assertEquals(count, probe.intents.size)
+        } catch (error: Throwable) {
+            println(
+                f"variable motion=${motion}, phase=${probe.phase}, offset=${probe.scroll.offset.y}"
+            )
+            println(
+                f"saved offset=${probe.savedOffset.y}, current key=${probe.readingId()}, peak=${
+                    probe.peak
+                }"
+            )
+            throw error
         } finally {
             probe.frames?.close()
             probe.view?.close()
@@ -49,12 +71,14 @@ private class VariableListTest {
     }
 }
 
-internal class VariableProbe {
+internal class VariableProbe(val motion: Boolean = false) {
     val scroll = ScrollState()
     val theme = ThemeSource(macosTheme())
     val handle = state(VirtualListHandle())
     val anchor = state(VirtualListAnchor.KeepVisible)
     val width = state(160.0)
+    val height = state(60.0)
+    val physics = state(ScrollPhysicsOptions(inertia = ScrollInertiaOptions(false)))
     val show = state(true)
     val rows = ArrayList<VariableRecord>()
     var data: State<ItemSource>? = None
@@ -67,6 +91,12 @@ internal class VariableProbe {
     var ticket = 0
     var committed = -1
     var passes = 0
+    var presentedRevision = 0UL
+    var queued = 0
+    var received = 0
+    var animatedSteps = false
+    var alive = 0
+    var peak = 0
     var waiting = false
     var finished = false
     var discardNext = false
@@ -75,6 +105,9 @@ internal class VariableProbe {
     var two: VariableRecord? = None
     var oldHandle: VirtualListHandle? = None
     var savedOffset = Point(0.0, 0.0)
+    var savedTop = 0.0
+    var savedCorrections = 0
+    var savedUsers = 0
     val image = Image.fromRgba(1, 1, [0.toByte(), 100.toByte(), 200.toByte(), 255.toByte()])
     val intents = ArrayList<ScrollIntent>()
     var corrections = 0
@@ -99,27 +132,47 @@ internal class VariableProbe {
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
                 ui = host.attach(native, { mount -> VariableScene(this, scope = mount) })
+                if (motion) {
+                    native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                    native.requestFocus()
+                }
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )
             }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
             case AboutToWait -> {
                 if (
-                    phase < 29 && !waiting && committed == ticket && !frames!!.snapshot().required
+                    (motion || phase < 29) &&
+                        !finished &&
+                        !waiting &&
+                        committed ==
+                        ticket &&
+                        received ==
+                        queued &&
+                        presentedRevision ==
+                        scroll.requestRevision &&
+                        (!motion || window!!.isFocused) &&
+                        (animatedSteps || !frames!!.snapshot().required)
                 ) {
                     waiting = true
                     assertTrue(
                         active.proxy().post {
                             owner ->
                             waiting = false
-                            if (committed == ticket && !frames!!.snapshot().required)
+                            if (
+                                committed ==
+                                    ticket &&
+                                    (animatedSteps || !frames!!.snapshot().required)
+                            )
                                 advanceVariable(this, owner)
                         }
                     )
                 }
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 29
+                if (!motion)
+                    finished = phase == 29
                 active.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(
@@ -158,5 +211,32 @@ internal class VariableProbe {
     fun assertTop(key: Long, top: Double) {
         assertFalse(handle.value.isPending)
         assertEquals(top, row(key).area!!.windowBounds!!.y)
+    }
+    fun readingId(): Long {
+        val reading = handle.value.reading ?: return -1L
+        val value = reading.anchor ?: return -1L
+        return when (value.key) {
+            case Number(val id) -> id
+            else -> -1L
+        }
+    }
+    fun fling(id: Long) {
+        queued += 4
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> {
+                        sendNativeContactTimed(view, id, 0, 0, 50.0, 60.0, id * 1000L)
+                        sendNativeContactTimed(view, id, 0, 1, 50.0, 45.0, id * 1000L + 20L)
+                        sendNativeContactTimed(view, id, 0, 1, 50.0, 30.0, id * 1000L + 40L)
+                        sendNativeContactTimed(view, id, 0, 2, 50.0, 30.0, id * 1000L + 40L)
+                    }
+                }
+            } finally {
+                lease.close()
+            }
+        }
     }
 }

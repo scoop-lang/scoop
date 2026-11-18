@@ -1,0 +1,241 @@
+package scoop.tests.ui.drag
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.window.sendNativeContactTimed
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class UiContactDragSourceTest {
+    @Test
+    fun `contact sources preserve real identity geometry and tap behavior when data is declined`() {
+        val p = ContactSourceProbe()
+        UiHost { host, active, event -> p.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(p.finished)
+        assertEquals(2, p.prepared)
+        assertEquals(5, p.clicks)
+        assertTrue(p.source!!.isClosed)
+    }
+}
+
+internal class ContactSourceProbe {
+    var source: DragSource? = None
+    var area: InputArea? = None
+    var native: Window? = None
+    var ui: UiWindow? = None
+    var ready = false
+    var finished = false
+    var prepared = 0
+    var clicks = 0
+    var block = 0
+    private var received = 0
+    private var expected = 0
+    private var stage = 0
+    private var queued = false
+    private var expectedId = 0L
+    private var expectedKind = ContactKind.Touch
+
+    fun prepare(value: DragSourceStart): DragSourceData? {
+        prepared += 1
+        assertEquals(Point(10.0, 12.5), value.start)
+        assertEquals(Point(13.0, 12.5), value.position)
+        assertEquals(LogicalPosition(40.0, 45.0), value.press.logicalPosition)
+        assertEquals(LogicalPosition(46.0, 45.0), value.pointer.logicalPosition)
+        assertEquals(DragInput.Contact(ContactId(expectedId), expectedKind), value.input)
+        assertTrue(value.pointer.time != value.press.time)
+        return None
+    }
+    private fun send(id: Long, phase: Int, x: Double = 40.0, pen: Boolean = false) {
+        expected += 1
+        @Unsafe
+        {
+            native!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    when (lease.handle) {
+                        case AppKit(_, val view) -> sendNativeContactTimed(
+                            view,
+                            id,
+                            if (pen)
+                                1
+                            else
+                                0,
+                            phase,
+                            x,
+                            45.0,
+                            1000L + id * 100L + phase.toLong() * 10L
+                        )
+                    }
+                }
+            }
+        }
+    }
+    private fun stroke(id: Long, x: Double = 46.0, pen: Boolean = false) {
+        expectedId = id
+        expectedKind =
+            if (pen)
+                ContactKind.Pen
+            else
+                ContactKind.Touch
+        send(id, 0, pen = pen)
+        send(id, 1, x, pen)
+        send(id, 1, x + 1.0, pen)
+        send(id, 2, x + 1.0, pen)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop contact source preparation"
+                            size = LogicalSize(260.0, 180.0)
+                            requestActivation = false
+                            visible = false
+                        }
+                    )
+                native = Some(window)
+                ui = host.attach(window, { scope -> ContactSourceRoot(this, scope) })
+                window.setVisible(true)
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+            }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case AboutToWait -> if (ready && !queued && !finished && received >= expected) {
+                queued = true
+                active.proxy().post {
+                    application ->
+                    queued = false
+                    advance(application)
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"contact source timeout at ${stage}"))
+            else -> {}
+        }
+    }
+    private fun advance(active: ActiveApplication) {
+        when (stage) {
+            case 0 -> {
+                send(1L, 0)
+                send(1L, 1, 43.0)
+                send(1L, 2, 43.0)
+            }
+            case 1 -> {
+                assertEquals(0, prepared)
+                assertEquals(1, clicks)
+                stroke(2L)
+            }
+            case 2 -> {
+                assertEquals(1, prepared)
+                assertEquals(2, clicks)
+                stroke(3L, pen = true)
+            }
+            case 3 -> {
+                assertEquals(2, prepared)
+                assertEquals(3, clicks)
+                send(4L, 0)
+                send(5L, 0, 42.0)
+                send(4L, 1, 46.0)
+                send(4L, 2, 46.0)
+                send(5L, 2, 42.0)
+            }
+            case 4 -> {
+                assertEquals(3, clicks)
+                source!!.update(DragSourceOptions(contacts = false)) { value -> prepare(value) }
+                stroke(6L)
+            }
+            case 5 -> {
+                assertEquals(4, clicks)
+                source!!.update(DragSourceOptions(mouse = false)) { value -> prepare(value) }
+                block = 1
+                stroke(7L)
+            }
+            case 6 -> {
+                assertEquals(4, clicks)
+                block = 2
+                stroke(8L)
+            }
+            case 7 -> {
+                assertEquals(2, prepared)
+                assertEquals(5, clicks)
+                block = 0
+                send(9L, 0)
+            }
+            case 8 -> {
+                source!!.update(DragSourceOptions(enabled = false)) { _ -> fail() }
+                area!!.scope.enabled = false
+                send(9L, 1, 46.0)
+                send(9L, 2, 46.0)
+            }
+            case 9 -> {
+                assertEquals(5, clicks)
+                area!!.scope.enabled = true
+                source!!.update(DragSourceOptions()) { value -> prepare(value) }
+                send(10L, 0)
+            }
+            case 10 -> {
+                ui!!.close()
+                send(10L, 1, 46.0)
+                send(10L, 2, 46.0)
+            }
+            else -> {
+                finished = true
+                active.requestExit()
+            }
+        }
+        stage += 1
+    }
+}
+
+private class ContactSourceRoot(
+    private val probe: ContactSourceProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View = element({ mount -> ContactSourceElement(probe, mount) })
+}
+
+private class ContactSourceElement(
+    private val probe: ContactSourceProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    init {
+        probe.area = Some(area)
+        probe.source = Some(scope.dragSource(area) { value -> probe.prepare(value) })
+        scope.press(area) { probe.clicks += 1 }
+        area.scope.handler =
+            {
+                context,
+                event -> when (event) {
+                    case Contact(InputContactEvent.Began(_)) -> if (probe.block == 1)
+                        context.preventDefault()
+                    case Contact(InputContactEvent.Moved(_)) -> {
+                        if (probe.block == 2)
+                            context.preventDefault()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(260.0, 180.0))), Unit)
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.translate(20.0, 20.0)
+        context.scale(2.0, 2.0)
+        context.place(area, Rect(0.0, 0.0, 100.0, 60.0))
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.ready = true
+        }
+    }
+}

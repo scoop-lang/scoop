@@ -54,6 +54,7 @@ internal class SplitScene(private val p: SplitProbe, scope: ComponentScope): Com
                             collapsible = name == "a"
                         }
                     handle(ViewKey.Text(keys[0L])) {
+                        hitWidth = 32.0
                         focus =
                             FocusOptions(
                                 Some(
@@ -114,6 +115,12 @@ private class SplitTestLayout(
                             point.state.logicalPosition.y
                         }"
                     )
+                    case Contact(InputContactEvent.Ended(_)) -> {
+                        if (p.preventRelease) {
+                            p.preventRelease = false
+                            context.preventDefault()
+                        }
+                    }
                     case Pointer(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                     ) -> {

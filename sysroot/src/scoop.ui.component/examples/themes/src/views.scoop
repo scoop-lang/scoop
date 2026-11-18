@@ -10,13 +10,13 @@ import scoop.ui.text.TextEditorState
 
 internal fun showcaseView(
     model: ShowcaseModel,
+    theme: Theme,
     count: Int,
     name: TextEditorState,
     notes: TextEditorState,
     choices: Array<FocusHandle>,
     onIncrement: () -> Unit
 ): View {
-    val theme = model.source.current.value
     val enabled = model.enabled.value
     val effects = ArrayList<ContentEffect>()
     if (model.shadow.value)
@@ -58,11 +58,27 @@ internal fun showcaseView(
                 add(showcaseOption(model.shadow.binding(), "Drop shadow"))
                 add(showcaseOption(model.glow.binding(), "Glow"))
                 add(showcaseOption(model.blur.binding(), "Blur"))
+                add(
+                    showcaseOption(
+                        binding(
+                            { model.highContrast.value },
+                            { value -> model.setHighContrast(value) }
+                        ),
+                        "High contrast"
+                    )
+                )
+                add(
+                    showcaseOption(
+                        binding({ model.opaque.value }, { value -> model.setOpaque(value) }),
+                        "Reduce transparency"
+                    )
+                )
             }
             label(
                 "Use Tab and arrow keys to focus theme choices; Enter or Space applies them. Effect order: drop shadow → glow → blur."
             ) { style { fontSize = Some(12.0) } }
             add(showcaseFields(name, notes, enabled, onIncrement))
+            add(showcasePanels(model))
         }
     ) {
         padding = Some(Insets.all(12.0))
@@ -145,12 +161,20 @@ private fun themeChoices(
                 { model.select(ThemeChoice.Fluent) }
             )
         )
+        add(
+            themeChoice(
+                "Shadcn",
+                model.choice.value == ThemeChoice.Shadcn,
+                handles[3L],
+                { model.select(ThemeChoice.Shadcn) }
+            )
+        )
         label("/")
         add(
             themeChoice(
                 "Light",
                 model.mode.value == ModeChoice.Light,
-                handles[3L],
+                handles[4L],
                 { model.selectMode(ModeChoice.Light) }
             )
         )
@@ -158,7 +182,7 @@ private fun themeChoices(
             themeChoice(
                 "Dark",
                 model.mode.value == ModeChoice.Dark,
-                handles[4L],
+                handles[5L],
                 { model.selectMode(ModeChoice.Dark) }
             )
         )
@@ -166,7 +190,7 @@ private fun themeChoices(
             themeChoice(
                 "Follow system",
                 model.mode.value == ModeChoice.System,
-                handles[5L],
+                handles[6L],
                 { model.selectMode(ModeChoice.System) }
             )
         )
@@ -199,7 +223,7 @@ private fun showcaseOption(value: Binding<Boolean>, text: String): View =
     row {
         spacing = 4.0
         alignment = CrossAlignment.Center
-        checkbox(value)
+        checkbox(value) { semantics = ComponentSemantics(name = Some(text)) }
         label(text)
     }
 

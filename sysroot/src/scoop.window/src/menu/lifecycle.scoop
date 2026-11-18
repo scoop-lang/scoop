@@ -74,7 +74,9 @@ internal fun ApplicationOwner.closeWindowMenus(window: WindowOwner) {
     }
 }
 
-internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): ApplicationEvent? {
+@Unsafe
+internal fun ApplicationOwner.copyMenuActivation(pointer: Ptr<Unit>): ApplicationEvent? {
+    val event = nativeEventData(pointer)
     val menu = findMenu(event.a) ?: return None
     val use = menu.use ?: return None
     if (use.serial() != event.c)
@@ -99,6 +101,13 @@ internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): Applicatio
                 menu.id,
                 MenuItemId(event.b),
                 source,
+                if (event.flags.and(16) != 0)
+                {
+                    val text = nativeMenuEventText(pointer)
+                    Some(String.fromUtf8(text.bytes, text.length))
+                }
+                else
+                    None,
                 use,
                 if (event.d == 0L)
                     None
@@ -109,7 +118,7 @@ internal fun ApplicationOwner.copyMenuActivation(event: NativeEvent): Applicatio
     )
 }
 
-internal fun ApplicationOwner.copyPopupCompletion(event: NativeEvent): ApplicationEvent? {
+internal fun ApplicationOwner.copyPopupCompletion(event: NativeWindowEventData): ApplicationEvent? {
     val menu = findMenu(event.a) ?: return None
     when (menu.use) {
         case Some(MenuUse.Popup(val session)) -> {
@@ -138,8 +147,7 @@ internal fun ApplicationOwner.deliverMenu(activation: MenuActivation) {
                         case Some(val node) -> {
                             if (
                                 node.enabled() &&
-                                    node.prepared.kind <
-                                    3 &&
+                                    (node.prepared.kind < 3 || node.prepared.kind == 5) &&
                                     node.prepared.description.command ==
                                     MenuCommand.Action
                             )

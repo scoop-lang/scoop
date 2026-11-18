@@ -33,11 +33,18 @@ internal class FocusedMenuHandler: ApplicationHandler {
                 menu.insert(
                     MenuItemDescription(
                         "Native Select All",
-                        enabled = false,
                         command = MenuCommand.Role(MenuRole.SelectAll)
                     ),
                     Some(root)
                 )
+                for (label in ["Editor Delete", "Native Delete"])
+                    menu.insert(
+                        MenuItemDescription(
+                            label,
+                            command = MenuCommand.Role(MenuRole.DeleteSelection)
+                        ),
+                        Some(root)
+                    )
                 application.attachMenuBar(menu)
                 target.requestFocus()
                 if (target.isFocused)
@@ -45,7 +52,13 @@ internal class FocusedMenuHandler: ApplicationHandler {
             }
             case Window(_, WindowEvent.Focused(true)) -> checkFocus(application)
             case Window(_, WindowEvent.TextCommand(val command)) -> {
-                assertEquals(TextEditCommand.SelectAll, command)
+                assertEquals(
+                    if (editCommands == 0)
+                        TextEditCommand.SelectAll
+                    else
+                        TextEditCommand.DeleteSelection,
+                    command
+                )
                 editCommands += 1
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("native focus was not obtained"))
@@ -58,6 +71,9 @@ internal class FocusedMenuHandler: ApplicationHandler {
             return
         started = true
         assertTrue(menuAction("Editor Select All"))
+        window!!.textCommandAvailability = Some(TextCommandAvailability(deleteSelection = true))
+        assertTrue(menuAction("Editor Delete"))
+        window!!.textCommandAvailability = Some(TextCommandAvailability())
         @Unsafe
         {
             val lease = window!!.acquireNativeWindow()
@@ -74,7 +90,7 @@ internal class FocusedMenuHandler: ApplicationHandler {
         }
         application.proxy().post {
             active ->
-            assertEquals(1, editCommands)
+            assertEquals(2, editCommands)
             active.requestExit()
         }
     }

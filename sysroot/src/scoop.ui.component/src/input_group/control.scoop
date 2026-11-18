@@ -59,8 +59,20 @@ internal fun inputGroupControlView(
                 policy = value.policy,
                 projection = value.projection,
                 copy = value.copy,
+                protectedText = value.protectedText,
+                acceptDrops = value.acceptDrops,
+                drag = value.drag,
+                touch = value.touch,
+                touchScroll = value.touchScroll,
+                inputPurpose = value.inputPurpose,
+                softwareKeyboard = value.softwareKeyboard,
+                primarySelection = value.primarySelection,
+                automaticTextReplacement = value.automaticTextReplacement,
+                scrollPhysics = value.scrollPhysics,
                 labelTarget = value.labelTarget,
-                chrome = TextFieldChrome.Bare
+                chrome = TextFieldChrome.Bare,
+                contextMenu = value.contextMenu,
+                semantics = value.semantics
             ),
             { current, mount -> Input(current, scope = mount) }
         )
@@ -91,6 +103,7 @@ internal fun inputGroupControlView(
                 direction = value.direction,
                 alignment = value.alignment,
                 scrollbars = value.scrollbars,
+                scrollbarBehavior = value.scrollbarBehavior,
                 paintCache = value.paintCache,
                 caretBlink = value.caretBlink,
                 onEdited = value.onEdited,
@@ -98,8 +111,20 @@ internal fun inputGroupControlView(
                 policy = value.policy,
                 projection = value.projection,
                 copy = value.copy,
+                protectedText = value.protectedText,
+                acceptDrops = value.acceptDrops,
+                drag = value.drag,
+                touch = value.touch,
+                touchScroll = value.touchScroll,
+                inputPurpose = value.inputPurpose,
+                softwareKeyboard = value.softwareKeyboard,
+                primarySelection = value.primarySelection,
+                automaticTextReplacement = value.automaticTextReplacement,
+                scrollPhysics = value.scrollPhysics,
                 labelTarget = value.labelTarget,
-                chrome = TextFieldChrome.Bare
+                chrome = TextFieldChrome.Bare,
+                contextMenu = value.contextMenu,
+                semantics = value.semantics
             ),
             { current, mount -> Textarea(current, scope = mount) }
         )

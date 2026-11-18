@@ -1,0 +1,325 @@
+package scoop.tests.ui.accessibility.selectable
+
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class AccessibleSelectableTest {
+    @Test
+    fun `native selection follows inline alternative text and the real read-only host`() {
+        FontCollection().use {
+            fonts ->
+            fonts.register(testSansBytes, "UI Sans")
+            val probe = SelectableProbe(fonts)
+            try {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+                assertTrue(probe.finished)
+                assertTrue(probe.geometryChecked)
+                assertEquals(1, probe.mounts)
+                assertTrue(probe.host!!.isClosed)
+                assertTrue(probe.semantic!!.isClosed)
+            } finally {
+                probe.close()
+            }
+        }
+    }
+}
+
+internal class SelectableProbe(val fonts: FontCollection): Closeable {
+    val content = state(selectableText("😀图"))
+    val enabled = state(true)
+    val protectedText = state(false)
+    val menus = state(false)
+    var semantic: SemanticsHandle? = None
+    var host: SelectableTextHost? = None
+    var mounts = 0
+    var measures = 0
+    var scenes = 0
+    var changes = 0
+    var finished = false
+    var geometryChecked = false
+    private var waitingGeometry = false
+    private var active: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var node: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private var identity: SemanticNodeId? = None
+    private var previousChanges = 0
+
+    fun event(uiHost: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop accessible selectable text"
+                            requestActivation = false
+                            size = LogicalSize(240.0, 120.0)
+                        }
+                    )
+                window = Some(native)
+                ui = uiHost.attach(native, { scope -> SelectableRoot(this, scope) })
+                identity = Some(semantic!!.id)
+                @Unsafe
+                {
+                    val lease = native.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        NativeNode(nativeRoot(view)!!).use {
+                            root -> node = root.find("selectable")
+                        }
+                    } finally {
+                        lease.close()
+                    }
+                }
+                calls =
+                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                native.setVisible(false)
+                initial()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some("accessible selectable text timed out")
+            )
+            else -> {}
+        }
+    }
+
+    private fun initial() {
+        assertFalse(node!!.hasTextGeometry())
+        assertEquals(7L, node!!.characterCount)
+        assertTrue(node!!.text(1, Some("A😀图éZ")))
+        assertTrue(node!!.selection(1L, 5L))
+        assertTrue(node!!.text(4, Some("😀图é")))
+        assertTrue(node!!.range(1L, 3L, Some("😀图")))
+        assertTrue(node!!.range(2L, 1L, None))
+        host!!.setSelection(TextPosition(4L), TextPosition(1L))
+        afterUpdate {
+            assertTrue(node!!.selection(1L, 3L))
+            assertEquals(0, measures)
+            assertEquals(0, scenes)
+            waitingGeometry = true
+            window!!.setVisible(true)
+            assertTrue(node!!.flag(6))
+            assertFalse(node!!.flag(7))
+            assertFalse(node!!.flag(8))
+        }
+    }
+
+    fun geometryReady() {
+        if (!waitingGeometry)
+            return
+        waitingGeometry = false
+        assertTrue(node!!.hasTextGeometry())
+        assertEquals(TextQueryRange(1L, 2L), node!!.rangeForIndex(1L))
+        assertEquals(TextQueryRange(3L, 1L), node!!.rangeForIndex(3L))
+        assertEquals(TextQueryRange(4L, 2L), node!!.rangeForIndex(5L))
+        assertEquals(TextQueryRange(0L, 7L), node!!.visibleRange())
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    val view =
+                        when (lease.handle) {
+                            case AppKit(_, val value) -> value
+                        }
+                    val expected =
+                        host!!.area.toWindow(host!!.layout.inlineObjects[0L].box!!.rect)!!
+                    val actual = node!!.boundsForRange(view, 3L, 1L)
+                    assertTrue(abs(actual.x - expected.x) < 0.001)
+                    assertTrue(abs(actual.y - expected.y) < 0.001)
+                    assertTrue(abs(actual.width - expected.width) < 0.001)
+                    assertTrue(abs(actual.height - expected.height) < 0.001)
+                    assertEquals(
+                        TextQueryRange(1L, 3L),
+                        node!!.rangeAtPoint(
+                            view,
+                            expected.x + 1.0,
+                            expected.y + expected.height / 2.0
+                        )
+                    )
+                    val silent = host!!.area.toWindow(host!!.layout.inlineObjects[1L].box!!.rect)!!
+                    assertEquals(
+                        TextQueryRange(6L, 0L),
+                        node!!.rangeAtPoint(view, silent.x + 1.0, silent.y + silent.height / 2.0)
+                    )
+                    val caret = host!!.area.toWindow(host!!.layout.caret(TextPosition(4L))!!)!!
+                    val mapped = node!!.boundsForRange(view, 3L, 0L)
+                    assertTrue(abs(mapped.x - caret.x) < 0.001)
+                }
+            }
+        }
+        assertFalse(host!!.focus.handle.hasFocus)
+        geometryChecked = true
+        previousChanges = changes
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    val view =
+                        when (lease.handle) {
+                            case AppKit(_, val value) -> value
+                        }
+                    val bounds = host!!.area.toWindow(host!!.layout.inlineObjects[0L].box!!.rect)!!
+                    if (
+                        !calls!!.postTextClient(
+                            node!!,
+                            view,
+                            -1,
+                            TextQueryBounds(bounds.x, bounds.y, bounds.width, bounds.height)
+                        )
+                    )
+                        select(0, 3L, 1L)
+                }
+            }
+        }
+    }
+
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(
+            if (tag == 10)
+                0
+            else
+                1,
+            result
+        )
+        when (tag) {
+            case - 1 -> {
+                assertEquals(Utf8Selection(1L, 4L), host!!.selection)
+                assertEquals(previousChanges + 1, changes)
+                assertTrue(node!!.hasTextGeometry())
+                assertFalse(host!!.focus.handle.hasFocus)
+                select(0, 3L, 1L)
+            }
+            case 0 -> {
+                assertEquals(Utf8Selection(1L, 4L), host!!.selection)
+                assertTrue(node!!.selection(1L, 3L))
+                assertTrue(node!!.text(4, Some("😀图")))
+                assertFalse(host!!.focus.handle.hasFocus)
+                select(1, 3L, 0L)
+            }
+            case 1 -> {
+                assertEquals(Utf8Selection(4L, 4L), host!!.selection)
+                assertTrue(node!!.selection(4L, 0L))
+                select(2, 6L, 1L)
+            }
+            case 2 -> {
+                assertEquals(Utf8Selection(7L, 11L), host!!.selection)
+                assertTrue(node!!.text(4, Some("Z")))
+                select(3, 0L, 7L)
+            }
+            case 3 -> {
+                assertEquals(Utf8Selection(0L, 11L), host!!.selection)
+                calls!!.post(node!!, 4, 1, "forbidden")
+            }
+            case 4 -> {
+                assertTrue(node!!.text(1, Some("A😀图éZ")))
+                calls!!.post(node!!, 5, 5, "forbidden")
+            }
+            case 5 -> {
+                assertTrue(node!!.text(1, Some("A😀图éZ")))
+                enabled.value = false
+                afterUpdate {
+                    assertFalse(node!!.flag(6))
+                    select(6, 0L, 1L)
+                }
+            }
+            case 6 -> {
+                assertEquals(Utf8Selection(0L, 11L), host!!.selection)
+                enabled.value = true
+                protectedText.value = true
+                afterUpdate {
+                    assertFalse(node!!.flag(5))
+                    assertFalse(node!!.hasTextGeometry())
+                    assertFalse(node!!.flag(6))
+                    assertTrue(node!!.text(1, None))
+                    assertTrue(node!!.text(4, None))
+                    assertTrue(node!!.range(0L, 1L, None))
+                    select(7, 0L, 1L)
+                }
+            }
+            case 7 -> {
+                assertEquals(Utf8Selection(0L, 11L), host!!.selection)
+                protectedText.value = false
+                previousChanges = changes
+                content.value = selectableText("[new]")
+                afterUpdate {
+                    assertEquals(previousChanges, changes)
+                    assertEquals(identity, Some(semantic!!.id))
+                    assertEquals(9L, node!!.characterCount)
+                    assertTrue(node!!.text(1, Some("A[new]éZ")))
+                    select(8, 2L, 2L)
+                }
+            }
+            case 8 -> {
+                assertEquals(Utf8Selection(1L, 4L), host!!.selection)
+                assertTrue(node!!.selection(1L, 5L))
+                assertTrue(node!!.text(4, Some("[new]")))
+                content.value = selectableText("[new]", 28.0)
+                menus.value = true
+                afterUpdate {
+                    assertTrue(node!!.flag(8))
+                    select(9, 8L, 1L)
+                }
+            }
+            case 9 -> {
+                assertEquals(Utf8Selection(7L, 11L), host!!.selection)
+                host!!.setSelection(TextPosition(4L), TextPosition(1L))
+                menus.value = false
+                afterUpdate {
+                    assertEquals(Utf8Selection(4L, 1L), host!!.selection)
+                    assertTrue(node!!.selection(1L, 5L))
+                    assertFalse(node!!.flag(8))
+                    calls!!.post(node!!, 10, 8)
+                }
+            }
+            case 10 -> {
+                ui!!.close()
+                assertFalse(node!!.hasTextGeometry())
+                assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForIndex(0L))
+                assertTrue(node!!.range(0L, 1L, None))
+                assertFalse(node!!.flag(8))
+                select(11, 0L, 1L)
+            }
+            case 11 -> {
+                finished = true
+                window!!.requestDestroy()
+                active!!.requestExit()
+            }
+            else -> fail(Some("unexpected selectable operation"))
+        }
+    }
+    private fun select(tag: Int, start: Long, length: Long) {
+        calls!!.post(node!!, tag, 4, selectionStart = start, selectionLength = length)
+    }
+    private fun afterUpdate(action: () -> Unit) {
+        assertTrue(active!!.proxy().post { _ -> action() })
+    }
+    public override fun close() {
+        calls?.close()
+        calls = None
+        node?.close()
+        node = None
+    }
+}

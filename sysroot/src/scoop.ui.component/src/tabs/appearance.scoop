@@ -3,8 +3,15 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.style.*
 
-internal fun tabTextColor(theme: Theme, selected: Boolean, visual: InteractionVisual): Color {
+internal fun tabTextColor(
+    theme: Theme,
+    variant: TabsVariant,
+    selected: Boolean,
+    visual: InteractionVisual
+): Color {
     val colors = theme.tokens.palette
+    if (theme.preferences.highContrast)
+        return tabContrastPair(theme, variant, selected, visual).foreground
     if (!visual.enabled && theme.tokens.disabledOpacity >= 1.0)
         return colors.disabledText
     if (selected || (visual.enabled && (visual.hovered || visual.pressed)))
@@ -12,7 +19,41 @@ internal fun tabTextColor(theme: Theme, selected: Boolean, visual: InteractionVi
     return if (theme.tokens.mode == ThemeMode.Dark)
         colors.muted.foreground
     else
-        colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.6)
+        componentTint(theme, colors.background.foreground, 0.6, tabBackground(theme, variant))
+}
+
+private fun tabBackground(theme: Theme, variant: TabsVariant): Color =
+    if (variant == TabsVariant.Default)
+        theme.tokens.palette.muted.background
+    else
+        theme.tokens.palette.background.background
+
+private fun tabContrastPair(
+    theme: Theme,
+    variant: TabsVariant,
+    selected: Boolean,
+    visual: InteractionVisual
+): ColorPair {
+    val colors = theme.tokens.palette
+    if (selected && variant == TabsVariant.Default)
+        return ColorPair(
+            colors.background.background,
+            if (visual.enabled)
+                colors.background.foreground
+            else
+                colors.disabledText
+        )
+    if (visual.enabled && (visual.hovered || visual.pressed))
+        return colors.accent
+    if (variant == TabsVariant.Default)
+        return colors.muted
+    return ColorPair(
+        colors.background.background,
+        if (visual.enabled)
+            colors.background.foreground
+        else
+            colors.disabledText
+    )
 }
 
 internal fun tabOptions(
@@ -39,7 +80,18 @@ internal fun tabOptions(
             colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.08)
         else
             mixThemeColor(normal, colors.background.foreground, 0.08)
-    val fill = StateColors(normal, normal, pressed, normal).resolve(visual)
+    val fill =
+        if (theme.preferences.highContrast)
+            if (filled || (visual.enabled && (visual.hovered || visual.pressed)))
+                tabContrastPair(theme, variant, selected, visual).background
+            else
+                Color.Transparent
+        else
+            componentBackground(
+                theme,
+                StateColors(normal, normal, pressed, normal).resolve(visual),
+                tabBackground(theme, variant)
+            )
     val local =
         styleOverride {
             this.background(Some(Paint(fill)))
@@ -47,7 +99,7 @@ internal fun tabOptions(
                 Some(
                     Border.all(
                         density,
-                        if (filled && dark)
+                        if (filled && (dark || theme.preferences.highContrast))
                             colors.input
                         else
                             Color.Transparent

@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.window.CursorIcon
 import scoop.window.setCursorIcon
 
@@ -22,10 +23,11 @@ private class SidebarRail(
     private var area: InputArea? = None
     private var press: Press? = None
     private var cursor = false
+    private val semantics = createComponentSemantics(scope, SemanticRole.Disclosure)
     public override fun onMount() {
         area =
             Some(
-                scope.createArea {
+                scope.createArea(focusable = true) {
                     context,
                     _ -> if (context.phase == RoutedPhase.Notification && scope.isMounted) {
                         refreshCursor();
@@ -33,6 +35,7 @@ private class SidebarRail(
                     }
                 }
             )
+        semantics?.bindFocus(Some(scope.focusTarget(area!!, FocusOptions(tabStop = false))))
         press =
             Some(
                 scope.press(area!!, PressOptions(props.value.props.enabled)) {
@@ -56,7 +59,31 @@ private class SidebarRail(
         area!!.scope.enabled = props.value.props.enabled
         press!!.update(PressOptions(props.value.props.enabled)) { props.value.toggle() }
         refreshCursor()
+        val input = props.value.props
+        semantics?.bindReference(input.railSemantics.reference)
+        semantics?.update(
+            input.railSemantics.properties(
+                enabled = input.enabled,
+                expanded = Some(input.open.value)
+            ),
+            SemanticActions(
+                invoke = Some { expand(!props.value.props.open.value) },
+                setExpanded = Some { value -> expand(value) }
+            ),
+            input.railSemantics.relations
+        )
         return UiInvalidation.Layout
+    }
+    private fun expand(value: Boolean): SemanticActionResult {
+        val input = props.value.props
+        if (!input.enabled)
+            return SemanticActionResult.Rejected
+        if (input.open.value != value)
+            props.value.toggle()
+        return if (input.open.value == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -67,7 +94,12 @@ private class SidebarRail(
         )
     public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
-        context.place(area!!, Rect(0.0, 0.0, size.width, size.height))
+        val bounds = Rect(0.0, 0.0, size.width, size.height)
+        context.place(area!!, bounds)
+        when (semantics) {
+            case Some(val handle) -> context.semantics(handle, bounds)
+            case None -> {}
+        }
         if (area!!.scope.isHovered && props.value.props.enabled) {
             val density = props.value.theme.tokens.typography.body.fontSize / 14.0
             val color = props.value.theme.tokens.palette.sidebar.border

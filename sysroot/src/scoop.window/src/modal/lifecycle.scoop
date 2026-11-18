@@ -118,6 +118,11 @@ internal fun modalInputAllowed(event: WindowEvent): Boolean =
             else -> false
         }
         case TextCommand(_) -> false
+        case Gesture(val value) -> value.phase == GesturePhase.Cancelled
+        case Contact(val value) -> when (value) {
+            case Cancelled(_, _, _) -> true
+            else -> false
+        }
         case CloseRequested -> false
         else -> true
     }

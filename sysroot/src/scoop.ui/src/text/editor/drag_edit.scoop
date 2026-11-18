@@ -1,0 +1,113 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.window.*
+
+/** One prepared source, passed by reference only to destinations in the same process. */
+internal class EditorTextTransfer(
+    val editor: TextEditorState,
+    val range: Utf8Range,
+    val effects: DragEffects,
+    private val sourceReady: () -> Boolean
+) {
+    private val revision = editor.contentRevision
+    val text = editor.text.utf8Slice(range)
+    var moved = false
+    val canMove: Boolean get() =
+        !moved && editor.contentRevision == revision && !editor.isComposing && sourceReady()
+}
+
+internal fun prepareEditorMove(
+    source: EditorTextTransfer,
+    position: Long,
+    policy: TextEditPolicy,
+    singleLine: Boolean = false
+): EditorPreparedEdit? {
+    if (!source.canMove)
+        return None
+    val editor = source.editor
+    requireUi(editorScalar(editor.text.toByteArray(), position), "invalid text drop position")
+    val range = source.range
+    if (position >= range.start && position <= range.end)
+        return Some(
+            EditorPreparedEdit(
+                editor.storage.value,
+                None,
+                EditorHistoryChange.Append([], false, false),
+                true
+            )
+        )
+    val destination =
+        if (position > range.end)
+            position - (range.end - range.start)
+        else
+            position
+    val raw =
+        prepareEditorInput(
+            editor,
+            TextInputBatch(
+                Some(editor.revision),
+                [
+                    TextInputOperation.Commit("", TextReplacement.Range(range)),
+                    TextInputOperation.Commit(
+                        source.text,
+                        TextReplacement.Range(Utf8Range(destination, destination))
+                    )
+                ]
+            )
+        )!!
+    val edit =
+        finishEditorInput(
+            raw,
+            policy,
+            TextEditSource.DragDrop,
+            singleLine,
+            EditorEditKind.Separate,
+            Some(
+                EditorSelection(
+                    TextPosition(destination),
+                    TextPosition(destination + source.text.byteLength)
+                )
+            )
+        )
+    return completeEditorTransfer(raw, edit)
+}
+
+/** Removal applies command policy once; a transformation cannot delete unrelated content. */
+internal fun prepareEditorDragRemoval(
+    source: EditorTextTransfer,
+    policy: TextEditPolicy,
+    singleLine: Boolean = false
+): EditorPreparedEdit? {
+    if (!source.canMove)
+        return None
+    val editor = source.editor
+    val raw =
+        prepareEditorInput(
+            editor,
+            TextInputBatch(
+                Some(editor.revision),
+                [TextInputOperation.Commit("", TextReplacement.Range(source.range))]
+            )
+        )!!
+    return completeEditorTransfer(
+        raw,
+        finishEditorInput(
+            raw,
+            policy,
+            TextEditSource.EditCommand,
+            singleLine,
+            EditorEditKind.Separate
+        )
+    )
+}
+
+internal fun completeEditorTransfer(
+    raw: EditorPreparedInput,
+    edit: EditorPreparedEdit
+): EditorPreparedEdit? =
+    if (edit.accepted && edit.value.input.surroundingText == raw.current.input.surroundingText)
+        Some(edit)
+    else
+        None

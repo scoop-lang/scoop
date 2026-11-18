@@ -32,6 +32,8 @@ activate 只接受自己的 MenuId、仍存在且祖先均启用的条目；Role
 
 `nativeContextMenu(content, menu, configure = {})` 透传正文布局，`NativeContextMenuProps` 与 builder 另保存 enabled = true、handle = None、onClosed = {}；builder 的 key 默认 Position。右键按下、菜单键或 Shift+F10 发起原生展示。已有正文焦点保留；正文没有焦点时使用不进入 Tab 顺序的包装焦点作为后备。后代已消费的键盘默认动作不再重复打开菜单。
 
+NativeContextMenuProps 与 builder 的 longPress 默认为 LongPressOptions()，使用公共 LongPress 识别直接触摸／笔尖，可独立配置开关、延迟和移动容差。成功取得原 contact 后按真实窗口逻辑坐标调用同一原生 popup 请求，保留正文焦点与包装退路；短按、内层文本长按和滚动依照原接触归属竞争。已有 pending session 不重复打开，禁用或卸载继续取消原 session。 菜单显示期间更新参数或描述后，关闭后的新长按仍按最新 enabled／longPress 配置识别，不保留临时 pending 导致的禁用状态。关闭长按不影响右键和键盘菜单。原生菜单条目继续由系统 accessibility provider 暴露，不创建重复子树。
+
 `NativePopupHandle()` 可选地关联一个已挂载触发器。`isPending` 可被 render 观察；`requestOpen(): Boolean` 从当前已提交锚点发起一次请求，`cancel()` 取消当前 session。一个 handle 不能同时绑定两个触发器，移除或替换 handle 后旧 handle 不再控制该触发器。没有有效提交区域、触发器不可用／不在当前输入范围、已存在 pending session 或 handle 未挂载时，requestOpen 返回 false；系统拒绝展示仍报告真实 Window 错误。
 
 按钮和键盘请求用 InputArea.visibleBounds 的客户区逻辑矩形，右键使用真实事件的窗口坐标。布局中的未提交位置不用于原生展示。打开前同时检查 Window.state 和 isInputBlocked，避免模态限制已同步生效、输入通知尚未交付时继续打开。正在显示时描述更新复用同一菜单树；禁用或卸载触发器取消 session。onClosed 接收真实 PopupResult，完成后先清除 pending，再执行当前回调；回调可发起下一次明确请求。卸载停止所属回调，关闭 session 后释放菜单，不保留独立的受控 open 值，也没有关闭否决或自绘退出动画。
@@ -48,4 +50,30 @@ activate 只接受自己的 MenuId、仍存在且祖先均启用的条目；Role
 
 原生菜单产生的 WindowEvent.TextCommand 经 Surface 的 InputEvent.TextCommand 沿当前焦点路径执行 capture／target／bubble／default；没有合格焦点时不把命令交给后台编辑器。TextEditHost 和 SelectableTextHost 在默认阶段复用各自 execute(TextEditCommand)，preventDefault 可阻止该次默认编辑。
 
-两种文本宿主通过所属 InputScope.textCommandAvailability 发布六个原生编辑角色的状态。文本、选择、只读／禁用、复制策略和撤销历史变化同步更新；SelectableTextHost 只发布 Copy 和 SelectAll，未接受的新文本不使用旧选择能力。Paste 表示目标允许尝试粘贴，真正执行时才读取剪贴板，无文本时无操作。焦点、输入边界和卸载决定哪一份状态进入 Window；原生文件面板的编辑目标由系统处理，不修改后台 UI 文档。
+两种文本宿主通过所属 InputScope.textCommandAvailability 发布七个原生编辑角色的状态。文本、选择、只读／禁用、复制策略和撤销历史变化同步更新；SelectableTextHost 只发布 Copy 和 SelectAll，未接受的新文本不使用旧选择能力。Paste 表示目标允许尝试粘贴，真正执行时才读取剪贴板，无文本时无操作。焦点、输入边界和卸载决定哪一份状态进入 Window；原生文件面板的编辑目标由系统处理，不修改后台 UI 文档。
+
+TextEditOptions.protectedText 独立于显示投影。Default 复制策略在受保护用途或内置遮罩时禁用 Copy／Cut，显式 Allow 只开放复制；保护或复制策略热更新同步到菜单，已经选中的迟到动作仍按最新资格执行。Paste、DeleteSelection 和 Undo／Redo 保留各自的普通编辑规则，详细合同见[UI 规范 §7.5.3](SCOOP-UI-SPEC.md#753-编辑显示投影)。
+
+DeleteSelection 仅删除当前非空选区，不等价于向前删除。TextEditHost 只有在启用、可编辑且有选区时发布该能力，实际执行仍使用当前策略；空选区为无操作，SelectableTextHost 不提供删除。该命令可用于原生菜单与语义编辑，不为它合成键盘事件或单独维护编辑历史。
+
+## 6. 文本框内建上下文菜单
+
+`TextEditOptions.contextMenu` 为 TextContextMenuOptions，默认 mode=PreferSystem、selection=Platform、labels=None、systemServices=true。TextContextMenuMode 提供 Disabled、StandardNative、PreferSystem；TextContextMenuSelection 提供 Platform、Preserve、PlaceCaret、SelectWord。`textContextMenu { ... }` 和 copy builder 构造该不可变值，labels 使用 Window 的 TextContextMenuLabels。Input／Textarea／InputOtp 及组合入口透传此选项；禁用内建菜单时保留自定义包装的正常输入路由。
+
+SelectableTextOptions 提供相同的 contextMenu 及默认值，SelectableTextHost.showContextMenu() 使用当前 Accepted 段落中的选区或插入位置作为键盘锚点；它不创建可写编辑宿主。标准编辑部分只保留 Copy／SelectAll 及二者之间的有效分隔线，复制使用 Accepted StyledText 的 alternateText；copy=false 禁用复制，disabled 不打开菜单。只读选择与可编辑宿主共用原生会话、最新可用性、标签和选区外点击策略。
+
+已通过 updateTextEditor／updateSelectableText 接入语义的宿主提供 ShowContextMenu，菜单模式为 Disabled 时不公布该动作。明确的语义菜单请求可先请求原目标焦点，再用上述 Accepted 锚点创建同一个菜单会话；等待实际焦点或已有会话时返回 Busy，缺少锚点或资格时拒绝。会话建立后返回 Completed，菜单后续运行沿现有延迟 native operation，不在同步 accessibility 回调中递归 tracking，也不复制系统菜单的语义树。完整规则见 [UI 无障碍规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#5-文本编辑宿主)。
+
+TextEditHost 的 `showContextMenu(): Boolean` 从当前有效可见 caret／选区锚点请求键盘式菜单；没有可用 Accepted 几何、活动宿主未聚焦／禁用或已有 pending 菜单时返回 false。已经关闭或卸载时与其他宿主方法一样报告 IllegalStateException。右键和平台辅助点击在默认动作阶段进入同一路径，键盘入口为非重复的 ContextMenu 或 Shift+F10。已消费或 preventDefault 的请求不执行默认菜单。布局未提交时不以原点代替锚点；只读取匹配的已接受文本布局进行指针命中。
+
+点击当前选择绘制区域时保持方向选区；选区外按 selection 处理。Preserve 完全保留，PlaceCaret 定位，SelectWord 使用既有 graphics.text 分词，Platform 使用模板的提示。先按普通输入规则取得目标焦点；打开菜单结束当前拖选并取消越界自动滚动，定位与结束 composition 沿现有编辑合同执行。不创建另一份文本模型或历史；菜单展示保留当前文档的 native 文本连接与实际选择。
+
+TextTouchOptions 的长按使用同一选区与菜单操作，真实来源保留为 Contact，不伪造鼠标按下。选区内长按保留方向，选区外的 Platform 对直接触摸／笔尖选择词；显式 Preserve／PlaceCaret／SelectWord 仍按配置执行。mode=Disabled 只关闭菜单，长按仍可选择文本，longPressDelay=None 才关闭长按操作。请求使用识别时匹配当前正文和投影的 Accepted 局部位置；菜单模式／文本／绑定变化及失效会取消旧候选，辅助技术与键盘菜单继续沿原锚点入口，不受触摸开关影响。
+
+每次请求绑定发起宿主及当时文档，以 PopupSessionId 匹配来源。菜单使用明确的 Action 项，激活时验证来源、宿主／文档绑定仍有效、实际焦点、输入边界和该命令的最新可用性，然后执行对应宿主的 execute；一个激活只执行一次。PopupCompleted 不再次执行编辑，Selected 与 MenuActivation 的到达顺序均可处理。只读与编辑能力变化更新菜单可用性；禁用、模型替换、菜单配置变化、焦点离开、窗口关闭或宿主卸载及时取消旧请求，失效的晚到动作不能修改新目标。菜单能力更新不请求绘制，Paste 在执行时读取当前剪贴板。
+
+共享会话在更换编辑模型前失效；只读宿主在正文或行内替代文字变化时失效，单纯字体／颜色变化不取消菜单。打开过程中的焦点或选择回调若关闭宿主或替换文档，该次请求停止。两个宿主的菜单动作分别回到自己的 execute，不能落到当前任意焦点控件。辅助点击不启动文本拖选；公共 Press 对平台认可的辅助按下不建立主按钮激活候选，让正常菜单路由继续。
+
+菜单资源在首次使用时创建；没有请求不分配 OS 菜单。关闭先停止动作及观察，再取消 session／关闭 Menu，原生 tracking 与 Window lease 继续使用既有收尾。菜单创建／显示失败走所属根错误边界。没有后台轮询、额外事件循环或新增编译器机制。实际系统模板复用与回退遵守 Window 菜单规范第 6 节，不能把模板存在当作全部系统文本服务已支持。
+
+PreferSystem 的 systemServices 入口沿[UI 文本服务合同](SCOOP-UI-SPEC.md)附加实际可用的拼写／语法建议、词典及文本 Services；StandardNative 仍只提供标准编辑项。Services 使用 MenuItemKind.TextServices，系统在子菜单打开时提供名称和分组，不提前枚举并复制为普通动作。只读菜单仅导出文本，拒绝要求返回替换的服务；受保护、遮蔽或禁止复制的宿主不调用这些服务。每项服务保存目标、revision／选择与配置，状态变化立即更新原生资格，动作执行及原生返回后再次核对；返回正文经 Paste 策略进入一次撤销事务，显示／完成通知不重复编辑。菜单项仍由原生 Menu 所有，不另造 accessibility 菜单树或隐藏编辑器。

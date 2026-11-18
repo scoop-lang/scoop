@@ -23,6 +23,10 @@ internal class MountedNode(
     val scope = ComponentScope(this)
     val paintLayers = PaintLayers()
     val focusTargets = ArrayList<FocusTarget>()
+    val semanticHandles = ArrayList<SemanticsHandle>()
+    var semanticRoute: SemanticsHandle? = None
+    var lazySemantics: SemanticsHandle? = None
+    var semanticItem: SemanticsHandle? = None
     var focusScope: FocusScope? = None
     var navigation: KeyNavigation? = None
     var lazyFocus: LazyFocus? = None

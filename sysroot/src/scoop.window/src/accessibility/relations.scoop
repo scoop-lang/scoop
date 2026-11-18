@@ -1,0 +1,262 @@
+package scoop.window.accessibility
+
+import scoop.collections.HashSet
+import scoop.collections.contains
+import scoop.collections.toList
+import scoop.window.*
+
+internal fun checkSemanticRelations(source: AccessibilityNode, next: SemanticRelations) {
+    for (ids in next.references)
+        checkSemanticTargets(source, ids)
+    when (next.activeDescendant) {
+        case Some(Item(val id, _)) -> {
+            val target = source.provider.lookup(id)!!
+            requireWindow(
+                target.role == SemanticRole.List || target.role == SemanticRole.Table,
+                "active item requires a collection target"
+            )
+        }
+        else -> {}
+    }
+}
+
+internal fun refreshSemanticItemReferences(collection: AccessibilityNode) {
+    for (source in collection.referrers.values.toList()) {
+        when (source.relationValues.activeDescendant) {
+            case Some(Item(val id, val key)) -> {
+                if (id == collection.id && !(collection.collectionValue?.contains(key) ?: false)) {
+                    val previous = source.relationValues
+                    val next =
+                        SemanticRelations(
+                            previous.labelledBy,
+                            previous.describedBy,
+                            previous.errorMessages,
+                            previous.controls,
+                            None,
+                            previous.rowHeaders,
+                            previous.columnHeaders
+                        )
+                    installSemanticReferences(source, next, source.content)
+                    source.provider.changed(source)
+                }
+            }
+            else -> {}
+        }
+    }
+}
+
+internal fun checkSemanticTargets(source: AccessibilityNode, ids: Array<SemanticNodeId>) {
+    val seen = HashSet<SemanticNodeId>()
+    for (id in ids) {
+        val target = source.provider.lookup(id)
+        requireWindow(
+            (target?.active ?: false) && id != source.id,
+            "semantic relation requires another active node in the same provider"
+        )
+        requireWindow(seen.add(id), "duplicate semantic relation target")
+    }
+}
+
+/** Maintains only real references, so retirement and text updates visit their dependents. */
+internal fun installSemanticReferences(
+    source: AccessibilityNode,
+    next: SemanticRelations,
+    content: Array<SemanticNodeId>,
+    textChildren: Array<SemanticTextChild> = source.textChildValues
+) {
+    val previous = source.relationValues
+    for (ids in previous.references)
+        for (id in ids) {
+            val target = source.provider.lookup(id) ?: continue
+            target.referrers.remove(source.id.number)
+            source.provider.changed(target)
+        }
+    for (id in source.content) {
+        val target = source.provider.lookup(id) ?: continue
+        target.referrers.remove(source.id.number)
+        source.provider.changed(target)
+    }
+    for (child in source.textChildValues) {
+        val target = source.provider.lookup(child.node) ?: continue
+        target.referrers.remove(source.id.number)
+    }
+    source.relationValues = next
+    source.content = content
+    source.textChildValues = textChildren
+    for (ids in next.references)
+        for (id in ids) {
+            val target = source.provider.lookup(id) ?: continue
+            target.referrers[source.id.number] = source
+            source.provider.changed(target)
+        }
+    for (id in content) {
+        val target = source.provider.lookup(id) ?: continue
+        target.referrers[source.id.number] = source
+        source.provider.changed(target)
+    }
+    for (child in textChildren) {
+        val target = source.provider.lookup(child.node) ?: continue
+        target.referrers[source.id.number] = source
+    }
+}
+
+internal fun retireSemanticRelations(node: AccessibilityNode) {
+    for (source in node.referrers.values.toList()) {
+        if (!source.active)
+            continue
+        val old = source.relationValues
+        val next =
+            SemanticRelations(
+                withoutSemanticId(old.labelledBy, node.id),
+                withoutSemanticId(old.describedBy, node.id),
+                withoutSemanticId(old.errorMessages, node.id),
+                withoutSemanticId(old.controls, node.id),
+                when (old.activeDescendant) {
+                    case Some(val value) -> if (value.node == node.id)
+                        None
+                    else
+                        old.activeDescendant
+                    case None -> None
+                },
+                withoutSemanticId(old.rowHeaders, node.id),
+                withoutSemanticId(old.columnHeaders, node.id)
+            )
+        val content = withoutSemanticId(source.content, node.id)
+        val nameChanged =
+            source.properties.name ==
+                None &&
+                (
+                    !sameSemanticIds(old.labelledBy, next.labelledBy) ||
+                        !sameSemanticIds(source.content, content)
+                )
+        installSemanticReferences(
+            source,
+            next,
+            content,
+            withoutSemanticTextChild(source.textChildValues, node.id)
+        )
+        if (nameChanged)
+            source.invalidateContent()
+        semanticTextChanged(source, nameChanged)
+        source.provider.changed(source)
+    }
+    installSemanticReferences(node, SemanticRelations(), [], [])
+    node.referrers.clear()
+}
+
+private fun withoutSemanticId(ids: Array<SemanticNodeId>, removed: SemanticNodeId): Array<
+    SemanticNodeId
+> {
+    val result = ArrayList<SemanticNodeId>()
+    for (id in ids)
+        if (id != removed)
+            result.add(id)
+    return result.toArray()
+}
+
+internal fun semanticTextChanged(node: AccessibilityNode, nameChanged: Boolean) {
+    node.textDirty = true
+    if (!nameChanged)
+        return
+    node.nameDirty = true
+    val pending = ArrayList<AccessibilityNode>()
+    val visited = HashSet<SemanticNodeId>()
+    pending.add(node)
+    while (pending.size > 0L) {
+        val target = pending.removeAt(pending.size - 1L)
+        if (!visited.add(target.id))
+            continue
+        for (source in target.referrers.values) {
+            if (!source.active)
+                continue
+            val name =
+                source.properties.name ==
+                    None &&
+                    (
+                        source.relationValues.labelledBy.contains(target.id) ||
+                            source.content.contains(target.id)
+                    )
+            val description =
+                source.properties.description ==
+                    None &&
+                    source.relationValues.describedBy.contains(target.id)
+            val error =
+                source.properties.error ==
+                    None &&
+                    source.relationValues.errorMessages.contains(target.id)
+            if (name || description || error) {
+                source.textDirty = true
+                source.provider.changed(source)
+            }
+            if (name) {
+                source.nameDirty = true
+                source.invalidateContent()
+                pending.add(source)
+            }
+        }
+    }
+}
+
+internal fun resolveSemanticText(node: AccessibilityNode) {
+    if (!node.textDirty)
+        return
+    resolveSemanticName(node)
+    node.resolvedDescription =
+        semanticTextOr(node, node.properties.description, node.relationValues.describedBy)
+    node.resolvedError =
+        semanticTextOr(node, node.properties.error, node.relationValues.errorMessages)
+    node.textDirty = false
+}
+
+private fun resolveSemanticName(node: AccessibilityNode): String? {
+    if (!node.nameDirty)
+        return node.resolvedName
+    requireWindow(!node.resolvingName, "semantic labels would create a name cycle")
+    node.resolvingName = true
+    try {
+        var name = semanticTextOr(node, node.properties.name, node.relationValues.labelledBy)
+        if (name == None)
+            name = semanticTextOr(node, None, node.content)
+        node.resolvedName = name
+        node.nameDirty = false
+        return name
+    } finally {
+        node.resolvingName = false
+    }
+}
+
+private fun semanticTextOr(
+    source: AccessibilityNode,
+    explicit: String?,
+    ids: Array<SemanticNodeId>
+): String? {
+    when (explicit) {
+        case Some(_) -> return explicit
+        case None -> {}
+    }
+    var known = false
+    var text = ""
+    for (id in ids) {
+        val target = source.provider.lookup(id) ?: continue
+        if (!target.active)
+            continue
+        var value = resolveSemanticName(target)
+        if (value == None && target.role == SemanticRole.Text && !target.properties.protectedText)
+            value = target.properties.value
+        when (value) {
+            case Some(val content) -> {
+                known = true
+                if (content.byteLength > 0L) {
+                    if (text.byteLength > 0L)
+                        text += " "
+                    text += content
+                }
+            }
+            case None -> {}
+        }
+    }
+    return if (known)
+        Some(text)
+    else
+        None
+}

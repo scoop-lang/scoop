@@ -64,7 +64,32 @@ internal fun <T: Equals<T>> comboEditor(
                 else
                     field.labelTarget,
                 field.group,
-                TextFieldChrome.Bare
+                TextFieldChrome.Bare,
+                field.contextMenu,
+                field.protectedText,
+                candidateInputSemantics(
+                    field.semantics,
+                    control.list.semanticId,
+                    when (val key = control.active.value) {
+                        case Some(val value) -> if (control.results().indexOfKey(value) != None)
+                            key
+                        else
+                            None
+                        case None -> None
+                    }
+                ),
+                field.acceptDrops,
+                field.drag,
+                field.touch,
+                field.touchScroll,
+                field.scrollPhysics,
+                Some(
+                    TextFieldExpansion(control.open.value, { value -> control.semanticOpen(value) })
+                ),
+                field.inputPurpose,
+                field.softwareKeyboard,
+                field.primarySelection,
+                field.automaticTextReplacement
             ),
             { current, mount -> Input(current, scope = mount) }
         )
@@ -172,6 +197,7 @@ internal fun <T: Equals<T>> comboField(
                     enabled = input.mutable;
                     variant = ButtonVariant.Ghost;
                     size = ButtonSize.IconXs;
+                    semantics = ComponentSemantics(name = Some("Clear selection"));
                     this.theme = input.input.theme
                 },
                 InputGroupAlign.InlineEnd,
@@ -194,6 +220,11 @@ internal fun <T: Equals<T>> comboField(
                         enabled = input.mutable;
                         variant = ButtonVariant.Ghost;
                         size = ButtonSize.IconXs;
+                        semantics =
+                            input.triggerSemantics.copy {
+                                if (name == None)
+                                    name = Some("Show options")
+                            };
                         this.theme = input.input.theme
                         focus = input.triggerFocus.copy { handle = Some(control.trigger) }
                     },
@@ -256,7 +287,7 @@ internal fun <T: Equals<T>> comboTrigger(control: ComboboxControl<T>, theme: The
             spacing = 8.0 * d;
             alignment = CrossAlignment.Center
         }
-    return component(
+    return popupSemanticButton(
         ButtonProps(
             ButtonContent.Custom(content),
             { control.toggle() },
@@ -267,8 +298,15 @@ internal fun <T: Equals<T>> comboTrigger(control: ComboboxControl<T>, theme: The
             input.input.invalid,
             ButtonVariant.Outline,
             ButtonSize.Default,
-            labelTarget = input.input.labelTarget
+            labelTarget = input.input.labelTarget,
+            semantics =
+                input.triggerSemantics.copy {
+                    relations = semanticControls(relations, control.list.semanticId)
+                    if (name == None && relations.labelledBy.size == 0L)
+                        name = Some(text)
+                }
         ),
-        { current, mount -> Button(current, scope = mount) }
+        control.open.value,
+        { value -> control.semanticOpen(value) }
     )
 }

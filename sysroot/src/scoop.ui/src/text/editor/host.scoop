@@ -6,6 +6,7 @@ import scoop.platform.concurrent.currentThreadId
 import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
+import scoop.window.accessibility.SemanticTextDocument
 
 /** One mounted plain-text view, using the existing input, layout and scroll owners. */
 public class TextEditHost public constructor(
@@ -38,6 +39,7 @@ public class TextEditHost public constructor(
     internal var geometryGeneration = 0L
     internal val hint = ParagraphCache()
     internal val bodyKey = PaintKey()
+    internal val bodyInk = TextInkVersion()
     internal val hintKey = PaintKey()
     internal var currentDisplay: TextDisplay? = None
     internal var currentProjection = initialOptions.projection
@@ -45,6 +47,9 @@ public class TextEditHost public constructor(
     internal var hintContent: StyledText? = None
     internal var staged: EditorFrame? = None
     internal var accepted: EditorFrame? = None
+    internal val semantics = SemanticTextHost()
+    internal var semanticDocument: SemanticTextDocument? = None
+    internal var semanticLayout: EditorSemanticLayout? = None
     internal var revealNeeded = false
     internal var revealRevision = 0UL
     internal var caretVisible = true
@@ -57,8 +62,71 @@ public class TextEditHost public constructor(
             textInput = initialOptions.enabled && !initialOptions.readOnly
         ) { context, event -> editorHandle(this, context, event) }
     public val focus = scope.focusTarget(area, FocusOptions(visibility = FocusVisibility.Always))
+    internal val keyboard = EditorKeyboard(this)
+    internal val primarySelection = PrimaryTextSelection(window)
+    internal val contextMenu =
+        TextContextMenu(
+            scope,
+            area,
+            { options.contextMenu },
+            { !closed && options.enabled && area.isFocusActive },
+            { command -> execute(command) },
+            true
+        )
     internal val blink = scope.createDeadline { editorBlink(this) }
     internal val dragTimer = scope.createDeadline { editorDragTick(this) }
+    internal val dropTarget = createEditorDropTarget(this)
+    internal val dataSource = createEditorDragSource(this)
+    internal val touchPan =
+        scope.scrollPan(
+            area,
+            viewport,
+            editorTouchAxes(initialOptions),
+            options = editorTouchScroll(initialOptions)
+        )
+    internal val touchPress = createEditorContactPress(this)
+    internal val touchHandles = createEditorSelectionHandles(this)
+    private val touchScrollIntent =
+        scroll.observeIntent {
+            value -> when (value) {
+                case LayoutCorrection(_) -> {}
+                case User(_) -> {
+                    dataSource?.cancelCandidate()
+                    keyboard.cancelPending()
+                    touchPress.cancel();
+                    revealNeeded = false
+                }
+                case Programmatic(_) -> touchPress.cancel()
+            }
+        }
+    internal var caretPreferences = scope.interactionPreferences
+    private var caretScale = window.metrics?.scaleFactor
+    private val preferenceObserver =
+        scope.observeInteractionPreferences { next -> editorPreferencesChanged(this, next) }
+    private val geometryObserver =
+        scope.observeWindow(window) {
+            event -> when (event) {
+                case GeometryChanged(val metrics) -> {
+                    keyboard.changed(window.softwareKeyboard)
+                    if (caretScale != Some(metrics.scaleFactor)) {
+                        caretScale = Some(metrics.scaleFactor)
+                        if (
+                            !closed &&
+                                appearance.caretWidth ==
+                                None &&
+                                caretPreferences.caretWidthPixels !=
+                                None
+                        )
+                            scope.requestLayout()
+                    }
+                }
+                case SoftwareKeyboardChanged(val state) -> keyboard.changed(state)
+                else -> {}
+            }
+        }
+
+    private val activityObserver =
+        scope.observeWindowActivity { value -> editorWindowActivity(this, value) }
 
     init {
         initialOptions.check()
@@ -68,6 +136,8 @@ public class TextEditHost public constructor(
         area.scope.onEventFinished = { event -> editorFinish(this, event) }
         area.scope.enabled = initialOptions.enabled
         viewport.paintCache = initialOptions.paintCache
+        viewport.physics = initialOptions.scrollPhysics
+        viewport.reduceMotion = appearance.reduceMotion
         refreshMenuCommands()
     }
 
@@ -103,9 +173,11 @@ public class TextEditHost public constructor(
     }
     public fun caret(position: TextPosition): Rect? {
         checkOpen()
-        return layout.caret(
-            editorVisualPosition(layout, display.toDisplay(position)),
-            appearance.caretWidth
+        val frame =
+            accepted ?: throw IllegalStateException(Some("text editor has no accepted layout"))
+        return frame.caretStyle.caret(
+            frame.layout,
+            editorVisualPosition(frame.layout, frame.display.toDisplay(position))
         )
     }
     public fun selectionBounds(range: Utf8Range): Array<TextBox> {
@@ -114,7 +186,7 @@ public class TextEditHost public constructor(
     }
     internal val copyAllowed: Boolean get() =
         when (options.copy) {
-            case Default -> !options.projection.masked
+            case Default -> !options.protectedText && !options.projection.masked
             case Allow -> true
             case Deny -> false
         }
@@ -194,6 +266,11 @@ public class TextEditHost public constructor(
                 options.enabled ||
                 this.options.multiline !=
                 options.multiline
+        if (layoutChanged || restart || this.options.contextMenu != options.contextMenu) {
+            touchPress.cancel()
+            touchPan.cancel()
+            touchHandles.hide()
+        }
         if (restart) {
             retireConnection()
             editorStopDrag(this, false)
@@ -202,9 +279,26 @@ public class TextEditHost public constructor(
             if (rebound)
                 current.detachHost(this)
         }
+        if (rebound) {
+            contextMenu.cancel()
+            primarySelection.close()
+        }
+        if (rebound || this.options.protectedText != options.protectedText) {
+            retireSemanticDocument()
+        }
         current = state
         this.appearance = appearance
         this.options = options
+        keyboard.update(rebound)
+        touchPress.update(
+            options.enabled && options.touch.enabled,
+            options.touch.threshold,
+            options.touch.longPressDelay,
+            options.touch.multiTap,
+            options.touch.multiTapInterval
+        )
+        touchPan.update(editorTouchAxes(options), ScrollChain.Chain, editorTouchScroll(options))
+        touchHandles.update(options.enabled, options.touch)
         this.placeholder = placeholder
         edited = onEdited
         submitted = onSubmit
@@ -214,8 +308,12 @@ public class TextEditHost public constructor(
             caretVisible = true
         }
         viewport.paintCache = options.paintCache
+        viewport.physics = options.scrollPhysics
+        viewport.reduceMotion = appearance.reduceMotion
         area.scope.enabled = options.enabled
         area.textInput = options.enabled && !options.readOnly
+        dropTarget?.update()
+        dataSource?.update()
         refreshMenuCommands()
         if (area.isFocusActive && options.enabled)
             current.attachHost(this)
@@ -230,7 +328,8 @@ public class TextEditHost public constructor(
 
     public fun measure(
         constraints: Constraints,
-        cells: TextEditCells? = None
+        cells: TextEditCells? = None,
+        scrollPadding: (Size, Size) -> ScrollPadding = { _, _ -> ScrollPadding() }
     ): TextEditMeasurement {
         checkOpen()
         when (cells) {
@@ -240,7 +339,7 @@ public class TextEditHost public constructor(
             )
             case None -> {}
         }
-        return editorMeasure(this, constraints, cells)
+        return editorMeasure(this, constraints, cells, scrollPadding)
     }
     public fun scene(context: SceneContext, measurement: TextEditMeasurement) {
         checkOpen()
@@ -255,21 +354,38 @@ public class TextEditHost public constructor(
         return editorCommand(this, command, None)
     }
 
+    /** Opens a bound native menu at a visible caret or selection from accepted layout. */
+    public fun showContextMenu(): Boolean {
+        checkOpen()
+        checkFocusMutation()
+        return editorContextMenu(this, None, None)
+    }
+
     internal fun modelChanged() {
         if (closed || performing)
             return
+        dropTarget?.update()
+        dataSource?.update()
         refreshMenuCommands()
         invalidate()
         editorStopDrag(this, false)
         current.breakUndoGroup()
         retireConnection()
     }
-    internal fun invalidate() {
+    internal fun invalidate(cancelContacts: Boolean = true) {
+        if (cancelContacts) {
+            touchPress.cancel()
+            touchPan.cancel()
+            touchHandles.hide()
+        }
         preferredX = None
         if (!area.isClosed)
             area.setCaret(None, Some(current.revision))
         focus.node.root.focus.cancel(focus)
-        revealNeeded = area.isFocusActive && !focus.node.root.focus.pendingElsewhere(focus)
+        revealNeeded =
+            !(touchHandles.contact?.claimed ?: false) &&
+                area.isFocusActive &&
+                !focus.node.root.focus.pendingElsewhere(focus)
         revealRevision = focus.node.root.surface.focusRevision
         caretVisible = true
         blink.cancel()
@@ -291,14 +407,18 @@ public class TextEditHost public constructor(
         )
             return
         when (connection) {
-            case Some(val value) -> window.publishTextInputState(value, current.inputState, after)
+            case Some(val value) -> if (
+                window.publishTextInputState(value, current.inputState, after)
+            )
+                keyboard.publish()
             case None -> {}
         }
     }
     internal fun perform(
         action: () -> Boolean,
         endComposition: Boolean = false,
-        notify: Boolean = true
+        notify: Boolean = true,
+        cancelContacts: Boolean = true
     ): Boolean {
         val before = current.text
         val beforeCommitted = current.committedText
@@ -311,18 +431,21 @@ public class TextEditHost public constructor(
                 performing = false
             }
         if (changed)
-            invalidate()
+            invalidate(cancelContacts || before != current.text)
         if (endComposition && composing)
             retireConnection()
         refreshMenuCommands()
         publishNative()
         if (notify)
             notifyEdited(before, beforeCommitted)
+        else
+            dataSource?.update()
         return changed
     }
     internal fun notifyEdited(before: String, beforeCommitted: String) {
         if (notifying || closed)
             return
+        dataSource?.update()
         val state = current
         val revision = state.revision
         val after = state.committedText
@@ -346,8 +469,23 @@ public class TextEditHost public constructor(
         closed = true
         val owned = current.detachHost(this)
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { semantics.close() }
+        failure = cleanupUi(failure) { retireSemanticDocument() }
+        semanticLayout = None
+        failure = cleanupUi(failure) { contextMenu.close() }
+        failure = cleanupUi(failure) { primarySelection.close() }
+        failure = cleanupUi(failure) { keyboard.close() }
+        failure = cleanupUi(failure) { touchPress.close() }
+        failure = cleanupUi(failure) { touchPan.close() }
+        failure = cleanupUi(failure) { touchHandles.close() }
+        failure = cleanupUi(failure) { touchScrollIntent.close() }
+        failure = cleanupUi(failure) { preferenceObserver.close() }
+        failure = cleanupUi(failure) { geometryObserver.close() }
+        failure = cleanupUi(failure) { activityObserver.close() }
         failure = cleanupUi(failure) { blink.close() }
         failure = cleanupUi(failure) { dragTimer.close() }
+        failure = cleanupUi(failure) { dropTarget?.close() }
+        failure = cleanupUi(failure) { dataSource?.close() }
         drag = None
         if (owned)
             failure = cleanupUi(failure) { current.cancelComposition() }

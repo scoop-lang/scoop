@@ -5,6 +5,7 @@ import scoop.window.native.*
 import scoop.tests.window.exerciseNativeInput
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.TimeMark
+import scoop.collections.listOf
 
 @Test
 private class InputValueTest {
@@ -40,6 +41,7 @@ internal class InputProbe {
     var lineWheel = false
     var pixelWheel = false
     var momentum = false
+    var phaseIndex = 0L
     var pointerSequence = ""
     var receivedAfter: TimeMark? = None
     var receivedBefore: TimeMark? = None
@@ -91,6 +93,38 @@ internal class InputProbe {
         if (!started)
             return
         when (event) {
+            case Wheel(
+                val state,
+                ScrollDelta.PixelDelta(val x, val y),
+                val phase,
+                val momentumPhase
+            ) -> {
+                if (x == 7.0 * state.scaleFactor && y == 11.0 * state.scaleFactor) {
+                    observe(state.time)
+                    val phases =
+                        listOf(
+                            ScrollPhase.MayBegin,
+                            ScrollPhase.Began,
+                            ScrollPhase.Changed,
+                            ScrollPhase.Ended,
+                            ScrollPhase.Cancelled
+                        )
+                    if (phaseIndex < phases.size) {
+                        assertEquals(phases[phaseIndex], phase)
+                        assertEquals(ScrollPhase.None, momentumPhase)
+                    } else {
+                        val momentumPhases =
+                            listOf(ScrollPhase.Began, ScrollPhase.Changed, ScrollPhase.Ended)
+                        assertEquals(ScrollPhase.None, phase)
+                        assertEquals(momentumPhases[phaseIndex - phases.size], momentumPhase)
+                    }
+                    phaseIndex += 1L
+                    return
+                }
+            }
+            else -> {}
+        }
+        when (event) {
             case Cancelled(val reason, val time) -> {
                 observe(time)
                 pointerSequence += when (reason) {
@@ -129,7 +163,12 @@ internal class InputProbe {
                     else
                         "u"
             }
-            case Wheel(_, ScrollDelta.LineDelta(val x, val y), ScrollPhase.None, ScrollPhase.None) -> {
+            case Wheel(
+                _,
+                ScrollDelta.LineDelta(val x, val y),
+                ScrollPhase.None,
+                ScrollPhase.None
+            ) -> {
                 assertEquals(3.0, x);
                 assertEquals(5.0, y);
                 lineWheel = true
@@ -201,6 +240,7 @@ internal class InputProbe {
         assertEquals(1, ups)
         assertTrue(synthetic && shiftLeftReleasedWithRightHeld && unknown)
         assertTrue(moved && lineWheel && pixelWheel && momentum)
+        assertEquals(8L, phaseIndex)
         assertEquals(2, buttons)
         assertEquals("dlcdcdxdu", pointerSequence)
         started = false

@@ -26,7 +26,8 @@ public class ModalOptions public constructor(
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
     public val style: StyleOverride = styleOverride(),
-    public val contentPadding: Double = 16.0
+    public val contentPadding: Double = 16.0,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(viewportPadding, "invalid modal viewport padding")

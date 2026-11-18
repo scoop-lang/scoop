@@ -1,0 +1,129 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.ElementState
+
+@Test
+private class InputHitTest {
+    @Test
+    fun `accepted hits freeze logical coordinates without following capture or changing focus`() {
+        InputRig().use {
+            rig ->
+            val background = rig.area("background", true)
+            val parent = rig.area("parent")
+            val group = rig.router.createScope(Some(parent.scope)) { _, _ -> Unit }
+            val child = rig.area("child", parent = Some(group))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, background, Rect(0.0, 0.0, 300.0, 200.0))
+                frame.place(canvas, parent, Rect(0.0, 0.0, 5.0, 5.0))
+                canvas.translate(40.0, 20.0)
+                canvas.scale(2.0, 2.0)
+                canvas.clipRect(Rect(0.0, 0.0, 20.0, 20.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 40.0, 40.0))
+            }
+            rig.button(5.0, 100.0, ElementState.Pressed)
+            rig.log.events.clear()
+            val invalidations = rig.log.invalidations
+            val route = rig.router.hitInput(Point(50.0, 30.0))
+            assertEquals(4L, route.size)
+            assertTrue(route[0L].scope === child.scope)
+            assertEquals(Some(Point(5.0, 5.0)), route[0L].localPosition)
+            assertTrue(route[1L].scope === group)
+            assertEquals(None, route[1L].localPosition)
+            assertTrue(route[2L].scope === parent.scope)
+            assertEquals(Some(Point(50.0, 30.0)), route[2L].localPosition)
+            assertTrue(route[3L].scope === rig.router.rootScope)
+            assertEquals(None, route[3L].localPosition)
+            assertTrue(rig.router.pressed!![0L] === background.scope)
+            assertTrue(background.hasFocus)
+            assertTrue(background.scope.isHovered)
+            assertFalse(child.scope.isHovered)
+            assertEquals(Some(Point(5.0, 100.0)), background.pointerPosition)
+            assertEquals(0L, rig.log.events.size)
+            assertEquals(invalidations, rig.log.invalidations)
+            assertTrue(rig.router.hitInput(Point(90.0, 30.0))[0L].scope === background.scope)
+            rig.router.beginFrame().use {
+                frame -> rig.surface.draw {
+                    canvas ->
+                    canvas.translate(100.0, 100.0)
+                    frame.place(canvas, child, Rect(0.0, 0.0, 40.0, 40.0))
+                }
+            }
+            assertTrue(rig.router.hitInput(Point(50.0, 30.0))[0L].scope === child.scope)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, parent, Rect(0.0, 0.0, 300.0, 200.0))
+                canvas.translate(100.0, 100.0)
+                frame.place(canvas, child, Rect(0.0, 0.0, 40.0, 40.0))
+            }
+            assertTrue(rig.router.hitInput(Point(50.0, 30.0))[0L].scope === parent.scope)
+            assertEquals(Some(Point(5.0, 5.0)), route[0L].localPosition)
+        }
+    }
+
+    @Test
+    fun `hit queries retain exact path holes and current eligibility`() {
+        InputRig().use {
+            rig ->
+            val background = rig.area("background")
+            val ring = rig.area("ring")
+            path(FillRule.EvenOdd) {
+                addOval(Rect(0.0, 0.0, 80.0, 80.0))
+                addOval(Rect(20.0, 20.0, 40.0, 40.0))
+            }.use {
+                shape -> rig.frame {
+                    frame, canvas ->
+                    frame.place(canvas, background, Rect(0.0, 0.0, 300.0, 200.0))
+                    frame.place(canvas, ring, shape)
+                }
+            }
+            assertTrue(rig.router.hitInput(Point(10.0, 40.0))[0L].scope === ring.scope)
+            assertTrue(rig.router.hitInput(Point(40.0, 40.0))[0L].scope === background.scope)
+            assertTrue(rig.router.hitInput(Point(79.0, 1.0))[0L].scope === background.scope)
+            ring.ignoreSelf = true
+            assertTrue(rig.router.hitInput(Point(10.0, 40.0))[0L].scope === background.scope)
+            ring.ignoreSelf = false
+            ring.scope.enabled = false
+            assertTrue(rig.router.hitInput(Point(10.0, 40.0))[0L].scope === background.scope)
+            ring.scope.enabled = true
+            ring.close()
+            assertTrue(rig.router.hitInput(Point(10.0, 40.0))[0L].scope === background.scope)
+            assertEquals(0L, rig.router.hitInput(Point(300.0, 10.0)).size)
+            rig.router.close()
+            assertEquals(0L, rig.router.hitInput(Point(10.0, 40.0)).size)
+        }
+    }
+
+    @Test
+    fun `all-input boundaries constrain the returned path while focus-only boundaries do not`() {
+        InputRig().use {
+            rig ->
+            val outer = rig.area("outer")
+            val group = rig.router.createScope(Some(outer.scope)) { _, _ -> Unit }
+            val inner = rig.area("inner", parent = Some(group))
+            val outside = rig.area("outside")
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, inner, Rect(100.0, 0.0, 50.0, 50.0))
+                frame.place(canvas, outside, Rect(0.0, 0.0, 300.0, 200.0))
+            }
+            InputBoundary(group).use {
+                boundary ->
+                val route = rig.router.hitInput(Point(110.0, 10.0))
+                assertEquals(2L, route.size)
+                assertTrue(route[0L].scope === inner.scope)
+                assertTrue(route[1L].scope === group)
+                assertEquals(0L, rig.router.hitInput(Point(10.0, 10.0)).size)
+                boundary.update(InputBoundaryMode.FocusOnly, true)
+                assertTrue(rig.router.hitInput(Point(110.0, 10.0))[0L].scope === outside.scope)
+                boundary.update(InputBoundaryMode.AllInput, true)
+                group.close()
+                assertEquals(0L, rig.router.hitInput(Point(110.0, 10.0)).size)
+                boundary.close()
+                assertTrue(rig.router.hitInput(Point(110.0, 10.0))[0L].scope === outside.scope)
+            }
+        }
+    }
+}

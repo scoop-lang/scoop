@@ -1,0 +1,62 @@
+package scoop.tests.ui.virtual
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.Orientation
+import scoop.window.*
+
+internal fun advanceListPlacement(probe: ListProbe, active: ActiveApplication): Boolean {
+    val base = probe.theme.current.value.scrollbarMetrics().thickness
+    val band =
+        if (base > 12.0)
+            base
+        else
+            12.0
+    val scroll = probe.rtlScroll
+    when (probe.placementPhase) {
+        case 0 -> {
+            probe.row(12L).local.value = 91
+            probe.behavior.value =
+                probe.behavior.value.copy { placement = ScrollbarPlacement.Gutter }
+            probe.redraw()
+        }
+        case 1 -> {
+            assertEquals(Size(160.0, 60.0 - band), scroll.viewport)
+            assertEquals(Size(400.0, 60.0 - band), scroll.content)
+            assertEquals(ScrollPadding(), scroll.snapshot.padding)
+            assertEquals(VirtualRange(12L, 20L), probe.handle.reading!!.visible)
+            assertEquals(91, probe.row(12L).local.value)
+            assertTrue(probe.handle.reading!!.atEnd)
+            probe.orientation.value = Orientation.Vertical
+            probe.redraw()
+        }
+        case 2 -> {
+            assertEquals(Size(160.0 - band, 60.0), scroll.viewport)
+            assertEquals(Size(160.0 - band, 400.0), scroll.content)
+            probe.behavior.value =
+                probe.behavior.value.copy { placement = ScrollbarPlacement.Overlay }
+            probe.redraw()
+        }
+        case 3 -> {
+            assertEquals(Size(160.0, 60.0), scroll.viewport)
+            assertEquals(Size(160.0, 400.0), scroll.snapshot.bodySize)
+            assertEquals(ScrollPadding(left = band), scroll.snapshot.padding)
+            assertEquals(band, scroll.offset.x)
+            assertTrue(probe.handle.scrollToItem(ViewKey.Number(19L)))
+        }
+        case 4 -> {
+            if (probe.handle.isPending)
+                return false
+            assertEquals(Point(band, 340.0), scroll.offset)
+            assertTrue(probe.handle.reading!!.atEnd)
+            assertTrue(probe.viewportFocus.hasFocus)
+            return true
+        }
+        else -> fail(Some("unexpected virtual scrollbar placement phase"))
+    }
+    probe.placementPhase += 1
+    assertTrue(active.proxy().post { _ -> })
+    return false
+}

@@ -1,0 +1,114 @@
+package scoop.examples.ui.gestures
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.accessibility.*
+
+internal class GestureLabel(private val props: Props<String>, scope: ComponentScope): Element<
+    ParagraphMeasurement
+>(scope) {
+    private val paragraph = scope.resource { ParagraphHost() }
+    private val semantic = scope.semantics(SemanticRole.Text)
+    public override fun update(): UiInvalidation {
+        semantic.update(SemanticProperties(name = Some(props.value)))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val value = props.value
+        val text =
+            styledText {
+                text(value);
+                style { fontSize = 16.0 }
+            }
+        val measured = paragraph.measure(context, constraints, scope.defaultFonts, text)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+        paragraph.scene(context, measured)
+    }
+}
+
+internal class GestureButton(private val props: Props<ButtonInput>, scope: ComponentScope): Element<
+    ParagraphMeasurement
+>(scope) {
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area)
+    private val semantic = scope.semantics(SemanticRole.Button)
+    private val paragraph = scope.resource { ParagraphHost() }
+    public override fun onMount() {
+        semantic.bindFocus(Some(focus))
+        scope.press(area) { props.value.action() }
+    }
+    public override fun update(): UiInvalidation {
+        semantic.update(
+            SemanticProperties(name = Some(props.value.text)),
+            SemanticActions(
+                invoke =
+                    Some(
+                        {
+                            props.value.action();
+                            SemanticActionResult.Completed
+                        }
+                    )
+            )
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val size = constraints.constrain(Size(148.0, 44.0))
+        val width =
+            if (size.width > 16.0)
+                size.width - 16.0
+            else
+                0.0
+        val value = props.value.text
+        val text =
+            styledText {
+                text(value);
+                style { fontSize = 14.0 }
+            }
+        val measured =
+            paragraph.measure(
+                context,
+                Constraints(maxWidth = Some(width)),
+                scope.defaultFonts,
+                text
+            )
+        return LayoutResult(LayoutMetrics(size), measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.semantics(semantic, bounds)
+        val focused = area.isFocusVisible
+        context.draw {
+            paint ->
+            paint.canvas.drawRoundRect(bounds, 8.0, 8.0, Paint(Color.White))
+            paint.canvas.drawRoundRect(
+                bounds,
+                8.0,
+                8.0,
+                Paint(
+                    if (focused)
+                        Color(0.18, 0.38, 0.77)
+                    else
+                        Color(0.72, 0.77, 0.83),
+                    PaintingStyle.Stroke,
+                    if (focused)
+                        2.0
+                    else
+                        1.0
+                )
+            )
+        }
+        context.translate(8.0, (context.size.height - measured.metrics.size.height) / 2.0)
+        paragraph.scene(context, measured)
+    }
+}

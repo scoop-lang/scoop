@@ -1,0 +1,81 @@
+schema = 1
+
+[cone]
+group = "scoop.tests"
+name = "window-accessibility"
+version = "0.1.0"
+kind = "library"
+
+[[test.sources]]
+path = "test-darwin"
+when = { os = "darwin" }
+
+[[test.sources]]
+path = "tests"
+
+[[test.sources]]
+path = "test-windows"
+when = { os = "windows" }
+
+[test-dependencies]
+"scoop:scoop.window" = { version = "0.1.0", path = "../.." }
+"scoop:scoop.graphics" = "0.1.0"
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.test" = "0.1.0"
+
+[native]
+cxx = true
+cxx_flags = ["-Wmost", "-Wextra", "-Werror"]
+objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+
+[[native.sources]]
+path = "native/darwin.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/relations.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/geometry.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/image.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/scroll.m"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "AppKit"
+kind = "framework"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/text_document.cpp"
+
+[[native.sources]]
+path = "native/projection.cpp"
+
+[[native.sources]]
+path = "native/windows.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "../../native/accessibility/tree.cpp"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "../../native/accessibility/element.cpp"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "../../native/accessibility/grid.cpp"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "../../native/accessibility/text.cpp"
+when = { os = "darwin" }

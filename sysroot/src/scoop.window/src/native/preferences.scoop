@@ -1,0 +1,60 @@
+package scoop.window
+
+import scoop.time.Duration
+
+@CLayout
+internal struct NativeInteractionPreferences(
+    val autoHideScrollbars: Int,
+    val reduceMotion: Int,
+    val highContrast: Int,
+    val reduceTransparency: Int,
+    val textScaleFactor: Double,
+    val caretBlinkSeconds: Double,
+    val caretWidthPixels: Int,
+    val caretAspectRatio: Double,
+    val doubleClickSeconds: Double
+)
+
+@Extern(name = "scoop_window_interaction_preferences")
+internal fun nativeInteractionPreferences(application: Ptr<Unit>): NativeInteractionPreferences
+
+internal fun copyInteractionPreferences(application: Ptr<Unit>): InteractionPreferences {
+    @Unsafe
+    {
+        val value = nativeInteractionPreferences(application)
+        return InteractionPreferences(
+            autoHideScrollbars = preferenceBoolean(value.autoHideScrollbars),
+            reduceMotion = preferenceBoolean(value.reduceMotion),
+            highContrast = preferenceBoolean(value.highContrast),
+            reduceTransparency = preferenceBoolean(value.reduceTransparency),
+            textScaleFactor = preferencePositive(value.textScaleFactor),
+            caretBlinkInterval = preferenceDuration(value.caretBlinkSeconds, true),
+            caretWidthPixels =
+                if (value.caretWidthPixels > 0)
+                    Some(value.caretWidthPixels)
+                else
+                    None,
+            caretAspectRatio = preferencePositive(value.caretAspectRatio),
+            doubleClickInterval = preferenceDuration(value.doubleClickSeconds, false)
+        )
+    }
+}
+
+private fun preferenceBoolean(value: Int): Boolean? =
+    when (value) {
+        0 -> Some(false)
+        1 -> Some(true)
+        else -> None
+    }
+
+private fun preferencePositive(value: Double): Double? =
+    if (value.isFinite() && value > 0.0)
+        Some(value)
+    else
+        None
+
+private fun preferenceDuration(value: Double, allowZero: Boolean): Duration? {
+    if (!value.isFinite() || value < 0.0 || value >= 9223372036.0 || (!allowZero && value == 0.0))
+        return None
+    return Some(Duration.nanoseconds((value * 1000000000.0).toLong()))
+}

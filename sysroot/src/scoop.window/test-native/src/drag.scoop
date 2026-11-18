@@ -1,0 +1,9 @@
+package scoop.tests.window
+
+/** Exercises native item writers with a private pasteboard and real temporary files. */
+@Extern(name = "scoop_window_test_drag_data")
+public fun exerciseDragData(): Int
+
+/** Posts owned events through the real view; this does not start an OS drag session. */
+@Extern(name = "scoop_window_test_drag_input")
+public fun postDragInput(view: Ptr<Unit>, kind: Int)

@@ -7,6 +7,7 @@
 #include <windows.h>
 
 #include "../frame.h"
+#include "input/state.h"
 #include <dwmapi.h>
 #include <imm.h>
 #include <limits.h>
@@ -21,23 +22,7 @@ extern "C" {
 #endif
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
-typedef struct {
-  int64_t window;
-  int32_t kind, flags;
-  int64_t a, b, c, d;
-  double x, y, z, w, scale, dx, dy;
-  const uint8_t *text;
-  int64_t text_length;
-  int64_t time_seconds, time_nanoseconds;
-} SWEventData;
-typedef struct {
-  int32_t kind;
-  int64_t anchor, cursor;
-  const uint8_t *text;
-  int64_t text_length;
-  int32_t has_replacement;
-  int64_t replacement_start, replacement_end;
-} SWTextEditData;
+#include "../events.h"
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
@@ -53,7 +38,15 @@ typedef struct {
   int64_t length, anchor, cursor, marked_start, marked_end;
 } SWTextSnapshotData;
 typedef struct SWEvent {
-  SWEventData data;
+  SWEventHeader header;
+  union {
+    SWEventData data;
+    SWKeyboardData keyboard;
+    SWPointerData pointer;
+    SWGestureData gesture;
+    SWContactData contact;
+    int64_t modifiers;
+  };
   bool native_input;
   POINT input_position;
   SWTextEditData *edits;
@@ -74,6 +67,10 @@ typedef struct SWApplication {
   SWEvent *head, *tail;
   SWWatch *watches;
   void *text_manager;
+  void *preferences;
+  void *drag_source;
+  HWND promoted_drag_window;
+  bool ole_initialized, compat_delivery;
   SWMenu *translating_menu;
 } SWApplication;
 typedef struct SWWindow {
@@ -92,20 +89,19 @@ typedef struct SWWindow {
   int frame_hover, frame_pressed, frame_button_down;
   bool window_region;
   bool resizable, close_button, minimize_button, maximize_button;
-  bool transparent, bottom, cursor_visible, pointer_inside, ime_allowed;
+  bool transparent, bottom, ime_allowed;
   int32_t menu_text_commands;
   bool destroying, caret_set;
   bool input_blocked, saved_enabled;
   int theme;
-  HCURSOR cursor;
   double caret_x, caret_y, caret_width, caret_height;
   WCHAR surrogate;
-  uint64_t modifiers;
-  SWEventData pressed[512];
-  bool key_down[512];
-  uint32_t pressed_buttons;
+  SWInputState input;
   int64_t text_connection;
   void *text;
+  void *accessibility;
+  void *drop_target;
+  void *keyboard;
   SWMenu *menu_bar, *popup_menu;
 } SWWindow;
 
@@ -121,13 +117,26 @@ int64_t scoop_window_clear_ime_caret(void *pointer);
 int64_t scoop_window_text_count(SWEvent *event);
 SWTextEditData scoop_window_text_edit(SWEvent *event, int64_t index);
 
-enum { SW_WAKE = WM_APP + 1, SW_READY, SW_TEXT_LOCK };
+enum {
+  SW_WAKE = WM_APP + 1,
+  SW_READY,
+  SW_TEXT_LOCK,
+  SW_PREFERENCES,
+  SW_ACCESSIBILITY
+};
+
+bool sw_accessibility_message(SWWindow *window, UINT message, WPARAM wparam,
+                              LPARAM lparam, LRESULT *result);
+void sw_accessibility_destroy(SWWindow *window);
+
+int64_t sw_preferences_start(SWApplication *app);
+void sw_preferences_stop(SWApplication *app);
 extern const WCHAR sw_window_class[];
 void sw_wake(SWApplication *application);
 void sw_fail(SWApplication *application, DWORD error);
 void sw_enqueue(SWApplication *application, SWEvent *event);
 SWEvent *sw_event(SWWindow *window, int32_t kind);
-void sw_stamp_input(SWEventData *data);
+void sw_stamp_event(SWEventHeader *data);
 void sw_emit(SWWindow *window, int32_t kind);
 void sw_free_event(SWEvent *event);
 void sw_watch_message(SWApplication *application, int64_t identity);
@@ -162,8 +171,25 @@ void sw_text_focus(SWWindow *window, bool focused);
 void sw_text_geometry_changed(SWWindow *window);
 void sw_text_window_destroy(SWWindow *window);
 void sw_text_application_destroy(SWApplication *application);
+void sw_input_init(SWWindow *window);
+void sw_input_destroy(SWWindow *window);
+void sw_drag_promoted_mouse(SWWindow *window, UINT message, WPARAM keys);
+void sw_drag_contact_changed(SWWindow *window);
+void sw_drag_window_destroy(SWWindow *window);
+void sw_drop_window_destroy(SWWindow *window);
+bool sw_drop_message(SWWindow *window, UINT message, WPARAM key);
+int64_t sw_keyboard_start(SWWindow *window);
+void sw_keyboard_geometry(SWWindow *window);
+void sw_keyboard_destroy(SWWindow *window);
+void sw_key(SWWindow *window, UINT message, WPARAM vk, LPARAM lp);
+void sw_update_modifiers(SWWindow *window, uint64_t value);
+bool sw_pointer_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
+                        LRESULT *result);
 void sw_reset_input(SWWindow *window);
 void sw_cancel_pointer(SWWindow *window, int reason);
+void sw_contact_message(SWWindow *window, UINT message, WPARAM wp);
+void sw_cancel_contacts(SWWindow *window, int reason);
+bool sw_compat_mouse_message(UINT message);
 bool sw_modal_input_message(UINT message);
 void sw_cancel_composition(SWWindow *window);
 uint64_t sw_modifiers(void);

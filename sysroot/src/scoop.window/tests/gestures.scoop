@@ -1,0 +1,133 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.tests.window.cancelNativeGestures
+import scoop.tests.window.sendNativeGesture
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+import scoop.time.TimeMark
+import scoop.window.native.*
+
+@Test
+private class NativeGestureTest {
+    @Test
+    fun `AppKit responders normalize gesture units and retire each native sequence once`() {
+        val probe = NativeGestureProbe()
+        Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(probe)
+        assertTrue(probe.finished)
+        assertEquals(14L, probe.events.size)
+        assertEquals(GestureKind.Magnify, probe.events[0L].kind)
+        assertEquals(GestureKind.Rotate, probe.events[1L].kind)
+        assertEquals(GestureKind.Swipe, probe.events[6L].kind)
+        assertEquals(GesturePhase.Began, probe.events[0L].phase)
+        assertEquals(GesturePhase.Changed, probe.events[2L].phase)
+        assertEquals(GesturePhase.Ended, probe.events[4L].phase)
+        assertEquals(GesturePhase.Cancelled, probe.events[9L].phase)
+        assertEquals(GesturePhase.Cancelled, probe.events[10L].phase)
+        assertEquals(GesturePhase.None, probe.events[11L].phase)
+        assertEquals(GesturePhase.Cancelled, probe.events[13L].phase)
+        assertEquals(0.25, gestureDelta(probe.events[2L]))
+        assertEquals(-1.5707963267948966, gestureDelta(probe.events[1L]))
+        assertEquals(0.7853981633974483, gestureDelta(probe.events[3L]))
+        when (probe.events[6L]) {
+            case Swipe(_, val x, val y) -> {
+                assertEquals(1.0, x)
+                assertEquals(-1.0, y)
+            }
+            else -> fail()
+        }
+        for (event in probe.events) {
+            assertEquals(
+                event.phase == GesturePhase.Cancelled,
+                modalInputAllowed(WindowEvent.Gesture(event))
+            )
+            val state = event.state
+            assertEquals(LogicalPosition(24.0, 36.0), state.logicalPosition)
+            assertEquals(
+                PhysicalPosition(24.0 * state.scaleFactor, 36.0 * state.scaleFactor),
+                state.physicalPosition
+            )
+            assertTrue(state.modifiers.shift)
+            assertEquals(None, state.deviceId)
+            assertTrue(state.time.mark() >= probe.after!!)
+            assertTrue(state.time.mark() <= probe.before!!)
+        }
+    }
+}
+
+private fun gestureDelta(event: GestureEvent): Double =
+    when (event) {
+        case Magnify(_, _, val value) -> value
+        case Rotate(_, _, val value) -> value
+        case Swipe(_, _, _) -> throw IllegalStateException(Some("not a continuous gesture"))
+    }
+
+private class NativeGestureProbe: ApplicationHandler {
+    val events = ArrayList<GestureEvent>()
+    var after: TimeMark? = None
+    var before: TimeMark? = None
+    var finished = false
+    private var started = false
+    private var window: Window? = None
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val created =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop native gestures"
+                            size = LogicalSize(260.0, 160.0)
+                        }
+                    )
+                window = Some(created)
+                created.requestRedraw()
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                )
+            }
+            case Window(_, WindowEvent.RedrawRequested) -> if (!started) {
+                started = true
+                @Unsafe
+                {
+                    val lease = window!!.acquireNativeWindow()
+                    try {
+                        when (lease.handle) {
+                            case AppKit(_, val view) -> send(view)
+                        }
+                    } finally {
+                        lease.close()
+                    }
+                }
+            }
+            case Window(_, WindowEvent.Gesture(val value)) -> events.add(value)
+            case AboutToWait -> if (started && !finished && events.size >= 14L) {
+                assertEquals(14L, events.size)
+                finished = true
+                window!!.requestDestroy()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("native gesture delivery timed out"))
+            else -> {}
+        }
+    }
+    @Unsafe
+    private fun send(view: Ptr<Unit>) {
+        after = Some(MonotonicTimeSource.markNow())
+        sendNativeGesture(view, 0, 1, 24.0, 36.0, 0.1, 0.0)
+        sendNativeGesture(view, 1, 1, 24.0, 36.0, 90.0, 0.0)
+        sendNativeGesture(view, 0, 2, 24.0, 36.0, 0.25, 0.0)
+        sendNativeGesture(view, 1, 2, 24.0, 36.0, -45.0, 0.0)
+        sendNativeGesture(view, 0, 3, 24.0, 36.0, 0.0, 0.0)
+        sendNativeGesture(view, 1, 3, 24.0, 36.0, 0.0, 0.0)
+        sendNativeGesture(view, 2, 0, 24.0, 36.0, -1.0, 1.0)
+        sendNativeGesture(view, 0, 1, 24.0, 36.0, 0.0, 0.0)
+        sendNativeGesture(view, 1, 1, 24.0, 36.0, 0.0, 0.0)
+        cancelNativeGestures(view)
+        cancelNativeGestures(view)
+        sendNativeGesture(view, 0, 2, 24.0, 36.0, 0.5, 0.0)
+        sendNativeGesture(view, 1, 3, 24.0, 36.0, 0.0, 0.0)
+        sendNativeGesture(view, 0, 0, 24.0, 36.0, 0.5, 0.0)
+        sendNativeGesture(view, 1, 1, 24.0, 36.0, 0.0, 0.0)
+        sendNativeGesture(view, 1, 4, 24.0, 36.0, 0.0, 0.0)
+        before = Some(MonotonicTimeSource.markNow())
+    }
+}

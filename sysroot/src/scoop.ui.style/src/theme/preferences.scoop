@@ -1,0 +1,126 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.graphics.text.TextStyle
+import scoop.ui.ComponentScope
+
+/** Effective display inputs, independent of an OS query, window or painter lifetime. */
+public struct ThemePreferences(
+    val reduceMotion: Boolean = false,
+    val highContrast: Boolean = false,
+    val reduceTransparency: Boolean = false,
+    val textScaleFactor: Double = 1.0
+) {
+    internal fun check() {
+        requireStyle(
+            textScaleFactor.isFinite() && textScaleFactor > 0.0,
+            "theme text scale must be finite and positive"
+        )
+    }
+}
+
+/** Reads both the base theme and root preferences through their ordinary UI dependencies. */
+public fun ThemeSource.read(scope: ComponentScope): Theme {
+    val value = scope.interactionPreferences
+    return resolve(
+        ThemePreferences(
+            value.reduceMotion ?: false,
+            value.highContrast ?: false,
+            value.reduceTransparency ?: false,
+            value.textScaleFactor ?: 1.0
+        )
+    )
+}
+
+internal fun resolveShapePreferences(base: ShapeTheme, preferences: ThemePreferences): ShapeTheme {
+    if (preferences == ThemePreferences())
+        return base
+    val colors = preferences.highContrast || preferences.reduceTransparency
+    val canvas =
+        if (base.tokens.mode == ThemeMode.Dark)
+            Color.Black
+        else
+            Color.White
+    val palette =
+        if (colors)
+            preferencePalette(base.tokens.palette, canvas, preferences.highContrast)
+        else
+            base.tokens.palette
+    val background = opaqueThemeColor(palette.background.background, canvas)
+    val disabledOpacity = themeUnit(base.tokens.disabledOpacity)
+    val type = base.tokens.typography
+    val typography =
+        if (preferences.textScaleFactor != 1.0 || preferences.highContrast)
+            ThemeTypography(
+                preferenceText(
+                    type.body,
+                    preferences.textScaleFactor,
+                    palette.background.foreground,
+                    preferences.highContrast
+                ),
+                preferenceText(
+                    type.caption,
+                    preferences.textScaleFactor,
+                    palette.muted.foreground,
+                    preferences.highContrast
+                ),
+                preferenceText(
+                    type.action,
+                    preferences.textScaleFactor,
+                    palette.background.foreground,
+                    preferences.highContrast
+                )
+            )
+        else
+            type
+    val motion =
+        if (preferences.reduceMotion)
+            base.tokens.motion.copy { this.preference = MotionPreference.Reduced }
+        else
+            base.tokens.motion
+    val tokens =
+        base.tokens.copy {
+            this.palette = palette
+            this.typography = typography
+            this.motion = motion
+            if (colors)
+                this.effects = themeEffects()
+            if (preferences.highContrast) {
+                this.disabledOpacity = 1.0
+                this.validation = preferenceOutline(base.tokens.validation, background, true)
+            }
+        }
+    return ShapeTheme(
+        tokens,
+        if (colors)
+            preferenceSurfaces(base.surfaces, background, preferences.highContrast, disabledOpacity)
+        else
+            base.surfaces,
+        if (colors)
+            preferenceCheckbox(base.checkbox, background, preferences.highContrast, disabledOpacity)
+        else
+            base.checkbox,
+        if (colors)
+            preferenceRadio(base.radio, background, preferences.highContrast, disabledOpacity)
+        else
+            base.radio,
+        if (colors)
+            preferenceScrollbar(base.scrollbar, background, preferences.highContrast)
+        else
+            base.scrollbar,
+        Some(base),
+        preferences
+    )
+}
+
+private fun preferenceText(
+    style: TextStyle,
+    scale: Double,
+    color: Color,
+    contrast: Boolean
+): TextStyle =
+    style.copy {
+        this.fontSize = style.fontSize * scale
+        if (contrast)
+            this.color = color
+    }

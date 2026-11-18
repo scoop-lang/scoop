@@ -1,0 +1,41 @@
+package scoop.window
+
+/** Identifies one contact lifetime within a window; native values may be reused. */
+public struct ContactId(val value: Long): Equals<ContactId>, Hash {
+    public override operator fun equals(other: ContactId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+/** Direct screen contact or a pen tip, separate from indirect native gestures. */
+public enum ContactKind {
+    Touch, Pen
+}
+
+/** Pressure is present only when the device supplies a normalized value. */
+public struct ContactState(
+    val id: ContactId,
+    val kind: ContactKind,
+    val pointer: PointerState,
+    val pressure: Double? = None
+)
+
+public enum ContactEvent {
+    Began(ContactState), Moved(ContactState), Ended(ContactState),
+    Cancelled(ContactId, PointerCancelReason, InputTime)
+}
+
+public val ContactEvent.id: ContactId get() =
+    when (this) {
+        case Began(val value) -> value.id
+        case Moved(val value) -> value.id
+        case Ended(val value) -> value.id
+        case Cancelled(val value, _, _) -> value
+    }
+
+public val ContactEvent.time: InputTime get() =
+    when (this) {
+        case Began(val value) -> value.pointer.time
+        case Moved(val value) -> value.pointer.time
+        case Ended(val value) -> value.pointer.time
+        case Cancelled(_, _, val value) -> value
+    }

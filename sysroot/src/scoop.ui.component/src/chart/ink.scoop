@@ -5,6 +5,7 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal class ChartInkProps(
     val input: ChartProps,
@@ -22,11 +23,15 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     private var drawn: ChartGeometry? = None
     private var accepted: ChartAccepted? = None
     private var pointer = false
+    private var activationPoint: Point? = None
     private val area =
         scope.createArea(focusable = true) { context, event -> notify(context, event) }
     private val focus = scope.focusTarget(area, props.value.input.focus)
+    private val press = scope.press(area, PressOptions(props.value.input.enabled)) { activate() }
+    private val semantics = createComponentSemantics(scope, SemanticRole.Table)
     init {
         scope.routeChildren(area)
+        semantics?.bindFocus(Some(focus))
         area.scope.defaultAction =
             {
                 context,
@@ -52,6 +57,17 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     private fun notify(context: RoutedEventContext, event: InputEvent) {
         if (!scope.isMounted)
             return
+        if (context.phase == RoutedPhase.Target) {
+            when (event) {
+                case Contact(InputContactEvent.Began(_)) -> activationPoint = context.localPosition
+                case Contact(InputContactEvent.Ended(_)) -> activationPoint = context.localPosition
+                case Pointer(
+                    InputPointerEvent.Button(_, MouseButton.Left, _, _)
+                ) -> activationPoint = context.localPosition
+                case Keyboard(_) -> activationPoint = None
+                else -> {}
+            }
+        }
         when (event) {
             case Pointer(InputPointerEvent.Moved(_)) -> hover(context)
             case Pointer(InputPointerEvent.Entered(_)) -> hover(context)
@@ -90,6 +106,34 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
                 props.value.input.orientation == Orientation.Horizontal,
                 props.value.active.value
             )
+        )
+    }
+    private fun activate() {
+        val geometry = valid() ?: return
+        val point = activationPoint
+        pointer = false
+        focus.handle.requestFocus(
+            if (point != None)
+                FocusOrigin.Pointer
+            else
+                FocusOrigin.Keyboard
+        )
+        select(
+            when (point) {
+                case Some(val value) -> chartHit(
+                    geometry,
+                    value,
+                    props.value.input.orientation == Orientation.Horizontal,
+                    props.value.active.value
+                )
+                case None -> when (props.value.active.value) {
+                    case Some(val current) -> when (geometry.find(current)) {
+                        case Some(_) -> Some(current)
+                        case None -> chartNavigate(geometry, None, edge = -1)
+                    }
+                    case None -> chartNavigate(geometry, None, edge = -1)
+                }
+            }
         )
     }
     private fun select(value: ChartSelection?) {
@@ -131,8 +175,67 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     }
     public override fun update(): UiInvalidation {
         area.scope.enabled = props.value.input.enabled
+        press.update(PressOptions(props.value.input.enabled)) { activate() }
         focus.options = props.value.input.focus
+        val input = props.value.input
+        val snapshot = input.model.snapshot
+        val source = ChartSemanticSource(snapshot, input.enabled)
+        val selected = ArrayList<SemanticItemKey>()
+        when (props.value.active.value) {
+            case Some(val value) -> if (snapshot.data.indexOfDatum(value.datum) != None)
+                selected.add(SemanticItemKey.Text(value.datum.value))
+            case None -> {}
+        }
+        semantics?.bindReference(input.semantics.reference)
+        semantics?.update(
+            input.semantics.properties(enabled = input.enabled),
+            relations = input.semantics.relations
+        )
+        semantics?.updateDataCollection(
+            SemanticCollectionSnapshot(
+                source,
+                Some(SemanticCollectionSelection(selected.toArray())),
+                Some(source.grid())
+            ),
+            SemanticCollectionActions(
+                setSelected = Some { key, value -> selectSemantically(key, value) }
+            )
+        )
         return UiInvalidation.Layout
+    }
+    private fun selectSemantically(key: SemanticItemKey, selected: Boolean): SemanticActionResult {
+        val input = props.value
+        if (!input.input.enabled)
+            return SemanticActionResult.Rejected
+        val datum =
+            when (key) {
+                case Text(val text) -> ChartDatumKey(text);
+                case Number(_) -> return SemanticActionResult.Unavailable
+            }
+        val snapshot = input.input.model.snapshot
+        if (snapshot.data.indexOfDatum(datum) == None || snapshot.visible.size == 0L)
+            return SemanticActionResult.Unavailable
+        val current = input.active.value
+        if (!selected) {
+            if (current?.datum == Some(datum))
+                select(None)
+            return if (input.active.value?.datum != Some(datum))
+                SemanticActionResult.Completed
+            else
+                SemanticActionResult.Rejected
+        }
+        var series = snapshot.data.series[snapshot.visible[0L]].key
+        when (current) {
+            case Some(val value) -> if (input.input.model.isVisible(value.series))
+                series = value.series;
+            case None -> {}
+        }
+        val next = ChartSelection(series, datum)
+        select(Some(next))
+        return if (input.active.value == Some(next))
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ChartGeometry
@@ -208,6 +311,10 @@ internal class ChartInk(private val props: Props<ChartInkProps>, scope: Componen
     public override fun scene(context: SceneContext, geometry: ChartGeometry) {
         val plan = props.value.plan
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        when (semantics) {
+            case Some(val handle) -> context.semantics(handle, bounds);
+            case None -> {}
+        }
         val presented = geometry.plot.width > 0.0 && geometry.plot.height > 0.0
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {

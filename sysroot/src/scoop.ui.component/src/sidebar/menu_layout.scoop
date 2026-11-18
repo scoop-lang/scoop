@@ -32,7 +32,8 @@ internal class SidebarRow(
                 props.value.input.menu.enabled &&
                     props.value.input.item.enabled &&
                     props.value.input.item.actionOnHover &&
-                    !props.value.input.menu.collapsed
+                    !props.value.input.menu.collapsed,
+            longPress = LongPressOptions()
         )
     public override fun onMount() {
         area = Some(scope.createArea());

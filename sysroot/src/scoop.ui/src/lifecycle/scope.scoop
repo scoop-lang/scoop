@@ -4,12 +4,13 @@ import scoop.graphics.*
 import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 /** Owns the resources of one mount; applications do not close individual components. */
 public class ComponentScope internal constructor(private val node: MountedNode) {
     private val root: UiRoot get() = node.root
     private var active = true
-    internal var fontReads: DependencyCollector? = None
+    internal var displayReads: DependencyCollector? = None
     private val resources = ScopeResources()
     private val managed = resources.managed
     private val cleanup = resources.cleanup
@@ -19,10 +20,95 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     private var childRoute: InputScope? = None
     private var animationGroup: AnimationGroup? = None
 
+    internal fun createDragSource(
+        area: InputArea,
+        options: DragSourceOptions,
+        prepare: (DragSourceStart) -> DragSourceData?,
+        begin: (DragSourceData, (DragResult) -> Unit) -> DragSession
+    ): DragSource {
+        checkMounted()
+        checkDropMutation()
+        requireBehaviorArea(area)
+        val value = DragSource(root, this, area, options, prepare, begin)
+        managed.add(value)
+        return value
+    }
+
+    internal fun createDropArea(
+        area: InputArea,
+        handlers: DropAreaHandlers,
+        enabled: Boolean,
+        createTarget: (DropHandlers) -> DropTarget
+    ): DropArea {
+        checkMounted()
+        checkDropMutation()
+        requireBehaviorArea(area)
+        val controller =
+            when (val current = root.drops) {
+                case Some(val value) -> value
+                case None -> {
+                    val value = RootDrops(root, createTarget)
+                    root.drops = Some(value)
+                    value
+                }
+            }
+        val value = controller.create(this, area, handlers, enabled)
+        managed.add(value)
+        return value
+    }
+
+    internal fun createSemantics(
+        role: SemanticRole,
+        parent: SemanticsHandle?,
+        createProvider: () -> AccessibilityProvider
+    ): SemanticsHandle {
+        checkMounted()
+        checkSemanticsMutation()
+        checkSemanticParent(node, parent)
+        val controller =
+            when (val current = root.semantics) {
+                case Some(val value) -> value
+                case None -> {
+                    val provider = createProvider()
+                    try {
+                        val value = RootSemantics(root, provider)
+                        root.semantics = Some(value)
+                        value
+                    } catch (error: Throwable) {
+                        throw cleanupUi(Some(error)) { provider.close() }!!
+                    }
+                }
+            }
+        val handle = controller.create(node, role, parent)
+        managed.add(handle)
+        return handle
+    }
+    internal fun semanticAncestor(): SemanticsHandle? = inheritedSemantics(node)
+
+    internal fun forgetSemantics(handle: SemanticsHandle) {
+        resources.forget(handle)
+    }
+    /** Selects the semantic parent for child mounts without changing this mount's siblings. */
+    public fun routeSemanticsChildren(parent: SemanticsHandle?) {
+        checkMounted()
+        checkSemanticsMutation()
+        when (parent) {
+            case Some(val handle) -> {
+                handle.checkOpen()
+                requireUi(handle.owner === node, "semantic child route belongs to another mount")
+            }
+            case None -> {}
+        }
+        if (sameSemantics(node.semanticRoute, parent))
+            return
+        node.semanticRoute = parent
+        root.semantics?.structureChanged()
+    }
+
     /** The root owns its fallback collection; explicit application collections remain borrowed. */
     public val defaultFonts: FontCollection get() {
         checkMounted()
-        fontReads?.read(root.fonts.signal)
+        displayReads?.read(root.fonts.signal)
         when (currentEvaluation()) {
             case Some(val evaluation) -> {
                 evaluation.collector?.read(root.fonts.signal)
@@ -31,6 +117,32 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
             case None -> {}
         }
         return root.fonts.value
+    }
+
+    /** Effective root preferences, tracked by render, update and cached frame readers. */
+    public val interactionPreferences: InteractionPreferences get() {
+        checkMounted()
+        displayReads?.read(root.preferences.signal)
+        when (currentEvaluation()) {
+            case Some(val evaluation) -> {
+                evaluation.collector?.read(root.preferences.signal)
+                evaluation.frameReads?.readPreferences(root.preferences)
+            }
+            case None -> {}
+        }
+        return root.preferences.value
+    }
+
+    /** Observes later effective changes and retires the registration with this mount. */
+    public fun observeInteractionPreferences(action: (InteractionPreferences) -> Unit): Closeable {
+        checkMounted()
+        val observer =
+            root.preferences.observe {
+                value -> if (isMounted)
+                    action(value)
+            }
+        managed.add(observer)
+        return observer
     }
 
     /** The borrowed native owner; the mount does not acquire or transfer its lifetime. */
@@ -55,7 +167,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     public fun dispatch(action: () -> Unit): Boolean {
         if (!isMounted)
             return false
-        return root.surface.dispatch {
+        return root.host.dispatchRoot(root) {
             if (isMounted)
                 action()
         } &&
@@ -280,9 +392,28 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     public fun scrollViewport(state: ScrollState): ScrollViewport {
         checkMounted()
         state.checkBinding()
-        val value = ScrollViewport(node, state, animations().value(Point(0.0, 0.0)))
+        val value =
+            ScrollViewport(
+                node,
+                state,
+                animations().value(Point(0.0, 0.0)),
+                animations().value(Point(0.0, 0.0))
+            )
+        scrollViewports.add(value)
         managed.add(value)
         return value
+    }
+    public fun scrollPan(
+        area: InputArea,
+        viewport: ScrollViewport,
+        axes: ScrollAxes = ScrollAxes.Both,
+        chain: ScrollChain = ScrollChain.Chain,
+        options: TouchScrollOptions = TouchScrollOptions()
+    ): ScrollPan {
+        checkMounted()
+        requireBehaviorArea(area)
+        requireUi(viewport.belongsTo(node), "scroll pan viewport must belong to this mount")
+        return resource { ScrollPan(area, viewport, axes, chain, options) }
     }
     public fun lazyFocus(
         viewport: ScrollViewport,
@@ -325,7 +456,12 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(value)
         return value
     }
+    private val scrollViewports = ArrayList<ScrollViewport>()
     internal fun updateFrameParticipation() {
+        if (!node.frameEnabled)
+            for (viewport in scrollViewports)
+                if (!viewport.isClosed)
+                    viewport.cancelAnimation()
         when (animationGroup) {
             case Some(val value) -> if (!value.isClosed)
                 value.isFrameEnabled = node.frameEnabled
@@ -339,6 +475,8 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
                 value.enabled = false
             case None -> {}
         }
+        for (handle in node.semanticHandles.toArray())
+            handle.close()
     }
     internal fun retireInteraction(): Throwable? {
         return resources.retireManaged()

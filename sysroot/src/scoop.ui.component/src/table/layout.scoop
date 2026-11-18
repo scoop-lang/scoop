@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal class TableViewportInput(
     val tracks: TableTracks,
@@ -155,7 +156,12 @@ internal fun tableRowView(
     appearance: TableAppearance,
     key: ViewKey,
     border: Boolean = true,
-    prepared: Array<View>? = None
+    prepared: Array<View>? = None,
+    rowIndex: Long = 0L,
+    headers: TableHeaderSemantics? = None,
+    columnHeaders: Array<SemanticsReference> = [],
+    columnKeys: Array<SemanticItemKey> = [],
+    logical: Boolean = false
 ): View {
     val children =
         prepared ?:
@@ -163,13 +169,57 @@ internal fun tableRowView(
                 index -> appearance.cell(
                     row.cells[index],
                     row.cells[index].key,
-                    row.section == TableSection.Footer
+                    row.section == TableSection.Footer,
+                    Some(
+                        when (headers) {
+                            case Some(val value) -> value.cell(row, rowIndex, index)
+                            case None -> {
+                                var column = 0L
+                                for (previous in 0L ..< index)
+                                    column += row.cells[previous].span
+                                basicCellSemantics(
+                                    row.cells[index],
+                                    Some(
+                                        SemanticTableCell(
+                                            rowIndex,
+                                            column,
+                                            columnSpan = row.cells[index].span,
+                                            columnKey =
+                                                if (column < columnKeys.size)
+                                                    Some(columnKeys[column])
+                                                else
+                                                    None
+                                        )
+                                    ),
+                                    if (column < columnHeaders.size)
+                                        semanticIds(columnHeaders[column].id)
+                                    else
+                                        []
+                                )
+                            }
+                        }
+                    )
                 )
             }
-    return element(
-        TableRowInput(row, tracks, appearance, border),
-        { props, scope -> TableRowInk(props, scope) },
-        children,
-        key
+    val content =
+        element(
+            TableRowInput(row, tracks, appearance, border),
+            { props, scope -> TableRowInk(props, scope) },
+            children,
+            key
+        )
+    return semanticContent(
+        content,
+        SemanticRole.Row,
+        SemanticProperties(
+            selected =
+                if (row.section == TableSection.Body)
+                    Some(row.selected)
+                else
+                    None,
+            ignored = logical
+        ),
+        mergeLabels = false,
+        key = key
     )
 }

@@ -1,0 +1,57 @@
+package scoop.ui.component
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+import scoop.ui.text.SelectableTextOptions
+
+internal struct ThemeTextSelection(
+    val background: Color,
+    val inactiveBackground: Color,
+    val text: Color?,
+    val inactiveText: Color?
+)
+
+internal fun themeTextSelection(theme: Theme): ThemeTextSelection {
+    val palette = theme.tokens.palette
+    if (theme.preferences.highContrast)
+        return ThemeTextSelection(
+            palette.primary.background,
+            palette.secondary.background,
+            Some(palette.primary.foreground),
+            Some(palette.secondary.foreground)
+        )
+    val active = palette.primary.background.withAlpha(0.30)
+    val inactive = palette.muted.foreground.withAlpha(0.20)
+    val background = palette.background.background
+    return ThemeTextSelection(
+        if (theme.preferences.reduceTransparency)
+            mixThemeColor(background, active.withAlpha(1.0), active.alpha)
+        else
+            active,
+        if (theme.preferences.reduceTransparency)
+            mixThemeColor(background, inactive.withAlpha(1.0), inactive.alpha)
+        else
+            inactive,
+        None,
+        None
+    )
+}
+
+internal fun selectionTextColor(color: Color?, background: Color?, fallback: Color?): Color? =
+    when (color) {
+        case Some(_) -> color
+        case None -> if (background == None)
+            fallback
+        else
+            None
+    }
+
+internal fun themeSelectionOptions(theme: Theme): SelectableTextOptions {
+    val colors = themeTextSelection(theme)
+    return SelectableTextOptions(
+        selectionColor = colors.background,
+        inactiveSelectionColor = colors.inactiveBackground,
+        selectionTextColor = colors.text,
+        inactiveSelectionTextColor = colors.inactiveText
+    )
+}

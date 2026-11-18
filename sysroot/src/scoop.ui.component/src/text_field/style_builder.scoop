@@ -26,9 +26,11 @@ public class TextFieldStyleBuilder internal constructor(initial: TextFieldStyle)
     public var states: InteractionStyles = initial.states
     public var selectionColor: Color? = initial.selectionColor
     public var inactiveSelectionColor: Color? = initial.inactiveSelectionColor
+    public var selectionTextColor: Color? = initial.selectionTextColor
+    public var inactiveSelectionTextColor: Color? = initial.inactiveSelectionTextColor
     public var caretColor: Color? = initial.caretColor
     public var markedColor: Color? = initial.markedColor
-    public var caretWidth: Double = initial.caretWidth
+    public var caretWidth: Double? = initial.caretWidth
     public var scrollbar: ScrollbarOptions = initial.scrollbar
 
     public fun surface(configure: SurfaceOptionsBuilder.() -> Unit): Unit {
@@ -64,6 +66,8 @@ public class TextFieldStyleBuilder internal constructor(initial: TextFieldStyle)
             states = states,
             selectionColor = selectionColor,
             inactiveSelectionColor = inactiveSelectionColor,
+            selectionTextColor = selectionTextColor,
+            inactiveSelectionTextColor = inactiveSelectionTextColor,
             caretColor = caretColor,
             markedColor = markedColor,
             caretWidth = caretWidth,

@@ -1,0 +1,484 @@
+package scoop.tests.ui.accessibility.text
+
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+internal const val initialText = "A😀é中\nZ"
+
+@Test
+private class AccessibleEditorTest {
+    @Test
+    fun `native text ranges selection and writes share the editor and its policy`() {
+        verifyEditor(true)
+    }
+}
+
+@Test
+private class AccessibleEditorWithoutSceneTest {
+    @Test
+    fun `logical text transactions and retained document updates need no drawable`() {
+        verifyEditor(false)
+    }
+}
+
+private fun verifyEditor(requireGeometry: Boolean) {
+    FontCollection().use {
+        fonts ->
+        fonts.register(testSansBytes, "UI Sans")
+        val probe =
+            TextProbe(
+                TextEditAppearance(fonts, textStyle { this.families = ["UI Sans"] }),
+                requireGeometry
+            )
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(requireGeometry, probe.geometryChecked)
+            assertEquals(1, probe.mounts)
+            assertTrue(probe.editor!!.isClosed)
+            assertTrue(probe.semantic!!.isClosed)
+        } catch (error: Throwable) {
+            println(f"editor action ${probe.lastAction}")
+            throw error
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class TextProbe(
+    val appearance: TextEditAppearance,
+    val requireGeometry: Boolean
+): Closeable {
+    val model = state(TextEditorState(initialText, Some(Utf8Selection(11L, 1L))))
+    val enabled = state(true)
+    val readOnly = state(false)
+    val protectedText = state(false)
+    val multiline = state(true)
+    val importPolicy = state(false)
+    var semantic: SemanticsHandle? = None
+    var editor: TextEditHost? = None
+    var mounts = 0
+    var measures = 0
+    var scenes = 0
+    var edits = 0
+    var imports = 0
+    var finished = false
+    var geometryChecked = false
+    var lastAction = -2
+    private var waitingGeometry = false
+    val policy =
+        textEditPolicy {
+            this.maxLength = Some(3L)
+            paste {
+                candidate ->
+                assertEquals(TextEditSource.Accessibility, candidate.source)
+                this @TextProbe.imports += 1
+                val edits = ArrayList<TextEditReplacement>()
+                var offset = 0L
+                for (character in candidate.after.text) {
+                    if (character == '-')
+                        edits.add(TextEditReplacement(Utf8Range(offset, offset + 1L), ""))
+                    offset += character.toString().byteLength
+                }
+                TextEditDecision.Transform(edits.toArray())
+            }
+            transform {
+                candidate -> if (candidate.after.text == "DENY")
+                    TextEditDecision.Reject
+                else
+                    TextEditDecision.Accept
+            }
+        }
+    private var active: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var calls: NativeCalls? = None
+    private var node: NativeNode? = None
+    private var retained: NativeTextAnchor? = None
+    private var previousRevision = 0L
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop accessible editor"
+                            this.requestActivation = false
+                            this.size = LogicalSize(240.0, 120.0)
+                        }
+                    )
+                window = Some(native)
+                ui = host.attach(native, { scope -> TextRoot(this, scope) })
+                @Unsafe
+                {
+                    val lease = native.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        NativeNode(nativeRoot(view)!!).use { root -> node = root.find("document") }
+                    } finally {
+                        lease.close()
+                    }
+                }
+                calls =
+                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                native.setVisible(false)
+                initial()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("accessible editor timed out"))
+            else -> {}
+        }
+    }
+
+    private fun initial() {
+        assertFalse(node!!.hasTextGeometry())
+        assertEquals(8L, node!!.characterCount)
+        assertTrue(node!!.selection(1L, 5L))
+        assertTrue(node!!.text(4, Some("😀é中")))
+        assertTrue(node!!.range(1L, 2L, Some("😀")))
+        assertTrue(node!!.range(1L, 2L, Some("😀"), true))
+        assertTrue(node!!.range(2L, 0L, None))
+        assertTrue(node!!.range(1L, 1L, None))
+        assertTrue(node!!.range(8L, 0L, Some("")))
+        assertTrue(node!!.range(8L, 1L, None))
+        assertTrue(node!!.range(-1L, 0L, None))
+        assertFailsWith<IllegalArgumentException> {
+            semantic!!.update(
+                SemanticProperties(value = Some("😀"), selection = Some(Utf8Selection(1L, 4L)))
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            semantic!!.update(
+                SemanticProperties(protectedText = true, selection = Some(Utf8Selection(0L, 0L)))
+            )
+        }
+        model.value.setSelection(Utf8Selection(5L, 5L))
+        afterUpdate {
+            assertTrue(node!!.selection(3L, 0L))
+            assertEquals(0, measures)
+            assertEquals(0, scenes)
+            if (requireGeometry) {
+                waitingGeometry = true
+                window!!.setVisible(true)
+            } else {
+                hiddenDocument()
+            }
+        }
+    }
+
+    private fun hiddenDocument() {
+        retained = Some(NativeTextAnchor(node!!, 1L, 5L))
+        assertTrue(
+            model.value.applyInput(
+                TextInputBatch(
+                    None,
+                    [TextInputOperation.Commit("X", TextReplacement.Range(Utf8Range(0L, 0L)))]
+                )
+            )
+        )
+        afterUpdate {
+            assertTrue(node!!.text(1, Some("X" + initialText)))
+            assertTrue(retained!!.matches(2L, 6L))
+            assertTrue(model.value.undo())
+            afterUpdate {
+                assertTrue(node!!.text(1, Some(initialText)))
+                assertTrue(retained!!.matches(1L, 5L))
+                model.value.replaceAll("reset")
+                afterUpdate {
+                    assertTrue(node!!.text(1, Some("reset")))
+                    assertTrue(retained!!.matches(-1L, -1L))
+                    retained!!.close()
+                    retained = Some(NativeTextAnchor(node!!, 0L, 2L))
+                    assertTrue(retained!!.matches(0L, 2L))
+                    protectedText.value = true
+                    afterUpdate {
+                        assertTrue(node!!.text(1, None))
+                        assertTrue(retained!!.matches(-1L, -1L))
+                        protectedText.value = false
+                        model.value = TextEditorState("replacement")
+                        afterUpdate {
+                            assertTrue(node!!.text(1, Some("replacement")))
+                            detachedDocument()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun detachedDocument() {
+        retained!!.close()
+        retained = Some(NativeTextAnchor(node!!, 0L, 2L))
+        assertTrue(retained!!.matches(0L, 2L))
+        semantic!!.update(SemanticProperties(value = Some("snapshot")))
+        afterUpdate {
+            assertTrue(node!!.text(1, Some("snapshot")))
+            assertTrue(retained!!.matches(-1L, -1L))
+            semantic!!.updateTextEditor(editor!!)
+            afterUpdate {
+                assertTrue(node!!.text(1, Some("replacement")))
+                assertTrue(retained!!.matches(-1L, -1L))
+                assertFalse(node!!.hasTextGeometry())
+                assertEquals(0, measures)
+                assertEquals(0, scenes)
+                ui!!.close()
+                assertFalse(node!!.flag(0))
+                finished = true
+                window!!.requestDestroy()
+                active!!.requestExit()
+            }
+        }
+    }
+
+    fun geometryReady() {
+        if (!waitingGeometry)
+            return
+        waitingGeometry = false
+        assertTrue(node!!.hasTextGeometry())
+        assertEquals(TextQueryRange(1L, 2L), node!!.rangeForIndex(1L))
+        assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForIndex(2L))
+        assertEquals(TextQueryRange(3L, 2L), node!!.rangeForIndex(4L))
+        assertEquals(TextQueryRange(0L, 7L), node!!.rangeForLine(0L))
+        assertEquals(TextQueryRange(7L, 1L), node!!.rangeForLine(1L))
+        assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForLine(2L))
+        assertEquals(1L, node!!.lineForIndex(7L))
+        assertEquals(0L, node!!.insertionLine())
+        assertEquals(TextQueryRange(0L, 8L), node!!.visibleRange())
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    val view =
+                        when (lease.handle) {
+                            case AppKit(_, val value) -> value
+                        }
+                    val expected =
+                        editor!!.area.toWindow(
+                            editor!!.selectionBounds(Utf8Range(1L, 5L))[0L].rect
+                        )!!
+                    val actual = node!!.boundsForRange(view, 1L, 2L)
+                    assertTrue(abs(actual.x - expected.x) < 0.001)
+                    assertTrue(abs(actual.y - expected.y) < 0.001)
+                    assertTrue(abs(actual.width - expected.width) < 0.001)
+                    assertTrue(abs(actual.height - expected.height) < 0.001)
+                    assertEquals(
+                        TextQueryRange(1L, 2L),
+                        node!!.rangeAtPoint(view, actual.x + 1.0, actual.y + actual.height / 2.0)
+                    )
+                    assertEquals(TextQueryRange(-1L, 0L), node!!.rangeAtPoint(view, -1.0, -1.0))
+                    assertTrue(node!!.emptyTextBounds(2L, 0L))
+                }
+            }
+        }
+        assertFalse(editor!!.focus.handle.hasFocus)
+        geometryChecked = true
+        retained = Some(NativeTextAnchor(node!!, 12L, 13L))
+        model.value.setSelection(Utf8Selection(initialText.byteLength, 1L))
+        afterUpdate { externalGeometry() }
+    }
+
+    private fun externalGeometry() {
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    val view =
+                        when (lease.handle) {
+                            case AppKit(_, val value) -> value
+                        }
+                    val bounds =
+                        editor!!.area.toWindow(
+                            editor!!.selectionBounds(Utf8Range(1L, 5L))[0L].rect
+                        )!!
+                    if (
+                        !calls!!.postTextClient(
+                            node!!,
+                            view,
+                            -1,
+                            TextQueryBounds(bounds.x, bounds.y, bounds.width, bounds.height)
+                        )
+                    )
+                        select(0, 1L, 2L)
+                }
+            }
+        }
+    }
+
+    private fun completed(tag: Int, result: Int) {
+        lastAction = tag
+        assertEquals(1, result)
+        when (tag) {
+            case - 1 -> {
+                assertEquals(initialText, model.value.text)
+                assertEquals(Utf8Selection(1L, initialText.byteLength), model.value.selection)
+                assertEquals(1L, node!!.insertionLine())
+                assertTrue(node!!.hasTextGeometry())
+                assertFalse(editor!!.focus.handle.hasFocus)
+                select(0, 1L, 2L)
+            }
+            case 0 -> {
+                assertEquals(Utf8Selection(1L, 5L), model.value.selection)
+                assertFalse(editor!!.focus.handle.hasFocus)
+                assertTrue(node!!.text(4, Some("😀")))
+                calls!!.post(node!!, 1, 5, "中")
+            }
+            case 1 -> {
+                assertEquals("A中é中\nZ", model.value.text)
+                assertTrue(node!!.text(1, Some(model.value.text)))
+                assertTrue(retained!!.matches(11L, 12L))
+                assertTrue(model.value.undo())
+                assertEquals(initialText, model.value.text)
+                assertTrue(retained!!.matches(-1L, -1L))
+                assertFalse(model.value.canUndo)
+                readOnly.value = true
+                afterUpdate {
+                    assertTrue(retained!!.matches(12L, 13L))
+                    assertTrue(node!!.flag(6))
+                    assertFalse(node!!.flag(7))
+                    select(2, 3L, 2L)
+                }
+            }
+            case 2 -> {
+                assertEquals(Utf8Selection(5L, 8L), model.value.selection)
+                assertTrue(node!!.text(4, Some("é")))
+                calls!!.post(node!!, 3, 5, "forbidden")
+            }
+            case 3 -> {
+                assertEquals(initialText, model.value.text)
+                calls!!.post(node!!, 4, 1, "forbidden")
+            }
+            case 4 -> {
+                assertEquals(initialText, model.value.text)
+                readOnly.value = false
+                enabled.value = false
+                afterUpdate { select(5, 0L, 1L) }
+            }
+            case 5 -> {
+                assertEquals(Utf8Selection(5L, 8L), model.value.selection)
+                assertFalse(node!!.flag(6))
+                enabled.value = true
+                afterUpdate { select(6, 2L, 1L) }
+            }
+            case 6 -> {
+                assertEquals(Utf8Selection(5L, 8L), model.value.selection)
+                calls!!.post(node!!, 7, 7)
+            }
+            case 7 -> {
+                assertEquals(Utf8Selection(5L, 8L), model.value.selection)
+                calls!!.post(node!!, 8, 6, selectionStart = 0L, selectionLength = 1L)
+            }
+            case 8 -> {
+                assertEquals(Utf8Selection(0L, 1L), model.value.selection)
+                model.value.replaceAll("ab")
+                multiline.value = false
+                importPolicy.value = true
+                afterUpdate { calls!!.post(node!!, 9, 1, "1-23\n4") }
+            }
+            case 9 -> {
+                assertEquals("123", model.value.text)
+                assertEquals(1, imports)
+                assertTrue(node!!.text(1, Some("123")))
+                previousRevision = model.value.revision
+                calls!!.post(node!!, 10, 1, "DENY")
+            }
+            case 10 -> {
+                assertEquals("123", model.value.text)
+                assertEquals(previousRevision, model.value.revision)
+                assertEquals(2, imports)
+                assertTrue(model.value.undo())
+                assertEquals("ab", model.value.text)
+                assertFalse(model.value.canUndo)
+                model.value.applyInput(
+                    TextInputBatch(
+                        None,
+                        [TextInputOperation.Preedit("😀", None, TextReplacement.CurrentSelection)]
+                    )
+                )
+                assertTrue(model.value.isComposing)
+                afterUpdate { select(11, 0L, 1L) }
+            }
+            case 11 -> {
+                assertEquals("ab😀", model.value.text)
+                assertFalse(model.value.isComposing)
+                assertEquals(2, imports)
+                assertEquals(Utf8Selection(0L, 1L), model.value.selection)
+                assertTrue(model.value.undo())
+                assertEquals("ab", model.value.text)
+                model.value.replaceAll("secret")
+                importPolicy.value = false
+                protectedText.value = true
+                afterUpdate {
+                    assertFalse(node!!.flag(5))
+                    assertFalse(node!!.hasTextGeometry())
+                    assertTrue(node!!.emptyTextBounds(0L, 1L))
+                    assertFalse(node!!.flag(6))
+                    assertEquals(0L, node!!.characterCount)
+                    assertTrue(node!!.text(1, None))
+                    assertTrue(node!!.text(4, None))
+                    assertTrue(node!!.selection(-1L, 0L))
+                    assertTrue(node!!.range(0L, 1L, None))
+                    assertTrue(node!!.range(0L, 1L, None, true))
+                    calls!!.post(node!!, 12, 1, "new-secret")
+                }
+            }
+            case 12 -> {
+                assertEquals("new-secret", model.value.text)
+                assertTrue(node!!.text(1, None))
+                protectedText.value = false
+                afterUpdate {
+                    assertTrue(node!!.text(1, Some("new-secret")))
+                    ui!!.close()
+                    assertFalse(node!!.hasTextGeometry())
+                    assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForIndex(0L))
+                    assertFalse(node!!.flag(5))
+                    assertTrue(node!!.range(0L, 1L, None))
+                    select(13, 0L, 1L)
+                }
+            }
+            case 13 -> {
+                assertEquals("new-secret", model.value.text)
+                finished = true
+                window!!.requestDestroy()
+                active!!.requestExit()
+            }
+            else -> fail(Some("unexpected text operation"))
+        }
+    }
+
+    private fun select(tag: Int, start: Long, length: Long) {
+        calls!!.post(node!!, tag, 4, selectionStart = start, selectionLength = length)
+    }
+    private fun afterUpdate(action: () -> Unit) {
+        assertTrue(active!!.proxy().post { _ -> action() })
+    }
+    public override fun close() {
+        retained?.close()
+        retained = None
+        calls?.close()
+        calls = None
+        node?.close()
+        node = None
+    }
+}

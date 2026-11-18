@@ -1,0 +1,125 @@
+package scoop.tests.ui.preferences
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.text.*
+
+internal class PreferenceRoot(
+    private val probe: PreferenceProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View =
+        cachedScene(
+            element(
+                { mount -> PreferencePanel(probe, index, mount) },
+                [
+                    element({ mount -> PreferenceReader(probe, index, 0L, mount) }),
+                    element({ mount -> PreferenceReader(probe, index, 1L, mount) }),
+                    element({ mount -> PreferenceReader(probe, index, 2L, mount) }),
+                    component({ mount -> PreferenceRender(probe, index, mount) }),
+                    element({ mount -> PreferenceEditor(probe, index, mount) })
+                ]
+            )
+        )
+}
+
+private class PreferencePanel(
+    private val probe: PreferenceProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        probe.mounted(index, scope)
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (child in 0L ..< context.childCount) {
+            context.measureChild(child, Constraints.tight(Size(280.0, 40.0)))
+            context.placeChild(child, Point(10.0, child.toDouble() * 40.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(300.0, 210.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted(index)
+        }
+    }
+}
+
+private class PreferenceReader(
+    private val probe: PreferenceProbe,
+    private val index: Long,
+    private val kind: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun update(): UiInvalidation {
+        if (kind == 2L)
+            probe.reads[index * 4L + kind] = scope.interactionPreferences.textScaleFactor ?: 1.0
+        return UiInvalidation.None
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures[index * 5L + kind] += 1
+        if (kind == 0L)
+            probe.reads[index * 4L] = scope.interactionPreferences.textScaleFactor ?: 1.0
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 40.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw {
+            paint ->
+            if (kind == 1L)
+                probe.reads[index * 4L + kind] = scope.interactionPreferences.textScaleFactor ?: 1.0
+            paint.canvas.drawRect(Rect(0.0, 0.0, 20.0, 20.0), Paint(Color.Black))
+        }
+    }
+}
+
+private class PreferenceRender(
+    private val probe: PreferenceProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Component(scope) {
+    private val content = element({ mount -> PreferenceReader(probe, index, 3L, mount) })
+    public override fun render(): View {
+        probe.reads[index * 4L + 3L] = scope.interactionPreferences.textScaleFactor ?: 1.0
+        return content
+    }
+}
+
+private class PreferenceEditor(
+    private val probe: PreferenceProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val editor =
+        scope.resource {
+            TextEditHost(
+                scope,
+                probe.models[index],
+                TextEditAppearance(scope.defaultFonts),
+                TextEditOptions(multiline = true)
+            )
+        }
+    public override fun onMount() {
+        probe.editors[index] = Some(editor)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        probe.measures[index * 5L + 4L] += 1
+        val result = editor.measure(constraints)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        editor.scene(context, measured)
+    }
+}

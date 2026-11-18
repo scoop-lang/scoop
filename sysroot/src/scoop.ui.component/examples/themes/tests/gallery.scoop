@@ -8,6 +8,7 @@ import scoop.ui.style.*
 import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.shadcn.shadcnTheme
 
 @Test
 private class ShowcaseGalleryTest {
@@ -18,9 +19,11 @@ private class ShowcaseGalleryTest {
                 macosTheme(),
                 materialTheme(),
                 fluentTheme(),
+                shadcnTheme(),
                 macosTheme(ThemeMode.Dark),
                 materialTheme(ThemeMode.Dark),
-                fluentTheme(ThemeMode.Dark)
+                fluentTheme(ThemeMode.Dark),
+                shadcnTheme(ThemeMode.Dark)
             ]
         FontCollection(false).use {
             fonts ->

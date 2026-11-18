@@ -1,0 +1,135 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun textTouchHandleCancellation(p: TextTouchProbe) {
+    when (p.phase) {
+        33 -> touchTap(p, 5L)
+        34 -> touchHandleBegin(p, 1006L)
+        35 -> {
+            p.preventMove = true
+            touchHandleMove(p, 1006L, 11L)
+        }
+        36 -> {
+            p.preventMove = false
+            touchSelection(p, 5L, 5L)
+            touchHandleMove(p, 1006L, 15L, end = true)
+        }
+        37 -> {
+            touchSelection(p, 5L, 5L)
+            touchHandleBegin(p, 1007L)
+        }
+        38 -> touchHandleMove(p, 1007L, 11L)
+        39 -> {
+            touchSelection(p, 11L, 11L)
+            p.preventEnd = true
+            touchHandleMove(p, 1007L, 15L, end = true)
+        }
+        40 -> {
+            p.preventEnd = false
+            touchSelection(p, 11L, 11L)
+            touchHandleBegin(p, 1008L)
+        }
+        41 -> touchHandleMove(p, 1008L, 5L)
+        42 -> {
+            touchSelection(p, 5L, 5L)
+            p.contact(1009L, 0, p.point(15L))
+        }
+        43 -> {
+            touchHandleMove(p, 1008L, 11L, end = true)
+            p.contact(1009L, 2, p.point(15L))
+        }
+        44 -> {
+            touchSelection(p, 5L, 5L)
+            touchHandleBegin(p, 1010L)
+        }
+        45 -> touchHandleMove(p, 1010L, 11L)
+        46 -> {
+            touchSelection(p, 11L, 11L)
+            p.model.setSelection(Utf8Selection(0L, 0L))
+        }
+        47 -> touchHandleMove(p, 1010L, 15L, end = true)
+        48 -> {
+            touchSelection(p, 0L, 0L)
+            p.scale = 1.25
+            p.changed()
+        }
+        49 -> touchTap(p, 5L)
+        50 -> touchHandleBegin(p, 1011L)
+        51 -> touchHandleMove(p, 1011L, 11L)
+        52 -> {
+            touchSelection(p, 11L, 11L)
+            touchHandleMove(p, 1011L, 15L, end = true)
+        }
+        53 -> {
+            touchSelection(p, 15L, 15L)
+            p.scale = 1.0
+            p.projection = textMask()
+            p.model.setSelection(Utf8Selection(0L, 0L))
+            p.changed()
+        }
+        54 -> touchTap(p, 8L)
+        55 -> touchHandleBegin(p, 1012L)
+        56 -> touchHandleMove(p, 1012L, 15L)
+        57 -> {
+            touchSelection(p, 15L, 15L)
+            touchHandleEnd(p, 1012L)
+        }
+        58 -> {
+            assertEquals(p.text, p.model.text)
+            p.projection = textProjection()
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = None,
+                    multiTap = false,
+                    selectionHandles = TextSelectionHandleOptions(enabled = false)
+                )
+            p.pan = TouchScrollOptions(enabled = false)
+            p.changed()
+        }
+        59 -> touchTap(p, 5L)
+        60 -> touchHandleBegin(p, 1013L)
+        61 -> touchHandleMove(p, 1013L, 11L)
+        62 -> touchHandleEnd(p, 1013L)
+        63 -> {
+            touchSelection(p, 5L, 5L)
+            p.touch = TextTouchOptions(longPressDelay = None)
+            p.changed()
+        }
+        64 -> touchTap(p, 6L, readonly = true)
+        65 -> touchHandleBegin(p, 1014L, readonly = true)
+        66 -> {
+            p.replaceOnSelection = true
+            touchHandleMove(p, 1014L, 12L, readonly = true)
+        }
+        67 -> {
+            touchSelection(p, 0L, 0L, true)
+            touchHandleMove(p, 1014L, 16L, readonly = true, end = true)
+        }
+        68 -> {
+            touchSelection(p, 0L, 0L, true)
+            touchTap(p, 6L, readonly = true)
+        }
+        69 -> touchHandleBegin(p, 1015L, readonly = true)
+        70 -> {
+            p.closeOnSelection = true
+            touchHandleMove(p, 1015L, 12L, readonly = true)
+        }
+        71 -> {
+            assertTrue(p.selectable!!.isClosed)
+            touchHandleEnd(p, 1015L)
+        }
+        72 -> {
+            assertEquals(p.text, p.model.text)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected text handle phase"))
+    }
+}

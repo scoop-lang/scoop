@@ -10,6 +10,8 @@ internal struct RouteDelivery(
     val geometry: CanvasGeometry? = None
 )
 
+internal class RouteRemainder(val delivery: RouteDelivery, val action: () -> Unit)
+
 internal fun InputRouter.deliveries(scopes: Array<InputScope>, point: Point? = None): Array<
     RouteDelivery
 > {
@@ -57,6 +59,10 @@ private fun InputRouter.invoke(
     }
     if (!terminal && !scrollDeliveryAllowed(flags.scroll))
         return
+    if (!terminal && !gestureDeliveryAllowed(flags.gesture))
+        return
+    if (!terminal && !contactDeliveryAllowed(flags.contact, scope))
+        return
     val context =
         RoutedEventContext(
             this,
@@ -86,9 +92,11 @@ internal fun InputRouter.route(
     chain: Array<RouteDelivery>,
     event: InputEvent,
     time: InputTime,
-    scroll: InputScrollRoute? = None
+    scroll: InputScrollRoute? = None,
+    gesture: InputGestureRoute? = None,
+    contact: InputContactRoute? = None
 ) {
-    var failure = cleanupFailure(None) { routeStages(chain, event, time, scroll) }
+    var failure = cleanupFailure(None) { routeStages(chain, event, time, scroll, gesture, contact) }
     for (delivery in chain) {
         val scope = delivery.scope
         if (!closed && !scope.closed && path(scope).size > 0L)
@@ -101,12 +109,21 @@ private fun InputRouter.routeStages(
     chain: Array<RouteDelivery>,
     event: InputEvent,
     time: InputTime,
-    scroll: InputScrollRoute?
+    scroll: InputScrollRoute?,
+    gesture: InputGestureRoute?,
+    contact: InputContactRoute?
 ) {
     if (chain.size == 0L)
         return
     val target = chain[0L].scope
-    val flags = RouteFlags(true, scrollConsumption(event, scroll))
+    val flags =
+        RouteFlags(
+            true,
+            scrollConsumption(event, scroll),
+            gesture,
+            contact,
+            contactConsumption(event, contact)
+        )
     var index = chain.size
     while (index > 1L && !flags.stopped) {
         index -= 1L
@@ -123,9 +140,9 @@ private fun InputRouter.routeStages(
     for (delivery in chain) {
         if (flags.prevented || closed)
             break
-        if (path(delivery.scope).size == 0L)
+        if (path(delivery.scope).size == 0L || !contactDeliveryAllowed(contact, delivery.scope))
             continue
-        if (!focused && focusesOnPress(event) && containsScope(hover, delivery.scope)) {
+        if (!focused && focusesOnPress(event, delivery.scope)) {
             when (delivery.scope.area) {
                 case Some(val area) -> if (area.focusable) {
                     focus(area, FocusOrigin.Pointer)
@@ -161,11 +178,26 @@ private fun InputRouter.routeStages(
             pass += 1
         }
     }
+    when (flags.remainder) {
+        case Some(val final) -> invoke(
+            final.delivery,
+            target,
+            event,
+            RoutedPhase.Default,
+            time,
+            flags,
+            callback = Some { _, _ -> final.action() }
+        )
+        case None -> {}
+    }
 }
 
-private fun focusesOnPress(event: InputEvent): Boolean =
+private fun InputRouter.focusesOnPress(event: InputEvent, scope: InputScope): Boolean =
     when (event) {
-        case Pointer(InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)) -> true
+        case Pointer(
+            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+        ) -> containsScope(hover, scope)
+        case Contact(InputContactEvent.Began(_)) -> true
         else -> false
     }
 

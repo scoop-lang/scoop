@@ -15,7 +15,7 @@ public class ItemGroup public constructor(
     private val props: Props<ItemGroupProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -110,7 +110,7 @@ public class ItemSeparator public constructor(
     private val props: Props<ItemSeparatorProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }

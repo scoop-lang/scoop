@@ -93,7 +93,7 @@ int64_t scoop_window_ignore_mouse(void *pointer, int32_t enabled) {
   else
     owner.window.ignoresMouseEvents = enabled != 0;
   if (enabled)
-    [owner.view cancelPointer:1];
+    [owner.view cancelPointer:SWPointerCaptureLost];
   return 0;
 }
 
@@ -124,7 +124,7 @@ BOOL sw_frame_pointer(SWView *view, NSEvent *event) {
                    owner.hitRegions.length / sizeof(SWHitRect), point.x,
                    point.y) != 1)
     return NO;
-  [view cancelPointer:2];
+  [view cancelPointer:SWPointerSystemOperation];
   [owner.window performWindowDragWithEvent:event];
   return YES;
 }

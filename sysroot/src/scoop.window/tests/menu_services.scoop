@@ -1,0 +1,116 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.window.native.*
+
+@Test
+private class TextServicesMenuTest {
+    @Test
+    fun `native Services preserve results and reject stale or read only replacements`() {
+        val probe = MenuServicesProbe()
+        Application().run(probe)
+        assertTrue(probe.finished)
+    }
+}
+
+private class MenuServicesProbe: ApplicationHandler {
+    var finished = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                val menu = application.createMenu()
+                try {
+                    checkServices(application, window, menu)
+                    finished = true
+                } finally {
+                    menu.close()
+                    window.requestDestroy()
+                    application.requestExit()
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun checkServices(application: ActiveApplication, window: Window, menu: Menu) {
+        val root = menu.insert(MenuItemDescription("Text", MenuItemKind.Submenu))
+        val description =
+            MenuItemDescription("Services", MenuItemKind.TextServices("😀 words", true))
+        val item = menu.insert(description, Some(root))
+        assertFailsWith<IllegalArgumentException> { menu.insert(description, Some(root)) }
+        assertFailsWith<IllegalArgumentException> {
+            menu.insert(MenuItemDescription("Not a managed submenu"), Some(item))
+        }
+        assertEquals(
+            WindowErrorKind.Unsupported,
+            assertFailsWith<WindowException> { application.attachMenuBar(menu) }.kind
+        )
+        @Unsafe
+        {
+            assertEquals(
+                WindowErrorKind.Unsupported,
+                assertFailsWith<WindowException> {
+                    @Unsafe
+                    {
+                        menu.acquireNativeMenu {}
+                    }
+                }.kind
+            )
+            for (mode in [0, 1, 2]) {
+                menu.update(
+                    item,
+                    MenuItemDescription("Services", MenuItemKind.TextServices("😀 words", mode != 2))
+                )
+                assertEquals(
+                    0,
+                    beginNativeMenuServices(menu.owner.pointer!!, window.owner.pointer!!)
+                )
+                try {
+                    assertEquals(0, probeNativeMenuServices(menu.owner.pointer!!, mode))
+                } finally {
+                    assertEquals(0, endNativeMenuServices(menu.owner.pointer!!))
+                }
+            }
+            menu.update(item, description)
+            assertEquals(0, beginNativeMenuServices(menu.owner.pointer!!, window.owner.pointer!!))
+            try {
+                assertEquals(
+                    RequestStatus.Requested,
+                    menu.update(
+                        item,
+                        MenuItemDescription("Services", description.kind, enabled = false)
+                    )
+                )
+                assertEquals(0, probeNativeMenuServices(menu.owner.pointer!!, 3))
+                menu.update(item, description)
+                assertEquals(
+                    RequestStatus.Requested,
+                    menu.update(
+                        item,
+                        MenuItemDescription("Services", MenuItemKind.TextServices("changed", true))
+                    )
+                )
+                assertEquals(0, probeNativeMenuServices(menu.owner.pointer!!, 3))
+            } finally {
+                assertEquals(0, endNativeMenuServices(menu.owner.pointer!!))
+            }
+            menu.update(item, description)
+            assertEquals(0, beginNativeMenuServices(menu.owner.pointer!!, window.owner.pointer!!))
+            try {
+                nativeMenuCancel(menu.owner.pointer!!)
+                assertEquals(0, probeNativeMenuServices(menu.owner.pointer!!, 3))
+            } finally {
+                assertEquals(0, endNativeMenuServices(menu.owner.pointer!!))
+            }
+        }
+    }
+}

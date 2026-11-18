@@ -1,0 +1,24 @@
+package scoop.tests.window.drop
+
+@Extern(name = "scoop_drop_test_open")
+internal fun nativeOpen(view: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_drop_test_post")
+internal fun nativePost(
+    probe: Ptr<Unit>,
+    step: Int,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+)
+
+@Extern(name = "scoop_drop_test_reenter")
+internal fun nativeReenter(probe: Ptr<Unit>): Int
+
+@Extern(name = "scoop_drop_test_rebind")
+internal fun nativeRebind(probe: Ptr<Unit>, view: Ptr<Unit>)
+
+@Extern(name = "scoop_drop_test_last")
+internal fun nativeLast(probe: Ptr<Unit>, step: Int): Int
+
+@Extern(name = "scoop_drop_test_close")
+internal fun nativeClose(probe: Ptr<Unit>)

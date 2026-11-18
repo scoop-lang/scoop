@@ -4,6 +4,7 @@ import scoop.graphics.text.FontCollection
 import scoop.surface.AnimationSpec
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public enum ItemVariant {
     Default, Outline, Muted
@@ -36,7 +37,8 @@ public class ItemProps public constructor(
     public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 /** Action presence chooses one complete mount, just as it does for Badge. */
@@ -69,6 +71,15 @@ private class ItemAction(
             props.value.value.focus,
             { props.value.action() }
         )
+    private val semantics = createComponentSemantics(scope, SemanticRole.Button)
+    init {
+        semantics?.bindFocus(Some(control.focus))
+        when (semantics) {
+            case Some(val value) -> value.mergeLabels = true;
+            case None -> {}
+        }
+        scope.routeSemanticsChildren(semantics)
+    }
     private val renderer = ItemRenderer(scope)
     public override fun onMount() {
         renderer.mount(props.value.value.theme)
@@ -79,7 +90,8 @@ private class ItemAction(
         return renderer.render(
             input.value,
             interaction,
-            ActionBehavior.Press(control, input.action, input.value.focus)
+            ActionBehavior.Press(control, input.action, input.value.focus),
+            semantics
         )
     }
 }
@@ -87,12 +99,20 @@ private class ItemAction(
 private class ItemDisplay(private val props: Props<ItemProps>, scope: ComponentScope): Component(
     scope
 ) {
+    private val semantics = createComponentSemantics(scope, SemanticRole.Group)
+    init {
+        when (semantics) {
+            case Some(val value) -> value.mergeLabels = true;
+            case None -> {}
+        }
+        scope.routeSemanticsChildren(semantics)
+    }
     private val renderer = ItemRenderer(scope)
     public override fun onMount() {
         renderer.mount(props.value.theme)
     }
     public override fun render(): View =
-        renderer.render(props.value, InteractionState(), ActionBehavior.Passive)
+        renderer.render(props.value, InteractionState(), ActionBehavior.Passive, semantics)
 }
 
 public fun item(configure: ItemBuilder.() -> Unit = {}): View =

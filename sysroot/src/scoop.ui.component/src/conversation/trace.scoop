@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public enum TraceStatus {
     Complete, Running, Error, Pending
@@ -21,7 +22,8 @@ public class TraceLineProps public constructor(
     public val focusOutline: OutlineStyle? = None,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public open class TraceLineBuilder internal constructor(): ConversationActionBuilder() {
@@ -51,7 +53,8 @@ public open class TraceLineBuilder internal constructor(): ConversationActionBui
             focusOutline,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 
@@ -78,7 +81,7 @@ internal class TraceExpansion {
 }
 
 public class Trace(private val props: Props<TraceProps>, scope: ComponentScope): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val expansion = TraceExpansion()
     private val opened =
         binding(
@@ -100,6 +103,17 @@ public class Trace(private val props: Props<TraceProps>, scope: ComponentScope):
         if (scope.isMounted && previous != opened.value)
             props.value.onOpenChange(opened.value)
     }
+    private fun expandSemantically(value: Boolean): SemanticActionResult {
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        if (!props.value.line.enabled)
+            return SemanticActionResult.Rejected
+        change(value)
+        return if (opened.value == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
     private fun activate() {
         change(!opened.value)
         if (scope.isMounted)
@@ -113,7 +127,12 @@ public class Trace(private val props: Props<TraceProps>, scope: ComponentScope):
         val openBinding = opened
         val line =
             component(
-                TraceLineInput(input.line, Some(expanded), Some({ activate() })),
+                TraceLineInput(
+                    input.line,
+                    Some(expanded),
+                    Some({ activate() }),
+                    Some { next -> expandSemantically(next) }
+                ),
                 { current, mount -> TraceLine(current, mount) }
             )
         val body =
@@ -164,14 +183,15 @@ public class Trace(private val props: Props<TraceProps>, scope: ComponentScope):
 internal class TraceLineInput(
     val line: TraceLineProps,
     val expanded: Boolean? = None,
-    val action: (() -> Unit)? = None
+    val action: (() -> Unit)? = None,
+    val expand: ((Boolean) -> SemanticActionResult)? = None
 )
 
 internal class TraceLine(
     private val props: Props<TraceLineInput>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     public override fun onMount() {
@@ -285,7 +305,40 @@ internal class TraceLine(
                     action,
                     input.enabled,
                     input.focus,
-                    input.fonts
+                    input.fonts,
+                    semantics =
+                        input.semantics.copy { busy = busy || input.status == TraceStatus.Running },
+                    semanticRole =
+                        if (props.value.expanded != None)
+                            Some(SemanticRole.Disclosure)
+                        else
+                            None,
+                    semanticState =
+                        Some(
+                            input.semantics.properties(
+                                enabled = input.enabled,
+                                expanded = props.value.expanded
+                            ).copy { busy = busy || input.status == TraceStatus.Running }
+                        ),
+                    semanticActions =
+                        when (props.value.expand) {
+                            case Some(val expand) -> Some(
+                                SemanticActions(
+                                    invoke =
+                                        Some {
+                                            val result = expand(!(props.value.expanded ?: false))
+                                            if (scope.isMounted)
+                                                props.value.line.onClick?.invoke()
+                                            if (scope.isMounted)
+                                                result
+                                            else
+                                                SemanticActionResult.Unavailable
+                                        },
+                                    setExpanded = Some(expand)
+                                )
+                            )
+                            case None -> None
+                        }
                 )
             ),
             false,

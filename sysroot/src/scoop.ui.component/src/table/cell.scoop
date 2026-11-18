@@ -2,11 +2,13 @@ package scoop.ui.component
 
 import scoop.graphics.*
 import scoop.ui.*
+import scoop.window.accessibility.*
 
 internal class TableCellLayout(
     val padding: Double,
     val alignment: AxisAlignment,
-    val natural: Boolean
+    val natural: Boolean,
+    val semantics: TableCellSemantics
 )
 
 /** Natural header/end content aligns within the shared column, not within a stretched label. */
@@ -14,7 +16,30 @@ internal class TableCellInk(
     private val props: Props<TableCellLayout>,
     scope: ComponentScope
 ): Element<Unit>(scope) {
-    public override fun update(): UiInvalidation = UiInvalidation.Layout
+    private var semantics: SemanticsHandle? = None
+    public override fun update(): UiInvalidation {
+        val input = props.value.semantics
+        when (semantics) {
+            case Some(val old) -> if (old.role != input.role) {
+                old.close();
+                semantics = None
+            }
+            case None -> {}
+        }
+        if (!panelPresent(semantics)) {
+            semantics = createComponentSemantics(scope, input.role)
+            scope.routeSemanticsChildren(semantics)
+        }
+        when (semantics) {
+            case Some(val handle) -> {
+                handle.mergeLabels = true
+                handle.bindReference(input.reference)
+                handle.update(input.properties, relations = input.relations)
+            }
+            case None -> {}
+        }
+        return UiInvalidation.Layout
+    }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -56,6 +81,13 @@ internal class TableCellInk(
         return LayoutResult(offsetMetrics(child, size, origin.y), Unit)
     }
     public override fun scene(context: SceneContext, value: Unit) {
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
         context.children()
     }
 }

@@ -1,0 +1,54 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.*
+
+/** Direct-contact coast parameters in window-logical units and seconds. */
+public class ScrollInertiaOptions public constructor(
+    public val enabled: Boolean = true,
+    public val deceleration: Double = 2400.0,
+    public val minVelocity: Double = 50.0,
+    public val maxVelocity: Double = 8000.0
+) {
+    init {
+        requireUi(deceleration.isFinite() && deceleration > 0.0, "invalid scroll deceleration")
+        requireUi(maxVelocity.isFinite() && maxVelocity > 0.0, "invalid maximum scroll velocity")
+        requireUi(
+            minVelocity.isFinite() && minVelocity >= 0.0 && minVelocity <= maxVelocity,
+            "invalid minimum scroll velocity"
+        )
+        val seconds = maxVelocity / deceleration
+        requireUi(
+            seconds.isFinite() &&
+                seconds *
+                1000000000.0 <
+                Long.MAX_VALUE.toDouble() &&
+                (maxVelocity * (seconds / 2.0)).isFinite(),
+            "scroll inertia exceeds representable time or distance"
+        )
+    }
+}
+
+internal fun sameScrollInertia(a: ScrollInertiaOptions, b: ScrollInertiaOptions): Boolean =
+    a.enabled ==
+        b.enabled &&
+        a.deceleration ==
+        b.deceleration &&
+        a.minVelocity ==
+        b.minVelocity &&
+        a.maxVelocity ==
+        b.maxVelocity
+
+internal fun scrollInertiaVelocity(value: Point, options: ScrollInertiaOptions): Point {
+    val scale = max(abs(value.x), abs(value.y))
+    if (!options.enabled || scale == 0.0 || !scale.isFinite())
+        return Point(0.0, 0.0)
+    val length = hypot(value.x / scale, value.y / scale)
+    if (scale < options.minVelocity / length)
+        return Point(0.0, 0.0)
+    if (scale > options.maxVelocity / length) {
+        val factor = (options.maxVelocity / scale) / length
+        return Point(value.x * factor, value.y * factor)
+    }
+    return value
+}

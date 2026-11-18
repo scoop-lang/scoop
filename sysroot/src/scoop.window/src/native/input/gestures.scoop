@@ -1,0 +1,30 @@
+package scoop.window
+
+internal fun copyGestureEvent(header: NativeEventHeader, event: NativeGestureData): GestureEvent {
+    val state =
+        PointerState(
+            LogicalPosition(event.x, event.y),
+            PhysicalPosition(event.physicalX, event.physicalY),
+            event.scale,
+            platformModifiers(event.modifiers),
+            copyInputTime(header)
+        )
+    val phase =
+        when (event.phase) {
+            0 -> GesturePhase.None
+            1 -> GesturePhase.Began
+            2 -> GesturePhase.Changed
+            3 -> GesturePhase.Ended
+            4 -> GesturePhase.Cancelled
+            else -> throw WindowException(
+                "unknown native gesture phase",
+                WindowErrorKind.NativeFailure
+            )
+        }
+    return when (event.kind) {
+        0 -> GestureEvent.Magnify(state, phase, event.deltaX)
+        1 -> GestureEvent.Rotate(state, phase, event.deltaX)
+        2 -> GestureEvent.Swipe(state, event.deltaX, event.deltaY)
+        else -> throw WindowException("unknown native gesture kind", WindowErrorKind.NativeFailure)
+    }
+}

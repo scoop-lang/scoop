@@ -22,6 +22,38 @@ private fun <R> editorView(window: Window, action: (Ptr<Unit>) -> R): R {
     }
 }
 
+internal fun editorSemanticMenu(window: Window, identifier: String, request: Boolean): Int =
+    editorView(window) {
+        view -> @Unsafe
+        {
+            return@editorView identifier.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeSemanticMenu(view, bytes, length, request)
+                }
+            }
+        }
+    }
+
+internal fun editorSemanticMenuResult(): Int {
+    @Unsafe
+    {
+        return nativeSemanticMenuResult()
+    }
+}
+
+@Extern(name = "scoop_test_editor_semantic_menu")
+private fun nativeSemanticMenu(
+    view: Ptr<Unit>,
+    identifier: Ptr<UInt8>,
+    length: Long,
+    request: Boolean
+): Int
+
+@Extern(name = "scoop_test_editor_semantic_menu_result")
+private fun nativeSemanticMenuResult(): Int
+
 internal fun editorText(
     window: Window,
     text: String = "",
@@ -106,6 +138,20 @@ internal fun editorSelectPinyin(window: Window) {
     )
 }
 
+internal fun editorShiftF10(window: Window) {
+    // AppKit function keys carry NSF10FunctionKey, not an empty text replacement.
+    editorKey(window, 109, "\uF70D", 1)
+}
+
+internal fun assertClipboardText(window: Window, expected: String) {
+    val actual = window.clipboard.readText()
+    assertEquals(
+        Some(expected),
+        actual,
+        Some("clipboard expected " + expected + ", actual " + (actual ?: "<no text>"))
+    )
+}
+
 internal fun editorImeKey(window: Window, code: Int) {
     assertEquals(
         0,
@@ -162,6 +208,21 @@ internal fun editorPointer(
         }
     )
 }
+
+internal fun editorContextClick(window: Window, point: Point, control: Boolean = false) {
+    assertEquals(
+        0,
+        editorView(window) {
+            view -> @Unsafe
+            {
+                return@editorView nativeContextClick(view, point.x, point.y, control)
+            }
+        }
+    )
+}
+
+@Extern(name = "scoop_test_editor_context_click")
+private fun nativeContextClick(view: Ptr<Unit>, x: Double, y: Double, control: Boolean): Int
 
 internal fun editorNativeCaret(window: Window, state: TextEditorState, bounds: Rect?) {
     var cursor = 0L

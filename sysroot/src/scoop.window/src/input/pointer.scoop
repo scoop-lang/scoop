@@ -1,6 +1,6 @@
 package scoop.window
 
-/** Position and modifiers captured from one native pointer event. */
+/** Position and modifiers captured from one native positional input event. */
 public struct PointerState(
     val logicalPosition: LogicalPosition,
     val physicalPosition: PhysicalPosition,
@@ -25,12 +25,16 @@ public enum ScrollPhase {
     None, MayBegin, Began, Stationary, Changed, Ended, Cancelled
 }
 
-/** Ends the aggregate mouse-button sequence without synthesizing a successful release. */
+/** Ends native positional input without synthesizing a successful release. */
 public enum PointerCancelReason {
     FocusLost, CaptureLost, SystemOperation, Modal
 }
 
-/** Window-relative pointer events, with independent wheel and momentum phases. */
+/**
+ * Window-relative pointer events, with independent wheel and momentum phases.
+ * Button carries a consecutive click count of at least one. The matching release
+ * retains its press count; cancellation ends the sequence without a release.
+ */
 public enum PointerEvent {
     Entered(PointerState), Left(PointerState), Moved(PointerState),
     Button(PointerState, MouseButton, ElementState, Int),

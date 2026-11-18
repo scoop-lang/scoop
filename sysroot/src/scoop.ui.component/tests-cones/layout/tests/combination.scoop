@@ -232,7 +232,7 @@ private class FlexibleEditor(private val probe: LayoutProbe, scope: ComponentSco
                     scope,
                     model.editor,
                     TextEditAppearance(probe.fonts, style, style),
-                    TextEditOptions(caretBlink = Duration.ZERO)
+                    TextEditOptions(caretBlink = Some(Duration.ZERO))
                 )
             }
         model.field = Some(field)

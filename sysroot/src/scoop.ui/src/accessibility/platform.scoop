@@ -1,0 +1,9 @@
+package scoop.ui
+
+import scoop.window.accessibility.*
+
+/** Creates a scope-owned node using the platform's actual content provider. */
+public fun ComponentScope.semantics(
+    role: SemanticRole,
+    parent: SemanticsHandle? = None
+): SemanticsHandle = createSemantics(role, parent) { nativeWindow.createAccessibilityProvider() }

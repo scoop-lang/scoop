@@ -5,6 +5,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
 import scoop.ui.text.TextEditorState
+import scoop.window.accessibility.SemanticActionResult
 
 internal class ComboChip<T: Equals<T>>(val value: T, val key: ViewKey, val focus: FocusHandle)
 
@@ -12,7 +13,7 @@ internal class ComboboxControl<T: Equals<T>>(
     val props: Props<ComboboxProps<T>>,
     val owner: ComponentScope
 ) {
-    val themes = ThemeAccess()
+    val themes = ThemeAccess(owner)
     val localOpen = state(false)
     val localActive = state<ViewKey?>(None)
     val ownEditor = FocusHandle()
@@ -73,7 +74,7 @@ internal class ComboboxControl<T: Equals<T>>(
                 theme,
                 active,
                 { key -> highlight(key) },
-                { key -> select(key) }
+                { key, focus -> select(key, focus) }
             )
         rowSource = Some(result)
         return result
@@ -92,6 +93,22 @@ internal class ComboboxControl<T: Equals<T>>(
         }
         if (open.value != previous)
             props.value.onOpenChange(open.value)
+    }
+    fun semanticOpen(value: Boolean): SemanticActionResult {
+        if (!owner.isMounted)
+            return SemanticActionResult.Unavailable
+        if (!props.value.mutable || props.value.query.isComposing)
+            return SemanticActionResult.Rejected
+        if (open.value != value) {
+            if (value)
+                setOpen(true)
+            else
+                layer.requestClose()
+        }
+        return if (open.value == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     fun show(keyboard: Boolean = false, last: Boolean = false) {
         val input = props.value
@@ -157,17 +174,23 @@ internal class ComboboxControl<T: Equals<T>>(
         if (source.enabledAt(index))
             active.value = Some(key)
     }
-    fun select(key: ViewKey) {
+    fun select(
+        key: ViewKey,
+        requestFocus: Boolean = true,
+        desired: Boolean? = None
+    ): SemanticActionResult {
         val input = props.value
         if (!input.mutable || !open.value || input.query.isComposing)
-            return
+            return SemanticActionResult.Rejected
         val source = results()
-        val index = source.indexOfKey(key) ?: return
-        val item = choiceEntryItem(source.entryAt(index)) ?: return
+        val index = source.indexOfKey(key) ?: return SemanticActionResult.Unavailable
+        val item = choiceEntryItem(source.entryAt(index)) ?: return SemanticActionResult.Unsupported
         if (!item.choice.enabled)
-            return
+            return SemanticActionResult.Rejected
         val previous = comboValues(input.selection)
-        val adding = !input.multiple || !comboContains(previous, item.choice.value)
+        val adding = desired ?: (!input.multiple || !comboContains(previous, item.choice.value))
+        if (desired != None && comboContains(previous, item.choice.value) == adding)
+            return SemanticActionResult.Completed
         val next = ArrayList<T>()
         if (input.multiple)
             for (value in previous)
@@ -178,13 +201,17 @@ internal class ComboboxControl<T: Equals<T>>(
         comboWrite(input, next.toArray())
         val accepted = comboValues(props.value.selection)
         if (comboContains(accepted, item.choice.value) != adding)
-            return
+            return SemanticActionResult.Rejected
         if (props.value.clearQueryOnSelect)
             props.value.query.replaceAll("")
         if (props.value.closeOnSelect ?: !props.value.multiple)
             layer.requestClose()
-        if (props.value.inputPlacement == ComboboxInputPlacement.Inline || open.value)
+        if (
+            requestFocus &&
+                (props.value.inputPlacement == ComboboxInputPlacement.Inline || open.value)
+        )
             editor.requestFocus()
+        return SemanticActionResult.Completed
     }
     fun clear() {
         val input = props.value

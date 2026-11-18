@@ -1,0 +1,76 @@
+package scoop.tests.ui.scroll.accessibility
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextContextMenuMode
+
+internal class ScrollRoot(private val probe: ScrollProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val probe = this.probe
+        val children =
+            [
+                scrollArea(element({ mount -> ScrollContent(mount) })) {
+                    state = Some(probe.current)
+                    axes = ScrollAxes.Both
+                    width = Some(160.0)
+                    height = Some(80.0)
+                    enabled = probe.enabled.value
+                    scrollbars =
+                        if (probe.showBars.value)
+                            ScrollbarVisibility.Always
+                        else
+                            ScrollbarVisibility.Hidden
+                    scrollbarBehavior { preset = ScrollbarPreset.Static }
+                    semantics =
+                        ComponentSemantics(name = Some("Content"), automationId = Some("scroll"))
+                },
+                textarea(probe.editor) {
+                    readOnly = true
+                    rows = 2L
+                    contextMenu { mode = TextContextMenuMode.Disabled }
+                    semantics = ComponentSemantics(automationId = Some("text-scroll"))
+                }
+            ]
+        return element(
+            probe.showBars.value,
+            { props, mount -> ScrollPanel(probe, props, mount) },
+            children
+        )
+    }
+}
+
+private class ScrollPanel(
+    private val probe: ScrollProbe,
+    private val props: Props<Boolean>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Boolean
+    > {
+        context.measureChild(0L, Constraints(maxWidth = Some(200.0)))
+        context.measureChild(1L, Constraints.tight(Size(200.0, 80.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.placeChild(1L, Point(0.0, 110.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 220.0))), props.value)
+    }
+    public override fun scene(context: SceneContext, layout: Boolean) {
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted(layout)
+        }
+    }
+}
+
+private class ScrollContent(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 280.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 320.0, 280.0), Paint(Color.White))
+        }
+    }
+}

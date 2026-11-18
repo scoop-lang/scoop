@@ -1,0 +1,15 @@
+package scoop.ui
+
+import scoop.surface.InputArea
+import scoop.window.*
+
+/** Prepares data after the mouse or direct-contact drag threshold has been reached. */
+public fun ComponentScope.dragSource(
+    area: InputArea,
+    options: DragSourceOptions = DragSourceOptions(),
+    prepare: (DragSourceStart) -> DragSourceData?
+): DragSource =
+    createDragSource(area, options, prepare) {
+        data,
+        completed -> nativeWindow.beginDrag(data.content, data.effects, data.localData, completed)
+    }

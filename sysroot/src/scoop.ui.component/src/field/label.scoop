@@ -17,14 +17,15 @@ public class FieldLabelProps public constructor(
     public val theme: ThemeSource? = None,
     public val textStyle: SpanStyle? = None,
     public val settings: ParagraphStyle? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class FieldLabel public constructor(
     private val props: Props<FieldLabelProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -70,7 +71,12 @@ public class FieldLabel public constructor(
                 this.style = input.style
             }
         return element(
-            FieldLabelInkProps(input.target, input.target.connection, input.target.isEnabled),
+            FieldLabelInkProps(
+                input.target,
+                input.target.connection,
+                input.target.isEnabled,
+                input.semantics
+            ),
             { current, mount -> FieldLabelInk(current, scope = mount) },
             [decorated]
         )
@@ -80,13 +86,15 @@ public class FieldLabel public constructor(
 private class FieldLabelInkProps(
     val target: FieldTarget,
     val connection: FieldLink?,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val semantics: ComponentSemantics
 )
 
 private class FieldLabelInk(
     private val props: Props<FieldLabelInkProps>,
     scope: ComponentScope
 ): Element<Unit>(scope) {
+    private val annotation = scope.resource { FieldAnnotation(scope) }
     private var area: InputArea? = None
     private var press: Press? = None
     private var previous: FieldLabelInkProps? = None
@@ -111,6 +119,12 @@ private class FieldLabelInk(
             val current = props.value
             current.connection?.activate(scope, current.target)
         }
+        annotation.update(
+            Some(value.target),
+            FieldAnnotationKind.Label,
+            value.semantics,
+            value.enabled
+        )
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -122,6 +136,7 @@ private class FieldLabelInk(
     }
     public override fun scene(context: SceneContext, measured: Unit) {
         val enabled = props.value.enabled
+        annotation.scene(context)
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
         if (!enabled)
             context.saveLayer(0.5)
@@ -150,6 +165,7 @@ public class FieldLabelBuilder internal constructor() {
     public var settings: ParagraphStyle? = None
     public var style: StyleOverride = styleOverride()
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun textStyle(configure: SpanStyleBuilder.() -> Unit): Unit {
         textStyle = Some((textStyle ?: spanStyle()).copy(configure))
     }
@@ -160,7 +176,7 @@ public class FieldLabelBuilder internal constructor() {
         style = style.copy(configure)
     }
     internal fun snapshot(content: FieldLabelContent, target: FieldTarget): FieldLabelProps =
-        FieldLabelProps(content, target, fonts, theme, textStyle, settings, style)
+        FieldLabelProps(content, target, fonts, theme, textStyle, settings, style, semantics)
 }
 
 public fun fieldLabel(

@@ -1,0 +1,198 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.accessibility.*
+
+internal class TextTouchScene(private val p: TextTouchProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val revision = p.generation.value
+        val input = p.model.inputState
+        val children: Array<View> =
+            if (p.gone)
+                []
+            else
+                [
+                    element(revision, { props, mount -> TouchEditor(p, props, scope = mount) }),
+                    element(
+                        revision,
+                        { _, mount -> TouchReadPane(p, scope = mount) },
+                        [
+                            element(
+                                revision,
+                                { props, mount -> TouchReadonly(p, props, scope = mount) }
+                            )
+                        ]
+                    )
+                ]
+        return element(revision, { props, mount -> TouchPanel(p, props, scope = mount) }, children)
+    }
+}
+
+private class TouchPanel(
+    private val p: TextTouchProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Contact(InputContactEvent.Began(_)) -> {
+                        if (p.preventBegin)
+                            context.preventDefault()
+                    }
+                    case Contact(InputContactEvent.Moved(_)) -> {
+                        if (p.preventMove)
+                            context.preventDefault()
+                    }
+                    case Contact(InputContactEvent.Ended(_)) -> {
+                        if (p.preventEnd)
+                            context.preventDefault()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        if (context.childCount > 0L) {
+            context.measureChild(0L, Constraints.tight(Size(360.0, 80.0)))
+            context.placeChild(0L, Point(20.0, 20.0))
+            context.measureChild(1L, Constraints.tight(Size(360.0, 140.0)))
+            context.placeChild(1L, Point(20.0, 160.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(520.0, 380.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.scale(p.scale, p.scale)
+        context.children()
+        val revision = props.value
+        val model = p.model.revision
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                p.accepted = revision
+                p.modelRevision = model
+                p.passes += 1
+            }
+        }
+    }
+}
+
+private class TouchEditor(
+    private val p: TextTouchProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val host = scope.resource { TextEditHost(scope, p.model, p.appearance, p.options()) }
+    private val semantic = scope.semantics(SemanticRole.TextField)
+    public override fun onMount() {
+        p.editor = Some(host)
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        props.value
+        host.update(p.model, p.appearance, p.options())
+        semantic.updateTextEditor(host, SemanticProperties(automationId = Some("touch-editor")))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = host.measure(constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+        host.scene(context, measured)
+    }
+}
+
+private class TouchReadPane(private val p: TextTouchProbe, scope: ComponentScope): Element<
+    ScrollLayout
+>(scope) {
+    private val viewport = scope.scrollViewport(p.outer)
+    private val area = scope.createArea()
+    private val pan = scope.scrollPan(area, viewport, ScrollAxes.Vertical)
+    public override fun onMount() {
+        // This scene checks direct movement; timed inertia has its own cases.
+        viewport.physics = ScrollPhysicsOptions(inertia = ScrollInertiaOptions(false))
+        scope.routeChildren(area)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
+        val content = context.measureChild(0L, Constraints.tight(Size(360.0, 260.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        val size = constraints.constrain(Size(360.0, 140.0))
+        return LayoutResult(LayoutMetrics(size), viewport.layout(size, content.size))
+    }
+    public override fun scene(context: SceneContext, measured: ScrollLayout) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+        viewport.present(context, measured, Some { child -> child.children() })
+    }
+}
+
+private class TouchReadonly(
+    private val p: TextTouchProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
+    private val host = scope.resource { SelectableTextHost(scope, p.fonts, p.content) }
+    private val semantic = scope.semantics(SemanticRole.Text)
+    public override fun onMount() {
+        p.selectable = Some(host);
+        update()
+    }
+    public override fun update(): UiInvalidation {
+        props.value
+        host.update(
+            p.fonts,
+            p.content,
+            SelectableTextOptions(enabled = p.enabled, contextMenu = p.menu, touch = p.touch),
+            actions = [TextRangeAction("link", TextRange(0L, 4L), { p.links += 1 })],
+            onSelectionChanged =
+                {
+                    _,
+                    _ -> {
+                        if (p.replaceOnSelection) {
+                            p.replaceOnSelection = false
+                            host.setSelection(TextPosition(0L), TextPosition(0L))
+                        }
+                        if (p.closeOnSelection) {
+                            host.close()
+                            p.gone = true
+                            p.changed()
+                        }
+                    }
+                }
+        )
+        semantic.updateSelectableText(
+            host,
+            SemanticProperties(automationId = Some("touch-readonly"))
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val measured = host.measure(context, constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+        host.scene(context, measured)
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.paragraph = Some(host.layout)
+        }
+    }
+}

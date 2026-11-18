@@ -93,7 +93,16 @@ internal fun sliderThumbOptions(
             lowerBound(visual.hoverProgress ?: 0.0, visual.pressProgress ?: 0.0)
     val base =
         styleOverride {
-            this.background(Some(Paint(Color.White)))
+            this.background(
+                Some(
+                    Paint(
+                        if (theme.preferences.highContrast)
+                            theme.tokens.palette.background.background
+                        else
+                            Color.White
+                    )
+                )
+            )
             this.border(
                 Some(
                     Border.all(
@@ -113,10 +122,8 @@ internal fun sliderThumbOptions(
         this.focus =
             Some(
                 OutlineStyle(
-                    theme.tokens.palette.ring.withAlpha(
-                        theme.tokens.palette.ring.alpha * 0.5 * amount
-                    ),
-                    3.0 * density,
+                    componentTint(theme, theme.tokens.palette.ring, 0.5 * amount),
+                    componentFocusWidth(theme, 3.0 * density),
                     0.0
                 )
             )

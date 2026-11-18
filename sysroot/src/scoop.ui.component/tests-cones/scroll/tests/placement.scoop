@@ -1,0 +1,76 @@
+package scoop.tests.ui.scrollarea
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+/** Reuses the mounted content and focus target while switching physical placement. */
+internal fun advanceScrollbarPlacement(probe: AreaProbe, active: ActiveApplication): Boolean {
+    when (probe.placementPhase) {
+        case 0 -> {
+            probe.behavior.value =
+                probe.behavior.value.copy { placement = ScrollbarPlacement.Gutter }
+            probe.outer.scrollTo(Point(50.0, 60.0))
+        }
+        case 1 -> {
+            val band = probe.bar().bounds.width
+            assertEquals(Size(200.0 - band, 120.0 - band), probe.outer.viewport)
+            assertEquals(Size(400.0, 600.0), probe.outer.content)
+            assertEquals(ScrollPadding(), probe.outer.snapshot.padding)
+            assertEquals(Point(50.0, 60.0), probe.outer.offset)
+            probe.direction.value = LayoutDirection.Rtl
+        }
+        case 2 -> {
+            val band = probe.bar().bounds.width
+            assertEquals(
+                Some(Rect(20.0 + band + 240.0 - 50.0, 20.0 + 400.0 - 60.0, 50.0, 30.0)),
+                probe.leafArea!!.toWindow(Rect(0.0, 0.0, 50.0, 30.0))
+            )
+            assertTrue(probe.leafFocus.requestFocus())
+        }
+        case 3 -> {
+            if (probe.leafFocus.isPending)
+                return false
+            assertTrue(probe.leafFocus.hasFocus)
+            val visible = probe.leafArea!!.visibleBounds!!
+            assertTrue(visible.x >= 20.0 + probe.bar().bounds.width)
+            assertTrue(visible.x + visible.width <= 220.01)
+            assertTrue(visible.y + visible.height <= 20.01 + probe.outer.viewport.height)
+            probe.behavior.value =
+                probe.behavior.value.copy { placement = ScrollbarPlacement.Overlay }
+        }
+        case 4 -> {
+            val band = probe.bar().bounds.width
+            assertEquals(Size(200.0, 120.0), probe.outer.viewport)
+            assertEquals(ScrollPadding(left = band, bottom = band), probe.outer.snapshot.padding)
+            assertEquals(1, probe.mounts)
+            assertTrue(probe.leafFocus.hasFocus)
+            probe.outer.reveal(Rect(399.0, 599.0, 1.0, 1.0))
+        }
+        case 5 -> {
+            assertEquals(probe.outer.maximum, probe.outer.offset)
+            probe.placementIntent = probe.outerIntents.size
+            probe.bars.value = ScrollbarVisibility.Hidden
+        }
+        case 6 -> {
+            assertEquals(ScrollPadding(), probe.outer.snapshot.padding)
+            assertEquals(Point(200.0, 480.0), probe.outer.maximum)
+            assertTrue(probe.outerIntents.size > probe.placementIntent)
+            for (index in probe.placementIntent ..< probe.outerIntents.size)
+                when (probe.outerIntents[index]) {
+                    case LayoutCorrection(_) -> {}
+                    else -> fail(Some("placement change emitted an explicit scroll intent"))
+                }
+            probe.bars.value = ScrollbarVisibility.Auto
+            probe.direction.value = LayoutDirection.Ltr
+            probe.outer.scrollTo(Point(0.0, 0.0))
+        }
+        case 7 -> return true
+        else -> fail(Some("unexpected scrollbar placement phase"))
+    }
+    probe.placementPhase += 1
+    assertTrue(active.proxy().post { _ -> })
+    return false
+}

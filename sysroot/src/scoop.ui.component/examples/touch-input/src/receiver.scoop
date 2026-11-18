@@ -1,0 +1,59 @@
+package scoop.examples.touchinput
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.*
+
+internal struct WorkshopReceiverInput(val content: DragContent?, val accept: (DragContent) -> Unit)
+
+internal class WorkshopReceiver(
+    private val props: Props<WorkshopReceiverInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    public override fun onMount() {
+        scope.dropTarget(
+            area,
+            DropAreaHandlers(
+                {
+                    offer,
+                    _ -> if (!offer.effects.copy)
+                        DropDecision.Reject
+                    else
+                        if (offer.formats.files)
+                            DropDecision.Accept(DragFormat.Files, DragEffect.Copy)
+                        else
+                            if (offer.formats.url)
+                                DropDecision.Accept(DragFormat.Url, DragEffect.Copy)
+                            else
+                                if (offer.formats.text)
+                                    DropDecision.Accept(DragFormat.Text, DragEffect.Copy)
+                                else
+                                    DropDecision.Reject
+                },
+                {
+                    request, _ ->
+                    props.value.accept(request.content);
+                    true
+                }
+            )
+        )
+        scope.dragSource(area) {
+            _ -> when (val content = props.value.content) {
+                case Some(val value) -> Some(DragSourceData(value))
+                case None -> None
+            }
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}

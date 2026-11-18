@@ -5,6 +5,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
+import scoop.window.TextInputPurpose
 
 public struct InputOtpSlot(val index: Long, val invalid: Boolean = false)
 
@@ -35,9 +36,21 @@ public class InputOtpProps public constructor(
     public val labelTarget: FieldTarget? = None,
     public val focus: FocusOptions = FocusOptions(),
     public val style: InputOtpStyle = inputOtpStyle(),
-    public val caretBlink: Duration = Duration.milliseconds(500L),
+    public val caretBlink: Duration? = None,
     public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
-    public val onComplete: (TextEditorState) -> Unit = { _ -> Unit }
+    public val onComplete: (TextEditorState) -> Unit = { _ -> Unit },
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
+    public val protectedText: Boolean = false,
+    public val acceptDrops: Boolean = true,
+    public val drag: TextDragOptions = TextDragOptions(),
+    public val touch: TextTouchOptions = TextTouchOptions(),
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val inputPurpose: TextInputPurpose? = None,
+    public val softwareKeyboard: Boolean = true,
+    public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions(),
+    public val automaticTextReplacement: Boolean = false
 ) {
     init {
         requireComponent(length > 0L, "OTP length must be positive")
@@ -80,7 +93,7 @@ public class InputOtp public constructor(
     private val props: Props<InputOtpProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val body = ActionTextStyle()
     private val visual = state(TextEditInteraction())
     private val interactionChanged: (TextEditInteraction) -> Unit = { next -> visual.value = next }

@@ -1,0 +1,10 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.accessibility.SemanticRole
+
+internal fun createComponentSemantics(
+    scope: ComponentScope,
+    role: SemanticRole,
+    parent: SemanticsHandle? = None
+): SemanticsHandle? = Some(scope.semantics(role, parent))

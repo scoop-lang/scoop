@@ -42,6 +42,8 @@ internal fun sameLabelInputs(a: LabelProps, b: LabelProps): Boolean {
         fonts &&
         theme &&
         base &&
+        a.semantics ==
+        b.semantics &&
         sameLabelParagraph(a.settings, b.settings) &&
         a.underline ==
         b.underline
@@ -89,6 +91,8 @@ private fun sameButtonInputs(a: ButtonProps, b: ButtonProps): Boolean {
         theme &&
         target &&
         focus &&
+        a.semantics ==
+        b.semantics &&
         a.style ===
         b.style &&
         a.enabled ==

@@ -5,6 +5,7 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal class ResizableGesture(
     val index: Long,
@@ -21,6 +22,7 @@ internal class ResizableControl(
     private val input: () -> ResizableInput
 ) {
     private var geometry: ResizableGeometry? = None
+    private val semanticRevision = state(0UL)
     private var gesture: ResizableGesture? = None
     private var configured = input().props
     private var direction = scope.layoutDirection
@@ -74,7 +76,10 @@ internal class ResizableControl(
     fun accept(shape: ResizableGeometry) {
         if (!scope.isMounted || !compatible(shape))
             return
+        val previous = geometry
         geometry = Some(shape)
+        if (previous?.target != Some(shape.target))
+            semanticRevision.value += 1UL
         when (gesture) {
             case Some(val active) -> if (
                 shape.size !=
@@ -233,15 +238,66 @@ internal class ResizableControl(
         val command =
             resizableKey(props.orientation, scope.layoutDirection, event.logicalKey) ?: return
         context.consume()
+        adjust(index, command)
+    }
+    fun range(index: Long): SemanticValueRange? {
+        if (semanticRevision.value == 0UL || !available(index))
+            return None
+        val props = input().props
+        val shape = geometry ?: return None
+        val sizes =
+            resizableAllocation(props.panels, resizableValues(props.sizes.value), shape.target)
+        val total = sizes[index] + sizes[index + 1L]
+        val lower =
+            resizablePair(
+                sizes[index],
+                sizes[index + 1L],
+                -total,
+                props.panels[index],
+                props.panels[index + 1L]
+            )
+        val upper =
+            resizablePair(
+                sizes[index],
+                sizes[index + 1L],
+                total,
+                props.panels[index],
+                props.panels[index + 1L]
+            )
+        return Some(
+            SemanticValueRange(
+                lower.first,
+                upper.first,
+                sizes[index],
+                upperBound(total, props.keyboardStep)
+            )
+        )
+    }
+    fun setNumber(index: Long, value: Double): SemanticActionResult {
+        val current = range(index) ?: return SemanticActionResult.Unavailable
+        if (!value.isFinite() || value < current.minimum || value > current.maximum)
+            return SemanticActionResult.InvalidArgument
+        if (current.step <= 0.0)
+            return SemanticActionResult.Completed
+        return adjust(index, ResizableKey.Step((value - current.value) / current.step))
+    }
+    fun adjust(index: Long, command: ResizableKey): SemanticActionResult {
+        if (!available(index))
+            return SemanticActionResult.Rejected
         cancel(DragCancelReason.Explicit)
         if (!scope.isMounted)
-            return
-        val shape = geometry ?: return
+            return SemanticActionResult.Unavailable
+        val props = input().props
+        val shape = geometry ?: return SemanticActionResult.Unavailable
         val before = props.sizes.value
         val next = resizableKeyboard(props, before, shape.target, index, command)
         apply(next)
         if (scope.isMounted && !sameResizableSizes(before, props.sizes.value))
             props.onSizesCommit(props.sizes.value)
+        return if (sameResizableSizes(next, props.sizes.value))
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     fun retire() {
         cancel(DragCancelReason.Closed);

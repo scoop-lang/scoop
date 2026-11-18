@@ -1,0 +1,34 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.graphics.Rect
+import scoop.surface.InputScope
+
+internal fun inputWindowPoint(scope: InputScope, point: Point): Point? =
+    when (scope.area) {
+        case Some(val area) -> when (area.toWindow(Rect(point.x, point.y, 0.0, 0.0))) {
+            case Some(val bounds) -> Some(Point(bounds.x, bounds.y))
+            case None -> None
+        }
+        case None -> Some(point)
+    }
+
+internal fun inputLocalPoint(scope: InputScope, point: Point): Point? =
+    when (scope.area) {
+        case Some(val area) -> area.toLocal(point)
+        case None -> Some(point)
+    }
+
+internal fun inputLocalVector(scope: InputScope, origin: Point, amount: Point): Point? {
+    val first = inputLocalPoint(scope, origin) ?: return None
+    val last =
+        inputLocalPoint(scope, Point(origin.x + amount.x, origin.y + amount.y)) ?: return None
+    return Some(Point(last.x - first.x, last.y - first.y))
+}
+
+internal fun inputWindowVector(scope: InputScope, origin: Point, amount: Point): Point? {
+    val local = inputLocalPoint(scope, origin) ?: return None
+    val first = inputWindowPoint(scope, local) ?: return None
+    val last = inputWindowPoint(scope, Point(local.x + amount.x, local.y + amount.y)) ?: return None
+    return Some(Point(last.x - first.x, last.y - first.y))
+}

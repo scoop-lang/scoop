@@ -10,7 +10,9 @@ public class FieldErrorProps public constructor(
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
     public val textStyle: SpanStyle? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val target: FieldTarget? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 internal fun fieldErrors(errors: Array<String>): Array<String> {
@@ -32,7 +34,7 @@ public class FieldError public constructor(
     private val props: Props<FieldErrorProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -42,9 +44,11 @@ public class FieldError public constructor(
         val base = fieldTextStyle(FieldTextRole.Error, theme)
         val text = input.textStyle?.resolve(base) ?: base
         when (input.content) {
-            case Some(val content) -> return panelFrame(
-                panelCaption(content, text, input.fonts),
-                visual = input.style
+            case Some(val content) -> return fieldAnnotated(
+                panelFrame(panelCaption(content, text, input.fonts), visual = input.style),
+                input.target,
+                FieldAnnotationKind.Error,
+                input.semantics
             )
             case None -> {}
         }
@@ -52,6 +56,13 @@ public class FieldError public constructor(
         if (errors.size == 0L)
             return empty()
         val density = theme.tokens.typography.body.fontSize / 14.0
+        val marker =
+            PanelContent.Label(
+                LabelProps(
+                    LabelText.Plain("•", None),
+                    semantics = ComponentSemantics(ignored = true)
+                )
+            )
         val content =
             makeColumn {
                 for (error in errors) {
@@ -63,7 +74,7 @@ public class FieldError public constructor(
                             makeRow {
                                 this.add(
                                     panelFrame(
-                                        panelCaption(fieldPlain("•"), text, input.fonts),
+                                        panelCaption(marker, text, input.fonts),
                                         width = Some(8.0 * density)
                                     )
                                 )
@@ -76,7 +87,12 @@ public class FieldError public constructor(
                 this.spacing = 4.0 * density
                 this.alignment = CrossAlignment.Stretch
             }
-        return panelFrame(content, visual = input.style)
+        return fieldAnnotated(
+            panelFrame(content, visual = input.style),
+            input.target,
+            FieldAnnotationKind.Error,
+            input.semantics
+        )
     }
 }
 
@@ -92,7 +108,7 @@ public class FieldErrorBuilder internal constructor(): FieldTextBuilder() {
         content = Some(PanelContent.Custom(view))
     }
     internal fun snapshot(errors: Array<String>): FieldErrorProps =
-        FieldErrorProps(errors, content, fonts, theme, textStyle, style)
+        FieldErrorProps(errors, content, fonts, theme, textStyle, style, target, semantics)
 }
 
 public fun fieldError(errors: Array<String>, configure: FieldErrorBuilder.() -> Unit = {}): View =

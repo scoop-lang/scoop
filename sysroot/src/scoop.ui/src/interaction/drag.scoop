@@ -16,10 +16,13 @@ public class Drag internal constructor(
     private var accept = accepts
     private var receive = handler
     private var closed = false
-    private var start: InputPointer? = None
-    private var previous: InputPointer? = None
+    private var start: PointerState? = None
+    private var previous: PointerState? = None
+    private var input: DragInput? = None
+    private val contacts = ArrayList<ContactId>()
     private var latest: DragSample? = None
     private var claimed = false
+    private var moved = false
     private val events = area.scope.addEventHandler { context, event -> observe(context, event) }
     private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
     private val finished = area.scope.addEventFinished { event -> finish(event) }
@@ -44,7 +47,11 @@ public class Drag internal constructor(
                 value.button !=
                 options.button ||
                 value.threshold !=
-                options.threshold
+                options.threshold ||
+                value.contacts !=
+                options.contacts ||
+                value.mouse !=
+                options.mouse
         options = value
         accept = accepts
         receive = handler
@@ -59,53 +66,118 @@ public class Drag internal constructor(
             return
         if (context.phase == RoutedPhase.Notification) {
             when (event) {
-                case Pointer(InputPointerEvent.Cancelled(val reason, _)) -> cancel(
-                    DragCancelReason.Input(reason),
-                    false
-                )
+                case Pointer(InputPointerEvent.Cancelled(val reason, _)) -> if (isMouse())
+                    cancel(DragCancelReason.Input(reason), false)
+                case Contact(InputContactEvent.Cancelled(val id, val reason, _)) -> {
+                    forgetContact(contacts, id)
+                    if (isContact(id))
+                        cancel(DragCancelReason.Input(reason), false)
+                }
                 else -> {}
             }
             return
         }
         when (event) {
-            case Pointer(InputPointerEvent.Button(val point, val button, ElementState.Pressed, _)) -> {
-                if (options.enabled && start == None && button == options.button) {
-                    val local = context.localPosition ?: return
-                    if (accept(local) && !closed && !area.isClosed) {
-                        start = Some(point);
-                        previous = Some(point);
-                        latest = sample(point)
+            case Pointer(
+                InputPointerEvent.Button(val point, val button, ElementState.Pressed, _)
+            ) -> {
+                if (
+                    options.enabled &&
+                        options.mouse &&
+                        (!options.contacts || contacts.size == 0L) &&
+                        button ==
+                        options.button
+                )
+                    begin(context, point.state, DragInput.Mouse(button))
+            }
+            case Contact(InputContactEvent.Began(val value)) -> {
+                rememberContact(contacts, value.id)
+                if (contacts.size > 1L) {
+                    when (input) {
+                        case Some(DragInput.Contact(_, _)) -> cancel(
+                            DragCancelReason.AdditionalContact
+                        )
+                        else -> {}
                     }
+                    return
                 }
+                if (options.enabled && options.contacts)
+                    begin(context, value.pointer, DragInput.Contact(value.id, value.kind))
             }
             else -> {}
         }
     }
+    private fun begin(context: RoutedEventContext, point: PointerState, source: DragInput) {
+        if (start != None)
+            return
+        val local = context.localPosition ?: return
+        if (accept(local) && !closed && !area.isClosed) {
+            input = Some(source)
+            start = Some(point)
+            previous = Some(point)
+            latest = sample(point)
+        }
+    }
+    private fun isMouse(): Boolean =
+        when (input) {
+            case Some(DragInput.Mouse(_)) -> true
+            else -> false
+        }
+    private fun isContact(id: ContactId): Boolean =
+        when (input) {
+            case Some(DragInput.Contact(val current, _)) -> current == id
+            else -> false
+        }
     private fun handle(context: RoutedEventContext, event: InputEvent) {
         if (closed || !options.enabled || start == None)
             return
         when (event) {
-            case Pointer(InputPointerEvent.Button(val point, val button, ElementState.Pressed, _)) -> if (
-                button == options.button && options.threshold == 0.0
+            case Pointer(
+                InputPointerEvent.Button(val point, val button, ElementState.Pressed, _)
+            ) -> if (isMouse() && button == options.button && options.threshold == 0.0)
+                advance(context, point.state, true)
+            case Pointer(InputPointerEvent.Moved(val point)) -> if (isMouse()) {
+                moved = true
+                advance(context, point.state)
+            }
+            case Pointer(
+                InputPointerEvent.Button(val point, val button, ElementState.Released, _)
+            ) -> {
+                if (isMouse() && button == options.button)
+                    end(context, point.state)
+            }
+            case Contact(InputContactEvent.Began(val value)) -> if (
+                isContact(value.id) && options.threshold == 0.0
             )
-                advance(context, point)
-            case Pointer(InputPointerEvent.Moved(val point)) -> advance(context, point)
-            case Pointer(InputPointerEvent.Button(val point, val button, ElementState.Released, _)) -> {
-                if (button == options.button && claimed) {
-                    val value = sample(point)
-                    context.consume()
-                    if (value == None) {
-                        cancel(DragCancelReason.GeometryUnavailable);
-                        return
-                    }
-                    clear()
-                    receive(DragEvent.Ended(value!!))
-                }
+                advance(context, value.pointer, true)
+            case Contact(InputContactEvent.Moved(val value)) -> if (isContact(value.id)) {
+                moved = true
+                advance(context, value.pointer)
+            }
+            case Contact(InputContactEvent.Ended(val value)) -> {
+                if (isContact(value.id))
+                    end(context, value.pointer)
             }
             else -> {}
         }
     }
-    private fun advance(context: RoutedEventContext, point: InputPointer) {
+    private fun end(context: RoutedEventContext, point: PointerState) {
+        if (!claimed)
+            return
+        val value = sample(point)
+        context.consume()
+        if (value == None) {
+            cancel(DragCancelReason.GeometryUnavailable)
+            return
+        }
+        clear()
+        receive(DragEvent.Ended(value!!))
+    }
+    private fun advance(
+        context: RoutedEventContext,
+        point: PointerState,
+        pressed: Boolean = false
+    ) {
         val value = sample(point)
         if (value == None) {
             cancel(DragCancelReason.GeometryUnavailable);
@@ -114,6 +186,8 @@ public class Drag internal constructor(
         val current = value!!
         latest = value
         if (!claimed) {
+            if (!pressed && current.position == current.start)
+                return
             val cross =
                 if (options.axis == DragAxis.Horizontal)
                     current.position.y - current.start.y
@@ -127,7 +201,15 @@ public class Drag internal constructor(
                 clear();
                 return
             }
-            if (!area.scope.claimPointer(options.button) || closed || area.isClosed) {
+            val source = input ?: return
+            val acquired =
+                when (source) {
+                    case Mouse(val button) -> area.scope.claimPointer(button)
+                    case Contact(val id, _) -> area.scope.claimContacts([id])
+                }
+            if (!acquired || closed || area.isClosed || input != Some(source) || start == None) {
+                if (acquired && !area.isClosed)
+                    release(source)
                 clear();
                 return
             }
@@ -141,8 +223,9 @@ public class Drag internal constructor(
             receive(DragEvent.Moved(current))
         }
     }
-    private fun sample(point: InputPointer): DragSample? {
+    private fun sample(point: PointerState): DragSample? {
         val origin = start ?: return None
+        val source = input ?: return None
         val before = previous ?: origin
         val local = area.toLocal(windowPoint(point)) ?: return None
         val beginning = area.toLocal(windowPoint(origin)) ?: return None
@@ -160,22 +243,48 @@ public class Drag internal constructor(
                 0.0
         if (!displacement.isFinite() || !speed.isFinite())
             return None
-        return Some(DragSample(beginning, local, displacement, speed, point.time))
+        return Some(
+            DragSample(beginning, local, displacement, speed, origin.time, point.time, source)
+        )
     }
     private fun axis(point: Point): Double =
         if (options.axis == DragAxis.Horizontal)
             point.x
         else
             point.y
-    private fun windowPoint(point: InputPointer): Point =
-        Point(point.state.logicalPosition.x, point.state.logicalPosition.y)
+    private fun windowPoint(point: PointerState): Point =
+        Point(point.logicalPosition.x, point.logicalPosition.y)
     private fun finish(event: InputEvent) {
         if (closed)
             return
         when (event) {
+            case Pointer(InputPointerEvent.Moved(_)) -> {
+                if (isMouse() && start != None && !moved)
+                    cancel(DragCancelReason.PreventedMovement)
+                moved = false
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (isContact(value.id) && start != None && !moved)
+                    cancel(DragCancelReason.PreventedMovement)
+                moved = false
+            }
             case Pointer(InputPointerEvent.Button(_, val button, ElementState.Released, _)) -> {
-                if (button == options.button && start != None)
+                if (isMouse() && button == options.button && start != None)
                     cancel(DragCancelReason.PreventedRelease)
+            }
+            case Contact(InputContactEvent.Ended(val value)) -> {
+                forgetContact(contacts, value.id)
+                if (isContact(value.id))
+                    cancel(DragCancelReason.PreventedRelease)
+            }
+            case Contact(InputContactEvent.Began(val value)) -> {
+                when (input) {
+                    case Some(DragInput.Contact(val current, _)) -> {
+                        if (current != value.id)
+                            cancel(DragCancelReason.AdditionalContact)
+                    }
+                    else -> {}
+                }
             }
             else -> {}
         }
@@ -189,16 +298,32 @@ public class Drag internal constructor(
         start = None;
         previous = None;
         latest = None;
+        input = None;
         claimed = false
+        moved = false
+    }
+    private fun release(source: DragInput) {
+        when (source) {
+            case Mouse(_) -> area.scope.cancelPointerClaim()
+            case Contact(val id, _) -> area.scope.cancelContactClaim(id)
+        }
     }
     private fun cancel(reason: DragCancelReason, releaseClaim: Boolean = true) {
         val active = claimed
         val snapshot = latest
+        val source = input
         clear()
-        if (active && releaseClaim && !area.isClosed)
-            area.scope.cancelPointerClaim()
-        if (active && snapshot != None)
-            receive(DragEvent.Cancelled(snapshot!!, reason))
+        var failure =
+            cleanupUi(None) {
+                if (active && releaseClaim && !area.isClosed && source != None)
+                    release(source!!)
+            }
+        failure =
+            cleanupUi(failure) {
+                if (active && snapshot != None)
+                    receive(DragEvent.Cancelled(snapshot!!, reason))
+            }
+        throwUi(failure)
     }
     public override fun close() {
         area.isClosed
@@ -206,6 +331,7 @@ public class Drag internal constructor(
             return
         closed = true
         var failure = cleanupUi(None) { cancel(DragCancelReason.Closed) }
+        contacts.clear()
         failure = cleanupUi(failure) { events.close() }
         failure = cleanupUi(failure) { defaults.close() }
         failure = cleanupUi(failure) { finished.close() }

@@ -70,7 +70,7 @@ private class AvatarGroup(
     private val props: Props<AvatarGroupProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(None)
     }

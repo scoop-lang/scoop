@@ -1,0 +1,299 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+@Test
+private class ActionColorPreferencesTest {
+    @Test
+    fun `high contrast actions retain paired foregrounds in every stable state`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (base in colorPreferenceThemes(mode)) {
+                val theme = base.withPreferences(ThemePreferences(highContrast = true))
+                val canvas = theme.tokens.palette.background.background
+                for (shape in [ActionShape.Button(ButtonSize.Default), ActionShape.Badge])
+                    for (variant in colorPreferenceVariants())
+                        for (visual in colorPreferenceStates()) {
+                            val surface = SurfaceVisual(SurfaceKind.Action, visual)
+                            val geometry = colorPreferenceAction(theme, shape, variant, visual)
+                            val fill = geometry.style.background!!.color
+                            assertTrue(fill.alpha == 0.0 || fill.alpha == 1.0)
+                            assertEquals(1.0, geometry.opacity)
+                            assertColorContrast(
+                                actionTextColor(theme, shape, variant, surface),
+                                if (fill.alpha == 0.0)
+                                    canvas
+                                else
+                                    fill,
+                                if (visual.enabled)
+                                    7.0
+                                else
+                                    4.5
+                            )
+                            if (visual.focusVisible) {
+                                assertTrue(geometry.ring!!.border.width >= 2.0)
+                                assertColorContrast(geometry.ring!!.border.color, canvas, 3.0)
+                            }
+                        }
+            }
+    }
+
+    @Test
+    fun `high contrast toggles and tabs use their actual selected and parent surfaces`() {
+        val style = buttonStyle { kind = SurfaceKind.Plain }
+        val bounds = Rect(0.0, 0.0, 100.0, 32.0)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (base in colorPreferenceThemes(mode)) {
+                val theme = base.withPreferences(ThemePreferences(highContrast = true))
+                val canvas = theme.tokens.palette.background.background
+                for (selected in [false, true])
+                    for (visual in colorPreferenceStates()) {
+                        val surface = SurfaceVisual(SurfaceKind.Plain, visual)
+                        for (variant in [ToggleVariant.Default, ToggleVariant.Outline]) {
+                            val shape = ActionShape.Toggle(variant, ToggleSize.Default, selected)
+                            val fill =
+                                theme.surfaceGeometry(
+                                    bounds,
+                                    surface,
+                                    toggleOptions(
+                                        theme,
+                                        variant,
+                                        ToggleSize.Default,
+                                        selected,
+                                        style,
+                                        visual
+                                    )
+                                ).style.background!!.color
+                            assertColorContrast(
+                                actionTextColor(theme, shape, ButtonVariant.Ghost, surface),
+                                if (fill.alpha == 0.0)
+                                    canvas
+                                else
+                                    fill,
+                                if (visual.enabled)
+                                    7.0
+                                else
+                                    4.5
+                            )
+                        }
+                        for (variant in [TabsVariant.Default, TabsVariant.Line]) {
+                            val parent =
+                                if (variant == TabsVariant.Default)
+                                    theme.tokens.palette.muted.background
+                                else
+                                    canvas
+                            val fill =
+                                theme.surfaceGeometry(
+                                    bounds,
+                                    surface,
+                                    tabOptions(theme, variant, selected, style, visual)
+                                ).style.background!!.color
+                            assertColorContrast(
+                                tabTextColor(theme, variant, selected, visual),
+                                if (fill.alpha == 0.0)
+                                    parent
+                                else
+                                    fill,
+                                if (visual.enabled)
+                                    7.0
+                                else
+                                    4.5
+                            )
+                        }
+                    }
+            }
+    }
+
+    @Test
+    fun `high contrast content stays paired while old hover samples settle`() {
+        val samples =
+            [
+                InteractionVisual(hovered = true, hoverProgress = Some(0.0)),
+                InteractionVisual(hoverProgress = Some(0.5)),
+                InteractionVisual(pressed = true, pressProgress = Some(0.0)),
+                InteractionVisual(enabled = false, hovered = true, hoverProgress = Some(1.0))
+            ]
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (base in colorPreferenceThemes(mode)) {
+                val theme = base.withPreferences(ThemePreferences(highContrast = true))
+                val canvas = theme.tokens.palette.background.background
+                for (
+                    shape in [
+                        ActionShape.Button(ButtonSize.Default),
+                        ActionShape.Toggle(ToggleVariant.Default, ToggleSize.Default, false)
+                    ]
+                )
+                    for (visual in samples) {
+                        val style = buttonStyle { kind = SurfaceKind.Plain }
+                        val fill =
+                            colorPreferenceAction(
+                                theme,
+                                shape,
+                                ButtonVariant.Ghost,
+                                visual,
+                                style
+                            ).style.background!!.color
+                        assertEquals(
+                            if (visual.enabled && (visual.hovered || visual.pressed))
+                                1.0
+                            else
+                                0.0,
+                            fill.alpha
+                        )
+                        assertColorContrast(
+                            actionTextColor(
+                                theme,
+                                shape,
+                                ButtonVariant.Ghost,
+                                SurfaceVisual(style.kind, visual)
+                            ),
+                            if (fill.alpha == 0.0)
+                                canvas
+                            else
+                                fill,
+                            if (visual.enabled)
+                                7.0
+                            else
+                                4.5
+                        )
+                    }
+            }
+    }
+
+    @Test
+    fun `reduced transparency composites default fills without replacing absent or local paint`() {
+        val shape = ActionShape.Button(ButtonSize.Default)
+        val localColor = Color(0.2, 0.4, 0.6, 0.3)
+        val local =
+            buttonStyle {
+                surface { style { background(Some(Paint(localColor))) } }
+                states { pressed { background(Some(Paint(localColor))) } }
+            }
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (base in colorPreferenceThemes(mode)) {
+                val theme = base.withPreferences(ThemePreferences(reduceTransparency = true))
+                val regular =
+                    colorPreferenceAction(
+                        base,
+                        shape,
+                        ButtonVariant.Destructive,
+                        InteractionVisual()
+                    )
+                assertTrue(regular.style.background!!.color.alpha < 1.0)
+                for (variant in colorPreferenceVariants())
+                    for (visual in colorPreferenceStates()) {
+                        val resolved = colorPreferenceAction(theme, shape, variant, visual)
+                        val fill = resolved.style.background!!.color
+                        assertTrue(fill.alpha == 0.0 || fill.alpha == 1.0)
+                        if (visual.focusVisible && variant == ButtonVariant.Destructive)
+                            assertEquals(1.0, resolved.ring!!.border.color.alpha)
+                    }
+                for (variant in [ButtonVariant.Ghost, ButtonVariant.Link])
+                    assertEquals(
+                        0.0,
+                        colorPreferenceAction(
+                            theme,
+                            shape,
+                            variant,
+                            InteractionVisual()
+                        ).style.background!!.color.alpha
+                    )
+                for (
+                    preferences in [
+                        ThemePreferences(highContrast = true),
+                        ThemePreferences(reduceTransparency = true)
+                    ]
+                ) {
+                    val resolved = base.withPreferences(preferences)
+                    for (variant in colorPreferenceVariants())
+                        assertEquals(
+                            localColor,
+                            colorPreferenceAction(
+                                resolved,
+                                shape,
+                                variant,
+                                InteractionVisual(pressed = true),
+                                local
+                            ).style.background!!.color
+                        )
+                }
+                val colors = theme.tokens.palette
+                val alpha =
+                    if (mode == ThemeMode.Dark)
+                        0.2
+                    else
+                        0.1
+                val expected =
+                    Color(
+                        colors.destructive.background.red *
+                            alpha +
+                            colors.background.background.red *
+                            (1.0 - alpha),
+                        colors.destructive.background.green *
+                            alpha +
+                            colors.background.background.green *
+                            (1.0 - alpha),
+                        colors.destructive.background.blue *
+                            alpha +
+                            colors.background.background.blue *
+                            (1.0 - alpha)
+                    )
+                assertEquals(
+                    expected,
+                    colorPreferenceAction(
+                        theme,
+                        shape,
+                        ButtonVariant.Destructive,
+                        InteractionVisual()
+                    ).style.background!!.color
+                )
+                val plain = buttonStyle { kind = SurfaceKind.Plain }
+                for (variant in [TabsVariant.Default, TabsVariant.Line])
+                    for (selected in [false, true])
+                        for (visual in colorPreferenceStates()) {
+                            val fill =
+                                theme.surfaceGeometry(
+                                    Rect(0.0, 0.0, 100.0, 32.0),
+                                    SurfaceVisual(SurfaceKind.Plain, visual),
+                                    tabOptions(theme, variant, selected, plain, visual)
+                                ).style.background!!.color
+                            assertTrue(fill.alpha == 0.0 || fill.alpha == 1.0)
+                            assertEquals(1.0, tabTextColor(theme, variant, selected, visual).alpha)
+                        }
+            }
+    }
+}
+
+private fun colorPreferenceAction(
+    theme: Theme,
+    shape: ActionShape,
+    variant: ButtonVariant,
+    visual: InteractionVisual,
+    style: ButtonStyle = buttonStyle()
+): SurfaceGeometry =
+    theme.surfaceGeometry(
+        Rect(0.0, 0.0, 100.0, 32.0),
+        SurfaceVisual(style.kind, visual),
+        actionOptions(theme, shape, variant, style, visual)
+    )
+
+private fun colorPreferenceVariants(): Array<ButtonVariant> =
+    [
+        ButtonVariant.Default,
+        ButtonVariant.Outline,
+        ButtonVariant.Secondary,
+        ButtonVariant.Ghost,
+        ButtonVariant.Destructive,
+        ButtonVariant.Link
+    ]
+
+private fun colorPreferenceStates(): Array<InteractionVisual> =
+    [
+        InteractionVisual(),
+        InteractionVisual(hovered = true),
+        InteractionVisual(hovered = true, pressed = true),
+        InteractionVisual(focusVisible = true),
+        InteractionVisual(enabled = false)
+    ]

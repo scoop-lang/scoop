@@ -29,7 +29,7 @@ public class ButtonGroup public constructor(
     private val props: Props<ButtonGroupProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -120,7 +120,10 @@ private fun groupContent(
             group,
             theme
         )
-        case Separator(val color) -> groupSeparator(position.axis, color ?: theme.tokens.palette.input)
+        case Separator(val color) -> groupSeparator(
+            position.axis,
+            color ?: theme.tokens.palette.input
+        )
         case Custom(val render) -> render(position)
         case Plain(val view) -> view
         case Nested(val view) -> view
@@ -226,7 +229,8 @@ internal fun groupButtonProps(
                     value.inlines,
                     value.theme,
                     value.baseStyle,
-                    value.underline
+                    value.underline,
+                    value.semantics
                 )
             )
             else -> input.content
@@ -245,7 +249,8 @@ internal fun groupButtonProps(
         input.variant,
         input.size,
         group,
-        input.labelTarget
+        input.labelTarget,
+        input.semantics
     )
 }
 
@@ -283,5 +288,17 @@ internal fun groupInputProps(
         input.copy,
         input.labelTarget,
         group,
-        input.chrome
+        input.chrome,
+        input.contextMenu,
+        input.protectedText,
+        input.semantics,
+        input.acceptDrops,
+        input.drag,
+        input.touch,
+        input.touchScroll,
+        input.scrollPhysics,
+        inputPurpose = input.inputPurpose,
+        softwareKeyboard = input.softwareKeyboard,
+        primarySelection = input.primarySelection,
+        automaticTextReplacement = input.automaticTextReplacement
     )

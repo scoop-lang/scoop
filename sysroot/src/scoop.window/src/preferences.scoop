@@ -1,0 +1,104 @@
+package scoop.window
+
+import scoop.time.Duration
+
+/** System facts; None is unknown, not a request to disable a feature. */
+public struct InteractionPreferences(
+    val autoHideScrollbars: Boolean? = None,
+    val reduceMotion: Boolean? = None,
+    val highContrast: Boolean? = None,
+    val reduceTransparency: Boolean? = None,
+    val textScaleFactor: Double? = None,
+    /** One visible/hidden transition interval; zero keeps the caret visible. */
+    val caretBlinkInterval: Duration? = None,
+    val caretWidthPixels: Int? = None,
+    val caretAspectRatio: Double? = None,
+    val doubleClickInterval: Duration? = None
+)
+
+/** The latest owner-published snapshot; reading does not query the OS. */
+public val ActiveApplication.interactionPreferences: InteractionPreferences get() {
+    owner.checkPreferencesActive()
+    return owner.interactionPreferences
+}
+
+/** Uses this window's application without acquiring a native window lease. */
+public val Window.interactionPreferences: InteractionPreferences get() {
+    owner.application.checkPreferencesActive()
+    return owner.application.interactionPreferences
+}
+
+/** Observes actual changes; registration does not invoke the callback. */
+public fun ActiveApplication.observeInteractionPreferences(
+    callback: (InteractionPreferences) -> Unit
+): Closeable = owner.observePreferences(callback)
+
+/** The registration belongs to the application; close it with the consumer. */
+public fun Window.observeInteractionPreferences(
+    callback: (InteractionPreferences) -> Unit
+): Closeable = owner.application.observePreferences(callback)
+
+internal fun ApplicationOwner.checkPreferencesActive() {
+    checkThread()
+    if (native == None || exiting)
+        throw WindowException("interaction preferences", WindowErrorKind.InvalidState)
+}
+
+internal fun ApplicationOwner.observePreferences(
+    callback: (InteractionPreferences) -> Unit
+): Closeable {
+    checkPreferencesActive()
+    val observer = InteractionPreferencesObserver(this, callback)
+    preferencesObservers.add(observer)
+    return observer
+}
+
+internal class InteractionPreferencesObserver(
+    private val owner: ApplicationOwner,
+    callback: (InteractionPreferences) -> Unit
+): Closeable {
+    private var handler: ((InteractionPreferences) -> Unit)? = Some(callback)
+
+    fun deliver(value: InteractionPreferences) {
+        handler?.invoke(value)
+    }
+
+    fun retire() {
+        handler = None
+    }
+
+    public override fun close() {
+        owner.checkThread()
+        when (handler) {
+            case None -> return
+            case Some(_) -> Unit
+        }
+        retire()
+        for (index in 0L ..< owner.preferencesObservers.size)
+            if (owner.preferencesObservers[index] === this) {
+                owner.preferencesObservers.removeAt(index)
+                return
+            }
+    }
+}
+
+internal fun ApplicationOwner.deliverPreferences(value: InteractionPreferences) {
+    deliverBusiness {
+        if (interactionPreferences != value) {
+            interactionPreferences = value
+            for (observer in preferencesObservers.toArray()) {
+                if (exiting)
+                    break
+                observer.deliver(value)
+            }
+            if (!exiting)
+                handler!!.onEvent(active, ApplicationEvent.InteractionPreferencesChanged(value))
+        }
+    }
+}
+
+internal fun ApplicationOwner.retirePreferences() {
+    for (observer in preferencesObservers)
+        observer.retire()
+    preferencesObservers.clear()
+}

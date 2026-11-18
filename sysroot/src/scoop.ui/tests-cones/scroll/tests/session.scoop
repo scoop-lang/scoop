@@ -24,6 +24,7 @@ private class ScrollViewportTest {
             assertFalse(probe.first.isAttached)
             assertFalse(probe.second.isAttached)
             assertFalse(probe.first.isAnimating)
+            assertFalse(probe.first.hasPositionAnimation)
             assertTrue(probe.view!!.restored())
             assertEquals(1, probe.discarded)
             assertTrue(probe.ignoredBinding)
@@ -48,6 +49,7 @@ internal class ScrollProbe {
     var frames: FrameProbe? = None
     var ui: UiWindow? = None
     var scope: ComponentScope? = None
+    var secondScope: ComponentScope? = None
     var viewport: ScrollViewport? = None
     var renders = 0
     var observations = 0
@@ -69,6 +71,14 @@ internal class ScrollProbe {
     var corrections = 0
     var secondLateAnimation = false
     var checkAnimationRange = false
+    val padding = state(ScrollPadding())
+    val edgePoint = state(Point(199.0, 299.0))
+    val edgeFocus = FocusHandle()
+    var edgeArea: InputArea? = None
+    var beforePadding = Rect(0.0, 0.0, 0.0, 0.0)
+    var beforeCorrections = 0
+    var correctionFrame = -1
+    var correctionCount = 0
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -81,6 +91,7 @@ internal class ScrollProbe {
                         }
                     )
                 window = Some(native)
+                native.requestFocus()
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
                 ui = host.attach(native, { mount -> ScrollScene(this, scope = mount) })
@@ -88,28 +99,40 @@ internal class ScrollProbe {
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )
             }
-            case AboutToWait -> if (!finished && committed == generation.value)
-                advance()
+            case AboutToWait -> {
+                if (!finished && committed == generation.value)
+                    advance()
+            }
             case NewEvents(StartCause.Deadline) -> fail(
                 Some(
                     f"scroll state timeout phase=${this @ScrollProbe.phase}, passes=${
                         this @ScrollProbe.passes
-                    }"
+                    }, visible=${window!!.isVisible}, occluded=${window!!.isOccluded}, focused=${
+                        window!!.isFocused
+                    }, required=${frames!!.snapshot().required}, animating=${
+                        second.isAnimating
+                    }, committed=${committed}, generation=${generation.value}"
                 )
             )
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 12;
+                finished = phase == 17;
                 active.requestExit()
             }
             else -> {}
         }
     }
     private fun advance() {
+        if (phase >= 12 && frames!!.snapshot().required)
+            return
         when (phase) {
             case 0 -> {
                 if (second.isAnimating)
                     return
-                assertEquals(Point(0.0, 100.0), second.offset)
+                assertEquals(
+                    Point(0.0, 100.0),
+                    second.offset,
+                    Some(f"queued first-frame offset was ${second.offset.x}, ${second.offset.y}")
+                )
                 assertEquals(Point(30.0, 120.0), first.offset)
                 assertEquals(Size(500.0, 500.0), first.content)
                 assertTrue(first.isAttached)
@@ -122,6 +145,7 @@ internal class ScrollProbe {
                     AnimationSpec.Tween(Duration.milliseconds(120L))
                 )
                 assertTrue(first.isAnimating)
+                assertTrue(first.hasPositionAnimation)
                 phase = 1
             }
             case 1 -> if (!first.isAnimating && shown == first.offset) {
@@ -132,6 +156,7 @@ internal class ScrollProbe {
                 first.cancelAnimation()
                 assertEquals(Point(80.0, 300.0), first.offset)
                 assertFalse(first.isAnimating)
+                assertFalse(first.hasPositionAnimation)
                 discardNext = true
                 generation.value = 1
                 phase = 2
@@ -185,6 +210,15 @@ internal class ScrollProbe {
             case 8 -> {
                 assertEquals(Point(35.0, 160.0), second.offset)
                 assertEquals(second.offset, secondShown)
+                if (correctionFrame < 0) {
+                    correctionFrame = passes
+                    correctionCount = corrections
+                    secondScope!!.requestFrame()
+                    return
+                }
+                if (passes == correctionFrame || frames!!.snapshot().required)
+                    return
+                assertEquals(correctionCount, corrections)
                 adjustment = Some(ScrollAdjustment(second.requestRevision, Point(0.0, 0.0)))
                 second.scrollTo(Point(40.0, 180.0))
                 generation.value = 7
@@ -210,10 +244,48 @@ internal class ScrollProbe {
             case 11 -> {
                 if (!second.isAnimating && !frames!!.snapshot().required) {
                     assertEquals(Point(15.0, 70.0), second.offset)
+                    adjustment = None
+                    padding.value = ScrollPadding(right = 12.0, bottom = 14.0)
                     phase = 12
-                    ui!!.close()
-                    window!!.requestDestroy()
                 }
+            }
+            case 12 -> {
+                assertEquals(Size(212.0, 314.0), second.content)
+                assertEquals(Size(200.0, 300.0), second.snapshot.bodySize)
+                assertEquals(Size(88.0, 66.0), second.snapshot.visibleSize)
+                assertEquals(Point(15.0, 70.0), second.offset)
+                assertTrue(edgeFocus.requestFocus())
+                phase = 13
+            }
+            case 13 -> if (!edgeFocus.isPending && !frames!!.snapshot().required) {
+                assertTrue(edgeFocus.hasFocus)
+                assertEquals(Point(112.0, 234.0), second.offset)
+                assertEquals(Some(Rect(217.0, 75.0, 1.0, 1.0)), edgeArea!!.visibleBounds)
+                second.scrollTo(Point(15.0, 70.0))
+                phase = 14
+            }
+            case 14 -> {
+                assertEquals(Point(15.0, 70.0), second.offset)
+                beforePadding = edgeArea!!.toWindow(Rect(199.0, 299.0, 1.0, 1.0))!!
+                beforeCorrections = corrections
+                padding.value = ScrollPadding(left = 12.0, bottom = 14.0)
+                phase = 15
+            }
+            case 15 -> {
+                assertEquals(Point(27.0, 70.0), second.offset)
+                assertEquals(beforePadding, edgeArea!!.toWindow(Rect(199.0, 299.0, 1.0, 1.0))!!)
+                assertEquals(beforeCorrections + 1, corrections)
+                edgePoint.value = Point(0.0, 0.0)
+                second.reveal(Rect(0.0, 0.0, 1.0, 1.0))
+                phase = 16
+            }
+            case 16 -> {
+                assertEquals(Point(0.0, 0.0), second.offset)
+                assertEquals(Some(Rect(142.0, 10.0, 1.0, 1.0)), edgeArea!!.visibleBounds)
+                assertTrue(edgeFocus.hasFocus)
+                phase = 17
+                ui!!.close()
+                window!!.requestDestroy()
             }
             else -> {}
         }

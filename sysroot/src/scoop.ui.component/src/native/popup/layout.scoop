@@ -12,6 +12,7 @@ internal class NativePopupLayout(
     private var area: InputArea? = None
     private var presentation: NativePopupPresentation? = None
     private var fallback: FocusTarget? = None
+    private var hold: LongPress? = None
 
     public override fun onMount() {
         val target = scope.createArea(focusable = props.value.contextMenu)
@@ -23,6 +24,8 @@ internal class NativePopupLayout(
         val popup = scope.resource { NativePopupPresentation(scope, target, tree, { props.value }) }
         presentation = Some(popup)
         popup.update()
+        if (props.value.contextMenu)
+            hold = Some(scope.longPress(target, holdOptions()) { value -> held(value) })
         scope.observeMenu(tree.menu) {
             event -> if (props.value.enabled)
                 tree.activate(event)
@@ -78,8 +81,27 @@ internal class NativePopupLayout(
                 context.consume()
         }
     }
+    private fun holdOptions(): LongPressOptions {
+        val input = props.value
+        return LongPressOptions(
+            input.enabled && input.longPress.enabled,
+            input.longPress.delay,
+            input.longPress.threshold
+        )
+    }
+    private fun held(value: LongPressSample) {
+        if (!props.value.enabled || presentation!!.isPending)
+            return
+        val target = area!!
+        if (!target.scope.activity.hasFocus)
+            fallback!!.handle.requestFocus(FocusOrigin.Pointer)
+        if (!scope.isMounted || target.isClosed || !target.scope.isInputAllowed)
+            return
+        presentation!!.open(Some(value.contact.pointer.logicalPosition))
+    }
     public override fun update(): UiInvalidation {
         presentation!!.update()
+        hold?.update(holdOptions()) { value -> held(value) }
         return UiInvalidation.None
     }
     public override fun onUnmount() {

@@ -71,7 +71,7 @@ SWSnapshot sw_snapshot(SWWindow *owner) {
   return result;
 }
 
-void sw_stamp_input(SWEventData *data) {
+void sw_stamp_event(SWEventHeader *data) {
   struct timespec time;
   if (clock_gettime(CLOCK_MONOTONIC, &time) != 0) {
     data->time_seconds = 0;
@@ -84,16 +84,30 @@ void sw_stamp_input(SWEventData *data) {
 
 SWEvent *sw_event(SWWindow *window, int32_t kind) {
   SWEvent *event = [SWEvent new];
-  SWEventData data = {0};
-  data.window = window.identity;
-  data.kind = kind;
-  if (kind == SWKeyboard || kind == SWPointer)
-    sw_stamp_input(&data);
-  event.data = data;
+  SWEventHeader header = {.window = window.identity, .kind = kind};
+  if (kind == SWKeyboard || kind == SWPointer || kind == SWGesture ||
+      kind == SWContact)
+    sw_stamp_event(&header);
+  event.header = header;
   return event;
 }
 
 @implementation SWView
+- (BOOL)isAccessibilityElement {
+  return self.semanticRoot ? NO : [super isAccessibilityElement];
+}
+- (NSArray *)accessibilityChildren {
+  return self.semanticRoot ? @[ self.semanticRoot ]
+                           : [super accessibilityChildren];
+}
+- (id)accessibilityFocusedUIElement {
+  return self.semanticRoot ? sw_accessibility_focused(self)
+                           : [super accessibilityFocusedUIElement];
+}
+- (id)accessibilityHitTest:(NSPoint)point {
+  return self.semanticRoot ? [self.semanticRoot accessibilityHitTest:point]
+                           : [super accessibilityHitTest:point];
+}
 - (BOOL)isFlipped {
   return YES;
 }
@@ -154,22 +168,11 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
   [self emit:3];
 }
 - (void)windowDidBecomeKey:(NSNotification *)notification {
-  self.view.functionHeld =
-      (NSEvent.modifierFlags & NSEventModifierFlagFunction) != 0;
-  if (self.view.imeAllowed)
-    [self.view.inputContext activate];
-  NSPoint point =
-      [self.view convertPoint:self.window.mouseLocationOutsideOfEventStream
-                     fromView:nil];
-  self.view.pointerInside =
-      NSMouseInRect(point, self.view.bounds, self.view.flipped);
-  [self.view updateCursor];
+  [self.view activateInput];
   [self emit:4];
 }
 - (void)windowDidResignKey:(NSNotification *)notification {
-  [self.view resetInput];
-  if (self.view.imeAllowed)
-    [self.view.inputContext deactivate];
+  [self.view deactivateInput];
   [self emit:4];
 }
 - (void)windowDidChangeOcclusionState:(NSNotification *)notification {
@@ -212,10 +215,7 @@ SWResult scoop_window_create(void *application, int64_t identity,
       return (SWResult){NULL, 0};
     owner.view = [[SWView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
     owner.view.owner = owner;
-    owner.view.pressedKeys = [NSMutableDictionary new];
-    owner.view.pressedButtons = [NSMutableSet new];
-    owner.view.cursor = NSCursor.arrowCursor;
-    owner.view.cursorVisible = YES;
+    [owner.view installInput];
     owner.window.acceptsMouseMovedEvents = YES;
     owner.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     NSView *content = [[NSView alloc] initWithFrame:owner.view.frame];

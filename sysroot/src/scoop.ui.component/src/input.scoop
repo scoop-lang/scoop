@@ -5,6 +5,14 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.ThemeSource
 import scoop.ui.text.*
+import scoop.window.TextInputPurpose
+import scoop.window.accessibility.SemanticActionResult
+
+/** The actual accepted state and request entry point of an editor's candidate popup. */
+public struct TextFieldExpansion(
+    val expanded: Boolean,
+    val setExpanded: (Boolean) -> SemanticActionResult
+)
 
 public class InputProps public constructor(
     public val state: TextEditorState,
@@ -20,7 +28,7 @@ public class InputProps public constructor(
     public val direction: TextDirection? = None,
     public val alignment: TextAlignment = TextAlignment.Start,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    public val caretBlink: Duration = Duration.milliseconds(500L),
+    public val caretBlink: Duration? = None,
     public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
     public val onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
     public val policy: TextEditPolicy = textEditPolicy(),
@@ -28,7 +36,20 @@ public class InputProps public constructor(
     public val copy: TextCopyPolicy = TextCopyPolicy.Default,
     public val labelTarget: FieldTarget? = None,
     public val group: GroupPosition? = None,
-    public val chrome: TextFieldChrome = TextFieldChrome.Framed
+    public val chrome: TextFieldChrome = TextFieldChrome.Framed,
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
+    public val protectedText: Boolean = false,
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val acceptDrops: Boolean = true,
+    public val drag: TextDragOptions = TextDragOptions(),
+    public val touch: TextTouchOptions = TextTouchOptions(),
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
+    public val expansion: TextFieldExpansion? = None,
+    public val inputPurpose: TextInputPurpose = TextInputPurpose.Normal,
+    public val softwareKeyboard: Boolean = true,
+    public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions(),
+    public val automaticTextReplacement: Boolean = false
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -59,7 +80,18 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
             caretBlink = input.caretBlink,
             policy = input.policy,
             projection = input.projection,
-            copy = input.copy
+            copy = input.copy,
+            contextMenu = input.contextMenu,
+            protectedText = input.protectedText,
+            acceptDrops = input.acceptDrops,
+            drag = input.drag,
+            touch = input.touch,
+            touchScroll = input.touchScroll,
+            scrollPhysics = input.scrollPhysics,
+            inputPurpose = input.inputPurpose,
+            softwareKeyboard = input.softwareKeyboard,
+            primarySelection = input.primarySelection,
+            automaticTextReplacement = input.automaticTextReplacement
         ),
         1L,
         ScrollbarVisibility.Hidden,
@@ -67,7 +99,9 @@ private fun singleLineInput(input: InputProps): TextFieldInput =
         input.onSubmit,
         input.labelTarget,
         input.group,
-        input.chrome
+        input.chrome,
+        semantics = input.semantics,
+        expansion = input.expansion
     )
 
 public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View =

@@ -1,0 +1,108 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.accessibility.*
+
+@Test
+private class ScrollSemanticsTest {
+    @Test
+    fun `axis projection uses the actual clamped range and viewport`() {
+        val snapshot = ScrollSnapshot(Point(50.0, 60.0), Size(100.0, 80.0), Size(310.0, 260.0))
+        val horizontal = semanticScrollRange(snapshot, SemanticOrientation.Horizontal, 40.0)
+        assertEquals(SemanticOrientation.Horizontal, horizontal.orientation)
+        assertEquals(50.0, horizontal.offset)
+        assertEquals(210.0, horizontal.maximum)
+        assertEquals(100.0, horizontal.viewport)
+        val vertical = semanticScrollRange(snapshot, SemanticOrientation.Vertical, 40.0)
+        assertEquals(SemanticOrientation.Vertical, vertical.orientation)
+        assertEquals(60.0, vertical.offset)
+        assertEquals(180.0, vertical.maximum)
+        val empty =
+            semanticScrollRange(
+                ScrollSnapshot(Point(0.0, 0.0), Size(100.0, 80.0), Size(20.0, 30.0)),
+                SemanticOrientation.Vertical,
+                40.0
+            )
+        assertEquals(0.0, empty.maximum)
+    }
+
+    @Test
+    fun `absolute requests retain the other pending axis without publishing early`() {
+        val state = ScrollState(Point(20.0, 30.0))
+        state.publish(state.plan(Size(100.0, 100.0), Size(300.0, 500.0)), true)
+        val events = ArrayList<ScrollIntent>()
+        state.observeIntent { event -> events.add(event) }.use {
+            _ ->
+            assertEquals(
+                SemanticActionResult.Completed,
+                semanticScrollPosition(state, SemanticOrientation.Horizontal, 0.25)
+            )
+            assertEquals(
+                SemanticActionResult.Completed,
+                semanticScrollPosition(state, SemanticOrientation.Vertical, 0.5)
+            )
+            assertEquals(
+                SemanticActionResult.Completed,
+                semanticScrollPosition(state, SemanticOrientation.Horizontal, 0.75)
+            )
+            assertEquals(Point(20.0, 30.0), state.offset)
+            assertEquals(Point(150.0, 200.0), state.plan(state.viewport, state.content).offset)
+            assertEquals(3L, events.size)
+            for (event in events)
+                assertTrue(
+                    when (event) {
+                        case User(_) -> true;
+                        else -> false
+                    }
+                )
+            val revision = state.requestRevision
+            assertEquals(
+                SemanticActionResult.InvalidArgument,
+                semanticScrollPosition(state, SemanticOrientation.Vertical, -0.1)
+            )
+            assertEquals(
+                SemanticActionResult.InvalidArgument,
+                semanticScrollPosition(state, SemanticOrientation.Vertical, 1.1)
+            )
+            assertEquals(
+                SemanticActionResult.InvalidArgument,
+                semanticScrollPosition(state, SemanticOrientation.Vertical, 1.0e308 * 2.0)
+            )
+            assertEquals(revision, state.requestRevision)
+            state.publish(state.plan(state.viewport, state.content), true)
+            assertEquals(Point(150.0, 200.0), state.offset)
+        }
+    }
+
+    @Test
+    fun `steps share pending requests and reject a boundary without another intent`() {
+        val state = ScrollState()
+        state.publish(state.plan(Size(100.0, 80.0), Size(300.0, 280.0)), true)
+        assertEquals(
+            SemanticActionResult.Completed,
+            semanticScrollStep(state, SemanticOrientation.Vertical, 40.0)
+        )
+        assertEquals(
+            SemanticActionResult.Completed,
+            semanticScrollStep(state, SemanticOrientation.Vertical, 40.0)
+        )
+        assertEquals(Point(0.0, 80.0), state.plan(state.viewport, state.content).offset)
+        assertEquals(
+            SemanticActionResult.Completed,
+            semanticScrollStep(state, SemanticOrientation.Vertical, 1.0e308)
+        )
+        assertEquals(Point(0.0, 200.0), state.plan(state.viewport, state.content).offset)
+        val revision = state.requestRevision
+        assertEquals(
+            SemanticActionResult.Rejected,
+            semanticScrollStep(state, SemanticOrientation.Vertical, 40.0)
+        )
+        assertEquals(revision, state.requestRevision)
+        assertEquals(
+            SemanticActionResult.Completed,
+            semanticScrollStep(state, SemanticOrientation.Vertical, -1.0e308)
+        )
+        assertEquals(Point(0.0, 0.0), state.plan(state.viewport, state.content).offset)
+    }
+}

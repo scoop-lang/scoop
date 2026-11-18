@@ -21,7 +21,8 @@ internal class EditorPreparedInput(
     val pending: Array<EditorPendingPreedit>,
     val completed: Boolean,
     val boundary: Boolean,
-    val hadComposition: Boolean
+    val hadComposition: Boolean,
+    val mapping: EditorOffsetMap
 )
 
 internal fun prepareEditorInput(
@@ -47,7 +48,9 @@ internal fun prepareEditorInput(
     var restored = false
     var completed = false
     var boundary = batch.operations.size != 1L || baseline != None
+    var mapping: EditorOffsetMap = EditorIdentityMap()
     for (operation in batch.operations) {
+        val beforeOperation = current
         if (restored && explicitEditorRange(operation))
             throw IllegalStateException(Some("text range predates composition cancellation"))
         val applied = current.input.apply(TextInputBatch(None, [operation]))
@@ -128,7 +131,29 @@ internal fun prepareEditorInput(
                 completed = true
                 boundary = true
             }
+            case SetSelection(val selection) -> {
+                current = next
+                boundary = true
+                when (applied.markedRange) {
+                    case Some(val marked) -> if (pending.size > 0L) {
+                        val index = pending.size - 1L
+                        val value = pending[index]
+                        pending[index] =
+                            EditorPendingPreedit(
+                                value.range,
+                                value.text,
+                                Utf8Selection(
+                                    selection.anchor - marked.start,
+                                    selection.cursor - marked.start
+                                )
+                            )
+                    }
+                    case None -> {}
+                }
+            }
         }
+        mapping =
+            EditorComposedMap(mapping, editorOperationMap(beforeOperation, current, operation))
     }
     return Some(
         EditorPreparedInput(
@@ -144,7 +169,8 @@ internal fun prepareEditorInput(
             pending.toArray(),
             completed,
             boundary,
-            editor.isComposing
+            editor.isComposing,
+            mapping
         )
     )
 }
@@ -159,6 +185,7 @@ private fun explicitEditorRange(operation: TextInputOperation): Boolean =
     when (operation) {
         case Commit(_, TextReplacement.Range(_)) -> true
         case Preedit(_, _, TextReplacement.Range(_)) -> true
+        case SetSelection(_) -> true
         else -> false
     }
 
@@ -166,10 +193,11 @@ internal class EditorPreparedEdit(
     val value: EditorValue,
     val composition: EditorComposition?,
     val history: EditorHistoryChange,
-    val accepted: Boolean
+    val accepted: Boolean,
+    val mapping: EditorOffsetMap? = None
 ) {
     fun publish(editor: TextEditorState, forceRevision: Boolean): Boolean =
-        editor.publish(value, composition, history, forceRevision)
+        editor.publish(value, composition, history, forceRevision, mapping)
 }
 
 internal fun finishEditorInput(
@@ -178,7 +206,8 @@ internal fun finishEditorInput(
     source: TextEditSource,
     singleLine: Boolean = false,
     kind: EditorEditKind = EditorEditKind.Typing,
-    selection: EditorSelection? = None
+    selection: EditorSelection? = None,
+    replacements: Array<TextEditReplacement> = []
 ): EditorPreparedEdit {
     if (!raw.completed) {
         val composition =
@@ -186,7 +215,13 @@ internal fun finishEditorInput(
                 case Some(val saved) -> Some(EditorComposition(saved, raw.spans))
                 case None -> None
             }
-        return EditorPreparedEdit(raw.current, composition, EditorHistoryChange.Break, true)
+        return EditorPreparedEdit(
+            raw.current,
+            composition,
+            EditorHistoryChange.Break,
+            true,
+            Some(raw.mapping)
+        )
     }
     var proposed = raw.baseline ?: raw.current
     when (selection) {
@@ -194,7 +229,15 @@ internal fun finishEditorInput(
         case None -> {}
     }
     val filtered =
-        filterEditorCandidate(raw.before, proposed, raw.committedSpans, source, policy, singleLine)
+        filterEditorCandidate(
+            raw.before,
+            proposed,
+            raw.committedSpans,
+            source,
+            policy,
+            singleLine,
+            replacements
+        )
     val result =
         when (filtered) {
             case Some(val value) -> value
@@ -230,8 +273,8 @@ internal fun finishEditorInput(
     )
     var value = result.value
     var composition: EditorComposition? = None
+    var mapping = result.mapping
     if (raw.baseline != None) {
-        var mapping = result.mapping
         var spans = editorInitialSpans(value.input.surroundingText.byteLength)
         for (preedit in raw.pending) {
             val first = mapping.forward(TextPosition(preedit.range.start, TextAffinity.Downstream))
@@ -267,7 +310,8 @@ internal fun finishEditorInput(
         value,
         composition,
         EditorHistoryChange.Append(edits.toArray(), separate, separate),
-        true
+        true,
+        Some(EditorComposedMap(raw.mapping, mapping))
     )
 }
 

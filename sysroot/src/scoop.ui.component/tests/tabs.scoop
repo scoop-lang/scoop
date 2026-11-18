@@ -108,9 +108,17 @@ private class TabsTest {
         for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
             val theme = shadcnTheme(mode)
             val foreground = theme.tokens.palette.background.foreground
-            assertEquals(foreground, tabTextColor(theme, true, InteractionVisual()))
-            assertEquals(foreground, tabTextColor(theme, false, InteractionVisual(hovered = true)))
-            assertTrue(foreground != tabTextColor(theme, false, InteractionVisual()))
+            assertEquals(
+                foreground,
+                tabTextColor(theme, TabsVariant.Default, true, InteractionVisual())
+            )
+            assertEquals(
+                foreground,
+                tabTextColor(theme, TabsVariant.Default, false, InteractionVisual(hovered = true))
+            )
+            assertTrue(
+                foreground != tabTextColor(theme, TabsVariant.Default, false, InteractionVisual())
+            )
             for (variant in [TabsVariant.Default, TabsVariant.Line]) {
                 for (selected in [false, true]) {
                     val normal = InteractionVisual()

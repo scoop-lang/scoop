@@ -1,6 +1,8 @@
 package scoop.ui.text
 
-import scoop.graphics.text.TextRange
+import scoop.graphics.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
 import scoop.surface.*
 import scoop.ui.*
 
@@ -12,6 +14,7 @@ internal class SelectableAction(
     order: Int
 ): Closeable {
     private var qualified = false
+    var semantics: SemanticsHandle? = None
     val area = host.scope.createArea(focusable = true, parent = Some(host.area))
     val focus = host.scope.focusTarget(area, input.focus ?: FocusOptions(order = order))
     val press =
@@ -30,6 +33,47 @@ internal class SelectableAction(
         input = value
         focus.options = value.focus ?: FocusOptions(order = order)
     }
+    fun refreshSemantics() {
+        val parent = host.semantics.binding?.handle
+        if (parent?.isClosed ?: true) {
+            semantics?.close()
+            semantics = None
+            return
+        }
+        when (semantics) {
+            case Some(val old) -> if (old.isClosed)
+                semantics = None
+            case None -> {}
+        }
+        val text = selectableSemanticText(host)
+        val value = semantics ?: host.scope.semantics(SemanticRole.Link, parent)
+        semantics = Some(value)
+        val range =
+            Utf8Range(
+                text.mapping.forward(
+                    TextPosition(input.range.start, TextAffinity.Upstream)
+                ).byteOffset,
+                text.mapping.forward(
+                    TextPosition(input.range.end, TextAffinity.Downstream)
+                ).byteOffset
+            )
+        value.textChild = Some(SemanticTextChildBinding(parent!!, text.text, range))
+        value.bindFocus(Some(focus))
+        value.update(
+            SemanticProperties(name = Some(text.text.utf8Slice(range)), enabled = qualified),
+            SemanticActions(
+                invoke =
+                    Some {
+                        if (host.closed || !qualified || !area.scope.isInputAllowed)
+                            SemanticActionResult.Rejected
+                        else {
+                            this.input.onActivate();
+                            SemanticActionResult.Completed
+                        }
+                    }
+            )
+        )
+    }
     fun refresh(available: Boolean, frame: SelectableFrame?) {
         var accepted = false
         when (frame) {
@@ -44,10 +88,13 @@ internal class SelectableAction(
             if (qualified && !host.closed)
                 this.input.onActivate()
         }
+        refreshSemantics()
     }
     public override fun close() {
         qualified = false
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { semantics?.close() }
+        semantics = None
         failure = cleanupUi(failure) { press.close() }
         failure = cleanupUi(failure) { focus.close() }
         failure = cleanupUi(failure) { area.close() }

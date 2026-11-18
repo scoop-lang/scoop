@@ -895,6 +895,12 @@ iOS、Android、HarmonyOS 及 Scoop native-app 的 framework/JNI/Node-API 输出
 - [复杂模型](ui/shadcn/MODELS.md)规定选择／菜单、日期、表格本地／外部结果、六类图表、Toast、回合阅读及问卷校验。业务 IO、路由、解析与持久化仍由应用或所属库负责。
 - 按主题纵向样例、八组控件和最终组合验收推进；各批先更新所属 spec，再实施与定向验证，实际进度见[实施记录](ui/shadcn/PROGRESS.md)。先验 macOS aarch64，最后补 x86_64 Rosetta；其他平台后端和 OS accessibility 单独推进，不把文档中的拟议 API 记为已交付。
 
+### UI 交互细节打磨与 accessibility（实施中）
+
+- [交互打磨设计](ui/interaction-polish/DESIGN.md)（2026-11-16）覆盖平台滚动条及独立行为选项、文本原生菜单、多击选择的平台修复、窗口内／同程序跨窗口／跨程序数据拖放、文本拖放、触摸／手势和滚动回弹。源码核查区分已有双击／三击编辑逻辑与 Windows 点击计数、Linux 系统阈值缺口；不重复建设已有能力。
+- [统一实施计划](ui/interaction-polish/PLAN.md)以 S0～S11 覆盖全部交互与 accessibility，列明任务、依赖、代码／规范范围、三平台与设备验收、附加能力核查和最终完成条件。每批先写所属 spec，再改实现和实际消费者；系统偏好、键盘替代操作、非 hover 命中及 Unicode／IME／撤销／焦点组合随批次接入。
+- [accessibility 设计](ui/accessibility/DESIGN.md)同步更新，保留单一语义树、AX／UIA／AT-SPI 与既有文本／虚拟化路线。S0／S2 从前期推进原生边界和基础语义，S5／S7 完成文本与虚拟集合，S10 跟随公共接口完成其余平台，S11 统一控件与工具验收；计划整理完成不代表平台支持已经交付。
+
 ### UI 与图形后续增强（调研结论，未实施）
 
 - [SVG、字体与桌面集成](desktop-ui/GUI-EXTENSIONS.md)：复用 Skia SVG 提供有限静态 SVG／Lucide，补齐系统字体目录、临时装载、命名实例与可变轴选择；Taskbar／Dock 的图标、文字、菜单、进度及系统通知仅使用平台原生能力，缺失功能不自绘补齐。Windows native desktop demo 的圆形窗口按实际配置与后端问题单独定位修复。G1 独立 SVG 图形库已完成 macOS aarch64 离屏／Metal 验证；其余批次和平台结果见[实施进度](desktop-ui/GUI-EXTENSIONS-PROGRESS.md)。

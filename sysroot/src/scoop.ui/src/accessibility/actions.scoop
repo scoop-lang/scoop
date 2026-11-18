@@ -1,0 +1,157 @@
+package scoop.ui
+
+import scoop.window.accessibility.*
+import scoop.window.Utf8Range
+import scoop.window.Utf8Selection
+
+/** Capabilities follow actual handlers; every native entry shares the root boundary. */
+internal fun semanticActions(handle: SemanticsHandle, actions: SemanticActions): SemanticActions {
+    val invoke: (() -> SemanticActionResult)? =
+        when (actions.invoke) {
+            case Some(val action) -> Some { handle.controller.perform(handle, action) }
+            case None -> None
+        }
+    val toggle: (() -> SemanticActionResult)? =
+        when (actions.toggle) {
+            case Some(val action) -> Some { handle.controller.perform(handle, action) }
+            case None -> None
+        }
+    val setValue: ((String) -> SemanticActionResult)? =
+        when (actions.setValue) {
+            case Some(val action) -> Some {
+                text -> handle.controller.perform(handle) { action(text) }
+            }
+            case None -> None
+        }
+    val focus: ((Boolean) -> SemanticActionResult)? =
+        when (actions.focus) {
+            case Some(val action) -> Some {
+                value -> handle.controller.perform(handle) { action(value) }
+            }
+            case None -> when (handle.focus) {
+                case Some(_) -> Some {
+                    value -> handle.controller.perform(handle) { semanticFocus(handle, value) }
+                }
+                case None -> None
+            }
+        }
+    val setSelection: ((Utf8Selection) -> SemanticActionResult)? =
+        when (actions.setSelection) {
+            case Some(val action) -> Some {
+                value -> handle.controller.perform(handle) { action(value) }
+            }
+            case None -> None
+        }
+    val replaceText: ((Utf8Range, String) -> SemanticActionResult)? =
+        when (actions.replaceText) {
+            case Some(val action) -> Some {
+                range,
+                text -> handle.controller.perform(handle) { action(range, text) }
+            }
+            case None -> None
+        }
+    val showContextMenu: (() -> SemanticActionResult)? =
+        when (actions.showContextMenu) {
+            case Some(val action) -> Some { handle.controller.perform(handle, action) }
+            case None -> None
+        }
+    val position: ((Double) -> SemanticActionResult)? =
+        when (actions.setScrollPosition) {
+            case Some(val action) -> Some {
+                value -> handle.controller.perform(handle) { action(value) }
+            }
+            case None -> None
+        }
+    val backward: (() -> SemanticActionResult)? =
+        when (actions.scrollBackward) {
+            case Some(val action) -> Some { handle.controller.perform(handle, action) }
+            case None -> None
+        }
+    val forward: (() -> SemanticActionResult)? =
+        when (actions.scrollForward) {
+            case Some(val action) -> Some { handle.controller.perform(handle, action) }
+            case None -> None
+        }
+    val reveal: (() -> SemanticActionResult)? =
+        Some {
+            handle.controller.perform(handle) {
+                when (actions.reveal) {
+                    case Some(val action) -> action()
+                    case None -> handle.controller.reveal(handle)
+                }
+            }
+        }
+    return SemanticActions(
+        invoke,
+        toggle,
+        setValue,
+        focus,
+        setSelection,
+        replaceText,
+        showContextMenu,
+        position,
+        backward,
+        forward,
+        reveal,
+        when (actions.setNumber) {
+            case Some(val action) -> Some {
+                value -> handle.controller.perform(handle) { action(value) }
+            }
+            case None -> None
+        },
+        semanticVoidAction(handle, actions.increment),
+        semanticVoidAction(handle, actions.decrement),
+        semanticBooleanAction(handle, actions.setSelected),
+        semanticBooleanAction(handle, actions.setExpanded),
+        semanticVoidAction(handle, actions.dismiss),
+        when (actions.revealText) {
+            case Some(val action) -> Some {
+                range,
+                scroll -> handle.controller.perform(handle) { action(range, scroll) }
+            }
+            case None -> None
+        }
+    )
+}
+
+private fun semanticVoidAction(handle: SemanticsHandle, action: (() -> SemanticActionResult)?): (
+    () -> SemanticActionResult
+)? =
+    when (action) {
+        case Some(val callback) -> Some { handle.controller.perform(handle, callback) }
+        case None -> None
+    }
+
+private fun semanticBooleanAction(
+    handle: SemanticsHandle,
+    action: ((Boolean) -> SemanticActionResult)?
+): ((Boolean) -> SemanticActionResult)? =
+    when (action) {
+        case Some(val callback) -> Some {
+            value -> handle.controller.perform(handle) { callback(value) }
+        }
+        case None -> None
+    }
+
+private fun semanticFocus(handle: SemanticsHandle, focused: Boolean): SemanticActionResult {
+    val target = handle.focus ?: return SemanticActionResult.Unavailable
+    if (!target.active)
+        return SemanticActionResult.Unavailable
+    if (!target.available)
+        return SemanticActionResult.Rejected
+    if (!focused) {
+        target.handle.clearFocus()
+        return if (!target.handle.hasFocus)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
+    if (target.handle.isFocusActive)
+        return SemanticActionResult.Completed
+    if (!target.handle.requestFocus())
+        return SemanticActionResult.Rejected
+    return if (target.handle.isFocusActive)
+        SemanticActionResult.Completed
+    else
+        SemanticActionResult.Busy
+}

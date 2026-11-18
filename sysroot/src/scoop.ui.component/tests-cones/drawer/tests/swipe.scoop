@@ -1,0 +1,259 @@
+package scoop.tests.ui.drawer
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.tests.window.sendNativeGesture
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class DrawerSwipeWindowTest {
+    @Test
+    fun `native swipe drawer shares snaps close veto scrolling handles nesting and direction`() {
+        val p = DrawerProbe(exercise = Some({ value -> advanceDrawerSwipe(value) }))
+        p.observeGrips = true
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(p.mounts, p.unmounts);
+            assertEquals(0, p.clicks)
+            assertEquals(1, p.cancels)
+            assertFalse(p.controller.isAttached);
+            assertFalse(p.nestedController.isAttached)
+            assertFalse(p.scroll.isAttached);
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"drawer swipe phase=${p.phase}, snap=${p.controller.snapshot.snapIndex}, open=${
+                    p.open.value
+                }"
+            )
+            drawerFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+private fun drawerSwipe(p: DrawerProbe, x: Double = 0.0, y: Double = 1.0, bounds: Rect? = None) {
+    val rect = bounds ?: p.headerBounds
+    assertTrue(rect.width > 0.0 && rect.height > 0.0)
+    @Unsafe
+    {
+        val lease = p.native!!.acquireNativeWindow()
+        try {
+            when (lease.handle) {
+                case AppKit(_, val view) -> sendNativeGesture(
+                    view,
+                    2,
+                    0,
+                    rect.x + rect.width / 2.0,
+                    rect.y + rect.height / 2.0,
+                    -x,
+                    -y
+                )
+            }
+        } finally {
+            lease.close()
+        }
+    }
+}
+
+private fun advanceDrawerSwipe(p: DrawerProbe) {
+    when (p.phase) {
+        0 -> p.open.value = true
+        1 -> {
+            p.expect(2L, 400.0);
+            drawerSwipe(p)
+        }
+        2 -> {
+            p.expect(1L, 250.0);
+            drawerSwipe(p)
+        }
+        3 -> {
+            p.expect(0L, 160.0);
+            drawerSwipe(p, y = -1.0)
+        }
+        4 -> {
+            p.expect(1L, 250.0);
+            p.reject = true;
+            drawerSwipe(p)
+        }
+        5 -> {
+            p.expect(1L, 250.0);
+            assertEquals(3, p.selections)
+            p.reject = false;
+            p.nativeSwipe = false;
+            p.refresh()
+        }
+        6 -> drawerSwipe(p)
+        7 -> {
+            p.expect(1L, 250.0)
+            p.nativeSwipe = true;
+            p.swipeToClose = false;
+            p.snap.value = 0L;
+            p.refresh()
+        }
+        8 -> drawerSwipe(p)
+        9 -> {
+            p.expect(0L, 160.0);
+            assertTrue(p.open.value)
+            p.swipeToClose = true;
+            p.veto = true;
+            p.refresh()
+        }
+        10 -> drawerSwipe(p)
+        11 -> {
+            p.expect(0L, 160.0);
+            assertTrue(p.open.value)
+            p.veto = false;
+            p.rejectClose = true;
+            drawerSwipe(p)
+        }
+        12 -> {
+            assertTrue(p.open.value);
+            p.rejectClose = false;
+            drawerSwipe(p)
+        }
+        13 -> {
+            assertFalse(p.open.value);
+            assertFalse(p.controller.isAttached)
+            p.open.value = true;
+            p.snap.value = 2L
+        }
+        14 -> {
+            p.expect(2L, 400.0);
+            p.only = true;
+            p.refresh()
+        }
+        15 -> drawerSwipe(p)
+        16 -> {
+            p.expect(2L, 400.0);
+            drawerSwipe(p, bounds = Some(p.gripBounds))
+        }
+        17 -> {
+            p.expect(1L, 250.0);
+            p.only = false;
+            p.snap.value = 2L;
+            p.refresh()
+        }
+        18 -> {
+            p.expect(2L, 400.0);
+            p.scroll.scrollTo(Point(0.0, 150.0))
+        }
+        19 -> {
+            assertTrue(p.scroll.offset.y > 0.0)
+            drawerSwipe(p, bounds = Some(Rect(350.0, p.headerBounds.y + 80.0, 20.0, 20.0)))
+        }
+        20 -> {
+            p.expect(2L, 400.0);
+            p.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        21 -> drawerSwipe(p, bounds = Some(p.bodyBounds))
+        22 -> {
+            p.expect(1L, 250.0);
+            p.snap.value = 2L;
+            p.nestedOpen.value = true
+        }
+        23 -> {
+            p.expect(2L, 400.0)
+            assertTrue(p.nestedController.isAttached)
+            assertEquals(1L, p.controller.snapshot.nestedDepth)
+            drawerSwipe(p, bounds = Some(p.nestedGripBounds))
+        }
+        24 -> {
+            assertFalse(p.nestedOpen.value);
+            assertTrue(p.open.value);
+            p.expect(2L, 400.0)
+            assertEquals(5, p.selections)
+            p.side = SheetSide.Top;
+            p.snaps = false;
+            p.height = Some(240.0);
+            p.refresh()
+        }
+        25 -> {
+            p.expect(0L, 240.0);
+            drawerSwipe(p)
+        }
+        26 -> {
+            assertTrue(p.open.value);
+            drawerSwipe(p, y = -1.0)
+        }
+        27 -> {
+            assertFalse(p.open.value)
+            p.side = SheetSide.Start;
+            p.rtl = true;
+            p.height = None;
+            p.open.value = true;
+            p.refresh()
+        }
+        28 -> {
+            p.expect(0L, 220.0);
+            assertTrue(p.headerBounds.x > 320.0)
+            drawerSwipe(p, -1.0, 0.0)
+        }
+        29 -> {
+            assertTrue(p.open.value);
+            drawerSwipe(p, 1.0, 0.0)
+        }
+        30 -> {
+            assertFalse(p.open.value)
+            p.side = SheetSide.Bottom;
+            p.rtl = false;
+            p.height = Some(400.0)
+            p.snaps = true;
+            p.snap.value = 2L;
+            p.open.value = true;
+            p.refresh()
+        }
+        31 -> {
+            p.expect(2L, 400.0);
+            p.start(p.headerBounds)
+        }
+        32 -> p.out(60.0)
+        33 -> {
+            assertTrue(p.controller.snapshot.dragging);
+            drawerSwipe(p)
+        }
+        34 -> {
+            p.expect(1L, 250.0);
+            assertFalse(p.controller.snapshot.dragging)
+            assertEquals(1, p.cancels);
+            p.release()
+        }
+        35 -> {
+            p.expect(1L, 250.0);
+            p.quiet = Some(p.frames!!.snapshot())
+        }
+        36 -> {
+            assertEquals(p.quiet!!, p.frames!!.snapshot());
+            p.enabled = false;
+            p.refresh()
+        }
+        37 -> drawerSwipe(p)
+        38 -> {
+            p.expect(1L, 250.0);
+            p.enabled = true;
+            p.refresh()
+        }
+        39 -> {
+            p.gone = true;
+            p.refresh()
+        }
+        40 -> {
+            assertFalse(p.controller.isAttached);
+            p.done = true;
+            p.native!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected drawer swipe phase"))
+    }
+}

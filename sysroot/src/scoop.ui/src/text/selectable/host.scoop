@@ -19,6 +19,9 @@ public class SelectableTextHost public constructor(
     internal val paragraph = ParagraphHost()
     internal var fonts = initialFonts
     internal var content = initialContent
+    internal var semanticText: SelectableSemanticText? = None
+    internal val semantics = SemanticTextHost()
+    internal var semanticLayout: SelectableSemanticLayout? = None
     internal var options = initialOptions
     internal var closed = false
     internal val selected = state(EditorSelection(TextPosition(0L), TextPosition(0L)))
@@ -35,14 +38,41 @@ public class SelectableTextHost public constructor(
             event -> selectableHandle(this, context, event)
         }
     public val focus = scope.focusTarget(area)
-    private val activity =
-        area.scope.observeActivity {
-            if (!closed && scope.isMounted) {
-                if (!area.scope.activity.hasFocus)
-                    selectableStopDrag(this)
-                scope.requestFrame()
+    internal val primarySelection = PrimaryTextSelection(scope.nativeWindow)
+    internal val dataSource = createSelectableDragSource(this)
+    internal val contextMenu =
+        TextContextMenu(
+            scope,
+            area,
+            { options.contextMenu },
+            { selectableMenuReady(this) },
+            { command -> execute(command) },
+            false
+        )
+    internal val touchPress = createSelectableContactPress(this)
+    internal val touchHandles = createSelectableSelectionHandles(this)
+    private val activity = area.scope.observeActivity { activityChanged() }
+    private val windowFocus =
+        scope.observeWindow(scope.nativeWindow) {
+            event -> when (event) {
+                case Focused(_) -> {
+                    if (!closed && scope.isMounted && area.scope.activity.hasFocus)
+                        activityChanged()
+                }
+                else -> {}
             }
         }
+
+    private fun activityChanged() {
+        if (closed || !scope.isMounted)
+            return
+        if (!scope.nativeWindow.isFocused || !area.scope.activity.hasFocus) {
+            dataSource?.cancelCandidate()
+            selectableStopDrag(this)
+        }
+        contextMenu.refresh()
+        scope.requestFrame()
+    }
 
     init {
         options.check()
@@ -51,6 +81,7 @@ public class SelectableTextHost public constructor(
         area.scope.defaultAction = { context, event -> selectableHandle(this, context, event) }
         area.scope.onEventFinished = { event -> selectableFinished(this, event) }
         area.scope.enabled = options.enabled
+        dataSource?.update()
         scope.routeChildren(area)
         refreshMenuCommands()
     }
@@ -132,9 +163,32 @@ public class SelectableTextHost public constructor(
         }
         this.focus.options = focus
         val textChanged = this.content.text != content.text
+        if (
+            textChanged || this.fonts !== fonts || this.options.contextMenu != options.contextMenu
+        ) {
+            touchPress.cancel()
+            touchHandles.hide()
+        }
+        if (
+            textChanged ||
+                (contextMenu.hasTarget && this.content.toPlainText() != content.toPlainText())
+        )
+            contextMenu.cancel()
+        if (textChanged)
+            primarySelection.close()
         this.fonts = fonts
+        if (this.content !== content)
+            semanticText = None
         this.content = content
         this.options = options
+        touchPress.update(
+            options.enabled && options.touch.enabled,
+            options.touch.threshold,
+            options.touch.longPressDelay,
+            options.touch.multiTap,
+            options.touch.multiTapInterval
+        )
+        touchHandles.update(options.enabled, options.touch)
         this.decorations = decorations
         changed = onSelectionChanged
         selectableActions(this, actions)
@@ -167,6 +221,7 @@ public class SelectableTextHost public constructor(
             }
         // Pending text blocks selection through inputFrame without retiring the existing focus.
         area.scope.enabled = options.enabled
+        dataSource?.update()
         refreshMenuCommands()
         for (action in actions)
             action.refresh(available, accepted)
@@ -182,9 +237,13 @@ public class SelectableTextHost public constructor(
         preferredX = None
         return publishSelection(EditorSelection(anchor, cursor))
     }
-    internal fun publishSelection(value: EditorSelection): Boolean {
+    internal fun publishSelection(value: EditorSelection, cancelContacts: Boolean = true): Boolean {
         if (selected.value == value)
             return false
+        if (cancelContacts) {
+            touchPress.cancel()
+            touchHandles.hide()
+        }
         selected.value = value
         refreshMenuCommands()
         scope.requestFrame()
@@ -203,6 +262,12 @@ public class SelectableTextHost public constructor(
             return false
         selectableStopDrag(this)
         return selectableCommand(this, command)
+    }
+    /** Opens Copy and Select All at the current accepted selection or insertion position. */
+    public fun showContextMenu(): Boolean {
+        checkOpen()
+        checkFocusMutation()
+        return selectableContextMenu(this, None, None)
     }
     public fun measure(
         context: MeasureContext,
@@ -223,8 +288,17 @@ public class SelectableTextHost public constructor(
         if (closed)
             return
         closed = true
+        semanticText = None
         selectableStopDrag(this)
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { semantics.close() }
+        semanticLayout = None
+        failure = cleanupUi(failure) { contextMenu.close() }
+        failure = cleanupUi(failure) { primarySelection.close() }
+        failure = cleanupUi(failure) { touchPress.close() }
+        failure = cleanupUi(failure) { touchHandles.close() }
+        failure = cleanupUi(failure) { dataSource?.close() }
+        failure = cleanupUi(failure) { windowFocus.close() }
         failure = cleanupUi(failure) { activity.close() }
         for (action in actions)
             failure = cleanupUi(failure) { action.close() }

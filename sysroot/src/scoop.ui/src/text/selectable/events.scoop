@@ -24,9 +24,15 @@ internal fun selectableHandle(
         return
     if (context.phase == RoutedPhase.Notification) {
         when (event) {
-            case FocusChanged(false) -> if (!host.area.scope.activity.hasFocus)
+            case FocusChanged(false) -> if (!host.area.scope.activity.hasFocus) {
+                host.dataSource?.cancelCandidate()
                 selectableStopDrag(host)
-            case Pointer(InputPointerEvent.Cancelled(_, _)) -> selectableStopDrag(host)
+            }
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                host.dataSource?.cancelCandidate()
+                selectableStopDrag(host)
+            }
+            case Contact(InputContactEvent.Cancelled(_, _, _)) -> host.dataSource?.cancelCandidate()
             else -> {}
         }
         return
@@ -37,11 +43,42 @@ internal fun selectableHandle(
     )
         return
     when (event) {
+        case Pointer(
+            InputPointerEvent.Button(val pointer, val button, ElementState.Pressed, _)
+        ) -> {
+            if (isContextMenuClick(button, pointer.state.modifiers)) {
+                if (
+                    context.phase ==
+                        RoutedPhase.Default &&
+                        selectableContextMenu(host, Some(pointer.state), context.localPosition)
+                )
+                    context.consume()
+                return
+            }
+        }
+        case Keyboard(val key) -> {
+            if (
+                context.phase == RoutedPhase.Default && textMenuKey(key) && host.showContextMenu()
+            ) {
+                context.consume()
+                return
+            }
+        }
+        else -> {}
+    }
+    if (host.dataSource?.handle(context, event) ?: false) {
+        if (context.phase == RoutedPhase.Default)
+            context.consume()
+        return
+    }
+    when (event) {
         case TextCommand(val command) -> if (
             context.phase == RoutedPhase.Default && host.execute(command)
         )
             context.consume()
-        case Pointer(InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)) -> {
+        case Pointer(
+            InputPointerEvent.Button(val pointer, MouseButton.Left, val state, val count)
+        ) -> {
             if (state == ElementState.Pressed) {
                 if (context.phase == RoutedPhase.Capture) {
                     selectablePrepareDrag(host, pointer, context.localPosition, count)
@@ -120,13 +157,10 @@ private fun selectablePrepareDrag(
     val position = frame.layout.hitTest(point)
     val shift = pointer.state.modifiers.shift
     val unit =
-        if (shift || count < 2)
+        if (shift)
             EditorDragUnit.Character
         else
-            if (count == 2)
-                EditorDragUnit.Word
-            else
-                EditorDragUnit.Line
+            editorClickUnit(count)
     val range = editorDragRange(TextEditLayout(frame.layout), position, unit)
     val anchor =
         if (shift)
@@ -201,9 +235,10 @@ internal fun selectableFinished(host: SelectableTextHost, event: InputEvent) {
     if (host.closed)
         return
     when (event) {
-        case Pointer(
-            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
-        ) -> selectableStopDrag(host)
+        case Pointer(InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)) -> {
+            host.dataSource?.cancelCandidate()
+            selectableStopDrag(host)
+        }
         else -> {}
     }
 }

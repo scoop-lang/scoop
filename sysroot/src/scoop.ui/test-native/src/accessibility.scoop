@@ -1,0 +1,357 @@
+package scoop.tests.ui.accessibility.native
+
+import scoop.window.*
+
+public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Closeable {
+    public fun find(identifier: String): NativeNode? {
+        @Unsafe
+        {
+            return identifier.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes when (val found = nativeFind(pointer, bytes, length)) {
+                        case Some(val value) -> Some(NativeNode(value))
+                        case None -> None
+                    }
+                }
+            }
+        }
+    }
+    public val count: Long get() {
+        @Unsafe
+        {
+            return nativeCount(pointer)
+        }
+    }
+    public fun child(index: Long): NativeNode {
+        @Unsafe
+        {
+            return NativeNode(nativeChild(pointer, index)!!)
+        }
+    }
+    public fun parent(expected: NativeNode): Boolean {
+        @Unsafe
+        {
+            return nativeParent(pointer, expected.pointer) != 0
+        }
+    }
+    public fun text(field: Int, expected: String?): Boolean {
+        @Unsafe
+        {
+            return when (expected) {
+                case Some(val value) -> value.withUtf8Bytes {
+                    bytes,
+                    length -> @Unsafe
+                    {
+                        return@withUtf8Bytes nativeText(pointer, field, Some(bytes), length) != 0
+                    }
+                }
+                case None -> nativeText(pointer, field, None, -1L) != 0
+            }
+        }
+    }
+    public fun flag(field: Int): Boolean {
+        @Unsafe
+        {
+            return nativeFlag(pointer, field) != 0
+        }
+    }
+    public val numericValue: Long get() {
+        @Unsafe
+        {
+            return nativeNumber(pointer)
+        }
+    }
+    public val scrollPosition: Double get() {
+        @Unsafe
+        {
+            return nativeScrollPosition(pointer)
+        }
+    }
+    public fun scrollBar(vertical: Boolean): NativeNode? {
+        @Unsafe
+        {
+            return when (val value = nativeScrollBar(pointer, vertical)) {
+                case Some(val found) -> Some(NativeNode(found))
+                case None -> None
+            }
+        }
+    }
+    public fun press(): Boolean {
+        @Unsafe
+        {
+            return nativePress(pointer) != 0
+        }
+    }
+    public fun frame(
+        view: Ptr<Unit>,
+        x: Double,
+        y: Double,
+        width: Double,
+        height: Double
+    ): Boolean {
+        @Unsafe
+        {
+            return nativeFrame(pointer, view, x, y, width, height) != 0
+        }
+    }
+    public fun hit(view: Ptr<Unit>, x: Double, y: Double, expected: NativeNode?): Boolean {
+        @Unsafe
+        {
+            return nativeHit(pointer, view, x, y, expected?.pointer) != 0
+        }
+    }
+    public val characterCount: Long get() {
+        @Unsafe
+        {
+            return nativeTextCount(pointer)
+        }
+    }
+    public fun selection(start: Long, length: Long): Boolean {
+        @Unsafe
+        {
+            return nativeSelection(pointer, start, length) != 0
+        }
+    }
+    public fun range(
+        start: Long,
+        length: Long,
+        expected: String?,
+        attributed: Boolean = false
+    ): Boolean {
+        @Unsafe
+        {
+            return when (expected) {
+                case Some(val value) -> value.withUtf8Bytes {
+                    bytes,
+                    count -> @Unsafe
+                    {
+                        return@withUtf8Bytes nativeTextRange(
+                            pointer,
+                            start,
+                            length,
+                            Some(bytes),
+                            count,
+                            attributed
+                        ) !=
+                            0
+                    }
+                }
+                case None -> nativeTextRange(pointer, start, length, None, -1L, attributed) != 0
+            }
+        }
+    }
+    public override fun close() {
+        @Unsafe
+        {
+            nativeRelease(pointer)
+        }
+    }
+}
+
+public class NativeCalls public constructor(
+    proxy: ApplicationProxy,
+    nativeReturned: (Int) -> Unit = { _ -> Unit },
+    completed: (Int, Int) -> Unit
+): Closeable {
+    private val callback = actionCallback(proxy, completed, nativeReturned)
+    private val pointer = openCalls()
+    public fun post(
+        node: NativeNode,
+        tag: Int,
+        action: Int = 0,
+        value: String = "",
+        selectionStart: Long = 0L,
+        selectionLength: Long = 0L
+    ) {
+        @Unsafe
+        {
+            value.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    nativePost(
+                        pointer,
+                        node.pointer,
+                        tag,
+                        action,
+                        bytes,
+                        length,
+                        selectionStart,
+                        selectionLength,
+                        callback.function,
+                        callback.context
+                    )
+                }
+            }
+        }
+    }
+    public fun postTextClient(
+        node: NativeNode,
+        view: Ptr<Unit>,
+        tag: Int,
+        bounds: TextQueryBounds
+    ): Boolean {
+        @Unsafe
+        {
+            return nativeTextClient(
+                pointer,
+                node.pointer,
+                view,
+                tag,
+                bounds.x,
+                bounds.y,
+                bounds.width,
+                bounds.height,
+                callback.function,
+                callback.context
+            ) !=
+                0
+        }
+    }
+    public override fun close() {
+        @Unsafe
+        {
+            nativeCloseCalls(pointer)
+            releaseForeignCallback(callback)
+        }
+    }
+}
+
+private fun openCalls(): Ptr<Unit> {
+    @Unsafe
+    {
+        return nativeCalls()
+    }
+}
+
+private fun actionCallback(
+    proxy: ApplicationProxy,
+    completed: (Int, Int) -> Unit,
+    nativeReturned: (Int) -> Unit
+): ForeignCallback<(Ptr<Unit>, Int, Int) -> Int> {
+    @Unsafe
+    {
+        return foreignCallback<(Ptr<Unit>, Int, Int) -> Int>(
+            {
+                tag: Int, result: Int ->
+                try {
+                    nativeReturned(tag)
+                } catch (error: Throwable) {
+                    proxy.post { _ -> throw error }
+                    return@foreignCallback 0
+                }
+                proxy.post { _ -> completed(tag, result) }
+                0
+            },
+            0,
+            ForeignCallbackMode.Reusable
+        )
+    }
+}
+
+@Extern(name = "scoop_ui_ax_root")
+public fun nativeRoot(view: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_ax_find")
+private fun nativeFind(node: Ptr<Unit>, text: Ptr<UInt8>, length: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_ax_count")
+private fun nativeCount(node: Ptr<Unit>): Long
+
+@Extern(name = "scoop_ui_ax_child")
+private fun nativeChild(node: Ptr<Unit>, index: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_ax_parent")
+private fun nativeParent(node: Ptr<Unit>, parent: Ptr<Unit>): Int
+
+@Extern(name = "scoop_ui_ax_text")
+private fun nativeText(node: Ptr<Unit>, field: Int, text: Ptr<UInt8>?, length: Long): Int
+
+@Extern(name = "scoop_ui_ax_flag")
+private fun nativeFlag(node: Ptr<Unit>, field: Int): Int
+
+@Extern(name = "scoop_ui_ax_number")
+private fun nativeNumber(node: Ptr<Unit>): Long
+
+@Extern(name = "scoop_ui_ax_scroll_position")
+private fun nativeScrollPosition(pointer: Ptr<Unit>): Double
+
+@Extern(name = "scoop_ui_ax_scroll_bar")
+private fun nativeScrollBar(pointer: Ptr<Unit>, vertical: Boolean): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_ax_press")
+private fun nativePress(node: Ptr<Unit>): Int
+
+@Extern(name = "scoop_ui_ax_frame")
+private fun nativeFrame(
+    node: Ptr<Unit>,
+    view: Ptr<Unit>,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double
+): Int
+
+@Extern(name = "scoop_ui_ax_hit")
+private fun nativeHit(
+    node: Ptr<Unit>,
+    view: Ptr<Unit>,
+    x: Double,
+    y: Double,
+    expected: Ptr<Unit>?
+): Int
+
+@Extern(name = "scoop_ui_ax_text_count")
+private fun nativeTextCount(node: Ptr<Unit>): Long
+
+@Extern(name = "scoop_ui_ax_selection")
+private fun nativeSelection(node: Ptr<Unit>, start: Long, length: Long): Int
+
+@Extern(name = "scoop_ui_ax_text_range")
+private fun nativeTextRange(
+    node: Ptr<Unit>,
+    start: Long,
+    length: Long,
+    bytes: Ptr<UInt8>?,
+    count: Long,
+    attributed: Boolean
+): Int
+
+@Extern(name = "scoop_ui_ax_release")
+private fun nativeRelease(node: Ptr<Unit>)
+
+@Extern(name = "scoop_ui_ax_calls")
+private fun nativeCalls(): Ptr<Unit>
+
+@Extern(name = "scoop_ui_ax_post")
+private fun nativePost(
+    calls: Ptr<Unit>,
+    node: Ptr<Unit>,
+    tag: Int,
+    action: Int,
+    text: Ptr<UInt8>,
+    length: Long,
+    selectionStart: Long,
+    selectionLength: Long,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+)
+
+@Extern(name = "scoop_ui_ax_close_calls")
+private fun nativeCloseCalls(calls: Ptr<Unit>)
+
+@Extern(name = "scoop_ui_ax_text_client")
+private fun nativeTextClient(
+    calls: Ptr<Unit>,
+    node: Ptr<Unit>,
+    view: Ptr<Unit>,
+    tag: Int,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+): Int

@@ -34,6 +34,7 @@ private class ScrollAreaTest {
             probe.outer.scrollTo(Point(0.0, 0.0))
             assertEquals(count, probe.outerIntents.size)
         } finally {
+            probe.behaviorWaiter?.close()
             probe.frames?.close()
             probe.view?.close()
         }
@@ -41,6 +42,13 @@ private class ScrollAreaTest {
 }
 
 internal class AreaProbe {
+    val behavior = state(scrollbarBehavior { preset = ScrollbarPreset.Static })
+    var behaviorPhase = 0
+    var placementPhase = 0
+    var placementIntent = 0L
+    var behaviorWaiter: WindowDeadline? = None
+    var idleFrames = 0
+    var expectedJump = 0.0
     val styled = state(false)
     val direction = state(LayoutDirection.Ltr)
     val visibility = state(FocusVisibility.Automatic)
@@ -104,6 +112,18 @@ internal class AreaProbe {
                         }
                     )
                 window = Some(native)
+                behaviorWaiter =
+                    Some(
+                        native.createDeadline {
+                            assertTrue(
+                                active.proxy().post {
+                                    _ ->
+                                    behaviorPhase += 1;
+                                    waiting = false
+                                }
+                            )
+                        }
+                    )
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -166,7 +186,20 @@ internal class AreaProbe {
     fun bar(): ScrollbarGeometry {
         val snapshot = current.snapshot
         val source = theme.current.value
-        val thickness = source.scrollbarMetrics().thickness
+        val drawn = source.scrollbarMetrics().thickness
+        val input = behavior.value
+        var thickness =
+            input.minimumHitThickness ?:
+                if (drawn > 12.0)
+                    drawn
+                else
+                    12.0
+        for (value in [input.idleWidth, input.hoverWidth, input.dragWidth])
+            when (value) {
+                case Some(val width) -> if (width > thickness)
+                    thickness = width
+                case None -> {}
+            }
         return source.scrollbarGeometry(
             Rect(
                 if (direction.value == LayoutDirection.Rtl)

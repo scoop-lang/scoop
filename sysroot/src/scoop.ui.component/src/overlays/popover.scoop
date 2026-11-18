@@ -6,6 +6,7 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.column as popupColumn
 
 public class Popover public constructor(
@@ -14,7 +15,8 @@ public class Popover public constructor(
 ): Component(scope) {
     private val anchor = LayoutAnchor()
     private val localHandle = OverlayHandle()
-    private val themes = ThemeAccess()
+    private val semanticReference = SemanticsReference()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     public override fun onMount() {
@@ -39,6 +41,15 @@ public class Popover public constructor(
         else
             setOpen(true)
     }
+    private fun dismissSemantically(): SemanticActionResult {
+        if (!props.value.open.value)
+            return SemanticActionResult.Unavailable;
+        (props.value.handle ?: localHandle).requestClose()
+        return if (!props.value.open.value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
     public override fun render(): View {
         val inputs = props
         val input = inputs.value
@@ -48,7 +59,11 @@ public class Popover public constructor(
         val titleStyle =
             titles.resolve(theme.tokens.typography.action, palette.popover.foreground, None)
         val descriptionStyle =
-            descriptions.resolve(theme.tokens.typography.body, palette.muted.foreground, None)
+            descriptions.resolve(
+                theme.tokens.typography.body,
+                componentForeground(theme, palette.muted.foreground, palette.popover.background),
+                None
+            )
         val content =
             popupColumn {
                 if (panelPresent(input.title) || panelPresent(input.description))
@@ -86,7 +101,7 @@ public class Popover public constructor(
                 Insets.all(10.0 * density),
                 styleOverride {
                     background(Some(Paint(palette.popover.background)))
-                    border(Some(Border.all(1.0, palette.background.foreground.withAlpha(0.1))))
+                    border(Some(Border.all(1.0, componentPanelBorder(theme, palette.popover))))
                     corners(Corners.all(8.0 * density))
                     boxShadows(theme.tokens.effects.floating)
                 }.then(input.style),
@@ -110,7 +125,18 @@ public class Popover public constructor(
                         input.theme,
                         value.focus,
                         variant = value.variant,
-                        size = value.size
+                        size = value.size,
+                        semantics =
+                            value.semantics.copy {
+                                relations =
+                                    semanticControls(
+                                        relations,
+                                        (
+                                            input.semantics.reference ?:
+                                                this @Popover.semanticReference
+                                        ).id
+                                    )
+                            }
                     ),
                     { current, mount -> Button(current, scope = mount) }
                 )
@@ -122,6 +148,14 @@ public class Popover public constructor(
             )
         val localAnchor = anchor
         val overlayHandle = input.handle ?: localHandle
+        val semantics =
+            input.semantics.copy {
+                if (name == None && relations.labelledBy.size == 0L)
+                    name = semanticCaption(input.title)
+                if (description == None)
+                    description = semanticCaption(input.description)
+                reference = Some(input.semantics.reference ?: this @Popover.semanticReference)
+            }
         val popup =
             portal(
                 binding({ props.value.open.value }, { value -> setOpen(value) }),
@@ -136,7 +170,20 @@ public class Popover public constructor(
                         )
                     ),
                     { current, mount -> PopupMotion(current, scope = mount) },
-                    [panel]
+                    [
+                        semanticContent(
+                            panel,
+                            SemanticRole.Dialog,
+                            semantics.properties(
+                                enabled = input.enabled,
+                                modal = input.mode == OverlayMode.Modal
+                            ),
+                            actions = SemanticActions(dismiss = Some { dismissSemantically() }),
+                            relations = semantics.relations,
+                            mergeLabels = false,
+                            reference = semantics.reference
+                        )
+                    ]
                 )
             ) {
                 placement =

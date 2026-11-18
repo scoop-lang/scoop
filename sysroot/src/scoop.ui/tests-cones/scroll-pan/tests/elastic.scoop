@@ -1,0 +1,208 @@
+package scoop.tests.ui.scrollpan
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.surface.AnimationSpec
+import scoop.test.*
+import scoop.tests.surface.moveSurfacePointer
+import scoop.time.Duration
+import scoop.ui.*
+
+internal fun elasticScroll(shortContent: Boolean = false): ScrollPhysicsOptions =
+    ScrollPhysicsOptions(
+        ScrollBoundary.Elastic,
+        0.5,
+        40.0,
+        shortContent,
+        300.0,
+        1.0,
+        ScrollInertiaOptions(false)
+    )
+
+internal fun scrollNear(expected: Double, actual: Double) {
+    assertTrue(abs(expected - actual) < 0.001, Some(f"expected ${expected}, got ${actual}"))
+}
+
+internal fun panElasticStep(p: PanProbe): Boolean {
+    when (p.phase) {
+        0 -> {
+            assertTrue(moveSurfacePointer(p.window!!, 330.0, 230.0))
+            p.innerPhysics = elasticScroll()
+            p.outerPhysics = elasticScroll()
+            p.changed()
+        }
+        1 -> {
+            p.beforeBounds = p.leafArea!!.toWindow(Rect(0.0, 0.0, 1.0, 1.0))!!
+            p.contact(201L, 0, 50.0, 55.0)
+            p.contact(201L, 1, 50.0, 95.0)
+        }
+        2 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            assertEquals(Point(0.0, 0.0), p.innerLayout!!.overscroll)
+            val edge = p.outerLayout!!.overscroll.y
+            assertTrue(edge > 0.0 && edge < 40.0)
+            val after = p.leafArea!!.toWindow(Rect(0.0, 0.0, 1.0, 1.0))!!
+            scrollNear(p.beforeBounds.y + edge, after.y)
+            p.contact(201L, 1, 50.0, 75.0)
+        }
+        3 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            scrollNear(8.0, p.outerLayout!!.overscroll.y)
+            p.contact(201L, 1, 50.0, 35.0)
+        }
+        4 -> {
+            scrollNear(20.0, p.inner.offset.y)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.contact(201L, 2, 50.0, 35.0)
+            p.reset()
+        }
+        5 -> {
+            p.contact(202L, 0, 50.0, 55.0)
+            p.contact(202L, 1, 50.0, -800.0)
+        }
+        6 -> {
+            assertEquals(p.inner.maximum, p.inner.offset)
+            assertEquals(p.outer.maximum.y, p.outer.offset.y)
+            assertEquals(Point(0.0, 0.0), p.innerLayout!!.overscroll)
+            assertTrue(p.outerLayout!!.overscroll.y < 0.0)
+            assertTrue(p.outerLayout!!.overscroll.y >= -40.0)
+            p.beforeIntents = p.userIntents
+            p.animatedSteps = true
+            p.contact(202L, 2, 50.0, -800.0)
+        }
+        7 -> {
+            assertTrue(p.outer.isAnimating)
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(true) }
+            assertFalse(p.outer.isAnimating)
+            p.animatedSteps = false
+        }
+        8 -> {
+            assertEquals(p.beforeIntents, p.userIntents)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            assertEquals(300.0, p.outer.offset.y)
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
+            p.reset()
+            p.chain = ScrollChain.Contain
+            p.changed()
+        }
+        9 -> {
+            p.contact(203L, 0, 50.0, 55.0)
+            p.contact(203L, 1, 50.0, 95.0)
+        }
+        10 -> {
+            assertTrue(p.innerLayout!!.overscroll.y > 0.0)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.innerPhysics = elasticScroll()
+            p.changed()
+        }
+        11 -> {
+            assertTrue(p.innerLayout!!.overscroll.y > 0.0)
+            p.inner.scrollTo(Point(0.0, 30.0))
+            p.contact(203L, 2, 50.0, 95.0)
+        }
+        12 -> {
+            assertEquals(Point(0.0, 30.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.innerLayout!!.overscroll)
+            assertFalse(p.innerPan!!.isPanning)
+            p.reset()
+            p.chain = ScrollChain.Chain
+            p.outerPhysics = ScrollPhysicsOptions(ScrollBoundary.Hard)
+            p.changed()
+        }
+        13 -> {
+            p.contact(204L, 0, 50.0, 55.0)
+            p.contact(204L, 1, 50.0, 115.0)
+        }
+        14 -> {
+            assertEquals(Point(0.0, 0.0), p.innerLayout!!.overscroll)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.contact(204L, 2, 50.0, 115.0)
+            p.outerPhysics = elasticScroll()
+            p.outerHeight = 100.0
+            p.changed()
+        }
+        15 -> {
+            p.contact(205L, 0, 50.0, 55.0)
+            p.contact(205L, 1, 50.0, 95.0)
+        }
+        16 -> {
+            assertEquals(0.0, p.outer.maximum.y)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.contact(205L, 2, 50.0, 95.0)
+            p.outerPhysics = elasticScroll(true)
+            p.changed()
+        }
+        17 -> {
+            p.contact(206L, 0, 50.0, 55.0)
+            p.contact(206L, 1, 50.0, 115.0)
+        }
+        18 -> {
+            assertEquals(0.0, p.outer.maximum.y)
+            assertTrue(p.outerLayout!!.overscroll.y > 0.0)
+            p.outerHeight = 500.0
+            p.changed()
+        }
+        19 -> {
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            p.contact(206L, 2, 50.0, 115.0)
+        }
+        20 -> {
+            p.contact(207L, 0, 50.0, 55.0)
+            p.contact(207L, 1, 50.0, 95.0)
+        }
+        21 -> {
+            assertTrue(p.outerLayout!!.overscroll.y > 0.0)
+            p.enabled = false
+            p.changed()
+        }
+        22 -> {
+            assertFalse(p.outerPan!!.isPanning)
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.enabled = true
+            p.changed()
+        }
+        23 -> {
+            p.contact(208L, 0, 50.0, 55.0)
+            p.contact(208L, 1, 50.0, 115.0)
+        }
+        24 -> {
+            p.animatedSteps = true
+            p.contact(208L, 2, 50.0, 115.0)
+        }
+        25 -> {
+            assertTrue(p.outer.isAnimating)
+            p.outerScope!!.isFrameEnabled = false
+            assertFalse(p.outer.isAnimating)
+            p.animatedSteps = false
+            p.changed()
+        }
+        26 -> {
+            assertEquals(Point(0.0, 0.0), p.outerLayout!!.overscroll)
+            p.outerScope!!.isFrameEnabled = true
+            p.outer.animateTo(Point(0.0, 180.0), AnimationSpec.Tween(Duration.seconds(2L)))
+            p.animatedSteps = true
+        }
+        27 -> {
+            assertTrue(p.outer.isAnimating)
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(true) }
+            assertFalse(p.outer.isAnimating)
+            p.animatedSteps = false
+        }
+        28 -> {
+            assertEquals(Point(0.0, 180.0), p.outer.offset)
+            p.outer.animateTo(Point(0.0, 90.0))
+            assertFalse(p.outer.isAnimating)
+        }
+        29 -> {
+            assertEquals(Point(0.0, 90.0), p.outer.offset)
+            assertFalse(p.frames!!.snapshot().required)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected elastic contact phase"))
+    }
+    return true
+}

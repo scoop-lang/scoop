@@ -1,0 +1,190 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+
+@Test
+private class ScrollbarPlacementTest {
+    @Test
+    fun `fixed gutters constrain content once and preserve outer extents on every axis`() {
+        val parent = Constraints(20.0, Some(200.0), 30.0, Some(100.0))
+        val vertical = ScrollMeasure(parent, ScrollAxes.Vertical, None, None, Size(24.0, 0.0))
+        assertEquals(Constraints(176.0, Some(176.0), 0.0, None), vertical.contentConstraints)
+        assertEquals(Size(200.0, 100.0), vertical.size(Size(176.0, 600.0)))
+        val horizontal = ScrollMeasure(parent, ScrollAxes.Horizontal, None, None, Size(0.0, 24.0))
+        assertEquals(Constraints(0.0, None, 76.0, Some(76.0)), horizontal.contentConstraints)
+        assertEquals(Size(200.0, 100.0), horizontal.size(Size(600.0, 76.0)))
+        val intrinsic =
+            ScrollMeasure(
+                Constraints(minWidth = 20.0),
+                ScrollAxes.Vertical,
+                None,
+                Some(80.0),
+                Size(12.0, 0.0)
+            )
+        assertEquals(Constraints(minWidth = 8.0), intrinsic.contentConstraints)
+        assertEquals(Size(87.0, 80.0), intrinsic.size(Size(75.0, 500.0)))
+        val narrow =
+            ScrollMeasure(
+                Constraints.tight(Size(5.0, 6.0)),
+                ScrollAxes.Vertical,
+                None,
+                None,
+                Size(12.0, 0.0)
+            )
+        assertEquals(Constraints(0.0, Some(0.0), 0.0, None), narrow.contentConstraints)
+        assertEquals(Size(5.0, 6.0), narrow.size(Size(0.0, 500.0)))
+    }
+
+    @Test
+    fun `gutters stay reserved without overflow and follow logical end including the corner`() {
+        val outer = Size(200.0, 120.0)
+        for (mode in [ScrollbarVisibility.Auto, ScrollbarVisibility.Always]) {
+            val gutter = scrollbarGutter(ScrollAxes.Both, mode, 12.0, ScrollbarPlacement.Gutter)
+            assertEquals(Size(12.0, 12.0), gutter)
+            assertEquals(
+                Rect(0.0, 0.0, 188.0, 108.0),
+                scrollbarViewport(outer, gutter, LayoutDirection.Ltr)
+            )
+            assertEquals(
+                Rect(12.0, 0.0, 188.0, 108.0),
+                scrollbarViewport(outer, gutter, LayoutDirection.Rtl)
+            )
+        }
+        assertEquals(
+            Size(0.0, 0.0),
+            scrollbarGutter(
+                ScrollAxes.Both,
+                ScrollbarVisibility.Hidden,
+                12.0,
+                ScrollbarPlacement.Gutter
+            )
+        )
+        val snapshot = ScrollSnapshot(Point(0.0, 0.0), Size(188.0, 108.0), Size(100.0, 600.0))
+        val bars =
+            ScrollBarsLayout(
+                outer,
+                snapshot,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Auto,
+                12.0,
+                LayoutDirection.Rtl,
+                ScrollbarPlacement.Gutter
+            )
+        assertEquals(None, bars.horizontal)
+        assertEquals(Some(Rect(0.0, 0.0, 12.0, 108.0)), bars.vertical)
+        assertEquals(
+            Rect(5.0, 0.0, 0.0, 0.0),
+            scrollbarViewport(Size(5.0, 4.0), Size(12.0, 12.0), LayoutDirection.Rtl)
+        )
+    }
+
+    @Test
+    fun `overlay margins reveal edge content without creating an extra auto bar`() {
+        val size = Size(100.0, 80.0)
+        val content = Size(100.0, 300.0)
+        val padding =
+            scrollbarPadding(
+                size,
+                content,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Auto,
+                12.0,
+                ScrollbarPlacement.Overlay,
+                LayoutDirection.Ltr
+            )
+        assertEquals(ScrollPadding(right = 12.0), padding)
+        val snapshot = ScrollSnapshot(Point(0.0, 0.0), size, Size(112.0, 300.0), padding)
+        assertEquals(Point(12.0, 220.0), snapshot.maximum)
+        assertEquals(Point(12.0, 220.0), snapshot.revealedOffset(Rect(99.0, 299.0, 1.0, 1.0)))
+        val bars =
+            ScrollBarsLayout(
+                size,
+                snapshot,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Auto,
+                12.0,
+                LayoutDirection.Ltr
+            )
+        assertEquals(None, bars.horizontal)
+        assertEquals(Some(Rect(88.0, 0.0, 12.0, 80.0)), bars.vertical)
+        assertEquals(
+            ScrollPadding(left = 12.0),
+            scrollbarPadding(
+                size,
+                content,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Auto,
+                12.0,
+                ScrollbarPlacement.Overlay,
+                LayoutDirection.Rtl
+            )
+        )
+        assertEquals(
+            ScrollPadding(),
+            scrollbarPadding(
+                size,
+                content,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Hidden,
+                12.0,
+                ScrollbarPlacement.Overlay,
+                LayoutDirection.Ltr
+            )
+        )
+        assertEquals(
+            ScrollPadding(),
+            scrollbarPadding(
+                size,
+                size,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Auto,
+                12.0,
+                ScrollbarPlacement.Overlay,
+                LayoutDirection.Ltr
+            )
+        )
+        assertEquals(
+            ScrollPadding(left = 5.0, bottom = 4.0),
+            scrollbarPadding(
+                Size(5.0, 4.0),
+                content,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Always,
+                12.0,
+                ScrollbarPlacement.Overlay,
+                LayoutDirection.Rtl
+            )
+        )
+        assertEquals(
+            ScrollPadding(),
+            scrollbarPadding(
+                size,
+                content,
+                ScrollAxes.Both,
+                ScrollbarVisibility.Auto,
+                12.0,
+                ScrollbarPlacement.Gutter,
+                LayoutDirection.Ltr
+            )
+        )
+    }
+
+    @Test
+    fun `textarea default and repeated receiver updates preserve the chosen placement`() {
+        val model = TextEditorState()
+        assertEquals(ScrollbarPlacement.Overlay, scrollbarBehavior().placement)
+        assertEquals(ScrollbarPlacement.Gutter, TextareaProps(model).scrollbarBehavior.placement)
+        val builder = TextareaBuilder()
+        builder.scrollbarBehavior { autoHide = Some(false) }
+        val initial = builder.textareaProps(model)
+        assertEquals(ScrollbarPlacement.Gutter, initial.scrollbarBehavior.placement)
+        builder.scrollbarBehavior { placement = ScrollbarPlacement.Overlay }
+        val overlay = builder.textareaProps(model)
+        assertEquals(ScrollbarPlacement.Overlay, overlay.scrollbarBehavior.placement)
+        assertEquals(Some(false), overlay.scrollbarBehavior.autoHide)
+        assertEquals(ScrollbarPlacement.Gutter, initial.scrollbarBehavior.placement)
+    }
+}

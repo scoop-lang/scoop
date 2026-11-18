@@ -1,0 +1,326 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.sendNativeContact
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class TextControlsTouchTest {
+    @Test
+    fun `text touch options reach input textarea OTP and composed controls`() {
+        val p = FieldTouchProbe()
+        try {
+            UiHost { host, active, event -> p.event(host, active, event) }.use {
+                host -> Application(
+                    applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
+            }
+            assertTrue(p.finished)
+            for (focus in p.focus)
+                assertFalse(focus.isAttached)
+            assertFalse(p.frames!!.snapshot().required)
+        } catch (error: Throwable) {
+            println(f"text controls touch phase=${p.phase}")
+            for (model in p.models)
+                println(f"selection=${model.selection.anchor},${model.selection.cursor}")
+            throw error
+        } finally {
+            p.waiter?.close()
+            p.frames?.close()
+            p.fonts.close()
+        }
+    }
+}
+
+internal class FieldTouchProbe {
+    val theme = ThemeSource(macosTheme())
+    val fonts = FontCollection(false)
+    val models =
+        Array<TextEditorState>(6L) {
+            index -> TextEditorState(
+                if (index == 2L)
+                    "1234"
+                else
+                    "word"
+            )
+        }
+    val focus = Array<FocusHandle>(6L) { _ -> FocusHandle() }
+    val points = MutableArray<Point>(6L) { _ -> Point(0.0, 0.0) }
+    val generation = state(0)
+    val projection = textProjection()
+    val menu = TextContextMenuOptions(mode = TextContextMenuMode.Disabled)
+    var touch = TextTouchOptions(enabled = false, longPressDelay = None)
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var waiter: WindowDeadline? = None
+    var phase = 0
+    var accepted = -1
+    var queued = 0
+    var received = 0
+    var pending = false
+    var waiting = false
+    var finished = false
+    var handleSelection = Utf8Selection(0L, 0L)
+
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+        for (model in models)
+            model.setSelection(Utf8Selection(0L, 0L))
+    }
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop text controls touch";
+                            size = LogicalSize(400.0, 480.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                waiter = Some(native.createDeadline { waiting = false })
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(native, { scope -> FieldTouchScene(this, scope = scope) })
+                native.requestFocus()
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case AboutToWait -> {
+                val native = window ?: return
+                if (
+                    !finished &&
+                        !pending &&
+                        !waiting &&
+                        native.isFocused &&
+                        accepted ==
+                        generation.value &&
+                        received ==
+                        queued &&
+                        !frames!!.snapshot().required
+                ) {
+                    pending = true
+                    application.proxy().post {
+                        _ ->
+                        pending = false
+                        if (!finished) {
+                            step();
+                            phase += 1
+                        }
+                    }
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> application.requestExit()
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"text controls touch timeout at ${phase}")
+            )
+            else -> {}
+        }
+    }
+    private fun contact(id: Long, phase: Int, point: Point) {
+        queued += 1
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    when (lease.handle) {
+                        case AppKit(_, val view) -> sendNativeContact(
+                            view,
+                            id,
+                            0,
+                            phase,
+                            point.x,
+                            point.y
+                        )
+                    }
+                }
+            }
+        }
+    }
+    private fun pause() {
+        waiting = true
+        waiter!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+    }
+    private fun tapAll() {
+        for (index in 0L ..< models.size) {
+            val point = points[index]
+            contact(100L + index + phase.toLong() * 10L, 0, point)
+            contact(100L + index + phase.toLong() * 10L, 2, point)
+        }
+    }
+    private fun tapField(index: Long) {
+        val point = Point(45.0, points[index].y)
+        val id = 600L + phase.toLong()
+        contact(id, 0, point)
+        contact(id, 2, point)
+    }
+    private fun multiTapField() {
+        val index = (phase - 20).toLong() / 4L
+        when ((phase - 20) % 4) {
+            0 -> tapField(index)
+            1 -> {
+                val range = models[index].selection.range
+                assertEquals(range.start, range.end)
+                tapField(index)
+            }
+            2 -> {
+                assertEquals(Utf8Range(0L, 4L), models[index].selection.range)
+                tapField(index)
+            }
+            else -> assertEquals(Utf8Range(0L, 4L), models[index].selection.range)
+        }
+    }
+    private fun singleTapField() {
+        val index = (phase - 45).toLong() / 3L
+        if ((phase - 45) % 3 < 2) {
+            tapField(index)
+        } else {
+            val range = models[index].selection.range
+            assertEquals(range.start, range.end)
+        }
+    }
+    private fun handleField(start: Int, enabled: Boolean) {
+        val index = (phase - start).toLong() / 4L
+        val id = 1500L + index
+        val point = Point(45.0, points[index].y + 12.0)
+        val end = Point(330.0, point.y)
+        when ((phase - start) % 4) {
+            0 -> tapField(index)
+            1 -> {
+                handleSelection = models[index].selection
+                assertTrue(handleSelection.cursor < 4L)
+                contact(id, 0, point)
+            }
+            2 -> contact(id, 1, end)
+            else -> {
+                assertEquals(
+                    if (enabled)
+                        Utf8Selection(4L, 4L)
+                    else
+                        handleSelection,
+                    models[index].selection
+                )
+                assertTrue(focus[index].isFocusActive)
+                contact(id, 2, end)
+            }
+        }
+    }
+    private fun step() {
+        when (phase) {
+            0 -> tapAll()
+            1 -> {
+                for (model in models)
+                    assertEquals(Utf8Selection(0L, 0L), model.selection)
+                touch = TextTouchOptions(longPressDelay = None)
+                generation.value += 1
+            }
+            2 -> tapAll()
+            3 -> {
+                for (model in models)
+                    assertEquals(Utf8Selection(4L, 4L), model.selection)
+                for (model in models)
+                    model.setSelection(Utf8Selection(0L, 0L))
+                touch = TextTouchOptions(longPressDelay = Some(Duration.milliseconds(40L)))
+                generation.value += 1
+            }
+            16 -> {
+                touch = TextTouchOptions(longPressDelay = None)
+                models[0L].setSelection(Utf8Selection(0L, 0L))
+                generation.value += 1
+            }
+            17 -> {
+                contact(300L, 0, points[0L])
+                pause()
+            }
+            18 -> {
+                assertEquals(Utf8Selection(0L, 0L), models[0L].selection)
+                contact(300L, 2, points[0L])
+            }
+            19 -> {
+                assertEquals(Utf8Selection(4L, 4L), models[0L].selection)
+                touch =
+                    TextTouchOptions(
+                        longPressDelay = None,
+                        multiTapInterval = Some(Duration.seconds(10L))
+                    )
+                for (model in models)
+                    model.setSelection(Utf8Selection(0L, 0L))
+                generation.value += 1
+            }
+            44 -> {
+                touch = TextTouchOptions(longPressDelay = None, multiTap = false)
+                for (model in models)
+                    model.setSelection(Utf8Selection(0L, 0L))
+                generation.value += 1
+            }
+            63 -> {
+                touch = TextTouchOptions(longPressDelay = None, multiTap = false)
+                generation.value += 1
+            }
+            88 -> {
+                touch =
+                    TextTouchOptions(
+                        longPressDelay = None,
+                        multiTap = false,
+                        selectionHandles = TextSelectionHandleOptions(enabled = false)
+                    )
+                generation.value += 1
+            }
+            113 -> {
+                finished = true
+                window!!.requestDestroy()
+            }
+            else -> {
+                if (phase >= 64 && phase < 88) {
+                    handleField(64, true)
+                    return
+                }
+                if (phase >= 89 && phase < 113) {
+                    handleField(89, false)
+                    return
+                }
+                if (phase >= 20 && phase < 44) {
+                    multiTapField()
+                    return
+                }
+                if (phase >= 45 && phase < 63) {
+                    singleTapField()
+                    return
+                }
+                assertTrue(phase >= 4 && phase < 16)
+                val index = (phase - 4).toLong() / 2L
+                val point = Point(45.0, points[index].y)
+                if ((phase - 4) % 2 == 0) {
+                    contact(200L + index, 0, point)
+                    pause()
+                } else {
+                    assertEquals(Utf8Range(0L, 4L), models[index].selection.range)
+                    assertEquals(
+                        if (index == 2L)
+                            "1234"
+                        else
+                            "word",
+                        models[index].text
+                    )
+                    contact(200L + index, 2, point)
+                }
+            }
+        }
+    }
+}

@@ -18,29 +18,39 @@ public class Field public constructor(
     private val props: Props<FieldProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.theme)
+        val target = fieldSemanticTarget(input)
         val children = ArrayList<View>()
         val parts = ArrayList<FieldPart>()
         children.add(panelSlot(input.control, 0L))
         parts.add(FieldPart.Control)
         if (panelPresent(input.heading) || input.required) {
-            children.add(panelSlot(fieldHeading(input, theme), 1L))
+            children.add(
+                panelSlot(
+                    fieldHeading(input, theme, target, target?.hasSemantics(scope) ?: false),
+                    1L
+                )
+            )
             parts.add(FieldPart.Heading)
         }
         when (input.description) {
             case Some(val value) -> {
                 children.add(
                     panelSlot(
-                        panelCaption(
-                            value,
-                            fieldTextStyle(FieldTextRole.Description, theme),
-                            input.fonts
+                        fieldAnnotated(
+                            panelCaption(
+                                value,
+                                fieldTextStyle(FieldTextRole.Description, theme),
+                                input.fonts
+                            ),
+                            target,
+                            FieldAnnotationKind.Description
                         ),
                         2L
                     )
@@ -54,7 +64,13 @@ public class Field public constructor(
             children.add(
                 panelSlot(
                     component(
-                        FieldErrorProps(errors, input.error, input.fonts, input.theme),
+                        FieldErrorProps(
+                            errors,
+                            input.error,
+                            input.fonts,
+                            input.theme,
+                            target = target
+                        ),
                         { current, mount -> FieldError(current, scope = mount) }
                     ),
                     3L
@@ -78,7 +94,21 @@ public class Field public constructor(
     }
 }
 
-private fun fieldHeading(input: FieldProps, theme: Theme): View {
+internal fun fieldSemanticTarget(input: FieldProps): FieldTarget? =
+    when (val target = input.target) {
+        case Some(_) -> target
+        case None -> when (input.heading) {
+            case Some(FieldHeading.Label(_, val target)) -> Some(target)
+            else -> None
+        }
+    }
+
+private fun fieldHeading(
+    input: FieldProps,
+    theme: Theme,
+    target: FieldTarget?,
+    requiredSemantics: Boolean
+): View {
     val base =
         fieldTextStyle(FieldTextRole.Title, theme).copy {
             if (input.invalid)
@@ -89,7 +119,11 @@ private fun fieldHeading(input: FieldProps, theme: Theme): View {
             case Some(val heading) -> {
                 val view =
                     when (heading) {
-                        case Title(val content) -> panelCaption(content, base, input.fonts)
+                        case Title(val content) -> fieldAnnotated(
+                            panelCaption(content, base, input.fonts),
+                            target,
+                            FieldAnnotationKind.Label
+                        )
                         case Label(val content, val target) -> component(
                             FieldLabelProps(
                                 content,
@@ -114,7 +148,10 @@ private fun fieldHeading(input: FieldProps, theme: Theme): View {
             this.add(
                 panelSlot(
                     panelCaption(
-                        fieldPlain(input.requiredText),
+                        fieldPlain(
+                            input.requiredText,
+                            ComponentSemantics(ignored = requiredSemantics)
+                        ),
                         fieldTextStyle(FieldTextRole.Description, theme).copy {
                             if (input.invalid)
                                 this.color = theme.tokens.palette.destructive.background

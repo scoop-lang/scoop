@@ -1,0 +1,67 @@
+package scoop.examples.touchinput
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal struct WorkshopTransformInput(
+    val scale: Double,
+    val rotation: Double,
+    val change: (Double, Double) -> Unit
+)
+
+internal class WorkshopTransform(
+    private val props: Props<WorkshopTransformInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea()
+    private val semantics = scope.semantics(SemanticRole.Image)
+    public override fun onMount() {
+        scope.transformGesture(area) {
+            event -> when (event) {
+                case Started(val value) -> apply(value)
+                case Changed(val value) -> apply(value)
+                case Ended(val value) -> apply(value)
+                case Discrete(val value) -> apply(value)
+                case Cancelled(_, _) -> {}
+            }
+        }
+    }
+    private fun apply(value: TransformGestureSample) {
+        props.value.change(value.scaleDelta, value.rotationDelta)
+    }
+    public override fun update(): UiInvalidation {
+        semantics.update(
+            SemanticProperties(
+                name = Some("Transformable card"),
+                value = Some(f"Scale ${props.value.scale}; rotation ${props.value.rotation}"),
+                description =
+                    Some("Pinch and rotate, or use the adjacent Zoom, Rotate and Reset buttons.")
+            )
+        )
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(600.0, 180.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.semantics(semantics, bounds)
+        val input = props.value
+        context.draw {
+            paint ->
+            paint.canvas.clipRect(bounds)
+            paint.canvas.translate(bounds.width / 2.0, bounds.height / 2.0)
+            paint.canvas.scale(input.scale, input.scale)
+            paint.canvas.rotate(input.rotation)
+            paint.canvas.drawRoundRect(
+                Rect(-76.0, -48.0, 152.0, 96.0),
+                12.0,
+                12.0,
+                Paint(Color(0.18, 0.38, 0.77))
+            )
+            paint.canvas.drawCircle(Point(28.0, -16.0), 18.0, Paint(Color.White))
+        }
+    }
+}

@@ -9,7 +9,8 @@ internal class ScrollMeasure(
     private val parent: Constraints,
     axes: ScrollAxes,
     width: Double?,
-    height: Double?
+    height: Double?,
+    private val gutter: Size = Size(0.0, 0.0)
 ) {
     private val minimum = parent.constrain(Size(0.0, 0.0))
     private val x = scrollExtent(width, minimum.width, parent.maxWidth, axes.horizontal)
@@ -19,21 +20,30 @@ internal class ScrollMeasure(
             if (axes.horizontal)
                 0.0
             else
-                x ?: minimum.width,
+                lowerBound((x ?: minimum.width) - gutter.width, 0.0),
             if (axes.horizontal)
                 None
             else
-                x,
+                when (x) {
+                    case Some(val value) -> Some(lowerBound(value - gutter.width, 0.0))
+                    case None -> None
+                },
             if (axes.vertical)
                 0.0
             else
-                y ?: minimum.height,
+                lowerBound((y ?: minimum.height) - gutter.height, 0.0),
             if (axes.vertical)
                 None
             else
-                y
+                when (y) {
+                    case Some(val value) -> Some(lowerBound(value - gutter.height, 0.0))
+                    case None -> None
+                }
         )
-    fun size(content: Size): Size = parent.constrain(Size(x ?: content.width, y ?: content.height))
+    fun size(content: Size): Size =
+        parent.constrain(
+            Size(x ?: content.width + gutter.width, y ?: content.height + gutter.height)
+        )
 }
 
 internal fun scrollExtent(
@@ -75,14 +85,30 @@ internal fun showScrollbar(mode: ScrollbarVisibility, range: Double): Boolean =
 internal fun scrollbarPart(geometry: ScrollbarGeometry, point: Point): ScrollbarRegion? {
     if (!geometry.bounds.contains(point))
         return None
-    if (geometry.thumb.bounds.contains(point))
+    if (scrollbarAxisContains(geometry.orientation, geometry.thumb.bounds, point))
         return Some(ScrollbarRegion.Thumb)
-    if (geometry.decrement?.outline?.bounds?.contains(point) ?: false)
-        return Some(ScrollbarRegion.Decrement)
-    if (geometry.increment?.outline?.bounds?.contains(point) ?: false)
-        return Some(ScrollbarRegion.Increment)
+    when (geometry.decrement) {
+        case Some(val button) -> if (
+            scrollbarAxisContains(geometry.orientation, button.outline.bounds, point)
+        )
+            return Some(ScrollbarRegion.Decrement)
+        case None -> {}
+    }
+    when (geometry.increment) {
+        case Some(val button) -> if (
+            scrollbarAxisContains(geometry.orientation, button.outline.bounds, point)
+        )
+            return Some(ScrollbarRegion.Increment)
+        case None -> {}
+    }
     return Some(ScrollbarRegion.Track)
 }
+
+private fun scrollbarAxisContains(orientation: Orientation, rect: Rect, point: Point): Boolean =
+    if (orientation == Orientation.Horizontal)
+        point.x >= rect.x && point.x < rect.x + rect.width
+    else
+        point.y >= rect.y && point.y < rect.y + rect.height
 
 internal fun scrollbarAxis(orientation: Orientation, point: Point): Double =
     if (orientation == Orientation.Horizontal)

@@ -6,14 +6,23 @@ import scoop.math.max
 import scoop.surface.*
 import scoop.ui.*
 
-internal class EditorInputLayout(val layout: TextEditLayout, val display: TextDisplay)
+internal class EditorInputLayout(
+    val layout: TextEditLayout,
+    val display: TextDisplay,
+    val caretStyle: EditorCaretStyle
+)
 
 internal class EditorFrame(
     private val retained: RetainedEditorLayout,
     val snapshot: ScrollSnapshot,
+    val presentationOffset: Point,
+    val editor: TextEditorState,
+    val projection: TextProjection,
     val revision: Long,
     val display: TextDisplay,
-    val cells: TextEditCells?
+    val cells: TextEditCells?,
+    val caretStyle: EditorCaretStyle,
+    val caretPadding: Double
 ): Closeable {
     val layout: TextEditLayout get() = retained.layout
     public override fun close() {
@@ -24,7 +33,8 @@ internal class EditorFrame(
 private fun editorLayout(
     host: TextEditHost,
     width: Double?,
-    cells: TextEditCells?
+    cells: TextEditCells?,
+    caretStyle: EditorCaretStyle
 ): EditorInputLayout {
     host.checkDocument(host.current.committedText)
     val input = editorSnapshot(host.current.storage.value)
@@ -71,7 +81,7 @@ private fun editorLayout(
     val layout = editorGeometry(host, paragraph, cells)
     host.currentProjection = host.options.projection
     host.currentDisplay = Some(display)
-    return EditorInputLayout(layout, display)
+    return EditorInputLayout(layout, display, caretStyle)
 }
 
 private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
@@ -113,11 +123,11 @@ private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
     )
 }
 
-private fun editorWidth(host: TextEditHost, viewport: Double?): Double? {
+private fun editorWidth(host: TextEditHost, viewport: Double?, padding: Double): Double? {
     if (!host.options.multiline || !host.options.wrap)
         return None
     return when (viewport) {
-        case Some(val width) -> Some(max(0.0, width - host.appearance.caretWidth))
+        case Some(val width) -> Some(max(0.0, width - padding))
         case None -> None
     }
 }
@@ -125,11 +135,19 @@ private fun editorWidth(host: TextEditHost, viewport: Double?): Double? {
 internal fun editorMeasure(
     host: TextEditHost,
     constraints: Constraints,
-    cells: TextEditCells?
+    cells: TextEditCells?,
+    scrollPadding: (Size, Size) -> ScrollPadding
 ): TextEditMeasurement {
     constraints.check()
-    val width = editorWidth(host, constraints.maxWidth)
-    val text = editorLayout(host, width, cells)
+    val caretStyle = editorCaretStyle(host)
+    // An unwrapped line bounds the caret height of its wrapped fragments, including fallback fonts.
+    val padding =
+        if (caretStyle.aspectRatio > 0.0)
+            caretStyle.padding(editorLayout(host, None, cells, caretStyle).layout)
+        else
+            caretStyle.width
+    val width = editorWidth(host, constraints.maxWidth, padding)
+    val text = editorLayout(host, width, cells, caretStyle)
     val layout = text.layout
     val paragraphMode =
         when (cells) {
@@ -143,7 +161,7 @@ internal fun editorMeasure(
             None
     val caretPadding =
         if (paragraphMode)
-            host.appearance.caretWidth
+            padding
         else
             0.0
     val naturalWidth = max(layout.size.width, hint?.size?.width ?: 0.0) + caretPadding
@@ -153,14 +171,18 @@ internal fun editorMeasure(
         contentWidth = max(contentWidth, line.rect.x + line.rect.width)
     val content =
         Size(max(size.width, contentWidth + caretPadding), max(size.height, layout.size.height))
-    val scroll = host.viewport.layout(size, content)
+    val scroll = host.viewport.layout(size, content, padding = scrollPadding(size, content))
     return TextEditMeasurement(
         LayoutMetrics(size, Some(layout.alphabeticBaseline), Some(layout.ideographicBaseline)),
         layout.retain(),
         scroll,
+        host.current,
+        host.options.projection,
         host.current.revision,
         text.display,
         cells,
+        caretStyle,
+        caretPadding,
         when (hint) {
             case Some(_) -> Some(host.hint.retainLayout());
             case None -> None
@@ -174,21 +196,22 @@ internal fun editorInputText(host: TextEditHost): EditorInputLayout {
     when (host.accepted) {
         case Some(val frame) -> {
             if (frame.display.source.text == host.current.text)
-                return EditorInputLayout(frame.layout, frame.display)
+                return EditorInputLayout(frame.layout, frame.display, frame.caretStyle)
             return editorLayout(
                 host,
-                editorWidth(host, Some(frame.snapshot.viewport.width)),
-                frame.cells
+                editorWidth(host, Some(frame.snapshot.viewport.width), frame.caretPadding),
+                frame.cells,
+                frame.caretStyle
             )
         }
-        case None -> return editorLayout(host, None, None)
+        case None -> return editorLayout(host, None, None, editorCaretStyle(host))
     }
 }
 
 internal fun editorCaret(host: TextEditHost, text: EditorInputLayout): Rect? =
-    text.layout.caret(
-        editorVisualPosition(text.layout, text.display.mapping.forward(host.current.cursor)),
-        host.appearance.caretWidth
+    text.caretStyle.caret(
+        text.layout,
+        editorVisualPosition(text.layout, text.display.mapping.forward(host.current.cursor))
     )
 
 internal fun editorScene(host: TextEditHost, context: SceneContext, measure: TextEditMeasurement) {
@@ -196,17 +219,28 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
         EditorFrame(
             measure.retained.layout.retain(),
             measure.scrollSnapshot,
+            measure.scroll.presentationOffset,
+            measure.editor,
+            measure.projection,
             measure.revision,
             measure.display,
-            measure.cells
+            measure.cells,
+            measure.caretStyle,
+            measure.caretPadding
         )
     host.staged?.close()
     host.staged = Some(frame)
     val layout = frame.layout
     val appearance = host.appearance
     val input = host.current.inputState
-    val caret = editorCaret(host, EditorInputLayout(layout, frame.display))
-    val selection = layout.selection(frame.display.displayRange(input.selection.range))
+    val caret = editorCaret(host, EditorInputLayout(layout, frame.display, frame.caretStyle))
+    val dropCaret =
+        when (host.dropTarget) {
+            case Some(val target) -> target.caret(frame)
+            case None -> None
+        }
+    val selectedRange = frame.display.displayRange(input.selection.range)
+    val selection = layout.selection(selectedRange)
     val marked =
         when (input.markedRange) {
             case Some(val range) -> layout.selection(frame.display.displayRange(range))
@@ -218,6 +252,20 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             appearance.selectionColor
         else
             appearance.inactiveSelectionColor
+    val textColor =
+        if (active)
+            appearance.selectionTextColor
+        else
+            appearance.inactiveSelectionTextColor
+    val ink =
+        when (textColor) {
+            case Some(val value) -> if (selection.size > 0L)
+                Some(TextSelectionInk(selectedRange, value))
+            else
+                None
+            case None -> None
+        }
+    val bodyRevision = host.bodyInk.update(layout.generation, ink)
     host.viewport.present(
         context,
         measure.scroll,
@@ -225,22 +273,24 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
             content ->
             val snapshot = frame.snapshot
             host.area.setCaret(caret, Some(input.revision))
-            content.place(
-                host.area,
+            val viewport =
                 Rect(
-                    snapshot.offset.x,
-                    snapshot.offset.y,
+                    frame.presentationOffset.x - snapshot.padding.left,
+                    frame.presentationOffset.y - snapshot.padding.top,
                     snapshot.viewport.width,
                     snapshot.viewport.height
                 )
-            )
+            content.place(host.area, viewport)
+            editorSemantics(host, content, frame, viewport)
             content.draw {
                 paint -> for (box in selection)
                     paint.canvas.drawRect(box.rect, Paint(color))
             }
             val bounds = layout.paintBounds
-            content.drawTextLayer(host.bodyKey, editorInkBounds(bounds), layout.generation) {
-                paint -> paint.canvas.drawText(layout)
+            content.drawTextLayer(host.bodyKey, editorInkBounds(bounds), bodyRevision) {
+                paint -> drawSelectionText(paint.canvas, editorInkBounds(bounds), selection, ink) {
+                    canvas -> canvas.drawText(layout)
+                }
             }
             if (
                 frame.layout.cellRects.size ==
@@ -265,14 +315,27 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
                         Paint(appearance.markedColor)
                     )
                 if (
-                    active && host.caretVisible && input.selection.anchor == input.selection.cursor
+                    active &&
+                        host.caretVisible &&
+                        dropCaret ==
+                        None &&
+                        input.selection.anchor ==
+                        input.selection.cursor
                 ) {
                     when (caret) {
-                        case Some(val rect) -> paint.canvas.drawRect(rect, Paint(appearance.caretColor))
+                        case Some(val rect) -> paint.canvas.drawRect(
+                            rect,
+                            Paint(appearance.caretColor)
+                        )
                         case None -> {}
                     }
                 }
+                when (dropCaret) {
+                    case Some(val rect) -> paint.canvas.drawRect(rect, Paint(appearance.caretColor))
+                    case None -> {}
+                }
             }
+            editorSelectionHandles(host, content, frame, viewport)
         }
     )
     context.onFrameComplete {
@@ -289,17 +352,23 @@ internal fun editorScene(host: TextEditHost, context: SceneContext, measure: Tex
         val previous = host.accepted
         host.accepted = Some(frame)
         previous?.close()
+        host.dropTarget?.accepted()
+        host.dataSource?.update()
+        host.touchHandles.accepted()
+        if (host.closed)
+            return@onFrameComplete
         if (host.current.revision == frame.revision) {
             if (
                 host.revealNeeded &&
                     !editorDragging(host) &&
+                    !(host.dropTarget?.isHovering ?: false) &&
                     host.area.isFocusActive &&
                     host.revealRevision ==
                     host.focus.node.root.surface.focusRevision
             ) {
                 host.revealNeeded = false
                 when (caret) {
-                    case Some(val rect) -> host.focus.reveal(rect)
+                    case Some(val rect) -> host.keyboard.reveal(rect)
                     case None -> {}
                 }
             }

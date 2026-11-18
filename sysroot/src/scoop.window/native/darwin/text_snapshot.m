@@ -40,7 +40,7 @@ void sw_invalidate_text_caret(SWView *view) {
     [view.inputContext invalidateCharacterCoordinates];
 }
 
-static NSUInteger utf16_offset(const uint8_t *text, int64_t length) {
+NSUInteger sw_text_utf16_offset(const uint8_t *text, int64_t length) {
   if (length < 0)
     return NSNotFound;
   NSString *prefix = [[NSString alloc] initWithBytes:text
@@ -80,10 +80,10 @@ int64_t scoop_window_publish_text(void *pointer, SWTextSnapshotData data) {
       next.text = [[NSString alloc] initWithBytes:data.text
                                            length:(NSUInteger)data.length
                                          encoding:NSUTF8StringEncoding];
-      next.anchor = utf16_offset(data.text, data.anchor);
-      next.cursor = utf16_offset(data.text, data.cursor);
-      NSUInteger start = utf16_offset(data.text, data.marked_start);
-      NSUInteger end = utf16_offset(data.text, data.marked_end);
+      next.anchor = sw_text_utf16_offset(data.text, data.anchor);
+      next.cursor = sw_text_utf16_offset(data.text, data.cursor);
+      NSUInteger start = sw_text_utf16_offset(data.text, data.marked_start);
+      NSUInteger end = sw_text_utf16_offset(data.text, data.marked_end);
       next.marked = start == NSNotFound ? NSMakeRange(NSNotFound, 0)
                                         : NSMakeRange(start, end - start);
       next.revision = data.revision;

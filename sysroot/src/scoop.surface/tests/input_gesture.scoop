@@ -1,0 +1,252 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+private class GestureRouteTrace {
+    var order = ""
+    var cancelled = ""
+    val reasons = ArrayList<InputCancelReason>()
+    val positions = ArrayList<Point?>()
+}
+
+private fun watchGestures(scope: InputScope, name: String, trace: GestureRouteTrace) {
+    scope.defaultAction =
+        {
+            context,
+            event -> when (event) {
+                case Gesture(InputGestureEvent.Native(_)) -> {
+                    trace.order += name
+                    trace.positions.add(context.localPosition)
+                }
+                else -> {}
+            }
+        }
+    scope.handler =
+        {
+            context,
+            event -> when (event) {
+                case Gesture(InputGestureEvent.Cancelled(_, val reason, _)) -> {
+                    assertEquals(RoutedPhase.Notification, context.phase)
+                    assertFalse(context.cancelable)
+                    trace.cancelled += name
+                    trace.reasons.add(reason)
+                }
+                else -> {}
+            }
+        }
+}
+
+private fun InputRig.magnify(x: Double, phase: GesturePhase) {
+    router.event(WindowEvent.Gesture(GestureEvent.Magnify(inputPointer(x, 10.0), phase, 0.1)))
+}
+
+private fun InputRig.rotate(x: Double, phase: GesturePhase) {
+    router.event(WindowEvent.Gesture(GestureEvent.Rotate(inputPointer(x, 10.0), phase, 0.2)))
+}
+
+@Test
+private class InputGestureRouteTest {
+    @Test
+    fun `native gestures retain independent targets without changing mouse hover or focus`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a", focusable = true)
+            val b = rig.area("b", focusable = true)
+            val trace = GestureRouteTrace()
+            watchGestures(a.scope, "a", trace)
+            watchGestures(b.scope, "b", trace)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0))
+                frame.place(canvas, b, Rect(60.0, 0.0, 50.0, 50.0))
+            }
+            rig.move(10.0, 10.0)
+            rig.magnify(10.0, GesturePhase.Began)
+            rig.rotate(70.0, GesturePhase.Began)
+            rig.magnify(70.0, GesturePhase.Changed)
+            rig.rotate(10.0, GesturePhase.Changed)
+            rig.magnify(70.0, GesturePhase.Ended)
+            rig.rotate(10.0, GesturePhase.Ended)
+            rig.magnify(70.0, GesturePhase.None)
+            rig.router.event(
+                WindowEvent.Gesture(GestureEvent.Swipe(inputPointer(10.0, 10.0), 1.0, 0.0))
+            )
+            assertEquals("abababba", trace.order)
+            assertEquals(Some(Point(70.0, 10.0)), trace.positions[2L])
+            assertEquals("", trace.cancelled)
+            assertEquals(0L, rig.router.gestureRoutes.size)
+            assertEquals(0L, rig.router.buttons.size)
+            assertTrue(a.scope.isHovered)
+            assertFalse(b.scope.isHovered)
+            assertFalse(a.hasFocus)
+            assertFalse(b.hasFocus)
+        }
+    }
+
+    @Test
+    fun `disabling a target cancels both kinds and late updates never retarget a sibling`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            val b = rig.area("b")
+            val trace = GestureRouteTrace()
+            watchGestures(a.scope, "a", trace)
+            watchGestures(b.scope, "b", trace)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0))
+                frame.place(canvas, b, Rect(60.0, 0.0, 50.0, 50.0))
+            }
+            rig.magnify(10.0, GesturePhase.Began)
+            rig.rotate(10.0, GesturePhase.Began)
+            a.scope.enabled = false
+            assertEquals("aa", trace.cancelled)
+            assertEquals(InputCancelReason.AreaChanged, trace.reasons[0L])
+            a.scope.enabled = true
+            rig.magnify(70.0, GesturePhase.Changed)
+            rig.rotate(70.0, GesturePhase.Ended)
+            assertEquals("aa", trace.order)
+            rig.magnify(70.0, GesturePhase.Began)
+            rig.magnify(10.0, GesturePhase.Ended)
+            assertEquals("aabb", trace.order)
+            assertEquals(0L, rig.router.gestureRoutes.size)
+        }
+    }
+
+    @Test
+    fun `accepted geometry updates map positions while removing a placement cancels its route`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("a")
+            val trace = GestureRouteTrace()
+            watchGestures(area.scope, "a", trace)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 40.0)) }
+            rig.magnify(20.0, GesturePhase.Began)
+            rig.frame {
+                frame, canvas ->
+                canvas.translate(100.0, 0.0)
+                canvas.scale(2.0, 2.0)
+                frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 40.0))
+            }
+            rig.magnify(120.0, GesturePhase.Changed)
+            assertEquals(Some(Point(10.0, 5.0)), trace.positions[1L])
+            rig.frame { _, _ -> }
+            rig.magnify(20.0, GesturePhase.Ended)
+            assertEquals("aa", trace.order)
+            assertEquals("a", trace.cancelled)
+            assertEquals(InputCancelReason.AreaChanged, trace.reasons[0L])
+        }
+    }
+
+    @Test
+    fun `capture-time target removal stops remaining delivery and still cancels the old path`() {
+        InputRig().use {
+            rig ->
+            val parent = rig.router.createScope(None) { _, _ -> }
+            val area = rig.area("a", parent = Some(parent))
+            val trace = GestureRouteTrace()
+            watchGestures(area.scope, "a", trace)
+            watchGestures(parent, "p", trace)
+            parent.captureHandler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Gesture(InputGestureEvent.Native(_)) -> area.close()
+                        else -> {}
+                    }
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 40.0)) }
+            rig.magnify(20.0, GesturePhase.Began)
+            assertEquals("", trace.order)
+            assertEquals("ap", trace.cancelled)
+            assertEquals(0L, rig.router.gestureRoutes.size)
+        }
+    }
+
+    @Test
+    fun `focus modal and close cancellation retire only the active sequences`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("a")
+            val trace = GestureRouteTrace()
+            watchGestures(area.scope, "a", trace)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 40.0)) }
+            rig.magnify(20.0, GesturePhase.Began)
+            rig.router.event(WindowEvent.Focused(false))
+            rig.router.event(WindowEvent.Focused(false))
+            rig.router.event(WindowEvent.Focused(true))
+            rig.rotate(20.0, GesturePhase.Began)
+            rig.router.event(WindowEvent.InputBlockedChanged(true))
+            rig.router.event(WindowEvent.InputBlockedChanged(false))
+            rig.magnify(20.0, GesturePhase.Began)
+            rig.router.close()
+            assertEquals("aaa", trace.cancelled)
+            assertEquals(InputCancelReason.Window(PointerCancelReason.FocusLost), trace.reasons[0L])
+            assertEquals(InputCancelReason.Window(PointerCancelReason.Modal), trace.reasons[1L])
+            assertEquals(InputCancelReason.Closed, trace.reasons[2L])
+        }
+    }
+
+    @Test
+    fun `a prevented terminal event still retires the native route`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("a")
+            val trace = GestureRouteTrace()
+            watchGestures(area.scope, "a", trace)
+            area.scope.handler =
+                {
+                    context,
+                    event -> when (event) {
+                        case Gesture(InputGestureEvent.Native(val value)) -> {
+                            if (value.phase == GesturePhase.Ended)
+                                context.consume()
+                        }
+                        else -> {}
+                    }
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 40.0)) }
+            rig.magnify(20.0, GesturePhase.Began)
+            rig.magnify(20.0, GesturePhase.Ended)
+            rig.magnify(20.0, GesturePhase.Changed)
+            assertEquals("a", trace.order)
+            assertEquals(0L, rig.router.gestureRoutes.size)
+        }
+    }
+
+    @Test
+    fun `a transient modal boundary stops old defaults even when the final path matches`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("a")
+            val modal = rig.area("m")
+            val trace = GestureRouteTrace()
+            watchGestures(area.scope, "a", trace)
+            area.scope.addEventHandler {
+                _,
+                event -> when (event) {
+                    case Gesture(InputGestureEvent.Native(val value)) -> {
+                        if (value.phase == GesturePhase.Changed) {
+                            val boundary = InputBoundary(modal.scope)
+                            boundary.close()
+                        }
+                    }
+                    else -> {}
+                }
+            }
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 40.0))
+                frame.place(canvas, modal, Rect(100.0, 0.0, 60.0, 40.0))
+            }
+            rig.magnify(20.0, GesturePhase.Began)
+            rig.magnify(20.0, GesturePhase.Changed)
+            rig.magnify(20.0, GesturePhase.Changed)
+            assertEquals("a", trace.order)
+            assertEquals("a", trace.cancelled)
+            assertEquals(InputCancelReason.BoundaryChanged, trace.reasons[0L])
+        }
+    }
+}

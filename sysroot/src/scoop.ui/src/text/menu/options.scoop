@@ -1,0 +1,40 @@
+package scoop.ui.text
+
+import scoop.window.TextContextMenuLabels
+
+public enum TextContextMenuMode {
+    Disabled, StandardNative, PreferSystem
+}
+
+public enum TextContextMenuSelection {
+    Platform, Preserve, PlaceCaret, SelectWord
+}
+
+/** Native menus use the same document, policy, selection and history as the host. */
+public struct TextContextMenuOptions(
+    val mode: TextContextMenuMode = TextContextMenuMode.PreferSystem,
+    val selection: TextContextMenuSelection = TextContextMenuSelection.Platform,
+    val labels: TextContextMenuLabels? = None,
+    val systemServices: Boolean = true
+)
+
+public class TextContextMenuOptionsBuilder internal constructor(value: TextContextMenuOptions) {
+    public var mode: TextContextMenuMode = value.mode
+    public var selection: TextContextMenuSelection = value.selection
+    public var labels: TextContextMenuLabels? = value.labels
+    public var systemServices: Boolean = value.systemServices
+    internal fun snapshot(): TextContextMenuOptions =
+        TextContextMenuOptions(mode, selection, labels, systemServices)
+}
+
+public fun textContextMenu(
+    configure: TextContextMenuOptionsBuilder.() -> Unit = {}
+): TextContextMenuOptions = TextContextMenuOptions().copy(configure)
+
+public fun TextContextMenuOptions.copy(
+    configure: TextContextMenuOptionsBuilder.() -> Unit
+): TextContextMenuOptions {
+    val builder = TextContextMenuOptionsBuilder(this)
+    builder.configure()
+    return builder.snapshot()
+}

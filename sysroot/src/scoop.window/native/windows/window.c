@@ -48,6 +48,8 @@ void sw_emit(SWWindow *window, int32_t kind) {
   SWSnapshot snapshot = sw_snapshot(window);
   if (kind == 2)
     sw_frame_geometry(window, snapshot);
+  if (kind == 2 || kind == 3)
+    sw_keyboard_geometry(window);
   switch (kind) {
   case 2:
     event->data.x = snapshot.width;
@@ -92,10 +94,14 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   if (window->input_blocked && sw_modal_input_message(msg))
     return 0;
   LRESULT result;
-  if (!window->destroying && (sw_frame_message(window, msg, wp, lp, &result) ||
-                              sw_menu_message(window, msg, wp, lp, &result) ||
-                              sw_text(window, msg, wp, lp, &result) ||
-                              sw_input(window, msg, wp, lp, &result)))
+  if (sw_drop_message(window, msg, wp))
+    return 0;
+  if (!window->destroying &&
+      (sw_accessibility_message(window, msg, wp, lp, &result) ||
+       sw_frame_message(window, msg, wp, lp, &result) ||
+       sw_menu_message(window, msg, wp, lp, &result) ||
+       sw_text(window, msg, wp, lp, &result) ||
+       sw_input(window, msg, wp, lp, &result)))
     return result;
   switch (msg) {
   case WM_CLOSE:
@@ -188,8 +194,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->transparent = (flags & 4) != 0;
   window->close_button = window->minimize_button = window->maximize_button =
       true;
-  window->cursor_visible = true;
-  window->cursor = LoadCursorW(NULL, IDC_ARROW);
+  sw_input_init(window);
   window->max_width = window->max_height = -1;
   window->theme = -1;
   window->increment_width = window->increment_height = 1;
@@ -223,6 +228,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->destroying = true;
   if (window->hwnd)
     DestroyWindow(window->hwnd);
+  sw_input_destroy(window);
   free(window);
   return (SWResult){NULL, error};
 }
@@ -232,10 +238,13 @@ SWSnapshot scoop_window_snapshot(SWWindow *window) {
 }
 void scoop_window_destroy(SWWindow *window) {
   window->destroying = true;
+  sw_drag_window_destroy(window);
+  sw_drop_window_destroy(window);
+  sw_keyboard_destroy(window);
+  sw_accessibility_destroy(window);
   sw_text_window_destroy(window);
   DestroyWindow(window->hwnd);
-  for (int n = 0; n < 512; ++n)
-    free((void *)window->pressed[n].text);
+  sw_input_destroy(window);
   free(window->hit_rects);
   free(window);
 }

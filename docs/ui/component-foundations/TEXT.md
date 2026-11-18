@@ -19,7 +19,7 @@ TextEditorState 的普通 `replace` 仍表示调用者明确编辑模型，`repl
 配置包含当前确实需要的组合：
 
 - 单行换行处理；复用原有 CRLF、Unicode 换行和选区映射规则。
-- 粘贴文本变换，例如移除 OTP 分隔符；只对 Paste 来源启用时不影响正常逐字输入。
+- 外来文本变换，例如移除 OTP 分隔符；paste 清洗同时用于 Paste 与 Accessibility 来源，不影响正常逐字输入。
 - 明确的字符／文本接受规则；不把 ASCII 数字、Unicode 数字或其他字符类别混为一个隐式选项。
 - `maxLength` 按 Unicode grapheme 计数。截取只发生在 grapheme 边界，并计算本次替换的选区释放出的长度；不能把组合字符、emoji ZWJ 或 UTF-8 字节切断。
 - 自定义纯变换与拒绝。配置顺序有明确含义：换行处理、来源特定变换、字符约束、长度约束。built-in 与自定义变换在同一事务内生成最终映射。

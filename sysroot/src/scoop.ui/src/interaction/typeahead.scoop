@@ -37,6 +37,11 @@ public class Typeahead internal constructor(
             if (!input.activity.hasFocus)
                 clear()
         }
+    private val windowActivity =
+        scope.observeWindowActivity {
+            value -> if (!closed && (!value.focused || !value.visible || value.occluded))
+                clear()
+        }
 
     public val isClosed: Boolean get() {
         val mounted = scope.isMounted;
@@ -149,7 +154,8 @@ public class Typeahead internal constructor(
         if (closed)
             return
         closed = true
-        var failure = cleanupUi(None) { timer.close() }
+        var failure = cleanupUi(None) { windowActivity.close() }
+        failure = cleanupUi(failure) { timer.close() }
         failure = cleanupUi(failure) { observation?.close() }
         observation = None
         failure = cleanupUi(failure) { defaults.close() }

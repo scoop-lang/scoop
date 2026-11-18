@@ -1,0 +1,44 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.window.LogicalPosition
+
+/** Runs on the normal owner publication path against the accepted input scene. */
+internal fun SemanticsHandle.refreshActivation() {
+    resource.activationPoint = semanticActivation(this)
+}
+
+private fun semanticActivation(handle: SemanticsHandle): LogicalPosition? {
+    if (
+        !handle.active ||
+            !handle.properties.enabled ||
+            handle.properties.hidden ||
+            handle.properties.ignored ||
+            !handle.owner.scope.input.isInputAllowed
+    )
+        return None
+    val target = handle.focus ?: return None
+    if (!target.active)
+        return None
+    val visible = (handle.geometry?.visibleBounds ?: None) ?: return None
+    if (visible.size.width <= 0.0 || visible.size.height <= 0.0)
+        return None
+    // Every candidate is tested through the actual input path, including foreground areas.
+    val fractions = [0.5, 0.25, 0.75, 0.1, 0.9]
+    for (y in fractions)
+        for (x in fractions) {
+            val point =
+                Point(
+                    visible.origin.x + visible.size.width * x,
+                    visible.origin.y + visible.size.height * y
+                )
+            if (
+                target.area.hitTest(point) &&
+                    handle.resource.containsPoint(LogicalPosition(point.x, point.y))
+            ) {
+                // The Window layer also checks the semantic native shape when publishing the point.
+                return Some(LogicalPosition(point.x, point.y))
+            }
+        }
+    return None
+}

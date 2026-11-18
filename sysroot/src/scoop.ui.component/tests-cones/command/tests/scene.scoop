@@ -48,7 +48,7 @@ internal class CommandScene(private val p: CommandProbe, scope: ComponentScope):
                                 160.0
                             else
                                 340.0
-                    caretBlink = Duration.milliseconds(0L)
+                    caretBlink = Some(Duration.milliseconds(0L))
                     onSelect =
                         {
                             _ ->

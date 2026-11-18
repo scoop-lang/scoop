@@ -13,6 +13,7 @@ private class ScrollDecorationTest {
         val snapshot = ScrollSnapshot(Point(30.0, 40.0), Size(200.0, 120.0), Size(500.0, 600.0))
         val ltr =
             ScrollBarsLayout(
+                snapshot.viewport,
                 snapshot,
                 ScrollAxes.Both,
                 ScrollbarVisibility.Auto,
@@ -21,6 +22,7 @@ private class ScrollDecorationTest {
             )
         val rtl =
             ScrollBarsLayout(
+                snapshot.viewport,
                 snapshot,
                 ScrollAxes.Both,
                 ScrollbarVisibility.Auto,
@@ -33,6 +35,7 @@ private class ScrollDecorationTest {
         assertEquals(Some(Rect(0.0, 0.0, 10.0, 110.0)), rtl.vertical)
         val single =
             ScrollBarsLayout(
+                snapshot.viewport,
                 snapshot,
                 ScrollAxes.Horizontal,
                 ScrollbarVisibility.Always,
@@ -43,6 +46,7 @@ private class ScrollDecorationTest {
         assertEquals(None, single.vertical)
         val hidden =
             ScrollBarsLayout(
+                snapshot.viewport,
                 snapshot,
                 ScrollAxes.Both,
                 ScrollbarVisibility.Hidden,
@@ -53,6 +57,7 @@ private class ScrollDecorationTest {
         assertEquals(None, hidden.vertical)
         val zero =
             ScrollBarsLayout(
+                Size(0.0, 0.0),
                 ScrollSnapshot(Point(0.0, 0.0), Size(0.0, 0.0), Size(500.0, 600.0)),
                 ScrollAxes.Both,
                 ScrollbarVisibility.Always,

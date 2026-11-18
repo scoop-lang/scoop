@@ -2,9 +2,10 @@ package scoop.ui.component
 
 import scoop.ui.style.*
 import scoop.ui.InteractionState
+import scoop.ui.ComponentScope
 
 /** Captures the ambient source, while explicit sources remain replaceable Props. */
-internal class ThemeAccess {
+internal class ThemeAccess(private val scope: ComponentScope) {
     private var ambient: ThemeSource? = None
     fun mount(explicit: ThemeSource?) {
         when (explicit) {
@@ -25,7 +26,7 @@ internal class ThemeAccess {
                     }
                 }
             }
-        return source.current.value
+        return source.read(scope)
     }
 }
 

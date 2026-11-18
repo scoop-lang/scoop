@@ -5,8 +5,15 @@ import scoop.icons.lucide.search as searchIcon
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
+import scoop.window.accessibility.*
 
-internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme): View {
+internal fun commandInput(
+    input: CommandProps,
+    focus: FocusHandle,
+    theme: Theme,
+    collection: SemanticNodeId?,
+    active: ViewKey?
+): View {
     val field = input.input
     val density = theme.tokens.typography.body.fontSize / 14.0
     val editor =
@@ -32,7 +39,19 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
             field.copy,
             field.labelTarget,
             field.group,
-            field.chrome
+            field.chrome,
+            field.contextMenu,
+            field.protectedText,
+            candidateInputSemantics(field.semantics, collection, active),
+            field.acceptDrops,
+            field.drag,
+            field.touch,
+            field.touchScroll,
+            field.scrollPhysics,
+            inputPurpose = field.inputPurpose,
+            softwareKeyboard = field.softwareKeyboard,
+            primarySelection = field.primarySelection,
+            automaticTextReplacement = field.automaticTextReplacement
         )
     val addons = ArrayList<InputGroupAddon>()
     if (input.showSearchIcon)
@@ -41,12 +60,19 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
                 input.searchIcon ?:
                     makeIcon(searchIcon) {
                         size = 16.0 * density
-                        color = Some(theme.tokens.palette.muted.foreground)
+                        color =
+                            Some(
+                                componentForeground(
+                                    theme,
+                                    theme.tokens.palette.muted.foreground,
+                                    theme.tokens.palette.background.background,
+                                    3.0
+                                )
+                            )
                     },
                 key = ViewKey.Text("search")
             )
         )
-    val ink = theme.tokens.palette.input
     val group =
         component(
             InputGroupProps(
@@ -58,16 +84,34 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
                 theme = field.theme,
                 surface =
                     field.style.surface.copy {
-                        style =
-                            styleOverride {
-                                background(Some(Paint(ink.withAlpha(ink.alpha * 0.3))))
-                                border(Some(Border.all(1.0, ink.withAlpha(ink.alpha * 0.3))))
-                                corners(Corners.all(8.0 * density))
-                                boxShadows([])
-                            }.then(field.style.surface.style)
+                        style = commandInputDecoration(theme).then(field.style.surface.style)
                     }
             ),
             { current, mount -> InputGroup(current, scope = mount) }
         )
     return panelFrame(group, Insets(16.0 * density, 16.0 * density, 16.0 * density, 4.0 * density))
+}
+
+internal fun commandInputDecoration(theme: Theme): StyleOverride {
+    val colors = theme.tokens.palette
+    val ink = colors.input.withAlpha(colors.input.alpha * 0.3)
+    return styleOverride {
+        background(
+            Some(
+                Paint(
+                    if (theme.preferences.highContrast)
+                        colors.background.background
+                    else
+                        componentBackground(theme, ink)
+                )
+            )
+        )
+        border(
+            Some(
+                Border.all(1.0, componentForeground(theme, ink, colors.background.background, 3.0))
+            )
+        )
+        corners(Corners.all(8.0 * theme.tokens.typography.body.fontSize / 14.0))
+        boxShadows([])
+    }
 }

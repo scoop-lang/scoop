@@ -1,0 +1,197 @@
+package scoop.window
+
+import scoop.platform.fs.Path
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.window.native.*
+
+internal class DragCompletionFailure: Exception(Some("expected drag completion failure"))
+
+@Test
+private class DragSourceTest {
+    @Test
+    fun `native drag items own complete standard pasteboard representations`() {
+        @Unsafe
+        {
+            assertEquals(0, exerciseDragData())
+        }
+    }
+
+    @Test
+    fun `pending sources use real input and managed completion retires once`() {
+        val probe = DragSourceProbe()
+        var failed = false
+        try {
+            Application().run(probe)
+        } catch (error: DragCompletionFailure) {
+            failed = true
+        }
+        assertTrue(failed)
+        assertEquals(4, probe.step)
+        assertEquals(1, probe.nativeCompletions)
+        assertTrue(probe.logic!!.finished)
+        assertEquals(11, probe.logic!!.completions)
+        assertTrue(probe.logic!!.last!!.isClosed)
+    }
+}
+
+private class DragSourceProbe: ApplicationHandler {
+    var step = 0
+    var nativeCompletions = 0
+    var logic: DragLogicProbe? = None
+    private var first: Window? = None
+    private var second: Window? = None
+    private var firstLease: NativeWindowLease? = None
+    private var secondLease: NativeWindowLease? = None
+    private var pending: DragSession? = None
+    private var logicStarted = false
+
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                first =
+                    Some(
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop pending drag source"
+                                requestActivation = false
+                            }
+                        )
+                    )
+                second =
+                    Some(
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop drag completion lifecycle"
+                                requestActivation = false
+                            }
+                        )
+                    )
+                @Unsafe
+                {
+                    firstLease = Some(first!!.acquireNativeWindow())
+                    secondLease = Some(second!!.acquireNativeWindow())
+                }
+                assertFailsWith<WindowException> {
+                    first!!.beginDrag(DragContent.Text("outside input"))
+                }
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+                post(firstLease!!, 0)
+            }
+            case Window(val id, WindowEvent.Pointer(val pointer)) -> {
+                when (pointer) {
+                    case Button(val state, MouseButton.Left, ElementState.Pressed, _) -> {
+                        if (step == 0) {
+                            checkPending()
+                        } else
+                            if (step == 1) {
+                                step = 2
+                                post(firstLease!!, 1)
+                            } else
+                                if (step == 3) {
+                                    val session =
+                                        first!!.beginDrag(
+                                            DragContent.Files([Path.fromString("/tmp")])
+                                        ) { _ -> fail(Some("closed source must not notify")) }
+                                    first!!.requestDestroy()
+                                    assertTrue(session.isClosed)
+                                    assertFalse(session.isStarted)
+                                    assertNoResult(session)
+                                    step = 4
+                                    post(secondLease!!, 0)
+                                } else
+                                    if (step == 4 && id == second!!.id && !logicStarted) {
+                                        val value = DragLogicProbe(second!!, active, state.time)
+                                        logicStarted = true
+                                        logic = Some(value)
+                                        value.next()
+                                    }
+                    }
+                    case Moved(_) -> {
+                        if (step == 2) {
+                            assertFailsWith<WindowException> { first!!.beginMove() }
+                            val session =
+                                first!!.beginDrag(DragContent.Url("https://example.test/drag")) {
+                                    _ -> fail(Some("closed source must not notify"))
+                                }
+                            session.close()
+                            session.close()
+                            assertTrue(session.isClosed)
+                            assertFalse(session.cancelPending())
+                            assertNoResult(session)
+                            step = 3
+                            post(firstLease!!, 0)
+                        }
+                    }
+                    else -> {}
+                }
+            }
+            case Window(val id, WindowEvent.Closing) -> {
+                if (id == first!!.id)
+                    firstLease!!.close()
+                if (id == second!!.id)
+                    secondLease!!.close()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("drag source test timed out"))
+            else -> {}
+        }
+    }
+
+    private fun checkPending() {
+        val window = first!!
+        assertFailsWith<IllegalArgumentException> {
+            window.beginDrag(DragContent.Text("x"), DragEffects(false, false, false))
+        }
+        assertFailsWith<IllegalArgumentException> { window.beginDrag(DragContent.Files([])) }
+        assertFailsWith<IllegalArgumentException> {
+            window.beginDrag(DragContent.Files([Path.fromString("relative")]))
+        }
+        assertFailsWith<IllegalArgumentException> { window.beginDrag(DragContent.Url("relative")) }
+        assertFailsWith<WindowException> { second!!.beginDrag(DragContent.Text("other window")) }
+        val session =
+            window.beginDrag(DragContent.Text("source 🫖"), DragEffects(true, true, true)) {
+                result ->
+                assertNotDropped(result)
+                assertTrue(pending!!.isClosed)
+                assertFalse(pending!!.isStarted)
+                nativeCompletions += 1
+                step = 1
+                post(firstLease!!, 0)
+            }
+        pending = Some(session)
+        assertNoResult(session)
+        assertTrue(session.cancelPending())
+        assertFalse(session.cancelPending())
+        assertFalse(session.isStarted)
+        assertNotDropped(session.result!!)
+        assertEquals(0, nativeCompletions)
+        assertFailsWith<WindowException> { window.beginMove() }
+    }
+}
+
+private fun post(lease: NativeWindowLease, kind: Int) {
+    @Unsafe
+    {
+        when (lease.handle) {
+            case AppKit(_, val view) -> postDragInput(view, kind)
+        }
+    }
+}
+
+internal fun assertNoResult(session: DragSession) {
+    when (session.result) {
+        case None -> {}
+        case Some(_) -> fail(Some("unexpected drag result"))
+    }
+}
+
+internal fun assertNotDropped(result: DragResult) {
+    when (result) {
+        case NotDropped -> {}
+        else -> fail(Some("expected no accepted drop"))
+    }
+}

@@ -4,54 +4,77 @@ import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.*
 
-/** Overlay bars share the same resolved bounds for painting and input. */
+/** Bars share resolved bounds, including the fixed corner of a gutter layout. */
 internal class ScrollBarsLayout(
+    size: Size,
     snapshot: ScrollSnapshot,
     axes: ScrollAxes,
     visibility: ScrollbarVisibility,
     thickness: Double,
-    direction: LayoutDirection
+    direction: LayoutDirection,
+    placement: ScrollbarPlacement = ScrollbarPlacement.Overlay
 ) {
-    private val size = snapshot.viewport
     private val width = upperBound(thickness, size.width)
     private val height = upperBound(thickness, size.height)
     private val hasX =
         axes.horizontal &&
-            showScrollbar(visibility, snapshot.maximum.x) &&
+            showScrollbar(visibility, snapshot.bodySize.width - snapshot.viewport.width) &&
             height >
             0.0 &&
             size.width >
             0.0
     private val hasY =
         axes.vertical &&
-            showScrollbar(visibility, snapshot.maximum.y) &&
+            showScrollbar(visibility, snapshot.bodySize.height - snapshot.viewport.height) &&
             width >
             0.0 &&
             size.height >
             0.0
+    private val cornerX =
+        if (
+            hasY ||
+                (
+                    placement ==
+                        ScrollbarPlacement.Gutter &&
+                        axes.vertical &&
+                        visibility !=
+                        ScrollbarVisibility.Hidden
+                )
+        )
+            width
+        else
+            0.0
+    private val cornerY =
+        if (
+            hasX ||
+                (
+                    placement ==
+                        ScrollbarPlacement.Gutter &&
+                        axes.horizontal &&
+                        visibility !=
+                        ScrollbarVisibility.Hidden
+                )
+        )
+            height
+        else
+            0.0
     val horizontal: Rect? =
-        if (hasX)
+        if (hasX && size.width > cornerX)
             Some(
                 Rect(
-                    if (hasY && direction == LayoutDirection.Rtl)
-                        width
+                    if (direction == LayoutDirection.Rtl)
+                        cornerX
                     else
                         0.0,
                     size.height - height,
-                    size.width -
-                        (
-                            if (hasY)
-                                width
-                            else
-                                0.0
-                        ),
+                    size.width - cornerX,
                     height
                 )
             )
         else
             None
     val vertical: Rect? =
-        if (hasY)
+        if (hasY && size.height > cornerY)
             Some(
                 Rect(
                     if (direction == LayoutDirection.Rtl)
@@ -60,13 +83,7 @@ internal class ScrollBarsLayout(
                         size.width - width,
                     0.0,
                     width,
-                    size.height -
-                        (
-                            if (hasX)
-                                height
-                            else
-                                0.0
-                        )
+                    size.height - cornerY
                 )
             )
         else

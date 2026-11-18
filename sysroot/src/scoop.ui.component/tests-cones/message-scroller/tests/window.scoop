@@ -20,7 +20,14 @@ import scoop.window.*
 private class MessageScrollerWindowTest {
     @Test
     fun `message turns preserve reading through native input streaming prepend restore and idle`() {
-        val p = MessageProbe()
+        run(false)
+    }
+    @Test
+    fun `message reading holds through moving content and resumes following at the actual end`() {
+        run(true)
+    }
+    private fun run(motion: Boolean) {
+        val p = MessageProbe(motion)
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }
         try {
             context(p.theme) {
@@ -50,11 +57,19 @@ internal class MessageTestRow(val id: Long, height: Double) {
     var area: InputArea? = None
 }
 
-internal class MessageProbe {
+internal class MessageProbe(val motionTest: Boolean = false) {
     val theme =
         ThemeSource(
             shadcnTheme(ThemeMode.Light) {
-                tokens { motion { preference = MotionPreference.Reduced } }
+                tokens {
+                    motion {
+                        preference =
+                            if (this @MessageProbe.motionTest)
+                                MotionPreference.Full
+                            else
+                                MotionPreference.Reduced
+                    }
+                }
             }
         )
     val fonts = FontCollection(false)
@@ -80,6 +95,10 @@ internal class MessageProbe {
     var pointer = Point(0.0, 0.0)
     var discardNext = false
     var discarded = 0
+    var animatedSteps = false
+    var queued = 0
+    var received = 0
+    var physics = ScrollPhysicsOptions(inertia = ScrollInertiaOptions(false))
     var native: Window? = None
     var frames: FrameProbe? = None
     private var next = MonotonicTimeSource.markNow()
@@ -154,11 +173,24 @@ internal class MessageProbe {
                 native = Some(window)
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { scope -> MessageScene(this, scope) }, fonts = Some(fonts))
+                host.attach(
+                    window,
+                    { scope -> MessageScene(this, scope) },
+                    fonts = Some(fonts),
+                    preferences =
+                        uiPreferences {
+                            reduceMotion =
+                                if (this @MessageProbe.motionTest)
+                                    Some(false)
+                                else
+                                    None
+                        }
+                )
                 window.requestFocus()
                 next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
                 active.setControlFlow(ControlFlow.WaitUntil(next))
             }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
             case NewEvents(StartCause.Deadline) -> {
                 val now = MonotonicTimeSource.markNow()
                 assertTrue(now < timeout, Some("message scroller timeout"))
@@ -169,15 +201,28 @@ internal class MessageProbe {
                         rendered >=
                         generation.value &&
                         (!model.isPending || source.value.count == 0L) &&
-                        !frames!!.snapshot().required
+                        received ==
+                        queued &&
+                        (animatedSteps || !frames!!.snapshot().required)
                 ) {
-                    advanceMessage(this)
+                    if (motionTest)
+                        advanceMessageMotion(this)
+                    else
+                        advanceMessage(this)
                     phase += 1
                     next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()
-                if (phase < 44)
+                if (
+                    phase <
+                        (
+                            if (motionTest)
+                                18
+                            else
+                                44
+                        )
+                )
                     active.setControlFlow(
                         ControlFlow.WaitUntil(
                             if (next > now)
@@ -188,7 +233,14 @@ internal class MessageProbe {
                     )
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 44;
+                finished =
+                    phase ==
+                        (
+                            if (motionTest)
+                                18
+                            else
+                                44
+                        );
                 active.requestExit()
             }
             else -> {}

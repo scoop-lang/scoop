@@ -163,6 +163,10 @@ internal class ComboEditorEvents<T: Equals<T>>(
                             if (!props.value.open.value)
                                 props.value.show()
                         }
+                        case Contact(InputContactEvent.Began(_)) -> {
+                            if (!props.value.open.value)
+                                props.value.show()
+                        }
                         else -> {}
                     }
             }

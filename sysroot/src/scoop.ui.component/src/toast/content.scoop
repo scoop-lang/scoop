@@ -13,7 +13,10 @@ internal fun toastContents(input: ToastItemInput): View {
     val colors = input.theme.tokens.palette
     val titleStyle = input.theme.tokens.typography.action.copy { color = colors.popover.foreground }
     val descriptionStyle =
-        input.theme.tokens.typography.body.copy { color = colors.muted.foreground }
+        input.theme.tokens.typography.body.copy {
+            color =
+                componentForeground(input.theme, colors.muted.foreground, colors.popover.background)
+        }
     val icon =
         data.icon ?:
             when (data.kind) {
@@ -55,7 +58,8 @@ internal fun toastContents(input: ToastItemInput): View {
                     input.props.theme,
                     value.focus,
                     variant = value.variant,
-                    size = value.size
+                    size = value.size,
+                    semantics = value.semantics
                 ),
                 { current, mount -> Button(current, mount) }
             )
@@ -73,7 +77,8 @@ internal fun toastContents(input: ToastItemInput): View {
                     theme = input.props.theme,
                     focus = data.closeFocus,
                     variant = ButtonVariant.Ghost,
-                    size = ButtonSize.IconSm
+                    size = ButtonSize.IconSm,
+                    semantics = data.closeSemantics
                 ),
                 { current, mount -> Button(current, mount) }
             )
@@ -87,6 +92,11 @@ private class ToastPanel(private val props: Props<ToastItemInput>, scope: Compon
     Unit
 >(scope) {
     private val painter = scope.resource { StylePainter() }
+    private val semantics = ToastSemantics(scope) { props.value }
+    public override fun update(): UiInvalidation {
+        semantics.update()
+        return UiInvalidation.Layout
+    }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -236,12 +246,13 @@ private class ToastPanel(private val props: Props<ToastItemInput>, scope: Compon
         return LayoutResult(LayoutMetrics(size), Unit)
     }
     public override fun scene(context: SceneContext, layout: Unit) {
+        semantics.scene(context)
         val input = props.value;
         val colors = input.theme.tokens.palette
         val visual =
             styleOverride {
                 background(Some(Paint(colors.popover.background)))
-                border(Some(Border.all(1.0, colors.background.foreground.withAlpha(0.1))))
+                border(Some(Border.all(1.0, componentPanelBorder(input.theme, colors.popover))))
                 corners(Corners.all(16.0 * input.density))
                 boxShadows(input.theme.tokens.effects.floating)
             }.then(input.props.style).then(input.entry.data.value.style).resolve(style())

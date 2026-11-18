@@ -1,0 +1,59 @@
+package scoop.ui
+
+import scoop.test.*
+import scoop.graphics.Color
+import scoop.time.Duration
+import scoop.ui.text.TextTouchOptions
+import scoop.ui.text.TextSelectionHandleOptions
+
+@Test
+private class TextTouchOptionsTest {
+    @Test
+    fun `text touch settings validate before a host can register input`() {
+        val value = TextTouchOptions()
+        assertTrue(value.enabled)
+        assertEquals(8.0, value.threshold)
+        assertEquals(Some(Duration.milliseconds(500L)), value.longPressDelay)
+        assertTrue(value.multiTap)
+        assertEquals(None, value.multiTapInterval)
+        assertTrue(value.selectionHandles.enabled)
+        assertEquals(6.0, value.selectionHandles.radius)
+        assertEquals(18.0, value.selectionHandles.hitRadius)
+        assertEquals(None, value.selectionHandles.color)
+        val disabled =
+            TextTouchOptions(selectionHandles = TextSelectionHandleOptions(enabled = false))
+        assertTrue(disabled.enabled)
+        assertTrue(disabled.multiTap)
+        assertFalse(disabled.selectionHandles.enabled)
+        for (radius in [0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> {
+                TextSelectionHandleOptions(radius = radius)
+            }
+        for (radius in [5.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> {
+                TextSelectionHandleOptions(hitRadius = radius)
+            }
+        assertFailsWith<IllegalArgumentException> {
+            TextSelectionHandleOptions(color = Some(Color(Double.NaN, 0.0, 0.0, 1.0)))
+        }
+        assertFalse(TextTouchOptions(multiTap = false).multiTap)
+        assertEquals(
+            Some(Duration.ZERO),
+            TextTouchOptions(multiTapInterval = Some(Duration.ZERO)).multiTapInterval
+        )
+        assertEquals(None, TextTouchOptions(longPressDelay = None).longPressDelay)
+        assertEquals(
+            Some(Duration.ZERO),
+            TextTouchOptions(longPressDelay = Some(Duration.ZERO)).longPressDelay
+        )
+        assertEquals(0.0, TextTouchOptions(threshold = 0.0).threshold)
+        for (threshold in [-1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> { TextTouchOptions(threshold = threshold) }
+        assertFailsWith<IllegalArgumentException> {
+            TextTouchOptions(longPressDelay = Some(Duration.milliseconds(-1L)))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TextTouchOptions(multiTapInterval = Some(Duration.milliseconds(-1L)))
+        }
+    }
+}

@@ -3,10 +3,6 @@ package scoop.ui.component
 import scoop.ui.*
 import scoop.ui.style.*
 
-public enum ScrollChain {
-    Chain, Contain
-}
-
 public enum ScrollbarVisibility {
     Auto, Always, Hidden
 }
@@ -26,7 +22,11 @@ public class ScrollAreaProps public constructor(
     public val theme: ThemeSource? = None,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
     public val style: StyleOverride = styleOverride(),
-    public val focusOutline: OutlineStyle? = None
+    public val focusOutline: OutlineStyle? = None,
+    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
 )
 
 /** Keeps explicit content mounted while moving its scene inside one viewport clip. */
@@ -35,7 +35,7 @@ public class ScrollArea public constructor(
     scope: ComponentScope
 ): Component(scope) {
     private val local = ScrollState()
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -70,6 +70,10 @@ internal class ScrollAreaInkProps(
             input.paintCache,
             theme,
             input.style,
-            input.focusOutline
+            input.focusOutline,
+            input.scrollbarBehavior,
+            input.semantics,
+            input.touchScroll,
+            input.scrollPhysics
         )
 }

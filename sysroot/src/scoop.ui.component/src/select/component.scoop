@@ -6,6 +6,7 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
+import scoop.window.accessibility.*
 import scoop.ui.component.row as selectRow
 import scoop.ui.component.label as selectLabel
 
@@ -18,9 +19,10 @@ public class Select<T: Equals<T>> public constructor(
     private val anchor = LayoutAnchor()
     private val trigger = FocusHandle()
     private val layer = OverlayHandle()
+    private val popupReference = SemanticsReference()
     private val candidates = MenuFocus()
     private val scroll = ScrollState()
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private var pendingTab: Boolean? = None
     private val open =
         binding({ props.value.open?.value ?: local.value }, { value -> setOpen(value) })
@@ -130,7 +132,8 @@ public class Select<T: Equals<T>> public constructor(
                             content = item.content,
                             icon = item.icon,
                             focus = item.focus,
-                            style = item.style
+                            style = item.style,
+                            semantics = item.semantics
                         ),
                         { props.value.value.value == Some(item.choice.value) },
                         { selectChoice(props.value, item.choice.key) },
@@ -139,6 +142,22 @@ public class Select<T: Equals<T>> public constructor(
                 }
             }
         )
+    private fun semanticOpen(value: Boolean): SemanticActionResult {
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        if (!props.value.enabled)
+            return SemanticActionResult.Rejected
+        if (open.value != value) {
+            if (value)
+                setOpen(true)
+            else
+                close()
+        }
+        return if (open.value == value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
+    }
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.theme)
@@ -151,10 +170,14 @@ public class Select<T: Equals<T>> public constructor(
                 enabled = input.enabled,
                 fonts = input.fonts,
                 theme = input.theme,
-                typeahead = Some(input.typeahead)
+                typeahead = Some(input.typeahead),
+                semantics =
+                    input.popupSemantics.copy {
+                        reference = Some(reference ?: this @Select.popupReference)
+                    }
             )
         val button =
-            component(
+            popupSemanticButton(
                 ButtonProps(
                     ButtonContent.Resolved { appearance -> valueView(appearance, theme) },
                     { toggle() },
@@ -165,9 +188,27 @@ public class Select<T: Equals<T>> public constructor(
                     input.invalid,
                     ButtonVariant.Outline,
                     group = input.group,
-                    labelTarget = input.labelTarget
+                    labelTarget = input.labelTarget,
+                    semantics =
+                        input.semantics.copy {
+                            relations =
+                                semanticControls(
+                                    relations,
+                                    (
+                                        input.popupSemantics.reference ?:
+                                            this @Select.popupReference
+                                    ).id
+                                )
+                            if (name == None && relations.labelledBy.size == 0L)
+                                name =
+                                    Some(
+                                        selectedChoice(input.content, input.value.value)?.label ?:
+                                            input.placeholder
+                                    )
+                        }
                 ),
-                { current, mount -> Button(current, scope = mount) }
+                open.value,
+                { value -> semanticOpen(value) }
             )
         val focus =
             OverlayFocusOptions(
@@ -229,7 +270,7 @@ public class Select<T: Equals<T>> public constructor(
                                 weight = 400;
                                 fontSize = 14.0 * density;
                                 lineHeight = Some(20.0 / 14.0)
-                                if (input.value.value == None)
+                                if (input.value.value == None && !theme.preferences.highContrast)
                                     color = theme.tokens.palette.muted.foreground
                             }
                         text(
@@ -258,7 +299,10 @@ public class Select<T: Equals<T>> public constructor(
                     navigationIcon(
                         NavigationGlyph.Down,
                         16.0 * density,
-                        theme.tokens.palette.muted.foreground
+                        if (theme.preferences.highContrast)
+                            appearance.text.color
+                        else
+                            theme.tokens.palette.muted.foreground
                     )
             ) { shrink = 0.0 }
             if (input.style.surface.padding == None)
@@ -276,7 +320,6 @@ internal fun selectTriggerStyle(
     invalid: Boolean
 ): ButtonStyle {
     val density = theme.tokens.typography.body.fontSize / 14.0
-    val dark = theme.tokens.mode == ThemeMode.Dark
     val borderColor =
         if (invalid)
             (local.surface.validation ?: theme.tokens.validation).borderColor ?:
@@ -310,18 +353,7 @@ internal fun selectTriggerStyle(
                 padding = Some(Insets(8.0 * density, 0.0, 8.0 * density, 0.0))
             style =
                 styleOverride {
-                    background(
-                        Some(
-                            Paint(
-                                if (dark)
-                                    theme.tokens.palette.input.withAlpha(
-                                        theme.tokens.palette.input.alpha * 0.3
-                                    )
-                                else
-                                    Color.Transparent
-                            )
-                        )
-                    )
+                    background(Some(Paint(selectTriggerBackground(theme, false))))
                     border(Some(Border.all(1.0, borderColor)))
                     corners(
                         Corners.all(
@@ -341,23 +373,39 @@ internal fun selectTriggerStyle(
             local.states.copy {
                 hovered =
                     styleOverride {
-                        background(
-                            Some(
-                                Paint(
-                                    if (dark)
-                                        theme.tokens.palette.input.withAlpha(
-                                            theme.tokens.palette.input.alpha * 0.5
-                                        )
-                                    else
-                                        Color.Transparent
-                                )
-                            )
-                        )
+                        background(Some(Paint(selectTriggerBackground(theme, true))))
                     }.then(local.surface.style).then(local.states.hovered)
+                if (theme.preferences.highContrast)
+                    pressed =
+                        styleOverride {
+                            background(Some(Paint(selectTriggerBackground(theme, true))))
+                        }.then(local.surface.style).then(local.states.pressed)
                 focused =
                     styleOverride { border(Some(Border.all(1.0, focusColor))) }.then(
                         local.states.focused
                     )
             }
     }
+}
+
+internal fun selectTriggerBackground(theme: Theme, active: Boolean): Color {
+    val colors = theme.tokens.palette
+    if (theme.preferences.highContrast)
+        return if (active)
+            colors.muted.background
+        else
+            colors.background.background
+    return if (theme.tokens.mode == ThemeMode.Dark)
+        componentBackground(
+            theme,
+            colors.input.withAlpha(
+                colors.input.alpha *
+                    if (active)
+                        0.5
+                    else
+                        0.3
+            )
+        )
+    else
+        Color.Transparent
 }

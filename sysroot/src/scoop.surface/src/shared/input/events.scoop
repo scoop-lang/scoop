@@ -8,7 +8,7 @@ public struct InputPointer(val state: PointerState, val time: InputTime)
 public enum InputCancelReason {
     Window(
         PointerCancelReason
-    ), AreaChanged, BoundaryChanged, ScrollInterrupted, Claimed, ClaimCancelled, Closed
+    ), AreaChanged, BoundaryChanged, ScrollInterrupted, GestureInterrupted, ContactInterrupted, Claimed, ClaimCancelled, Closed
 }
 
 /** Pixel distances are logical; line distances retain their native unit. */
@@ -23,19 +23,28 @@ public enum InputPointerEvent {
     Cancelled(InputCancelReason, InputTime), ScrollCancelled(InputCancelReason, InputTime)
 }
 
-/** Snapshot for the current input domain's first-button decision, before route delivery. */
-public struct InputPress(
-    val target: InputScope,
-    val pointer: InputPointer,
-    val button: MouseButton,
-    val clickCount: Int
-)
+/** Native recognition and route cancellation share the ordinary input path. */
+public enum InputGestureEvent {
+    Native(GestureEvent), Cancelled(GestureKind, InputCancelReason, InputTime)
+}
+
+public enum InputContactEvent {
+    Began(ContactState), Moved(ContactState), Ended(ContactState),
+    Cancelled(ContactId, InputCancelReason, InputTime)
+}
+
+public enum InputPressSource {
+    Mouse(InputPointer, MouseButton, Int), Contact(ContactState)
+}
+
+/** Snapshot before the current input domain starts delivering a press. */
+public struct InputPress(val target: InputScope, val source: InputPressSource)
 
 /** Text transactions and focus/hover transitions are delivered directly to their owner. */
 public enum InputEvent {
-    Pointer(InputPointerEvent), Keyboard(KeyEvent), TextCommand(TextEditCommand), ModifiersChanged(
-        Modifiers
-    ),
+    Pointer(InputPointerEvent), Contact(InputContactEvent), Gesture(InputGestureEvent), Keyboard(
+        KeyEvent
+    ), TextCommand(TextEditCommand), ModifiersChanged(Modifiers),
     TextInput(TextInputEvent), FocusChanged(Boolean), FocusVisibilityChanged(Boolean)
 }
 

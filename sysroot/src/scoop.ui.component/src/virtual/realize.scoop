@@ -1,7 +1,7 @@
 package scoop.ui.component
 
 import scoop.collections.HashSet
-import scoop.graphics.Point
+import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.Orientation
 
@@ -18,7 +18,9 @@ internal class VirtualListLayout(
     private val input = props.input
     private val state = props.controls.state
     private val revision = state.requestRevision
-    private val size = virtualViewport(constraints, input.width, input.height)
+    private val outer = virtualViewport(constraints, input.width, input.height)
+    private val body = control.contentViewport(outer, context.layoutDirection)
+    private val size = Size(body.width, body.height)
     private val vertical = input.orientation == Orientation.Vertical
     private val hasViewport = size.width > 0.0 && size.height > 0.0
     private val index =
@@ -62,7 +64,7 @@ internal class VirtualListLayout(
                     input.orientation &&
                     value.revision ==
                     revision &&
-                    !state.isAnimating
+                    !state.hasPositionAnimation
                 case None -> false
             }
     private val followEnd =
@@ -176,6 +178,7 @@ internal class VirtualListLayout(
         val requestDone = requestActive && (destination == None || hasViewport)
         return VirtualListFrame(
             props,
+            outer,
             layout,
             revision,
             hasViewport,
@@ -212,13 +215,11 @@ internal class VirtualListLayout(
                     ScrollAdjustment(
                         revision,
                         when (request!!.position) {
-                            case Item(val alignment, val margin, val peek) -> geometry.alignedOffset(
-                                base.snapshot,
-                                at,
-                                alignment,
-                                margin,
-                                peek
-                            )
+                            case Item(
+                                val alignment,
+                                val margin,
+                                val peek
+                            ) -> geometry.alignedOffset(base.snapshot, at, alignment, margin, peek)
                             case Reading(val inside) -> geometry.scrollOffset(
                                 index.prefix(at) + upperBound(inside, index.extent(at))
                             )
@@ -247,7 +248,20 @@ internal class VirtualListLayout(
                     }
             }
         }
-        return control.layout(size, geometry.content, adjustment)
+        val corrected =
+            when (adjustment) {
+                case Some(val value) -> Some(
+                    ScrollAdjustment(
+                        value.requestRevision,
+                        if (vertical)
+                            Point(base.snapshot.offset.x, value.offset.y)
+                        else
+                            Point(value.offset.x, base.snapshot.offset.y)
+                    )
+                )
+                case None -> None
+            }
+        return control.layout(size, geometry.content, corrected)
     }
 
     private fun fillOffset(): Double {
@@ -266,7 +280,8 @@ internal class VirtualListLayout(
             case None -> {}
         }
         when (anchorIndex) {
-            case Some(val at) -> return index.prefix(at) + upperBound(anchor!!.inside, index.extent(at))
+            case Some(val at) -> return index.prefix(at) +
+                upperBound(anchor!!.inside, index.extent(at))
             case None -> {}
         }
         return if (vertical)

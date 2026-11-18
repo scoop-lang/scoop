@@ -231,7 +231,7 @@ int64_t scoop_window_ignore_mouse(SWWindow *window, int32_t enabled) {
     return enabled ? -1 : 0;
   window->ignore_mouse = enabled != 0;
   if (enabled) {
-    sw_cancel_pointer(window, 1);
+    sw_cancel_pointer(window, SWPointerCaptureLost);
     apply_input(window);
   } else
     restore_input(window);
@@ -261,14 +261,18 @@ int64_t scoop_window_hit_regions(SWWindow *window, const SWHitRect *rects,
 }
 
 bool sw_frame_pointer(SWWindow *window, GdkEvent *event, double x, double y) {
-  if (!event || gdk_event_get_event_type(event) != GDK_BUTTON_PRESS ||
-      gdk_button_event_get_button(event) != 1)
+  if (!event)
+    return false;
+  bool touch = gdk_event_get_event_type(event) == GDK_TOUCH_BEGIN;
+  if (!touch && (gdk_event_get_event_type(event) != GDK_BUTTON_PRESS ||
+                 gdk_button_event_get_button(event) != 1))
     return false;
   int role = sw_frame_hit(window->hit_rects, window->hit_count, x, y);
   if (role == 0 ||
       (role >= 2 && (!window->resizable || window->snapshot.maximized)))
     return false;
-  sw_cancel_pointer(window, 2);
+  sw_cancel_pointer(window, SWPointerSystemOperation);
+  sw_cancel_contacts(window, SWPointerSystemOperation);
   double native_x, native_y;
   gdk_event_get_position(event, &native_x, &native_y);
   if (role == 1)

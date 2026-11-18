@@ -50,6 +50,8 @@ int64_t scoop_window_menu_clear(SWMenu *menu) {
 }
 
 void scoop_window_menu_destroy(SWMenu *menu) {
+  if (menu->completion_idle)
+    g_source_remove(menu->completion_idle);
   SWMenu **link = &menu->application->menus;
   while (*link != menu)
     link = &(*link)->next;

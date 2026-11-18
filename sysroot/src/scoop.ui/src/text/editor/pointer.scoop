@@ -14,6 +14,15 @@ internal enum EditorDragUnit {
     Character, Word, Line
 }
 
+internal fun editorClickUnit(count: Int): EditorDragUnit =
+    if (count < 2)
+        EditorDragUnit.Character
+    else
+        if (count == 2)
+            EditorDragUnit.Word
+        else
+            EditorDragUnit.Line
+
 internal class EditorDrag(
     var windowPoint: Point,
     val unit: EditorDragUnit,
@@ -38,13 +47,10 @@ internal fun editorPress(host: TextEditHost, pointer: InputPointer, local: Point
     val position = input.display.documentPosition(input.display.mapping.reverse(displayed))
     val shift = pointer.state.modifiers.shift
     val unit =
-        if (shift || clicks < 2)
+        if (shift)
             EditorDragUnit.Character
         else
-            if (clicks == 2)
-                EditorDragUnit.Word
-            else
-                EditorDragUnit.Line
+            editorClickUnit(clicks)
     val range = editorProjectedRange(input, editorDragRange(layout, displayed, unit))
     val anchor =
         if (shift)
@@ -89,8 +95,8 @@ internal fun editorDragMove(host: TextEditHost, pointer: InputPointer) {
 private fun editorUpdateDrag(host: TextEditHost, drag: EditorDrag, displacement: Point) {
     val frame = host.accepted ?: return
     val point = host.area.toLocal(drag.windowPoint) ?: return
-    val offset = frame.snapshot.offset
-    val viewport = frame.snapshot.viewport
+    val offset = frame.presentationOffset
+    val viewport = frame.snapshot.visibleSize
     val hit =
         Point(
             min(max(point.x, offset.x), offset.x + viewport.width) + displacement.x,
@@ -140,29 +146,31 @@ internal fun editorStopDrag(host: TextEditHost, reveal: Boolean) {
         host.invalidate()
 }
 
-private fun editorDragDelta(host: TextEditHost, drag: EditorDrag): Point {
+internal fun editorEdgeDelta(host: TextEditHost, windowPoint: Point, inset: Double = 0.0): Point {
     val frame = host.accepted ?: return Point(0.0, 0.0)
-    val point = host.area.toLocal(drag.windowPoint) ?: return Point(0.0, 0.0)
+    val point = host.area.toLocal(windowPoint) ?: return Point(0.0, 0.0)
     val snapshot = frame.snapshot
-    val x = point.x - snapshot.offset.x
-    val y = point.y - snapshot.offset.y
+    val x = point.x - frame.presentationOffset.x
+    val y = point.y - frame.presentationOffset.y
+    val horizontalInset = min(inset, snapshot.visibleSize.width / 2.0)
+    val verticalInset = min(inset, snapshot.visibleSize.height / 2.0)
     val horizontal =
-        if (x < 0.0)
-            editorEdgeStep(x)
+        if (x < horizontalInset)
+            editorEdgeStep(x - horizontalInset)
         else
-            if (x > snapshot.viewport.width)
-                editorEdgeStep(x - snapshot.viewport.width)
+            if (x > snapshot.visibleSize.width - horizontalInset)
+                editorEdgeStep(x - snapshot.visibleSize.width + horizontalInset)
             else
                 0.0
     val vertical =
         if (!host.options.multiline)
             0.0
         else
-            if (y < 0.0)
-                editorEdgeStep(y)
+            if (y < verticalInset)
+                editorEdgeStep(y - verticalInset)
             else
-                if (y > snapshot.viewport.height)
-                    editorEdgeStep(y - snapshot.viewport.height)
+                if (y > snapshot.visibleSize.height - verticalInset)
+                    editorEdgeStep(y - snapshot.visibleSize.height + verticalInset)
                 else
                     0.0
     val offset = host.scroll.offset
@@ -194,7 +202,7 @@ private fun editorScheduleDrag(host: TextEditHost) {
         host.dragTimer.cancel()
         return
     }
-    if (editorDragDelta(host, drag) == Point(0.0, 0.0)) {
+    if (editorEdgeDelta(host, drag.windowPoint) == Point(0.0, 0.0)) {
         host.dragTimer.cancel()
         return
     }
@@ -212,7 +220,7 @@ internal fun editorDragTick(host: TextEditHost) {
             host.window.isOccluded
     )
         return
-    val consumed = host.scroll.scrollBy(editorDragDelta(host, drag), ScrollOrigin.User)
+    val consumed = host.scroll.scrollBy(editorEdgeDelta(host, drag.windowPoint), ScrollOrigin.User)
     if (consumed == Point(0.0, 0.0) || host.closed || !host.scope.isMounted)
         return
     drag.waiting = true

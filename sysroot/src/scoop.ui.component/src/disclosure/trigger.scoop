@@ -8,6 +8,7 @@ import scoop.math.PI
 import scoop.math.min
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.row as makeRow
 
 /** Non-interactive content for the owning disclosure's single activation target. */
@@ -18,7 +19,8 @@ public class TriggerSpec public constructor(
     public val variant: ButtonVariant = ButtonVariant.Ghost,
     public val style: ButtonStyle? = None,
     public val focus: FocusOptions = FocusOptions(),
-    public val fonts: FontCollection? = None
+    public val fonts: FontCollection? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 internal fun disclosureTrigger(
@@ -28,9 +30,11 @@ internal fun disclosureTrigger(
     theme: ThemeSource?,
     presence: Presence?,
     open: Boolean,
-    action: () -> Unit
+    currentOpen: () -> Boolean,
+    setOpen: (Boolean) -> SemanticActionResult,
+    semantics: ComponentSemantics
 ): View =
-    component(
+    semanticButton(
         ButtonProps(
             ButtonContent.Resolved {
                 appearance ->
@@ -44,7 +48,8 @@ internal fun disclosureTrigger(
                                 label.inlines,
                                 label.theme,
                                 label.baseStyle,
-                                label.underline
+                                label.underline,
+                                label.semantics
                             )
                         )
                         else -> input.content
@@ -67,14 +72,17 @@ internal fun disclosureTrigger(
                     this.alignment = CrossAlignment.Center
                 }
             },
-            action,
+            { setOpen(!currentOpen()) },
             enabled && input.enabled,
             input.style ?: buttonStyle { this.kind = SurfaceKind.Plain },
             theme,
             input.focus,
-            variant = input.variant
+            variant = input.variant,
+            semantics = semantics
         ),
-        { current, mount -> Button(current, scope = mount) }
+        SemanticRole.Disclosure,
+        semantics.properties(enabled = enabled && input.enabled, expanded = Some(open)),
+        SemanticActions(invoke = Some { setOpen(!currentOpen()) }, setExpanded = Some(setOpen))
     )
 
 private class DisclosureArrowProps(

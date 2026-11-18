@@ -1,0 +1,27 @@
+package scoop.tests.window.preferences
+
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.InteractionPreferences
+
+@Test
+private class PreferenceValuesTest {
+    @Test
+    fun `unknown preferences differ from explicit false and a nonblinking caret`() {
+        val unknown = InteractionPreferences()
+        val disabled =
+            InteractionPreferences(
+                reduceMotion = Some(false),
+                caretBlinkInterval = Some(Duration.ZERO)
+            )
+        assertNotEquals(unknown, disabled)
+        assertEquals(None, unknown.autoHideScrollbars)
+        assertEquals(None, unknown.textScaleFactor)
+        assertEquals(Some(false), disabled.reduceMotion)
+        assertEquals(Some(Duration.ZERO), disabled.caretBlinkInterval)
+        assertNotEquals(
+            InteractionPreferences(caretWidthPixels = Some(2)),
+            InteractionPreferences(caretAspectRatio = Some(0.04))
+        )
+    }
+}

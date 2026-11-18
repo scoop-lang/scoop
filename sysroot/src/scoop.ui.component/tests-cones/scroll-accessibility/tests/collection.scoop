@@ -1,0 +1,220 @@
+package scoop.tests.ui.scroll.accessibility
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class VirtualCollectionTest {
+    @Test
+    fun `native list and grid queries preserve exported items through recycling and retirement`() {
+        val probe = CollectionProbe()
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.counts.builds < 120)
+            assertTrue(probe.counts.descriptions < 50)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class CollectionCounts {
+    var builds = 0
+    var descriptions = 0
+}
+
+internal class CollectionProbe: Closeable {
+    val counts = CollectionCounts()
+    val source = state(CollectionItems(counts))
+    val grid = state(0)
+    val scroll = ScrollState()
+    val handle = VirtualListHandle()
+    var finished = false
+    private var phase = 0
+    private var waiting = false
+    private var frames = 0
+    private var nextFrame = 1
+    private var beforeQuery = 0
+    private var application: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var root: NativeNode? = None
+    private var native: NativeCollectionProbe? = None
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application = Some(active)
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop virtual collection accessibility"
+                            size = LogicalSize(180.0, 160.0)
+                            requestActivation = false
+                        }
+                    )
+                ui = host.attach(window, { mount -> CollectionRoot(this, mount) })
+                @Unsafe
+                {
+                    val lease = window.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val value) -> value
+                            }
+                        root = Some(NativeNode(nativeRoot(view)!!))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                native =
+                    Some(
+                        NativeCollectionProbe(root!!, active.proxy()) {
+                            phase,
+                            result -> complete(phase, result)
+                        }
+                    )
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(25L))
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"collection phase ${phase} timed out")
+            )
+            else -> {}
+        }
+    }
+
+    fun accepted(snapshot: CollectionItems) {
+        frames += 1
+        if (snapshot !== source.value || waiting || frames < nextFrame || phase >= 9)
+            return
+        waiting = true
+        application!!.proxy().post { _ -> send() }
+    }
+
+    private fun send() {
+        beforeQuery = counts.builds
+        native!!.post(phase)
+    }
+
+    private fun complete(tag: Int, result: Int) {
+        assertEquals(phase, tag)
+        assertEquals(0, result, Some(f"native collection phase ${phase}"))
+        assertEquals(beforeQuery, counts.builds)
+        assertTrue(counts.builds < 120)
+        if (phase == 9) {
+            finished = true
+            application!!.requestExit()
+            return
+        }
+        phase += 1
+        nextFrame = frames + 1
+        waiting = false
+        when (phase) {
+            case 1 -> {
+                assertEquals(Point(0.0, 0.0), scroll.offset)
+                source.value = CollectionItems(counts, reverse = true)
+            }
+            case 2 -> source.value = CollectionItems(counts, reverse = true, removed = true)
+            case 3 -> source.value = CollectionItems(counts, reverse = true)
+            case 4 -> assertTrue(handle.scrollToItem(ViewKey.Number(50000L), ScrollAlignment.Start))
+            case 5 -> assertTrue(handle.scrollToItem(ViewKey.Number(99999L), ScrollAlignment.Start))
+            case 6 -> grid.value = 1
+            case 7 -> grid.value = 2
+            case 8 -> grid.value = 1
+            case 9 -> {
+                ui!!.close()
+                waiting = true
+                send()
+            }
+            else -> fail(Some("unexpected collection phase"))
+        }
+    }
+
+    public override fun close() {
+        native?.close()
+        root?.close()
+    }
+}
+
+internal class CollectionRoot(private val probe: CollectionProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val snapshot = probe.source.value
+        val grid = probe.grid.value
+        val probe = this.probe
+        val list =
+            virtualList(snapshot, ItemExtent.Fixed(24.0)) {
+                width = Some(160.0)
+                height = Some(120.0)
+                state = Some(probe.scroll)
+                handle = Some(probe.handle)
+                anchor = VirtualListAnchor.None
+                scrollbars = ScrollbarVisibility.Hidden
+                itemSemantics =
+                    Some(
+                        ItemSemantics(
+                            snapshot,
+                            { index -> snapshot.describe(index) },
+                            grid = collectionGrid(grid)
+                        )
+                    )
+            }
+        return element(snapshot, { value, mount -> CollectionPanel(probe, value, mount) }, [list])
+    }
+}
+
+private fun collectionGrid(mode: Int): SemanticGrid? {
+    if (mode == 0)
+        return None
+    val name = SemanticGridColumn(SemanticItemKey.Text("name"), Some("Name"))
+    val detail = SemanticGridColumn(SemanticItemKey.Text("detail"), Some("Detail"))
+    return Some(
+        SemanticGrid(
+            if (mode == 2)
+                [name]
+            else
+                [name, detail],
+            { _, column -> Some(SemanticItemProperties(name = Some(f"Cell ${column}"))) }
+        )
+    )
+}
+
+private class CollectionPanel(
+    private val probe: CollectionProbe,
+    private val props: Props<CollectionItems>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(160.0, 120.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 120.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val snapshot = props.value
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted(snapshot)
+        }
+    }
+}

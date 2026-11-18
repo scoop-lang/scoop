@@ -1,0 +1,49 @@
+package scoop.tests.ui.transform
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class TransformRoot(private val probe: TransformProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View = element({ mount -> TransformArea(probe, scope = mount) })
+}
+
+private class TransformArea(private val probe: TransformProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
+        val area = scope.createArea()
+        probe.area = Some(area)
+        probe.gesture = Some(scope.transformGesture(area) { event -> probe.transformed(event) })
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Gesture(InputGestureEvent.Native(val value)) -> {
+                        if (probe.preventEnd && value.phase == GesturePhase.Ended)
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 180.0))), Unit)
+
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.translate(20.0, 20.0)
+        context.scale(2.0, 2.0)
+        context.place(probe.area!!, Rect(0.0, 0.0, 100.0, 70.0))
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 100.0, 70.0), Paint(Color(0.2, 0.4, 0.8)))
+        }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted = true
+        }
+    }
+}

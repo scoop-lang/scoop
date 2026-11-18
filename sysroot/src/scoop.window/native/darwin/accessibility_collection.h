@@ -1,0 +1,51 @@
+#ifndef SCOOP_WINDOW_DARWIN_ACCESSIBILITY_COLLECTION_H
+#define SCOOP_WINDOW_DARWIN_ACCESSIBILITY_COLLECTION_H
+
+#import "accessibility.h"
+
+@interface SWAccessibilityItemData : NSObject
+@property(nonatomic, copy) id key;
+@property(nonatomic, strong) NSData *search;
+@property(nonatomic, copy) NSString *name, *help, *identifier, *value;
+@property(nonatomic) int64_t index, count;
+@property(nonatomic) int32_t enabled, selected, expanded, focusable;
+@end
+
+@interface SWAccessibilityColumnData : NSObject
+@property(nonatomic, copy) id key;
+@property(nonatomic, copy) NSString *name;
+@property(nonatomic) int64_t header;
+@end
+
+@interface SWAccessibilityVirtualItem : NSAccessibilityElement
+@property(nonatomic, weak) SWAccessibilityCollection *collection;
+@property(nonatomic, copy) id key;
+@property(nonatomic) BOOL retired;
+@property(nonatomic) uint64_t revision;
+@property(nonatomic, strong) SWAccessibilityItemData *cached;
+@property(nonatomic, strong) NSMapTable *cells;
+- (SWAccessibilityItemData *)itemData;
+@end
+
+@interface SWAccessibilityCollection ()
+@property(nonatomic, strong)
+    NSMapTable<id, SWAccessibilityVirtualItem *> *items;
+- (SWAccessibilityState *)state;
+- (SWAccessibilityNode *)mountedRow:(id)key;
+- (int32_t)query:(int32_t)operation
+           index:(int64_t)index
+             key:(id)key
+           reply:(SWAccessibilityItemData *)reply;
+@end
+
+@interface SWAccessibilityVirtualItem (Grid)
+- (NSArray *)gridCells;
+- (id)cellForKey:(id)key;
+- (void)refreshCells;
+@end
+
+NSArray *sw_accessibility_table_rows(SWAccessibilityNode *node, BOOL visible);
+NSArray *sw_accessibility_table_headers(SWAccessibilityNode *node, BOOL row);
+id sw_accessibility_virtual_cell(SWAccessibilityTree *tree, int64_t number);
+
+#endif

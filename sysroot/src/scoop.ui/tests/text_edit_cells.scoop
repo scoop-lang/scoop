@@ -134,7 +134,7 @@ private class TextEditCellsTest {
     }
 }
 
-private fun withCellLayout(text: String, plan: TextEditCells, action: (TextEditLayout) -> Unit) {
+internal fun withCellLayout(text: String, plan: TextEditCells, action: (TextEditLayout) -> Unit) {
     FontCollection(false).use {
         fonts ->
         fonts.register(testSansBytes, "Cell Test")

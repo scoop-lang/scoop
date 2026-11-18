@@ -1,0 +1,33 @@
+package scoop.window.accessibility
+
+import scoop.window.requireWindow
+
+/** A control's actual numeric range; indeterminate progress has no range. */
+public struct SemanticValueRange(
+    val minimum: Double,
+    val maximum: Double,
+    val value: Double,
+    val step: Double = 0.0
+) {
+    internal fun check() {
+        requireWindow(
+            minimum.isFinite() &&
+                maximum.isFinite() &&
+                value.isFinite() &&
+                step.isFinite() &&
+                minimum <=
+                value &&
+                value <=
+                maximum &&
+                step >=
+                0.0,
+            "invalid semantic value range"
+        )
+    }
+}
+
+public enum SemanticLive {
+    Off, Polite, Assertive
+}
+
+internal struct SemanticAnnouncement(val text: String, val priority: SemanticLive)

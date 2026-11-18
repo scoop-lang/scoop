@@ -43,7 +43,8 @@ public class ContextMenuProps public constructor(
     public val dismiss: OverlayDismiss? = None,
     public val onOpenChange: (Boolean) -> Unit = {},
     public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
-    public val onClosed: (OverlayCloseReason) -> Unit = {}
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val longPress: LongPressOptions = LongPressOptions()
 ) {
     init {
         nonnegative(viewportPadding, "invalid menu viewport padding")
@@ -83,7 +84,8 @@ internal class MenuRootInput(
     val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
     val onClosed: (OverlayCloseReason) -> Unit = {},
     val horizontal: ((Boolean) -> Unit)? = None,
-    val hovered: () -> Unit = {}
+    val hovered: () -> Unit = {},
+    val longPress: LongPressOptions = LongPressOptions(enabled = false)
 )
 
 internal fun dropdownInput(value: DropdownMenuProps): MenuRootInput =

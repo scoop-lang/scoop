@@ -19,6 +19,7 @@ public open class MenuOptionsBuilder internal constructor() {
     public var submenuHover: HoverOptions =
         HoverOptions(openDelay = Duration.milliseconds(100L), focus = false)
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun style(configure: StyleOverrideBuilder.() -> Unit) {
         style = style.copy(configure)
     }
@@ -36,7 +37,8 @@ public open class MenuOptionsBuilder internal constructor() {
             style,
             transition,
             Some(typeahead),
-            submenuHover
+            submenuHover,
+            semantics
         )
 }
 
@@ -99,6 +101,7 @@ public class DropdownMenuBuilder internal constructor(): MenuRootBuilder() {
 
 public class ContextMenuBuilder internal constructor(): MenuRootBuilder() {
     public var open: Binding<Boolean>? = None
+    public var longPress: LongPressOptions = LongPressOptions()
     internal fun snapshot(content: View, menu: MenuContent): ContextMenuProps =
         ContextMenuProps(
             content,
@@ -111,7 +114,8 @@ public class ContextMenuBuilder internal constructor(): MenuRootBuilder() {
             dismiss,
             onOpenChange,
             onCloseRequest,
-            onClosed
+            onClosed,
+            longPress
         )
 }
 

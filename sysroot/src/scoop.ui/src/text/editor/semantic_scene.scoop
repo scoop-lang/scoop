@@ -1,0 +1,125 @@
+package scoop.ui.text
+
+import scoop.graphics.Rect
+import scoop.graphics.text.TextPosition
+import scoop.ui.*
+
+internal class EditorSemanticLayout(
+    val layout: TextEditLayout,
+    val display: TextDisplay,
+    val caret: EditorCaretStyle,
+    val native: NativeTextSource
+)
+
+internal fun editorSemantics(
+    host: TextEditHost,
+    context: SceneContext,
+    frame: EditorFrame,
+    viewport: Rect
+) {
+    val binding = host.semantics.binding ?: return
+    if (binding.handle.properties.value != Some(frame.display.source.text))
+        return
+    val cached = host.semanticLayout
+    val source =
+        when (cached) {
+            case Some(val previous) -> if (
+                !previous.native.isClosed &&
+                    previous.layout ===
+                    frame.layout &&
+                    previous.display.source.text ==
+                    frame.display.source.text &&
+                    sameSemanticEdits(previous.display.edits, frame.display.edits) &&
+                    previous.caret ==
+                    frame.caretStyle
+            )
+                previous.native
+            else
+                editorSemanticSource(host, frame)
+            case None -> editorSemanticSource(host, frame)
+        }
+    context.textSemantics(binding, viewport, source)
+}
+
+private fun sameSemanticEdits(
+    a: Array<TextEditReplacement>,
+    b: Array<TextEditReplacement>
+): Boolean {
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size)
+        if (a[index] != b[index])
+            return false
+    return true
+}
+
+private fun editorSemanticSource(host: TextEditHost, frame: EditorFrame): NativeTextSource {
+    val source = editorSemanticSource(frame.layout, frame.display, frame.caretStyle)
+    host.semantics.replaceSource(source)
+    host.semanticLayout =
+        Some(EditorSemanticLayout(frame.layout, frame.display, frame.caretStyle, source))
+    return source
+}
+
+internal fun editorSemanticSource(
+    layout: TextEditLayout,
+    display: TextDisplay,
+    caret: EditorCaretStyle
+): NativeTextSource {
+    val replacements = ArrayList<SemanticTextMapping>()
+    var shift = 0L
+    for (edit in display.edits) {
+        val start = edit.range.start + shift
+        val end = start + edit.text.byteLength
+        replacements.add(SemanticTextMapping(edit.range.start, edit.range.end, start, end))
+        shift = end - edit.range.end
+    }
+    val rows = layout.lines
+    val lines =
+        Array<SemanticTextLine>(rows.size) {
+            index ->
+            val line = rows[index]
+            SemanticTextLine(
+                line.range.start,
+                line.range.end,
+                line.visibleRange.start,
+                line.visibleRange.end
+            )
+        }
+    val cells =
+        when (layout.cells) {
+            case None -> []
+            case Some(val value) -> {
+                val boundaries = layout.graphemeBoundaries
+                Array<SemanticTextCell>(boundaries.size) {
+                    index ->
+                    val start = boundaries[index]
+                    val position = TextPosition(start)
+                    val hasText = index + 1L < boundaries.size
+                    SemanticTextCell(
+                        start,
+                        if (hasText)
+                            boundaries[index + 1L]
+                        else
+                            start,
+                        if (hasText)
+                            value.rects[index]
+                        else
+                            Rect(0.0, 0.0, 0.0, 0.0),
+                        caret.caret(layout, position)!!,
+                        layout.caret(position, 0.0)!!.x
+                    )
+                }
+            }
+        }
+    return semanticTextSource(
+        layout.paragraph,
+        display.source.text.byteLength,
+        display.boundaries,
+        replacements.toArray(),
+        lines,
+        cells,
+        caretWidth = caret.width,
+        caretAspect = caret.aspectRatio
+    )
+}

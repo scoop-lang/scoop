@@ -1,0 +1,203 @@
+package scoop.tests.ui.transform
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun contactTransformEdges(p: ContactTransformProbe, active: ActiveApplication) {
+    when (p.stage) {
+        0 -> {
+            p.configure(TransformGestureOptions(contactThreshold = 0.0))
+            p.start()
+        }
+        1 -> {
+            assertTrue(p.gesture!!.isTransforming)
+            p.extra(0)
+        }
+        2 -> {
+            transformReason(p, TransformGestureCancelReason.AdditionalContact)
+            assertFalse(p.gesture!!.isTransforming)
+            p.end()
+            p.extra(2)
+        }
+        3 -> p.start()
+        4 -> {
+            assertTrue(p.gesture!!.isTransforming)
+            p.preventMovement = true
+            p.moveSecond(Point(200.0, 60.0))
+        }
+        5 -> {
+            transformReason(p, TransformGestureCancelReason.PreventedMovement)
+            p.preventMovement = false
+            p.moveSecond(Point(220.0, 60.0))
+            p.end()
+        }
+        6 -> p.start()
+        7 -> {
+            p.preventEnd = true
+            p.endSecond()
+        }
+        8 -> {
+            transformReason(p, TransformGestureCancelReason.PreventedEnd)
+            p.preventEnd = false
+            p.endFirst()
+        }
+        9 -> p.start()
+        10 -> p.contact(p.firstId, 3, p.firstPoint, p.firstKind)
+        11 -> {
+            transformInputCancelled(p)
+            p.endSecond()
+        }
+        12 -> p.start()
+        13 -> p.moveSecond(p.firstPoint)
+        14 -> {
+            transformReason(p, TransformGestureCancelReason.InvalidTransform)
+            p.end()
+        }
+        15 -> p.start()
+        16 -> {
+            p.configure(TransformGestureOptions(enabled = false))
+            p.configure(TransformGestureOptions(contactThreshold = 0.0))
+            p.moveSecond(Point(200.0, 60.0))
+            p.end()
+        }
+        17 -> {
+            transformReason(p, TransformGestureCancelReason.Disabled)
+            assertEquals(6, p.starts)
+            p.begin()
+        }
+        18 -> {
+            p.configure(TransformGestureOptions(contactThreshold = 100.0))
+            p.configure(TransformGestureOptions(contactThreshold = 0.0))
+            p.moveSecond(Point(180.0, 60.0))
+            p.end()
+        }
+        19 -> {
+            assertEquals(6, p.starts)
+            p.start()
+        }
+        20 -> p.gesture!!.cancel()
+        21 -> {
+            transformReason(p, TransformGestureCancelReason.Explicit)
+            p.end()
+            p.takeFirst = true
+        }
+        22 -> p.start()
+        23 -> {
+            assertFalse(p.gesture!!.isTransforming)
+            assertEquals(7, p.starts)
+            assertTrue(p.child!!.scope.activity.hasContact)
+            p.end()
+        }
+        24 -> {
+            p.takeFirst = false
+            p.start()
+        }
+        25 -> {
+            p.native(1, 0.1)
+            p.end()
+        }
+        26 -> {
+            transformReason(
+                p,
+                TransformGestureCancelReason.Input(InputCancelReason.GestureInterrupted),
+                inactive = false
+            )
+            assertEquals(TransformGestureInput.Native, p.last!!.input)
+            assertEquals(9, p.starts)
+            p.near(1.1, p.last!!.scale)
+            p.begin()
+        }
+        27 -> {
+            assertFalse(p.gesture!!.isTransforming)
+            transformReason(
+                p,
+                TransformGestureCancelReason.Input(InputCancelReason.GestureInterrupted)
+            )
+            p.moveSecond(Point(180.0, 60.0))
+        }
+        28 -> {
+            assertEquals(10, p.starts)
+            p.native(2, 0.5)
+            p.native(3)
+            p.end()
+        }
+        29 -> {
+            assertEquals(1, p.ends)
+            p.start()
+        }
+        30 -> p.changeScale(0.0)
+        31 -> {
+            assertFalse(p.gesture!!.isTransforming)
+            transformInputCancelled(p)
+            p.end()
+            p.changeScale(2.0)
+        }
+        32 -> {
+            p.disableNativeOnCancel = true
+            p.start()
+        }
+        33 -> {
+            p.native(1, 0.2)
+            p.end()
+        }
+        34 -> {
+            assertFalse(p.gesture!!.isTransforming)
+            assertEquals(12, p.starts)
+            p.native(3)
+            p.configure(TransformGestureOptions(contactThreshold = 0.0))
+        }
+        35 -> {
+            p.closeDuringClaim = true
+            p.start()
+        }
+        36 -> {
+            assertTrue(p.gesture!!.isClosed)
+            assertFalse(p.area!!.scope.activity.hasContact)
+            assertEquals(12, p.starts)
+            p.end()
+            p.closeDuringClaim = false
+            p.install()
+            p.configure(TransformGestureOptions(contactThreshold = 0.0))
+        }
+        37 -> {
+            p.closeOnStart = true
+            p.start()
+        }
+        38 -> {
+            assertTrue(p.gesture!!.isClosed)
+            assertFalse(p.area!!.scope.activity.hasContact)
+            assertEquals(13, p.starts)
+            transformReason(p, TransformGestureCancelReason.Closed)
+            p.end()
+        }
+        39 -> {
+            assertEquals(12L, p.reasons.size)
+            assertEquals(1, p.ends)
+            p.done(active)
+        }
+        else -> fail(Some("unexpected transform cancellation phase"))
+    }
+}
+
+private fun transformReason(
+    p: ContactTransformProbe,
+    expected: TransformGestureCancelReason,
+    inactive: Boolean = true
+) {
+    assertTrue(p.reasons.size > 0L)
+    assertEquals(expected, p.reasons[p.reasons.size - 1L])
+    if (inactive)
+        assertFalse(p.gesture!!.isTransforming)
+}
+
+private fun transformInputCancelled(p: ContactTransformProbe) {
+    assertTrue(p.reasons.size > 0L)
+    when (p.reasons[p.reasons.size - 1L]) {
+        case Input(_) -> {}
+        else -> fail(Some("expected an input cancellation"))
+    }
+    assertFalse(p.gesture!!.isTransforming)
+}

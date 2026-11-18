@@ -1,0 +1,75 @@
+package scoop.ui.text
+
+import scoop.graphics.Rect
+import scoop.graphics.text.TextPosition
+import scoop.math.max
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.InteractionPreferences
+
+/** Retained with measurement and Accepted geometry, never read from a later preference snapshot. */
+internal struct EditorCaretStyle(val width: Double, val aspectRatio: Double = 0.0) {
+    fun padding(layout: TextEditLayout): Double {
+        var result = width
+        for (line in layout.lines)
+            result = max(result, line.rect.height * aspectRatio)
+        return result
+    }
+
+    fun caret(layout: TextEditLayout, position: TextPosition): Rect? {
+        if (aspectRatio == 0.0)
+            return layout.caret(position, width)
+        val geometry = layout.caret(position, 0.0) ?: return None
+        return layout.caret(position, geometry.height * aspectRatio)
+    }
+}
+
+internal fun editorCaretStyle(host: TextEditHost): EditorCaretStyle {
+    when (host.appearance.caretWidth) {
+        case Some(val width) -> return EditorCaretStyle(width)
+        case None -> {}
+    }
+    val preferences = host.scope.interactionPreferences
+    when (preferences.caretWidthPixels) {
+        case Some(val pixels) -> return EditorCaretStyle(
+            pixels.toDouble() / (host.window.metrics?.scaleFactor ?: 1.0)
+        )
+        case None -> {}
+    }
+    return when (preferences.caretAspectRatio) {
+        case Some(val ratio) -> EditorCaretStyle(0.0, ratio)
+        case None -> EditorCaretStyle(1.0)
+    }
+}
+
+internal fun editorBlinkInterval(host: TextEditHost): Duration =
+    host.options.caretBlink ?:
+        host.scope.interactionPreferences.caretBlinkInterval ?:
+        Duration.milliseconds(500L)
+
+internal fun editorPreferencesChanged(host: TextEditHost, next: InteractionPreferences) {
+    if (host.closed || !host.scope.isMounted)
+        return
+    val previous = host.caretPreferences
+    host.caretPreferences = next
+    val blinkChanged =
+        host.options.caretBlink == None && previous.caretBlinkInterval != next.caretBlinkInterval
+    val widthChanged =
+        host.appearance.caretWidth ==
+            None &&
+            (
+                previous.caretWidthPixels !=
+                    next.caretWidthPixels ||
+                    previous.caretAspectRatio !=
+                    next.caretAspectRatio
+            )
+    if (blinkChanged) {
+        host.blink.cancel()
+        host.caretVisible = true
+    }
+    if (widthChanged)
+        host.scope.requestLayout()
+    else
+        if (blinkChanged)
+            host.scope.requestFrame()
+}

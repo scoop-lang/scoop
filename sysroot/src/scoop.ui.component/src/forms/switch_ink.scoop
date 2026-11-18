@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal class SwitchInkProps(
     val input: SwitchProps,
@@ -11,7 +12,9 @@ internal class SwitchInkProps(
     val checked: Boolean,
     val control: PressControl,
     val visual: InteractionVisual,
-    val activate: () -> Unit
+    val activate: () -> Unit,
+    val semantics: SemanticsHandle?,
+    val toggle: () -> SemanticActionResult
 )
 
 internal class SwitchDrawing(
@@ -35,7 +38,14 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>, scope: Compon
     private var field: FieldLink? = None
     public override fun onMount() {
         val control = props.value.control
-        field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
+        field =
+            Some(
+                scope.resource {
+                    FieldLink(scope, control.area, control.focus, props.value.semantics) {
+                        updateSemantics()
+                    }
+                }
+            )
         painters = Some(scope.resource { ThemePainterCache() })
         thumb = Some(scope.resource { StylePainter() })
         content = Some(scope.resource { StylePainter() })
@@ -57,6 +67,7 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>, scope: Compon
         control.area.scope.enabled = value.input.enabled
         control.focus.options = value.input.focus
         field!!.update(value.input.labelTarget, value.input.enabled, value.activate)
+        updateSemantics()
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual,
@@ -98,6 +109,29 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>, scope: Compon
         else
             UiInvalidation.Scene
     }
+    private fun updateSemantics() {
+        val value = props.value
+        val handle = value.semantics ?: return
+        if (handle.isClosed)
+            return
+        handle.bindReference(value.input.semantics.reference)
+        handle.update(
+            value.input.semantics.properties(
+                enabled = value.input.enabled,
+                invalid = value.input.invalid,
+                required = field!!.isRequired(handle),
+                checked =
+                    Some(
+                        if (value.checked)
+                            SemanticChecked.On
+                        else
+                            SemanticChecked.Off
+                    )
+            ),
+            SemanticActions(toggle = Some(value.toggle)),
+            field!!.relations(handle, value.input.semantics.relations)
+        )
+    }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -127,6 +161,10 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>, scope: Compon
         val options = switchOptions(input.input, input.theme, visual.interaction, progress)
         val size = context.size
         val bounds = Rect(0.0, 0.0, size.width, size.height)
+        when (val handle = input.semantics) {
+            case Some(val value) -> context.semantics(value, bounds)
+            case None -> {}
+        }
         val geometry = input.theme.surfaceGeometry(bounds, visual, options, context.layoutDirection)
         val thumbSide =
             (

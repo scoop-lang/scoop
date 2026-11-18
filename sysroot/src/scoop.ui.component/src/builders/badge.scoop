@@ -14,6 +14,7 @@ public open class ContentBadgeBuilder internal constructor() {
     public var theme: ThemeSource? = None
     public var focus: FocusOptions = FocusOptions()
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun style(configure: ButtonStyleBuilder.() -> Unit): Unit {
         style = style.copy(configure)
     }
@@ -21,7 +22,7 @@ public open class ContentBadgeBuilder internal constructor() {
         focus = focus.copy(configure)
     }
     internal fun snapshot(content: ButtonContent): BadgeProps =
-        BadgeProps(content, onClick, variant, enabled, invalid, style, theme, focus)
+        BadgeProps(content, onClick, variant, enabled, invalid, style, theme, focus, semantics)
 }
 
 public open class BadgeBuilder internal constructor(): ContentBadgeBuilder() {

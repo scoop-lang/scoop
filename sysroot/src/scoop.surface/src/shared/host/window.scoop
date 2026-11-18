@@ -1,6 +1,7 @@
 package scoop.surface
 
 import scoop.graphics.Size
+import scoop.graphics.Point
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.TimeMark
 import scoop.window.*
@@ -68,6 +69,8 @@ public class SurfaceWindow internal constructor(
         parent: InputScope? = None,
         handler: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
     ): InputScope = inputs.createScope(parent, handler)
+    /** Queries the accepted foreground route without changing input or focus state. */
+    public fun hitInput(windowPoint: Point): Array<InputHit> = inputs.hitInput(windowPoint)
     public fun createWindowRegion(
         kind: WindowRegionKind,
         parent: InputScope? = None

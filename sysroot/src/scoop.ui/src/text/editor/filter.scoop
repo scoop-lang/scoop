@@ -34,13 +34,22 @@ internal fun filterEditorCandidate(
     spans: Array<EditorSpan>,
     source: TextEditSource,
     policy: TextEditPolicy,
-    singleLine: Boolean
+    singleLine: Boolean,
+    replacements: Array<TextEditReplacement> = []
 ): EditorPolicyResult? =
     evaluateUi(None) {
         val result = EditorPolicyResult(proposed, spans)
+        result.replace(replacements)
         if (singleLine || policy.singleLine)
-            result.replace(editorNewlineEdits(proposed.input.surroundingText))
-        if (source == TextEditSource.Paste) {
+            result.replace(editorNewlineEdits(result.value.input.surroundingText))
+        if (
+            source ==
+                TextEditSource.Paste ||
+                source ==
+                TextEditSource.Accessibility ||
+                source ==
+                TextEditSource.DragDrop
+        ) {
             when (policy.paste) {
                 case Some(val callback) -> if (
                     !applyEditorDecision(result, callback(result.candidate(before, source)))

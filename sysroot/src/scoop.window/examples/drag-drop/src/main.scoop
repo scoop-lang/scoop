@@ -1,0 +1,135 @@
+package scoop.examples.window.drag
+
+import scoop.window.*
+
+/** Both panes can export their current content and receive a complete replacement. */
+private class DragPane(val window: Window, private val name: String, initial: DragContent) {
+    private var content = initial
+    private var source: DragSession? = None
+    private val target =
+        window.registerDropTarget(
+            DropHandlers(
+                offer =
+                    {
+                        offer ->
+                        val decision =
+                            if (!offer.effects.copy)
+                                DropDecision.Reject
+                            else {
+                                if (offer.formats.files)
+                                    DropDecision.Accept(DragFormat.Files, DragEffect.Copy)
+                                else
+                                    if (offer.formats.url)
+                                        DropDecision.Accept(DragFormat.Url, DragEffect.Copy)
+                                    else
+                                        if (offer.formats.text)
+                                            DropDecision.Accept(DragFormat.Text, DragEffect.Copy)
+                                        else
+                                            DropDecision.Reject
+                            }
+                        when (decision) {
+                            case Accept(_, _) -> title("Release to receive")
+                            case Reject -> title("Cannot receive this data")
+                        }
+                        decision
+                    },
+                drop =
+                    {
+                        request ->
+                        content = request.content
+                        title("Received")
+                        true
+                    },
+                leave = { title("Drag current content") }
+            )
+        )
+
+    init {
+        title("Drag current content")
+    }
+
+    fun begin() {
+        if (!(source?.isClosed ?: true))
+            return
+        try {
+            source =
+                Some(
+                    window.beginDrag(content) {
+                        result ->
+                        source = None
+                        when (result) {
+                            case Dropped(_) -> title("Copied")
+                            case NotDropped -> title("No accepted drop")
+                            case Failed(_) -> title("Drag could not start")
+                        }
+                    }
+                )
+        } catch (error: WindowException) {
+            if (
+                error.kind ==
+                    WindowErrorKind.InvalidState ||
+                    error.kind ==
+                    WindowErrorKind.ResourceBusy
+            )
+                title("Input ended before drag started")
+            else
+                throw error
+        }
+    }
+
+    private fun title(action: String) {
+        val description =
+            when (content) {
+                case Text(val text) -> "Text (" + text.byteLength.toString() + " bytes)"
+                case Url(val url) -> url
+                case Files(val paths) -> paths.size.toString() + " file paths"
+            }
+        window.setTitle(name + " — " + action + " — " + description)
+    }
+}
+
+private class DragApplication: ApplicationHandler {
+    private val panes = ArrayList<DragPane>()
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                panes.add(
+                    DragPane(
+                        active.createWindow(windowAttributes { size = LogicalSize(420.0, 240.0) }),
+                        "Text",
+                        DragContent.Text("Scoop drag — café 🫖")
+                    )
+                )
+                panes.add(
+                    DragPane(
+                        active.createWindow(windowAttributes { size = LogicalSize(420.0, 240.0) }),
+                        "URL",
+                        DragContent.Url("https://example.test/scoop")
+                    )
+                )
+            }
+            case Window(
+                val id,
+                WindowEvent.Pointer(
+                    PointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                )
+            ) -> {
+                for (pane in panes)
+                    if (pane.window.id == id)
+                        pane.begin()
+            }
+            case Window(val id, WindowEvent.CloseRequested) -> {
+                for (pane in panes)
+                    if (pane.window.id == id)
+                        pane.window.requestDestroy()
+            }
+            else -> {}
+        }
+    }
+}
+
+fun main() {
+    Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(
+        DragApplication()
+    )
+}

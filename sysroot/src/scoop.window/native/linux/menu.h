@@ -31,6 +31,7 @@ struct SWMenu {
   GtkWidget *bar, *popup;
   int64_t identity, serial, selected;
   int32_t binding;
+  guint completion_idle;
   bool presenting, external_tracking, cancelled;
 };
 

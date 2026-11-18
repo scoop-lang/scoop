@@ -1,0 +1,308 @@
+package scoop.tests.ui.scrollpan
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.sendNativeContact
+import scoop.tests.window.sendNativeContactTimed
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class ScrollPanWindowTest {
+    @Test
+    fun `direct scroll composes nested movement claims lifetime and newer position requests`() {
+        run(false)
+    }
+    @Test
+    fun `direct scroll yields initial boundaries and preserves active containment`() {
+        run(true)
+    }
+    @Test
+    fun `elastic contact boundaries keep nested geometry and settle on preferences and lifecycle changes`() {
+        run(false, 1)
+    }
+    @Test
+    fun `elastic native scrolling respects momentum containment and discrete wheel boundaries`() {
+        run(false, 2)
+    }
+    @Test
+    fun `contact inertia shares one trajectory with ancestors and respects source options and scale`() {
+        run(false, 3)
+    }
+    @Test
+    fun `contact inertia transfers boundary velocity and cancels without retaining a contact`() {
+        run(false, 4)
+    }
+    private fun run(boundaries: Boolean, physics: Int = 0) {
+        val probe = PanProbe(boundaries, physics)
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(
+                    applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
+            }
+            assertTrue(probe.finished)
+            val actions =
+                if (boundaries || physics != 0)
+                    0
+                else
+                    1
+            assertEquals(actions, probe.clicks)
+            assertEquals(actions, probe.dragStarts)
+            assertEquals(actions, probe.dragEnds)
+            assertTrue(probe.innerPan!!.isClosed)
+            assertTrue(probe.outerPan!!.isClosed)
+            assertTrue(probe.innerArea!!.isClosed)
+            assertTrue(probe.innerViewport!!.isClosed)
+            assertFalse(probe.inner.isAttached)
+            assertFalse(probe.outer.isAttached)
+            assertFalse(probe.alternate.isAttached)
+            assertTrue(probe.view!!.restored())
+        } catch (error: Throwable) {
+            println(f"scroll pan phase=${probe.phase}, clicks=${probe.clicks}")
+            println(f"inner=${probe.current.offset.x}, ${probe.current.offset.y}")
+            println(f"outer=${probe.outer.offset.x}, ${probe.outer.offset.y}")
+            throw error
+        } finally {
+            probe.frames?.close()
+            probe.view?.close()
+        }
+    }
+}
+
+internal class PanProbe(private val boundaries: Boolean = false, private val physics: Int = 0) {
+    val outer = ScrollState()
+    val inner = ScrollState()
+    val alternate = ScrollState(Point(0.0, 25.0))
+    val generation = state(0)
+    var replacement = false
+    val current: ScrollState get() =
+        if (replacement)
+            alternate
+        else
+            inner
+    var innerPhysics =
+        ScrollPhysicsOptions(ScrollBoundary.Hard, inertia = ScrollInertiaOptions(false))
+    var outerPhysics =
+        ScrollPhysicsOptions(ScrollBoundary.Hard, inertia = ScrollInertiaOptions(false))
+    var innerHeight = 320.0
+    var outerHeight = 500.0
+    var innerLayout: ScrollLayout? = None
+    var outerLayout: ScrollLayout? = None
+    var outerViewport: ScrollViewport? = None
+    var outerScope: ComponentScope? = None
+    var leafArea: InputArea? = None
+    var ui: UiWindow? = None
+    var animatedSteps = false
+    var userIntents = 0
+    var beforeIntents = 0
+    var corrections = 0
+    var beforeCorrections = 0
+    var innerRevision = 0UL
+    var outerRevision = 0UL
+    var beforeBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var bounced = false
+    var peakStretch = 0.0
+    var savedOffset = Point(0.0, 0.0)
+    var innerOptions = TouchScrollOptions()
+    var outerOptions = TouchScrollOptions()
+    var outerAxes = ScrollAxes.Both
+    var chain = ScrollChain.Chain
+    var scale = 1.0
+    var enabled = true
+    var preventMove = false
+    var preventEnd = false
+    var overridePosition = false
+    var closeOnScroll = false
+    var outerPan: ScrollPan? = None
+    var innerPan: ScrollPan? = None
+    var innerArea: InputArea? = None
+    var innerViewport: ScrollViewport? = None
+    var press: Press? = None
+    var drag: Drag? = None
+    var clicks = 0
+    var dragStarts = 0
+    var dragEnds = 0
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var view: ViewProbe? = None
+    var accepted = -1
+    var phase = 0
+    var queued = 0
+    var received = 0
+    var pending = false
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop direct scroll"
+                            size = LogicalSize(340.0, 240.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                view = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                ui = host.attach(native, { mount -> PanScene(this, scope = mount) })
+                native.requestFocus()
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                )
+            }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case Window(_, WindowEvent.Pointer(PointerEvent.Wheel(_, _, _, _))) -> received += 1
+            case AboutToWait -> {
+                val native = window ?: return
+                if (
+                    !finished &&
+                        !pending &&
+                        native.isFocused &&
+                        accepted ==
+                        generation.value &&
+                        received ==
+                        queued &&
+                        (!frames!!.snapshot().required || animatedSteps)
+                ) {
+                    pending = true
+                    active.proxy().post {
+                        application ->
+                        pending = false
+                        if (!finished) {
+                            if (physics == 1) {
+                                if (panElasticStep(this))
+                                    phase += 1
+                            } else
+                                if (physics == 2) {
+                                    if (panWheelStep(this))
+                                        phase += 1
+                                } else
+                                    if (physics == 3) {
+                                        panInertiaStep(this)
+                                        phase += 1
+                                    } else
+                                        if (physics == 4) {
+                                            panInertiaBoundaryStep(this)
+                                            phase += 1
+                                        } else {
+                                            if (boundaries)
+                                                panBoundaryStep(this)
+                                            else
+                                                panStep(this, application)
+                                            phase += 1
+                                        }
+                        }
+                    }
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("scroll pan timeout"))
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> {}
+        }
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun reset() {
+        outer.scrollTo(Point(0.0, 0.0))
+        current.scrollTo(Point(0.0, 0.0))
+    }
+    fun contact(id: Long, phase: Int, x: Double, y: Double) {
+        queued += 1
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(view, id, 0, phase, x, y)
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    fun fling(
+        id: Long,
+        dx: Double = 0.0,
+        dy: Double = -30.0,
+        hold: Long = 0L,
+        pen: Boolean = false
+    ) {
+        queued += 4
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> {
+                        val kind =
+                            if (pen)
+                                1
+                            else
+                                0
+                        val base = id * 1000L
+                        sendNativeContactTimed(view, id, kind, 0, 50.0, 55.0, base)
+                        sendNativeContactTimed(
+                            view,
+                            id,
+                            kind,
+                            1,
+                            50.0 + dx / 2.0,
+                            55.0 + dy / 2.0,
+                            base + 20L
+                        )
+                        sendNativeContactTimed(view, id, kind, 1, 50.0 + dx, 55.0 + dy, base + 40L)
+                        sendNativeContactTimed(
+                            view,
+                            id,
+                            kind,
+                            2,
+                            50.0 + dx,
+                            55.0 + dy,
+                            base + 40L + hold
+                        )
+                    }
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    fun wheel(
+        delta: Int,
+        pixels: Boolean = true,
+        phase: Int = 0,
+        momentum: Int = 0,
+        horizontal: Int = 0
+    ) {
+        queued += 1
+        assertTrue(
+            sendSurfaceScroll(window!!, 50.0, 55.0, horizontal, delta, pixels, phase, momentum)
+        )
+    }
+    fun intent(state: ScrollState, value: ScrollIntent) {
+        when (value) {
+            case LayoutCorrection(_) -> corrections += 1
+            case User(_) -> {
+                userIntents += 1
+                if (overridePosition) {
+                    overridePosition = false
+                    state.scrollTo(Point(0.0, 75.0))
+                }
+                if (closeOnScroll) {
+                    closeOnScroll = false
+                    innerPan!!.close()
+                }
+            }
+            else -> {}
+        }
+    }
+}

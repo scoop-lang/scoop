@@ -1,0 +1,259 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.pow
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+
+@Test
+private class SelectionPreferencesTest {
+    @Test
+    fun `text controls and typography retain readable high contrast selections in every palette`() {
+        FontCollection(false).use {
+            fonts -> for (mode in [ThemeMode.Light, ThemeMode.Dark])
+                for (base in selectionThemes(mode)) {
+                    val theme = base.withPreferences(ThemePreferences(highContrast = true))
+                    val text = theme.tokens.typography.body
+                    val field =
+                        textFieldAppearance(
+                            selectionField(fonts, textFieldStyle()),
+                            theme,
+                            text,
+                            text,
+                            fonts
+                        )
+                    val otp =
+                        otpAppearance(InputOtpProps(TextEditorState(), 4L), theme, text, fonts)
+                    val typography = themeSelectionOptions(theme)
+                    for (appearance in [field, otp]) {
+                        selectionContrast(
+                            appearance.selectionTextColor!!,
+                            appearance.selectionColor,
+                            7.0
+                        )
+                        selectionContrast(
+                            appearance.inactiveSelectionTextColor!!,
+                            appearance.inactiveSelectionColor,
+                            7.0
+                        )
+                        assertSame(text, appearance.textStyle)
+                    }
+                    selectionContrast(
+                        typography.selectionTextColor!!,
+                        typography.selectionColor,
+                        7.0
+                    )
+                    selectionContrast(
+                        typography.inactiveSelectionTextColor!!,
+                        typography.inactiveSelectionColor,
+                        7.0
+                    )
+                    val visual =
+                        SurfaceVisual(SurfaceKind.Plain, InteractionVisual(focusVisible = true))
+                    val geometry =
+                        theme.surfaceGeometry(
+                            Rect(0.0, 0.0, 40.0, 40.0),
+                            visual,
+                            otpOptions(theme, inputOtpStyle(), visual.interaction)
+                        )
+                    assertEquals(1.0, geometry.style.background!!.color.alpha)
+                    assertTrue(geometry.ring!!.border.width >= 2.0)
+                    selectionContrast(
+                        geometry.ring!!.border.color,
+                        theme.tokens.palette.background.background,
+                        3.0
+                    )
+                }
+        }
+    }
+
+    @Test
+    fun `reduced transparency keeps default selection and OTP backgrounds opaque`() {
+        FontCollection(false).use {
+            fonts -> for (mode in [ThemeMode.Light, ThemeMode.Dark])
+                for (base in selectionThemes(mode)) {
+                    val regular = themeSelectionOptions(base)
+                    assertTrue(regular.selectionColor.alpha < 1.0)
+                    assertTrue(regular.inactiveSelectionColor.alpha < 1.0)
+                    assertEquals(None, regular.selectionTextColor)
+                    val theme = base.withPreferences(ThemePreferences(reduceTransparency = true))
+                    val text = theme.tokens.typography.body
+                    val field =
+                        textFieldAppearance(
+                            selectionField(fonts, textFieldStyle()),
+                            theme,
+                            text,
+                            text,
+                            fonts
+                        )
+                    val otp =
+                        otpAppearance(InputOtpProps(TextEditorState(), 4L), theme, text, fonts)
+                    for (appearance in [field, otp]) {
+                        assertEquals(1.0, appearance.selectionColor.alpha)
+                        assertEquals(1.0, appearance.inactiveSelectionColor.alpha)
+                        assertEquals(None, appearance.selectionTextColor)
+                        assertEquals(None, appearance.inactiveSelectionTextColor)
+                    }
+                    val typography = themeSelectionOptions(theme)
+                    assertEquals(1.0, typography.selectionColor.alpha)
+                    assertEquals(1.0, typography.inactiveSelectionColor.alpha)
+                    val visual = SurfaceVisual(SurfaceKind.Plain)
+                    val bounds = Rect(0.0, 0.0, 40.0, 40.0)
+                    val ordinary =
+                        theme.surfaceGeometry(
+                            bounds,
+                            visual,
+                            otpOptions(theme, inputOtpStyle(), visual.interaction)
+                        )
+                    assertEquals(1.0, ordinary.style.background!!.color.alpha)
+                    val local =
+                        inputOtpStyle { surface { background(Some(Paint(Color.Transparent))) } }
+                    val overridden =
+                        theme.surfaceGeometry(
+                            bounds,
+                            visual,
+                            otpOptions(theme, local, visual.interaction)
+                        )
+                    assertEquals(Color.Transparent, overridden.style.background!!.color)
+                }
+        }
+    }
+
+    @Test
+    fun `explicit selection colors survive builders and avoid inferring a foreground for local backgrounds`() {
+        val background = Color(0.2, 0.3, 0.4, 0.5)
+        val foreground = Color(0.9, 0.8, 0.7)
+        val field =
+            textFieldStyle {
+                selectionColor = Some(background)
+                inactiveSelectionColor = Some(background)
+            }
+        val otp =
+            inputOtpStyle {
+                selectionColor = Some(background)
+                inactiveSelectionColor = Some(background)
+            }
+        val fieldInk =
+            field.copy {
+                selectionTextColor = Some(foreground)
+                inactiveSelectionTextColor = Some(foreground)
+            }.copy()
+        val otpInk =
+            otp.copy {
+                selectionTextColor = Some(foreground)
+                inactiveSelectionTextColor = Some(foreground)
+            }.copy()
+        val theme =
+            shadcnTheme().withPreferences(
+                ThemePreferences(highContrast = true, reduceTransparency = true)
+            )
+        val text = theme.tokens.typography.body
+        FontCollection(false).use {
+            fonts ->
+            val ordinary =
+                [
+                    textFieldAppearance(selectionField(fonts, field), theme, text, text, fonts),
+                    otpAppearance(
+                        InputOtpProps(TextEditorState(), 4L, style = otp),
+                        theme,
+                        text,
+                        fonts
+                    )
+                ]
+            val colored =
+                [
+                    textFieldAppearance(selectionField(fonts, fieldInk), theme, text, text, fonts),
+                    otpAppearance(
+                        InputOtpProps(TextEditorState(), 4L, style = otpInk),
+                        theme,
+                        text,
+                        fonts
+                    )
+                ]
+            for (appearance in ordinary) {
+                assertEquals(background, appearance.selectionColor)
+                assertEquals(background, appearance.inactiveSelectionColor)
+                assertEquals(None, appearance.selectionTextColor)
+                assertEquals(None, appearance.inactiveSelectionTextColor)
+            }
+            for (appearance in colored) {
+                assertEquals(background, appearance.selectionColor)
+                assertEquals(background, appearance.inactiveSelectionColor)
+                assertEquals(Some(foreground), appearance.selectionTextColor)
+                assertEquals(Some(foreground), appearance.inactiveSelectionTextColor)
+            }
+        }
+        val builder = TypographyTextBuilder()
+        builder.text("selected text")
+        when (builder.snapshotText(TypographyRole.P).selection) {
+            case None -> {}
+            case Some(_) -> fail(Some("default typography must follow its resolved theme"))
+        }
+        val local =
+            SelectableTextOptions(
+                selectionColor = background,
+                selectionTextColor = Some(foreground)
+            )
+        builder.selection = Some(local)
+        val props = builder.snapshotText(TypographyRole.P)
+        builder.selection = None
+        assertSame(local, props.selection!!)
+    }
+}
+
+private fun selectionThemes(mode: ThemeMode): Array<Theme> =
+    [macosTheme(mode), materialTheme(mode), fluentTheme(mode), shadcnTheme(mode)]
+
+private fun selectionField(fonts: FontCollection, style: TextFieldStyle): TextFieldInput =
+    TextFieldInput(
+        TextEditorState(),
+        "",
+        false,
+        "",
+        Some(fonts),
+        style,
+        None,
+        FocusOptions(),
+        TextEditOptions(),
+        1L,
+        ScrollbarVisibility.Hidden,
+        { _ -> Unit },
+        { _ -> Unit },
+        None,
+        None,
+        TextFieldChrome.Framed
+    )
+
+private fun selectionContrast(foreground: Color, background: Color, minimum: Double) {
+    assertEquals(1.0, foreground.alpha)
+    assertEquals(1.0, background.alpha)
+    val a = selectionLuminance(foreground)
+    val b = selectionLuminance(background)
+    val ratio =
+        if (a >= b)
+            (a + 0.05) / (b + 0.05)
+        else
+            (b + 0.05) / (a + 0.05)
+    assertTrue(ratio >= minimum - 0.000001, Some(f"selection contrast ${ratio} below ${minimum}"))
+}
+
+private fun selectionLuminance(color: Color): Double =
+    0.2126 *
+        selectionLinear(color.red) +
+        0.7152 *
+        selectionLinear(color.green) +
+        0.0722 *
+        selectionLinear(color.blue)
+
+private fun selectionLinear(value: Double): Double =
+    if (value <= 0.04045)
+        value / 12.92
+    else
+        pow((value + 0.055) / 1.055, 2.4)

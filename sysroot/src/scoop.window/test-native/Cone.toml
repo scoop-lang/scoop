@@ -30,6 +30,18 @@ path = "native/input.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/gesture.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/contact.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/drag.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/commands.m"
 when = { os = "darwin" }
 
@@ -51,6 +63,10 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/clipboard.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/menu_services.m"
 when = { os = "darwin" }
 
 [[native.libraries]]
@@ -109,6 +125,10 @@ when = { os = "linux", env = "gnu" }
 path = "linux/input.c"
 when = { os = "linux", env = "gnu" }
 
+[[native.sources]]
+path = "linux/drag.c"
+when = { os = "linux", env = "gnu" }
+
 
 [[native.libraries]]
 name = "gtk-4"
@@ -137,3 +157,6 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/dialog_paths.c"
+
+[[native.sources]]
+path = "native/input_values.c"

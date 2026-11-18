@@ -1,0 +1,37 @@
+package scoop.tests.window.accessibility
+
+import scoop.test.*
+
+@Test
+private class WindowsAccessibilityProviderTest {
+    @Test
+    fun `UIA properties actions and retained providers follow current state`() {
+        @Unsafe
+        {
+            assertEquals(0, nativeProperties())
+        }
+    }
+    @Test
+    fun `UIA scroll percentages preserve absent axes and dispatch real actions`() {
+        @Unsafe
+        {
+            assertEquals(0, nativeScroll())
+        }
+    }
+    @Test
+    fun `UIA text ranges retain unicode selections across edits and retire on reset`() {
+        @Unsafe
+        {
+            assertEquals(0, nativeText())
+        }
+    }
+}
+
+@Extern(name = "scoop_ax_test_windows_properties")
+private fun nativeProperties(): Int
+
+@Extern(name = "scoop_ax_test_windows_scroll")
+private fun nativeScroll(): Int
+
+@Extern(name = "scoop_ax_test_windows_text")
+private fun nativeText(): Int

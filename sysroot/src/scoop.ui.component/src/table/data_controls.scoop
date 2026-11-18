@@ -2,6 +2,7 @@ package scoop.ui.component
 
 import scoop.graphics.*
 import scoop.ui.*
+import scoop.window.accessibility.*
 import scoop.ui.style.*
 import scoop.ui.component.row as tableControlsRow
 import scoop.ui.component.select as tablePageSizeSelect
@@ -23,12 +24,21 @@ internal fun <Row> dataTableHeader(input: DataTableProps<Row>, plan: DataTablePl
                     ) {
                         this.enabled = input.enabled && model.pageSelectableCount > 0L;
                         this.theme = input.theme
+                        this.semantics =
+                            ComponentSemantics(name = Some("Select all rows on this page"))
                     }
                 ),
                 header = true
             )
         cells.add(cell)
-        views.add(plan.appearance.cell(cell, ViewKey.Text("selection")))
+        views.add(
+            plan.appearance.cell(
+                cell,
+                ViewKey.Text("selection"),
+                semantics =
+                    Some(basicCellSemantics(cell, reference = Some(plan.semanticHeaders[0L])))
+            )
+        )
     }
     for (column in plan.columns) {
         var title = column.header
@@ -55,10 +65,27 @@ internal fun <Row> dataTableHeader(input: DataTableProps<Row>, plan: DataTablePl
                 )
             else
                 tableText(title)
-        val cell = TableCellProps(label, alignment = column.alignment, header = true)
+        val cell =
+            TableCellProps(
+                label,
+                alignment = column.alignment,
+                header = true,
+                semantics = ComponentSemantics(name = Some(title))
+            )
         cells.add(cell)
         val key = ViewKey.Text(f"column:${column.id}")
-        val content = plan.appearance.cell(cell, key)
+        val content =
+            plan.appearance.cell(
+                cell,
+                key,
+                semantics =
+                    Some(
+                        basicCellSemantics(
+                            cell,
+                            reference = Some(plan.semanticHeaders[cells.size - 1L])
+                        )
+                    )
+            )
         views.add(
             if (column.resizable)
                 element(
@@ -74,7 +101,8 @@ internal fun <Row> dataTableHeader(input: DataTableProps<Row>, plan: DataTablePl
                         ),
                         column.size,
                         plan.appearance,
-                        input.enabled
+                        input.enabled,
+                        "Resize " + column.header
                     ),
                     { props, scope -> TableResizeHeader(props, scope) },
                     [content],

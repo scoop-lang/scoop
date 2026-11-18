@@ -74,7 +74,7 @@ internal class SidebarScene(private val p: SidebarProbe, scope: ComponentScope):
                                 2L,
                                 sidebarInput(p.search) {
                                     fonts = Some(p.fonts);
-                                    caretBlink = Duration.ZERO;
+                                    caretBlink = Some(Duration.ZERO);
                                     focus = FocusOptions(Some(p.navEditor))
                                 }
                             )
@@ -225,7 +225,7 @@ private class SidebarWorkspace(private val p: SidebarProbe, scope: ComponentScop
                         3L,
                         makeInput(p.draft) {
                             fonts = Some(p.fonts);
-                            caretBlink = Duration.ZERO;
+                            caretBlink = Some(Duration.ZERO);
                             focus = FocusOptions(Some(p.mainEditor))
                         }
                     )

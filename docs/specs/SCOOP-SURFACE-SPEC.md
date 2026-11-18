@@ -140,6 +140,8 @@ AnimationSpec 描述 tween／easing 或 spring；Animatable 持有当前值、�
 
 动画按单调时间与起点求值，不用固定帧数或连续累加固定 dt 推进；跳帧直接采样当前进度。retarget 从当前时间对应的值开始；spring 同时保留适用的当前速度。提供启动／改目标、取消、暂停／恢复及有限或重复播放控制；零时长立即到达目标。
 
+`Animatable.animateTo(target, spec, repeat=None, initialVelocity: AnimationVector?=None, onFinished=None)` 可为首段 spring 显式指定外部交互测得的初速度，单位为转换器向量分量每秒。None 保留当前采样速度，Some(零向量) 从静止开始；显式值各分量必须有限，仅允许用于 Spring，Tween 收到显式初速度时报参数错误。初速度属于本次首段，不改变重复段从静止开始的规则，也不修改转换器对最终值的范围约束。
+
 AnimationTimeline 接受一个 TimeSource 和失效回调，SurfaceWindow 使用同一个单调源并在真实帧内采样；离屏调用方可用 advanceTo 明确驱动。一个采样作用域内的启动、改目标和完成回调共用当前帧时间。完成回调在本轮全部动画采样结束后派发，新启动的动画进入下一轮；重入 advanceTo 拒绝。时间源必须一致，时间不得倒退。
 
 Tween 支持线性与 cubic Bézier easing。Spring 采用质量为 1 的阻尼弹簧解析解，分别处理欠阻尼、临界阻尼和过阻尼；stiffness、dampingRatio、位移／速度阈值均为有限正数。依据解的衰减包络确定收敛时间，到达时精确落到目标并清零速度，不依赖采样间隔决定结束时机。计算无法用有限 Double 表达时报参数错误。
@@ -160,7 +162,7 @@ SurfaceWindow 用 WindowDeadline 安排不参与帧驱动的有限动画最近�
 
 ## 6. 区域、输入与焦点
 
-原生菜单的 WindowEvent.TextCommand 转为 InputEvent.TextCommand，沿当前合格焦点的普通输入路径派发，保留 capture／target／bubble／default 和 preventDefault；观察时间来自当前输入派发，不构造虚假的 Keyboard。InputScope.textCommandAvailability 为可选的 Window TextCommandAvailability，默认 None 表示该 scope 不提供编辑角色。最近的合格焦点祖先中首个 Some 决定当前六项可用性；没有提供者时发布全 false。焦点、边界和声明变化同步刷新 Window，不请求绘制帧；Surface 退休清除自己提供的状态。此状态不控制原生文件面板的编辑目标。
+原生菜单的 WindowEvent.TextCommand 转为 InputEvent.TextCommand，沿当前合格焦点的普通输入路径派发，保留 capture／target／bubble／default 和 preventDefault；观察时间来自当前输入派发，不构造虚假的 Keyboard。InputScope.textCommandAvailability 为可选的 Window TextCommandAvailability，默认 None 表示该 scope 不提供编辑角色。最近的合格焦点祖先中首个 Some 决定当前七项可用性（含只删除选区的 DeleteSelection）；没有提供者时发布全 false。焦点、边界和声明变化同步刷新 Window，不请求绘制帧；Surface 退休清除自己提供的状态。此状态不控制原生文件面板的编辑目标。
 
 InputArea 是 SurfaceWindow 内的稳定命中对象，保存焦点／文本能力、caret 和 ignoreSelf。其 `scope: InputScope` 是该区域的逻辑路由节点；独立 InputScope 的 area 为 None，区域节点的 area 为 Some(对应 InputArea)。所有路由节点共用 InputScope 的 parent、enabled、captureHandler、handler 和 defaultAction。SurfaceWindow.input 是没有几何的窗口根；createScope／createArea 的 parent 缺省为该根。关闭区域会关闭其 scope，关闭 scope 使相应路由及后代失去交互资格，但不代替调用者关闭子资源。
 
@@ -194,7 +196,11 @@ InputArea.pointerPosition 把窗口内最后观测的指针位置通过最近成
 
 InputArea.toLocal(windowPoint)／toWindow(localRect) 使用同一成功帧几何，供拖选重定位和子区域显露使用；没有有效放置时返回 None，toLocal 对不可逆变换返回 None，不保存调用方的布局对象。visibleCaretBounds 返回当前文档／caret 对应成功帧中、经过区域形状和实际 clip 的窗口逻辑包围盒；尚无匹配帧、不可见或已经关闭时为 None。
 
-InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput 及 isEmpty；分别查询逻辑焦点、按钮序列起点、尚保留的滚动路由起点和文本输入会话的归属。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
+`SurfaceWindow.hitInput(windowPoint: Point): Array<InputHit>` 只查询当前已接受场景，按前景命中区域到当前 AllInput 边界根的顺序返回逻辑路径。InputHit 保存 scope: InputScope 与 localPosition: Point?；非区域 scope 的位置为 None，区域位置在返回前用同一份已接受几何换算。查询复用普通输入的路径、形状／裁剪、ignoreSelf、禁用、关闭和不可逆变换规则，不使用鼠标 capture，不修改 pointer／hover／焦点，不调用输入处理器；未命中、非有限坐标或 Surface 已关闭返回空数组。FocusOnly 不限制该路径。返回值不借出 CanvasGeometry，也不延长 scope 的活动资格。数据拖放可以沿该数组尝试逻辑父目标，某个接收处理器拒绝不触发对后方兄弟的第二次命中。
+
+Window 的 SystemOperation 取消通知表示原生窗口操作或数据拖放接管输入。Surface 沿既有窗口输入收尾同时结束普通鼠标、滚动、手势与全部直接接触路由，各原路径取消一次；迟到的接触移动／结束不能重新命中其他区域。其他 Pointer 取消原因仍只影响自己的鼠标路径，单个 Contact 取消仍保留其他触点；这里不清除 Window 为原生会话保留的真实设备附件。
+
+InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput、hasContact 及 isEmpty；分别查询逻辑焦点、鼠标按钮序列起点、尚保留的滚动路由起点、文本输入会话和活动原始触点的归属。hasContact 按每个触点的当前路由目标查询，claim 后从后代移到取得归属的祖先；观察者跟踪触点身份与所属 scope，单纯坐标移动不通知。虚拟条目因活动触点保持，直到正常结束、取消或归属移出。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
 
 InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的 AllInput／FocusOnly。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。
 
@@ -240,7 +246,7 @@ SurfaceWindow.inputBoundary 返回最新启用的 AllInput，focusBoundary 返�
 
 input 所属 scope 被关闭或禁用时，未关闭的 InputBoundary 继续保持其对应的输入／焦点约束，但不再向失效域根交付事件。该规则供 UI 在移除弹层的帧成功提交前保留屏障；调用方在适当提交边界显式 close。窗口输入路由关闭时结束全部边界，无需再等帧。
 
-InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在当前指针域根（无 AllInput 边界时为窗口根）执行。InputPress 是只读值，包含 target、pointer、button 和 clickCount；target、路由及坐标先固定，预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
+InputScope.beforePress: (InputPress) -> Boolean 默认为 false，仅在当前输入域根（无 AllInput 边界时为窗口根）执行。InputPress 是只读值，包含 target 与 InputPressSource；鼠标来源保存 InputPointer、button 和 clickCount，直接接触见第 6.8 节。target、路由及坐标先固定，鼠标预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
 
 预处理用于窗口／模态域中的最上层弹层外部点击决策。它不是任意优先级过滤器链，不替换控件自己的 capture、默认动作或 onEventFinished；边界变化仍可使已固定目标失效，不能利用返回 false 穿透当前域。
 
@@ -264,13 +270,15 @@ ShortcutBinding 保存 window 的 ShortcutChord，以及 enabled、allowRepeat�
 
 Wheel 的 InputScrollDelta 始终保留该次输入的完整原始单位：Lines 不换成固定像素，Pixels 已按事件 scale 完成一次逻辑像素换算。每次派发另保存一份可消费残量；`RoutedEventContext.scrollRemaining: InputScrollDelta?` 读取它，非 Wheel 为 None。传播阶段读取的是尚未消费的值，默认阶段由内向外读取前面节点留下的部分，原 InputEvent 不被改写。stopPropagation 不消费滚动量；preventDefault／consume 停止后续默认行为，Contain 策略可在处理本层后用 preventDefault 截断剩余量。
 
-`context.consumeScroll(lineStep: Double, apply: (graphics.Point) -> graphics.Point)` 只允许在 Wheel 的 Default 阶段调用。lineStep 为调用方明确提供的有限正逻辑步长；Lines 先按它换成窗口逻辑距离，再按接收区域的变换换到局部坐标，Pixels 不再应用 scale。无几何 scope 使用窗口逻辑坐标。apply 接收局部有符号位移，返回本容器实际消费的同向、未超量位移；零残量不调用 apply。返回值须有限，各轴允许正常浮点舍入误差，非法结果报告参数错误。消费量换回原单位后从残量扣除，下一容器使用自己的变换及 lineStep；旋转／剪切下仍按同一坐标变换保留向量残量。
+`context.consumeScroll(lineStep: Double, onRemainder: ((graphics.Point) -> graphics.Point)? = None, apply: (graphics.Point) -> graphics.Point)` 只允许在 Wheel 的 Default 阶段调用。lineStep 为调用方明确提供的有限正逻辑步长；Lines 先按它换成窗口逻辑距离，再按接收区域的变换换到局部坐标，Pixels 不再应用 scale。无几何 scope 使用窗口逻辑坐标。apply 接收局部有符号位移，返回本容器实际消费的同向、未超量位移；零残量不调用 apply。返回值须有限，各轴允许正常浮点舍入误差，非法结果报告参数错误。消费量换回原单位后从残量扣除，下一容器使用自己的变换及 lineStep；旋转／剪切下仍按同一坐标变换保留向量残量。
 
 同一次 Wheel 的位置和几何变换在传播前固定，与 localPosition 使用同一 placement。apply 中的布局更新不更换本次换算依据。上下文及 apply 为同步借用，不允许在同一个 apply 内递归消费；回调结束后上下文失效。默认动作已被取消时不再调用 apply。
 
 无 phase、无 momentum 的离散 Wheel 按当次命中选择路由，与鼠标按钮捕获独立。连续 Wheel 从首个非 None phase 固定逻辑目标与路径，MayBegin 到 Began 沿用该路径；同一手势及其动量后续事件只用新的已提交几何换算位置，不因内容滚动或指针经过兄弟区域而改投。接触 Ended 后保存这条路径以接收随后的 momentum Began；等待动量不请求帧，也不算仍在进行的交互。新的接触手势或离散 Wheel 重新命中，结束前一条仍活动的滚动；正常 momentum Ended／Cancelled 释放路由。
 
 `InputPointerEvent.ScrollCancelled(InputCancelReason, InputTime)` 是独立的 Notification，向完整旧滚动路径交付，不取消鼠标按钮捕获；`InputCancelReason.ScrollInterrupted` 表示另一段滚动开始。区域缺席／关闭／禁用／重挂、模态边界切换、窗口失焦和关闭分别沿用 AreaChanged／BoundaryChanged／Window／Closed。处理器内发生这些变化时，立即停止旧滚动的后续普通交付，退出当前派发后再完整通知旧路径；一段已取消的 phase／momentum 保持空路径到结束，不在后续 Changed 或惯性阶段改投背景兄弟。原生 Wheel 自带 Ended／Cancelled 仍按原事件交付，onEventFinished 保证其收尾不会被传播或默认取消吞掉。
+
+`onRemainder` 为本次交付登记可选的最终余量处理。只保存最后一次非 None 登记的接收 scope、当前冻结几何与 lineStep；普通消费者传 None 不撤销已有登记。所有普通 Default 消费正常结束后、onEventFinished 之前调用一次，接收最终剩余的局部位移，并按相同方向、有限值与不超量规则返回实际消费量；即使剩余为零也调用，以完成本次输入。此前调用 preventDefault 只阻止后续普通消费者，不阻止本层已登记的余量处理。其 scope、滚轮／接触路径或输入域失效时跳过；普通阶段抛错不执行最终处理，必要的完成通知仍继续。回调只在该次路由内借用几何，不延长 RoutedEventContext 的寿命，也不能递归消费。直接接触沿同一合同处理剩余窗口位移，不增设第二条路由。
 
 ### 6.5 可组合处理器与按下序列接管
 
@@ -289,6 +297,30 @@ Wheel 的 InputScrollDelta 始终保留该次输入的完整原始单位：Lines
 `InputScope.observePointer(handler: (PointerObservation) -> Unit): Closeable` 观察同一窗口，与命中路径及输入消费分开。PointerObservation 包含 Pointer(Window.PointerEvent)、FocusLost 和 Closed；普通指针事件及窗口失焦在原路由／reconcile 完成后交付，鼠标移到空白或离开窗口也可观察。没有可消费的 RoutedEventContext，也不安装 OS 全局监听或改变 capture／焦点。
 
 派发前冻结观察登记，期间新建者不接收当前事件，已关闭者跳过；关闭只移除自己的登记，scope 退休自动清理，窗口／router 关闭对仍在登记的观察者交付一次终端 Closed。观察回调失败不跳过其余必要清理，最终传播错误。该接口服务有实际活动会话的 hover、typeahead 等组合，不要求每个 scope 常驻观察。
+
+### 6.7 原生手势路由
+
+InputEvent.Gesture(InputGestureEvent) 沿既有 Capture／Target／Bubble／Default 阶段交付，Native(GestureEvent) 保留 Window 的系统识别结果。GestureKind 区分 Magnify／Rotate／Swipe；Cancelled(kind, reason, time) 是 Surface 对活动序列的终止通知。取消通知不可消费，不触发默认业务操作。
+
+Magnify 与 Rotate 在 Began 时分别记录最近 Accepted 几何中的命中路径及当前边界；后续 Changed／Ended／Cancelled 沿该路径交付，不因鼠标移动重新命中。两类序列可由同一消费者明确组合。无 Began 的更新不新建路由，None 相位和离散 Swipe 只按本次位置路由。手势不改变鼠标 hover、按下集合、焦点或滚轮 momentum。
+
+目标卸载、禁用、路径或模态边界变化、窗口失焦／关闭时取消并移除活动路由；无新的 Began 不恢复，迟到事件不能转交另一目标。路由处理中的逻辑变化同样停止余下失效交付。位置按各接收区域当前 Accepted 变换转换；缩放倍率和旋转弧度保持原单位，不作为滚轮残量消费。Surface 不在此识别直接触摸，也不把自定义手势写入平台枚举。
+
+### 6.8 原始接触与归属
+
+InputEvent.Contact 的 InputContactEvent 为 Began／Moved／Ended(ContactState) 和 Cancelled(ContactId, InputCancelReason, InputTime)。每个 ContactId 在 Began 时固定最近 Accepted 场景中的目标路径，更新与结束沿原路径交付；没有开始的迟到事件丢弃，不重新命中。不同接触独立，不改鼠标 hover、按钮、滚轮或其归属。失焦、关闭、边界或原路径失效取消相应路由；系统单触点取消不会终止其他接触。
+
+InputScope.claimContacts(ids: Array<ContactId>): Boolean 仅接管调用 scope 所在的原始路径，且必须一次取得全部所列活动接触；任一接触不存在、路径失效或已由其他 scope 拥有时返回 false，保持其余归属。数组必须非空且无重复身份。同一 owner 重复取得已有接触是幂等操作。成功时先公布全部新归属，再向被移除的后代交付各接触的不可取消通知；同一次普通交付也停止访问已经失去归属的后代。该方法不取得 OS 全局捕获，不识别手势种类。
+
+cancelContactClaim(id) 仅取消调用 scope 已取得的该接触，不交还旧子项，也不影响同 scope 的其他接触。原始接触序列保持可供 UI 识别，内建和后续自定义逻辑使用同一归属边界；多触点相关性由实际消费者决定，不增加平台手势变体。
+
+若取消回调抛错或使成组接管失效，终止本次新取得的其余接触并清理后传播错误或返回 false；已经收到取消的后代不恢复。调用前已归该 scope 所有的其他接触保持其原职责。Ended 正在交付的接触已不能取得新归属，完成通知和必要取消仍交付后才移除记录。
+
+InputArea.hitTest(windowPoint) 根据最近 Accepted 的精确几何、clip、逻辑有效性和前景遮挡判断该区域是否在本次命中路径上，供无 hover 的结束命中使用。输入域的 beforePress(InputPress) 在首个鼠标按钮和每个新接触开始传播前执行；InputPress.source 区分 Mouse(InputPointer, MouseButton, clickCount) 与 Contact(ContactState)，保留真实来源。消费开始使该序列后续不再转交目标；弹层关闭等仍沿原输入边界规则。
+
+`RoutedEventContext.consumeContactMovement(onRemainder: ((Point) -> Point)? = None, apply: (Point) -> Point)` 仅用于 Contact.Moved／Ended 的 Default 阶段。首次调用必须来自该触点已取得归属的 scope；它为本次交付开放共享位移，后续祖先可以继续消费。普通 claim 本身不开放这条通路，独占拖动不会被外层滚动重复消费。`contactRemaining: Point?` 在本次 owner 尚未开放、非移动／结束或路由失效时为 None，开放后为窗口逻辑坐标中的剩余位移；它不改变原 ContactState，也不伪造 Wheel。
+
+一次接管后的首个消费覆盖原始开始位置到当前位置的位移，使阈值以内的距离只计入一次；后续消费使用前一个原生样本到当前样本的差量，包括正常结束时最后的位移。每次交付单独开放与消费，已被阻止的后续更新不会在下一次重放。起止位置通过本次传播前固定的 Accepted 几何换算，返回的实际同向、未超量局部位移按第 6.4 节的算法换回窗口坐标再扣除，支持嵌套缩放／旋转。零余量不调用 apply；有限值、方向、同步借用和禁止递归规则与滚轮相同。preventDefault 阻止后续祖先消费，取消后不再调用 apply。Ended 仍不能取得新的归属。
 
 ## 7. 原生资源与错误
 

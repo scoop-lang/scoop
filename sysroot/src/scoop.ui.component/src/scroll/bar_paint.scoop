@@ -1,0 +1,48 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.style.*
+
+/** Cross-axis scaling retains the theme's primary-axis insets and thumb travel. */
+internal fun drawScrollbarWidth(
+    canvas: Canvas,
+    painter: ThemePainter,
+    geometry: ScrollbarGeometry,
+    visual: ScrollbarVisual,
+    width: Double,
+    baseThickness: Double
+) {
+    val vertical = visual.orientation == Orientation.Vertical
+    val bounds = geometry.bounds
+    val cross =
+        if (vertical)
+            bounds.width
+        else
+            bounds.height
+    val baseline = upperBound(baseThickness, cross)
+    if (baseline <= 0.0 || width <= 0.0)
+        return
+    val scale = upperBound(width, cross) / baseline
+    if (scale == 1.0) {
+        painter.drawScrollbar(canvas, geometry, visual)
+        return
+    }
+    canvas.withState {
+        local ->
+        val center =
+            if (vertical)
+                bounds.x + cross / 2.0
+            else
+                bounds.y + cross / 2.0
+        if (vertical) {
+            local.translate(center, 0.0)
+            local.scale(scale, 1.0)
+            local.translate(-center, 0.0)
+        } else {
+            local.translate(0.0, center)
+            local.scale(1.0, scale)
+            local.translate(0.0, -center)
+        }
+        painter.drawScrollbar(local, geometry, visual)
+    }
+}

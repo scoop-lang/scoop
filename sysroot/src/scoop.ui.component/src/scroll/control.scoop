@@ -6,6 +6,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal class ScrollControlProps(
     val state: ScrollState,
@@ -19,7 +20,11 @@ internal class ScrollControlProps(
     val paintCache: PaintCachePolicy,
     val theme: Theme,
     val style: StyleOverride = styleOverride(),
-    val focusOutline: OutlineStyle? = None
+    val focusOutline: OutlineStyle? = None,
+    val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    val semantics: ComponentSemantics = ComponentSemantics(),
+    val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
 )
 
 /** Shared input, range publication and themed bars for eager and lazy viewports. */
@@ -29,19 +34,51 @@ internal class ScrollControl(
 ) {
     private val painters = scope.resource { ThemePainterCache() }
     private val decoration = scope.resource { StylePainter() }
+    val semantics = createComponentSemantics(scope, SemanticRole.ScrollArea)
     val viewport = scope.scrollViewport(props().state)
     private val area =
         scope.createArea(focusable = true) { context, event -> handle(context, event) }
     private val focus = scope.focusTarget(area, props().focus)
-    private val horizontal = ScrollBarControl(scope, props, area, Orientation.Horizontal)
-    private val vertical = ScrollBarControl(scope, props, area, Orientation.Vertical)
+    private val pan =
+        scope.scrollPan(area, viewport, props().axes, props().chain, props().touchScroll)
+    private val feedback =
+        scope.resource { ScrollbarFeedback(scope, props, area) { feedbackChanged() } }
+    private val horizontal =
+        ScrollBarControl(scope, props, area, Orientation.Horizontal, feedback, semantics) {
+            handle,
+            orientation -> updateBar(handle, orientation)
+        }
+    private val vertical =
+        ScrollBarControl(scope, props, area, Orientation.Vertical, feedback, semantics) {
+            handle,
+            orientation -> updateBar(handle, orientation)
+        }
     private var direction = scope.layoutDirection
+    private var reservation = Size(0.0, 0.0)
+    val gutter: Size get() = reservation
 
     init {
         area.scope.defaultAction = { context, event -> handle(context, event) }
         scope.routeChildren(area)
+        scope.routeSemanticsChildren(semantics)
+        semantics?.bindFocus(Some(focus))
     }
-    fun update() {
+    private fun updateBar(handle: SemanticsHandle, orientation: Orientation) {
+        val value = props()
+        handle.updateScrollBar(
+            viewport,
+            scrollSemanticOrientation(orientation),
+            value.lineStep,
+            scrollBarProperties(value, orientation)
+        )
+    }
+    private fun feedbackChanged() {
+        horizontal.feedbackChanged()
+        vertical.feedbackChanged()
+        if (scope.isMounted)
+            scope.requestFrame()
+    }
+    fun update(): Boolean {
         val value = props()
         requireComponent(
             value.lineStep.isFinite() && value.lineStep > 0.0,
@@ -49,22 +86,69 @@ internal class ScrollControl(
         )
         viewport.state = value.state
         viewport.paintCache = value.paintCache
+        viewport.physics = value.scrollPhysics
+        viewport.reduceMotion = value.theme.tokens.motion.preference == MotionPreference.Reduced
+        pan.update(
+            value.axes,
+            value.chain,
+            if (value.enabled)
+                value.touchScroll
+            else
+                TouchScrollOptions(
+                    false,
+                    value.touchScroll.threshold,
+                    value.touchScroll.lockAxis,
+                    value.touchScroll.claimAtBoundary
+                )
+        )
         focus.options = value.focus
         area.scope.enabled = value.enabled
+        semantics?.bindReference(value.semantics.reference)
+        semantics?.update(
+            value.semantics.properties(enabled = value.enabled),
+            relations = value.semantics.relations
+        )
+        feedback.update()
         horizontal.update()
         vertical.update()
         painters.get(value.theme)
+        val next =
+            scrollbarGutter(
+                value.axes,
+                value.scrollbars,
+                feedback.options.thickness,
+                value.scrollbarBehavior.placement
+            )
+        val changed = next != gutter
+        reservation = next
+        return changed
     }
+    fun contentViewport(outer: Size, direction: LayoutDirection): Rect =
+        scrollbarViewport(outer, gutter, direction)
     fun layout(
         viewportSize: Size,
         contentSize: Size,
         adjustment: ScrollAdjustment? = None
-    ): ScrollLayout = viewport.layout(viewportSize, contentSize, adjustment)
+    ): ScrollLayout {
+        val value = props()
+        val padding =
+            scrollbarPadding(
+                viewportSize,
+                contentSize,
+                value.axes,
+                value.scrollbars,
+                feedback.options.thickness,
+                value.scrollbarBehavior.placement,
+                scope.layoutDirection
+            )
+        return viewport.layout(viewportSize, contentSize, adjustment, padding)
+    }
     fun scene(context: SceneContext, layout: ScrollLayout, contentOrigin: Point = Point(0.0, 0.0)) {
         val value = props()
         val snapshot = layout.snapshot
-        val size = snapshot.viewport
+        val size = context.size
         val presentedDirection = context.layoutDirection
+        val body = contentViewport(size, presentedDirection)
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
                 if (direction != presentedDirection) {
@@ -75,6 +159,10 @@ internal class ScrollControl(
             }
         }
         val bounds = Rect(0.0, 0.0, size.width, size.height)
+        when (semantics) {
+            case Some(val handle) -> context.semantics(handle, bounds)
+            case None -> {}
+        }
         val visual =
             SurfaceVisual(
                 SurfaceKind.Plain,
@@ -90,11 +178,13 @@ internal class ScrollControl(
         val painter = painters.get(value.theme)
         val bars =
             ScrollBarsLayout(
+                size,
                 snapshot,
                 value.axes,
                 value.scrollbars,
-                value.theme.scrollbarMetrics(value.scrollbar).thickness,
-                presentedDirection
+                feedback.options.thickness,
+                presentedDirection,
+                value.scrollbarBehavior.placement
             )
         context.draw {
             paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
@@ -102,7 +192,19 @@ internal class ScrollControl(
         decoration.scene(context, bounds, geometry.contentStyle) {
             local ->
             local.place(area, bounds)
-            viewport.present(local, layout, Some { content -> content.children() }, contentOrigin)
+            local.save()
+            try {
+                local.translate(body.x, body.y)
+                viewport.present(
+                    local,
+                    layout,
+                    Some { content -> content.children() },
+                    contentOrigin
+                )
+            } finally {
+                local.restore()
+            }
+            feedback.scene(local, bounds, bars.horizontal, bars.vertical)
             horizontal.scene(local, snapshot, bars.horizontal, painter)
             vertical.scene(local, snapshot, bars.vertical, painter)
         }
@@ -131,29 +233,15 @@ internal class ScrollControl(
         val input = props()
         val state = props().state
         when (event) {
-            case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
-                state.cancelAnimation()
-                context.consumeScroll(input.lineStep) {
-                    amount ->
-                    val consumed =
-                        state.scrollBy(
-                            Point(
-                                if (input.axes.horizontal)
-                                    -amount.x
-                                else
-                                    0.0,
-                                if (input.axes.vertical)
-                                    -amount.y
-                                else
-                                    0.0
-                            ),
-                            ScrollOrigin.User
-                        )
-                    Point(-consumed.x, -consumed.y)
-                }
-                if (input.chain == ScrollChain.Contain)
-                    context.preventDefault()
-            }
+            case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) ->
+            viewport.consumeScroll(
+                context,
+                input.lineStep,
+                input.axes,
+                input.chain,
+                phase,
+                momentum
+            )
             case Keyboard(val key) -> {
                 if (context.target === area.scope && scrollKey(state, input.axes, direction, key))
                     context.consume()
@@ -185,30 +273,52 @@ private fun scrollKey(
     val reversed = !axes.vertical && direction == LayoutDirection.Rtl
     val step =
         if (axes.vertical)
-            Point(0.0, current.viewport.height)
+            Point(0.0, current.visibleSize.height)
         else
             Point(
                 if (reversed)
-                    -current.viewport.width
+                    -current.visibleSize.width
                 else
-                    current.viewport.width,
+                    current.visibleSize.width,
                 0.0
             )
+    val start =
+        Point(
+            if (axes.horizontal)
+                0.0
+            else
+                current.offset.x,
+            if (axes.vertical)
+                0.0
+            else
+                current.offset.y
+        )
+    val end =
+        Point(
+            if (axes.horizontal)
+                current.maximum.x
+            else
+                current.offset.x,
+            if (axes.vertical)
+                current.maximum.y
+            else
+                current.offset.y
+        )
     when (key.logicalKey) {
         case Named(NamedKey.PageUp) -> state.scrollBy(Point(-step.x, -step.y), ScrollOrigin.User)
         case Named(NamedKey.PageDown) -> state.scrollBy(step, ScrollOrigin.User)
         case Named(NamedKey.Home) -> state.scrollTo(
             if (reversed)
-                current.maximum
+                end
             else
-                Point(0.0, 0.0),
+                start,
             ScrollOrigin.User
         )
         case Named(NamedKey.End) -> state.scrollTo(
             if (reversed)
-                Point(0.0, 0.0)
+                start
             else
-                current.maximum,
+                end,
             ScrollOrigin.User
         )
         else -> return false

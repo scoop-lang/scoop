@@ -1,0 +1,70 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.window.native.*
+
+@Test
+private class WindowsPollingTest {
+    @Test
+    fun `continuous application work does not starve a native window timer`() {
+        val probe = WindowsPollingProbe()
+        Application().run(probe)
+        assertTrue(probe.fired)
+        assertTrue(probe.iterations > 1)
+        assertEquals("A😀", probe.text)
+    }
+}
+
+private class WindowsPollingProbe: ApplicationHandler {
+    var fired = false
+    var iterations = 0
+    var text = ""
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop native queue fairness"
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                window.createDeadline { fail(Some("native timer starved by application polling")) }
+                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                @Unsafe
+                {
+                    val lease = window.acquireNativeWindow()
+                    try {
+                        when (lease.handle) {
+                            case Win32(val hwnd, _) -> assertTrue(startNativePollingTimer(hwnd))
+                        }
+                    } finally {
+                        lease.close()
+                    }
+                }
+                active.setControlFlow(ControlFlow.Poll)
+            }
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> {
+                for (operation in batch.operations)
+                    when (operation) {
+                        case Commit(val value, _) -> text += value
+                        else -> fail(Some("ordinary characters produced a preedit"))
+                    }
+            }
+            case AboutToWait -> {
+                iterations += 1
+                @Unsafe
+                {
+                    fired = nativePollingTimerFired()
+                }
+                if (fired && text == "A😀")
+                    active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

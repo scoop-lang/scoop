@@ -1,0 +1,411 @@
+package scoop.tests.ui.accessibility.reveal
+
+import scoop.graphics.Point
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class SemanticRevealTest {
+    @Test
+    fun `native reveal waits for accepted nested geometry and preserves the editing target`() {
+        verifyReveal(true)
+    }
+}
+
+@Test
+private class SemanticRevealWithoutActivationTest {
+    @Test
+    fun `native reveal completes nested geometry and cancellation without activation`() {
+        verifyReveal(false)
+    }
+}
+
+private fun verifyReveal(requireFocus: Boolean) {
+    FontCollection().use {
+        fonts ->
+        fonts.register(testSansBytes, "UI Sans")
+        val probe =
+            RevealProbe(
+                TextEditAppearance(fonts, textStyle { families = ["UI Sans"] }),
+                requireFocus
+            )
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.sawInnerFrame)
+            assertEquals(1, probe.discarded)
+            assertTrue(probe.target!!.isClosed)
+            assertTrue(probe.editor!!.isClosed)
+            assertFalse(probe.outer.isAttached)
+            assertFalse(probe.inner.isAttached)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class RevealProbe(
+    val appearance: TextEditAppearance,
+    private val requireFocus: Boolean
+): Closeable {
+    val model = TextEditorState("Keep this selection", Some(Utf8Selection(15L, 5L)))
+    val outer = ScrollState()
+    val inner = ScrollState()
+    val replacement = ScrollState()
+    val revision = state(0)
+    var scope: ComponentScope? = None
+    var target: SemanticsHandle? = None
+    var innerViewport: ScrollViewport? = None
+    var editor: TextEditHost? = None
+    var window: Window? = None
+    var mode = 0
+    var name = "Remote target"
+    var overrideReveal = false
+    var overrideCalls = 0
+    var discardNext = false
+    var discarded = 0
+    var sawInnerFrame = false
+    var finished = false
+    private var active: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var lease: NativeWindowLease? = None
+    private var view: Ptr<Unit>? = None
+    private var tree: NativeNode? = None
+    private var reference: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private var frames: FrameProbe? = None
+    private var committed = -1
+    private var accepted = 0
+    private var beforeStale = 0
+    private var expected = 0
+    private var phase = 0
+    private var waiting = false
+    private var refocused = false
+    private var closedDuringRequest = false
+
+    fun updateTarget() {
+        target!!.update(
+            SemanticProperties(
+                name = Some(name),
+                automationId = Some("remote"),
+                enabled = mode != 1,
+                hidden = mode == 2,
+                ignored = mode == 3
+            ),
+            if (overrideReveal)
+                SemanticActions(
+                    reveal =
+                        Some {
+                            overrideCalls += 1
+                            SemanticActionResult.Rejected
+                        }
+                )
+            else
+                SemanticActions()
+        )
+    }
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+                val activate = requireFocus
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop semantic reveal"
+                            size = LogicalSize(360.0, 260.0)
+                            requestActivation = activate
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                // Establish explicit positions before padding's ordinary reading-anchor correction.
+                outer.scrollTo(Point(0.0, 0.0))
+                inner.scrollTo(Point(0.0, 0.0))
+                replacement.scrollTo(Point(0.0, 0.0))
+                ui = host.attach(native, { mount -> RevealRoot(this, mount) })
+                @Unsafe
+                {
+                    val held = native.acquireNativeWindow()
+                    lease = Some(held)
+                    view =
+                        Some(
+                            when (held.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        )
+                }
+                calls =
+                    Some(
+                        NativeCalls(application.proxy(), { tag -> returned(tag) }) {
+                            tag,
+                            result -> completed(tag, result)
+                        }
+                    )
+                if (requireFocus)
+                    native.requestFocus()
+            }
+            case AboutToWait -> {
+                if (
+                    requireFocus &&
+                        accepted >
+                        0 &&
+                        !window!!.isFocused &&
+                        !refocused &&
+                        !ui!!.isClosed
+                ) {
+                    refocused = true
+                    window!!.requestFocus()
+                }
+                if (
+                    !waiting &&
+                        !finished &&
+                        committed ==
+                        revision.value &&
+                        (!requireFocus || window!!.isFocused) &&
+                        !frames!!.snapshot().required
+                )
+                    advance()
+            }
+            case Window(_, WindowEvent.Closing) -> {
+                lease?.close()
+                lease = None
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"reveal timeout phase=${phase}, mode=${mode}, frames=${accepted}, waiting=${
+                        waiting
+                    }"
+                )
+            )
+            else -> {}
+        }
+    }
+
+    fun frame(frame: FrameCompletion, version: Int) {
+        when (frame.submission) {
+            case Accepted -> {
+                accepted += 1
+                committed = version
+                if (inner.offset == Point(190.0, 160.0) && outer.offset == Point(0.0, 0.0)) {
+                    sawInnerFrame = true
+                    assertEquals(None, target!!.geometry!!.visibleBounds)
+                }
+            }
+            case Discarded -> {
+                discarded += 1
+                assertOffset(inner, Point(0.0, 0.0))
+                assertOffset(outer, Point(0.0, 0.0))
+                assertEquals(None, target!!.geometry!!.visibleBounds)
+            }
+        }
+    }
+
+    private fun preserved() {
+        assertEquals(requireFocus, editor!!.focus.handle.isFocusActive)
+        assertEquals("Keep this selection", model.text)
+        assertEquals(Utf8Selection(15L, 5L), model.selection)
+    }
+
+    private fun assertOffset(state: ScrollState, wanted: Point) {
+        val actual = state.offset
+        assertEquals(
+            wanted,
+            actual,
+            Some(
+                f"phase=${phase}, expected=(${wanted.x}, ${wanted.y}), actual=(${actual.x}, ${
+                    actual.y
+                })"
+            )
+        )
+    }
+
+    private fun visible() {
+        preserved()
+        assertOffset(inner, Point(190.0, 160.0))
+        assertOffset(outer, Point(255.0, 135.0))
+        val bounds = LogicalRect(LogicalPosition(200.0, 180.0), LogicalSize(40.0, 20.0))
+        assertEquals(Some(SemanticGeometry(bounds)), target!!.geometry)
+        assertTrue(reference!!.frame(view!!, 200.0, 180.0, 40.0, 20.0))
+    }
+
+    private fun post(next: Int, result: Int, action: Int = 12) {
+        expected = result
+        waiting = true
+        calls!!.post(reference!!, next, action)
+    }
+
+    private fun returned(tag: Int) {
+        when (tag) {
+            case 1 -> {
+                // A native action cannot render recursively or publish a requested position.
+                assertOffset(inner, Point(0.0, 0.0))
+                assertOffset(outer, Point(0.0, 0.0))
+                assertEquals(None, target!!.geometry!!.visibleBounds)
+            }
+            case 9 -> inner.scrollTo(Point(0.0, 0.0), ScrollOrigin.User)
+            case 10 -> innerViewport!!.state = replacement
+            case 12 -> {
+                name = "Changed during reveal"
+                updateTarget()
+            }
+            case 17 -> {
+                ui!!.close()
+                closedDuringRequest = true
+            }
+            else -> {}
+        }
+    }
+
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(expected, result, Some(f"native reveal action ${tag}"))
+        if (tag == 17) {
+            assertTrue(closedDuringRequest)
+            assertTrue(target!!.isClosed)
+            return
+        }
+        if (tag == 18) {
+            assertTrue(closedDuringRequest)
+            assertTrue(editor!!.isClosed)
+            finished = true
+            active!!.requestExit()
+            return
+        }
+        preserved()
+        phase = tag
+        waiting = false
+    }
+
+    private fun change(nextMode: Int, nextPhase: Int) {
+        mode = nextMode
+        phase = nextPhase
+        revision.value += 1
+    }
+
+    private fun reset(nextPhase: Int) {
+        outer.scrollTo(Point(0.0, 0.0))
+        inner.scrollTo(Point(0.0, 0.0))
+        phase = nextPhase
+    }
+
+    private fun advance() {
+        when (phase) {
+            case 0 -> {
+                @Unsafe
+                {
+                    tree = Some(NativeNode(nativeRoot(view!!)!!))
+                }
+                reference = tree!!.find("remote")
+                assertTrue(reference!!.flag(14))
+                assertOffset(inner, Point(0.0, 0.0))
+                assertOffset(outer, Point(0.0, 0.0))
+                assertEquals(None, target!!.geometry!!.visibleBounds)
+                if (requireFocus)
+                    assertTrue(editor!!.focus.handle.requestFocus())
+                preserved()
+                discardNext = true
+                post(1, 0)
+            }
+            case 1 -> {
+                visible()
+                assertTrue(sawInnerFrame)
+                post(2, 1)
+            }
+            case 2 -> change(1, 3)
+            case 3 -> {
+                if (mode <= 3)
+                    assertFalse(reference!!.flag(14))
+                if (mode == 5)
+                    assertEquals(None, target!!.geometry!!.visibleBounds)
+                if (mode == 6)
+                    assertEquals(None, target!!.geometry)
+                post(4, 0)
+            }
+            case 4 -> if (mode < 6)
+                change(mode + 1, 3)
+            else
+                change(0, 5)
+            case 5 -> {
+                visible()
+                beforeStale = accepted
+                name = "Changed without a frame"
+                updateTarget()
+                assertEquals(None, target!!.geometry)
+                post(6, 0)
+            }
+            case 6 -> {
+                assertEquals(beforeStale, accepted)
+                assertEquals(None, target!!.geometry)
+                phase = 7
+                scope!!.requestFrame()
+            }
+            case 7 -> {
+                visible()
+                reset(8)
+            }
+            case 8 -> post(9, 0)
+            case 9 -> {
+                assertOffset(inner, Point(0.0, 0.0))
+                assertOffset(outer, Point(0.0, 0.0))
+                post(10, 0)
+            }
+            case 10 -> {
+                assertOffset(replacement, Point(0.0, 0.0))
+                assertOffset(outer, Point(0.0, 0.0))
+                innerViewport!!.state = inner
+                reset(11)
+            }
+            case 11 -> post(12, 0)
+            case 12 -> {
+                assertOffset(inner, Point(190.0, 160.0))
+                assertOffset(outer, Point(0.0, 0.0))
+                assertEquals(None, target!!.geometry!!.visibleBounds)
+                post(13, 0)
+            }
+            case 13 -> {
+                visible()
+                overrideReveal = true
+                updateTarget()
+                post(14, 0)
+            }
+            case 14 -> {
+                assertEquals(1, overrideCalls)
+                overrideReveal = false
+                updateTarget()
+                post(15, 1)
+            }
+            case 15 -> reset(16)
+            case 16 -> {
+                post(17, 0)
+                // Retain the public custom action before closing the root in the first reply.
+                calls!!.post(reference!!, 18, 13)
+            }
+            else -> fail(Some(f"unexpected reveal phase ${phase}"))
+        }
+    }
+
+    public override fun close() {
+        calls?.close()
+        reference?.close()
+        tree?.close()
+        lease?.close()
+        frames?.close()
+    }
+}

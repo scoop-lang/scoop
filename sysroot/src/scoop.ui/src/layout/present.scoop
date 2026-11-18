@@ -13,6 +13,21 @@ internal fun NodeLayout.scene(
 ) {
     if (!node.active || !node.root.isOpen)
         return
+    when (node.semanticItem) {
+        case Some(val row) -> {
+            frame.withState {
+                local ->
+                local.canvas.translate(origin.x, origin.y)
+                row.controller.capture(
+                    row,
+                    local.canvas,
+                    Rect(0.0, 0.0, metrics.size.width, metrics.size.height),
+                    scrollPath
+                )
+            }
+        }
+        case None -> {}
+    }
     when (body) {
         case Empty -> {}
         case Transparent -> children[0L].result!!.scene(

@@ -12,7 +12,8 @@ public class HoverOptions public constructor(
     public val transitDelay: Duration = Duration.milliseconds(350L),
     public val corridorPadding: Double = 6.0,
     public val focus: Boolean = true,
-    public val enabled: Boolean = true
+    public val enabled: Boolean = true,
+    public val longPress: LongPressOptions = LongPressOptions(enabled = false)
 ) {
     init {
         requireUi(
@@ -46,6 +47,7 @@ public class Hover internal constructor(
     private val window = scope.nativeWindow
     private var closed = false
     private var dismissed = false
+    private var contactPinned = false
     private var content: Array<InputArea> = []
     private var registrations: Array<Closeable> = []
     private var observation: Closeable? = None
@@ -56,6 +58,34 @@ public class Hover internal constructor(
     private val timer = scope.createDeadline { expired() }
     private val triggerEvents = trigger.scope.addEventHandler { _, event -> areaEvent(event) }
     private val triggerFocus = trigger.scope.observeActivity { refresh() }
+    private val hold = LongPress(scope, trigger, holdOptions()) { showFromContact() }
+    private val windowEvents =
+        scope.observeWindow(window) {
+            event -> when (event) {
+                case Contact(ContactEvent.Began(val contact)) -> {
+                    val point = contact.pointer.logicalPosition
+                    if (contactPinned && !contains(Point(point.x, point.y)))
+                        dismiss()
+                }
+                else -> {}
+            }
+        }
+    private var previousActivity = window.activity
+    private val windowActivity =
+        scope.observeWindowActivity {
+            value ->
+            val previous = previousActivity
+            previousActivity = value
+            if (
+                (previous.focused && !value.focused) ||
+                    (previous.visible && !value.visible) ||
+                    (!previous.occluded && value.occluded)
+            )
+                dismiss()
+            else
+                if ((!previous.visible && value.visible) || (previous.occluded && !value.occluded))
+                    refresh()
+        }
 
     init {
         try {
@@ -81,7 +111,8 @@ public class Hover internal constructor(
         checkOpen()
         this.open = open
         this.options = options ?: this.options
-        if (!this.options.enabled)
+        hold.update(holdOptions()) { showFromContact() }
+        if (!this.options.enabled || (contactPinned && !this.options.longPress.enabled))
             dismiss()
         else
             refresh()
@@ -112,6 +143,33 @@ public class Hover internal constructor(
         }
         registrations = next.toArray()
         refresh()
+    }
+    private fun holdOptions(): LongPressOptions =
+        LongPressOptions(
+            options.enabled && options.longPress.enabled,
+            options.longPress.delay,
+            options.longPress.threshold
+        )
+    private fun contains(point: Point): Boolean {
+        if (trigger.hitTest(point))
+            return true
+        for (area in content)
+            if (!area.isClosed && area.hitTest(point))
+                return true
+        return false
+    }
+    private fun showFromContact() {
+        if (isClosed || !options.enabled || !options.longPress.enabled)
+            return
+        dismissed = false
+        contactPinned = true
+        cancelWait()
+        open.value = true
+        if (isClosed)
+            return
+        contactPinned = open.value
+        if (contactPinned)
+            observe()
     }
     private fun areaEvent(event: InputEvent) {
         when (event) {
@@ -147,10 +205,21 @@ public class Hover internal constructor(
     private fun refresh(point: Point? = None) {
         if (isClosed || window.state != WindowState.Open)
             return
+        if (!window.isVisible || window.isOccluded) {
+            cancelWait()
+            stopObserving()
+            return
+        }
         if (!options.enabled || !trigger.scope.isInputAllowed) {
             dismiss();
             return
         }
+        if (contactPinned && open.value) {
+            cancelWait()
+            observe()
+            return
+        }
+        contactPinned = false
         val focus = focused()
         val inside = within()
         if (dismissed) {
@@ -231,6 +300,16 @@ public class Hover internal constructor(
             case FocusLost -> dismiss()
             case Closed -> dismiss()
             case Pointer(val value) -> {
+                when (value) {
+                    case Moved(_) -> contactPinned = false
+                    case Button(val state, _, ElementState.Pressed, _) -> {
+                        if (contactPinned && !contains(pointerPoint(state))) {
+                            dismiss()
+                            return
+                        }
+                    }
+                    else -> {}
+                }
                 val point =
                     when (value) {
                         case Entered(val state) -> pointerPoint(state)
@@ -264,7 +343,7 @@ public class Hover internal constructor(
     private fun expired() {
         val next = pending ?: return
         pending = None
-        if (isClosed || window.state != WindowState.Open)
+        if (isClosed || window.state != WindowState.Open || !window.isVisible || window.isOccluded)
             return
         val opening = next == HoverWait.Open
         if (opening && (!options.enabled || (!within() && !focused()))) {
@@ -289,6 +368,8 @@ public class Hover internal constructor(
     }
     public fun dismiss() {
         checkOverlayMutation()
+        contactPinned = false
+        hold.cancel()
         dismissed = !isClosed && window.state == WindowState.Open && (within() || focused())
         cancelWait()
         stopObserving()
@@ -309,7 +390,11 @@ public class Hover internal constructor(
         if (closed)
             return
         closed = true
-        var failure = cleanupUi(None) { timer.close() }
+        contactPinned = false
+        var failure = cleanupUi(None) { hold.close() }
+        failure = cleanupUi(failure) { windowEvents.close() }
+        failure = cleanupUi(failure) { windowActivity.close() }
+        failure = cleanupUi(failure) { timer.close() }
         failure = cleanupUi(failure) { stopObserving() }
         failure = cleanupUi(failure) { triggerEvents.close() }
         failure = cleanupUi(failure) { triggerFocus.close() }

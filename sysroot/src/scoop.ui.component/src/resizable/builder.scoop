@@ -21,6 +21,8 @@ public class ResizableHandleBuilder internal constructor() {
     public var enabled: Boolean = true
     public var focus: FocusOptions = FocusOptions()
     public var style: StyleOverride = styleOverride()
+    public var hitWidth: Double = 20.0
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun style(configure: StyleOverrideBuilder.() -> Unit) {
         style = style.copy(configure)
     }
@@ -28,7 +30,7 @@ public class ResizableHandleBuilder internal constructor() {
         focus = focus.copy(configure)
     }
     internal fun snapshot(key: ViewKey): ResizableHandleOptions =
-        ResizableHandleOptions(key, withHandle, enabled, focus, style)
+        ResizableHandleOptions(key, withHandle, enabled, focus, style, hitWidth, semantics)
 }
 
 public class ResizableBuilder internal constructor() {

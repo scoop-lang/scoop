@@ -1,0 +1,218 @@
+package scoop.window
+
+import scoop.platform.fs.Path
+
+/** Registers before or after window configuration. Payloads are read only during drop. */
+public fun Window.registerDropTarget(handlers: DropHandlers): DropTarget {
+    owner.requireOpen()
+    when (owner.dropTarget) {
+        case Some(_) -> throw IllegalStateException(Some("window already has a drop target"))
+        case None -> {}
+    }
+    val target = DropTarget(owner, handlers)
+    @Unsafe
+    {
+        val callback =
+            foreignCallback<
+                (Ptr<Unit>, Int, Int, Int, Int, Double, Double, Long, Int, Ptr<Unit>?) -> Int
+            >(
+                {
+                    phase: Int,
+                    formats: Int,
+                    effects: Int,
+                    local: Int,
+                    x: Double,
+                    y: Double,
+                    modifiers: Long,
+                    choice: Int,
+                    payload: Ptr<Unit>? -> target.perform(
+                        {
+                            if (phase == 2)
+                                return@perform target.leave()
+                            val offer =
+                                DropOffer(
+                                    DragFormats(bit(formats, 1), bit(formats, 2), bit(formats, 4)),
+                                    DragEffects(bit(effects, 1), bit(effects, 2), bit(effects, 4)),
+                                    LogicalPosition(x, y),
+                                    platformModifiers(modifiers),
+                                    local != 0,
+                                    if (bit(local, 2))
+                                        when (val source = owner.application.dragSource) {
+                                            case Some(val session) -> session.localData
+                                            case None -> None
+                                        }
+                                    else
+                                        None
+                                )
+                            if (phase == 0)
+                                return@perform target.offer(offer)
+                            if (phase != 1 || payload == None)
+                                return@perform 0
+                            val effect =
+                                when (choice % 256) {
+                                    case 1 -> DragEffect.Copy
+                                    case 2 -> DragEffect.Move
+                                    case 4 -> DragEffect.Link
+                                    case _ -> return@perform 0
+                                }
+                            when (val content = dropContent(payload!!, choice / 256)) {
+                                case Some(val value) -> target.drop(
+                                    DropRequest(offer, effect, value)
+                                )
+                                case None -> 0
+                            }
+                        },
+                        leaving = phase == 2
+                    )
+                },
+                0,
+                ForeignCallbackMode.Reusable
+            )
+        try {
+            val pointer =
+                created(
+                    nativeDropCreate(owner.pointer!!, callback.function, callback.context),
+                    "register drop target"
+                )
+            target.bind(PlatformDropTarget(owner.application, pointer, callback))
+            owner.dropTarget = Some(target)
+            return target
+        } catch (error: Throwable) {
+            releaseForeignCallback(callback)
+            throw error
+        }
+    }
+}
+
+private fun bit(value: Int, mask: Int): Boolean = (value / mask) % 2 != 0
+
+private class PlatformDropTarget(
+    private val application: ApplicationOwner,
+    private val pointer: Ptr<Unit>,
+    private val callback: ForeignCallback<
+        (Ptr<Unit>, Int, Int, Int, Int, Double, Double, Long, Int, Ptr<Unit>?) -> Int
+    >
+): NativeDropTarget {
+    public override fun setPeriodicUpdates(value: Boolean) {
+        @Unsafe
+        {
+            nativeDropPeriodic(
+                pointer,
+                if (value)
+                    1
+                else
+                    0
+            )
+        }
+    }
+    public override fun update(enabled: Boolean) {
+        @Unsafe
+        {
+            nativeDropUpdate(
+                pointer,
+                if (enabled)
+                    1
+                else
+                    0
+            )
+        }
+    }
+    public override fun leave() {
+        @Unsafe
+        {
+            nativeDropLeave(pointer)
+        }
+    }
+    public override fun close() {
+        @Unsafe
+        {
+            nativeDropClose(pointer)
+        }
+        val owned = callback
+        application.mailbox.postControl {
+            @Unsafe
+            {
+                releaseForeignCallback(owned)
+            }
+        }
+    }
+}
+
+private fun dropContent(pointer: Ptr<Unit>, format: Int): DragContent? {
+    @Unsafe
+    {
+        val count = nativeDropItemCount(pointer)
+        if (format == 1 || format == 2) {
+            if (count != 1L)
+                return None
+            when (val text = dropText(nativeDropText(pointer, 0L))) {
+                case Some(val value) -> return Some(
+                    if (format == 1)
+                        DragContent.Text(value)
+                    else
+                        DragContent.Url(value)
+                )
+                case None -> return None
+            }
+        }
+        if (format != 3 || count <= 0L)
+            return None
+        val paths = ArrayList<Path>()
+        for (index in 0L ..< count) {
+            val value = nativeDropPath(pointer, index)
+            if (value.data == None || value.length <= 0L)
+                return None
+            paths.add(Path.fromOsString(copyDialogString(value)))
+        }
+        return Some(DragContent.Files(paths.toArray()))
+    }
+}
+
+@Unsafe
+private fun dropText(value: NativeDropText): String? {
+    if (value.length < 0L)
+        return None
+    if (value.length == 0L)
+        return Some("")
+    when (val data = value.data) {
+        case Some(val bytes) -> {
+            try {
+                return Some(String.fromUtf8(bytes, value.length))
+            } catch (error: CharacterCodingException) {
+                return None
+            }
+        }
+        case None -> return None
+    }
+}
+
+@CLayout
+private struct NativeDropText(val data: Ptr<UInt8>?, val length: Long)
+
+@Extern(name = "scoop_window_drop_create")
+private fun nativeDropCreate(
+    window: Ptr<Unit>,
+    callback: FunPtr<(Ptr<Unit>, Int, Int, Int, Int, Double, Double, Long, Int, Ptr<Unit>?) -> Int>,
+    context: Ptr<Unit>
+): NativeCreateResult
+
+@Extern(name = "scoop_window_drop_update")
+private fun nativeDropUpdate(target: Ptr<Unit>, enabled: Int)
+
+@Extern(name = "scoop_window_drop_leave")
+private fun nativeDropLeave(target: Ptr<Unit>)
+
+@Extern(name = "scoop_window_drop_periodic")
+private fun nativeDropPeriodic(target: Ptr<Unit>, enabled: Int)
+
+@Extern(name = "scoop_window_drop_close")
+private fun nativeDropClose(target: Ptr<Unit>)
+
+@Extern(name = "scoop_window_drop_item_count")
+private fun nativeDropItemCount(payload: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_drop_text")
+private fun nativeDropText(payload: Ptr<Unit>, index: Long): NativeDropText
+
+@Extern(name = "scoop_window_drop_path")
+private fun nativeDropPath(payload: Ptr<Unit>, index: Long): NativeFilePath

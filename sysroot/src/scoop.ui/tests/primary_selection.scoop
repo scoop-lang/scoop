@@ -1,0 +1,65 @@
+package scoop.ui.text
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class PrimaryTextOwnershipTest {
+    @Test
+    fun `unchanged selection does not reclaim PRIMARY and stale cleanup preserves another owner`() {
+        val probe = PrimaryTextOwnershipProbe()
+        Application().run(probe)
+        assertTrue(probe.finished)
+    }
+}
+
+private class PrimaryTextOwnershipProbe: ApplicationHandler {
+    var finished = false
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop PRIMARY ownership"
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                val primary = window.primarySelection
+                val owner = PrimaryTextSelection(window)
+                val range = Utf8Selection(7L, 0L)
+                owner.update(range, Some("initial"))
+                assertEquals(None, owner.read(TextPrimarySelectionOptions(paste = Some(false))))
+                if (primary.isAvailable) {
+                    assertEquals(
+                        Some("initial"),
+                        owner.read(TextPrimarySelectionOptions(paste = Some(true)))
+                    )
+                    val other = primary.claimText("external")!!
+                    owner.update(range, Some("initial"))
+                    assertTrue(other.isCurrent)
+                    owner.update(Utf8Selection(0L, 7L), Some("initial"))
+                    assertFalse(other.isCurrent)
+                    assertEquals(Some("initial"), primary.readText())
+                    other.close()
+                    owner.update(range, Some("a\u{0}b"))
+                    assertEquals(None, primary.readText())
+                    owner.update(range, Some("selected"))
+                    val latest = primary.claimText("latest")!!
+                    owner.close()
+                    assertTrue(latest.isCurrent)
+                    assertEquals(Some("latest"), primary.readText())
+                    latest.close()
+                } else {
+                    assertEquals(None, owner.read(TextPrimarySelectionOptions(paste = Some(true))))
+                }
+                owner.close()
+                window.requestDestroy()
+                finished = true
+                application.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

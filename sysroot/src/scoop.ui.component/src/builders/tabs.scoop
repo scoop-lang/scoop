@@ -5,6 +5,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 
 public class TabItemBuilder internal constructor() {
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var trigger: ButtonContent? = None
     public var focus: FocusOptions = FocusOptions()
     public var retention: ContentRetention? = None
@@ -35,6 +36,7 @@ public class TabItemBuilder internal constructor() {
 }
 
 public class TabsBuilder<T: Equals<T>> internal constructor() {
+    public var semantics: ComponentSemantics = ComponentSemantics()
     private val entries = ArrayList<TabEntry<T>>()
     public var activation: TabActivation = TabActivation.Auto
     public var axis: FlexAxis = FlexAxis.Horizontal
@@ -63,7 +65,8 @@ public class TabsBuilder<T: Equals<T>> internal constructor() {
                 builder.focus,
                 builder.retention,
                 builder.triggerStyle,
-                builder.panelStyle
+                builder.panelStyle,
+                builder.semantics
             )
         )
     }
@@ -88,7 +91,8 @@ public class TabsBuilder<T: Equals<T>> internal constructor() {
             theme,
             style,
             listStyle,
-            onValueChange
+            onValueChange,
+            semantics
         )
 }
 

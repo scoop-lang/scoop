@@ -1,4 +1,4 @@
-#include "window.h"
+#include "menu.h"
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
 #include <gdk/wayland/gdkwayland.h>
@@ -11,7 +11,19 @@ typedef struct {
   SWWindow *owner;
 } SWContent;
 typedef GtkWidgetClass SWContentClass;
-G_DEFINE_TYPE(SWContent, sw_content, GTK_TYPE_WIDGET)
+static GtkAccessible *content_accessible_child(GtkAccessible *accessible) {
+  SWWindow *window = ((SWContent *)accessible)->owner;
+  if (window && window->accessibility_socket)
+    return g_object_ref(window->accessibility_socket);
+  GtkWidget *child = gtk_widget_get_first_child(GTK_WIDGET(accessible));
+  return child ? g_object_ref(GTK_ACCESSIBLE(child)) : NULL;
+}
+static void content_accessible_init(GtkAccessibleInterface *iface) {
+  iface->get_first_accessible_child = content_accessible_child;
+}
+G_DEFINE_TYPE_WITH_CODE(SWContent, sw_content, GTK_TYPE_WIDGET,
+                        G_IMPLEMENT_INTERFACE(GTK_TYPE_ACCESSIBLE,
+                                              content_accessible_init))
 
 static void content_measure(GtkWidget *widget, GtkOrientation orientation,
                             int for_size, int *minimum, int *natural,
@@ -43,6 +55,18 @@ static void content_allocate(GtkWidget *widget, int width, int height,
       gtk_widget_allocate(child, width, height, baseline, NULL);
   }
   sw_frame_layout(window);
+}
+static void content_scale_changed(GtkWidget *widget, GParamSpec *pspec,
+                                  gpointer data) {
+  SWWindow *window = data;
+  if (window->destroying || !window->configured)
+    return;
+  int width = gtk_widget_get_width(widget);
+  int height = gtk_widget_get_height(widget);
+  if (width > 0 && height > 0)
+    sw_set_geometry(window, width, height, gtk_widget_get_scale_factor(widget));
+  sw_frame_layout(window);
+  sw_accessibility_geometry(window);
 }
 static void content_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
   for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
@@ -80,14 +104,21 @@ void sw_snapshot_update(SWWindow *window) {
   window->snapshot.visible = gtk_widget_get_visible(window->window);
   window->snapshot.maximized = (state & GDK_TOPLEVEL_STATE_MAXIMIZED) != 0;
   window->snapshot.minimized = (state & GDK_TOPLEVEL_STATE_MINIMIZED) != 0;
-  bool occluded =
-      !gtk_widget_get_mapped(window->window) || window->snapshot.minimized;
+  bool occluded = !gtk_widget_get_mapped(window->window) ||
+                  window->snapshot.minimized ||
+                  (state & GDK_TOPLEVEL_STATE_SUSPENDED) != 0;
   if (window->snapshot.occluded != occluded) {
     window->snapshot.occluded = occluded;
     sw_emit(window, 5);
   }
-  sw_focus(window, gtk_window_is_active(GTK_WINDOW(window->window)));
+  // A popup owns keyboard input while its toplevel remains active. Reporting
+  // that handoff as focus loss would cancel the editor that opened the menu.
+  bool focused = gtk_window_is_active(GTK_WINDOW(window->window)) ||
+                 ((state & GDK_TOPLEVEL_STATE_FOCUSED) &&
+                  sw_menu_tracking(window->window));
+  sw_focus(window, focused);
   sw_desktop_bounds(window);
+  sw_accessibility_geometry(window);
 }
 static void changed(GObject *object, GParamSpec *pspec, gpointer data) {
   sw_snapshot_update(data);
@@ -173,7 +204,6 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->transparent = (flags & 4) != 0;
   window->close_button = window->minimize_button = window->maximize_button =
       true;
-  window->cursor_visible = true;
   window->snapshot.scale = 1;
   window->snapshot.x = window->snapshot.y = NAN;
   window->snapshot.outer_width = window->snapshot.outer_height = NAN;
@@ -203,11 +233,13 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   gtk_widget_set_visible(window->header, window->frame_mode != 2);
   window->view = GTK_WIDGET(g_object_new(sw_content_get_type(), NULL));
   ((SWContent *)window->view)->owner = window;
+  g_signal_connect(window->view, "notify::scale-factor",
+                   G_CALLBACK(content_scale_changed), window);
   adw_toolbar_view_set_content(ADW_TOOLBAR_VIEW(window->toolbar), window->view);
   adw_window_set_content(ADW_WINDOW(window->window), window->toolbar);
   sw_transparency(window, window->transparent);
   sw_ime_install(window);
-  sw_input_install(window);
+  sw_input_init(window);
   g_signal_connect(window->window, "close-request", G_CALLBACK(close_requested),
                    window);
   g_signal_connect(window->window, "realize", G_CALLBACK(realized), window);
@@ -232,7 +264,10 @@ void scoop_window_destroy(SWWindow *window) {
     link = &(*link)->next;
   if (*link)
     *link = window->next;
+  sw_accessibility_destroy(window);
   window->destroying = true;
+  sw_drag_window_destroy(window);
+  sw_drop_window_destroy(window);
   if (window->frame_idle)
     g_source_remove(window->frame_idle);
   free(window->hit_rects);
@@ -242,13 +277,7 @@ void scoop_window_destroy(SWWindow *window) {
   if (surface)
     g_signal_handlers_disconnect_by_data(surface, window);
   g_signal_handlers_disconnect_by_data(window->window, window);
-  GListModel *controllers = gtk_widget_observe_controllers(window->view);
-  for (guint i = 0; i < g_list_model_get_n_items(controllers); ++i) {
-    GObject *controller = G_OBJECT(g_list_model_get_item(controllers, i));
-    g_signal_handlers_disconnect_by_data(controller, window);
-    g_object_unref(controller);
-  }
-  g_object_unref(controllers);
+  sw_input_destroy(window);
   g_signal_handlers_disconnect_by_data(window->ime, window);
   g_signal_handlers_disconnect_by_data(window->simple_ime, window);
   gtk_im_context_set_client_widget(window->ime, NULL);
@@ -257,8 +286,6 @@ void scoop_window_destroy(SWWindow *window) {
   g_clear_object(&window->simple_ime);
   gtk_window_destroy(GTK_WINDOW(window->window));
   g_clear_object(&window->group);
-  for (size_t i = 0; i < G_N_ELEMENTS(window->pressed); ++i)
-    free((void *)window->pressed[i].text);
   free((void *)window->document.text);
   free(window->preedit);
   free(window);
@@ -279,12 +306,23 @@ int64_t sw_request_size(SWWindow *window, double width, double height) {
   window->requested_width = width;
   window->requested_height = height;
   gtk_widget_queue_resize(window->view);
-  int minimum = 0, natural = 0;
-  gtk_widget_measure(window->toolbar, GTK_ORIENTATION_VERTICAL,
-                     (int)ceil(width), &minimum, &natural, NULL, NULL);
-  int extra = window->frame_mode == 1 ? 0 : MAX(0, natural - (int)ceil(height));
-  gtk_window_set_default_size(GTK_WINDOW(window->window), (int)ceil(width),
-                              (int)ceil(height) + extra);
+  int content_width, minimum_width, native_width, native_height;
+  gtk_widget_measure(window->toolbar, GTK_ORIENTATION_HORIZONTAL, -1, NULL,
+                     &content_width, NULL, NULL);
+  gtk_widget_measure(window->window, GTK_ORIENTATION_HORIZONTAL, -1,
+                     &minimum_width, &native_width, NULL, NULL);
+  // Preserve the requested content width even when the header prefers more.
+  // Measuring the window also includes CSS padding used by uncomposited X11.
+  double outer_width =
+      MAX(minimum_width, ceil(width) + MAX(0, native_width - content_width));
+  if (ceil(outer_width * window->snapshot.scale) > INT_MAX)
+    return EOVERFLOW;
+  gtk_widget_measure(window->window, GTK_ORIENTATION_VERTICAL, (int)outer_width,
+                     NULL, &native_height, NULL, NULL);
+  if (ceil(native_height * window->snapshot.scale) > INT_MAX)
+    return EOVERFLOW;
+  gtk_window_set_default_size(GTK_WINDOW(window->window), (int)outer_width,
+                              native_height);
   return 0;
 }
 int64_t scoop_window_size(SWWindow *window, double width, double height) {

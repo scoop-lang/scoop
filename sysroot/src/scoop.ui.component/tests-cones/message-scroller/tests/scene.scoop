@@ -20,6 +20,7 @@ internal class MessageScene(private val p: MessageProbe, scope: ComponentScope):
                     this.overscan = 80.0
                     this.focus = FocusOptions(Some(p.focus))
                     this.enabled = p.enabled
+                    this.scrollPhysics = p.physics
                 }
             else
                 empty()

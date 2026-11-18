@@ -1,0 +1,91 @@
+package scoop.tests.ui.scroll.accessibility
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class CollectionItems(
+    private val counts: CollectionCounts,
+    private val reverse: Boolean = false,
+    private val removed: Boolean = false
+): ItemSource {
+    public override val count: Long get() =
+        if (removed)
+            99999L
+        else
+            100000L
+    private fun number(index: Long): Long {
+        val ordered =
+            if (reverse)
+                count - 1L - index
+            else
+                index
+        return if (removed && ordered >= 50000L)
+            ordered + 1L
+        else
+            ordered
+    }
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(number(index))
+    public override fun indexOfKey(key: ViewKey): Long? {
+        val number =
+            when (key) {
+                case Number(val value) -> value;
+                else -> return None
+            }
+        if (number < 0L || number >= 100000L || (removed && number == 50000L))
+            return None
+        val ordered =
+            if (removed && number > 50000L)
+                number - 1L
+            else
+                number
+        return Some(
+            if (reverse)
+                count - 1L - ordered
+            else
+                ordered
+        )
+    }
+    fun describe(index: Long): SemanticItemProperties? {
+        counts.descriptions += 1
+        val number = number(index)
+        if (number == 43L)
+            return None
+        return Some(
+            SemanticItemProperties(
+                name = Some(f"Row ${number}"),
+                automationId = Some(f"row-${number}")
+            )
+        )
+    }
+    public override fun build(index: Long): View {
+        counts.builds += 1
+        val label = f"Row ${number(index)}"
+        return element({ mount -> CollectionRow(label, mount) })
+    }
+}
+
+private class CollectionRow(private val label: String, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    private var semantics: SemanticsHandle? = None
+    public override fun onMount() {
+        if (label == "Row 99998")
+            return
+        val value = scope.semantics(SemanticRole.Text)
+        value.update(SemanticProperties(name = Some(label)))
+        semantics = Some(value)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 24.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        when (semantics) {
+            case Some(val value) -> context.semantics(
+                value,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
+    }
+}

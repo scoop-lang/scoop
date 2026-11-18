@@ -1,0 +1,8 @@
+package scoop.ui.component
+
+import scoop.ui.SemanticsReference
+
+internal class CalendarSemanticHeaders {
+    val weekdays = Array<SemanticsReference>(7L) { _ -> SemanticsReference() }
+    val weeks = ArrayList<SemanticsReference>()
+}

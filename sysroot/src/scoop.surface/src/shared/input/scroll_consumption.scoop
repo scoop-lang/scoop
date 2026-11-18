@@ -4,7 +4,7 @@ import scoop.graphics.Point
 import scoop.graphics.native.CanvasGeometry
 import scoop.math.*
 
-/** Shared by all synchronous deliveries of one wheel event. */
+/** Transforms one routed displacement while retaining its unconsumed source units. */
 internal class ScrollConsumption(
     var remaining: InputScrollDelta,
     val point: Point,
@@ -16,13 +16,14 @@ internal class ScrollConsumption(
         lineStep: Double,
         geometry: CanvasGeometry?,
         localPosition: Point?,
-        apply: (Point) -> Point
+        apply: (Point) -> Point,
+        notifyEmpty: Boolean = false
     ) {
         requireInput(lineStep.isFinite() && lineStep > 0.0, "invalid scroll line step")
         if (applying)
             throw IllegalStateException(Some("scroll consumption cannot recurse"))
         val source = scrollVector(remaining)
-        if (source == Point(0.0, 0.0))
+        if (source == Point(0.0, 0.0) && !notifyEmpty)
             return
         val factor =
             when (remaining) {

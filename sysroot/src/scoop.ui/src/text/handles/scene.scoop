@@ -1,0 +1,192 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.InputArea
+import scoop.ui.*
+
+private class TextHandleShape(val caret: Rect, val tip: Point, var center: Point, var hit: Rect) {
+    fun moveX(x: Double) {
+        hit = Rect(hit.x + x - center.x, hit.y, hit.width, hit.height)
+        center = Point(x, center.y)
+    }
+}
+
+internal fun textHandleScene(
+    host: TextSelectionHandles,
+    context: SceneContext,
+    bounds: Rect,
+    selection: EditorSelection,
+    anchor: Rect?,
+    cursor: Rect?,
+    color: Color
+) {
+    if (host.closed || !host.visible || !host.enabled || !host.area.scope.activity.hasFocus)
+        return
+    val visible = context.textHandleBounds(bounds) ?: return
+    val collapsed = selection.anchor.byteOffset == selection.cursor.byteOffset
+    val activeAnchor = host.contact?.anchor ?: false
+    val a = anchor ?: return
+    val c = cursor ?: return
+    val radius = host.options.radius
+    val direction =
+        if (a.x <= c.x)
+            -1.0
+        else
+            1.0
+    val first =
+        textHandleShape(
+            a,
+            visible,
+            radius,
+            host.options.hitRadius,
+            if (collapsed)
+                0.0
+            else
+                direction
+        )
+    val last =
+        textHandleShape(
+            c,
+            visible,
+            radius,
+            host.options.hitRadius,
+            if (collapsed)
+                0.0
+            else
+                -direction
+        )
+    if (!collapsed) {
+        textHandleSeparate(first, last, visible, radius)
+        textHandleDivide(first, last)
+    }
+    val paint = Paint(host.options.color ?: color)
+    context.withState {
+        scene ->
+        scene.clipRect(bounds)
+        if (!collapsed || activeAnchor)
+            textHandleDraw(scene, host.anchorArea, first, radius, paint)
+        if (!collapsed || !activeAnchor)
+            textHandleDraw(scene, host.cursorArea, last, radius, paint)
+        Unit
+    }
+}
+
+private fun textHandleShape(
+    caret: Rect,
+    bounds: Rect,
+    radius: Double,
+    hitRadius: Double,
+    direction: Double
+): TextHandleShape {
+    val insetX = min(radius, bounds.width / 2.0)
+    val insetY = min(radius, bounds.height / 2.0)
+    val center =
+        Point(
+            min(
+                bounds.x + bounds.width - insetX,
+                max(bounds.x + insetX, caret.x + caret.width / 2.0 + direction * radius)
+            ),
+            min(
+                bounds.y + bounds.height - insetY,
+                max(bounds.y + insetY, caret.y + caret.height + radius)
+            )
+        )
+    val tip =
+        Point(
+            min(bounds.x + bounds.width, max(bounds.x, caret.x + caret.width / 2.0)),
+            min(bounds.y + bounds.height, max(bounds.y, caret.y + caret.height))
+        )
+    return TextHandleShape(
+        caret,
+        tip,
+        center,
+        Rect(center.x - hitRadius, center.y - hitRadius, hitRadius * 2.0, hitRadius * 2.0)
+    )
+}
+
+private fun textHandleSeparate(
+    a: TextHandleShape,
+    b: TextHandleShape,
+    bounds: Rect,
+    radius: Double
+) {
+    if (hypot(a.center.x - b.center.x, a.center.y - b.center.y) >= radius * 2.0)
+        return
+    val inset = min(radius, bounds.width / 2.0)
+    val spread = min(radius, (bounds.width - inset * 2.0) / 2.0)
+    val middle =
+        min(
+            bounds.x + bounds.width - inset - spread,
+            max(bounds.x + inset + spread, (a.center.x + b.center.x) / 2.0)
+        )
+    if (a.caret.x <= b.caret.x) {
+        a.moveX(middle - spread)
+        b.moveX(middle + spread)
+    } else {
+        a.moveX(middle + spread)
+        b.moveX(middle - spread)
+    }
+}
+
+private fun textHandleDivide(a: TextHandleShape, b: TextHandleShape) {
+    if (intersectReveal(a.hit, b.hit) == None)
+        return
+    if (abs(a.center.x - b.center.x) >= abs(a.center.y - b.center.y)) {
+        val middle = (a.center.x + b.center.x) / 2.0
+        val left =
+            if (a.center.x <= b.center.x)
+                a
+            else
+                b
+        val right =
+            if (a.center.x <= b.center.x)
+                b
+            else
+                a
+        left.hit = Rect(left.hit.x, left.hit.y, max(0.0, middle - left.hit.x), left.hit.height)
+        right.hit =
+            Rect(
+                middle,
+                right.hit.y,
+                max(0.0, right.hit.x + right.hit.width - middle),
+                right.hit.height
+            )
+    } else {
+        val middle = (a.center.y + b.center.y) / 2.0
+        val top =
+            if (a.center.y <= b.center.y)
+                a
+            else
+                b
+        val bottom =
+            if (a.center.y <= b.center.y)
+                b
+            else
+                a
+        top.hit = Rect(top.hit.x, top.hit.y, top.hit.width, max(0.0, middle - top.hit.y))
+        bottom.hit =
+            Rect(
+                bottom.hit.x,
+                middle,
+                bottom.hit.width,
+                max(0.0, bottom.hit.y + bottom.hit.height - middle)
+            )
+    }
+}
+
+private fun textHandleDraw(
+    context: SceneContext,
+    area: InputArea,
+    shape: TextHandleShape,
+    radius: Double,
+    paint: Paint
+) {
+    context.place(area, shape.hit)
+    context.draw {
+        drawing ->
+        drawing.canvas.drawRect(shape.caret, paint)
+        drawing.canvas.drawLine(shape.tip, shape.center, paint)
+        drawing.canvas.drawCircle(shape.center, radius, paint)
+    }
+}

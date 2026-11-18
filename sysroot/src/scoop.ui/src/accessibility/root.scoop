@@ -1,0 +1,280 @@
+package scoop.ui
+
+import scoop.graphics.Canvas
+import scoop.graphics.Rect
+import scoop.graphics.Path
+import scoop.surface.FrameCompletion
+import scoop.surface.FrameSubmission
+import scoop.surface.InputArea
+import scoop.surface.InputBoundary
+import scoop.window.accessibility.*
+import scoop.ui.text.NativeTextSource
+
+private class SemanticCompletion {
+    var result = SemanticActionResult.Unavailable
+}
+
+/** The single semantic owner attached lazily to one UI root. */
+internal class RootSemantics(
+    private val root: UiRoot,
+    private val provider: AccessibilityProvider
+): Closeable {
+    private val handles = ArrayList<SemanticsHandle>()
+    private var ordered: Array<SemanticsHandle> = []
+    private var structure = true
+    private var content = true
+    private var dirty = true
+    private var closed = false
+    private var drawing: SemanticScene? = None
+    private var focusedArea: InputArea? = None
+    private var focusActive = false
+    private var boundary: InputBoundary? = None
+    private val reveals = SemanticRevealController(root)
+    private val observer = root.surface.input.observeActivity { focusChanged() }
+
+    fun create(owner: MountedNode, role: SemanticRole, parent: SemanticsHandle?): SemanticsHandle {
+        val inherited = semanticParent(parent, inheritedSemantics(owner))
+        val handle =
+            SemanticsHandle(
+                owner,
+                this,
+                provider.createNode(role, inherited?.resource),
+                parent,
+                inherited
+            )
+        handle.resource.update(handle.properties, semanticActions(handle, handle.actions))
+        handles.add(handle)
+        owner.semanticHandles.add(handle)
+        structureChanged()
+        return handle
+    }
+
+    fun changed() {
+        dirty = true
+        if (!closed && root.isOpen)
+            root.scheduleUpdate()
+    }
+    fun structureChanged() {
+        structure = true
+        contentChanged()
+    }
+    fun contentChanged() {
+        content = true
+        changed()
+    }
+
+    fun publish() {
+        if (closed || !dirty || !root.isOpen || provider.isClosed)
+            return
+        if (structure) {
+            when (val node = root.node) {
+                case Some(val value) -> {
+                    val order = SemanticOrder()
+                    order.apply(value, None)
+                    ordered = order.handles.toArray()
+                }
+                case None -> return
+            }
+            structure = false
+        }
+        if (content) {
+            SemanticContent(ordered).apply()
+            content = false
+        }
+        refreshSemanticTextChildren(ordered)
+        reveals.check()
+        var focused: AccessibilityNode? = None
+        for (handle in handles) {
+            if (handle.active && (handle.focus?.handle?.isFocusActive ?: false)) {
+                focused = Some(handle.resource)
+                break
+            }
+        }
+        for (handle in handles)
+            if (handle.active)
+                handle.refreshActivation()
+        provider.focused = focused
+        provider.publish()
+        dirty = false
+    }
+
+    private fun focusChanged() {
+        val nextBoundary = root.surface.inputBoundary
+        val sameBoundary =
+            when ((boundary, nextBoundary)) {
+                case(Some(val before), Some(val after)) -> before === after
+                case(None, None) -> true
+                else -> false
+            }
+        if (!sameBoundary) {
+            boundary = nextBoundary
+            contentChanged()
+        }
+        if (closed || !root.isOpen)
+            return
+        reveals.check()
+        val current = root.surface.focusedArea
+        val active = current?.isFocusActive ?: false
+        val same =
+            when ((focusedArea, current)) {
+                case(Some(val before), Some(val after)) -> before === after
+                case(None, None) -> true
+                else -> false
+            }
+        if (same && focusActive == active)
+            return
+        focusedArea = current
+        focusActive = active
+        changed()
+    }
+
+    fun checkFocus(handle: SemanticsHandle, target: FocusTarget) {
+        for (other in handles)
+            when (val bound = other.focus) {
+                case Some(val value) -> requireUi(
+                    other === handle || !other.active || value !== target,
+                    "focus target already has a semantic node"
+                )
+                case None -> {}
+            }
+    }
+
+    fun perform(handle: SemanticsHandle, action: () -> SemanticActionResult): SemanticActionResult {
+        if (closed || !handle.active)
+            return SemanticActionResult.Unavailable
+        if (root.host.isDispatching)
+            return SemanticActionResult.Busy
+        when (currentEvaluation()) {
+            case Some(_) -> return SemanticActionResult.Busy
+            case None -> {}
+        }
+        if (!handle.owner.scope.input.isInputAllowed)
+            return SemanticActionResult.Rejected
+        val completed = SemanticCompletion()
+        root.surface.dispatch {
+            completed.result = action()
+            if (root.isOpen)
+                root.flush()
+        }
+        return completed.result
+    }
+
+    fun beginFrame() {
+        drawing?.close()
+        drawing = Some(SemanticScene())
+    }
+    private fun frame(): SemanticScene {
+        when (drawing) {
+            case None -> drawing = Some(SemanticScene())
+            case Some(_) -> {}
+        }
+        return drawing!!
+    }
+    fun revealText(
+        handle: SemanticsHandle,
+        region: () -> Rect?,
+        horizontal: ScrollAlignment,
+        vertical: ScrollAlignment
+    ): SemanticActionResult = reveals.requestRegion(handle, region, horizontal, vertical)
+    fun reveal(handle: SemanticsHandle): SemanticActionResult = reveals.request(handle)
+    fun revealItem(parent: SemanticsHandle, entry: LazyItemEntry): SemanticActionResult =
+        reveals.requestItem(parent, entry)
+    fun cancelCollectionReveal(parent: SemanticsHandle) {
+        reveals.cancelCollection(parent)
+    }
+    fun cancelReveal() {
+        reveals.cancel()
+    }
+
+    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect, path: Array<ScrollReveal>) {
+        frame().capture(handle, canvas, rect, path)
+    }
+    fun capture(handle: SemanticsHandle, canvas: Canvas, shape: Path, path: Array<ScrollReveal>) {
+        frame().capture(handle, canvas, shape, path)
+    }
+    fun captureText(
+        binding: SemanticTextBinding,
+        canvas: Canvas,
+        bounds: Rect,
+        source: NativeTextSource,
+        path: Array<ScrollReveal>
+    ) {
+        frame().captureText(binding, canvas, bounds, source, path)
+    }
+    fun complete(frame: FrameCompletion) {
+        val scene = drawing
+        drawing = None
+        try {
+            if (closed || provider.isClosed)
+                return
+            if (frame.submission != FrameSubmission.Accepted) {
+                reveals.discarded()
+                return
+            }
+            for (handle in handles)
+                if (handle.active)
+                    when (scene) {
+                        case Some(val value) -> value.apply(handle)
+                        case None -> {
+                            handle.resource.geometry = None
+                            when (handle.textBinding) {
+                                case Some(val binding) -> binding.path = None;
+                                case None -> {}
+                            }
+                            handle.revealPlacement = None
+                        }
+                    }
+            reveals.complete()
+            dirty = true
+            publish()
+        } finally {
+            scene?.close()
+        }
+    }
+
+    fun retire(handle: SemanticsHandle) {
+        reveals.retire(handle)
+        if (!closed && !provider.isClosed) {
+            val parent = handle.parent
+            for (child in handles) {
+                if (child !== handle && !child.resource.isClosed) {
+                    if (sameSemantics(child.parent, Some(handle))) {
+                        child.resource.reparent(parent?.resource)
+                        child.parent = parent
+                    }
+                    if (sameSemantics(child.explicitParent, Some(handle)))
+                        child.explicitParent = parent
+                }
+            }
+            if (!handle.resource.isClosed)
+                handle.resource.close()
+        }
+        handle.finishClose()
+        for (index in 0L ..< handles.size)
+            if (handles[index] === handle) {
+                handles.removeAt(index)
+                break
+            }
+        if (handle.owner.active && root.isOpen)
+            handle.owner.invalidateScene()
+        structureChanged()
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        reveals.close()
+        val scene = drawing
+        drawing = None
+        focusedArea = None
+        var failure = cleanupUi(None) { scene?.close() }
+        failure = cleanupUi(failure) { observer.close() }
+        failure = cleanupUi(failure) { provider.close() }
+        for (handle in handles)
+            handle.finishClose()
+        handles.clear()
+        ordered = []
+        throwUi(failure)
+    }
+}

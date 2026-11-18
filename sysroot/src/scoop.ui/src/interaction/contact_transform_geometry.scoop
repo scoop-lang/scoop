@@ -1,0 +1,67 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.*
+import scoop.surface.InputArea
+import scoop.window.*
+
+internal class ContactTransformPair(first: ContactState, second: ContactState) {
+    val firstId = first.id
+    val secondId = second.id
+    val ids = [first.id, second.id]
+    val input = TransformGestureInput.Contacts(first.id, first.kind, second.id, second.kind)
+    var firstPointer = first.pointer
+    var secondPointer = second.pointer
+    var previousFirst = first.pointer
+    var previousSecond = second.pointer
+    var sample: TransformGestureSample? = None
+    val active: Boolean get() =
+        when (sample) {
+            case Some(_) -> true
+            case None -> false
+        }
+    fun contains(id: ContactId): Boolean = firstId == id || secondId == id
+    fun record(value: ContactState) {
+        if (value.id == firstId)
+            firstPointer = value.pointer
+        else
+            secondPointer = value.pointer
+    }
+    fun advance() {
+        previousFirst = firstPointer
+        previousSecond = secondPointer
+    }
+}
+
+internal struct ContactTransformFrame(val position: Point, val span: Double, val angle: Double) {
+    val valid: Boolean get() = span.isFinite() && span > 0.0 && angle.isFinite()
+}
+
+internal fun contactTransformFrame(
+    area: InputArea,
+    first: PointerState,
+    second: PointerState
+): ContactTransformFrame? {
+    val a = area.toLocal(Point(first.logicalPosition.x, first.logicalPosition.y)) ?: return None
+    val b = area.toLocal(Point(second.logicalPosition.x, second.logicalPosition.y)) ?: return None
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    return Some(
+        ContactTransformFrame(
+            Point(a.x / 2.0 + b.x / 2.0, a.y / 2.0 + b.y / 2.0),
+            hypot(dx, dy),
+            atan2(dy, dx)
+        )
+    )
+}
+
+internal fun contactRotation(previous: Double, current: Double): Double {
+    val delta = current - previous
+    return if (delta > PI)
+        delta - 2.0 * PI
+    else
+        if (delta < -PI)
+            delta + 2.0 * PI
+        else
+            delta
+}

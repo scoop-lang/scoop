@@ -15,20 +15,34 @@ internal class ScrollReveal(
 ) {
     val active: Boolean get() =
         viewport.matches(state, layout.binding) &&
-            layout.snapshot.viewport.width >
+            layout.snapshot.visibleSize.width >
             0.0 &&
-            layout.snapshot.viewport.height >
+            layout.snapshot.visibleSize.height >
             0.0
     val current: Boolean get() = active && state.requestRevision == layout.revision
 
     fun local(window: Rect): Rect? {
         val rect = localReveal(geometry, window) ?: return None
-        val offset = layout.snapshot.offset
-        return Some(Rect(rect.x + offset.x, rect.y + offset.y, rect.width, rect.height))
+        val offset = layout.presentationOffset
+        val padding = layout.snapshot.padding
+        return Some(
+            Rect(
+                rect.x + offset.x - padding.left,
+                rect.y + offset.y - padding.top,
+                rect.width,
+                rect.height
+            )
+        )
     }
-    fun needsMove(rect: Rect): Boolean {
+    fun needsMove(
+        rect: Rect,
+        horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+        vertical: ScrollAlignment = ScrollAlignment.Nearest
+    ): Boolean {
+        if (layout.overscroll != Point(0.0, 0.0))
+            return true
         val snapshot = layout.snapshot
-        val wanted = snapshot.revealedOffset(rect)
+        val wanted = snapshot.revealedOffset(rect, horizontal, vertical)
         val visible =
             when (
                 intersectReveal(
@@ -36,8 +50,8 @@ internal class ScrollReveal(
                     Rect(
                         snapshot.offset.x,
                         snapshot.offset.y,
-                        snapshot.viewport.width,
-                        snapshot.viewport.height
+                        snapshot.visibleSize.width,
+                        snapshot.visibleSize.height
                     )
                 )
             ) {
@@ -66,9 +80,22 @@ private class RevealMove(
     var revision: ULong
 )
 
-/** Tracks only the actual position intents issued by this focus request. */
-internal class RevealAttempt {
+/** Tracks the scroll bindings and position intents used by one reveal request. */
+internal class RevealAttempt(private val keyboard: KeyboardReveal? = None) {
     private val moves = ArrayList<RevealMove>()
+    fun watch(path: Array<ScrollReveal>) {
+        for (boundary in path)
+            remember(boundary, boundary.state.requestRevision)
+    }
+    fun watch(viewport: ScrollViewport) {
+        val state = viewport.state
+        for (move in moves)
+            if (move.viewport === viewport) {
+                move.revision = state.requestRevision
+                return
+            }
+        moves.add(RevealMove(viewport, state, viewport.bindingRevision, state.requestRevision))
+    }
     fun retainFor(node: MountedNode) {
         var index = 0L
         while (index < moves.size) {
@@ -101,34 +128,61 @@ internal class RevealAttempt {
     fun advance(scene: FocusScene, area: InputArea, region: Rect? = None): RevealProgress {
         if (!isCurrent)
             return RevealProgress.Cancelled
-        var rect =
+        val rect =
             when (region) {
                 case Some(val value) -> area.toWindow(value)
                 case None -> area.windowBounds
             } ?:
                 return RevealProgress.Unavailable
+        return advance(scene.path(area), rect, area.canFocus)
+    }
+    fun advance(
+        route: Array<ScrollReveal>,
+        bounds: Rect,
+        visible: Boolean,
+        horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+        vertical: ScrollAlignment = ScrollAlignment.Nearest
+    ): RevealProgress {
+        if (!(keyboard?.active ?: true))
+            return RevealProgress.Cancelled
+        if (!isCurrent)
+            return RevealProgress.Cancelled
+        var rect = bounds
         if (rect.width <= 0.0 || rect.height <= 0.0)
             return RevealProgress.Unavailable
-        val route = scene.path(area)
         var index = route.size
         while (index > 0L) {
             index -= 1L
             val boundary = route[index]
             if (!boundary.active)
                 return RevealProgress.Unavailable
+            if (keyboard?.prepare(boundary, rect) ?: false) {
+                remember(boundary, boundary.state.requestRevision)
+                return RevealProgress.Moved
+            }
             val local = boundary.local(rect) ?: return RevealProgress.Unavailable
             if (!boundary.current)
                 return RevealProgress.Waiting
-            if (boundary.needsMove(local)) {
+            val h =
+                if (index == route.size - 1L)
+                    horizontal
+                else
+                    ScrollAlignment.Nearest
+            val v =
+                if (index == route.size - 1L)
+                    vertical
+                else
+                    ScrollAlignment.Nearest
+            if (boundary.needsMove(local, h, v)) {
                 val revision =
-                    boundary.state.position(boundary.layout.snapshot.revealedOffset(local))
+                    boundary.state.position(boundary.layout.snapshot.revealedOffset(local, h, v))
                 remember(boundary, revision)
                 return RevealProgress.Moved
             }
             rect =
                 intersectReveal(rect, boundary.geometry.bounds) ?: return RevealProgress.Unavailable
         }
-        return if (area.canFocus)
+        return if (visible)
             RevealProgress.Ready
         else
             RevealProgress.Unavailable

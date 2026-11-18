@@ -1,0 +1,266 @@
+package scoop.ui
+
+import scoop.math.*
+import scoop.surface.*
+import scoop.window.*
+
+/** A fixed contact pair shares the same scope claim and transform event stream. */
+internal class ContactTransform(
+    private val area: InputArea,
+    private val read: () -> TransformGestureOptions,
+    private val receive: (TransformGestureEvent) -> Unit,
+    private val interruptNative: () -> Unit
+): Closeable {
+    private val contacts = ArrayList<ContactId>()
+    private var waiting: ContactState? = None
+    private var pair: ContactTransformPair? = None
+    private var blocked = false
+    private var moved = false
+    private var closed = false
+
+    val active: Boolean get() = pair?.active ?: false
+
+    private fun allowed(): Boolean {
+        val options = read()
+        return !closed &&
+            !area.isClosed &&
+            area.scope.isInputAllowed &&
+            options.enabled &&
+            options.contacts &&
+            (options.magnify || options.rotate)
+    }
+
+    fun observe(context: RoutedEventContext, event: InputContactEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Cancelled(val id, val reason, _) -> {
+                forget(id)
+                val current = pair ?: return
+                if (current.contains(id))
+                    cancel(TransformGestureCancelReason.Input(reason), Some(id))
+            }
+            case Began(val value) -> {
+                if (context.phase == RoutedPhase.Notification)
+                    return
+                rememberContact(contacts, value.id)
+                if (contacts.size > 2L) {
+                    cancel(TransformGestureCancelReason.AdditionalContact)
+                    return
+                }
+                if (contacts.size == 1L && !blocked && allowed()) {
+                    interruptNative()
+                    if (allowed())
+                        waiting = Some(value)
+                }
+            }
+            case Moved(val value) -> {
+                if (waiting?.id == Some(value.id))
+                    waiting = Some(value)
+            }
+            else -> {}
+        }
+    }
+
+    fun handle(context: RoutedEventContext, event: InputContactEvent) {
+        if (!allowed())
+            return
+        when (event) {
+            case Began(val value) -> {
+                if (blocked || contacts.size != 2L)
+                    return
+                val first = waiting ?: return
+                if (first.id == value.id)
+                    return
+                pair = Some(ContactTransformPair(first, value))
+                waiting = None
+            }
+            case Moved(val value) -> {
+                moved = true
+                val current = current(value.id) ?: return
+                current.record(value)
+                val sample = sample(current, value.pointer.time) ?: return
+                val starting = !current.active
+                if (starting) {
+                    val acquired = area.scope.claimContacts(current.ids)
+                    if (!acquired || !same(current) || !allowed()) {
+                        if (acquired)
+                            release(current)
+                        if (same(current))
+                            cancel(TransformGestureCancelReason.Explicit)
+                        return
+                    }
+                }
+                current.sample = Some(sample)
+                current.advance()
+                context.consume()
+                receive(
+                    if (starting)
+                        TransformGestureEvent.Started(sample)
+                    else
+                        TransformGestureEvent.Changed(sample)
+                )
+            }
+            case Ended(val value) -> {
+                val current = current(value.id) ?: return
+                if (!current.active) {
+                    cancel(TransformGestureCancelReason.Explicit)
+                    return
+                }
+                current.record(value)
+                val sample = sample(current, value.pointer.time) ?: return
+                pair = None
+                waiting = None
+                blocked = contacts.size > 0L
+                context.consume()
+                var failure = cleanupUi(None) { release(current, Some(value.id)) }
+                failure = cleanupUi(failure) { receive(TransformGestureEvent.Ended(sample)) }
+                throwUi(failure)
+            }
+            else -> {}
+        }
+    }
+
+    private fun sample(current: ContactTransformPair, time: InputTime): TransformGestureSample? {
+        val previous =
+            when (
+                val value =
+                    contactTransformFrame(area, current.previousFirst, current.previousSecond)
+            ) {
+                case Some(val value) -> value
+                case None -> {
+                    cancel(TransformGestureCancelReason.GeometryUnavailable)
+                    return None
+                }
+            }
+        val next =
+            when (
+                val value = contactTransformFrame(area, current.firstPointer, current.secondPointer)
+            ) {
+                case Some(val value) -> value
+                case None -> {
+                    cancel(TransformGestureCancelReason.GeometryUnavailable)
+                    return None
+                }
+            }
+        if (!previous.valid || !next.valid) {
+            cancel(TransformGestureCancelReason.InvalidTransform)
+            return None
+        }
+        val options = read()
+        val scaleDelta =
+            if (options.magnify)
+                next.span / previous.span
+            else
+                1.0
+        val rotationDelta =
+            if (options.rotate)
+                contactRotation(previous.angle, next.angle)
+            else
+                0.0
+        if (!current.active) {
+            val distance =
+                max(
+                    if (options.magnify)
+                        abs(next.span - previous.span) / 2.0
+                    else
+                        0.0,
+                    min(previous.span, next.span) / 2.0 * abs(rotationDelta)
+                )
+            if (!distance.isFinite()) {
+                cancel(TransformGestureCancelReason.InvalidTransform)
+                return None
+            }
+            if (distance == 0.0 || distance < options.contactThreshold)
+                return None
+        }
+        val result =
+            transformSample(
+                next.position,
+                current.sample,
+                scaleDelta,
+                rotationDelta,
+                time,
+                current.input
+            )
+        when (result) {
+            case Some(_) -> {}
+            case None -> cancel(TransformGestureCancelReason.InvalidTransform)
+        }
+        return result
+    }
+
+    private fun current(id: ContactId): ContactTransformPair? {
+        val current = pair ?: return None
+        return if (!blocked && current.contains(id))
+            Some(current)
+        else
+            None
+    }
+
+    private fun same(value: ContactTransformPair): Boolean =
+        when (pair) {
+            case Some(val current) -> current === value
+            case None -> false
+        }
+
+    private fun forget(id: ContactId) {
+        forgetContact(contacts, id)
+        if (waiting?.id == Some(id))
+            waiting = None
+        if (contacts.size == 0L)
+            blocked = false
+    }
+
+    fun finish(event: InputContactEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Moved(val value) -> {
+                if (!moved && !blocked && (pair?.contains(value.id) ?: false))
+                    cancel(TransformGestureCancelReason.PreventedMovement)
+                moved = false
+            }
+            case Ended(val value) -> {
+                if (!blocked && (pair?.contains(value.id) ?: false))
+                    cancel(TransformGestureCancelReason.PreventedEnd, Some(value.id))
+                forget(value.id)
+            }
+            else -> {}
+        }
+    }
+
+    private fun release(current: ContactTransformPair, except: ContactId? = None) {
+        var failure: Throwable? = None
+        for (id in current.ids)
+            failure =
+                cleanupUi(failure) {
+                    if (!area.isClosed && except != Some(id))
+                        area.scope.cancelContactClaim(id)
+                }
+        throwUi(failure)
+    }
+
+    fun cancel(reason: TransformGestureCancelReason, except: ContactId? = None) {
+        val current = pair
+        pair = None
+        waiting = None
+        blocked = contacts.size > 0L
+        val value = current ?: return
+        val snapshot = value.sample ?: return
+        var failure = cleanupUi(None) { release(value, except) }
+        failure = cleanupUi(failure) { receive(TransformGestureEvent.Cancelled(snapshot, reason)) }
+        throwUi(failure)
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        val failure = cleanupUi(None) { cancel(TransformGestureCancelReason.Closed) }
+        contacts.clear()
+        waiting = None
+        blocked = false
+        throwUi(failure)
+    }
+}

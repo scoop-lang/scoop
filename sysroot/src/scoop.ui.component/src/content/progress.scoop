@@ -8,6 +8,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.column as progressColumn
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public class ProgressProps public constructor(
     public val value: Double?,
@@ -22,7 +23,8 @@ public class ProgressProps public constructor(
     public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
     public val period: Duration = Duration.seconds(2L),
     public val fonts: FontCollection? = None,
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     public val position: Double? = progressPosition(value, minimum, maximum)
     init {
@@ -47,7 +49,7 @@ public class Progress public constructor(
     private val props: Props<ProgressProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val labels = ActionTextStyle()
     private val values = ActionTextStyle()
     public override fun onMount() {
@@ -99,23 +101,52 @@ public class Progress public constructor(
                 ),
                 { current, mount -> ProgressInk(current, scope = mount) }
             )
-        return progressColumn {
-            if (panelPresent(labelCaption) || panelPresent(valueCaption))
-                this.add(
-                    panelSlot(
-                        panelAside(
-                            labelCaption,
-                            valueCaption,
-                            8.0 * density,
-                            theme.tokens.typography.body.fontSize * 4.0
-                        ),
-                        0L
+        val content =
+            progressColumn {
+                if (panelPresent(labelCaption) || panelPresent(valueCaption))
+                    this.add(
+                        panelSlot(
+                            panelAside(
+                                labelCaption,
+                                valueCaption,
+                                8.0 * density,
+                                theme.tokens.typography.body.fontSize * 4.0
+                            ),
+                            0L
+                        )
                     )
-                )
-            this.add(panelSlot(track, 1L))
-            this.spacing = 12.0 * density
-            this.alignment = CrossAlignment.Stretch
-        }
+                this.add(panelSlot(track, 1L))
+                this.spacing = 12.0 * density
+                this.alignment = CrossAlignment.Stretch
+            }
+        val facts =
+            input.semantics.properties(
+                range =
+                    when (input.position) {
+                        case Some(val position) -> Some(
+                            SemanticValueRange(
+                                input.minimum,
+                                input.maximum,
+                                input.minimum + (input.maximum - input.minimum) * position
+                            )
+                        )
+                        case None -> None
+                    }
+            ).copy {
+                if (name == None && input.semantics.relations.labelledBy.size == 0L)
+                    name =
+                        when (input.label) {
+                            case Some(val caption) -> candidateCaption(caption)
+                            case None -> None
+                        }
+            }
+        return semanticContent(
+            content,
+            SemanticRole.ProgressBar,
+            facts,
+            relations = input.semantics.relations,
+            reference = input.semantics.reference
+        )
     }
 }
 
@@ -138,6 +169,7 @@ public class ProgressBuilder internal constructor() {
     public var period: Duration = Duration.seconds(2L)
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var key: ViewKey = ViewKey.Position
     public fun label(text: String): Unit {
         label = Some(PanelContent.Label(LabelProps(LabelText.Plain(text, None))))
@@ -188,7 +220,8 @@ internal fun makeProgress(value: Double?, configure: ProgressBuilder.() -> Unit)
             builder.transition,
             builder.period,
             builder.fonts,
-            builder.theme
+            builder.theme,
+            builder.semantics
         ),
         { current, mount -> Progress(current, scope = mount) },
         builder.key

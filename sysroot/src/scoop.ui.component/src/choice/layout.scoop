@@ -1,7 +1,9 @@
 package scoop.ui.component
 
 import scoop.graphics.Point
+import scoop.graphics.Rect
 import scoop.ui.*
+import scoop.window.accessibility.*
 import scoop.ui.style.*
 import scoop.ui.style.style as baseStyle
 
@@ -17,7 +19,9 @@ internal fun choiceLayout(
     preferred: FocusHandle? = None,
     navigate: (FocusHandle) -> Unit = {},
     fitCross: Boolean = true,
-    roving: Boolean = true
+    roving: Boolean = true,
+    semantics: SemanticsHandle? = None,
+    semanticOptions: ComponentSemantics = ComponentSemantics()
 ): View {
     val slots = Array<GroupSlot>(children.size) { _ -> GroupSlot() }
     val layout =
@@ -49,7 +53,7 @@ internal fun choiceLayout(
         )
     return styled(
         element(
-            ChoiceNavigationProps(options, enabled),
+            ChoiceNavigationProps(options, enabled, semantics, semanticOptions),
             { current, mount -> ChoiceNavigation(current, scope = mount) },
             [
                 element(
@@ -62,7 +66,12 @@ internal fun choiceLayout(
     ) { this.style = style.resolve(baseStyle()) }
 }
 
-private class ChoiceNavigationProps(val navigation: NavigationOptions, val enabled: Boolean)
+private class ChoiceNavigationProps(
+    val navigation: NavigationOptions,
+    val enabled: Boolean,
+    val semantics: SemanticsHandle?,
+    val semanticOptions: ComponentSemantics
+)
 
 private class ChoiceNavigation(
     private val props: Props<ChoiceNavigationProps>,
@@ -75,6 +84,17 @@ private class ChoiceNavigation(
     public override fun update(): UiInvalidation {
         scope.input.enabled = props.value.enabled
         navigation!!.options = props.value.navigation
+        val value = props.value
+        value.semantics?.bindReference(value.semanticOptions.reference)
+        value.semantics?.update(
+            value.semanticOptions.properties(enabled = value.enabled).copy {
+                if (value.semantics?.role == Some(SemanticRole.RadioGroup)) {
+                    selectionMode = Some(SemanticSelectionMode.Single)
+                    required = true
+                }
+            },
+            relations = value.semanticOptions.relations
+        )
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -85,6 +105,13 @@ private class ChoiceNavigation(
         return LayoutResult(result, Unit)
     }
     public override fun scene(context: SceneContext, measured: Unit) {
+        when (val handle = props.value.semantics) {
+            case Some(val value) -> context.semantics(
+                value,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
         context.children()
     }
 }

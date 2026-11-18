@@ -1,4 +1,5 @@
 #include "window.h"
+#include <ole2.h>
 #include <shobjidl.h>
 
 const WCHAR sw_window_class[] = L"Scoop.Window";
@@ -73,6 +74,18 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   case SW_READY:
     sw_watch_message(app, (int64_t)wp);
     return 0;
+  case SW_PREFERENCES:
+  case WM_SETTINGCHANGE:
+  case WM_THEMECHANGED: {
+    SWEvent *event = calloc(1, sizeof(*event));
+    if (!event)
+      sw_fail(app, ERROR_NOT_ENOUGH_MEMORY);
+    else {
+      event->header.kind = 102;
+      sw_enqueue(app, event);
+    }
+    return 0;
+  }
   case WM_TIMER:
     if (wp == 1) {
       KillTimer(hwnd, 1);
@@ -92,7 +105,7 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (!event)
       sw_fail(app, ERROR_NOT_ENOUGH_MEMORY);
     else {
-      event->data.kind = msg == WM_DISPLAYCHANGE ? 100 : 101;
+      event->header.kind = msg == WM_DISPLAYCHANGE ? 100 : 101;
       sw_enqueue(app, event);
     }
     // A shutdown request is delivered as an intent; forced termination is an OS
@@ -106,9 +119,20 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 int64_t scoop_window_windows_prepare_dpi(void) {
   DPI_AWARENESS_CONTEXT required = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
-  if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required)) {
-    if (!SetProcessDpiAwarenessContext(required))
-      return GetLastError();
+  DPI_AWARENESS_CONTEXT current = GetThreadDpiAwarenessContext();
+  if (!AreDpiAwarenessContextsEqual(current, required)) {
+    DPI_AWARENESS awareness = GetAwarenessFromDpiAwarenessContext(current);
+    if (awareness == DPI_AWARENESS_PER_MONITOR_AWARE) {
+      // An inherited V1 default is already fixed for the process. Upgrade only
+      // this owner; existing HWNDs retain their own creation-time awareness.
+      if (!SetThreadDpiAwarenessContext(required))
+        return GetLastError();
+    } else {
+      if (awareness != DPI_AWARENESS_UNAWARE)
+        return ERROR_ACCESS_DENIED;
+      if (!SetProcessDpiAwarenessContext(required))
+        return GetLastError();
+    }
     if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required))
       return ERROR_INVALID_STATE;
   }
@@ -159,11 +183,25 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
     if (app->wake)
       app->hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, host_class, L"", WS_POPUP,
                                   0, 0, 0, 0, NULL, NULL, instance, app);
-    if (app->hwnd)
-      return (SWResult){app, 0};
-    error = GetLastError();
+    if (app->hwnd) {
+      HRESULT ole = OleInitialize(NULL);
+      app->ole_initialized = SUCCEEDED(ole);
+      error = FAILED(ole) ? (DWORD)ole : (DWORD)sw_preferences_start(app);
+      if (!error)
+        return (SWResult){app, 0};
+      sw_preferences_stop(app);
+      if (app->ole_initialized)
+        OleUninitialize();
+      DestroyWindow(app->hwnd);
+    } else
+      error = GetLastError();
     if (app->wake)
       CloseHandle(app->wake);
+    while (app->head) {
+      SWEvent *event = app->head;
+      app->head = event->next;
+      sw_free_event(event);
+    }
     free(app);
   }
   UnregisterClassW(sw_window_class, instance);
@@ -172,17 +210,34 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
 }
 
 int32_t scoop_window_application_run(SWApplication *app) {
+  static const struct {
+    UINT first, last, flags;
+  } queues[] = {{0, WM_APP - 1, PM_REMOVE},
+                {WM_PAINT, WM_PAINT, PM_REMOVE},
+                {WM_TIMER, WM_TIMER, PM_REMOVE},
+                {0, 0, PM_REMOVE}};
   while (!app->stopped) {
     MSG msg;
-    // A finite snapshot gives native input a turn even in explicit Poll mode.
-    for (int n = 0; n < 64 && PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE); ++n) {
-      if (msg.message == WM_QUIT)
-        return ERROR_CANCELLED;
-      if (!sw_menu_translate(app, &msg)) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+    // Keep native input and translated characters together; PM_QS_INPUT alone
+    // excludes posted WM_CHAR messages. Application wakes use WM_APP or above.
+    // Bound each category so neither continuous wakes nor native input can
+    // starve the other, and always give paint and timers a turn.
+    for (int n = 0; n < 16 && !app->stopped; ++n) {
+      bool dispatched = false;
+      for (size_t queue = 0; queue < ARRAYSIZE(queues) && !app->stopped;
+           ++queue) {
+        if (!PeekMessageW(&msg, NULL, queues[queue].first, queues[queue].last,
+                          queues[queue].flags))
+          continue;
+        dispatched = true;
+        if (msg.message == WM_QUIT)
+          return ERROR_CANCELLED;
+        if (!sw_menu_translate(app, &msg)) {
+          TranslateMessage(&msg);
+          DispatchMessageW(&msg);
+        }
       }
-      if (app->stopped)
+      if (!dispatched)
         break;
     }
     LONG error = InterlockedExchange(&app->error, 0);
@@ -217,7 +272,10 @@ void scoop_window_application_stop(SWApplication *app) {
   sw_wake(app);
 }
 void scoop_window_application_destroy(SWApplication *app) {
+  sw_preferences_stop(app);
   sw_text_application_destroy(app);
+  if (app->ole_initialized)
+    OleUninitialize();
   KillTimer(app->hwnd, 1);
   DestroyWindow(app->hwnd);
   CloseHandle(app->wake);
@@ -239,7 +297,7 @@ void sw_enqueue(SWApplication *app, SWEvent *event) {
   app->tail = event;
   sw_wake(app);
 }
-void sw_stamp_input(SWEventData *data) {
+void sw_stamp_event(SWEventHeader *data) {
   LARGE_INTEGER counter, frequency;
   if (!QueryPerformanceFrequency(&frequency) ||
       !QueryPerformanceCounter(&counter)) {
@@ -259,10 +317,11 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
     sw_fail(window->application, ERROR_NOT_ENOUGH_MEMORY);
     return NULL;
   }
-  event->data.window = window->identity;
-  event->data.kind = kind;
-  if (kind == 10 || kind == 12)
-    sw_stamp_input(&event->data);
+  event->header.window = window->identity;
+  event->header.kind = kind;
+  if (kind == SWKeyboard || kind == SWPointer || kind == SWContact ||
+      kind == SWGesture)
+    sw_stamp_event(&event->header);
   return event;
 }
 void *scoop_window_next_event(SWApplication *app) {
@@ -274,9 +333,28 @@ void *scoop_window_next_event(SWApplication *app) {
   }
   return event;
 }
+SWEventHeader scoop_window_event_header(SWEvent *event) {
+  return event->header;
+}
 SWEventData scoop_window_event_data(SWEvent *event) { return event->data; }
+SWKeyboardData scoop_window_event_keyboard(SWEvent *event) {
+  return event->keyboard;
+}
+SWPointerData scoop_window_event_pointer(SWEvent *event) {
+  return event->pointer;
+}
+SWGestureData scoop_window_event_gesture(SWEvent *event) {
+  return event->gesture;
+}
+SWContactData scoop_window_event_contact(SWEvent *event) {
+  return event->contact;
+}
+int64_t scoop_window_event_modifiers(SWEvent *event) {
+  return event->modifiers;
+}
 void sw_free_event(SWEvent *event) {
-  free((void *)event->data.text);
+  if (event->header.kind == SWKeyboard)
+    free((void *)event->keyboard.text);
   for (int64_t n = 0; n < event->edit_count; ++n)
     free((void *)event->edits[n].text);
   free(event->edits);

@@ -1,0 +1,84 @@
+package scoop.ui.text
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class TextServiceTransactionTest {
+    @Test
+    fun `native replacement shares policy selection mapping and one undo transaction`() {
+        val editor = TextEditorState("teh", Some(Utf8Selection(3L, 3L)))
+        val raw =
+            prepareEditorInput(
+                editor,
+                TextInputBatch(
+                    Some(0L),
+                    [TextInputOperation.Commit(" ", TextReplacement.CurrentSelection)]
+                )
+            )!!
+        val calls = ArrayList<TextEditSource>()
+        val policy =
+            textEditPolicy {
+                transform {
+                    candidate ->
+                    calls.add(candidate.source)
+                    assertEquals(TextEditSource.NativeInput, candidate.source)
+                    assertEquals("the ", candidate.after.text)
+                    TextEditDecision.Transform([TextEditReplacement(Utf8Range(0L, 3L), "正確")])
+                }
+            }
+        assertTrue(
+            finishEditorInput(
+                raw,
+                policy,
+                TextEditSource.NativeInput,
+                replacements = [TextEditReplacement(Utf8Range(0L, 3L), "the")]
+            ).publish(editor, true)
+        )
+        assertEquals(1L, calls.size)
+        assertEquals("正確 ", editor.text)
+        assertEquals(Utf8Selection(7L, 7L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("teh", editor.text)
+        assertEquals(Utf8Selection(3L, 3L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("正確 ", editor.text)
+    }
+    @Test
+    fun `policy rejection preserves both original typing and system correction atomically`() {
+        val editor = TextEditorState("teh", Some(Utf8Selection(3L, 3L)))
+        val raw =
+            prepareEditorInput(
+                editor,
+                TextInputBatch(
+                    None,
+                    [TextInputOperation.Commit(" ", TextReplacement.CurrentSelection)]
+                )
+            )!!
+        val policy = textEditPolicy { transform { _ -> TextEditDecision.Reject } }
+        val result =
+            finishEditorInput(
+                raw,
+                policy,
+                TextEditSource.NativeInput,
+                replacements = [TextEditReplacement(Utf8Range(0L, 3L), "the")]
+            )
+        assertFalse(result.accepted)
+        result.publish(editor, true)
+        assertEquals("teh", editor.text)
+        assertEquals(Utf8Selection(3L, 3L), editor.selection)
+        assertFalse(editor.canUndo)
+    }
+    @Test
+    fun `checking context retains UTF8 offsets across paragraphs and directional selection`() {
+        val text = "before\r\n😀 bad word\nafter"
+        val context = textCheckingContext(text, Utf8Range(13L, 16L))
+        assertEquals(8L, context.start)
+        assertEquals("😀 bad word", context.text)
+        assertTrue(textCheckTouches(Utf8Range(13L, 16L), Utf8Range(14L, 14L)))
+        assertFalse(textCheckTouches(Utf8Range(13L, 16L), Utf8Range(17L, 21L)))
+        assertTrue(textContextMenu().systemServices)
+        assertFalse(textContextMenu { systemServices = false }.systemServices)
+    }
+}

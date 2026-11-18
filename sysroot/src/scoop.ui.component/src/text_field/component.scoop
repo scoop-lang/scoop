@@ -21,12 +21,15 @@ internal class TextFieldInput(
     val onSubmit: (TextEditorState) -> Unit,
     val labelTarget: FieldTarget?,
     val group: GroupPosition?,
-    val chrome: TextFieldChrome
+    val chrome: TextFieldChrome,
+    val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    val semantics: ComponentSemantics = ComponentSemantics(),
+    val expansion: TextFieldExpansion? = None
 )
 
 /** Shares composition while keeping the two public component identities distinct. */
 internal class TextFieldRenderer(private val scope: ComponentScope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val body = ActionTextStyle()
     private val hint = ActionTextStyle()
     private val description = ActionTextStyle()
@@ -82,7 +85,8 @@ internal class TextFieldRenderer(private val scope: ComponentScope) {
                                                 palette.muted.foreground,
                                         input.style.description
                                     )
-                                )
+                                ),
+                            semantics = ComponentSemantics(ignored = true)
                         ),
                         { props, mount -> Label(props, scope = mount) }
                     )
@@ -124,14 +128,24 @@ internal fun textFieldAppearance(
 ): TextEditAppearance {
     val style = input.style
     val palette = theme.tokens.palette
+    val selection = themeTextSelection(theme)
     return TextEditAppearance(
         fonts,
         text,
         placeholder,
-        style.selectionColor ?: palette.primary.background.withAlpha(0.30),
-        style.inactiveSelectionColor ?: palette.muted.foreground.withAlpha(0.20),
+        style.selectionColor ?: selection.background,
+        style.inactiveSelectionColor ?: selection.inactiveBackground,
         style.caretColor ?: palette.primary.background,
         style.markedColor ?: palette.primary.background,
-        style.caretWidth
+        style.caretWidth,
+        theme.tokens.motion.preference == MotionPreference.Reduced,
+        selectionTextColor =
+            selectionTextColor(style.selectionTextColor, style.selectionColor, selection.text),
+        inactiveSelectionTextColor =
+            selectionTextColor(
+                style.inactiveSelectionTextColor,
+                style.inactiveSelectionColor,
+                selection.inactiveText
+            )
     )
 }

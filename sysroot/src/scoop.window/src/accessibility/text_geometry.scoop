@@ -1,0 +1,23 @@
+package scoop.window.accessibility
+
+import scoop.window.accessibility.native.NativeSemanticTextGeometry
+
+/** One reference, separate from both candidate scenes and published native projections. */
+internal class SemanticTextSnapshot(val native: NativeSemanticTextGeometry): Closeable {
+    private var closed = false
+    init {
+        @Unsafe
+        {
+            native.retain(native.context)
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        @Unsafe
+        {
+            native.release(native.context)
+        }
+    }
+}

@@ -22,7 +22,8 @@ public enum TextInputOperation {
     ClearPreedit,
     Preedit(val text: String, val selection: Utf8Selection?, val replacement: TextReplacement),
     Commit(val text: String, val replacement: TextReplacement),
-    DeleteSurrounding(val beforeBytes: Long, val afterBytes: Long)
+    DeleteSurrounding(val beforeBytes: Long, val afterBytes: Long),
+    SetSelection(val selection: Utf8Selection)
 }
 
 /** One native document connection, replaced whenever native text input reopens. */

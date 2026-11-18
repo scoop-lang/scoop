@@ -1,0 +1,247 @@
+package scoop.tests.ui.gestures
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class ContactPressDragUiTest {
+    @Test
+    fun `contacts preserve tap intent source identity and independent cancellation through the native queue`() {
+        val scenario = ContactScenario()
+        val probe = GestureProbe(Some({ value, active -> scenario.advance(value, active) }))
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(
+                    applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(3, probe.clicks)
+            assertEquals(5, probe.starts)
+            assertEquals(1, probe.ends)
+            assertEquals(4, probe.cancels)
+            assertTrue(probe.press!!.isClosed)
+            assertTrue(probe.drag!!.isClosed)
+            assertTrue(probe.area!!.isClosed)
+            assertTrue(probe.view!!.restored())
+        } catch (error: Throwable) {
+            println(
+                f"contact stage=${scenario.stage}, clicks=${probe.clicks}, starts=${probe.starts}"
+            )
+            reportGestureFailure(error)
+            throw error
+        } finally {
+            probe.view?.close()
+        }
+    }
+}
+
+private class ContactScenario {
+    var stage = 0
+
+    fun advance(probe: GestureProbe, active: ActiveApplication) {
+        when (stage) {
+            0 -> probe.move(180.0, 100.0)
+            1 -> {
+                assertFalse(probe.press!!.interaction.hovered)
+                probe.contact(1L, 0)
+            }
+            2 -> {
+                assertTrue(probe.press!!.interaction.pressed)
+                assertTrue(probe.area!!.isFocusActive)
+                assertFalse(probe.press!!.interaction.hovered)
+                probe.contact(1L, 2, 32.0)
+            }
+            3 -> {
+                assertEquals(1, probe.clicks)
+                assertFailsWith<IllegalArgumentException> {
+                    probe.press!!.update(PressOptions(touchThreshold = -1.0)) {
+                        probe.clicks += 1000
+                    }
+                }
+                probe.contact(2L, 0)
+                probe.contact(2L, 1, 50.0)
+                probe.contact(2L, 1)
+                probe.contact(2L, 2)
+            }
+            4 -> {
+                assertEquals(1, probe.clicks)
+                probe.contact(3L, 0)
+                probe.contact(3L, 2, 50.0)
+            }
+            5 -> {
+                assertEquals(1, probe.clicks)
+                probe.preventMovement = true
+                probe.contact(4L, 0)
+                probe.contact(4L, 1, 50.0)
+                probe.contact(4L, 1)
+                probe.contact(4L, 2)
+            }
+            6 -> {
+                assertEquals(1, probe.clicks)
+                probe.preventMovement = false
+                probe.contact(5L, 0)
+                probe.contact(6L, 0, 35.0)
+                probe.contact(5L, 2)
+                probe.contact(6L, 2, 35.0)
+            }
+            7 -> {
+                assertEquals(1, probe.clicks)
+                probe.preventRelease = true
+                probe.contact(7L, 0)
+                probe.contact(7L, 2)
+            }
+            8 -> {
+                assertEquals(1, probe.clicks)
+                assertFalse(probe.press!!.interaction.pressed)
+                probe.preventRelease = false
+                probe.dragEnabled(true)
+                probe.contact(8L, 0)
+                probe.contact(8L, 1, 32.0)
+                probe.contact(8L, 2, 32.0)
+            }
+            9 -> {
+                assertEquals(2, probe.clicks)
+                assertEquals(0, probe.starts)
+                probe.contact(9L, 0)
+                probe.contact(9L, 1, 50.0)
+            }
+            10 -> {
+                assertEquals(1, probe.starts)
+                assertEquals(1, probe.childCancellations)
+                assertFalse(probe.press!!.interaction.pressed)
+                assertEquals(
+                    DragInput.Contact(ContactId(9L), ContactKind.Touch),
+                    probe.last!!.input
+                )
+                probe.contact(10L, 0, 150.0)
+            }
+            11 -> {
+                assertEquals(1, probe.cancels)
+                assertEquals(Some(DragCancelReason.AdditionalContact), probe.lastCancel)
+                assertFalse(probe.drag!!.isDragging)
+                probe.contact(9L, 1, 70.0)
+                probe.contact(9L, 2, 70.0)
+                probe.contact(10L, 1, 170.0)
+                probe.contact(10L, 2, 170.0)
+            }
+            12 -> {
+                assertEquals(1, probe.starts)
+                assertEquals(2, probe.clicks)
+                probe.drag!!.update(
+                    DragOptions(DragAxis.Horizontal, contacts = false),
+                    { _ -> true },
+                    { value -> probe.dragged(value) }
+                )
+                probe.contact(11L, 0, pen = true)
+                probe.contact(11L, 1, 50.0, pen = true)
+                probe.contact(11L, 2, 50.0, pen = true)
+            }
+            13 -> {
+                assertEquals(1, probe.starts)
+                assertEquals(2, probe.clicks)
+                probe.drag!!.update(
+                    DragOptions(DragAxis.Horizontal, button = MouseButton.Right),
+                    { _ -> true },
+                    { value -> probe.dragged(value) }
+                )
+                probe.contact(12L, 0, pen = true)
+                probe.contact(12L, 1, 50.0, pen = true)
+            }
+            14 -> {
+                assertEquals(2, probe.starts)
+                assertEquals(DragInput.Contact(ContactId(12L), ContactKind.Pen), probe.last!!.input)
+                probe.cancelMouse(active)
+                assertTrue(probe.drag!!.isDragging)
+                probe.contact(12L, 2, 50.0, pen = true)
+            }
+            15 -> {
+                assertEquals(1, probe.ends)
+                probe.dragEnabled(true)
+                probe.contact(13L, 0)
+                probe.contact(13L, 1, 50.0)
+            }
+            16 -> {
+                assertEquals(3, probe.starts)
+                probe.drag!!.update(
+                    DragOptions(DragAxis.Horizontal, contacts = false),
+                    { _ -> true },
+                    { value -> probe.dragged(value) }
+                )
+                assertEquals(Some(DragCancelReason.ConfigurationChanged), probe.lastCancel)
+                assertFalse(probe.drag!!.isDragging)
+                probe.contact(13L, 2, 50.0)
+                probe.contact(14L, 0)
+                probe.contact(14L, 1, 50.0)
+                probe.contact(14L, 2, 50.0)
+            }
+            17 -> {
+                assertEquals(3, probe.starts)
+                assertEquals(2, probe.cancels)
+                probe.dragEnabled(true)
+                probe.contact(15L, 0)
+                probe.contact(15L, 1, 50.0)
+            }
+            18 -> {
+                assertEquals(4, probe.starts)
+                probe.preventRelease = true
+                probe.contact(15L, 2, 50.0)
+            }
+            19 -> {
+                assertEquals(Some(DragCancelReason.PreventedRelease), probe.lastCancel)
+                assertEquals(3, probe.cancels)
+                assertFalse(probe.drag!!.isDragging)
+                probe.preventRelease = false
+                probe.dragEnabled(false)
+                probe.contact(16L, 0)
+            }
+            20 -> {
+                assertTrue(probe.press!!.interaction.pressed)
+                probe.cancelMouse(active)
+                assertTrue(probe.press!!.interaction.pressed)
+                probe.contact(16L, 2)
+            }
+            21 -> {
+                assertEquals(3, probe.clicks)
+                probe.drag!!.update(
+                    DragOptions(DragAxis.Horizontal),
+                    { _ -> true },
+                    {
+                        value ->
+                        probe.dragged(value)
+                        when (value) {
+                            case Started(_) -> probe.drag!!.close()
+                            else -> {}
+                        }
+                    }
+                )
+                probe.contact(17L, 0)
+                probe.contact(17L, 1, 50.0)
+            }
+            22 -> {
+                assertTrue(probe.drag!!.isClosed)
+                assertFalse(probe.drag!!.isDragging)
+                assertEquals(Some(DragCancelReason.Closed), probe.lastCancel)
+                probe.key(49, true)
+                // Pointer cancellation is delivered to an active mouse press path.
+                probe.button(30.0, 30.0, true)
+            }
+            23 -> {
+                assertTrue(probe.press!!.interaction.pressed)
+                probe.cancelMouse(active)
+                assertFalse(probe.press!!.interaction.pressed)
+                probe.key(49, false)
+                probe.button(30.0, 30.0, false)
+            }
+            24 -> {
+                assertEquals(3, probe.clicks)
+                probe.finished = true
+                probe.window!!.requestDestroy()
+                active.requestExit()
+            }
+            else -> fail(Some("unexpected contact test stage"))
+        }
+        stage += 1
+    }
+}

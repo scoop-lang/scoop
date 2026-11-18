@@ -2,12 +2,19 @@ package scoop.ui.component
 
 import scoop.platform.concurrent.currentThreadId
 import scoop.ui.*
+import scoop.window.accessibility.SemanticNodeId
 
 /** A stable reference to one mounted list; the associated ScrollState owns its position. */
 public class VirtualListHandle public constructor() {
     private val thread = currentThreadId()
     private var target: VirtualListInk? = None
     private val snapshot = state<VirtualReadingSnapshot?>(None)
+    internal val semanticTarget = SemanticsReference()
+    /** The actual mounted collection, independent of its scroll area and row instances. */
+    public val semanticId: SemanticNodeId? get() {
+        checkThread()
+        return semanticTarget.id
+    }
 
     private fun checkThread() {
         if (currentThreadId() != thread)

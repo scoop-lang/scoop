@@ -3,19 +3,31 @@ package scoop.ui.component
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.row as makeRow
 
 public class Pagination public constructor(
     private val props: Props<PaginationProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
     private fun select(page: Long) {
         if (selectPage(props.value, page))
             props.value.onValueChange(props.value.page.value)
+    }
+    private fun selectSemantically(page: Long): SemanticActionResult {
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        if (!props.value.enabled)
+            return SemanticActionResult.Rejected
+        select(page)
+        return if (props.value.page.value == page)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     private fun move(forward: Boolean) {
         val input = props.value
@@ -39,36 +51,63 @@ public class Pagination public constructor(
                 for (index in 0L ..< entries.size) {
                     when (entries[index]) {
                         case Page(val number) -> this.add(
-                            component(
-                                ButtonProps(
-                                    when (input.pageContent) {
-                                        case Some(val build) -> ButtonContent.Resolved {
-                                            appearance -> build(number, appearance)
-                                        }
-                                        case None -> navigationLabel(
-                                            ButtonContent.Label(
-                                                LabelProps(
-                                                    LabelText.Plain(input.pageLabel(number), None)
-                                                )
-                                            ),
-                                            input.fonts,
-                                            TextAlignment.Center
-                                        )
+                            panelFrame(
+                                semanticButton(
+                                    ButtonProps(
+                                        when (input.pageContent) {
+                                            case Some(val build) -> ButtonContent.Resolved {
+                                                appearance -> build(number, appearance)
+                                            }
+                                            case None -> navigationLabel(
+                                                ButtonContent.Label(
+                                                    LabelProps(
+                                                        LabelText.Plain(
+                                                            input.pageLabel(number),
+                                                            None
+                                                        )
+                                                    )
+                                                ),
+                                                input.fonts,
+                                                TextAlignment.Center
+                                            )
+                                        },
+                                        { this @Pagination.select(number) },
+                                        input.enabled,
+                                        input.buttonStyle,
+                                        input.theme,
+                                        input.pageFocus(number),
+                                        variant =
+                                            if (selected == number)
+                                                ButtonVariant.Outline
+                                            else
+                                                ButtonVariant.Ghost,
+                                        size = ButtonSize.Icon,
+                                        semantics = input.pageSemantics(number)
+                                    ),
+                                    SemanticRole.Button,
+                                    input.pageSemantics(number).properties(
+                                        enabled = input.enabled,
+                                        selected = Some(selected == number)
+                                    ).copy {
+                                        if (name == None)
+                                            name = Some(input.pageLabel(number))
                                     },
-                                    { this @Pagination.select(number) },
-                                    input.enabled,
-                                    input.buttonStyle,
-                                    input.theme,
-                                    input.pageFocus(number),
-                                    variant =
-                                        if (selected == number)
-                                            ButtonVariant.Outline
-                                        else
-                                            ButtonVariant.Ghost,
-                                    size = ButtonSize.Icon
+                                    SemanticActions(
+                                        invoke =
+                                            Some { this @Pagination.selectSemantically(number) },
+                                        setSelected =
+                                            Some {
+                                                value -> if (value)
+                                                    this @Pagination.selectSemantically(number)
+                                                else
+                                                    if (input.page.value == number)
+                                                        SemanticActionResult.Rejected
+                                                    else
+                                                        SemanticActionResult.Completed
+                                            }
+                                    )
                                 ),
-                                { current, mount -> Button(current, scope = mount) },
-                                ViewKey.Number(number)
+                                key = ViewKey.Number(number)
                             )
                         )
                         case Ellipsis -> this.add(
@@ -89,14 +128,24 @@ public class Pagination public constructor(
                 this.spacing = 2.0 * density
                 this.alignment = CrossAlignment.Center
             }
-        return panelFrame(
-            makeRow {
-                this.item(empty()) { this.grow = 1.0 }
-                this.add(controls)
-                this.item(empty()) { this.grow = 1.0 }
-                this.alignment = CrossAlignment.Center
-            },
-            visual = input.style
+        return semanticContent(
+            panelFrame(
+                makeRow {
+                    this.item(empty()) { this.grow = 1.0 }
+                    this.add(controls)
+                    this.item(empty()) { this.grow = 1.0 }
+                    this.alignment = CrossAlignment.Center
+                },
+                visual = input.style
+            ),
+            SemanticRole.Group,
+            input.semantics.properties(
+                enabled = input.enabled,
+                required = input.pageCount > 0L
+            ).copy { selectionMode = Some(SemanticSelectionMode.Single) },
+            relations = input.semantics.relations,
+            mergeLabels = false,
+            reference = input.semantics.reference
         )
     }
     private fun edge(input: PaginationProps, forward: Boolean): View {
@@ -158,7 +207,17 @@ public class Pagination public constructor(
                     if (input.compact)
                         ButtonSize.Icon
                     else
-                        ButtonSize.Default
+                        ButtonSize.Default,
+                semantics =
+                    ComponentSemantics(
+                        name =
+                            Some(
+                                if (forward)
+                                    input.nextText
+                                else
+                                    input.previousText
+                            )
+                    )
             ),
             { current, mount -> Button(current, scope = mount) },
             ViewKey.Text(

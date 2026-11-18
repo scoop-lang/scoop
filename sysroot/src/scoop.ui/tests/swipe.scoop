@@ -1,0 +1,65 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class SwipeGestureValueTest {
+    @Test
+    fun `swipe configuration keeps native contact and mouse sources independent`() {
+        val defaults = SwipeGestureOptions()
+        assertTrue(defaults.native)
+        assertTrue(defaults.contacts)
+        assertFalse(defaults.mouse)
+        assertEquals(48.0, defaults.distance)
+        assertEquals(Duration.milliseconds(500L), defaults.maxDuration)
+        assertTrue(DragOptions(DragAxis.Horizontal).mouse)
+        assertFalse(DragOptions(DragAxis.Horizontal, mouse = false).mouse)
+        for (distance in [0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> { SwipeGestureOptions(distance = distance) }
+        for (duration in [Duration.ZERO, Duration.nanoseconds(-1L)])
+            assertFailsWith<IllegalArgumentException> {
+                SwipeGestureOptions(maxDuration = duration)
+            }
+    }
+    @Test
+    fun `swipe release requires a completed distance in its original time window`() {
+        val options = SwipeGestureOptions()
+        assertEquals(
+            Some(SwipeDirection.Right),
+            swipeRelease(release(48.0, 3.0, 500L), options)?.direction
+        )
+        assertEquals(
+            Some(SwipeDirection.Left),
+            swipeRelease(release(-80.0, 3.0, 80L), options)?.direction
+        )
+        assertEquals(None, swipeRelease(release(47.0, 0.0, 80L), options))
+        assertEquals(None, swipeRelease(release(60.0, 61.0, 80L), options))
+        assertEquals(None, swipeRelease(release(80.0, 0.0, 501L), options))
+        assertEquals(None, swipeRelease(release(80.0, 0.0, -1L), options))
+        assertEquals(
+            Some(SwipeGestureInput.Contact(ContactId(7L), ContactKind.Pen)),
+            swipeRelease(release(80.0, 0.0, 80L), options)?.input
+        )
+        assertEquals(Some(SwipeDirection.Up), swipeDirection(DragAxis.Vertical, 0.2, -1.0))
+        assertEquals(Some(SwipeDirection.Down), swipeDirection(DragAxis.Vertical, 0.0, 1.0))
+        assertEquals(None, swipeDirection(DragAxis.Horizontal, 0.0, 0.0))
+        assertEquals(None, swipeDirection(DragAxis.Horizontal, Double.NaN, 1.0))
+    }
+}
+
+private fun release(x: Double, y: Double, milliseconds: Long): DragSample {
+    val start = MonotonicTimeSource.markNow()
+    return DragSample(
+        Point(10.0, 20.0),
+        Point(10.0 + x, 20.0 + y),
+        x,
+        0.0,
+        InputTime.Event(start),
+        InputTime.Event(start + Duration.milliseconds(milliseconds)),
+        DragInput.Contact(ContactId(7L), ContactKind.Pen)
+    )
+}

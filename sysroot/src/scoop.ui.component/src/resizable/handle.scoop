@@ -5,6 +5,7 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
 internal class ResizableHandle(
     private val props: Props<ResizablePanelInput>,
@@ -16,6 +17,7 @@ internal class ResizableHandle(
     private var painters: ThemePainterCache? = None
     private var grip: StylePainter? = None
     private var ownsCursor = false
+    private val semantics = createComponentSemantics(scope, SemanticRole.Separator)
     private fun enabled(): Boolean =
         props.value.hasHandle &&
             props.value.root.props.enabled &&
@@ -38,6 +40,7 @@ internal class ResizableHandle(
                     resizableHandle(props.value.root.props, props.value.index).focus
                 )
             )
+        semantics?.bindFocus(focus)
         painters = Some(scope.resource { ThemePainterCache() })
         grip = Some(scope.resource { StylePainter() })
         drag =
@@ -119,6 +122,59 @@ internal class ResizableHandle(
         if (!scope.isMounted)
             return UiInvalidation.Layout
         painters!!.get(input.root.theme)
+        val options = resizableHandle(input.root.props, input.index).semantics
+        val control = input.root.owner.control!!
+        semantics?.bindReference(options.reference)
+        semantics?.update(
+            options.properties(enabled = enabled(), range = control.range(input.index)).copy {
+                orientation =
+                    Some(
+                        if (input.root.props.orientation == Orientation.Horizontal)
+                            SemanticOrientation.Horizontal
+                        else
+                            SemanticOrientation.Vertical
+                    )
+                if (name == None && options.relations.labelledBy.size == 0L)
+                    name = Some("Resize panels")
+            },
+            SemanticActions(
+                setNumber =
+                    Some {
+                        value -> props.value.root.owner.control!!.setNumber(
+                            props.value.index,
+                            value
+                        )
+                    },
+                increment =
+                    Some {
+                        props.value.root.owner.control!!.adjust(
+                            props.value.index,
+                            ResizableKey.Step(1.0)
+                        )
+                    },
+                decrement =
+                    Some {
+                        props.value.root.owner.control!!.adjust(
+                            props.value.index,
+                            ResizableKey.Step(-1.0)
+                        )
+                    },
+                invoke =
+                    if (
+                        input.root.props.panels[input.index].collapsible ||
+                            input.root.props.panels[input.index + 1L].collapsible
+                    )
+                        Some {
+                            props.value.root.owner.control!!.adjust(
+                                props.value.index,
+                                ResizableKey.Toggle
+                            )
+                        }
+                    else
+                        None
+            ),
+            options.relations
+        )
         refreshCursor()
         return UiInvalidation.Layout
     }
@@ -132,6 +188,13 @@ internal class ResizableHandle(
         return LayoutResult(LayoutMetrics(size), Unit)
     }
     public override fun scene(context: SceneContext, measured: Unit) {
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            );
+            case None -> {}
+        }
         val input = props.value
         val theme = input.root.theme
         val density = theme.tokens.typography.body.fontSize / 14.0
@@ -185,13 +248,14 @@ internal class ResizableHandle(
                 }
             ) { _ -> }
         }
+        val hitWidth = resizableHandle(input.root.props, input.index).hitWidth * density
         if (context.size.width > 0.0 && context.size.height > 0.0)
             context.place(
                 area!!,
                 if (horizontal)
-                    Rect(-1.5 * density, 0.0, 4.0 * density, context.size.height)
+                    Rect((context.size.width - hitWidth) / 2.0, 0.0, hitWidth, context.size.height)
                 else
-                    Rect(0.0, -1.5 * density, context.size.width, 4.0 * density)
+                    Rect(0.0, (context.size.height - hitWidth) / 2.0, context.size.width, hitWidth)
             )
     }
     public override fun onUnmount() {

@@ -128,7 +128,7 @@ private class TypographyTable(
     private val props: Props<TypographyTableProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }

@@ -72,7 +72,7 @@ public class MessageBuilder internal constructor() {
 public class Message(private val props: Props<MessageProps>, scope: ComponentScope): Component(
     scope
 ) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val captions = ActionTextStyle()
     private val medium = spanStyle { this.weight = Some(500) }
     public override fun onMount() {

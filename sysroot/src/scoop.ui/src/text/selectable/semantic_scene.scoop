@@ -1,0 +1,85 @@
+package scoop.ui.text
+
+import scoop.graphics.Rect
+import scoop.graphics.text.TextLayout
+import scoop.ui.*
+
+internal class SelectableSemanticLayout(
+    val layout: TextLayout,
+    val text: SelectableSemanticText,
+    val native: NativeTextSource
+)
+
+internal fun selectableSemantics(
+    host: SelectableTextHost,
+    context: SceneContext,
+    frame: SelectableFrame,
+    viewport: Rect
+) {
+    val binding = host.semantics.binding ?: return
+    if (host.content !== frame.content)
+        return
+    val text = selectableSemanticText(host)
+    if (binding.handle.properties.value != Some(text.text))
+        return
+    val source =
+        when (host.semanticLayout) {
+            case Some(val previous) -> if (
+                !previous.native.isClosed &&
+                    previous.layout ===
+                    frame.layout &&
+                    previous.text ===
+                    text
+            )
+                previous.native
+            else
+                selectableSemanticSource(host, frame.layout, text)
+            case None -> selectableSemanticSource(host, frame.layout, text)
+        }
+    context.textSemantics(binding, viewport, source)
+}
+
+private fun selectableSemanticSource(
+    host: SelectableTextHost,
+    layout: TextLayout,
+    text: SelectableSemanticText
+): NativeTextSource {
+    val source = selectableSemanticSource(layout, text)
+    host.semantics.replaceSource(source)
+    host.semanticLayout = Some(SelectableSemanticLayout(layout, text, source))
+    return source
+}
+
+internal fun selectableSemanticSource(
+    layout: TextLayout,
+    text: SelectableSemanticText
+): NativeTextSource {
+    val mapping = ArrayList<SemanticTextMapping>()
+    var shift = 0L
+    for (edit in text.edits) {
+        val start = edit.range.start + shift
+        val end = start + edit.text.byteLength
+        mapping.add(SemanticTextMapping(start, end, edit.range.start, edit.range.end))
+        shift = end - edit.range.end
+    }
+    val rows = layout.lines
+    val lines =
+        Array<SemanticTextLine>(rows.size) {
+            index ->
+            val line = rows[index]
+            SemanticTextLine(
+                line.range.start,
+                line.range.end,
+                line.visibleRange.start,
+                line.visibleRange.end
+            )
+        }
+    return semanticTextSource(
+        layout,
+        text.text.byteLength,
+        text.boundaries,
+        mapping.toArray(),
+        lines,
+        expand = true
+    )
+}

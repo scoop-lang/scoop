@@ -1,0 +1,57 @@
+package scoop.tests.ui.accessibility.text
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.LogicalSize
+import scoop.window.accessibility.SemanticRole
+
+internal class GeometryRoot(probe: GeometryProbe, scope: ComponentScope): Component(scope) {
+    private val content = element({ mount -> GeometryField(probe, mount) })
+    public override fun render(): View = content
+}
+
+private class GeometryField(private val probe: GeometryProbe, scope: ComponentScope): Element<
+    TextEditMeasurement
+>(scope) {
+    private val semantic = scope.semantics(SemanticRole.TextField)
+    private val editor =
+        scope.resource { TextEditHost(scope, probe.model, probe.appearance, probe.options) }
+    init {
+        probe.scope = Some(scope)
+        probe.editor = Some(editor)
+        probe.semantic = Some(semantic)
+    }
+    public override fun update(): UiInvalidation {
+        probe.refresh()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val value = editor.measure(Constraints.tight(Size(160.0, 60.0)))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(320.0, 180.0))),
+            value,
+            { value.close() }
+        )
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        context.withState {
+            content ->
+            content.translate(20.0 + probe.shift, 15.0)
+            content.scale(1.25, 1.25)
+            if (!probe.skipPlacement)
+                content.semantics(semantic, Rect(0.0, 0.0, 160.0, 60.0))
+            if (!probe.skipText)
+                editor.scene(content, measured)
+            Unit
+        }
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(350.0, 180.0))
+        }
+        context.onFrameComplete { frame -> probe.frame(frame, discard) }
+    }
+}

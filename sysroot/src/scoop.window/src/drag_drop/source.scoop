@@ -1,0 +1,197 @@
+package scoop.window
+
+/** The native destination result. A Move still requires the source's own commit. */
+public enum DragResult {
+    Dropped(DragEffect), NotDropped, Failed(WindowException)
+}
+
+internal interface NativeDragSource: Closeable {
+    fun start()
+    fun setEffects(value: DragEffects)
+}
+
+/** Closing disconnects callbacks; it does not claim to cancel an active system drag. */
+public class DragSession internal constructor(
+    private val owner: WindowOwner,
+    private val initialEffects: DragEffects,
+    localData: Any?,
+    onCompleted: (DragResult) -> Unit
+): Closeable {
+    private var native: NativeDragSource? = None
+    private var completion: ((DragResult) -> Unit)? = Some(onCompleted)
+    private var pending = true
+    private var requested = false
+    private var started = false
+    private var queued = false
+    private var closed = false
+    private var outcome: DragResult? = None
+    internal var localData = localData
+    private var allowedEffects = initialEffects
+
+    /** Changes future negotiation without rewriting a destination result already completed. */
+    public var effects: DragEffects
+    get() {
+        owner.application.checkThread()
+        return allowedEffects
+    }
+    set(value) {
+        owner.application.checkThread()
+        if (closed || queued)
+            throw IllegalStateException(Some("drag session no longer accepts effect updates"))
+        requireWindow(
+            (!value.copy || initialEffects.copy) &&
+                (!value.move || initialEffects.move) &&
+                (!value.link || initialEffects.link),
+            "drag effects must have been offered at creation"
+        )
+        if (value != allowedEffects) {
+            native!!.setEffects(value)
+            allowedEffects = value
+        }
+    }
+
+    public val isStarted: Boolean get() {
+        owner.application.checkThread();
+        return started
+    }
+    public val isClosed: Boolean get() {
+        owner.application.checkThread();
+        return closed
+    }
+    public val result: DragResult? get() {
+        owner.application.checkThread();
+        return outcome
+    }
+
+    internal fun bind(value: NativeDragSource) {
+        native = Some(value)
+    }
+
+    internal fun schedule(time: InputTime) {
+        owner.dragSource = Some(this)
+        owner.application.dragSource = Some(this)
+        owner.systemOperationPending = true
+        owner.systemOperationCancelled = false
+        owner.pendingSystemCancellation = Some(time)
+        owner.leases += 1L
+        owner.application.deferNativeOperation {
+            try {
+                start()
+            } finally {
+                owner.systemOperationPending = false
+                owner.leases -= 1L
+                owner.application.mailbox.wake()
+            }
+        }
+    }
+
+    private fun start() {
+        if (closed || !pending || requested)
+            return
+        if (
+            owner.phase !=
+                WindowState.Open ||
+                owner.application.exiting ||
+                owner.inputBlocked ||
+                owner.systemOperationCancelled ||
+                !owner.requestedVisible ||
+                owner.visibilitySuppressed
+        ) {
+            cancelPending()
+            return
+        }
+        requested = true
+        try {
+            native!!.start()
+        } catch (error: WindowException) {
+            complete(DragResult.Failed(error))
+        }
+    }
+
+    internal fun nativeEvent(phase: Int, effect: Int): Int {
+        if (!owner.application.isCurrentThread() || closed || queued)
+            return 0
+        if (phase == 0) {
+            pending = false
+            started = true
+        } else
+            if (phase == 1) {
+                complete(
+                    when (effect) {
+                        case 1 -> DragResult.Dropped(DragEffect.Copy)
+                        case 2 -> DragResult.Dropped(DragEffect.Move)
+                        case 4 -> DragResult.Dropped(DragEffect.Link)
+                        else -> DragResult.NotDropped
+                    }
+                )
+            } else
+                if (phase == 2) {
+                    complete(
+                        DragResult.Failed(
+                            WindowException(
+                                "start data drag",
+                                WindowErrorKind.NativeFailure,
+                                nativeCode = Some(effect.toLong())
+                            )
+                        )
+                    )
+                }
+        return 0
+    }
+
+    private fun complete(value: DragResult) {
+        if (closed || queued)
+            return
+        outcome = Some(value)
+        pending = false
+        queued = true
+        if (
+            !owner.application.mailbox.post {
+                if (!closed) {
+                    val action = completion
+                    close()
+                    action?.invoke(value)
+                }
+            }
+        )
+            close()
+    }
+
+    /** Cancels only work that has not entered the system drag session. */
+    public fun cancelPending(): Boolean {
+        owner.application.checkThread()
+        if (closed || !pending || queued)
+            return false
+        pending = false
+        releaseNative()
+        complete(DragResult.NotDropped)
+        return true
+    }
+
+    private fun releaseNative() {
+        val value = native
+        native = None
+        value?.close()
+    }
+
+    public override fun close() {
+        owner.application.checkThread()
+        if (closed)
+            return
+        closed = true
+        pending = false
+        completion = None
+        localData = None
+        when (val current = owner.dragSource) {
+            case Some(val value) -> if (value === this)
+                owner.dragSource = None
+            case None -> {}
+        }
+        when (val current = owner.application.dragSource) {
+            case Some(val value) -> if (value === this)
+                owner.application.dragSource = None
+            case None -> {}
+        }
+        releaseNative()
+    }
+}

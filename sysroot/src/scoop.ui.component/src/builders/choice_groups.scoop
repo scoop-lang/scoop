@@ -8,6 +8,7 @@ public class RadioItemBuilder internal constructor() {
     public var focus: FocusOptions = FocusOptions()
     public var labelTarget: FieldTarget? = None
     public var invalid: Boolean = false
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var marker: RadioOptions = radioOptions()
     public var content: ((RadioItemContent) -> View)? = None
     public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
@@ -25,6 +26,7 @@ public class RadioGroupBuilder<T: Equals<T>> internal constructor() {
     public var loop: Boolean = true
     public var enabled: Boolean = true
     public var invalid: Boolean = false
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
     public var style: StyleOverride = styleOverride()
@@ -45,7 +47,8 @@ public class RadioGroupBuilder<T: Equals<T>> internal constructor() {
                 builder.labelTarget,
                 builder.invalid,
                 builder.marker,
-                builder.content
+                builder.content,
+                builder.semantics
             )
         )
     }
@@ -60,7 +63,8 @@ public class RadioGroupBuilder<T: Equals<T>> internal constructor() {
             invalid,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 
@@ -86,6 +90,7 @@ public class ToggleGroupItemBuilder internal constructor() {
     public var content: ButtonContent? = None
     public var focus: FocusOptions = FocusOptions()
     public var invalid: Boolean = false
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var style: ButtonStyle? = None
     public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
         focus = focus.copy(configure)
@@ -102,6 +107,7 @@ public class ToggleGroupBuilder<T: Equals<T>> internal constructor() {
     public var loop: Boolean = true
     public var enabled: Boolean = true
     public var invalid: Boolean = false
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var variant: ToggleVariant = ToggleVariant.Default
     public var size: ToggleSize = ToggleSize.Default
     public var fonts: FontCollection? = None
@@ -118,7 +124,14 @@ public class ToggleGroupBuilder<T: Equals<T>> internal constructor() {
         val builder = ToggleGroupItemBuilder()
         builder.configure()
         add(
-            ToggleGroupEntry(choice, builder.content, builder.focus, builder.invalid, builder.style)
+            ToggleGroupEntry(
+                choice,
+                builder.content,
+                builder.focus,
+                builder.invalid,
+                builder.style,
+                builder.semantics
+            )
         )
     }
     internal fun snapshot(selected: ToggleGroupSelection<T>): ToggleGroupProps<T> =
@@ -134,7 +147,8 @@ public class ToggleGroupBuilder<T: Equals<T>> internal constructor() {
             size,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 

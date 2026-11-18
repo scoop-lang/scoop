@@ -32,6 +32,8 @@ internal class PortalInstance(
     val isPresent: Boolean get() = active && (presentation?.isPresent ?: false)
     val isOpen: Boolean get() = isPresent && !pendingClose && !forced
     val hasPendingClose: Boolean get() = pendingClose
+    val canCompleteClose: Boolean get() =
+        pendingClose && !(presentation?.isPresent ?: false) && ((owner?.children?.size ?: 0L) == 0L)
     val options: PortalOptions get() = current
     val input: InputScope get() =
         route ?: throw IllegalStateException(Some("portal has not mounted"))
@@ -187,18 +189,18 @@ internal class PortalInstance(
             case Some(val value) -> value === frame
             case None -> false
         }
-    fun complete(frame: OverlayFrame) {
-        if (isOpen && awaitInput && wasPresented(frame)) {
+    fun complete(frame: OverlayFrame?) {
+        val presented =
+            when (frame) {
+                case Some(val value) -> wasPresented(value)
+                case None -> false
+            }
+        if (isOpen && awaitInput && presented) {
             awaitInput = false
             if (!input.isClosed)
                 input.enabled = true
         }
-        if (
-            pendingClose &&
-                !wasPresented(frame) &&
-                !(presentation?.isPresent ?: false) &&
-                ((owner?.children?.size ?: 0L) == 0L)
-        )
+        if (canCompleteClose && !presented)
             completeClose()
     }
     fun completeClose() {

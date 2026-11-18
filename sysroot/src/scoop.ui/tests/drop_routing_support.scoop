@@ -1,0 +1,161 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.window.*
+
+internal class UiDropFailure: Exception(Some("expected UI drop failure"))
+
+internal class UiDropProbe {
+    var scope: ComponentScope? = None
+    var parent: DropArea? = None
+    var child: DropArea? = None
+    var sibling: DropArea? = None
+    var ui: UiWindow? = None
+    var window: Window? = None
+    var acceptChild = false
+    var acceptParent = true
+    var invalidChild = false
+    var disableChild = false
+    var acceptData = true
+    var closeOnDrop = false
+    var throwOnDrop = false
+    var measures = 0
+    var scenes = 0
+    var finished = false
+    var failures = 0
+    val offers = ArrayList<Int>()
+    val drops = ArrayList<Int>()
+    val versions = ArrayList<Int>()
+    val leaves = ArrayList<Int>()
+
+    val controller: RootDrops get() = child!!.controller
+    fun attach(host: UiHost, active: ActiveApplication) {
+        val native =
+            active.createWindow(
+                windowAttributes {
+                    title = "Scoop logical drop routing"
+                    visible = false
+                    requestActivation = false
+                    size = LogicalSize(300.0, 200.0)
+                }
+            )
+        window = Some(native)
+        ui = host.attach(native, { mount -> DropRoutingComponent(this, mount) })
+        assertFalse(ui?.isClosed ?: true)
+    }
+    fun route(): Array<DropCandidate> =
+        [DropCandidate(child!!, Point(5.0, 5.0)), DropCandidate(parent!!, Point(50.0, 30.0))]
+    fun offer(): DropOffer =
+        DropOffer(
+            DragFormats(true, false, false),
+            DragEffects(true, false, false),
+            LogicalPosition(50.0, 30.0),
+            Modifiers(
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                ModifierSides(None, None),
+                ModifierSides(None, None),
+                ModifierSides(None, None),
+                ModifierSides(None, None)
+            ),
+            false
+        )
+    fun request(): DropRequest = DropRequest(offer(), DragEffect.Copy, DragContent.Text("owned"))
+    fun handlers(id: Int, version: Int = 1): DropAreaHandlers =
+        DropAreaHandlers(
+            offer =
+                {
+                    value, position ->
+                    offers.add(id)
+                    assertEquals(LogicalPosition(50.0, 30.0), value.position)
+                    assertEquals(
+                        if (id == 2)
+                            Point(5.0, 5.0)
+                        else
+                            Point(50.0, 30.0),
+                        position
+                    )
+                    if (id == 2 && disableChild)
+                        child!!.update(handlers(2), false)
+                    if (id == 2 && invalidChild)
+                        DropDecision.Accept(DragFormat.Files, DragEffect.Move)
+                    else
+                        if ((id == 2 && !acceptChild) || (id == 1 && !acceptParent))
+                            DropDecision.Reject
+                        else
+                            DropDecision.Accept(DragFormat.Text, DragEffect.Copy)
+                },
+            drop =
+                {
+                    value, position ->
+                    drops.add(id)
+                    versions.add(version)
+                    assertEquals(
+                        if (id == 2)
+                            Point(5.0, 5.0)
+                        else
+                            Point(50.0, 30.0),
+                        position
+                    )
+                    assertEquals(DragEffect.Copy, value.effect)
+                    when (value.content) {
+                        case Text(val text) -> assertEquals("owned", text)
+                        else -> fail(Some("unexpected drop representation"))
+                    }
+                    if (throwOnDrop)
+                        throw UiDropFailure()
+                    if (closeOnDrop)
+                        ui!!.close()
+                    acceptData
+                },
+            leave = { leaves.add(id) }
+        )
+    fun select(): DropDecision = controller.offerCandidates(offer(), route())
+    fun clearLog() {
+        offers.clear();
+        drops.clear();
+        versions.clear();
+        leaves.clear()
+    }
+    fun copyDecision(): DropDecision = DropDecision.Accept(DragFormat.Text, DragEffect.Copy)
+}
+
+private class DropRoutingComponent(
+    private val probe: UiDropProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View = element({ mount -> DropRoutingElement(probe, mount) })
+}
+
+private class DropRoutingElement(private val probe: UiDropProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val parent = scope.createArea()
+    private val child = scope.createArea(parent = Some(parent))
+    private val sibling = scope.createArea()
+    init {
+        probe.scope = Some(scope)
+        probe.parent = Some(scope.dropTarget(parent, probe.handlers(1)))
+        probe.child = Some(scope.dropTarget(child, probe.handlers(2)))
+        probe.sibling = Some(scope.dropTarget(sibling, probe.handlers(3)))
+    }
+    public override fun update(): UiInvalidation = UiInvalidation.None
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(300.0, 200.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.scenes += 1
+        context.place(parent, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.place(child, Rect(20.0, 20.0, 100.0, 100.0))
+        context.place(sibling, Rect(160.0, 20.0, 100.0, 100.0))
+    }
+}

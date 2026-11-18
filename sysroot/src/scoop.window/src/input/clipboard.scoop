@@ -81,7 +81,7 @@ private fun clipboardMediaType(mediaType: String): String {
     return value
 }
 
-private fun clipboardText(text: String, writing: Boolean, normalizeLines: Boolean): String {
+internal fun clipboardText(text: String, writing: Boolean, normalizeLines: Boolean): String {
     var hasCarriageReturn = false
     for (character in text) {
         if (character.code == 0) {

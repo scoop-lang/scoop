@@ -3,16 +3,22 @@ package scoop.ui.component
 import scoop.graphics.Rect
 import scoop.ui.*
 
-internal fun containerScene(context: SceneContext, clip: Boolean) {
+internal fun containerScene(context: SceneContext, clip: Boolean, order: Array<Long>? = None) {
     if (!clip) {
-        context.children();
+        when (order) {
+            case Some(val value) -> context.children(value);
+            case None -> context.children()
+        }
         return
     }
     val size = context.size
     context.withState {
         clipped ->
         clipped.clipRect(Rect(0.0, 0.0, size.width, size.height))
-        clipped.children()
+        when (order) {
+            case Some(val value) -> clipped.children(value);
+            case None -> clipped.children()
+        }
     }
 }
 

@@ -1,0 +1,107 @@
+package scoop.tests.ui.accessibility.native
+
+@CLayout
+public struct TextQueryRange(val start: Long, val length: Long)
+
+@CLayout
+public struct TextQueryBounds(val x: Double, val y: Double, val width: Double, val height: Double)
+
+public fun NativeNode.rangeForIndex(index: Long): TextQueryRange {
+    @Unsafe
+    {
+        return nativeRangeForIndex(pointer, index)
+    }
+}
+
+public fun NativeNode.rangeForLine(line: Long): TextQueryRange {
+    @Unsafe
+    {
+        return nativeRangeForLine(pointer, line)
+    }
+}
+
+public fun NativeNode.visibleRange(): TextQueryRange {
+    @Unsafe
+    {
+        return nativeVisibleRange(pointer)
+    }
+}
+
+public fun NativeNode.lineForIndex(index: Long): Long {
+    @Unsafe
+    {
+        return nativeLineForIndex(pointer, index)
+    }
+}
+
+public fun NativeNode.insertionLine(): Long {
+    @Unsafe
+    {
+        return nativeInsertionLine(pointer)
+    }
+}
+
+public fun NativeNode.rangeAtPoint(view: Ptr<Unit>, x: Double, y: Double): TextQueryRange {
+    @Unsafe
+    {
+        return nativeRangeAtPoint(pointer, view, x, y)
+    }
+}
+
+public fun NativeNode.boundsForRange(view: Ptr<Unit>, start: Long, length: Long): TextQueryBounds {
+    @Unsafe
+    {
+        return nativeBoundsForRange(pointer, view, start, length)
+    }
+}
+
+public fun NativeNode.emptyTextBounds(start: Long, length: Long): Boolean {
+    @Unsafe
+    {
+        return nativeEmptyTextBounds(pointer, start, length) != 0
+    }
+}
+
+public fun NativeNode.hasTextGeometry(): Boolean {
+    @Unsafe
+    {
+        return nativeHasTextGeometry(pointer) != 0
+    }
+}
+
+@Extern(name = "scoop_ui_ax_range_for_index")
+private fun nativeRangeForIndex(node: Ptr<Unit>, index: Long): TextQueryRange
+
+@Extern(name = "scoop_ui_ax_range_for_line")
+private fun nativeRangeForLine(node: Ptr<Unit>, line: Long): TextQueryRange
+
+@Extern(name = "scoop_ui_ax_visible_range")
+private fun nativeVisibleRange(node: Ptr<Unit>): TextQueryRange
+
+@Extern(name = "scoop_ui_ax_line_for_index")
+private fun nativeLineForIndex(node: Ptr<Unit>, index: Long): Long
+
+@Extern(name = "scoop_ui_ax_insertion_line")
+private fun nativeInsertionLine(node: Ptr<Unit>): Long
+
+@Extern(name = "scoop_ui_ax_range_at_point")
+private fun nativeRangeAtPoint(
+    node: Ptr<Unit>,
+    view: Ptr<Unit>,
+    x: Double,
+    y: Double
+): TextQueryRange
+
+@Extern(name = "scoop_ui_ax_bounds_for_range")
+private fun nativeBoundsForRange(
+    node: Ptr<Unit>,
+    view: Ptr<Unit>,
+    start: Long,
+    length: Long
+): TextQueryBounds
+
+@Extern(name = "scoop_ui_ax_empty_text_bounds")
+private fun nativeEmptyTextBounds(node: Ptr<Unit>, start: Long, length: Long): Int
+
+@Extern(name = "scoop_ui_ax_has_text_geometry")
+private fun nativeHasTextGeometry(node: Ptr<Unit>): Int

@@ -1,0 +1,283 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.math.pow
+import scoop.surface.AnimationSpec
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.LayoutDirection
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class ThemePreferencesTest {
+    @Test
+    fun `preferences resolve from the base without compounding or changing shared source state`() {
+        val base = shadcnTheme()
+        val source = ThemeSource(base)
+        val preferences = ThemePreferences(reduceMotion = true, textScaleFactor = 1.5)
+        val resolved = source.resolve(preferences)
+        assertEquals(ThemePreferences(), base.preferences)
+        assertEquals(preferences, resolved.preferences)
+        assertSame(base, source.current.value)
+        assertSame(base, base.withPreferences(ThemePreferences()))
+        assertSame(resolved, source.resolve(preferences))
+        assertSame(resolved, resolved.withPreferences(preferences))
+        assertSame(base, resolved.withPreferences(ThemePreferences()))
+        assertEquals(ThemePreferences(), resolved.withPreferences(ThemePreferences()).preferences)
+        val smaller = resolved.withPreferences(ThemePreferences(textScaleFactor = 1.25))
+        near(base.tokens.typography.body.fontSize * 1.25, smaller.tokens.typography.body.fontSize)
+        val before =
+            [
+                base.tokens.typography.body,
+                base.tokens.typography.caption,
+                base.tokens.typography.action
+            ]
+        val after =
+            [
+                resolved.tokens.typography.body,
+                resolved.tokens.typography.caption,
+                resolved.tokens.typography.action
+            ]
+        for (index in 0L ..< before.size) {
+            near(before[index].fontSize * 1.5, after[index].fontSize)
+            assertEquals(before[index].families.size, after[index].families.size)
+            for (family in 0L ..< before[index].families.size)
+                assertEquals(before[index].families[family], after[index].families[family])
+            assertEquals(before[index].weight, after[index].weight)
+            assertEquals(before[index].lineHeight, after[index].lineHeight)
+        }
+        assertSame(base.tokens.palette, resolved.tokens.palette)
+        assertSame(base.tokens.effects, resolved.tokens.effects)
+        assertEquals(MotionPreference.Reduced, resolved.tokens.motion.preference)
+        when (resolved.tokens.motion.resolve(Some(AnimationSpec.Tween(Duration.seconds(1L))))) {
+            case None -> {}
+            case Some(_) -> fail(Some("reduced motion resolved an animation"))
+        }
+        assertSame(base, source.resolve(ThemePreferences()))
+        val dark = shadcnTheme(ThemeMode.Dark)
+        source.current.value = dark
+        assertEquals(ThemeMode.Dark, source.resolve(preferences).tokens.mode)
+        assertSame(dark, source.current.value)
+        val reduced = base.copy { tokens { motion { preference = MotionPreference.Reduced } } }
+        assertEquals(
+            MotionPreference.Reduced,
+            reduced.withPreferences(
+                ThemePreferences(textScaleFactor = 2.0)
+            ).tokens.motion.preference
+        )
+        for (scale in [0.0, -1.0, 0.0 / 0.0, 1.0 / 0.0])
+            assertFailsWith<IllegalArgumentException> {
+                source.resolve(ThemePreferences(textScaleFactor = scale))
+            }
+    }
+
+    @Test
+    fun `all four theme families meet high contrast in actual enabled disabled and focused parts`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (
+                base in [
+                    macosTheme(mode),
+                    materialTheme(mode),
+                    fluentTheme(mode),
+                    shadcnTheme(mode)
+                ]
+            ) {
+                val theme = base.withPreferences(ThemePreferences(highContrast = true))
+                val palette = theme.tokens.palette
+                for (
+                    pair in [
+                        palette.background,
+                        palette.card,
+                        palette.popover,
+                        palette.primary,
+                        palette.secondary,
+                        palette.muted,
+                        palette.accent,
+                        palette.destructive,
+                        palette.sidebar.background,
+                        palette.sidebar.primary,
+                        palette.sidebar.accent
+                    ]
+                ) {
+                    opaque(pair.background)
+                    contrastAtLeast(pair.foreground, pair.background, 7.0)
+                }
+                for (color in [palette.border, palette.input, palette.ring])
+                    contrastAtLeast(color, palette.background.background, 3.0)
+                contrastAtLeast(palette.disabledText, palette.background.background, 4.5)
+                assertEquals(1.0, theme.tokens.disabledOpacity)
+                if (base.tokens.disabledOpacity < 1.0) {
+                    val enabled = InteractionVisual()
+                    val disabled = InteractionVisual(enabled = false)
+                    assertTrue(
+                        theme.surfaceTextColor(SurfaceVisual(SurfaceKind.Action, enabled)) !=
+                            theme.surfaceTextColor(SurfaceVisual(SurfaceKind.Action, disabled))
+                    )
+                    val bounds = Rect(0.0, 0.0, 24.0, 24.0)
+                    assertTrue(
+                        theme.checkboxGeometry(
+                            bounds,
+                            CheckboxVisual(CheckMark.On, enabled)
+                        ).markColor !=
+                            theme.checkboxGeometry(
+                                bounds,
+                                CheckboxVisual(CheckMark.On, disabled)
+                            ).markColor
+                    )
+                    assertTrue(
+                        theme.radioGeometry(bounds, RadioVisual(true, enabled)).dotColor !=
+                            theme.radioGeometry(bounds, RadioVisual(true, disabled)).dotColor
+                    )
+                }
+                assertEquals(0L, theme.tokens.effects.raised.size)
+                assertEquals(0L, theme.tokens.effects.floating.size)
+                assertEquals(0L, theme.tokens.effects.emphasis.size)
+                for (
+                    state in [
+                        InteractionVisual(),
+                        InteractionVisual(hovered = true),
+                        InteractionVisual(pressed = true),
+                        InteractionVisual(enabled = false),
+                        InteractionVisual(focusVisible = true),
+                        InteractionVisual(hovered = true, focusVisible = true)
+                    ]
+                ) {
+                    val minimum =
+                        if (state.enabled)
+                            7.0
+                        else
+                            4.5
+                    for (kind in [SurfaceKind.Plain, SurfaceKind.Action, SurfaceKind.Elevated]) {
+                        val visual = SurfaceVisual(kind, state)
+                        val geometry = theme.surfaceGeometry(Rect(20.0, 20.0, 80.0, 40.0), visual)
+                        val fill = geometry.style.background!!.color
+                        opaque(fill)
+                        contrastAtLeast(theme.surfaceTextColor(visual), fill, minimum)
+                        assertEquals(1.0, geometry.opacity)
+                        assertEquals(0L, geometry.style.boxShadows.size)
+                        if (kind == SurfaceKind.Action) {
+                            val border = geometry.style.border!!.resolve(LayoutDirection.Ltr).left
+                            assertTrue(border.width >= 1.0)
+                            contrastAtLeast(border.color, fill, 3.0)
+                        }
+                        if (state.focusVisible) {
+                            assertTrue(geometry.ring!!.border.width >= 2.0)
+                            contrastAtLeast(
+                                geometry.ring!!.border.color,
+                                palette.background.background,
+                                3.0
+                            )
+                        }
+                    }
+                    val markBounds = Rect(20.0, 20.0, 24.0, 24.0)
+                    for (mark in [CheckMark.Off, CheckMark.On, CheckMark.Mixed]) {
+                        val geometry =
+                            theme.checkboxGeometry(markBounds, CheckboxVisual(mark, state))
+                        val fill = geometry.style.background!!.color
+                        opaque(fill)
+                        contrastAtLeast(
+                            geometry.style.border!!.resolve(LayoutDirection.Ltr).left.color,
+                            fill,
+                            3.0
+                        )
+                        if (mark != CheckMark.Off)
+                            contrastAtLeast(geometry.markColor, fill, minimum)
+                        assertEquals(1.0, geometry.opacity)
+                    }
+                    for (selected in [false, true]) {
+                        val geometry = theme.radioGeometry(markBounds, RadioVisual(selected, state))
+                        val fill = geometry.style.background!!.color
+                        opaque(fill)
+                        contrastAtLeast(
+                            geometry.style.border!!.resolve(LayoutDirection.Ltr).left.color,
+                            fill,
+                            3.0
+                        )
+                        if (selected)
+                            contrastAtLeast(geometry.dotColor, fill, minimum)
+                        assertEquals(1.0, geometry.opacity)
+                    }
+                }
+            }
+    }
+
+    @Test
+    fun `reduced transparency changes actual painted fills and removes default decoration`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (
+                base in [
+                    macosTheme(mode),
+                    materialTheme(mode),
+                    fluentTheme(mode),
+                    shadcnTheme(mode)
+                ]
+            ) {
+                val theme = base.withPreferences(ThemePreferences(reduceTransparency = true))
+                val bounds = Rect(20.0, 20.0, 80.0, 40.0)
+                val visual = SurfaceVisual(SurfaceKind.Action)
+                val geometry = theme.surfaceGeometry(bounds, visual)
+                val fill = geometry.style.background!!.color
+                opaque(fill)
+                assertEquals(0L, geometry.style.boxShadows.size)
+                assertEquals(0L, theme.tokens.effects.emphasis.size)
+                assertSame(base.tokens.typography.body, theme.tokens.typography.body)
+                theme.createPainter().use {
+                    painter ->
+                    val painted = pixels { canvas -> painter.drawSurface(canvas, geometry, visual) }
+                    pixelColor(painted, 128, 60, 40, fill)
+                    assertEquals(0, channel(painted, 128, 60, 65, 3))
+                    val barVisual = ScrollbarVisual(visibleFraction = 0.5)
+                    val bar = theme.scrollbarGeometry(Rect(20.0, 10.0, 20.0, 80.0), barVisual)
+                    val barPixels =
+                        pixels { canvas -> painter.drawScrollbar(canvas, bar, barVisual) }
+                    assertEquals(
+                        255,
+                        channel(
+                            barPixels,
+                            128,
+                            (bar.thumb.bounds.x + bar.thumb.bounds.width / 2.0).toInt(),
+                            (bar.thumb.bounds.y + bar.thumb.bounds.height / 2.0).toInt(),
+                            3
+                        )
+                    )
+                }
+                assertSame(base, theme.withPreferences(ThemePreferences()))
+            }
+    }
+}
+
+private fun opaque(color: Color) {
+    near(1.0, color.alpha)
+}
+
+private fun contrastAtLeast(foreground: Color, background: Color, minimum: Double) {
+    opaque(foreground)
+    val a = luminance(foreground)
+    val b = luminance(background)
+    val ratio =
+        if (a >= b)
+            (a + 0.05) / (b + 0.05)
+        else
+            (b + 0.05) / (a + 0.05)
+    assertTrue(
+        ratio >= minimum - 0.000001,
+        Some(
+            f"contrast ${ratio} below ${minimum}, foreground luminance ${a}, background luminance ${
+                b
+            }"
+        )
+    )
+}
+
+private fun luminance(color: Color): Double =
+    0.2126 * linear(color.red) + 0.7152 * linear(color.green) + 0.0722 * linear(color.blue)
+
+private fun linear(value: Double): Double =
+    if (value <= 0.04045)
+        value / 12.92
+    else
+        pow((value + 0.055) / 1.055, 2.4)

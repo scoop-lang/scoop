@@ -80,7 +80,8 @@ public class ChartProps public constructor(
     public val focus: FocusOptions = FocusOptions(),
     public val enabled: Boolean = true,
     public val fonts: FontCollection? = None,
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(pointRadius, "invalid chart point radius")
@@ -138,6 +139,7 @@ public class ChartBuilder internal constructor() {
     public var enabled: Boolean = true
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var key: ViewKey = ViewKey.Position
     internal fun build(model: ChartModel): View =
         component(
@@ -169,7 +171,8 @@ public class ChartBuilder internal constructor() {
                 focus,
                 enabled,
                 fonts,
-                theme
+                theme,
+                semantics
             ),
             { props, scope -> Chart(props, scope) },
             key

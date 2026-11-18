@@ -42,7 +42,12 @@ internal fun <T: Equals<T>> comboPopup(
                     input.empty,
                     theme.tokens.typography.body.copy {
                         fontSize = 14.0 * d;
-                        color = theme.tokens.palette.muted.foreground
+                        color =
+                            componentForeground(
+                                theme,
+                                theme.tokens.palette.muted.foreground,
+                                theme.tokens.palette.popover.background
+                            )
                     },
                     input.input.fonts,
                     true
@@ -50,9 +55,28 @@ internal fun <T: Equals<T>> comboPopup(
                 Insets(8.0 * d, 8.0 * d, 8.0 * d, 8.0 * d)
             )
         )
-    else
+    else {
+        val rows = control.rows(source, theme)
+        val selected = comboValues(input.selection)
         children.add(
-            virtualList(control.rows(source, theme), ItemExtent.Variable(28.0 * d)) {
+            virtualList(rows, ItemExtent.Variable(28.0 * d)) {
+                itemSemantics =
+                    Some(
+                        ItemSemantics(
+                            rows,
+                            {
+                                index -> comboItemSemantics(
+                                    source.entryAt(index),
+                                    selected,
+                                    input.mutable
+                                )
+                            },
+                            selection =
+                                Some(comboSelectionSemantics(source, selected, input.multiple)),
+                            setSelected =
+                                Some { key, value -> control.select(key, false, Some(value)) }
+                        )
+                    )
                 state = Some(control.scroll);
                 handle = Some(control.list);
                 this.theme = input.input.theme
@@ -64,6 +88,7 @@ internal fun <T: Equals<T>> comboPopup(
                 overscan = 28.0 * d
             }
         )
+    }
     val height =
         if (noResults)
             input.maxHeight * d
@@ -81,7 +106,7 @@ internal fun <T: Equals<T>> comboPopup(
         Insets.all(4.0 * d),
         styleOverride {
             background(Some(Paint(ink.popover.background)))
-            border(Some(Border.all(1.0, ink.background.foreground.withAlpha(0.1))))
+            border(Some(Border.all(1.0, componentPanelBorder(theme, ink.popover))))
             corners(Corners.all(8.0 * d));
             boxShadows(theme.tokens.effects.floating)
         }.then(input.popupStyle),

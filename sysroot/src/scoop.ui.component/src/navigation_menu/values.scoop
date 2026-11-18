@@ -12,7 +12,8 @@ public class NavigationMenuPanelProps public constructor(
     public val content: View,
     public val width: Double = 360.0,
     public val initialFocus: FocusHandle? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         nonnegative(width, "invalid navigation panel width")

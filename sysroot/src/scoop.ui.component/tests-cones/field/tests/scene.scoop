@@ -108,7 +108,7 @@ private fun editorField(p: FieldProbe): View {
                 enabled = p.enabled,
                 readOnly = p.readonly,
                 invalid = p.errors,
-                caretBlink = Duration.milliseconds(0L),
+                caretBlink = Some(Duration.milliseconds(0L)),
                 focus = FocusOptions(Some(p.focus)),
                 labelTarget = Some(target)
             ),

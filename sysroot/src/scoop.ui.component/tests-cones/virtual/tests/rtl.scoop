@@ -94,7 +94,11 @@ internal fun advanceRtlList(probe: ListProbe, active: ActiveApplication) {
             probe.input(active) { probe.key(115) }
         }
         case 22 -> {
-            assertEquals(Point(240.0, 0.0), probe.rtlScroll.offset)
+            assertEquals(
+                Point(240.0, 0.0),
+                probe.rtlScroll.offset,
+                Some(f"Home offset=(${probe.rtlScroll.offset.x}, ${probe.rtlScroll.offset.y})")
+            )
             assertEquals(
                 Some(VirtualReadingAnchor(ViewKey.Number(0L), 0.0)),
                 handle.reading!!.anchor
@@ -109,8 +113,12 @@ internal fun advanceRtlList(probe: ListProbe, active: ActiveApplication) {
             probe.input(active) { probe.key(121) }
         }
         case 24 -> {
-            assertEquals(Point(0.0, 0.0), probe.rtlScroll.offset)
-            assertTrue(probe.rtlScroll.requestRevision > probe.boundaryRevision)
+            if (probe.placementPhase == 0) {
+                assertEquals(Point(0.0, 0.0), probe.rtlScroll.offset)
+                assertTrue(probe.rtlScroll.requestRevision > probe.boundaryRevision)
+            }
+            if (!advanceListPlacement(probe, active))
+                return
             probe.show.value = false
             probe.refresh()
         }

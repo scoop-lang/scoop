@@ -108,3 +108,61 @@ private class TextInputTest {
         assertEquals(Some(Utf8Range(1L, 8L)), result.markedRange)
     }
 }
+
+@Test
+private class TextInputSelectionTest {
+    @Test
+    fun `native selection preserves direction and uses the current transaction text`() {
+        val original = TextInputState("A😀B", Utf8Selection(6L, 6L), revision = 4L)
+        val result =
+            original.apply(
+                TextInputBatch(
+                    Some(4L),
+                    [
+                        TextInputOperation.SetSelection(Utf8Selection(5L, 1L)),
+                        TextInputOperation.Commit("中文", TextReplacement.CurrentSelection),
+                        TextInputOperation.SetSelection(Utf8Selection(7L, 4L))
+                    ]
+                )
+            )
+        assertEquals("A中文B", result.surroundingText)
+        assertEquals(Utf8Selection(7L, 4L), result.selection)
+        assertEquals(5L, result.revision)
+        assertEquals("A😀B", original.surroundingText)
+        assertEquals(Utf8Selection(6L, 6L), original.selection)
+        assertFailsWith<IllegalArgumentException> {
+            original.apply(edits(TextInputOperation.SetSelection(Utf8Selection(1L, 2L))))
+        }
+        assertFailsWith<IllegalStateException> {
+            original.apply(
+                TextInputBatch(Some(3L), [TextInputOperation.SetSelection(Utf8Selection(0L, 0L))])
+            )
+        }
+    }
+    @Test
+    fun `selection inside preedit preserves composition until it is explicitly accepted`() {
+        val original = TextInputState("P", Utf8Selection(1L, 1L))
+        val composing =
+            original.apply(
+                edits(TextInputOperation.Preedit("😀中", None, TextReplacement.CurrentSelection))
+            )
+        val selected =
+            composing.apply(edits(TextInputOperation.SetSelection(Utf8Selection(8L, 5L))))
+        assertEquals("P😀中", selected.surroundingText)
+        assertEquals(Some(Utf8Range(1L, 8L)), selected.markedRange)
+        assertEquals(Utf8Selection(8L, 5L), selected.selection)
+        assertFailsWith<IllegalArgumentException> {
+            selected.apply(edits(TextInputOperation.SetSelection(Utf8Selection(0L, 0L))))
+        }
+        val accepted =
+            selected.apply(
+                edits(
+                    TextInputOperation.ClearPreedit,
+                    TextInputOperation.SetSelection(Utf8Selection(8L, 0L))
+                )
+            )
+        assertEquals("P😀中", accepted.surroundingText)
+        assertEquals(None, accepted.markedRange)
+        assertEquals(Utf8Selection(8L, 0L), accepted.selection)
+    }
+}

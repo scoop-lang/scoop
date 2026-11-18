@@ -1,0 +1,286 @@
+package scoop.tests.ui.accessibility.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class AccessibleTextGeometryTest {
+    @Test
+    fun `accepted transformed text follows scrolling content and binding lifetime`() {
+        FontCollection(false).use {
+            fonts ->
+            fonts.register(testSansBytes, "Geometry Sans")
+            val probe =
+                GeometryProbe(
+                    TextEditAppearance(
+                        fonts,
+                        textStyle {
+                            families = ["Geometry Sans"]
+                            fontSize = 18.0
+                        }
+                    )
+                )
+            try {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+                assertTrue(probe.finished)
+                assertEquals(1, probe.discarded)
+            } finally {
+                probe.close()
+            }
+        }
+    }
+}
+
+internal class GeometryProbe(val appearance: TextEditAppearance): Closeable {
+    val model =
+        TextEditorState(
+            "A😀é中\none two three four five six seven eight nine\nlast\n",
+            Some(Utf8Selection(0L, 0L))
+        )
+    val options = TextEditOptions(multiline = true, caretBlink = Some(Duration.ZERO))
+    var scope: ComponentScope? = None
+    var editor: TextEditHost? = None
+    var semantic: SemanticsHandle? = None
+    var window: Window? = None
+    var shift = 0.0
+    var skipText = false
+    var skipPlacement = false
+    var discardNext = false
+    var discarded = 0
+    var finished = false
+    private var phase = 0
+    private var active: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var lease: NativeWindowLease? = None
+    private var view: Ptr<Unit>? = None
+    private var node: NativeNode? = None
+    private var oldBounds: TextQueryBounds? = None
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop accepted text geometry"
+                            requestActivation = false
+                            size = LogicalSize(320.0, 180.0)
+                        }
+                    )
+                window = Some(native)
+                ui = host.attach(native, { mount -> GeometryRoot(this, mount) })
+                @Unsafe
+                {
+                    val held = native.acquireNativeWindow()
+                    lease = Some(held)
+                    view =
+                        Some(
+                            when (held.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        )
+                }
+            }
+            case Window(_, WindowEvent.Closing) -> {
+                lease?.close()
+                lease = None
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"text geometry timed out at ${phase}")
+            )
+            else -> {}
+        }
+    }
+
+    fun frame(frame: FrameCompletion, wasDiscard: Boolean) {
+        if (frame.submission == FrameSubmission.Discarded) {
+            assertTrue(wasDiscard)
+            assertEquals(oldBounds, Some(node!!.boundsForRange(view!!, 0L, 1L)))
+            discarded += 1
+            scope!!.requestFrame()
+            return
+        }
+        when (phase) {
+            case 0 -> {
+                @Unsafe
+                {
+                    NativeNode(nativeRoot(view!!)!!).use { root -> node = root.find("geometry") }
+                }
+                assertTrue(node!!.hasTextGeometry())
+                assertTrue(editor!!.layout.lines.size > 4L)
+                checkBounds(1L, 5L)
+                val visible = node!!.visibleRange()
+                assertEquals(0L, visible.start)
+                assertTrue(visible.length < node!!.characterCount)
+                assertFalse(editor!!.focus.handle.hasFocus)
+                val line = editor!!.layout.lines[1L]
+                assertFalse(line.hardBreak)
+                val end = TextPosition(line.range.end, TextAffinity.Upstream)
+                model.setSelection(end, end)
+                refresh()
+                phase = -1
+                post {
+                    assertEquals(1L, node!!.insertionLine())
+                    assertEquals(2L, node!!.lineForIndex(utf16Offset(model.text, end.byteOffset)))
+                    val downstream = TextPosition(end.byteOffset)
+                    model.setSelection(downstream, downstream)
+                    semantic!!.updateTextEditor(editor!!, properties())
+                    post {
+                        assertEquals(2L, node!!.insertionLine())
+                        assertTrue(node!!.hasTextGeometry())
+                        phase = 1
+                        editor!!.scroll.scrollTo(Point(0.0, editor!!.scroll.maximum.y))
+                        scope!!.requestLayout()
+                    }
+                }
+            }
+            case 1 -> {
+                assertTrue(node!!.visibleRange().start > 0L)
+                checkBounds(0L, 1L)
+                oldBounds = Some(node!!.boundsForRange(view!!, 0L, 1L))
+                shift = 30.0
+                discardNext = true
+                phase = 2
+                scope!!.requestFrame()
+            }
+            case 2 -> {
+                val moved = node!!.boundsForRange(view!!, 0L, 1L)
+                assertTrue(abs(moved.x - oldBounds!!.x - 30.0) < 0.001)
+                checkBounds(0L, 1L)
+                phase = -1
+                window!!.setVisible(false)
+                model.replaceAll("new 😀 text\nZ")
+                refresh()
+                assertEquals(None, semantic!!.geometry)
+                post {
+                    assertTrue(node!!.text(1, Some(model.text)))
+                    assertFalse(node!!.hasTextGeometry())
+                    assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForIndex(0L))
+                    phase = 3
+                    window!!.setVisible(true)
+                    scope!!.requestLayout()
+                }
+            }
+            case 3 -> {
+                assertTrue(node!!.hasTextGeometry())
+                assertEquals(TextQueryRange(4L, 2L), node!!.rangeForIndex(4L))
+                checkBounds(4L, 8L)
+                phase = -1
+                window!!.setVisible(false)
+                semantic!!.update(properties())
+                post {
+                    assertFalse(node!!.hasTextGeometry())
+                    assertTrue(node!!.text(1, Some(model.text)))
+                    semantic!!.updateTextEditor(editor!!, properties())
+                    phase = 4
+                    window!!.setVisible(true)
+                }
+            }
+            case 4 -> {
+                assertTrue(node!!.hasTextGeometry())
+                skipText = true
+                phase = 5
+                scope!!.requestFrame()
+            }
+            case 5 -> {
+                assertFalse(node!!.hasTextGeometry())
+                assertTrue(node!!.text(1, Some(model.text)))
+                skipText = false
+                skipPlacement = true
+                phase = 6
+                scope!!.requestFrame()
+            }
+            case 6 -> {
+                assertFalse(node!!.hasTextGeometry())
+                assertEquals(None, semantic!!.geometry)
+                skipPlacement = false
+                phase = 7
+                scope!!.requestFrame()
+            }
+            case 7 -> {
+                assertTrue(node!!.hasTextGeometry())
+                phase = -1
+                skipText = true
+                editor!!.close()
+                post {
+                    assertFalse(node!!.hasTextGeometry())
+                    assertEquals(TextQueryRange(-1L, 0L), node!!.rangeForIndex(0L))
+                    ui!!.close()
+                    assertFalse(node!!.flag(0))
+                    finished = true
+                    window!!.requestDestroy()
+                    active!!.requestExit()
+                }
+            }
+            else -> {}
+        }
+    }
+
+    fun properties(): SemanticProperties =
+        SemanticProperties(
+            name = Some("Geometry"),
+            automationId = Some("geometry"),
+            value = Some(model.text),
+            selection = Some(model.selection)
+        )
+    fun refresh() {
+        editor!!.update(model, appearance, options)
+        semantic!!.updateTextEditor(editor!!, properties())
+    }
+
+    private fun checkBounds(start: Long, end: Long) {
+        val boxes = editor!!.selectionBounds(Utf8Range(start, end))
+        assertEquals(1L, boxes.size)
+        val expected = editor!!.area.toWindow(boxes[0L].rect)!!
+        val from = utf16Offset(model.text, start)
+        val actual = node!!.boundsForRange(view!!, from, utf16Offset(model.text, end) - from)
+        assertTrue(abs(actual.x - expected.x) < 0.001)
+        assertTrue(abs(actual.y - expected.y) < 0.001)
+        assertTrue(abs(actual.width - expected.width) < 0.001)
+        assertTrue(abs(actual.height - expected.height) < 0.001)
+    }
+    private fun post(action: () -> Unit) {
+        assertTrue(active!!.proxy().post { _ -> action() })
+    }
+    public override fun close() {
+        node?.close()
+        node = None
+        lease?.close()
+        lease = None
+    }
+}
+
+private fun utf16Offset(text: String, offset: Long): Long {
+    var bytes = 0L
+    var result = 0L
+    for (character in text) {
+        if (bytes == offset)
+            break
+        val size = character.toString().byteLength
+        bytes += size
+        result += if (size == 4L)
+            2L
+        else
+            1L
+    }
+    assertEquals(offset, bytes)
+    return result
+}

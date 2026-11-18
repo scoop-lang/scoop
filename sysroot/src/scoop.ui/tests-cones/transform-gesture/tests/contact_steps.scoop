@@ -1,0 +1,146 @@
+package scoop.tests.ui.transform
+
+import scoop.graphics.*
+import scoop.math.PI
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun contactTransformSteps(p: ContactTransformProbe, active: ActiveApplication) {
+    when (p.stage) {
+        0 -> {
+            p.contact(800L, 0, Point(60.0, 60.0))
+            p.contact(800L, 2, Point(60.0, 60.0))
+        }
+        1 -> {
+            assertEquals(1, p.taps)
+            p.begin()
+            p.moveSecond(Point(148.0, 60.0))
+        }
+        2 -> {
+            assertEquals(0, p.starts)
+            assertFalse(p.gesture!!.isTransforming)
+            p.moveSecond(Point(180.0, 60.0))
+        }
+        3 -> {
+            assertEquals(1, p.starts)
+            assertTrue(p.gesture!!.isTransforming)
+            p.near(1.5, p.last!!.scale)
+            p.near(1.5, p.last!!.scaleDelta)
+            assertEquals(Point(50.0, 20.0), p.last!!.position)
+            assertEquals(
+                TransformGestureInput.Contacts(
+                    ContactId(p.firstId),
+                    ContactKind.Touch,
+                    ContactId(p.secondId),
+                    ContactKind.Touch
+                ),
+                p.last!!.input
+            )
+            p.moveSecond(Point(60.0, 180.0))
+        }
+        4 -> {
+            p.near(1.5, p.last!!.scale)
+            p.near(PI / 2.0, p.last!!.rotation)
+            p.near(1.0, p.last!!.scaleDelta)
+            p.secondPoint = Point(60.0, 220.0)
+            p.endSecond()
+        }
+        5 -> {
+            assertEquals(1, p.ends)
+            p.near(2.0, p.last!!.scale)
+            p.near(PI / 2.0, p.last!!.rotation)
+            assertEquals(Point(20.0, 60.0), p.last!!.position)
+            assertFalse(p.gesture!!.isTransforming)
+            assertFalse(p.area!!.scope.activity.hasContact)
+            p.moveFirst(Point(100.0, 100.0))
+            p.endFirst()
+        }
+        6 -> {
+            assertEquals(1, p.starts)
+            assertEquals(1, p.taps)
+            p.configure(TransformGestureOptions(contactThreshold = 0.0))
+            p.begin(Point(160.0, 100.0), Point(80.0, 102.0), aKind = 1)
+            p.moveSecond(Point(80.0, 98.0))
+        }
+        7 -> {
+            assertEquals(2, p.starts)
+            p.near(1.0, p.last!!.scale)
+            assertTrue(p.last!!.rotation > 0.0 && p.last!!.rotation < 0.1)
+            assertEquals(
+                TransformGestureInput.Contacts(
+                    ContactId(p.firstId),
+                    ContactKind.Pen,
+                    ContactId(p.secondId),
+                    ContactKind.Touch
+                ),
+                p.last!!.input
+            )
+            p.end()
+        }
+        8 -> {
+            assertEquals(2, p.ends)
+            p.configure(TransformGestureOptions(magnify = false, contactThreshold = 0.0))
+            p.begin()
+            p.moveSecond(Point(180.0, 60.0))
+        }
+        9 -> {
+            assertEquals(2, p.starts)
+            p.moveSecond(Point(60.0, 180.0))
+        }
+        10 -> {
+            assertEquals(3, p.starts)
+            p.near(1.0, p.last!!.scale)
+            p.near(PI / 2.0, p.last!!.rotation)
+            p.end()
+        }
+        11 -> {
+            assertEquals(3, p.ends)
+            p.configure(TransformGestureOptions(rotate = false, contactThreshold = 0.0))
+            p.begin()
+            p.moveSecond(Point(60.0, 140.0))
+        }
+        12 -> {
+            assertEquals(3, p.starts)
+            p.moveSecond(Point(60.0, 180.0))
+        }
+        13 -> {
+            assertEquals(4, p.starts)
+            p.near(1.5, p.last!!.scale)
+            p.near(0.0, p.last!!.rotation)
+            p.end()
+        }
+        14 -> {
+            assertEquals(4, p.ends)
+            p.configure(TransformGestureOptions(contacts = false))
+            p.start()
+        }
+        15 -> {
+            assertEquals(4, p.starts)
+            p.end()
+            p.configure(TransformGestureOptions())
+        }
+        16 -> p.start()
+        17 -> {
+            assertEquals(5, p.starts)
+            p.changeScale(4.0)
+        }
+        18 -> p.moveSecond(p.secondPoint)
+        19 -> {
+            p.near(1.5, p.last!!.scale)
+            p.near(1.0, p.last!!.scaleDelta)
+            p.near(0.0, p.last!!.rotationDelta)
+            assertEquals(Point(25.0, 10.0), p.last!!.position)
+            p.end()
+            p.changeScale(2.0)
+        }
+        20 -> {
+            assertEquals(5, p.starts)
+            assertEquals(5, p.ends)
+            assertEquals(0L, p.reasons.size)
+            assertFalse(p.area!!.scope.activity.hasContact)
+            p.done(active)
+        }
+        else -> fail(Some("unexpected direct transform phase"))
+    }
+}

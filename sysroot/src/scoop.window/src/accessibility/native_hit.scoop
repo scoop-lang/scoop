@@ -1,0 +1,10 @@
+package scoop.window.accessibility.native
+
+/** A borrowed, paired native snapshot; queries never enter application code or Scoop callbacks. */
+@CLayout
+public struct NativeSemanticHitTest(
+    val context: Ptr<Unit>,
+    val retain: FunPtr<(Ptr<Unit>) -> Unit>,
+    val release: FunPtr<(Ptr<Unit>) -> Unit>,
+    val contains: FunPtr<(Ptr<Unit>, Double, Double) -> Int>
+)

@@ -1,0 +1,32 @@
+package scoop.window.accessibility.native
+
+/** UTF-8 range query: 1 success, 0 unavailable, -1 invalid argument, -2 native failure. */
+@CLayout
+public struct NativeSemanticTextRange(val start: Long, val end: Long, val status: Int)
+
+/**
+ * Paired native queries matching the published text and accepted scene.
+ * Coordinates are window-logical. Functions and synchronous box visitors never enter Scoop.
+ * Affinity is 0 upstream or 1 downstream; units 0..3 are grapheme, word, visual and logical line.
+ */
+@CLayout
+public struct NativeSemanticTextGeometry(
+    val context: Ptr<Unit>,
+    val retain: FunPtr<(Ptr<Unit>) -> Unit>,
+    val release: FunPtr<(Ptr<Unit>) -> Unit>,
+    val range: FunPtr<(Ptr<Unit>, Long, Int, Int) -> NativeSemanticTextRange>,
+    val lineRange: FunPtr<(Ptr<Unit>, Long) -> NativeSemanticTextRange>,
+    /** Nonnegative line index; -1 unavailable, -2 invalid argument, -3 native failure. */
+    val lineIndex: FunPtr<(Ptr<Unit>, Long, Int) -> Long>,
+    val rangeAtPoint: FunPtr<(Ptr<Unit>, Double, Double) -> NativeSemanticTextRange>,
+    val boxes: FunPtr<
+        (
+            Ptr<Unit>,
+            Long,
+            Long,
+            Ptr<Unit>,
+            FunPtr<(Ptr<Unit>, Double, Double, Double, Double) -> Unit>
+        ) -> Int
+    >,
+    val visibleRange: FunPtr<(Ptr<Unit>) -> NativeSemanticTextRange>
+)

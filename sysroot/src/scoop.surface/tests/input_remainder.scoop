@@ -1,0 +1,248 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputRemainderTest {
+    @Test
+    fun `final scroll remainder follows all ordinary consumers and keeps its receiver units`() {
+        InputRig().use {
+            rig ->
+            val parent = rig.area("parent")
+            val child = rig.area("child", parent = Some(parent.scope))
+            val final = ArrayList<Point>()
+            val order = ArrayList<String>()
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, parent, Rect(0.0, 0.0, 150.0, 100.0))
+                canvas.scale(2.0, 4.0)
+                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 25.0))
+            }
+            child.scope.defaultAction =
+                {
+                    context,
+                    event -> if (isRemainderWheel(event))
+                        context.consumeScroll(
+                            10.0,
+                            Some { _ -> fail(Some("superseded remainder ran")) }
+                        ) {
+                            _ ->
+                            order.add("child");
+                            Point(5.0, -2.5)
+                        }
+                }
+            parent.scope.defaultAction =
+                {
+                    context,
+                    event -> if (isRemainderWheel(event))
+                        context.consumeScroll(
+                            20.0,
+                            Some {
+                                amount ->
+                                assertFailsWith<IllegalStateException> { context.scrollRemaining }
+                                order.add("final")
+                                final.add(amount)
+                                amount
+                            }
+                        ) {
+                            _ ->
+                            order.add("parent");
+                            Point(0.0, -20.0)
+                        }
+                }
+            rig.router.rootScope.defaultAction =
+                {
+                    context,
+                    event -> if (isRemainderWheel(event))
+                        context.consumeScroll(40.0) {
+                            amount ->
+                            order.add("root")
+                            Point(amount.x / 2.0, 0.0)
+                        }
+                }
+            rig.router.rootScope.onEventFinished =
+                {
+                    event -> if (isRemainderWheel(event))
+                        order.add("finished")
+                }
+            rig.wheel(10.0, 10.0, ScrollDelta.LineDelta(2.0, -3.0))
+            assertEquals(1L, final.size)
+            assertEquals(Point(10.0, -20.0), final[0L])
+            assertEquals(5L, order.size)
+            assertEquals("root", order[2L])
+            assertEquals("final", order[3L])
+            assertEquals("finished", order[4L])
+            rig.wheel(10.0, 10.0, ScrollDelta.LineDelta(0.0, 0.0), ScrollPhase.MayBegin)
+            assertEquals(2L, final.size)
+            assertEquals(Point(0.0, 0.0), final[1L])
+            assertEquals(7L, order.size)
+        }
+    }
+
+    @Test
+    fun `containment keeps its final callback and a rejected registration does not replace it`() {
+        InputRig().use {
+            rig ->
+            val child = rig.area("child")
+            val final = ArrayList<Point>()
+            rig.frame { frame, canvas -> frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0)) }
+            child.scope.defaultAction =
+                {
+                    context,
+                    event -> if (isRemainderWheel(event)) {
+                        context.consumeScroll(
+                            10.0,
+                            Some {
+                                amount ->
+                                final.add(amount);
+                                amount
+                            }
+                        ) { _ -> Point(0.0, 0.0) }
+                        assertFailsWith<IllegalArgumentException> {
+                            context.consumeScroll(
+                                0.0,
+                                Some { _ -> fail(Some("invalid remainder ran")) }
+                            ) { point -> point }
+                        }
+                        context.preventDefault()
+                    }
+                }
+            rig.router.rootScope.defaultAction =
+                {
+                    _,
+                    event -> if (isRemainderWheel(event))
+                        fail(Some("containment escaped"))
+                }
+            rig.wheel(10.0, 10.0, ScrollDelta.LineDelta(1.0, -2.0))
+            assertEquals(1L, final.size)
+            assertEquals(Point(10.0, -20.0), final[0L])
+        }
+    }
+
+    @Test
+    fun `failed defaults and invalidated paths skip final work but preserve event completion`() {
+        for (mode in 0 ..< 3) {
+            InputRig().use {
+                rig ->
+                val child = rig.area("child")
+                val final = ArrayList<Point>()
+                val completed = ArrayList<InputEvent>()
+                rig.frame {
+                    frame,
+                    canvas -> frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0))
+                }
+                child.scope.defaultAction =
+                    {
+                        context,
+                        event -> if (isRemainderWheel(event))
+                            context.consumeScroll(
+                                1.0,
+                                Some {
+                                    amount ->
+                                    final.add(amount)
+                                    Point(amount.x + 1.0, amount.y)
+                                }
+                            ) { _ -> Point(0.0, 0.0) }
+                    }
+                rig.router.rootScope.defaultAction =
+                    {
+                        _,
+                        event -> if (isRemainderWheel(event)) {
+                            if (mode == 0)
+                                throw IllegalStateException(Some("default failed"))
+                            if (mode == 1)
+                                child.scope.enabled = false
+                        }
+                    }
+                rig.router.rootScope.onEventFinished =
+                    {
+                        event -> if (isRemainderWheel(event))
+                            completed.add(event)
+                    }
+                if (mode == 0)
+                    assertFailsWith<IllegalStateException> {
+                        rig.wheel(10.0, 10.0, ScrollDelta.LineDelta(1.0, 0.0))
+                    }
+                else
+                    if (mode == 1)
+                        rig.wheel(10.0, 10.0, ScrollDelta.LineDelta(1.0, 0.0))
+                    else
+                        assertFailsWith<IllegalArgumentException> {
+                            rig.wheel(10.0, 10.0, ScrollDelta.LineDelta(1.0, 0.0))
+                        }
+                assertEquals(
+                    if (mode == 2)
+                        1L
+                    else
+                        0L,
+                    final.size
+                )
+                assertEquals(1L, completed.size)
+            }
+        }
+    }
+
+    @Test
+    fun `contact final remainder uses shared transformed movement and runs on a stationary end`() {
+        InputRig().use {
+            rig ->
+            val parent = rig.area("parent")
+            val child = rig.area("child", parent = Some(parent.scope))
+            val final = ArrayList<Point>()
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, parent, Rect(0.0, 0.0, 160.0, 100.0))
+                canvas.scale(2.0, 4.0)
+                frame.place(canvas, child, Rect(0.0, 0.0, 60.0, 25.0))
+            }
+            child.scope.defaultAction =
+                {
+                    context,
+                    event -> if (isRemainderContact(event)) {
+                        when (event) {
+                            case Contact(InputContactEvent.Moved(_)) ->
+                            assertTrue(child.scope.claimContacts([ContactId(1L)]))
+                            else -> {}
+                        }
+                        context.consumeContactMovement(
+                            Some { _ -> fail(Some("child remainder ran")) }
+                        ) { amount -> Point(amount.x / 2.0, amount.y / 2.0) }
+                    }
+                }
+            parent.scope.defaultAction =
+                {
+                    context,
+                    event -> if (isRemainderContact(event))
+                        context.consumeContactMovement(
+                            Some {
+                                amount ->
+                                final.add(amount);
+                                amount
+                            }
+                        ) { amount -> Point(amount.x / 2.0, amount.y / 2.0) }
+                }
+            rig.contact(ContactEvent.Began(contactInput(1L, 10.0, 20.0)))
+            rig.contact(ContactEvent.Moved(contactInput(1L, 30.0, 60.0)))
+            rig.contact(ContactEvent.Ended(contactInput(1L, 30.0, 60.0)))
+            assertEquals(2L, final.size)
+            assertEquals(Point(5.0, 10.0), final[0L])
+            assertEquals(Point(0.0, 0.0), final[1L])
+            assertFalse(parent.scope.activity.hasContact)
+        }
+    }
+}
+
+private fun isRemainderWheel(event: InputEvent): Boolean =
+    when (event) {
+        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> true
+        else -> false
+    }
+
+private fun isRemainderContact(event: InputEvent): Boolean =
+    when (event) {
+        case Contact(InputContactEvent.Moved(_)) -> true
+        case Contact(InputContactEvent.Ended(_)) -> true
+        else -> false
+    }

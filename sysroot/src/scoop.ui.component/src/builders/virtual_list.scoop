@@ -23,10 +23,20 @@ public class VirtualListBuilder internal constructor() {
     public var navigation: ItemNavigation = ItemNavigation.None
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
     public var endPadding: VirtualListEndPadding = VirtualListEndPadding.Fixed(0.0)
+    public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    public var semantics: ComponentSemantics = ComponentSemantics()
+    public var touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
+    public var itemSemantics: ItemSemantics? = None
+    public var collectionSemantics: ComponentSemantics = ComponentSemantics()
     public var key: ViewKey = ViewKey.Position
 
     public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit): Unit {
         scrollbar = scrollbar.copy(configure)
+    }
+
+    public fun scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit): Unit {
+        scrollbarBehavior = scrollbarBehavior.copy(configure)
     }
 
     public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
@@ -53,7 +63,13 @@ public class VirtualListBuilder internal constructor() {
             retention,
             navigation,
             paintCache,
-            endPadding
+            endPadding,
+            scrollbarBehavior,
+            semantics,
+            touchScroll,
+            scrollPhysics,
+            itemSemantics,
+            collectionSemantics
         )
 }
 

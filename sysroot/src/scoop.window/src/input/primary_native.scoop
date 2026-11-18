@@ -1,0 +1,70 @@
+package scoop.window
+
+internal fun platformPrimaryFlags(application: Ptr<Unit>): Int {
+    @Unsafe
+    {
+        return nativePrimaryFlags(application)
+    }
+}
+
+internal fun platformReadPrimary(application: Ptr<Unit>): String? {
+    @Unsafe
+    {
+        return decodeClipboardText(nativePrimaryRead(application), "read primary selection")
+    }
+}
+
+internal fun platformClaimPrimary(application: Ptr<Unit>, text: String): Long {
+    @Unsafe
+    {
+        val result =
+            text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativePrimaryClaim(application, bytes, length)
+                }
+            }
+        checkNativeStatus(result.error, "claim primary selection")
+        return result.generation
+    }
+}
+
+internal fun platformPrimaryCurrent(application: Ptr<Unit>, generation: Long): Boolean {
+    @Unsafe
+    {
+        return nativePrimaryCurrent(application, generation) != 0
+    }
+}
+
+internal fun platformReleasePrimary(application: Ptr<Unit>, generation: Long) {
+    @Unsafe
+    {
+        checkNativeStatus(
+            nativePrimaryRelease(application, generation),
+            "release primary selection"
+        )
+    }
+}
+
+@CLayout
+private struct NativePrimaryClaim(val generation: Long, val error: Long)
+
+@Extern(name = "scoop_window_primary_flags")
+private fun nativePrimaryFlags(application: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_primary_read")
+private fun nativePrimaryRead(application: Ptr<Unit>): NativeClipboardText
+
+@Extern(name = "scoop_window_primary_claim")
+private fun nativePrimaryClaim(
+    application: Ptr<Unit>,
+    text: Ptr<UInt8>,
+    length: Long
+): NativePrimaryClaim
+
+@Extern(name = "scoop_window_primary_current")
+private fun nativePrimaryCurrent(application: Ptr<Unit>, generation: Long): Int
+
+@Extern(name = "scoop_window_primary_release")
+private fun nativePrimaryRelease(application: Ptr<Unit>, generation: Long): Long

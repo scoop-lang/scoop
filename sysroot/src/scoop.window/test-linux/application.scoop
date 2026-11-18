@@ -30,7 +30,7 @@ private class LinuxApplicationTest {
             assertEquals(1, handler.keyDown)
             assertEquals(1, handler.keyUp)
             assertEquals("a", handler.text)
-            assertEquals(2, handler.buttons)
+            assertEquals(6, handler.buttons)
             assertEquals(2L, handler.wheels.size)
             assertEquals(ScrollDelta.LineDelta(0.0, -1.0), handler.wheels[0L])
             assertEquals(ScrollDelta.LineDelta(-1.0, 0.0), handler.wheels[1L])
@@ -83,6 +83,10 @@ private class LinuxHandler: ApplicationHandler {
 
                         redraws += 1
                         if (stage == 0) {
+                            @Unsafe
+                            {
+                                assertTrue(exerciseGtkScaleNotification(value.owner.pointer!!))
+                            }
                             verifyShortcutLabels(value)
                             if (x11)
                                 @Unsafe
@@ -157,7 +161,33 @@ private class LinuxHandler: ApplicationHandler {
                 }
                 case Window(_, WindowEvent.Pointer(val event)) -> {
                     when (event) {
-                        case Button(_, _, _, _) -> buttons += 1
+                        case Button(val pointer, val button, val phase, val clicks) -> {
+                            @Unsafe
+                            {
+                                when (lease!!.handle) {
+                                    case Gtk(_, val view) -> assertTrue(
+                                        matchesGtkContactPosition(
+                                            view,
+                                            pointer.logicalPosition.x,
+                                            pointer.logicalPosition.y
+                                        ),
+                                        Some(
+                                            "raw contact conversion must match the same GTK pointer event"
+                                        )
+                                    )
+                                }
+                            }
+                            assertEquals(MouseButton.Left, button)
+                            assertEquals(
+                                if (buttons % 2 == 0)
+                                    ElementState.Pressed
+                                else
+                                    ElementState.Released,
+                                phase
+                            )
+                            assertEquals(buttons / 2 + 1, clicks)
+                            buttons += 1
+                        }
                         case Wheel(_, val delta, _, _) -> wheels.add(delta)
                         else -> {}
                     }

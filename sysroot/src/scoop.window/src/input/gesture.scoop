@@ -1,0 +1,45 @@
+package scoop.window
+
+/** A phase supplied by the native recognizer; None is an independent event. */
+public enum GesturePhase {
+    None, Began, Changed, Ended, Cancelled
+}
+
+/** Kinds of system-recognized gestures, independent of application recognizers. */
+public enum GestureKind {
+    Magnify, Rotate, Swipe
+}
+
+/**
+ * Magnify multiplies the current scale by (1 + delta). Rotate carries clockwise
+ * radians. Swipe carries a discrete direction, positive right/down, not a pixel
+ * distance. The positional state does not change mouse buttons or create touch
+ * contacts. Device identity remains unknown when the platform cannot provide it.
+ */
+public enum GestureEvent {
+    Magnify(PointerState, GesturePhase, Double),
+    Rotate(PointerState, GesturePhase, Double),
+    Swipe(PointerState, Double, Double)
+}
+
+public val GestureEvent.kind: GestureKind get() =
+    when (this) {
+        case Magnify(_, _, _) -> GestureKind.Magnify
+        case Rotate(_, _, _) -> GestureKind.Rotate
+        case Swipe(_, _, _) -> GestureKind.Swipe
+    }
+
+public val GestureEvent.state: PointerState get() =
+    when (this) {
+        case Magnify(val value, _, _) -> value
+        case Rotate(val value, _, _) -> value
+        case Swipe(val value, _, _) -> value
+    }
+
+/** Swipe is always discrete and has no continuous sequence phase. */
+public val GestureEvent.phase: GesturePhase get() =
+    when (this) {
+        case Magnify(_, val value, _) -> value
+        case Rotate(_, val value, _) -> value
+        case Swipe(_, _, _) -> GesturePhase.None
+    }

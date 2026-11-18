@@ -5,12 +5,13 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
+import scoop.window.accessibility.*
 
 public class NavigationMenuLink public constructor(
     private val props: Props<NavigationMenuLinkProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.button.theme)
     }
@@ -18,7 +19,7 @@ public class NavigationMenuLink public constructor(
         val input = props.value
         val button = input.button
         val theme = themes.read(button.theme)
-        return component(
+        return semanticButton(
             ButtonProps(
                 button.content,
                 button.onClick,
@@ -30,9 +31,26 @@ public class NavigationMenuLink public constructor(
                 button.variant,
                 button.size,
                 button.group,
-                button.labelTarget
+                button.labelTarget,
+                button.semantics
             ),
-            { current, mount -> Button(current, scope = mount) }
+            SemanticRole.Link,
+            button.semantics.properties(
+                enabled = button.enabled,
+                invalid = button.invalid,
+                selected = Some(input.active)
+            ),
+            SemanticActions(
+                invoke =
+                    Some {
+                        if (!props.value.button.enabled)
+                            SemanticActionResult.Rejected
+                        else {
+                            props.value.button.onClick()
+                            SemanticActionResult.Completed
+                        }
+                    }
+            )
         )
     }
 }

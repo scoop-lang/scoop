@@ -1,0 +1,198 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class SelectableMenuProbe: Closeable {
+    var options = SelectableTextOptions()
+    var complete = false
+    private var phase = 0
+    private var observed = false
+    private var clicks = 0
+
+    fun advance(probe: EditProbe) {
+        val test = probe.displayTest
+        val host = test.host!!
+        val window = probe.window!!
+        when (phase) {
+            case 0 -> {
+                @Unsafe
+                {
+                    observeMenus()
+                }
+                observed = true
+                clicks = test.clicks
+                options = SelectableTextOptions(contextMenu = probe.contextMenus.options)
+                update(probe)
+                next(probe)
+            }
+            case 1 -> open(probe, { editorContextClick(window, selectablePoint(host, 3L)) }) {
+                assertEquals(Utf8Selection(test.content.text.byteLength, 0L), host.selection)
+                assertEquals(1, menuEnabled("Menu Copy"))
+                assertEquals(1, menuEnabled("Menu Select All"))
+                for (title in ["Menu Cut", "Menu Paste", "Menu Delete", "Menu Undo", "Menu Redo"])
+                    assertEquals(-1, menuEnabled(title))
+                choose("Menu Copy")
+            }
+            case 2 -> {
+                assertClipboardText(window, "x link [fresh]")
+                host.setSelection(TextPosition(2L), TextPosition(2L))
+                open(probe, { editorShiftF10(window) }) {
+                    assertEquals(0, menuEnabled("Menu Copy"))
+                    assertEquals(1, menuEnabled("Menu Select All"))
+                    choose("Menu Select All")
+                }
+            }
+            case 3 -> {
+                assertEquals(Utf8Range(0L, test.content.text.byteLength), host.selection.range)
+                host.setSelection(TextPosition(6L), TextPosition(2L))
+                open(probe, { editorContextClick(window, selectablePoint(host, 3L), true) }) {
+                    assertEquals(Utf8Selection(6L, 2L), host.selection)
+                    assertEquals(clicks, test.clicks)
+                    assertFalse(host.actionInteraction("link")!!.pressed)
+                    choose("Menu Copy")
+                }
+            }
+            case 4 -> {
+                assertClipboardText(window, "link")
+                window.clipboard.writeText("unchanged")
+                assertClipboardText(window, "unchanged")
+                options =
+                    SelectableTextOptions(
+                        contextMenu =
+                            options.contextMenu.copy {
+                                selection = TextContextMenuSelection.SelectWord
+                            }
+                    )
+                update(probe)
+                host.setSelection(TextPosition(1L), TextPosition(0L))
+                open(probe, { editorContextClick(window, selectablePoint(host, 3L), true) }) {
+                    assertEquals(Utf8Range(2L, 6L), host.selection.range)
+                    choose("Menu Copy")
+                    options = SelectableTextOptions(copy = false, contextMenu = options.contextMenu)
+                    update(probe)
+                }
+            }
+            case 5 -> {
+                assertClipboardText(window, "unchanged")
+                open(
+                    probe,
+                    {
+                        assertEquals(1, editorSemanticMenu(window, "selectable", false))
+                        assertEquals(0, editorSemanticMenu(window, "selectable", true))
+                    }
+                ) {
+                    assertEquals(1, editorSemanticMenuResult())
+                    assertEquals(0, menuEnabled("Menu Copy"))
+                    choose("Menu Select All")
+                }
+            }
+            case 6 -> {
+                options = SelectableTextOptions(contextMenu = options.contextMenu)
+                update(probe)
+                open(probe, { assertTrue(host.showContextMenu()) }) {
+                    choose("Menu Copy")
+                    test.content = selectableContent(true, "[changed]")
+                    update(probe)
+                }
+            }
+            case 7 -> {
+                assertClipboardText(window, "unchanged")
+                open(probe, { assertTrue(host.showContextMenu()) }) {
+                    test.content = selectableContent(true, "[changed]", 22.0)
+                    update(probe)
+                    @Unsafe
+                    {
+                        assertEquals(1, trackingMenu())
+                    }
+                    assertEquals(1, menuEnabled("Menu Copy"))
+                    choose("Menu Copy")
+                }
+            }
+            case 8 -> {
+                assertClipboardText(window, "x link [changed]")
+                options =
+                    SelectableTextOptions(
+                        contextMenu = textContextMenu { mode = TextContextMenuMode.Disabled }
+                    )
+                update(probe)
+                assertFalse(host.showContextMenu())
+                editorContextClick(window, selectablePoint(host, 3L), true)
+                probe.later {
+                    @Unsafe
+                    {
+                        assertEquals(0, trackingMenu())
+                    }
+                    assertEquals(clicks, test.clicks)
+                    next(probe)
+                }
+            }
+            case 9 -> {
+                options = SelectableTextOptions(enabled = false)
+                update(probe)
+                assertFalse(host.showContextMenu())
+                options = SelectableTextOptions()
+                test.content = selectableContent(true)
+                update(probe)
+                assertTrue(test.focus.requestFocus())
+                host.setSelection(TextPosition(test.content.text.byteLength), TextPosition(0L))
+                assertEquals(test.savedStarts, test.imeStarts)
+                close()
+                complete = true
+                probe.change()
+            }
+            else -> fail(Some("unexpected selectable menu phase"))
+        }
+    }
+
+    private fun update(probe: EditProbe) {
+        val test = probe.displayTest
+        test.host!!.update(
+            probe.fonts,
+            test.content,
+            options,
+            FocusOptions(Some(test.focus)),
+            actions =
+                [
+                    TextRangeAction(
+                        "link",
+                        TextRange(2L, 6L),
+                        { test.clicks += 1 },
+                        focus = Some(FocusOptions(Some(test.actionFocus)))
+                    )
+                ],
+            onSelectionChanged = { _, _ -> test.selectionChanges += 1 }
+        )
+    }
+
+    private fun next(probe: EditProbe) {
+        phase += 1
+        probe.change()
+    }
+
+    private fun open(probe: EditProbe, request: () -> Unit, during: () -> Unit) {
+        probe.popupPending = true
+        request()
+        probe.later {
+            @Unsafe
+            {
+                assertEquals(1, trackingMenu(), Some(f"selectable menu phase=${phase}"))
+            }
+            during()
+            phase += 1
+        }
+    }
+
+    public override fun close() {
+        if (!observed)
+            return
+        observed = false
+        @Unsafe
+        {
+            endMenus()
+        }
+    }
+}

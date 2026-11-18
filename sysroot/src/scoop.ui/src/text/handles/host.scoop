@@ -1,0 +1,109 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+
+internal fun createEditorSelectionHandles(host: TextEditHost): TextSelectionHandles =
+    TextSelectionHandles(
+        host.scope,
+        host.area,
+        host.focus,
+        host.options.enabled,
+        host.options.touch,
+        { editorTouchReady(host) },
+        { EditorSelection(host.current.anchor, host.current.cursor) },
+        { position -> host.caret(position) },
+        {
+            point ->
+            val frame = host.accepted!!
+            frame.display.documentPosition(
+                frame.display.mapping.reverse(frame.layout.hitTest(point))
+            )
+        },
+        {
+            selection -> host.perform(
+                { editorSetSelection(host, selection) },
+                endComposition = true,
+                cancelContacts = false
+            )
+        },
+        {
+            editorStopDrag(host, false)
+            host.keyboard.touch()
+            host.touchPress.cancel()
+            host.touchPan.cancel()
+            host.focus.node.root.focus.cancel(host.focus)
+            host.revealNeeded = false
+        }
+    )
+
+internal fun createSelectableSelectionHandles(host: SelectableTextHost): TextSelectionHandles =
+    TextSelectionHandles(
+        host.scope,
+        host.area,
+        host.focus,
+        host.options.enabled,
+        host.options.touch,
+        { selectableTouchReady(host) },
+        { host.selected.value },
+        {
+            position -> when (host.inputFrame()) {
+                case Some(val frame) -> frame.layout.caret(position)
+                case None -> None
+            }
+        },
+        { point -> host.inputFrame()!!.layout.hitTest(point) },
+        {
+            selection ->
+            host.preferredX = None
+            host.publishSelection(selection, cancelContacts = false)
+        },
+        {
+            selectableStopDrag(host)
+            host.touchPress.cancel()
+            host.focus.node.root.focus.cancel(host.focus)
+        }
+    )
+
+internal fun editorSelectionHandles(
+    host: TextEditHost,
+    context: SceneContext,
+    frame: EditorFrame,
+    bounds: Rect
+) {
+    val selection = EditorSelection(host.current.anchor, host.current.cursor)
+    host.touchHandles.scene(
+        context,
+        bounds,
+        selection,
+        frame.caretStyle.caret(
+            frame.layout,
+            editorVisualPosition(frame.layout, frame.display.toDisplay(selection.anchor))
+        ),
+        frame.caretStyle.caret(
+            frame.layout,
+            editorVisualPosition(frame.layout, frame.display.toDisplay(selection.cursor))
+        ),
+        host.appearance.caretColor
+    )
+}
+
+internal fun selectableSelectionHandles(
+    host: SelectableTextHost,
+    context: SceneContext,
+    frame: SelectableFrame,
+    bounds: Rect
+) {
+    val selection = host.selected.value
+    val color = host.options.selectionColor
+    host.touchHandles.scene(
+        context,
+        bounds,
+        selection,
+        frame.layout.caret(selection.anchor),
+        frame.layout.caret(selection.cursor),
+        Color(color.red, color.green, color.blue, 1.0)
+    )
+}

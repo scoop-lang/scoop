@@ -5,7 +5,8 @@ import scoop.ui.style.*
 
 public class SliderThumbOptions public constructor(
     public val focus: FocusOptions = FocusOptions(),
-    public val labelTarget: FieldTarget? = None
+    public val labelTarget: FieldTarget? = None,
+    public val semantics: ComponentSemantics? = None
 )
 
 public class SliderProps public constructor(
@@ -20,7 +21,8 @@ public class SliderProps public constructor(
     public val style: SliderStyle = sliderStyle(),
     public val theme: ThemeSource? = None,
     public val onValueCommit: (Array<Double>) -> Unit = {},
-    public val onValueCancel: (Array<Double>, DragCancelReason) -> Unit = { _, _ -> }
+    public val onValueCancel: (Array<Double>, DragCancelReason) -> Unit = { _, _ -> },
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         when (keyboardStep) {
@@ -39,6 +41,7 @@ public class SliderProps public constructor(
 public class SliderThumbBuilder internal constructor() {
     public var focus: FocusOptions = FocusOptions()
     public var labelTarget: FieldTarget? = None
+    public var semantics: ComponentSemantics? = None
     public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
         focus = focus.copy(configure)
     }
@@ -53,6 +56,7 @@ public class SliderBuilder internal constructor() {
     public var labelTarget: FieldTarget? = None
     public var style: SliderStyle = sliderStyle()
     public var theme: ThemeSource? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var onValueCommit: (Array<Double>) -> Unit = {}
     public var onValueCancel: (Array<Double>, DragCancelReason) -> Unit = { _, _ -> }
     public var key: ViewKey = ViewKey.Position
@@ -62,7 +66,7 @@ public class SliderBuilder internal constructor() {
     public fun thumb(configure: SliderThumbBuilder.() -> Unit = {}) {
         val builder = SliderThumbBuilder()
         builder.configure()
-        addThumb(SliderThumbOptions(builder.focus, builder.labelTarget))
+        addThumb(SliderThumbOptions(builder.focus, builder.labelTarget, builder.semantics))
     }
     public fun addThumb(options: SliderThumbOptions) {
         thumbs.add(options)
@@ -80,7 +84,8 @@ public class SliderBuilder internal constructor() {
             style,
             theme,
             onValueCommit,
-            onValueCancel
+            onValueCancel,
+            semantics
         )
 }
 

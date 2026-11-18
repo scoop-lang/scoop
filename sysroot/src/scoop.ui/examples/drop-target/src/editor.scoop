@@ -1,0 +1,67 @@
+package scoop.examples.ui.drop
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
+import scoop.ui.text.*
+import scoop.window.accessibility.*
+
+internal struct DropEditorInput(
+    val state: TextEditorState,
+    val onCompleted: (TextDragResult) -> Unit
+)
+
+internal class DropEditor(
+    private val props: Props<DropEditorInput>,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val appearance = TextEditAppearance(scope.defaultFonts, textStyle { fontSize = 18.0 })
+    private val projection = textProjection()
+    private val host =
+        scope.resource { TextEditHost(scope, props.value.state, appearance, options(props.value)) }
+    private val semantic = scope.semantics(SemanticRole.TextField)
+
+    private fun options(input: DropEditorInput): TextEditOptions =
+        TextEditOptions(
+            multiline = true,
+            projection = projection,
+            drag = TextDragOptions(onCompleted = input.onCompleted)
+        )
+
+    public override fun update(): UiInvalidation {
+        host.update(props.value.state, appearance, options(props.value))
+        semantic.updateTextEditor(
+            host,
+            SemanticProperties(
+                name = Some("Text drop editor"),
+                description =
+                    Some(
+                        "Drag selected text to move it; hold " +
+                            (
+                                if (operatingSystem == OperatingSystem.Darwin)
+                                    "Option"
+                                else
+                                    "Control"
+                            ) +
+                            " to copy. Drop or paste text and URLs. Use the usual editing and undo commands."
+                    )
+            )
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = host.measure(constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color.White)) }
+        context.semantics(semantic, bounds)
+        host.scene(context, measured)
+    }
+}

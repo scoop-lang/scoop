@@ -6,6 +6,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.window.*
+import scoop.window.accessibility.SemanticActionResult
 
 @Test
 private class MenuModelTest {
@@ -45,7 +46,8 @@ private class MenuModelTest {
         val checked = state(false)
         val calls = state(0)
         val item = MenuItemSpec(ViewKey.Number(1L), "Checkbox")
-        assertFalse(
+        assertEquals(
+            MenuActivationResult(SemanticActionResult.Completed),
             activateMenu(
                 MenuEntry.Checkbox(
                     item,
@@ -56,14 +58,22 @@ private class MenuModelTest {
         )
         assertTrue(checked.value)
         assertEquals(1, calls.value)
-        assertFalse(
+        assertEquals(
+            MenuActivationResult(SemanticActionResult.Rejected),
             activateMenu(MenuEntry.Checkbox(item, binding({ checked.value }, { _ -> }), true))
         )
-        assertTrue(activateMenu(MenuEntry.Checkbox(item, checked.binding(), true)))
+        assertEquals(
+            MenuActivationResult(SemanticActionResult.Completed, true),
+            activateMenu(MenuEntry.Checkbox(item, checked.binding(), true))
+        )
         assertFalse(checked.value)
-        assertTrue(activateMenu(MenuEntry.Action(item, { actions.value += 1 })))
+        assertEquals(
+            MenuActivationResult(SemanticActionResult.Completed, true),
+            activateMenu(MenuEntry.Action(item, { actions.value += 1 }))
+        )
         assertEquals(1, actions.value)
-        assertFalse(
+        assertEquals(
+            MenuActivationResult(SemanticActionResult.Rejected),
             activateMenu(
                 MenuEntry.Action(
                     MenuItemSpec(ViewKey.Number(2L), "Disabled", false),
@@ -99,11 +109,17 @@ private class MenuModelTest {
                     { value -> reported.value = value }
                 ) { closeOnSelect = Some(true) }
             }
-        assertFalse(activateMenu(content.entries[0L]))
+        assertEquals(
+            MenuActivationResult(SemanticActionResult.Completed),
+            activateMenu(content.entries[0L])
+        )
         assertEquals(2, selected.value)
         assertEquals(2, reported.value)
         assertTrue(menuChecked(content.entries[0L]))
-        assertFalse(activateMenu(content.entries[1L]))
+        assertEquals(
+            MenuActivationResult(SemanticActionResult.Rejected),
+            activateMenu(content.entries[1L])
+        )
         assertEquals(4, selected.value)
         assertEquals(4, reported.value)
         assertFalse(menuChecked(content.entries[1L]))

@@ -10,6 +10,7 @@ public class ImageViewBuilder internal constructor() {
     public var sampling: ImageSampling = ImageSampling.Linear
     public var opacity: Double = 1.0
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics? = None
 }
 
 public fun imageView(
@@ -33,7 +34,8 @@ internal fun makeImageView(
             builder.alignment,
             builder.clip,
             builder.sampling,
-            builder.opacity
+            builder.opacity,
+            builder.semantics
         ),
         { props, mount -> ImageView(props, scope = mount) },
         key = builder.key
@@ -47,6 +49,7 @@ public class PathViewBuilder internal constructor() {
     public var alignment: Alignment = Alignment()
     public var clip: Boolean = true
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics? = None
 }
 
 public fun pathView(path: Path, viewBox: Rect, configure: PathViewBuilder.() -> Unit = {}): View =
@@ -63,7 +66,8 @@ internal fun makePathView(path: Path, viewBox: Rect, configure: PathViewBuilder.
             builder.paint,
             builder.fit,
             builder.alignment,
-            builder.clip
+            builder.clip,
+            builder.semantics
         ),
         { props, mount -> PathView(props, scope = mount) },
         key = builder.key

@@ -14,7 +14,7 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
                     movement,
                     extend,
                     host.preferredX,
-                    host.scroll.viewport.height
+                    host.scroll.snapshot.visibleSize.height
                 )
             host.perform({ editorSetSelection(host, result.selection) }, endComposition = true)
             host.invalidate()
@@ -35,6 +35,19 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
                 endComposition = true
             )
         }
+        case DeleteSelection -> {
+            if (host.options.readOnly)
+                return true
+            when (
+                prepareEditorSelectionRemoval(state, host.options.policy, !host.options.multiline)
+            ) {
+                case Some(val prepared) -> host.perform(
+                    { prepared.publish(state, false) },
+                    endComposition = true
+                )
+                case None -> {}
+            }
+        }
         case Copy -> {
             if (!host.copyAllowed)
                 return true
@@ -45,21 +58,14 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
         case Cut -> {
             if (host.options.readOnly || !host.copyAllowed)
                 return true
-            val range = state.selection.range
-            if (range.start != range.end) {
-                val prepared =
-                    prepareEditorEdit(
-                        state,
-                        range,
-                        "",
-                        host.options.policy,
-                        TextEditSource.EditCommand,
-                        !host.options.multiline
-                    )
-                if (prepared.accepted) {
-                    host.window.clipboard.writeText(state.text.utf8Slice(range))
+            when (
+                prepareEditorSelectionRemoval(state, host.options.policy, !host.options.multiline)
+            ) {
+                case Some(val prepared) -> if (prepared.accepted) {
+                    host.window.clipboard.writeText(state.text.utf8Slice(state.selection.range))
                     host.perform({ prepared.publish(state, false) }, endComposition = true)
                 }
+                case None -> {}
             }
         }
         case Paste -> {
@@ -156,6 +162,18 @@ private fun editorSubmits(options: TextEditOptions, key: KeyEvent?): Boolean {
     return ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)), modifiers).matches(
         event
     )
+}
+
+/** Cut and menu deletion prepare the same edit before any native side effect. */
+internal fun prepareEditorSelectionRemoval(
+    state: TextEditorState,
+    policy: TextEditPolicy,
+    singleLine: Boolean
+): EditorPreparedEdit? {
+    val range = state.selection.range
+    if (range.start == range.end)
+        return None
+    return Some(prepareEditorEdit(state, range, "", policy, TextEditSource.EditCommand, singleLine))
 }
 
 internal fun editorApplyEdit(

@@ -19,7 +19,7 @@ public class SidebarInput public constructor(
     private val props: Props<InputProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -62,7 +62,19 @@ public class SidebarInput public constructor(
                 input.copy,
                 input.labelTarget,
                 input.group,
-                input.chrome
+                input.chrome,
+                input.contextMenu,
+                input.protectedText,
+                input.semantics,
+                input.acceptDrops,
+                input.drag,
+                input.touch,
+                input.touchScroll,
+                input.scrollPhysics,
+                inputPurpose = input.inputPurpose,
+                softwareKeyboard = input.softwareKeyboard,
+                primarySelection = input.primarySelection,
+                automaticTextReplacement = input.automaticTextReplacement
             ),
             { current, mount -> Input(current, scope = mount) }
         )

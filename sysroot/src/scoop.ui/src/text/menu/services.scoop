@@ -1,0 +1,232 @@
+package scoop.ui.text
+
+import scoop.graphics.Rect
+import scoop.graphics.text.TextRange
+import scoop.ui.*
+import scoop.window.*
+
+internal class TextMenuServiceAction(
+    val label: String,
+    val valid: () -> Boolean,
+    val perform: (String?) -> Unit,
+    val kind: MenuItemKind = MenuItemKind.Action
+)
+
+internal fun editorSystemMenuActions(host: TextEditHost): Array<TextMenuServiceAction> {
+    val options = host.options.contextMenu
+    if (
+        !options.systemServices ||
+            options.mode !=
+            TextContextMenuMode.PreferSystem ||
+            !host.copyAllowed ||
+            host.options.protectedText ||
+            host.options.projection.masked ||
+            host.current.isComposing
+    )
+        return []
+    val document = host.current
+    val revision = document.revision
+    val selection = document.selection
+    val editable = !host.options.readOnly
+    val valid =
+        {
+            !host.closed &&
+                host.scope.isMounted &&
+                host.current ===
+                document &&
+                document.revision ==
+                revision &&
+                document.selection ==
+                selection &&
+                host.options.readOnly ==
+                !editable &&
+                host.options.contextMenu ==
+                options &&
+                host.copyAllowed &&
+                !host.options.protectedText &&
+                !host.options.projection.masked &&
+                host.contextMenu.eligible()
+        }
+    val replace =
+        {
+            range: Utf8Range, text: String, source: TextEditSource ->
+            if (valid() && editable && !host.options.readOnly)
+                host.perform({ editorApplyEdit(host, range, text, source) }, endComposition = true)
+            Unit
+        }
+    val actions = ArrayList<TextMenuServiceAction>()
+    val services = host.scope.application.textServices
+    val labels = options.labels ?: TextContextMenuLabels()
+    if (editable) {
+        val context = textCheckingContext(document.text, selection.range)
+        try {
+            for (finding in services.checkText(context.text)) {
+                val range =
+                    Utf8Range(
+                        context.start + finding.range.start,
+                        context.start + finding.range.end
+                    )
+                if (!textCheckTouches(range, selection.range))
+                    continue
+                for (suggestion in finding.suggestions) {
+                    val label =
+                        if (suggestion.byteLength == 0L)
+                            labels.deleteSelection ?: "Delete"
+                        else
+                            suggestion
+                    actions.add(
+                        TextMenuServiceAction(
+                            label,
+                            { valid() && !host.options.readOnly },
+                            { _ -> replace(range, suggestion, TextEditSource.EditCommand) }
+                        )
+                    )
+                }
+            }
+        } catch (_: WindowException) {
+            // Standard editing remains available when the native checker declines.
+        }
+    }
+    val selected = document.text.utf8Slice(selection.range)
+    appendReadTextServices(
+        actions,
+        host.scope,
+        selected,
+        options,
+        valid,
+        {
+            if (valid())
+                editorServiceAnchor(host)
+            else
+                None
+        },
+        if (editable)
+            Some({ value -> replace(selection.range, value, TextEditSource.Paste) })
+        else
+            None
+    )
+    return actions.toArray()
+}
+
+internal fun selectableSystemMenuActions(host: SelectableTextHost): Array<TextMenuServiceAction> {
+    val options = host.options.contextMenu
+    if (
+        !options.systemServices ||
+            options.mode !=
+            TextContextMenuMode.PreferSystem ||
+            !host.options.copy
+    )
+        return []
+    val content = host.content
+    val selection = host.selection
+    val text = content.toPlainText(TextRange(selection.range.start, selection.range.end))
+    val valid =
+        {
+            !host.closed &&
+                host.scope.isMounted &&
+                host.options.copy &&
+                host.options.contextMenu ==
+                options &&
+                host.selection ==
+                selection &&
+                host.content.text ==
+                content.text &&
+                host.content.toPlainText() ==
+                content.toPlainText() &&
+                host.contextMenu.eligible()
+        }
+    val actions = ArrayList<TextMenuServiceAction>()
+    appendReadTextServices(
+        actions,
+        host.scope,
+        text,
+        options,
+        valid,
+        {
+            if (valid())
+                selectableServiceAnchor(host)
+            else
+                None
+        },
+        None
+    )
+    return actions.toArray()
+}
+
+private fun appendReadTextServices(
+    actions: ArrayList<TextMenuServiceAction>,
+    scope: ComponentScope,
+    text: String,
+    options: TextContextMenuOptions,
+    valid: () -> Boolean,
+    anchor: () -> LogicalRect?,
+    replace: ((String) -> Unit)?
+) {
+    if (text.byteLength == 0L)
+        return
+    val services = scope.application.textServices
+    val capabilities = services.capabilities
+    val labels = options.labels ?: TextContextMenuLabels()
+    if (capabilities.dictionary)
+        actions.add(
+            TextMenuServiceAction(
+                labels.lookUp ?: "Look Up",
+                valid,
+                {
+                    _ -> if (valid())
+                        when (val rect = anchor()) {
+                            case Some(val value) -> {
+                                scope.nativeWindow.showTextDefinition(text, value);
+                                Unit
+                            }
+                            case None -> {}
+                        }
+                }
+            )
+        )
+    if (!capabilities.services)
+        return
+    actions.add(
+        TextMenuServiceAction(
+            labels.services ?: "Services",
+            valid,
+            {
+                result -> if (valid())
+                    when (replace) {
+                        case Some(val apply) -> when (result) {
+                            case Some(val value) -> if (value != text)
+                                apply(value)
+                            case None -> {}
+                        }
+                        case None -> {}
+                    }
+            },
+            MenuItemKind.TextServices(
+                text,
+                when (replace) {
+                    case Some(_) -> true
+                    case None -> false
+                }
+            )
+        )
+    )
+}
+
+private fun textServiceAnchor(rect: Rect): LogicalRect =
+    LogicalRect(LogicalPosition(rect.x, rect.y), LogicalSize(rect.width, rect.height))
+
+private fun editorServiceAnchor(host: TextEditHost): LogicalRect? {
+    val frame = host.accepted ?: return None
+    val bounds = host.area.visibleBounds ?: return None
+    if (frame.display.source.text != host.current.text)
+        return None
+    val rect = editorMenuAnchor(host, frame, bounds) ?: return None
+    return Some(textServiceAnchor(rect))
+}
+
+private fun selectableServiceAnchor(host: SelectableTextHost): LogicalRect? {
+    val frame = host.inputFrame() ?: return None
+    val bounds = host.area.visibleBounds ?: return None
+    val rect = selectableMenuAnchor(host, frame, bounds) ?: return None
+    return Some(textServiceAnchor(rect))
+}

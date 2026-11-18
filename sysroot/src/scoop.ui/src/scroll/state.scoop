@@ -71,6 +71,11 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
         observeState();
         return viewportOwner?.moving ?: false
     }
+    /** An explicit animateTo request, including its wait for the first accepted layout. */
+    public val hasPositionAnimation: Boolean get() {
+        observeState()
+        return viewportOwner?.positioning ?: false
+    }
 
     public fun observeIntent(handler: (ScrollIntent) -> Unit): Closeable {
         checkMutation()
@@ -133,7 +138,7 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
                 current.offset
             else
                 if (initialized)
-                    plan(current.viewport, current.content).offset
+                    plan(current.viewport, current.content, current.padding).offset
                 else
                     when (request) {
                         case Position(val value) -> value
@@ -149,6 +154,25 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
         val consumed = Point(bounded.x - base.x, bounded.y - base.y)
         change(ScrollRequest.Position(next), origin)
         return consumed
+    }
+    /** Routed input preserves the current held edge; explicit position requests cancel it. */
+    internal fun consumeInput(delta: Point, notify: Boolean = true): Point {
+        checkMutation()
+        checkScrollPoint(delta)
+        val base = plan(current.viewport, current.content, current.padding).offset
+        val next = Point(base.x + delta.x, base.y + delta.y)
+        checkScrollPoint(next)
+        val bounded = clampScroll(next, current.viewport, current.content)
+        if (!notify && bounded == base)
+            return Point(0.0, 0.0)
+        request = ScrollRequest.Position(bounded)
+        if (notify)
+            revision += 1UL
+        val token = revision
+        viewportOwner?.requestFrame()
+        if (notify)
+            notifyRequest(ScrollOrigin.User, token)
+        return Point(bounded.x - base.x, bounded.y - base.y)
     }
     public fun reveal(
         rect: Rect,
@@ -191,8 +215,34 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
         notifyRequest(origin, token)
         return token
     }
-    internal fun plan(viewport: Size, content: Size): ScrollSnapshot =
-        resolveScroll(request, current.offset, viewport, content)
+    internal fun plan(
+        viewport: Size,
+        content: Size,
+        padding: ScrollPadding = ScrollPadding()
+    ): ScrollSnapshot {
+        val dx = padding.left - current.padding.left
+        val dy = padding.top - current.padding.top
+        val preserve =
+            if (initialized)
+                revision == publishedRevision
+            else
+                revision == 0UL
+        val next =
+            when (request) {
+                case Position(val point) -> if (preserve)
+                    ScrollRequest.Position(Point(point.x + dx, point.y + dy))
+                else
+                    request
+                case Reveal(_, _, _) -> request
+            }
+        return resolveScroll(
+            next,
+            Point(current.offset.x + dx, current.offset.y + dy),
+            viewport,
+            content,
+            padding
+        )
+    }
 
     internal fun publish(
         value: ScrollSnapshot,

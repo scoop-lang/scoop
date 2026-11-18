@@ -6,6 +6,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
+import scoop.window.TextInputPurpose
 
 public class InputOtpGroupBuilder internal constructor() {
     private val slots = ArrayList<InputOtpSlot>()
@@ -19,15 +20,27 @@ public class InputOtpBuilder internal constructor() {
     public var pattern: InputOtpPattern = InputOtpPattern.Digits
     public var enabled: Boolean = true
     public var readOnly: Boolean = false
+    public var protectedText: Boolean = false
+    public var inputPurpose: TextInputPurpose? = None
+    public var softwareKeyboard: Boolean = true
+    public var primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions()
+    public var automaticTextReplacement: Boolean = false
+    public var acceptDrops: Boolean = true
+    public var drag: TextDragOptions = TextDragOptions()
+    public var touch: TextTouchOptions = TextTouchOptions()
+    public var touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
     public var invalid: Boolean = false
     public var fonts: FontCollection? = None
     public var theme: ThemeSource? = None
     public var labelTarget: FieldTarget? = None
     public var focus: FocusOptions = FocusOptions()
     public var style: InputOtpStyle = inputOtpStyle()
-    public var caretBlink: Duration = Duration.milliseconds(500L)
+    public var caretBlink: Duration? = None
+    public var contextMenu: TextContextMenuOptions = TextContextMenuOptions()
     public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
     public var onComplete: (TextEditorState) -> Unit = { _ -> Unit }
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var key: ViewKey = ViewKey.Position
     private val parts = ArrayList<(ThemeSource?) -> InputOtpPart>()
     public fun group(configure: InputOtpGroupBuilder.() -> Unit) {
@@ -52,6 +65,9 @@ public class InputOtpBuilder internal constructor() {
     public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
         focus = focus.copy(configure)
     }
+    public fun contextMenu(configure: TextContextMenuOptionsBuilder.() -> Unit) {
+        contextMenu = contextMenu.copy(configure)
+    }
     internal fun snapshot(state: TextEditorState, length: Long): InputOtpProps =
         InputOtpProps(
             state,
@@ -68,7 +84,19 @@ public class InputOtpBuilder internal constructor() {
             style,
             caretBlink,
             onEdited,
-            onComplete
+            onComplete,
+            contextMenu,
+            protectedText,
+            acceptDrops,
+            drag,
+            touch,
+            touchScroll,
+            scrollPhysics,
+            semantics,
+            inputPurpose,
+            softwareKeyboard,
+            primarySelection,
+            automaticTextReplacement
         )
 }
 
@@ -90,7 +118,7 @@ private class OtpSeparator(
     private val source: Props<ThemeSource?>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(source.value)
     }

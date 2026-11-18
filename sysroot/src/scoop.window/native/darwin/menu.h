@@ -14,6 +14,9 @@ typedef struct {
 @property(nonatomic) int64_t identity;
 @property(nonatomic) int32_t kind, role;
 @property(nonatomic) BOOL enabled, live;
+@property(nonatomic, copy) NSString *serviceText;
+@property(nonatomic, strong) NSData *serviceResult;
+@property(nonatomic) BOOL serviceReturnsText, serviceInvoked;
 @end
 
 @interface SWMenu : NSObject <NSMenuDelegate>
@@ -21,12 +24,22 @@ typedef struct {
 @property(nonatomic, weak) SWWindow *window;
 @property(nonatomic, strong) NSMenu *menu;
 @property(nonatomic, strong) NSMenu *previousMenu;
+@property(nonatomic, strong) NSMenuItem *previousServicesItem;
+@property(nonatomic, weak) NSMenu *previousServicesParent;
+@property(nonatomic, weak) SWMenuEntry *textServices;
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWMenuEntry *> *entries;
 @property(nonatomic) int64_t identity, serial, selected;
 @property(nonatomic) int32_t binding;
 @property(nonatomic) NSUInteger tracking;
 @property(nonatomic) BOOL externalTracking, presenting, cancelled;
+@end
+
+@interface SWMenu (TextServices) <NSServicesMenuRequestor>
+- (BOOL)textServicesAvailable;
+- (id)textServiceRequestorForSendType:(NSPasteboardType)sendType
+                           returnType:(NSPasteboardType)returnType;
+- (void)textServiceAction:(NSNotification *)notification;
 @end
 
 @interface SWMenu (Actions) <NSMenuItemValidation>
@@ -37,5 +50,7 @@ void sw_menu_event(SWMenu *menu, int32_t kind, int64_t item, int64_t window);
 NSEventModifierFlags sw_menu_modifiers(int32_t value);
 BOOL sw_menu_activate(SWMenu *menu, SWMenuEntry *entry);
 NSString *sw_menu_key_string(int32_t key);
+int64_t sw_menu_begin_text_services(SWMenu *menu);
+void sw_menu_end_text_services(SWMenu *menu);
 
 #endif

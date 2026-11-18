@@ -1,0 +1,198 @@
+package scoop.tests.window.accessibility
+
+import scoop.graphics.*
+import scoop.graphics.native.*
+import scoop.test.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.accessibility.native.NativeSemanticHitTest
+
+internal fun checkHitGeometry(tree: AccessibilityProvider, view: Ptr<Unit>) {
+    val group = tree.createNode(SemanticRole.Group)
+    val back = tree.createNode(SemanticRole.Button, Some(group))
+    val front = tree.createNode(SemanticRole.Button, Some(group))
+    val label = tree.createNode(SemanticRole.Text, Some(front))
+    group.update(hitProperties("hit-group"))
+    back.update(hitProperties("hit-back"))
+    front.update(hitProperties("hit-front"))
+    label.update(hitProperties("hit-label"))
+    back.reparent(Some(group), 1L)
+    front.reparent(Some(group), 0L)
+    tree.publish()
+    @Unsafe
+    {
+        val probe = nativeGeometryOpen(view)!!
+        try {
+            label.update(hitProperties("hit-label", ignored = true))
+            installRectangle(back, Rect(10.0, 10.0, 160.0, 100.0), 0L)
+            RasterSurface(320, 200).use {
+                surface -> path(FillRule.EvenOdd) {
+                    addRect(Rect(20.0, 20.0, 80.0, 80.0))
+                    addRect(Rect(40.0, 40.0, 40.0, 40.0))
+                }.use {
+                    ring -> surface.draw {
+                        canvas ->
+                        canvas.translate(5.0, 5.0)
+                        @Unsafe
+                        {
+                            captureGeometry(canvas, ring).use { shape -> install(front, shape, 1L) }
+                        }
+                    }
+                }
+            }
+            installRectangle(label, Rect(90.0, 90.0, 10.0, 10.0), 2L)
+            expectHit(probe, 30.0, 30.0, 0)
+            tree.publish()
+            expectHit(probe, 30.0, 30.0, 3)
+            expectHit(probe, 50.0, 50.0, 2)
+            expectHit(probe, 15.0, 15.0, 2)
+            expectHit(probe, 95.0, 95.0, 3)
+            expectHit(probe, 200.0, 150.0, 0)
+            expectHit(probe, -1.0, 50.0, -1)
+            expectHit(probe, 320.0, 50.0, -1)
+            assertEquals(0, nativeGeometryHit(probe, 3, 50.0, 50.0, -1))
+            assertEquals(0, nativeGeometryHit(probe, 2, 30.0, 30.0, 2))
+            assertEquals(0, nativeGeometryHit(probe, 4, 95.0, 95.0, 3))
+            val previousRevision = back.contentRevision
+            val previousGeometry = back.geometry
+            back.update(hitProperties("hit-back", required = true))
+            assertEquals(previousRevision, back.contentRevision)
+            assertEquals(previousGeometry, back.geometry)
+            tree.publish()
+            expectHit(probe, 15.0, 15.0, 2)
+            back.reparent(Some(group), -1L)
+            tree.publish()
+            expectHit(probe, 30.0, 30.0, 3)
+            installRectangle(back, Rect(10.0, 10.0, 160.0, 100.0), 4L)
+            tree.publish()
+            expectHit(probe, 30.0, 30.0, 2)
+            expectHit(probe, 95.0, 95.0, 2)
+            installRectangle(label, Rect(90.0, 90.0, 10.0, 10.0), 5L)
+            front.update(hitProperties("hit-front", hidden = true))
+            tree.publish()
+            expectHit(probe, 95.0, 95.0, 2)
+            installRectangle(back, Rect(10.0, 10.0, 160.0, 100.0), 0L)
+            front.update(hitProperties("hit-front", ignored = true))
+            label.update(hitProperties("hit-label"))
+            tree.publish()
+            expectHit(probe, 30.0, 30.0, 1)
+            expectHit(probe, 50.0, 50.0, 2)
+            expectHit(probe, 95.0, 95.0, 4)
+            back.update(hitProperties("hit-back", enabled = false))
+            tree.publish()
+            expectHit(probe, 15.0, 15.0, 2)
+            back.update(SemanticProperties(name = Some("renamed"), automationId = Some("hit-back")))
+            assertEquals(None, back.geometry)
+            expectHit(probe, 15.0, 15.0, 2)
+            tree.publish()
+            expectHit(probe, 15.0, 15.0, 0)
+            val rectangle = Some(SemanticGeometry(hitRect(Rect(10.0, 10.0, 160.0, 100.0))))
+            back.geometry = rectangle
+            tree.publish()
+            expectHit(probe, 15.0, 15.0, 0)
+            assertEquals(0, nativeGeometryHit(probe, 2, 15.0, 15.0, -1))
+            group.update(
+                SemanticProperties(automationId = Some("hit-group")),
+                relations = SemanticRelations(labelledBy = [front.id])
+            )
+            front.update(
+                SemanticProperties(automationId = Some("hit-front"), ignored = true),
+                relations = SemanticRelations(labelledBy = [group.id])
+            )
+            assertFailsWith<IllegalArgumentException> { tree.publish() }
+            expectHit(probe, 30.0, 30.0, 1)
+            group.update(hitProperties("hit-group"))
+            front.update(hitProperties("hit-front", ignored = true))
+            tree.publish()
+            expectHit(probe, 30.0, 30.0, 0)
+            expectHit(probe, 95.0, 95.0, 4)
+            label.close()
+            expectHit(probe, 95.0, 95.0, 0)
+            assertEquals(0, nativeGeometryHit(probe, 4, 95.0, 95.0, -1))
+            tree.publish()
+            group.close()
+            tree.publish()
+            expectHit(probe, 30.0, 30.0, 0)
+            assertEquals(0, nativeGeometryHit(probe, 3, 30.0, 30.0, -1))
+        } finally {
+            nativeGeometryClose(probe)
+            group.close()
+            tree.publish()
+        }
+    }
+}
+
+private fun hitProperties(
+    id: String,
+    ignored: Boolean = false,
+    hidden: Boolean = false,
+    enabled: Boolean = true,
+    required: Boolean = false
+): SemanticProperties =
+    SemanticProperties(
+        name = Some(id),
+        automationId = Some(id),
+        ignored = ignored,
+        hidden = hidden,
+        enabled = enabled,
+        required = required
+    )
+
+private fun installRectangle(node: AccessibilityNode, rectangle: Rect, order: Long) {
+    RasterSurface(320, 200).use {
+        surface -> surface.draw {
+            canvas -> @Unsafe
+            {
+                captureGeometry(canvas, rectangle).use { shape -> install(node, shape, order) }
+            }
+        }
+    }
+}
+
+private fun install(node: AccessibilityNode, shape: CanvasGeometry, order: Long) {
+    val visible =
+        when (val bounds = shape.visibleBounds) {
+            case Some(val value) -> Some(hitRect(value))
+            case None -> None
+        }
+    val geometry = SemanticGeometry(hitRect(shape.bounds), visible)
+    @Unsafe
+    {
+        shape.withNativeGeometry {
+            hit -> @Unsafe
+            {
+                node.setGeometry(
+                    geometry,
+                    NativeSemanticHitTest(hit.context, hit.retain, hit.release, hit.contains),
+                    order
+                )
+            }
+        }
+    }
+}
+
+private fun hitRect(value: Rect): LogicalRect =
+    LogicalRect(LogicalPosition(value.x, value.y), LogicalSize(value.width, value.height))
+
+private fun expectHit(probe: Ptr<Unit>, x: Double, y: Double, expected: Int) {
+    @Unsafe
+    {
+        assertEquals(0, nativeGeometryHit(probe, -1, x, y, expected))
+        assertEquals(0, nativeGeometryHit(probe, 0, x, y, expected))
+    }
+}
+
+@Extern(name = "scoop_ax_geometry_open")
+private fun nativeGeometryOpen(view: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_ax_geometry_hit")
+private fun nativeGeometryHit(
+    probe: Ptr<Unit>,
+    source: Int,
+    x: Double,
+    y: Double,
+    expected: Int
+): Int
+
+@Extern(name = "scoop_ax_geometry_close")
+private fun nativeGeometryClose(probe: Ptr<Unit>)

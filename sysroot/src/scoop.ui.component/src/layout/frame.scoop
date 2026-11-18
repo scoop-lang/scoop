@@ -33,7 +33,7 @@ public class Frame public constructor(
     private val props: Props<FrameProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         when (props.value.surface) {
             case Some(_) -> themes.mount(props.value.theme);

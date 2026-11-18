@@ -1,0 +1,302 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.native.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.native.*
+
+@Test
+private class NativeSemanticTextTest {
+    @Test
+    fun `projected queries keep source graphemes words and native ownership`() {
+        val display =
+            projectText(
+                TextEditSnapshot("alpha é😀", TextPosition(0L), TextPosition(13L)),
+                textProjection {
+                    _ -> [
+                        TextEditReplacement(Utf8Range(0L, 0L), "["),
+                        TextEditReplacement(Utf8Range(6L, 9L), "X"),
+                        TextEditReplacement(Utf8Range(13L, 13L), "]")
+                    ]
+                }
+            )
+        withSemanticParagraph(display.text) {
+            layout -> editorSemanticSource(
+                TextEditLayout(layout),
+                display,
+                EditorCaretStyle(1.0)
+            ).use {
+                source -> withSourceGeometry(source) {
+                    native -> @Unsafe
+                    {
+                        source.close()
+                        layout.close()
+                        assertEquals(
+                            NativeSemanticTextRange(6L, 9L, 1),
+                            native.range(native.context, 7L, 1, 0)
+                        )
+                        assertEquals(
+                            NativeSemanticTextRange(9L, 13L, 1),
+                            native.range(native.context, 13L, 0, 0)
+                        )
+                        assertEquals(
+                            NativeSemanticTextRange(13L, 13L, 1),
+                            native.range(native.context, 13L, 1, 0)
+                        )
+                        assertEquals(
+                            NativeSemanticTextRange(0L, 5L, 1),
+                            native.range(native.context, 2L, 1, 1)
+                        )
+                        assertEquals(
+                            NativeSemanticTextRange(0L, 13L, 1),
+                            native.lineRange(native.context, 0L)
+                        )
+                        assertEquals(0L, native.lineIndex(native.context, 9L, 1))
+                        assertEquals(-2L, native.lineIndex(native.context, -1L, 1))
+                        assertEquals(-1, native.range(native.context, 14L, 1, 0).status)
+                        assertEquals(-1, native.lineRange(native.context, 1L).status)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `visual lines remain distinct from logical lines and clipping limits visible text`() {
+        val text = "one two three\nfour\n"
+        withSemanticParagraph(text, Some(70.0)) {
+            layout ->
+            assertTrue(layout.lines.size > 3L)
+            val display = projectText(TextEditSnapshot(text, TextPosition(0L), TextPosition(0L)))
+            editorSemanticSource(TextEditLayout(layout), display, EditorCaretStyle(1.0)).use {
+                source ->
+                val first = layout.lines[0L]
+                withSourceGeometry(source, { canvas -> canvas.clipRect(first.rect) }) {
+                    native -> @Unsafe
+                    {
+                        assertEquals(
+                            NativeSemanticTextRange(0L, 14L, 1),
+                            native.range(native.context, 1L, 1, 3)
+                        )
+                        val visible = native.visibleRange(native.context)
+                        assertEquals(1, visible.status)
+                        assertTrue(visible.start >= first.visibleRange.start)
+                        assertTrue(visible.end <= first.visibleRange.end)
+                        assertEquals(
+                            NativeSemanticTextRange(first.range.start, first.range.end, 1),
+                            native.range(native.context, 1L, 1, 2)
+                        )
+                        val last = layout.lines.size - 1L
+                        assertEquals(
+                            NativeSemanticTextRange(19L, 19L, 1),
+                            native.lineRange(native.context, last)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `exact clip holes do not expose hidden glyphs through nearby carets`() {
+        withSemanticParagraph("ABCDE") {
+            layout ->
+            val display = projectText(TextEditSnapshot("ABCDE", TextPosition(0L), TextPosition(0L)))
+            editorSemanticSource(TextEditLayout(layout), display, EditorCaretStyle(2.0)).use {
+                source ->
+                val selection = layout.selection(TextRange(0L, 5L))[0L].rect
+                path(FillRule.EvenOdd) {
+                    addRect(Rect(-10.0, -10.0, 300.0, 180.0))
+                    addRect(selection)
+                }.use {
+                    hole -> withSourceGeometry(source, { canvas -> canvas.clipPath(hole) }) {
+                        native -> @Unsafe
+                        {
+                            assertEquals(0, native.visibleRange(native.context).status)
+                            assertEquals(
+                                0,
+                                native.rangeAtPoint(
+                                    native.context,
+                                    selection.x + 1.0,
+                                    selection.y + 1.0
+                                ).status
+                            )
+                            assertEquals(
+                                -1,
+                                native.rangeAtPoint(native.context, Double.NaN, 0.0).status
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `rtl cells and empty input use their actual shared caret positions`() {
+        for (text in ["12", ""]) {
+            withCellLayout(
+                text,
+                TextEditCells(4L, Size(32.0, 32.0), [0.0, 16.0, 0.0], LayoutDirection.Rtl)
+            ) {
+                layout ->
+                val display =
+                    projectText(TextEditSnapshot(text, TextPosition(0L), TextPosition(0L)))
+                editorSemanticSource(layout, display, EditorCaretStyle(2.0)).use {
+                    source -> withSourceGeometry(source) {
+                        native -> @Unsafe
+                        {
+                            for (boundary in layout.graphemeBoundaries) {
+                                val caret = layout.caret(TextPosition(boundary), 0.0)!!
+                                val expected = native.range(native.context, boundary, 1, 0)
+                                assertEquals(
+                                    expected,
+                                    native.rangeAtPoint(
+                                        native.context,
+                                        caret.x,
+                                        caret.y + caret.height / 2.0
+                                    )
+                                )
+                            }
+                            assertEquals(
+                                NativeSemanticTextRange(0L, text.byteLength, 1),
+                                native.visibleRange(native.context)
+                            )
+                            assertEquals(0L, native.lineIndex(native.context, text.byteLength, 1))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `inline hits map to complete alternative text and silent objects stay empty`() {
+        withSemanticFonts {
+            fonts ->
+            val badge = InlineKey.Text("badge")
+            val silent = InlineKey.Text("silent")
+            val content =
+                styledText {
+                    style {
+                        families = ["Semantic Test"];
+                        fontSize = 20.0
+                    }
+                    text("A")
+                    inlineObject(badge, "😀图")
+                    text("é")
+                    inlineObject(silent, "")
+                    text("Z")
+                }
+            Paragraph(fonts, content).use {
+                paragraph -> paragraph.layoutUnwrapped(
+                    [
+                        InlineMetrics(badge, Size(30.0, 25.0)),
+                        InlineMetrics(silent, Size(30.0, 25.0))
+                    ]
+                ).use {
+                    layout -> selectableSemanticSource(
+                        layout,
+                        SelectableSemanticText(content)
+                    ).use {
+                        source -> withSourceGeometry(source) {
+                            native -> @Unsafe
+                            {
+                                assertEquals(
+                                    NativeSemanticTextRange(1L, 5L, 1),
+                                    native.range(native.context, 1L, 1, 0)
+                                )
+                                val first = layout.inlineObjects[0L].box!!.rect
+                                val second = layout.inlineObjects[1L].box!!.rect
+                                assertEquals(
+                                    NativeSemanticTextRange(1L, 8L, 1),
+                                    native.rangeAtPoint(
+                                        native.context,
+                                        first.x + 1.0,
+                                        first.y + first.height / 2.0
+                                    )
+                                )
+                                assertEquals(
+                                    NativeSemanticTextRange(11L, 11L, 1),
+                                    native.rangeAtPoint(
+                                        native.context,
+                                        second.x + 1.0,
+                                        second.y + second.height / 2.0
+                                    )
+                                )
+                                assertEquals(
+                                    NativeSemanticTextRange(0L, 12L, 1),
+                                    native.lineRange(native.context, 0L)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun withSemanticFonts(action: (FontCollection) -> Unit) {
+    FontCollection(false).use {
+        fonts ->
+        fonts.register(testSansBytes, "Semantic Test")
+        action(fonts)
+    }
+}
+
+private fun withSemanticParagraph(
+    text: String,
+    width: Double? = None,
+    action: (TextLayout) -> Unit
+) {
+    withSemanticFonts {
+        fonts -> Paragraph(
+            fonts,
+            text,
+            textStyle {
+                families = ["Semantic Test"];
+                fontSize = 20.0
+            }
+        ).use {
+            paragraph ->
+            val layout =
+                when (width) {
+                    case Some(val value) -> paragraph.layout(value)
+                    case None -> paragraph.layoutUnwrapped()
+                }
+            layout.use { value -> action(value) }
+        }
+    }
+}
+
+private fun withSourceGeometry(
+    source: NativeTextSource,
+    configure: (Canvas) -> Unit = { _ -> Unit },
+    action: (NativeSemanticTextGeometry) -> Unit
+) {
+    RasterSurface(400, 200).use {
+        surface -> surface.draw {
+            canvas ->
+            configure(canvas)
+            @Unsafe
+            {
+                captureGeometry(canvas, Rect(0.0, 0.0, 400.0, 200.0)).use {
+                    geometry -> @Unsafe
+                    {
+                        geometry.withNativeGeometry {
+                            native -> @Unsafe
+                            {
+                                source.withGeometry(native) { value -> action(value) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

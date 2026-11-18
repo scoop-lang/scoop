@@ -99,7 +99,17 @@ private fun calendarPageButton(
                         )
                 ),
                 variant = ButtonVariant.Ghost,
-                size = ButtonSize.Icon
+                size = ButtonSize.Icon,
+                semantics =
+                    ComponentSemantics(
+                        name =
+                            Some(
+                                if (forward)
+                                    "Next month"
+                                else
+                                    "Previous month"
+                            )
+                    )
             ),
             { props, scope -> Button(props, scope) },
             ViewKey.Text(

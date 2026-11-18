@@ -5,6 +5,7 @@ import scoop.surface.AnimationSpec
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.SemanticLive
 
 public class ToastActionBuilder internal constructor() {
     public var dismiss: Boolean = true
@@ -13,6 +14,7 @@ public class ToastActionBuilder internal constructor() {
     public var style: ButtonStyle = buttonStyle()
     public var variant: ButtonVariant = ButtonVariant.Outline
     public var size: ButtonSize = ButtonSize.Sm
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
         focus = focus.copy(configure)
     }
@@ -20,7 +22,7 @@ public class ToastActionBuilder internal constructor() {
         style = style.copy(configure)
     }
     internal fun snapshot(content: ButtonContent, onClick: () -> Unit): ToastAction =
-        ToastAction(content, onClick, dismiss, enabled, focus, style, variant, size)
+        ToastAction(content, onClick, dismiss, enabled, focus, style, variant, size, semantics)
 }
 
 public class ToastBuilder internal constructor(private val title: PanelContent) {
@@ -34,6 +36,9 @@ public class ToastBuilder internal constructor(private val title: PanelContent) 
     public var closeFocus: FocusOptions = FocusOptions()
     public var style: StyleOverride = styleOverride()
     public var onClosed: (ToastId, ToastCloseReason) -> Unit = { _, _ -> Unit }
+    public var semantics: ComponentSemantics = ComponentSemantics(live = SemanticLive.Polite)
+    public var closeSemantics: ComponentSemantics =
+        ComponentSemantics(name = Some("Dismiss notification"))
     public fun description(text: String) {
         description = Some(PanelContent.Label(LabelProps(LabelText.Plain(text, None))))
     }
@@ -86,7 +91,9 @@ public class ToastBuilder internal constructor(private val title: PanelContent) 
             action,
             closeFocus,
             style,
-            onClosed
+            onClosed,
+            semantics,
+            closeSemantics
         )
 }
 

@@ -93,7 +93,7 @@ private class PopoverBody(private val p: PopoverProbe, scope: ComponentScope): C
                         makeInput(p.editor) {
                             fonts = Some(p.fonts)
                             focus = FocusOptions(Some(p.edit))
-                            caretBlink = Duration.milliseconds(0L)
+                            caretBlink = Some(Duration.milliseconds(0L))
                         }
                     )
                     button(f"Local ${value.value}", { value.value += 1 }) {

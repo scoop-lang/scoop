@@ -1,0 +1,142 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.min
+import scoop.math.max
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal fun semanticScrollAlignment(value: SemanticScrollAlignment): ScrollAlignment =
+    when (value) {
+        case Start -> ScrollAlignment.Start
+        case Center -> ScrollAlignment.Center
+        case End -> ScrollAlignment.End
+        case Nearest -> ScrollAlignment.Nearest
+    }
+
+/** Reads only accepted geometry and cancels when the document or its input boundary changes. */
+internal fun semanticEditorReveal(
+    handle: SemanticsHandle,
+    host: TextEditHost,
+    range: Utf8Range,
+    scroll: SemanticTextScroll
+): SemanticActionResult {
+    val model = host.current
+    val text = model.text
+    return handle.controller.revealText(
+        handle,
+        {
+            if (
+                host.closed ||
+                    host.current !==
+                    model ||
+                    model.text !=
+                    text ||
+                    !host.options.enabled ||
+                    host.options.protectedText ||
+                    !host.area.scope.isInputAllowed
+            )
+                None
+            else {
+                val frame = host.accepted
+                when (frame) {
+                    case Some(val accepted) -> if (
+                        accepted.editor !== model || accepted.display.source.text != text
+                    )
+                        None
+                    else {
+                        val caret =
+                            accepted.caretStyle.caret(
+                                accepted.layout,
+                                editorVisualPosition(
+                                    accepted.layout,
+                                    accepted.display.toDisplay(TextPosition(range.start))
+                                )
+                            )
+                        val region =
+                            semanticTextRegion(
+                                accepted.layout.selection(accepted.display.displayRange(range)),
+                                caret
+                            )
+                        when (region) {
+                            case Some(val bounds) -> host.area.toWindow(bounds)
+                            case None -> None
+                        }
+                    }
+                    case None -> None
+                }
+            }
+        },
+        semanticScrollAlignment(scroll.horizontal),
+        semanticScrollAlignment(scroll.vertical)
+    )
+}
+
+internal fun semanticSelectableReveal(
+    handle: SemanticsHandle,
+    host: SelectableTextHost,
+    text: SelectableSemanticText,
+    range: Utf8Range,
+    scroll: SemanticTextScroll
+): SemanticActionResult {
+    val content = host.content
+    val start =
+        text.mapping.reverse(
+            TextPosition(
+                range.start,
+                if (range.start == range.end)
+                    TextAffinity.Downstream
+                else
+                    TextAffinity.Upstream
+            )
+        )
+    val end = text.mapping.reverse(TextPosition(range.end, TextAffinity.Downstream))
+    return handle.controller.revealText(
+        handle,
+        {
+            if (
+                host.closed ||
+                    host.content !==
+                    content ||
+                    !host.options.enabled ||
+                    !host.area.scope.isInputAllowed
+            )
+                None
+            else
+                when (host.inputFrame()) {
+                    case Some(val frame) -> {
+                        val region =
+                            semanticTextRegion(
+                                frame.layout.selection(TextRange(start.byteOffset, end.byteOffset)),
+                                frame.layout.caret(start)
+                            )
+                        when (region) {
+                            case Some(val bounds) -> host.area.toWindow(bounds)
+                            case None -> None
+                        }
+                    }
+                    case None -> None
+                }
+        },
+        semanticScrollAlignment(scroll.horizontal),
+        semanticScrollAlignment(scroll.vertical)
+    )
+}
+
+private fun semanticTextRegion(boxes: Array<TextBox>, caret: Rect?): Rect? {
+    if (boxes.size == 0L)
+        return caret
+    var left = boxes[0L].rect.x
+    var right = left + boxes[0L].rect.width
+    var top = boxes[0L].rect.y
+    var bottom = top + boxes[0L].rect.height
+    for (box in boxes) {
+        left = min(left, box.rect.x)
+        right = max(right, box.rect.x + box.rect.width)
+        top = min(top, box.rect.y)
+        bottom = max(bottom, box.rect.y + box.rect.height)
+    }
+    return Some(Rect(left, top, max(right - left, 1.0), bottom - top))
+}

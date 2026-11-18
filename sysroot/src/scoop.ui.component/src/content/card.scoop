@@ -28,7 +28,7 @@ public class Card public constructor(
     private val props: Props<CardProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     public override fun onMount() {
@@ -59,7 +59,11 @@ public class Card public constructor(
                 Some(1.375)
             )
         val descriptionStyle =
-            descriptions.resolve(theme.tokens.typography.body, palette.muted.foreground, None)
+            descriptions.resolve(
+                theme.tokens.typography.body,
+                componentForeground(theme, palette.muted.foreground, palette.card.background),
+                None
+            )
         val hasHeader =
             panelPresent(input.header) ||
                 panelPresent(input.title) ||
@@ -147,15 +151,20 @@ public class Card public constructor(
                             Insets.all(spacing),
                             styleOverride {
                                 this.background(
+                                    Some(Paint(componentPanelSection(theme, palette.card)))
+                                );
+                                this.border(
                                     Some(
-                                        Paint(
-                                            palette.muted.background.withAlpha(
-                                                palette.muted.background.alpha * 0.5
+                                        topBorder(
+                                            componentForeground(
+                                                theme,
+                                                palette.border,
+                                                palette.card.background,
+                                                3.0
                                             )
                                         )
                                     )
-                                );
-                                this.border(Some(topBorder(palette.border)))
+                                )
                             },
                             key = ViewKey.Number(2L)
                         )
@@ -174,8 +183,12 @@ public class Card public constructor(
                         Some(
                             Border.all(
                                 1.0,
-                                palette.background.foreground.withAlpha(
-                                    palette.background.foreground.alpha * 0.1
+                                componentPanelBorder(
+                                    theme,
+                                    palette.card,
+                                    palette.background.foreground.withAlpha(
+                                        palette.background.foreground.alpha * 0.1
+                                    )
                                 )
                             )
                         )

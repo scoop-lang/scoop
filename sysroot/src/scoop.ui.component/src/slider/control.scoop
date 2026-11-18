@@ -1,5 +1,7 @@
 package scoop.ui.component
 
+import scoop.window.accessibility.SemanticActionResult
+
 import scoop.graphics.*
 import scoop.math.abs
 import scoop.surface.*
@@ -20,6 +22,8 @@ private class SliderGesture(
 
 internal class SliderControl(
     private val scope: ComponentScope,
+    private val model: () -> SliderProps,
+    private val activeThumb: State<Long?>,
     private val input: () -> SliderInput
 ) {
     private val area = scope.createArea()
@@ -224,19 +228,21 @@ internal class SliderControl(
     fun cancel(reason: DragCancelReason) {
         val active = gesture ?: return
         gesture = None
-        input().active.value = None
+        activeThumb.value = None
         drag?.cancel()
-        val current = input().props.values.value
+        // Retirement keeps the business model, but no longer permits theme queries.
+        val props = model()
+        val current = props.values.value
         if (
-            sameSliderRange(active.range, input().props.range) &&
+            sameSliderRange(active.range, props.range) &&
                 sameSliderValues(current, active.expected) &&
                 !sameSliderValues(current, active.initial)
         )
-            input().props.values.value = active.initial
-        input().props.onValueCancel(input().props.values.value, reason)
+            props.values.value = active.initial
+        props.onValueCancel(props.values.value, reason)
     }
     fun lostFocus(index: Long) {
-        if (input().active.value == Some(index))
+        if (activeThumb.value == Some(index))
             cancel(DragCancelReason.Explicit)
     }
     fun key(index: Long, context: RoutedEventContext, key: KeyEvent) {
@@ -250,18 +256,46 @@ internal class SliderControl(
         val command =
             sliderKeyCommand(input().props, scope.layoutDirection, key.logicalKey) ?: return
         context.consume()
+        adjust(index, command)
+    }
+    fun adjust(index: Long, command: SliderKey): SemanticActionResult {
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        if (!input().props.enabled)
+            return SemanticActionResult.Rejected
         cancel(DragCancelReason.Explicit)
         val current = values()
-        if (index >= current.size)
-            return
+        if (index < 0L || index >= current.size)
+            return SemanticActionResult.Unavailable
         val value = sliderKeyValue(input().props, current[index], command)
+        return setNumber(index, value)
+    }
+    fun setNumber(index: Long, value: Double): SemanticActionResult {
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        if (!input().props.enabled)
+            return SemanticActionResult.Rejected
+        cancel(DragCancelReason.Explicit)
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
+        val current = values()
+        if (index < 0L || index >= current.size)
+            return SemanticActionResult.Unavailable
+        if (!value.isFinite())
+            return SemanticActionResult.InvalidArgument
         val next = input().props.range.moveValidated(current, index, value)
         if (sameSliderValues(current, next))
-            return
+            return SemanticActionResult.Completed
         input().props.values.value = next
+        if (!scope.isMounted)
+            return SemanticActionResult.Unavailable
         val accepted = values()
         if (scope.isMounted && !sameSliderValues(current, accepted))
             input().props.onValueCommit(accepted)
+        return if (sameSliderValues(next, accepted))
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     fun retire() {
         cancel(DragCancelReason.Closed)

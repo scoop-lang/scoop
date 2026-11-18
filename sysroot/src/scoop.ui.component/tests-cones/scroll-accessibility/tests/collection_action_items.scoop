@@ -1,0 +1,77 @@
+package scoop.tests.ui.scroll.accessibility
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.accessibility.*
+
+internal class CollectionActionCounts {
+    val items = CollectionCounts()
+    var mounted = 0
+    var invoked = 0
+}
+
+internal class CollectionActionItems(
+    private val counts: CollectionActionCounts,
+    reverse: Boolean = false,
+    removed: Boolean = false,
+    private val enabled: Boolean = true
+): ItemSource {
+    private val data = CollectionItems(counts.items, reverse, removed)
+    public override val count: Long get() = data.count
+    public override fun keyAt(index: Long): ViewKey =
+        when (val key = data.keyAt(index)) {
+            case Number(50000L) -> ViewKey.Text("条目 50000🙂")
+            else -> key
+        }
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Text("条目 50000🙂") -> data.indexOfKey(ViewKey.Number(50000L))
+            case Number(50000L) -> None
+            else -> data.indexOfKey(key)
+        }
+    fun describe(index: Long): SemanticItemProperties? {
+        val item = data.describe(index) ?: return None
+        return Some(
+            SemanticItemProperties(
+                name = item.name,
+                automationId = item.automationId,
+                enabled = enabled,
+                focusable = true
+            )
+        )
+    }
+    public override fun build(index: Long): View {
+        counts.items.builds += 1
+        val number =
+            when (data.keyAt(index)) {
+                case Number(val value) -> value
+                else -> throw IllegalStateException(Some("numeric backing key required"))
+            }
+        return component(
+            CollectionActionRowProps(f"Row ${number}", enabled, counts),
+            { props, mount -> CollectionActionRow(props, mount) }
+        )
+    }
+}
+
+private struct CollectionActionRowProps(
+    val label: String,
+    val enabled: Boolean,
+    val counts: CollectionActionCounts
+)
+
+private class CollectionActionRow(
+    private val props: Props<CollectionActionRowProps>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        props.value.counts.mounted += 1
+    }
+    public override fun onUnmount() {
+        props.value.counts.mounted -= 1
+    }
+    public override fun render(): View {
+        val value = props.value
+        return button(value.label, { value.counts.invoked += 1 }) { enabled = value.enabled }
+    }
+}

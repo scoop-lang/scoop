@@ -8,7 +8,9 @@ public class MessageScroller public constructor(
     private val props: Props<MessageScrollerProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private var semanticSource: ItemSemantics? = None
+    private var semanticItems: ItemSemantics? = None
+    private val themes = ThemeAccess(scope)
     private var spaced: SpacedTranscript? = None
     public override fun onMount() {
         themes.mount(props.value.theme)
@@ -38,6 +40,36 @@ public class MessageScroller public constructor(
                     0L
                 case None -> false
             }
+        when (input.itemSemantics) {
+            case Some(val items) -> {
+                val keep =
+                    when ((semanticSource, semanticItems)) {
+                        case(Some(val previous), Some(val forwarded)) -> previous ===
+                            items &&
+                            forwarded.source ===
+                            spaced!!
+                        else -> false
+                    }
+                if (!keep) {
+                    semanticSource = Some(items)
+                    semanticItems =
+                        Some(
+                            ItemSemantics(
+                                spaced!!,
+                                items.describe,
+                                items.search,
+                                items.selection,
+                                items.setSelected,
+                                items.grid
+                            )
+                        )
+                }
+            }
+            case None -> {
+                semanticSource = None;
+                semanticItems = None
+            }
+        }
         val list =
             transcriptList(
                 spaced!!,
@@ -77,7 +109,12 @@ public class MessageScroller public constructor(
                 this.theme = input.theme
                 this.scrollbars = input.scrollbars
                 this.scrollbar = input.scrollbar
+                this.scrollbarBehavior = input.scrollbarBehavior
+                this.scrollPhysics = input.scrollPhysics
                 this.chain = ScrollChain.Contain
+                this.itemSemantics = this @MessageScroller.semanticItems
+                this.semantics = input.semantics
+                this.collectionSemantics = input.collectionSemantics
             }
         val viewport =
             element(

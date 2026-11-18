@@ -34,7 +34,8 @@ public class AttachmentProps public constructor(
     public val focusOutline: OutlineStyle? = None,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class AttachmentBuilder internal constructor(): ConversationActionBuilder() {
@@ -81,7 +82,8 @@ public class AttachmentBuilder internal constructor(): ConversationActionBuilder
             focusOutline,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 
@@ -89,7 +91,7 @@ public class Attachment(
     private val props: Props<AttachmentProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     private val medium = spanStyle { this.weight = Some(500) }
@@ -174,7 +176,10 @@ public class Attachment(
                     16.0 * d
         val media =
             when (input.media) {
-                case Some(AttachmentMedia.Image(val image, val natural)) -> imageView(image, natural) {
+                case Some(AttachmentMedia.Image(val image, val natural)) -> imageView(
+                    image,
+                    natural
+                ) {
                     this.fit = ContentFit.Cover
                     this.opacity =
                         if (
@@ -292,7 +297,16 @@ public class Attachment(
                         input.onClick,
                         input.enabled,
                         input.focus,
-                        input.fonts
+                        input.fonts,
+                        semantics =
+                            input.semantics.copy {
+                                this.busy =
+                                    this.busy ||
+                                        input.state ==
+                                        AttachmentState.Uploading ||
+                                        input.state ==
+                                        AttachmentState.Processing
+                            }
                     )
                 )
             ]

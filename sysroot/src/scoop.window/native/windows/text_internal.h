@@ -41,6 +41,7 @@ struct SWTextState {
   SWTextDocument document, local, projection;
   SWEvent *event = nullptr;
   int64_t connection = 0, sequence = 0, applied = 0;
+  int32_t purpose = 0;
   bool editing = false, edit_invalid = false, uses_range = false;
   bool had_marked = false, composing = false, canceling = false;
   bool closed = false, focused = false;
@@ -71,5 +72,7 @@ void sw_text_store_grant_pending(SWTextState *state);
 void sw_text_store_notify_change(SWTextState *state,
                                  const TS_TEXTCHANGE &change);
 void sw_text_store_notify_selection(SWTextState *state);
+void sw_text_store_notify_purpose(SWTextState *state);
+HRESULT sw_text_input_scope(int purpose, IUnknown **result);
 
 #endif

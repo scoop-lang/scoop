@@ -12,6 +12,7 @@ import scoop.window.*
 internal class DisplayProbe {
     var projection = textProjection()
     var copy = TextCopyPolicy.Default
+    var protectedText = false
     var connection: TextInputConnection? = None
     var originalConnection: TextInputConnection? = None
     var imeStarts = 0
@@ -46,6 +47,7 @@ internal fun prepareTextDisplay(probe: EditProbe) {
     probe.policy = textEditPolicy()
     probe.primary.replaceAll("A😀éZ")
     probe.displayTest.projection = textMask()
+    probe.displayTest.protectedText = true
     probe.scale = 1.0
     probe.preventRelease = false
     probe.change()
@@ -88,6 +90,8 @@ internal fun advanceTextDisplay(probe: EditProbe) {
         }
         case 52 -> {
             assertEquals(state.text, field.layout.text)
+            assertFalse(field.area.scope.textCommandAvailability!!.copy)
+            assertFalse(field.area.scope.textCommandAvailability!!.cut)
             assertEquals(test.snapshot!!, state.inputState)
             assertEquals(test.originalConnection, test.connection)
             assertEquals(test.savedStarts, test.imeStarts)
@@ -113,8 +117,12 @@ internal fun advanceTextDisplay(probe: EditProbe) {
             assertTrue(field.execute(TextEditCommand.Redo))
             assertEquals("A😀中éZ", state.text)
             state.setSelection(Utf8Selection(0L, state.text.byteLength))
+            window.clipboard.writeText("unchanged")
+            val before = state.inputState
             assertTrue(field.execute(TextEditCommand.Copy))
-            assertEquals(Some(state.text), window.clipboard.readText())
+            assertTrue(field.execute(TextEditCommand.Cut))
+            assertEquals(before, state.inputState)
+            assertEquals(Some("unchanged"), window.clipboard.readText())
             probe.next {
                 test.projection = textMask();
                 test.copy = TextCopyPolicy.Allow;
@@ -161,6 +169,7 @@ internal fun advanceTextDisplay(probe: EditProbe) {
             probe.next {
                 test.projection = textProjection();
                 test.copy = TextCopyPolicy.Default;
+                test.protectedText = false;
                 test.show = true;
                 probe.change()
             }

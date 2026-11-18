@@ -1,0 +1,399 @@
+package scoop.ui
+
+import scoop.graphics.Rect
+import scoop.window.WindowState
+import scoop.window.accessibility.*
+
+/** The scroll path borrows the same accepted boundaries owned by FocusController. */
+internal class SemanticRevealPlacement(
+    val generation: ULong,
+    val path: Array<ScrollReveal>,
+    val bounds: Rect,
+    val visible: Boolean
+)
+
+private class PendingSemanticReveal(
+    val handle: SemanticsHandle,
+    private var initial: SemanticRevealPlacement?,
+    val collection: SemanticsHandle? = None,
+    val retention: SemanticItemRetention? = None,
+    val region: (() -> Rect?)? = None,
+    val horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+    val vertical: ScrollAlignment = ScrollAlignment.Nearest
+) {
+    val attempt = RevealAttempt()
+    val hasRegion: Boolean get() =
+        when (region) {
+            case Some(_) -> true
+            case None -> false
+        }
+    val awaitingScene: Boolean get() =
+        when (initial) {
+            case Some(_) -> false
+            case None -> true
+        }
+    init {
+        when (initial) {
+            case Some(val scene) -> attempt.watch(scene.path)
+            case None -> {}
+        }
+        when (collection) {
+            case Some(val parent) -> {
+                when (parent.revealPlacement) {
+                    case Some(val scene) -> attempt.watch(scene.path)
+                    case None -> {}
+                }
+                when (parent.collectionViewport) {
+                    case Some(val viewport) -> attempt.watch(viewport)
+                    case None -> {}
+                }
+            }
+            case None -> {}
+        }
+    }
+    fun begin(scene: SemanticRevealPlacement) {
+        initial = Some(scene)
+        attempt.watch(scene.path)
+    }
+    fun matches(placement: SemanticRevealPlacement): Boolean {
+        val before = initial ?: return false
+        if (
+            placement.generation !=
+                before.generation ||
+                placement.path.size !=
+                before.path.size ||
+                !attempt.isCurrent
+        )
+            return false
+        for (index in 0L ..< before.path.size) {
+            val previous = before.path[index]
+            val after = placement.path[index]
+            if (
+                previous.viewport !==
+                    after.viewport ||
+                    previous.state !==
+                    after.state ||
+                    previous.layout.binding !=
+                    after.layout.binding
+            )
+                return false
+        }
+        return true
+    }
+}
+
+/** Advances semantic scrolling on the root's existing accepted-frame path. */
+internal class SemanticRevealController(private val root: UiRoot) {
+    private var pending: PendingSemanticReveal? = None
+
+    fun request(handle: SemanticsHandle): SemanticActionResult {
+        when (val result = eligibility(handle, None, None)) {
+            case Some(val value) -> return value
+            case None -> {}
+        }
+        val placement = placement(handle) ?: return SemanticActionResult.Unavailable
+        val value =
+            when (val previous = pending) {
+                case Some(val current) -> if (
+                    current.handle === handle && current.matches(placement)
+                )
+                    current
+                else
+                    PendingSemanticReveal(handle, Some(placement))
+                case None -> PendingSemanticReveal(handle, Some(placement))
+            }
+        install(value)
+        return advance(value, placement)
+    }
+
+    fun requestRegion(
+        handle: SemanticsHandle,
+        region: () -> Rect?,
+        horizontal: ScrollAlignment,
+        vertical: ScrollAlignment
+    ): SemanticActionResult {
+        when (val result = eligibility(handle, None, None)) {
+            case Some(val value) -> return value;
+            case None -> {}
+        }
+        val scene = placement(handle, true) ?: return SemanticActionResult.Unavailable
+        if (region() == None)
+            return SemanticActionResult.Unavailable
+        val value =
+            PendingSemanticReveal(
+                handle,
+                Some(scene),
+                region = Some(region),
+                horizontal = horizontal,
+                vertical = vertical
+            )
+        install(value)
+        return advance(value, scene)
+    }
+
+    fun requestItem(parent: SemanticsHandle, entry: LazyItemEntry): SemanticActionResult {
+        val handle = entry.node.semanticItem ?: return SemanticActionResult.Unavailable
+        val viewport = parent.collectionViewport ?: return SemanticActionResult.Unsupported
+        if (!viewport.active)
+            return SemanticActionResult.Unavailable
+        when (val result = eligibility(handle, Some(parent), Some(entry))) {
+            case Some(val value) -> return value
+            case None -> {}
+        }
+        val scene = placement(handle)
+        val value =
+            when (pending) {
+                case Some(val current) -> if (
+                    current.handle ===
+                        handle &&
+                        sameSemantics(current.collection, Some(parent)) &&
+                        current.attempt.isCurrent &&
+                        when (scene) {
+                            case Some(val accepted) -> current.awaitingScene ||
+                                current.matches(accepted)
+                            case None -> current.awaitingScene
+                        }
+                )
+                    current
+                else
+                    PendingSemanticReveal(
+                        handle,
+                        scene,
+                        Some(parent),
+                        Some(SemanticItemRetention(entry))
+                    )
+                case None -> PendingSemanticReveal(
+                    handle,
+                    scene,
+                    Some(parent),
+                    Some(SemanticItemRetention(entry))
+                )
+            }
+        install(value)
+        when (scene) {
+            case Some(val current) -> {
+                if (value.awaitingScene)
+                    value.begin(current)
+                return advance(value, current)
+            }
+            case None -> {
+                parent.owner.request(UiInvalidation.Layout)
+                return SemanticActionResult.Busy
+            }
+        }
+    }
+
+    private fun install(value: PendingSemanticReveal) {
+        when (pending) {
+            case Some(val current) -> if (current === value)
+                return
+            case None -> {}
+        }
+        cancel()
+        pending = Some(value)
+    }
+
+    fun cancel() {
+        val previous = pending
+        pending = None
+        when (previous) {
+            case Some(val value) -> value.retention?.close()
+            case None -> {}
+        }
+    }
+
+    fun cancelCollection(parent: SemanticsHandle) {
+        when (pending) {
+            case Some(val value) -> if (sameSemantics(value.collection, Some(parent)))
+                cancel()
+            case None -> {}
+        }
+    }
+
+    fun complete() {
+        val value = pending ?: return
+        if (!eligible(value)) {
+            cancel()
+            return
+        }
+        when (placement(value.handle, value.hasRegion)) {
+            case Some(val scene) -> {
+                if (value.awaitingScene)
+                    value.begin(scene)
+                if (value.matches(scene))
+                    advance(value, scene)
+                else
+                    cancel()
+            }
+            case None -> cancel()
+        }
+    }
+
+    fun check() {
+        val value = pending ?: return
+        if (!eligible(value)) {
+            cancel()
+            return
+        }
+        if (value.awaitingScene)
+            return
+        when (current(value)) {
+            case Some(_) -> {}
+            case None -> cancel()
+        }
+    }
+
+    fun discarded() {
+        check()
+        when (pending) {
+            case Some(_) -> root.requestFrame()
+            case None -> {}
+        }
+    }
+
+    fun retire(handle: SemanticsHandle) {
+        when (pending) {
+            case Some(val value) -> if (
+                value.handle === handle || sameSemantics(value.collection, Some(handle))
+            )
+                cancel()
+            case None -> {}
+        }
+    }
+
+    fun close() {
+        cancel()
+    }
+
+    private fun advance(
+        value: PendingSemanticReveal,
+        scene: SemanticRevealPlacement
+    ): SemanticActionResult {
+        val bounds =
+            when (val region = value.region) {
+                case Some(val read) -> when (read()) {
+                    case Some(val rect) -> rect
+                    case None -> {
+                        finish(value)
+                        return SemanticActionResult.Unavailable
+                    }
+                }
+                case None -> scene.bounds
+            }
+        val visible =
+            scene.visible && (!value.hasRegion || intersectReveal(bounds, scene.bounds) != None)
+        val progress =
+            value.attempt.advance(scene.path, bounds, visible, value.horizontal, value.vertical)
+        // Scroll intent observers may retire the target or replace the request synchronously.
+        when (current(value)) {
+            case None -> {
+                finish(value)
+                return SemanticActionResult.Unavailable
+            }
+            case Some(_) -> {}
+        }
+        return when (progress) {
+            case Ready -> {
+                finish(value)
+                SemanticActionResult.Completed
+            }
+            case Moved -> SemanticActionResult.Busy
+            case Waiting -> SemanticActionResult.Busy
+            case Unavailable -> {
+                finish(value)
+                SemanticActionResult.Unavailable
+            }
+            case Cancelled -> {
+                finish(value)
+                SemanticActionResult.Unavailable
+            }
+        }
+    }
+
+    private fun finish(value: PendingSemanticReveal) {
+        when (pending) {
+            case Some(val current) -> if (current === value)
+                cancel()
+            case None -> {}
+        }
+    }
+
+    private fun eligible(value: PendingSemanticReveal): Boolean =
+        value.attempt.isCurrent &&
+            eligibility(value.handle, value.collection, value.retention?.entry) ==
+            None
+
+    private fun current(value: PendingSemanticReveal): SemanticRevealPlacement? {
+        if (!eligible(value))
+            return None
+        when (pending) {
+            case Some(val current) -> if (current !== value)
+                return None
+            case None -> return None
+        }
+        when (value.handle.actions.reveal) {
+            case Some(_) -> if (!value.hasRegion)
+                return None
+            case None -> {}
+        }
+        val scene = placement(value.handle, value.hasRegion) ?: return None
+        return if (value.matches(scene))
+            Some(scene)
+        else
+            None
+    }
+
+    private fun placement(
+        handle: SemanticsHandle,
+        text: Boolean = false
+    ): SemanticRevealPlacement? {
+        val scene = handle.revealPlacement ?: return None
+        if (scene.generation != handle.generation || handle.resource.geometry == None)
+            return None
+        if (text) {
+            val path = (handle.textBinding?.path ?: None) ?: return None
+            return Some(
+                SemanticRevealPlacement(scene.generation, path, scene.bounds, scene.visible)
+            )
+        }
+        return Some(scene)
+    }
+
+    private fun eligibility(
+        handle: SemanticsHandle,
+        collection: SemanticsHandle?,
+        entry: LazyItemEntry?
+    ): SemanticActionResult? {
+        if (!root.isOpen || !handle.active || root.window.state != WindowState.Open)
+            return Some(SemanticActionResult.Unavailable)
+        if (!root.window.isVisible || root.window.isOccluded)
+            return Some(SemanticActionResult.Unavailable)
+        if (handle.merged || !handle.owner.scope.input.isInputAllowed)
+            return Some(SemanticActionResult.Rejected)
+        when (collection) {
+            case Some(val parent) -> {
+                val item = entry ?: return Some(SemanticActionResult.Unavailable)
+                if (!parent.active || !sameSemantics(item.node.semanticItem, Some(handle)))
+                    return Some(SemanticActionResult.Unavailable)
+                val source =
+                    parent.resource.collection ?: return Some(SemanticActionResult.Unavailable)
+                when (source.itemForKey(semanticItemKey(item.key))) {
+                    case Found(val value) -> {
+                        if (!value.properties.enabled)
+                            return Some(SemanticActionResult.Rejected)
+                    }
+                    else -> return Some(SemanticActionResult.Unavailable)
+                }
+            }
+            case None -> if (handle.properties.ignored)
+                return Some(SemanticActionResult.Rejected)
+        }
+        var cursor: SemanticsHandle? = Some(handle)
+        while (true) {
+            val node = cursor ?: return None
+            if (!node.active || node.properties.hidden || !node.properties.enabled)
+                return Some(SemanticActionResult.Rejected)
+            cursor = node.parent
+        }
+    }
+}

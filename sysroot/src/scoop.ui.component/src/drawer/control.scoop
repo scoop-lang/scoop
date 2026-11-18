@@ -42,8 +42,15 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
         scope.drag(
             area,
             dragOptions(),
-            { _ -> acceptsDrag() },
+            { point -> acceptsDrag(point) },
             { event -> drawerDrag(this, event) }
+        )
+    private val swipe =
+        scope.swipeGesture(
+            area,
+            swipeOptions(),
+            { point -> acceptsDrag(point) },
+            { value -> drawerSwipe(this, value) }
         )
     val active: Boolean get() = !retired && scope.isMounted
     val depth: Long get() {
@@ -124,16 +131,25 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
                     matches(shape)
                 case None -> false
             }
-    private fun acceptsDrag(): Boolean {
+    private fun swipeOptions(): SwipeGestureOptions =
+        SwipeGestureOptions(
+            dragOptions().axis,
+            enabled =
+                read().props.options.enabled && read().props.open.value && read().props.nativeSwipe,
+            contacts = false
+        )
+    private fun acceptsDrag(point: Point): Boolean {
         if (!available() || children.size > 0L || !area.scope.isInputAllowed)
             return false
         val input = read()
-        val onHandle = input.owner.handleArea?.scope?.isHovered ?: false
+        val mapped = area.toWindow(Rect(point.x, point.y, 0.0, 0.0)) ?: return false
+        val windowPoint = Point(mapped.x, mapped.y)
+        val onHandle = input.owner.handleArea?.hitTest(windowPoint) ?: false
         if (input.props.swipeHandle.only)
             return onHandle
         if (
             onHandle ||
-                !(input.owner.bodyArea?.scope?.isHovered ?: false) ||
+                !(input.owner.bodyArea?.hitTest(windowPoint) ?: false) ||
                 !input.props.options.scrollable
         )
             return true
@@ -198,9 +214,18 @@ internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerIn
                 case None -> {}
             }
         }
-        drag.update(dragOptions(), { _ -> acceptsDrag() }, { event -> drawerDrag(this, event) })
+        drag.update(
+            dragOptions(),
+            { point -> acceptsDrag(point) },
+            { event -> drawerDrag(this, event) }
+        )
         if (!active)
             return
+        swipe.update(
+            swipeOptions(),
+            { point -> acceptsDrag(point) },
+            { value -> drawerSwipe(this, value) }
+        )
         when (transition()) {
             case None -> {
                 if (motion.state == AnimationState.Running)

@@ -1,6 +1,6 @@
 #include "window.h"
 
-void sw_stamp_input(SWEventData *event) {
+void sw_stamp_event(SWEventHeader *event) {
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   event->time_seconds = now.tv_sec;
@@ -13,9 +13,9 @@ SWEvent *sw_event(SWWindow *window, int kind) {
     sw_fail(window->application, ENOMEM);
     return NULL;
   }
-  event->data.window = window->identity;
-  event->data.kind = kind;
-  sw_stamp_input(&event->data);
+  event->header.window = window->identity;
+  event->header.kind = kind;
+  sw_stamp_event(&event->header);
   return event;
 }
 
@@ -33,7 +33,8 @@ void sw_enqueue(SWApplication *app, SWEvent *event) {
 void sw_free_event(SWEvent *event) {
   if (!event)
     return;
-  free((void *)event->data.text);
+  if (event->header.kind == SWKeyboard)
+    free((void *)event->keyboard.text);
   for (size_t index = 0; index < event->edit_count; ++index)
     free((void *)event->edits[index].text);
   free(event->edits);
@@ -78,7 +79,25 @@ void *scoop_window_next_event(SWApplication *app) {
   return event;
 }
 
+SWEventHeader scoop_window_event_header(SWEvent *event) {
+  return event->header;
+}
 SWEventData scoop_window_event_data(SWEvent *event) { return event->data; }
+SWKeyboardData scoop_window_event_keyboard(SWEvent *event) {
+  return event->keyboard;
+}
+SWPointerData scoop_window_event_pointer(SWEvent *event) {
+  return event->pointer;
+}
+SWGestureData scoop_window_event_gesture(SWEvent *event) {
+  return event->gesture;
+}
+SWContactData scoop_window_event_contact(SWEvent *event) {
+  return event->contact;
+}
+int64_t scoop_window_event_modifiers(SWEvent *event) {
+  return event->modifiers;
+}
 void scoop_window_event_release(SWEvent *event) { sw_free_event(event); }
 int64_t scoop_window_text_count(SWEvent *event) { return event->edit_count; }
 SWTextEditData scoop_window_text_edit(SWEvent *event, int64_t index) {

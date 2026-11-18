@@ -7,6 +7,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
 import scoop.window.*
+import scoop.window.accessibility.*
 import scoop.ui.component.column as menuColumn
 
 /** Handles are presentation references, never a second selection or focus model. */
@@ -86,16 +87,27 @@ internal class MenuPopupProps(
     val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,
     val link: HoverPopupLink? = None,
     val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
-    val onClosed: (OverlayCloseReason) -> Unit = {}
+    val onClosed: (OverlayCloseReason) -> Unit = {},
+    val semantics: ComponentSemantics? = None
 )
 
 internal class MenuPopup(
     private val props: Props<MenuPopupProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.options.theme)
+    }
+    private fun dismissSemantically(): SemanticActionResult {
+        val input = props.value
+        if (!input.open.value)
+            return SemanticActionResult.Unavailable
+        input.handle.requestClose()
+        return if (!props.value.open.value)
+            SemanticActionResult.Completed
+        else
+            SemanticActionResult.Rejected
     }
     public override fun render(): View {
         val input = props.value
@@ -122,7 +134,7 @@ internal class MenuPopup(
                         Some(
                             Border.all(
                                 1.0,
-                                theme.tokens.palette.background.foreground.withAlpha(0.1)
+                                componentPanelBorder(theme, theme.tokens.palette.popover)
                             )
                         )
                     )
@@ -145,12 +157,31 @@ internal class MenuPopup(
                 case None -> panel
             }
         val inputs = props
+        val semantics =
+            input.semantics ?:
+                if (input.root)
+                    options.semantics
+                else
+                    ComponentSemantics()
         return portal(
             input.open,
             element(
                 PopupMotionProps(options.enabled, 8.0 * density),
                 { current, mount -> PopupMotion(current, scope = mount) },
-                [content]
+                [
+                    semanticContent(
+                        content,
+                        SemanticRole.Menu,
+                        semantics.properties(
+                            enabled = options.enabled,
+                            modal = input.root && options.mode == OverlayMode.Modal
+                        ),
+                        actions = SemanticActions(dismiss = Some { dismissSemantically() }),
+                        relations = semantics.relations,
+                        mergeLabels = false,
+                        reference = semantics.reference
+                    )
+                ]
             )
         ) {
             placement = input.placement

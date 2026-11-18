@@ -15,7 +15,40 @@ public enum ScrollAlignment {
     Nearest, Start, Center, End
 }
 
-public struct ScrollSnapshot(val offset: Point, val viewport: Size, val content: Size) {
+/** Physical margins that make obscured content edges reachable by reveal. */
+public struct ScrollPadding(
+    val left: Double = 0.0,
+    val top: Double = 0.0,
+    val right: Double = 0.0,
+    val bottom: Double = 0.0
+) {
+    internal fun extent(): Size {
+        checkLayoutSize(Size(left, top))
+        checkLayoutSize(Size(right, bottom))
+        val size = Size(left + right, top + bottom)
+        checkLayoutSize(size)
+        return size
+    }
+}
+
+public struct ScrollSnapshot(
+    val offset: Point,
+    val viewport: Size,
+    val content: Size,
+    val padding: ScrollPadding = ScrollPadding()
+) {
+    /** Content extent before the reveal margins were added. */
+    public val bodySize: Size get() =
+        Size(
+            max(0.0, content.width - padding.left - padding.right),
+            max(0.0, content.height - padding.top - padding.bottom)
+        )
+    /** Unobscured extent used by reveal and page navigation. */
+    public val visibleSize: Size get() =
+        Size(
+            max(0.0, viewport.width - padding.left - padding.right),
+            max(0.0, viewport.height - padding.top - padding.bottom)
+        )
     public val maximum: Point get() =
         Point(max(0.0, content.width - viewport.width), max(0.0, content.height - viewport.height))
     public fun revealedOffset(
@@ -27,10 +60,12 @@ public struct ScrollSnapshot(val offset: Point, val viewport: Size, val content:
         checkScrollPoint(offset)
         checkLayoutSize(viewport)
         checkLayoutSize(content)
+        padding.extent()
+        val visible = visibleSize
         return clampScroll(
             Point(
-                revealScrollAxis(offset.x, viewport.width, rect.x, rect.width, horizontal),
-                revealScrollAxis(offset.y, viewport.height, rect.y, rect.height, vertical)
+                revealScrollAxis(offset.x, visible.width, rect.x, rect.width, horizontal),
+                revealScrollAxis(offset.y, visible.height, rect.y, rect.height, vertical)
             ),
             viewport,
             content
@@ -66,7 +101,8 @@ internal fun resolveScroll(
     request: ScrollRequest,
     previous: Point,
     viewport: Size,
-    content: Size
+    content: Size,
+    padding: ScrollPadding = ScrollPadding()
 ): ScrollSnapshot {
     checkLayoutSize(viewport)
     checkLayoutSize(content)
@@ -74,9 +110,14 @@ internal fun resolveScroll(
         when (request) {
             case Position(val value) -> value
             case Reveal(val rect, val horizontal, val vertical) ->
-            ScrollSnapshot(previous, viewport, content).revealedOffset(rect, horizontal, vertical)
+            ScrollSnapshot(previous, viewport, content, padding).revealedOffset(
+                rect,
+                horizontal,
+                vertical
+            )
         }
-    return ScrollSnapshot(clampScroll(point, viewport, content), viewport, content)
+    checkScrollPoint(point)
+    return ScrollSnapshot(clampScroll(point, viewport, content), viewport, content, padding)
 }
 
 private fun revealScrollAxis(

@@ -31,6 +31,7 @@ internal fun inputExamples(model: TextExamplesModel): View =
         this.typography("Password and input policy", TypographyRole.H4)
         this.input(model.password) {
             this.placeholder = "Password"
+            this.protectedText = true
             this.projection =
                 if (model.revealed.value)
                     textProjection()

@@ -1,0 +1,373 @@
+package scoop.examples.touchinput
+
+import scoop.time.Duration
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as panelColumn
+import scoop.ui.component.frame as panelFrame
+import scoop.ui.component.label as panelLabel
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+fun main() {
+    val windows = ArrayList<Window>()
+    val items = WorkshopItems()
+    context(ThemeSource(shadcnTheme())) {
+        UiHost {
+            host,
+            active,
+            event -> when (event) {
+                case Resumed -> for (index in 1 .. 2) {
+                    val window =
+                        active.createWindow(
+                            windowAttributes {
+                                title = f"Scoop — interaction workshop ${index}"
+                                size = LogicalSize(820.0, 880.0)
+                                requestActivation = false
+                            }
+                        )
+                    windows.add(window)
+                    host.attach(window, { scope -> TouchInputPanel(items, scope) })
+                }
+                case Window(val id, WindowEvent.CloseRequested) -> {
+                    for (window in windows)
+                        if (window.id == id)
+                            window.requestDestroy()
+                }
+                else -> {}
+            }
+        }.use {
+            host -> Application(
+                applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+            ).run(host)
+        }
+    }
+}
+
+private class TouchInputPanel(private val items: WorkshopItems, scope: ComponentScope): Component(
+    scope
+) {
+    private val email = TextEditorState()
+    private val phone = TextEditorState()
+    private val password = TextEditorState()
+    private val notes = TextEditorState(workshopText())
+    private val clicks = state(0)
+    private val keyboard = state("Keyboard status unavailable")
+    private val selection = state<ChartSelection?>(None)
+    private val scroll = ScrollState()
+    private val automatic = state(false)
+    private val primary = state(true)
+    private val services = state(true)
+    private val haptic = state(true)
+    private val autoHide = state(true)
+    private val widen = state(true)
+    private val elastic = state(true)
+    private val modal = state(false)
+    private val received = state<DragContent?>(None)
+    private val scale = state(1.0)
+    private val rotation = state(0.0)
+    private val files = scope.fileDialogController()
+    private val model =
+        ChartModel(
+            ChartData(
+                [ChartDatum(ChartDatumKey("one"), "One"), ChartDatum(ChartDatumKey("two"), "Two")],
+                [ChartSeries(ChartSeriesKey("value"), "Value", [Some(20.0), Some(35.0)])]
+            )
+        )
+    public override fun onMount() {
+        scope.observeWindow(scope.nativeWindow) {
+            event -> when (event) {
+                case SoftwareKeyboardChanged(val state) -> keyboard.value =
+                    when (state) {
+                        case Unknown -> "Keyboard status unavailable"
+                        case Hidden -> "Keyboard hidden"
+                        case Shown(_) -> "Keyboard visible"
+                    }
+                else -> {}
+            }
+        }
+    }
+    public override fun render(): View {
+        val panel = this
+        val source = WorkshopItemSource(items, items.order.value)
+        val physics =
+            ScrollPhysicsOptions(
+                boundary =
+                    if (elastic.value)
+                        ScrollBoundary.Elastic
+                    else
+                        ScrollBoundary.Hard
+            )
+        val behavior =
+            scrollbarBehavior {
+                autoHide = Some(panel.autoHide.value)
+                widenOnHover = Some(panel.widen.value)
+                shadeOnHover = Some(panel.widen.value)
+            }
+        val hint = button(f"Tap action (${panel.clicks.value})", { panel.clicks.value += 1 })
+        val cardTrigger = button("Hold for details", {})
+        val details =
+            column {
+                this.add(panelLabel("This card stays open after release."))
+                this.button("Action inside the card", { panel.clicks.value += 1 })
+            }
+        val fields =
+            column {
+                this.add(
+                    panelLabel("Interaction workshop — both windows share the reorderable list.")
+                )
+                this.add(
+                    panelLabel(
+                        "Use Tab and ordinary buttons for every drag or gesture operation. Text menus support Shift+F10."
+                    )
+                )
+                this.add(workshopOption("Hide idle scrollbars", panel.autoHide.binding()))
+                this.add(
+                    workshopOption("Expand and shade scrollbars on hover", panel.widen.binding())
+                )
+                this.add(workshopOption("Elastic scroll boundaries", panel.elastic.binding()))
+                this.add(
+                    workshopOption(
+                        "PRIMARY and middle-button paste in Notes",
+                        panel.primary.binding()
+                    )
+                )
+                this.add(workshopOption("System text services in Notes", panel.services.binding()))
+                this.add(
+                    workshopOption(
+                        "Automatic text replacements in Notes",
+                        panel.automatic.binding()
+                    )
+                )
+                this.add(
+                    workshopOption(
+                        "Text long-press haptic feedback in Notes",
+                        panel.haptic.binding()
+                    )
+                )
+                this.add(panelLabel("Text input and direct touch"))
+                this.input(panel.email) {
+                    placeholder = "Email address"
+                    inputPurpose = TextInputPurpose.Email
+                    semantics = ComponentSemantics(name = Some("Email address"))
+                }
+                this.input(panel.phone) {
+                    placeholder = "Telephone number"
+                    inputPurpose = TextInputPurpose.Telephone
+                    semantics = ComponentSemantics(name = Some("Telephone number"))
+                }
+                this.input(panel.password) {
+                    placeholder = "Password"
+                    protectedText = true
+                    projection = textMask()
+                    semantics = ComponentSemantics(name = Some("Password"))
+                }
+                this.textarea(panel.notes) {
+                    rows = 5L
+                    automaticTextReplacement = panel.automatic.value
+                    primarySelection =
+                        TextPrimarySelectionOptions(
+                            panel.primary.value,
+                            if (panel.primary.value)
+                                None
+                            else
+                                Some(false)
+                        )
+                    contextMenu { systemServices = panel.services.value }
+                    touch = TextTouchOptions(hapticFeedback = panel.haptic.value)
+                    scrollPhysics = physics
+                    scrollbarBehavior = behavior
+                    semantics = ComponentSemantics(name = Some("Notes"))
+                }
+                this.typography(
+                    "Readonly text — double-click words, triple-click lines, drag a selection, or use Copy and Select All."
+                )
+                this.add(
+                    element(
+                        WorkshopReceiverInput(
+                            panel.received.value,
+                            { value -> panel.received.value = Some(value) }
+                        ),
+                        { value, mount -> WorkshopReceiver(value, mount) },
+                        [
+                            panelFrame(
+                                panelColumn {
+                                    this.add(
+                                        panelLabel(
+                                            "Drop text, URLs or files here; drag the received value out again."
+                                        )
+                                    )
+                                    this.add(panelLabel(panel.receivedText()))
+                                    this.button(
+                                        "Paste text into receiver",
+                                        {
+                                            when (
+                                                val value =
+                                                    panel.scope.nativeWindow.clipboard.readText()
+                                            ) {
+                                                case Some(val text) -> panel.received.value =
+                                                    Some(DragContent.Text(text))
+                                                case None -> {}
+                                            }
+                                        }
+                                    )
+                                    this.button(
+                                        "Choose files for receiver",
+                                        { panel.chooseFiles() }
+                                    ) { enabled = !panel.files.isPending }
+                                }
+                            ) {
+                                surface = Some(SurfaceKind.Elevated);
+                                padding = Some(Insets.all(12.0))
+                            }
+                        ]
+                    )
+                )
+                this.add(panelLabel(panel.items.status.value))
+                this.virtualList(source, ItemExtent.Fixed(48.0)) {
+                    height = Some(260.0)
+                    scrollPhysics = physics
+                    scrollbarBehavior = behavior
+                    collectionSemantics = ComponentSemantics(name = Some("Reorderable items"))
+                    itemSemantics =
+                        Some(
+                            ItemSemantics(
+                                source,
+                                {
+                                    index -> Some(
+                                        SemanticItemProperties(
+                                            name = Some(f"Item ${source.snapshot[index]}")
+                                        )
+                                    )
+                                }
+                            )
+                        )
+                }
+                this.add(
+                    element(
+                        WorkshopTransformInput(
+                            panel.scale.value,
+                            panel.rotation.value,
+                            { zoom, angle -> panel.transform(zoom, angle) }
+                        ),
+                        { value, mount -> WorkshopTransform(value, mount) }
+                    )
+                )
+                this.row {
+                    this.button("Zoom out", { panel.transform(1.0 / 1.2, 0.0) })
+                    this.button("Zoom in", { panel.transform(1.2, 0.0) })
+                    this.button("Rotate left", { panel.transform(1.0, -0.25) })
+                    this.button("Rotate right", { panel.transform(1.0, 0.25) })
+                    this.button(
+                        "Reset transform",
+                        {
+                            panel.scale.value = 1.0;
+                            panel.rotation.value = 0.0
+                        }
+                    )
+                }
+                this.button("Open modal", { panel.modal.value = true })
+                this.dialog(
+                    panel.modal.binding(),
+                    panelLabel(
+                        "The background has no input or accessibility actions until this dialog closes."
+                    )
+                ) {
+                    this.title("Interaction boundary")
+                    semantics = ComponentSemantics(name = Some("Interaction boundary"))
+                }
+                this.add(panelLabel(panel.keyboard.value))
+                this.tooltip(hint, "Hold to read this hint. A short tap performs the action.") {
+                    longPress = LongPressOptions(delay = Duration.milliseconds(500L))
+                }
+                this.hoverCard(cardTrigger, details)
+                this.chart(panel.model) {
+                    active = Some(panel.selection.binding())
+                    height = Some(220.0)
+                    semantics = ComponentSemantics(name = Some("Touch-selectable values"))
+                }
+                this.add(
+                    panelLabel(
+                        when (val selected = panel.selection.value) {
+                            case Some(val value) -> "Selected: " + value.datum.value
+                            case None -> "Tap a value to show its details."
+                        }
+                    )
+                )
+                this.button(
+                    "Select the first value",
+                    {
+                        panel.selection.value =
+                            Some(ChartSelection(ChartSeriesKey("value"), ChartDatumKey("one")))
+                    }
+                )
+            }
+        return scrollArea(fields) {
+            state = Some(panel.scroll)
+            scrollPhysics = physics
+            scrollbarBehavior = behavior
+            semantics = ComponentSemantics(name = Some("Interaction workshop"))
+        }
+    }
+    private fun transform(zoom: Double, angle: Double) {
+        val next = scale.value * zoom
+        scale.value =
+            if (next < 0.25)
+                0.25
+            else
+                if (next > 3.0)
+                    3.0
+                else
+                    next
+        rotation.value = (rotation.value + angle) % 6.283185307179586
+    }
+    private fun chooseFiles() {
+        files.openFiles(
+            DialogTarget.Owner(scope.nativeWindow),
+            {
+                result -> when (result) {
+                    case Accepted(val paths) -> received.value = Some(DragContent.Files(paths))
+                    case Cancelled(_) -> {}
+                    case Failed(val error) -> items.status.value =
+                        error.message ?: "File selection failed."
+                }
+            }
+        )
+    }
+    private fun receivedText(): String =
+        when (val value = received.value) {
+            case Some(DragContent.Text(val text)) -> text
+            case Some(DragContent.Url(val url)) -> url
+            case Some(DragContent.Files(val paths)) -> {
+                val result = StringBuilder()
+                for (path in paths) {
+                    result.append(path.display());
+                    result.append("\n")
+                }
+                result.toString()
+            }
+            case None -> "Nothing received yet."
+        }
+}
+
+private fun workshopText(): String {
+    val result = StringBuilder()
+    for (line in 1 .. 24)
+        result.append(
+            f"Line ${
+                line
+            }: Select words, lines and emoji 😀. Drag between fields, windows and applications.\n"
+        )
+    return result.toString()
+}
+
+private fun workshopOption(text: String, value: Binding<Boolean>): View =
+    row {
+        this.checkbox(value) { semantics = ComponentSemantics(name = Some(text)) }
+        this.add(panelLabel(text))
+        this.spacing = 8.0
+    }

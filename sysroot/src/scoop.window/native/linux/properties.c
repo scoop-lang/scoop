@@ -155,21 +155,3 @@ int64_t scoop_window_attention(SWWindow *window, int32_t value) {
   gdk_x11_surface_set_urgency_hint(sw_surface(window), value >= 0);
   return 0;
 }
-static void cursor(SWWindow *window) {
-  const char *names[] = {"default",     "text",      "crosshair",
-                         "pointer",     "grab",      "grabbing",
-                         "not-allowed", "ew-resize", "ns-resize"};
-  gtk_widget_set_cursor_from_name(window->view, window->cursor_visible
-                                                    ? names[window->cursor_icon]
-                                                    : "none");
-}
-int64_t scoop_window_cursor_icon(SWWindow *window, int32_t value) {
-  window->cursor_icon = value;
-  cursor(window);
-  return 0;
-}
-int64_t scoop_window_cursor_visible(SWWindow *window, int32_t value) {
-  window->cursor_visible = value != 0;
-  cursor(window);
-  return 0;
-}

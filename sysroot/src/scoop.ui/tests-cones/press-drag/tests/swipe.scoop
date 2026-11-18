@@ -1,0 +1,371 @@
+package scoop.tests.ui.gestures
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.window.sendNativeGesture
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class SwipeUiTest {
+    @Test
+    fun `swipes combine native directions with bounded contact releases and cancellation`() {
+        val scenario = SwipeScenario()
+        val probe = GestureProbe(Some({ value, active -> scenario.advance(value, active) }))
+        probe.swipe = Some(scenario)
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(scenario.gesture!!.isClosed)
+            assertTrue(probe.press!!.isClosed)
+            assertTrue(probe.view!!.restored())
+        } catch (error: Throwable) {
+            println(f"swipe stage=${scenario.stage}, calls=${scenario.calls}")
+            reportGestureFailure(error)
+            throw error
+        } finally {
+            probe.view?.close()
+        }
+    }
+}
+
+internal class SwipeScenario {
+    var stage = 0
+    var calls = 0
+    var gesture: SwipeGesture? = None
+    private var last: SwipeGestureSample? = None
+    private var fallback = 0
+    private var updated = 0
+    private var transforms = 0
+    private var transformEnds = 0
+    private var allow = true
+    private var disableOnAccept = false
+    private var closeOnSwipe = false
+    private var options = SwipeGestureOptions()
+    private var timer: WindowDeadline? = None
+
+    fun mount(probe: GestureProbe, scope: ComponentScope, area: InputArea) {
+        gesture =
+            Some(
+                scope.swipeGesture(
+                    area,
+                    options,
+                    { point -> accepts(point) },
+                    { value -> received(value) }
+                )
+            )
+        scope.transformGesture(area) {
+            event -> when (event) {
+                case Started(_) -> transforms += 1
+                case Ended(_) -> transformEnds += 1
+                else -> {}
+            }
+        }
+        scope.resource {
+            area.scope.addDefaultAction {
+                _,
+                event -> when (event) {
+                    case Gesture(
+                        InputGestureEvent.Native(GestureEvent.Swipe(_, _, _))
+                    ) -> fallback += 1
+                    else -> {}
+                }
+            }
+        }
+        timer = Some(scope.createDeadline { probe.waiting = false })
+    }
+    private fun configure(value: SwipeGestureOptions = SwipeGestureOptions()) {
+        options = value
+        gesture!!.update(value, { point -> accepts(point) }, { value -> received(value) })
+    }
+    private fun accepts(point: Point): Boolean {
+        if (disableOnAccept)
+            configure(SwipeGestureOptions(enabled = false))
+        return allow && point.x >= 0.0
+    }
+    private fun received(value: SwipeGestureSample) {
+        calls += 1
+        last = Some(value)
+        if (closeOnSwipe)
+            gesture!!.close()
+    }
+    private fun pause(probe: GestureProbe, milliseconds: Long = 140L) {
+        probe.waiting = true
+        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+    private fun native(probe: GestureProbe, x: Double = 1.0, y: Double = 0.0) {
+        probe.gesturesQueued += 1
+        @Unsafe
+        {
+            probe.window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    when (lease.handle) {
+                        case AppKit(_, val view) -> sendNativeGesture(
+                            view,
+                            2,
+                            0,
+                            30.0,
+                            30.0,
+                            -x,
+                            -y
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun advance(probe: GestureProbe, active: ActiveApplication) {
+        when (stage) {
+            0 -> {
+                probe.contact(1L, 0);
+                probe.contact(1L, 2)
+            }
+            1 -> {
+                assertEquals(1, probe.clicks)
+                assertEquals(0, calls)
+                probe.contact(2L, 0);
+                probe.contact(2L, 1, 100.0);
+                probe.contact(2L, 2, 100.0)
+            }
+            2 -> {
+                assertEquals(1, calls)
+                assertEquals(SwipeDirection.Right, last!!.direction)
+                assertEquals(
+                    SwipeGestureInput.Contact(ContactId(2L), ContactKind.Touch),
+                    last!!.input
+                )
+                assertEquals(1, probe.clicks)
+                probe.contact(3L, 0, 120.0, pen = true)
+                probe.contact(3L, 1, 40.0, pen = true);
+                probe.contact(3L, 2, 40.0, pen = true)
+            }
+            3 -> {
+                assertEquals(2, calls)
+                assertEquals(SwipeDirection.Left, last!!.direction)
+                assertEquals(
+                    SwipeGestureInput.Contact(ContactId(3L), ContactKind.Pen),
+                    last!!.input
+                )
+                native(probe)
+            }
+            4 -> {
+                assertEquals(3, calls)
+                assertEquals(SwipeDirection.Right, last!!.direction)
+                assertEquals(SwipeGestureInput.Native, last!!.input)
+                assertEquals(0, fallback)
+                native(probe, 0.0, 1.0)
+            }
+            5 -> {
+                assertEquals(3, calls);
+                assertEquals(1, fallback);
+                native(probe, 0.0, 0.0)
+            }
+            6 -> {
+                assertEquals(3, calls);
+                assertEquals(2, fallback)
+                configure(SwipeGestureOptions(native = false));
+                native(probe)
+            }
+            7 -> {
+                assertEquals(3, calls);
+                assertEquals(3, fallback)
+                configure(SwipeGestureOptions(axis = DragAxis.Vertical));
+                native(probe, 0.0, 1.0)
+            }
+            8 -> {
+                assertEquals(4, calls);
+                assertEquals(SwipeDirection.Down, last!!.direction)
+                probe.contact(4L, 0)
+                probe.contact(4L, 1, 30.0, 110.0);
+                probe.contact(4L, 2, 30.0, 110.0)
+            }
+            9 -> {
+                assertEquals(5, calls);
+                assertEquals(SwipeDirection.Down, last!!.direction)
+                configure()
+                probe.move(30.0, 30.0);
+                probe.button(30.0, 30.0, true)
+                probe.move(120.0, 30.0);
+                probe.button(120.0, 30.0, false)
+            }
+            10 -> {
+                assertEquals(5, calls)
+                configure(SwipeGestureOptions(mouse = true))
+                probe.move(30.0, 30.0);
+                probe.button(30.0, 30.0, true)
+                probe.move(120.0, 30.0);
+                probe.button(120.0, 30.0, false)
+            }
+            11 -> {
+                assertEquals(6, calls)
+                assertEquals(SwipeGestureInput.Mouse(MouseButton.Left), last!!.input)
+                configure(SwipeGestureOptions(maxDuration = Duration.milliseconds(100L)))
+                probe.contact(5L, 0);
+                probe.contact(5L, 1, 100.0)
+                pause(probe, 180L)
+            }
+            12 -> {
+                assertEquals(6, calls);
+                probe.contact(5L, 2, 100.0)
+            }
+            13 -> {
+                assertEquals(6, calls);
+                configure()
+                probe.contact(6L, 0);
+                probe.contact(6L, 1, 100.0)
+                probe.contact(6L, 1, 40.0);
+                probe.contact(6L, 2, 40.0)
+            }
+            14 -> {
+                assertEquals(6, calls)
+                probe.contact(7L, 0);
+                probe.contact(7L, 1, 100.0)
+                probe.contact(7L, 2, 100.0, 110.0)
+            }
+            15 -> {
+                assertEquals(6, calls)
+                probe.contact(8L, 0);
+                probe.contact(8L, 1, 100.0)
+                probe.contact(9L, 0, 120.0)
+                probe.contact(8L, 2, 100.0);
+                probe.contact(9L, 2, 120.0)
+                probe.contact(17L, 0)
+                probe.contact(18L, 0, 120.0)
+                probe.contact(17L, 1, 10.0)
+                probe.contact(18L, 1, 140.0)
+                probe.contact(17L, 2, 10.0)
+                probe.contact(18L, 2, 140.0)
+            }
+            16 -> {
+                assertEquals(6, calls)
+                assertEquals(1, transforms)
+                assertEquals(1, transformEnds)
+                probe.contact(10L, 0);
+                probe.contact(10L, 1, 100.0)
+            }
+            17 -> {
+                probe.preventMovement = true
+                probe.contact(10L, 1, 120.0);
+                probe.contact(10L, 2, 120.0)
+            }
+            18 -> {
+                assertEquals(6, calls);
+                probe.preventMovement = false
+                probe.contact(11L, 0);
+                probe.contact(11L, 1, 100.0)
+            }
+            19 -> {
+                probe.preventRelease = true;
+                probe.contact(11L, 2, 100.0)
+            }
+            20 -> {
+                assertEquals(6, calls);
+                probe.preventRelease = false
+                probe.contact(12L, 0);
+                probe.contact(12L, 1, 100.0)
+            }
+            21 -> {
+                configure(SwipeGestureOptions(distance = 60.0))
+                probe.contact(12L, 2, 100.0)
+            }
+            22 -> {
+                assertEquals(6, calls);
+                configure()
+                probe.contact(13L, 0);
+                probe.contact(13L, 1, 100.0)
+            }
+            23 -> {
+                gesture!!.update(
+                    options,
+                    { point -> accepts(point) },
+                    {
+                        value ->
+                        updated += 1;
+                        received(value)
+                    }
+                )
+                probe.contact(13L, 2, 100.0)
+            }
+            24 -> {
+                assertEquals(7, calls);
+                assertEquals(1, updated)
+                probe.shift.value = 200.0;
+                probe.mirror.value = true
+                pause(probe)
+            }
+            25 -> {
+                assertEquals(Some(Point(170.0, 30.0)), probe.parent!!.toLocal(Point(30.0, 30.0)))
+                native(probe)
+            }
+            26 -> {
+                assertEquals(8, calls);
+                assertEquals(SwipeDirection.Left, last!!.direction)
+                assertEquals(Point(170.0, 30.0), last!!.position)
+                probe.shift.value = 0.0;
+                probe.mirror.value = false
+                allow = false;
+                pause(probe)
+            }
+            27 -> {
+                native(probe);
+                probe.contact(14L, 0);
+                probe.contact(14L, 1, 100.0);
+                probe.contact(14L, 2, 100.0)
+            }
+            28 -> {
+                assertEquals(8, calls);
+                assertEquals(4, fallback)
+                allow = true;
+                disableOnAccept = true;
+                native(probe)
+            }
+            29 -> {
+                assertEquals(8, calls);
+                assertEquals(5, fallback)
+                configure()
+                probe.contact(15L, 0);
+                probe.contact(15L, 1, 100.0);
+                probe.contact(15L, 2, 100.0)
+            }
+            30 -> {
+                assertEquals(8, calls);
+                disableOnAccept = false;
+                configure()
+                probe.contact(16L, 0);
+                probe.contact(16L, 1, 100.0)
+            }
+            31 -> native(probe)
+            32 -> {
+                assertEquals(9, calls);
+                assertEquals(SwipeGestureInput.Native, last!!.input)
+                probe.contact(16L, 2, 100.0)
+            }
+            33 -> {
+                assertEquals(9, calls)
+                closeOnSwipe = true;
+                native(probe)
+            }
+            34 -> {
+                assertEquals(10, calls);
+                assertTrue(gesture!!.isClosed)
+                native(probe)
+            }
+            35 -> {
+                assertEquals(10, calls);
+                assertEquals(6, fallback)
+                probe.finished = true
+                probe.window!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected swipe stage"))
+        }
+        stage += 1
+    }
+}

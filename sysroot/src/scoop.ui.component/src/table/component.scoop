@@ -2,13 +2,15 @@ package scoop.ui.component
 
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public class Table public constructor(
     private val props: Props<TableProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val horizontal = ScrollState()
+    private val semanticHeaders = TableHeaderSemantics()
     private var checked: TableProps? = None
     private var appearance: TableAppearance? = None
     private var tracks: TableTracks? = None
@@ -71,6 +73,7 @@ public class Table public constructor(
         }
         val visuals = appearance!!
         val sizes = tracks!!
+        semanticHeaders.update(input.rows)
         val rows =
             column {
                 this.spacing = 0.0
@@ -82,7 +85,9 @@ public class Table public constructor(
                             sizes,
                             visuals,
                             input.rows[index].key,
-                            index + 1L < input.rows.size
+                            index + 1L < input.rows.size,
+                            rowIndex = index,
+                            headers = Some(this @Table.semanticHeaders)
                         )
                     )
             }
@@ -105,14 +110,27 @@ public class Table public constructor(
                 { props, scope -> TableViewport(props, scope) },
                 [rows]
             )
-        return column {
-            this.spacing = 16.0 * visuals.density
-            this.alignment = CrossAlignment.Stretch
-            this.add(viewport)
-            when (input.caption) {
-                case Some(val value) -> this.add(visuals.content(value, dim = true));
-                case None -> {}
+        val content =
+            column {
+                this.spacing = 16.0 * visuals.density
+                this.alignment = CrossAlignment.Stretch
+                this.add(viewport)
+                when (input.caption) {
+                    case Some(val value) -> this.add(visuals.content(value, dim = true));
+                    case None -> {}
+                }
             }
-        }
+        return semanticContent(
+            content,
+            SemanticRole.Table,
+            input.semantics.properties(enabled = input.enabled).copy {
+                table = Some(SemanticTableSize(input.rows.size, input.columns.size))
+                if (name == None && input.semantics.relations.labelledBy.size == 0L)
+                    name = semanticCaption(input.caption)
+            },
+            relations = input.semantics.relations,
+            mergeLabels = false,
+            reference = input.semantics.reference
+        )
     }
 }

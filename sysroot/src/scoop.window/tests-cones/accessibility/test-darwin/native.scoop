@@ -1,0 +1,30 @@
+package scoop.tests.window.accessibility
+
+@Extern(name = "scoop_ax_test_open")
+internal fun nativeOpen(view: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_ax_test_check")
+internal fun nativeCheck(probe: Ptr<Unit>, phase: Int): Int
+
+@Extern(name = "scoop_ax_test_press")
+internal fun nativePress(probe: Ptr<Unit>): Int
+
+@Extern(name = "scoop_ax_test_post")
+internal fun nativePost(
+    probe: Ptr<Unit>,
+    operation: Int,
+    callback: FunPtr<(Ptr<Unit>, Int, Int) -> Int>,
+    context: Ptr<Unit>
+)
+
+@Extern(name = "scoop_ax_test_rebind")
+internal fun nativeRebind(probe: Ptr<Unit>, view: Ptr<Unit>): Int
+
+@Extern(name = "scoop_ax_test_refresh_button")
+internal fun nativeRefreshButton(probe: Ptr<Unit>)
+
+@Extern(name = "scoop_ax_test_last")
+internal fun nativeLast(probe: Ptr<Unit>, operation: Int): Int
+
+@Extern(name = "scoop_ax_test_close")
+internal fun nativeClose(probe: Ptr<Unit>)

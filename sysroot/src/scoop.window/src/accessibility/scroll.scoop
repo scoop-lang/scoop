@@ -1,0 +1,46 @@
+package scoop.window.accessibility
+
+import scoop.window.*
+
+public enum SemanticOrientation {
+    Horizontal, Vertical
+}
+
+/** One actual scroll axis, measured in logical coordinates. */
+public struct SemanticScrollRange(
+    val orientation: SemanticOrientation,
+    val offset: Double,
+    val viewport: Double,
+    val content: Double,
+    val lineStep: Double? = None
+) {
+    public val maximum: Double get() =
+        if (content > viewport)
+            content - viewport
+        else
+            0.0
+
+    internal fun check() {
+        when (lineStep) {
+            case Some(val step) -> requireWindow(
+                step.isFinite() && step > 0.0,
+                "invalid semantic scroll step"
+            );
+            case None -> {}
+        }
+        requireWindow(
+            offset.isFinite() &&
+                viewport.isFinite() &&
+                content.isFinite() &&
+                offset >=
+                0.0 &&
+                viewport >=
+                0.0 &&
+                content >=
+                0.0 &&
+                offset <=
+                maximum,
+            "invalid semantic scroll range"
+        )
+    }
+}

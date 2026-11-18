@@ -1,0 +1,69 @@
+package scoop.window
+
+public struct TextServiceCapabilities(
+    val spelling: Boolean,
+    val grammar: Boolean,
+    val automaticReplacement: Boolean,
+    val dictionary: Boolean,
+    val services: Boolean
+)
+
+public struct TextCheckingOptions(
+    val spelling: Boolean = true,
+    val grammar: Boolean = true,
+    val replacements: Boolean = false,
+    val language: String? = None
+)
+
+public enum TextCheckKind {
+    Spelling, Grammar, Replacement
+}
+
+/** Ranges refer to the exact UTF-8 text passed to checkText. */
+public class TextCheckFinding internal constructor(
+    public val range: Utf8Range,
+    public val kind: TextCheckKind,
+    public val description: String,
+    public val suggestions: Array<String>
+)
+
+/** Native text services return values; the caller retains its document and undo ownership. */
+public class SystemTextServices internal constructor(private val owner: ApplicationOwner) {
+    public val capabilities: TextServiceCapabilities get() {
+        owner.requireRunning("query text services")
+        return platformTextServiceCapabilities()
+    }
+    public fun checkText(text: String, options: TextCheckingOptions = TextCheckingOptions()): Array<
+        TextCheckFinding
+    > {
+        owner.requireRunning("check text")
+        when (options.language) {
+            case Some(val language) -> for (character in language)
+                requireWindow(character.code != 0, "text checking language contains NUL")
+            case None -> {}
+        }
+        return platformCheckText(text, options)
+    }
+    /** None means unavailable or declined; returned text has not been applied to a document. */
+    public fun performService(name: String, text: String): String? {
+        owner.requireRunning("perform text service")
+        requireWindow(name.byteLength > 0L, "empty text service name")
+        for (character in name)
+            requireWindow(character.code != 0, "text service name contains NUL")
+        return platformPerformTextService(name, text)
+    }
+}
+
+public val ActiveApplication.textServices: SystemTextServices get() {
+    owner.requireRunning("get text services")
+    return SystemTextServices(owner)
+}
+
+/** The anchor is a current visible content rectangle, not a guessed document position. */
+public fun Window.showTextDefinition(text: String, anchor: LogicalRect): Boolean {
+    owner.requireOpen()
+    checkRect(anchor)
+    if (text.byteLength == 0L || anchor.size.width <= 0.0 || anchor.size.height <= 0.0)
+        return false
+    return platformShowTextDefinition(owner.pointer!!, text, anchor)
+}

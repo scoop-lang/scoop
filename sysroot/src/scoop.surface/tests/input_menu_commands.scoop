@@ -17,7 +17,7 @@ private class InputMenuCommandsTest {
             val parent = rig.area("parent")
             val child = rig.area("child", true, parent = Some(parent.scope))
             val copy = TextCommandAvailability(copy = true)
-            val paste = TextCommandAvailability(paste = true)
+            val paste = TextCommandAvailability(paste = true, deleteSelection = true)
             root.textCommandAvailability = Some(copy)
             assertEquals(Some(TextCommandAvailability()), latestMenuCommands(rig))
             rig.frame {
@@ -91,13 +91,13 @@ private class InputMenuCommandsTest {
                     }
                 }
             rig.log.events.clear()
-            rig.router.event(WindowEvent.TextCommand(TextEditCommand.Copy))
+            rig.router.event(WindowEvent.TextCommand(TextEditCommand.DeleteSelection))
             assertEquals(0L, commands.size)
             assertEquals("editor/text-command", rig.log.trace())
             root.captureHandler = { _, _ -> Unit }
-            rig.router.event(WindowEvent.TextCommand(TextEditCommand.Copy))
+            rig.router.event(WindowEvent.TextCommand(TextEditCommand.DeleteSelection))
             assertEquals(1L, commands.size)
-            assertEquals(TextEditCommand.Copy, commands[0L])
+            assertEquals(TextEditCommand.DeleteSelection, commands[0L])
             rig.router.event(WindowEvent.Focused(false))
             rig.router.event(WindowEvent.TextCommand(TextEditCommand.Paste))
             assertEquals(1L, commands.size)

@@ -10,6 +10,22 @@ kind = "library"
 path = "tests"
 when = { os = "darwin" }
 
+[[test.sources]]
+path = "tests/theme_preferences.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/theme_scene.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/theme_preferences.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/theme_scene.scoop"
+when = { os = "linux", env = "gnu" }
+
 [test-dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"

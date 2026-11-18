@@ -1,0 +1,282 @@
+package scoop.ui.text
+
+import scoop.ui.*
+import scoop.surface.InputArea
+import scoop.window.*
+
+private enum TextMenuAction {
+    Edit(TextEditCommand), Service(TextMenuServiceAction)
+}
+
+private struct TextMenuItem(val id: MenuItemId, val action: TextMenuAction)
+
+private class TextMenuSession(
+    val menu: Menu,
+    val popup: PopupSession,
+    val options: TextContextMenuOptions,
+    val items: Array<TextMenuItem>
+) {
+    var valid = true
+    var invoked = false
+    var completed = false
+    var actions: Closeable? = None
+    var completion: Closeable? = None
+}
+
+/** Owns one bound text target; popup completion never performs an edit. */
+internal class TextContextMenu(
+    private val scope: ComponentScope,
+    private val area: InputArea,
+    private val configuration: () -> TextContextMenuOptions,
+    private val canUse: () -> Boolean,
+    private val perform: (TextEditCommand) -> Boolean,
+    private val editing: Boolean
+): Closeable {
+    private val window = scope.nativeWindow
+    private var current: TextMenuSession? = None
+    private var closed = false
+
+    val hasTarget: Boolean get() =
+        when (val value = current) {
+            case Some(val session) -> session.valid
+            case None -> false
+        }
+
+    val pending: Boolean get() =
+        when (val value = current) {
+            case Some(val session) -> when (session.popup.result) {
+                case Some(_) -> false
+                case None -> true
+            }
+            case None -> false
+        }
+
+    fun eligible(): Boolean =
+        !closed &&
+            scope.isMounted &&
+            !area.isClosed &&
+            canUse() &&
+            configuration().mode !=
+            TextContextMenuMode.Disabled &&
+            window.state ==
+            WindowState.Open &&
+            !window.isInputBlocked &&
+            area.scope.isInputAllowed
+
+    fun open(
+        template: TextContextMenuTemplate,
+        placement: PopupPlacement,
+        services: Array<TextMenuServiceAction> = []
+    ): Boolean {
+        if (pending || !eligible())
+            return false
+        releaseCurrent()
+        val menu = scope.application.createMenu()
+        try {
+            val items = ArrayList<TextMenuItem>()
+            val availability = area.scope.textCommandAvailability ?: TextCommandAvailability()
+            for (service in services) {
+                val id =
+                    menu.insert(
+                        MenuItemDescription(
+                            service.label,
+                            kind = service.kind,
+                            enabled = service.valid()
+                        )
+                    )
+                items.add(TextMenuItem(id, TextMenuAction.Service(service)))
+            }
+            if (items.size > 0L)
+                menu.insert(MenuItemDescription(kind = MenuItemKind.Separator))
+            var separator = false
+            for (entry in template.entries)
+                when (entry) {
+                    case Separator -> separator = items.size > 0L
+                    case Command(val command, val label, val shortcut) -> {
+                        if (!textMenuSupports(command, editing))
+                            continue
+                        if (separator)
+                            menu.insert(MenuItemDescription(kind = MenuItemKind.Separator))
+                        separator = false
+                        val id =
+                            menu.insert(
+                                MenuItemDescription(
+                                    label,
+                                    enabled = textMenuAvailable(availability, command),
+                                    shortcut = shortcut
+                                )
+                            )
+                        items.add(TextMenuItem(id, TextMenuAction.Edit(command)))
+                    }
+                }
+            val popup = window.showPopup(menu, placement)
+            val session = TextMenuSession(menu, popup, configuration(), items.toArray())
+            current = Some(session)
+            session.actions = Some(scope.observeMenu(menu) { event -> activate(session, event) })
+            session.completion =
+                Some(
+                    scope.observePopup(popup) {
+                        result ->
+                        session.completed = true
+                        when (result) {
+                            case Selected(_) -> if (session.invoked || !session.valid)
+                                finish(session)
+                            case Cancelled(_) -> finish(session)
+                            case Failed(val error) -> {
+                                finish(session)
+                                throw error
+                            }
+                        }
+                    }
+                )
+            return true
+        } catch (error: Throwable) {
+            var failure: Throwable? = Some(error)
+            failure = cleanupUi(failure) { cancel() }
+            failure = cleanupUi(failure) { menu.close() }
+            throwUi(failure)
+            return false
+        }
+    }
+
+    private fun activate(session: TextMenuSession, event: MenuActivation) {
+        if (
+            closed ||
+                !session.valid ||
+                session.invoked ||
+                !eligible() ||
+                configuration() !=
+                session.options
+        )
+            return
+        when (event.source) {
+            case Popup(val popup, val window) -> {
+                if (popup != session.popup.id || window != this.window.id)
+                    return
+            }
+            else -> return
+        }
+        for (item in session.items)
+            if (item.id == event.item) {
+                session.invoked = true
+                val available = area.scope.textCommandAvailability ?: TextCommandAvailability()
+                try {
+                    when (item.action) {
+                        case Edit(val command) -> if (textMenuAvailable(available, command))
+                            perform(command)
+                        case Service(val service) -> if (service.valid())
+                            service.perform(event.textServiceResult)
+                    }
+                } finally {
+                    if (session.completed)
+                        finish(session)
+                }
+                return
+            }
+    }
+
+    fun refresh() {
+        val session = current ?: return
+        if (!session.valid)
+            return
+        if (!eligible() || configuration() != session.options) {
+            cancel()
+            return
+        }
+        val available = area.scope.textCommandAvailability ?: TextCommandAvailability()
+        for (item in session.items) {
+            val enabled =
+                when (item.action) {
+                    case Edit(val command) -> textMenuAvailable(available, command)
+                    case Service(val service) -> service.valid()
+                }
+            val description = session.menu.description(item.id)
+            if (description.enabled != enabled)
+                session.menu.update(
+                    item.id,
+                    MenuItemDescription(
+                        description.text,
+                        kind = description.kind,
+                        enabled = enabled,
+                        image = description.image,
+                        shortcut = description.shortcut,
+                        command = description.command
+                    )
+                )
+        }
+    }
+
+    fun cancel() {
+        val session = current ?: return
+        session.valid = false
+        val actions = session.actions
+        session.actions = None
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { actions?.close() }
+        failure = cleanupUi(failure) { session.popup.close() }
+        failure = cleanupUi(failure) { session.menu.close() }
+        when (session.popup.result) {
+            case Some(_) -> failure = cleanupUi(failure) { finish(session) }
+            case None -> {}
+        }
+        throwUi(failure)
+    }
+
+    private fun finish(session: TextMenuSession) {
+        session.valid = false
+        val actions = session.actions
+        val completion = session.completion
+        session.actions = None
+        session.completion = None
+        when (val value = current) {
+            case Some(val active) -> if (active === session)
+                current = None
+            case None -> {}
+        }
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { actions?.close() }
+        failure = cleanupUi(failure) { completion?.close() }
+        failure = cleanupUi(failure) { session.menu.close() }
+        throwUi(failure)
+    }
+
+    private fun releaseCurrent() {
+        val session = current ?: return
+        session.valid = false
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { session.popup.close() }
+        failure = cleanupUi(failure) { finish(session) }
+        throwUi(failure)
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        releaseCurrent()
+    }
+}
+
+internal fun textMenuSupports(command: TextEditCommand, editing: Boolean): Boolean =
+    when (command) {
+        case Copy -> true
+        case SelectAll -> true
+        case Undo -> editing
+        case Redo -> editing
+        case Cut -> editing
+        case Paste -> editing
+        case DeleteSelection -> editing
+        else -> false
+    }
+
+internal fun textMenuAvailable(value: TextCommandAvailability, command: TextEditCommand): Boolean =
+    when (command) {
+        case Undo -> value.undo
+        case Redo -> value.redo
+        case Cut -> value.cut
+        case Copy -> value.copy
+        case Paste -> value.paste
+        case DeleteSelection -> value.deleteSelection
+        case SelectAll -> value.selectAll
+        else -> false
+    }

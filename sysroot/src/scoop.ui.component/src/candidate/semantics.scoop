@@ -1,0 +1,59 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.ViewKey
+import scoop.window.accessibility.*
+
+internal fun candidateInputSemantics(
+    options: ComponentSemantics,
+    collection: SemanticNodeId?,
+    active: ViewKey?
+): ComponentSemantics {
+    val target = collection ?: return options
+    val controls = ArrayList<SemanticNodeId>()
+    var present = false
+    for (id in options.relations.controls) {
+        controls.add(id)
+        if (id == target)
+            present = true
+    }
+    if (!present)
+        controls.add(target)
+    return options.copy {
+        relations =
+            options.relations.copy {
+                this.controls = controls.toArray()
+                activeDescendant =
+                    when (active) {
+                        case Some(val key) -> Some(
+                            SemanticDescendant.Item(target, componentSemanticKey(key))
+                        )
+                        case None -> None
+                    }
+            }
+    }
+}
+
+internal fun componentSemanticKey(key: ViewKey): SemanticItemKey =
+    when (key) {
+        case Number(val value) -> SemanticItemKey.Number(value)
+        case Text(val value) -> SemanticItemKey.Text(value)
+        case Position -> throw IllegalArgumentException(
+            Some("semantic items require explicit keys")
+        )
+    }
+
+/** Reads declared captions without constructing custom content or borrowing its view. */
+internal fun candidateCaption(content: PanelContent): String? =
+    when (content) {
+        case Label(val input) -> when (val name = input.semantics.name) {
+            case Some(_) -> name
+            case None -> Some(
+                when (input.text) {
+                    case Plain(val text, _) -> text
+                    case Styled(val text) -> text.toPlainText()
+                }
+            )
+        }
+        case Custom(_) -> None
+    }

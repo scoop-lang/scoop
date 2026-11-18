@@ -13,13 +13,22 @@ public open class LabelBuilder internal constructor() {
     public var theme: ThemeSource? = None
     public var underline: Color? = None
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
 
     public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
         settings = Some((settings ?: paragraphStyle()).copy(configure))
     }
 
     internal fun properties(text: LabelText, inlines: Array<InlineView> = []): LabelProps =
-        LabelProps(text, fonts, settings, inlines, theme, underline = underline)
+        LabelProps(
+            text,
+            fonts,
+            settings,
+            inlines,
+            theme,
+            underline = underline,
+            semantics = semantics
+        )
 }
 
 /** Plain text inherits the current theme and accepts a local span override. */

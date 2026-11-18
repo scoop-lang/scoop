@@ -46,7 +46,7 @@ private class SidebarMenuItem(
     private val props: Props<SidebarItemInput>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val space = SidebarRowSpace()
     public override fun onMount() {
         themes.mount(props.value.menu.theme)
@@ -186,7 +186,19 @@ internal fun sidebarMenuStyle(
             if (padding == None)
                 padding = Some(Insets(8.0 * d, 0.0, 8.0 * d, 0.0))
             if (focus == None)
-                focus = Some(OutlineStyle(colors.ring.withAlpha(0.5), 2.0 * d, 0.0))
+                focus =
+                    Some(
+                        OutlineStyle(
+                            componentTint(
+                                theme,
+                                colors.ring.withAlpha(1.0),
+                                0.5,
+                                colors.background.background
+                            ),
+                            componentFocusWidth(theme, 2.0 * d),
+                            0.0
+                        )
+                    )
             style =
                 styleOverride {
                     border(

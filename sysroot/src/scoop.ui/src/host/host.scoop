@@ -32,6 +32,7 @@ public class UiHost public constructor(
     private var processing = false
     private var depth = 0
     private var nativeDepth = 0
+    internal val isDispatching: Boolean get() = depth > 0 || processing
     private var pendingRetirement = false
     private var closing = false
     private var hostShortcuts: HostShortcutScope? = None
@@ -130,7 +131,8 @@ public class UiHost public constructor(
     public fun <C: Component> attach(
         window: Window,
         create: (ComponentScope) -> C,
-        fonts: FontCollection? = None
+        fonts: FontCollection? = None,
+        preferences: UiPreferences = uiPreferences()
     ): UiWindow? {
         checkThread()
         if (closing)
@@ -139,7 +141,8 @@ public class UiHost public constructor(
             var root: UiRoot? = None
             var surface: SurfaceWindow? = None
             try {
-                val created = UiRoot(this, window, component(create), fonts)
+                preferences.check()
+                val created = UiRoot(this, window, component(create), fonts, preferences)
                 root = Some(created)
                 roots.add(created)
                 val attached = surfaces.attach(window, created)
@@ -230,6 +233,8 @@ public class UiHost public constructor(
             }!!
         }
     }
+    internal fun dispatchRoot(root: UiRoot, action: () -> Unit): Boolean =
+        callback { root.surface.dispatch(action) }
     private fun flush() {
         queued = false
         if (closing)
@@ -344,7 +349,8 @@ private fun removeRoot(values: ArrayList<UiRoot>, root: UiRoot) {
 public fun <C: Component> runUiApplication(
     title: String,
     create: (ComponentScope) -> C,
-    fonts: FontCollection? = None
+    fonts: FontCollection? = None,
+    preferences: UiPreferences = uiPreferences()
 ) {
     val application =
         Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
@@ -355,7 +361,8 @@ public fun <C: Component> runUiApplication(
             case Resumed -> host.attach(
                 active.createWindow(windowAttributes { this.title = title }),
                 create,
-                fonts
+                fonts,
+                preferences
             )
             case Window(val id, WindowEvent.CloseRequested) -> active.requestExit()
             else -> {}

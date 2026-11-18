@@ -66,7 +66,7 @@ void scoop_window_input_blocked(void *pointer, int32_t blocked) {
   owner.inputBlocked = blocked != 0;
   if (blocked) {
     owner.savedIgnoreMouse = owner.window.ignoresMouseEvents;
-    [owner.view cancelPointer:3];
+    [owner.view cancelPointer:SWPointerModal];
     [owner.view resetInput];
     if (owner.view.imeAllowed)
       [owner.view.inputContext deactivate];

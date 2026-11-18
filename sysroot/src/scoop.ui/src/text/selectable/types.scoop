@@ -10,15 +10,29 @@ public class SelectableTextOptions public constructor(
     public val clip: Boolean = true,
     public val dragThreshold: Double = 4.0,
     public val selectionColor: Color = Color(0.2, 0.45, 0.9, 0.3),
-    public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25)
+    public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25),
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
+    public val drag: TextDragOptions = TextDragOptions(),
+    public val touch: TextTouchOptions = TextTouchOptions(),
+    /** None preserves the original selected glyph colors in the active window. */
+    public val selectionTextColor: Color? = None,
+    /** None preserves the original selected glyph colors in an inactive window. */
+    public val inactiveSelectionTextColor: Color? = None,
+    public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions()
 ) {
     internal fun check() {
+        drag.check()
         requireUi(
             dragThreshold.isFinite() && dragThreshold >= 0.0,
             "invalid text selection drag threshold"
         )
         for (value in [selectionColor, inactiveSelectionColor])
             checkSelectableColor(value)
+        for (color in [selectionTextColor, inactiveSelectionTextColor])
+            when (color) {
+                case Some(val value) -> checkSelectableColor(value)
+                case None -> {}
+            }
     }
 }
 

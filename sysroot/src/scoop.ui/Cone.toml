@@ -6,6 +6,16 @@ name = "scoop.ui"
 version = "0.1.0"
 kind = "library"
 
+[native]
+cxx = true
+cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+
+[[native.sources]]
+path = "native/text_semantics_source.cpp"
+
+[[native.sources]]
+path = "native/text_semantics_geometry.cpp"
+
 [[sources]]
 path = "src"
 when = { os = ["darwin", "windows"] }
@@ -28,6 +38,10 @@ when = { os = ["darwin", "windows"] }
 "scoop.tests:graphics-native" = { version = "0.1.0", path = "../scoop.graphics/test-native" }
 
 [[test.sources]]
+path = "tests/semantic_reference.scoop"
+when = { os = ["linux", "windows"] }
+
+[[test.sources]]
 path = "tests"
 when = { os = "darwin" }
 
@@ -38,6 +52,18 @@ when = { os = "windows" }
 [[test.sources]]
 path = "tests/frame_dependencies.scoop"
 when = { os = ["linux", "windows"] }
+
+[[test.sources]]
+path = "tests/preferences.scoop"
+when = { os = ["linux", "windows"] }
+
+[[test.sources]]
+path = "tests/text_selection_removal.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_selection_removal.scoop"
+when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
 path = "tests/composition.scoop"
@@ -136,6 +162,14 @@ path = "tests/scroll_intents.scoop"
 when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
+path = "tests/scroll_padding.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/scroll_padding.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
 path = "tests/text_edit_policy.scoop"
 when = { os = "linux", env = "gnu" }
 
@@ -162,3 +196,151 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/text_edit_cells.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_edit_cells.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/scroll_physics.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/scroll_inertia.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/scroll_inertia.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_drop_effect.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_drop_effect.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/keyboard_reveal.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/keyboard_reveal.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_input_purpose.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_input_purpose.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/window_timing.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/window_timing.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/native_selection.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/native_selection.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/primary_selection.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/primary_selection.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_services.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_services.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/accessibility_scroll.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/state_observation.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/swipe.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_context_menu.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_drag_edit.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_drop_edit.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_touch.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/touch_scroll.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/native_semantic_text.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/accessibility_scroll.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/state_observation.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/swipe.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_context_menu.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_drag_edit.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_drop_edit.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_touch.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/touch_scroll.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/native_semantic_text.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/overlay_retirement.scoop"
+when = { os = ["linux", "windows"] }

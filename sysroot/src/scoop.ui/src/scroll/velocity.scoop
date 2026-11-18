@@ -1,0 +1,48 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.time.*
+import scoop.window.InputTime
+import scoop.window.mark
+
+private class ScrollVelocitySample(val point: Point, val time: TimeMark)
+
+/** Recent occurrence/receipt samples from one real contact, without a separate clock. */
+internal class ScrollVelocity {
+    private val samples = ArrayList<ScrollVelocitySample>()
+
+    fun add(point: Point, time: InputTime) {
+        val mark = time.mark()
+        if (samples.size > 0L) {
+            val last = samples[samples.size - 1L]
+            if (mark < last.time)
+                samples.clear()
+            else
+                if (mark == last.time) {
+                    samples[samples.size - 1L] = ScrollVelocitySample(point, mark)
+                    return
+                }
+        }
+        while (samples.size > 0L && mark - samples[0L].time > Duration.milliseconds(100L))
+            samples.removeAt(0L)
+        samples.add(ScrollVelocitySample(point, mark))
+    }
+
+    fun value(): Point {
+        if (samples.size < 2L)
+            return Point(0.0, 0.0)
+        val first = samples[0L]
+        val last = samples[samples.size - 1L]
+        val elapsed = last.time - first.time
+        val seconds =
+            elapsed.floorSeconds.toDouble() + elapsed.nanosecondsOfSecond.toDouble() / 1000000000.0
+        val x = (last.point.x - first.point.x) / seconds
+        val y = (last.point.y - first.point.y) / seconds
+        return if (x.isFinite() && y.isFinite())
+            Point(x, y)
+        else
+            Point(0.0, 0.0)
+    }
+}
+
+internal struct ScrollRelease(val position: Point, val velocity: Point)

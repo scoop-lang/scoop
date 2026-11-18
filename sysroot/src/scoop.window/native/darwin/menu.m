@@ -24,6 +24,7 @@ SWResult scoop_window_menu_create(void *application, int64_t identity) {
 
 void scoop_window_menu_destroy(void *pointer) {
   SWMenu *owner = (__bridge_transfer SWMenu *)pointer;
+  sw_menu_end_text_services(owner);
   owner.menu.delegate = nil;
   [owner.menu removeAllItems];
   [owner.entries removeAllObjects];
@@ -32,6 +33,7 @@ void scoop_window_menu_destroy(void *pointer) {
 int64_t scoop_window_menu_clear(void *pointer) {
   SWMenu *owner = (__bridge SWMenu *)pointer;
   @try {
+    owner.textServices = nil;
     [owner.menu removeAllItems];
     [owner.entries removeAllObjects];
     return 0;
@@ -72,9 +74,12 @@ int64_t scoop_window_menu_append(void *pointer, int64_t identity,
       if (kind == 2)
         item.onStateImage = [NSImage imageWithSystemSymbolName:@"circle.fill"
                                       accessibilityDescription:nil];
-      if (kind == 3) {
+      if (kind == 3 || kind == 5) {
         item.submenu = [[NSMenu alloc] initWithTitle:title];
-        item.submenu.delegate = owner;
+        if (kind == 3)
+          item.submenu.delegate = owner;
+        else
+          owner.textServices = entry;
       } else if (kind != 4) {
         item.target = owner;
         item.action = @selector(activate:);

@@ -6,8 +6,8 @@ void sw_menu_event(SWMenu *menu, int kind, int64_t item, int64_t window) {
     sw_fail(menu->application, ENOMEM);
     return;
   }
-  event->data.kind = kind;
-  sw_stamp_input(&event->data);
+  event->header.kind = kind;
+  sw_stamp_event(&event->header);
   event->data.a = menu->identity;
   event->data.b = item;
   event->data.c = menu->serial;
@@ -41,9 +41,9 @@ static bool can_activate(SWMenuEntry *entry) {
   if (entry->role == 3)
     return window->maximize_button && window->resizable;
   if (entry->role >= 4)
-    return (window->menu_text_commands & 64)
+    return (window->menu_text_commands & 128)
                ? (window->menu_text_commands & (1 << (entry->role - 4))) != 0
-               : window->ime_allowed;
+               : window->ime_allowed && entry->role != 10;
   return true;
 }
 
@@ -58,7 +58,7 @@ bool sw_menu_activate(SWMenuEntry *entry) {
   } else if (entry->role == 1) {
     SWEvent *event = calloc(1, sizeof(*event));
     if (event) {
-      event->data.kind = 101;
+      event->header.kind = 101;
       event->data.flags = 1;
       sw_enqueue(menu->application, event);
     } else
@@ -108,9 +108,10 @@ void scoop_window_text_commands(SWWindow *window, int32_t flags) {
 
 bool sw_menu_key_equivalent(SWWindow *window, guint symbol) {
   SWMenu *menu = window->menu_bar;
-  if (!menu || window->preedit_active || (window->modifiers & SW_ALT_GRAPH))
+  if (!menu || window->preedit_active ||
+      (window->input.modifiers & SW_ALT_GRAPH))
     return false;
-  uint64_t state = window->modifiers;
+  uint64_t state = window->input.modifiers;
   int mods = ((state & SW_CONTROL) ? 1 : 0) | ((state & SW_ALT) ? 2 : 0) |
              ((state & SW_SHIFT) ? 4 : 0) | ((state & SW_SUPER) ? 8 : 0);
   symbol = gdk_keyval_to_lower(symbol);

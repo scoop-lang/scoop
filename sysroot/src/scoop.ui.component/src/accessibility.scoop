@@ -1,0 +1,103 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+import scoop.window.accessibility.*
+import scoop.ui.SemanticsReference
+
+internal fun semanticIds(id: SemanticNodeId?): Array<SemanticNodeId> =
+    when (id) {
+        case Some(val value) -> [value];
+        case None -> []
+    }
+
+internal fun semanticCaption(content: PanelContent?): String? =
+    when (content) {
+        case Some(val value) -> candidateCaption(value);
+        case None -> None
+    }
+
+internal fun mergeSemanticIds(first: Array<SemanticNodeId>, second: Array<SemanticNodeId>): Array<
+    SemanticNodeId
+> {
+    val result = ArrayList<SemanticNodeId>()
+    val seen = HashSet<SemanticNodeId>()
+    for (id in first)
+        if (seen.add(id))
+            result.add(id)
+    for (id in second)
+        if (seen.add(id))
+            result.add(id)
+    return result.toArray()
+}
+
+internal fun semanticControls(
+    relations: SemanticRelations,
+    id: SemanticNodeId?
+): SemanticRelations {
+    val target = id ?: return relations
+    val values = ArrayList<SemanticNodeId>()
+    for (existing in relations.controls) {
+        if (existing == target)
+            return relations
+        values.add(existing)
+    }
+    values.add(target)
+    return relations.copy { controls = values.toArray() }
+}
+
+/** Naming and relationships never override the control's actual behavior or state. */
+public struct ComponentSemantics(
+    val name: String? = None,
+    val description: String? = None,
+    val automationId: String? = None,
+    val error: String? = None,
+    val relations: SemanticRelations = SemanticRelations(),
+    val hidden: Boolean = false,
+    val ignored: Boolean = false,
+    val busy: Boolean = false,
+    val live: SemanticLive = SemanticLive.Off,
+    val reference: SemanticsReference? = None
+)
+
+internal fun ComponentSemantics.properties(
+    value: String? = None,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    checked: SemanticChecked? = None,
+    description: String? = None,
+    error: String? = None,
+    required: Boolean = false,
+    invalid: Boolean = false,
+    selected: Boolean? = None,
+    expanded: Boolean? = None,
+    range: SemanticValueRange? = None,
+    modal: Boolean = false
+): SemanticProperties =
+    SemanticProperties(
+        name = this.name,
+        description =
+            when (val overrideValue = this.description) {
+                case Some(_) -> overrideValue
+                case None -> description
+            },
+        automationId = this.automationId,
+        value = value,
+        enabled = enabled,
+        readOnly = readOnly,
+        checked = checked,
+        hidden = this.hidden,
+        error =
+            when (val overrideValue = this.error) {
+                case Some(_) -> overrideValue
+                case None -> error
+            },
+        ignored = this.ignored,
+        required = required,
+        invalid = invalid,
+        busy = this.busy,
+        live = this.live,
+        selected = selected,
+        expanded = expanded,
+        range = range,
+        modal = modal
+    )

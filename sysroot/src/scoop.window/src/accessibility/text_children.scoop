@@ -1,0 +1,62 @@
+package scoop.window.accessibility
+
+import scoop.collections.HashSet
+import scoop.window.*
+
+public struct SemanticTextChild(val node: SemanticNodeId, val range: Utf8Range)
+
+internal fun sameSemanticTextChildren(
+    a: Array<SemanticTextChild>,
+    b: Array<SemanticTextChild>
+): Boolean {
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size)
+        if (a[index] != b[index])
+            return false
+    return true
+}
+
+internal fun checkSemanticTextChildren(
+    source: AccessibilityNode,
+    children: Array<SemanticTextChild>
+) {
+    if (children.size == 0L)
+        return
+    requireWindow(
+        !source.properties.protectedText &&
+            source.properties.value !=
+            None &&
+            (source.role == SemanticRole.Text || source.role == SemanticRole.TextField),
+        "text children require public text"
+    )
+    val bytes = source.properties.value!!.toByteArray()
+    val ids = HashSet<SemanticNodeId>()
+    for (child in children) {
+        requireWindow(ids.add(child.node), "duplicate text child")
+        checkSemanticTargets(source, [child.node])
+        checkTextRange(bytes, child.range)
+        var ancestor = source.provider.lookup(child.node)!!.parentNode
+        var descendant = false
+        while (true) {
+            val node = ancestor ?: break
+            if (node === source) {
+                descendant = true;
+                break
+            }
+            ancestor = node.parentNode
+        }
+        requireWindow(descendant, "text child must be a semantic descendant")
+    }
+}
+
+internal fun withoutSemanticTextChild(
+    children: Array<SemanticTextChild>,
+    id: SemanticNodeId
+): Array<SemanticTextChild> {
+    val result = ArrayList<SemanticTextChild>()
+    for (child in children)
+        if (child.node != id)
+            result.add(child)
+    return result.toArray()
+}

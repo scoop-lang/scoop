@@ -1,0 +1,368 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class TextTouchWindowTest {
+    @Test
+    fun `text inertia keeps accepted caret geometry and selection through local cancellation`() {
+        runTextTouch({ probe -> textInertiaStep(probe) }, 0)
+    }
+
+    @Test
+    fun `elastic text viewport keeps caret input and accepted geometry together`() {
+        runTextTouch({ probe -> textElasticStep(probe) }, 0)
+    }
+
+    @Test
+    fun `native contacts select text open one menu and yield to scrolling`() {
+        runTextTouch({ probe -> textTouchStep(probe) }, 1)
+    }
+
+    @Test
+    fun `touch multi taps select words and lines with shared cancellation and projection`() {
+        runTextTouch({ probe -> textTouchMultiTap(probe) }, 3)
+    }
+
+    @Test
+    fun `touch handles adjust directional selections and scroll accepted text viewports`() {
+        runTextTouch({ probe -> textTouchHandles(probe) }, 0)
+    }
+
+    @Test
+    fun `touch handles follow RTL and finish queued input without reviving cancelled routes`() {
+        runTextTouch({ probe -> textTouchHandleGeometry(probe) }, 0)
+    }
+}
+
+private fun runTextTouch(step: (TextTouchProbe) -> Unit, links: Int) {
+    @Unsafe
+    {
+        val clipboard = saveNativeClipboard() ?: fail(Some("cannot save clipboard"))
+        try {
+            FontCollection().use {
+                fonts ->
+                fonts.register(testSansBytes, "Host Test")
+                val p = TextTouchProbe(fonts, step)
+                @Unsafe
+                {
+                    observeMenus()
+                }
+                try {
+                    UiHost { host, active, event -> p.event(host, active, event) }.use {
+                        host -> Application(
+                            applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                        ).run(host)
+                    }
+                    assertTrue(p.finished)
+                    assertEquals(links, p.links)
+                    assertTrue(p.editor!!.isClosed)
+                    assertTrue(p.selectable!!.isClosed)
+                    assertFalse(p.editor!!.scroll.isAttached)
+                    assertFalse(p.outer.isAttached)
+                    assertTrue(p.view!!.restored())
+                    assertFalse(p.frames!!.snapshot().required)
+                } catch (error: Throwable) {
+                    println(f"text touch phase=${p.phase}, links=${p.links}, menus=${p.menus}")
+                    println(
+                        f"selection=${p.model.selection.anchor}, ${
+                            p.model.selection.cursor
+                        }, scroll=${p.editor!!.scroll.offset.y}"
+                    )
+                    throw error
+                } finally {
+                    @Unsafe
+                    {
+                        endMenus()
+                    }
+                    p.clock?.close()
+                    p.frames?.close()
+                    p.view?.close()
+                }
+            }
+        } finally {
+            assertEquals(0, restoreNativeClipboard(clipboard))
+        }
+    }
+}
+
+internal class TextTouchProbe(
+    val fonts: FontCollection,
+    private val step: (TextTouchProbe) -> Unit
+) {
+    val text =
+        "one two é😀\nsecond line\nthird line\nfourth line\nfifth line\nsixth line\nseventh line"
+    var model = TextEditorState(text)
+    var appearance =
+        TextEditAppearance(
+            fonts,
+            textStyle {
+                families = ["Host Test"];
+                fontSize = 20.0
+            }
+        )
+    val content =
+        styledText {
+            style {
+                families = ["Host Test"];
+                fontSize = 20.0
+            };
+            text(
+                "link two é😀\nsecond line\nthird line\nfourth line\nfifth line\nsixth line\nseventh line"
+            )
+        }
+    val generation = state(0)
+    val outer = ScrollState()
+    var touch = TextTouchOptions(longPressDelay = Some(Duration.milliseconds(40L)))
+    var pan = TouchScrollOptions()
+    var scrollPhysics =
+        ScrollPhysicsOptions(ScrollBoundary.Hard, inertia = ScrollInertiaOptions(false))
+    var ui: UiWindow? = None
+    var viewportBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var menu =
+        textContextMenu {
+            mode = TextContextMenuMode.StandardNative
+            labels =
+                Some(
+                    TextContextMenuLabels(
+                        Some("Touch Undo"),
+                        Some("Touch Redo"),
+                        Some("Touch Cut"),
+                        Some("Touch Copy"),
+                        Some("Touch Paste"),
+                        Some("Touch Delete"),
+                        Some("Touch Select All")
+                    )
+                )
+        }
+    var projection = textProjection()
+    var protectedText = false
+    var readOnly = false
+    var enabled = true
+    var gone = false
+    var preventBegin = false
+    var preventMove = false
+    var preventEnd = false
+    var closeOnSelection = false
+    var replaceOnSelection = false
+    var scale = 1.0
+    var editor: TextEditHost? = None
+    var selectable: SelectableTextHost? = None
+    var paragraph: TextLayout? = None
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var view: ViewProbe? = None
+    var clock: WindowDeadline? = None
+    var active: ActiveApplication? = None
+    var later: () -> Unit = {}
+    var phase = 0
+    var accepted = -1
+    var modelRevision = -1L
+    var queued = 0
+    var received = 0
+    var menus = 0
+    var links = 0
+    var passes = 0
+    var savedPasses = 0
+    var savedPoint = Point(0.0, 0.0)
+    var savedSelection = Utf8Selection(0L, 0L)
+    var savedOffset = Point(0.0, 0.0)
+    var handleGrab = Point(0.0, 0.0)
+    var handlePointer = Point(0.0, 0.0)
+    var pending = false
+    var animatedSteps = false
+    var waiting = false
+    var popup = false
+    var finished = false
+
+    init {
+        model.setSelection(Utf8Selection(0L, 0L))
+    }
+
+    fun options(): TextEditOptions =
+        TextEditOptions(
+            multiline = true,
+            enabled = enabled,
+            readOnly = readOnly,
+            caretBlink = Some(Duration.ZERO),
+            contextMenu = menu,
+            projection = projection,
+            protectedText = protectedText,
+            touch = touch,
+            touchScroll = pan,
+            scrollPhysics = scrollPhysics
+        )
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop text touch";
+                            size = LogicalSize(520.0, 380.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                view = Some(observeWindow(native))
+                clock =
+                    Some(
+                        native.createDeadline {
+                            application.proxy().post {
+                                _ ->
+                                val work = later
+                                later = {}
+                                work()
+                                waiting = false
+                            }
+                        }
+                    )
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                ui = host.attach(native, { scope -> TextTouchScene(this, scope = scope) })
+                native.requestFocus()
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                )
+            }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case Window(_, WindowEvent.Pointer(PointerEvent.Wheel(_, _, _, _))) -> received += 1
+            case PopupCompleted(_, _) -> {
+                popup = false;
+                menus += 1
+            }
+            case AboutToWait -> {
+                val native = window ?: return
+                if (
+                    !finished &&
+                        !waiting &&
+                        !pending &&
+                        !popup &&
+                        native.isFocused &&
+                        accepted ==
+                        generation.value &&
+                        received ==
+                        queued &&
+                        (gone || modelRevision == model.revision) &&
+                        (animatedSteps || !frames!!.snapshot().required)
+                ) {
+                    pending = true
+                    application.proxy().post {
+                        _ ->
+                        pending = false
+                        if (!finished) {
+                            step(this);
+                            phase += 1
+                        }
+                    }
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> application.requestExit()
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"text touch timeout at ${phase}"))
+            else -> {}
+        }
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun pause(milliseconds: Long, action: () -> Unit = {}) {
+        waiting = true
+        later = action
+        clock!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+    fun point(byte: Long, readonly: Boolean = false): Point {
+        val area =
+            if (readonly)
+                selectable!!.area
+            else
+                editor!!.area
+        val caret =
+            if (readonly)
+                paragraph!!.caret(TextPosition(byte))!!
+            else
+                editor!!.caret(TextPosition(byte))!!
+        val bounds = area.toWindow(Rect(caret.x, caret.y + caret.height / 2.0, 0.0, 0.0))!!
+        return Point(bounds.x, bounds.y)
+    }
+    fun contact(id: Long, phase: Int, point: Point, pen: Boolean = false) {
+        queued += 1
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    when (lease.handle) {
+                        case AppKit(_, val view) -> sendNativeContact(
+                            view,
+                            id,
+                            if (pen)
+                                1
+                            else
+                                0,
+                            phase,
+                            point.x,
+                            point.y
+                        )
+                    }
+                }
+            }
+        }
+    }
+    fun tap(id: Long, byte: Long, readonly: Boolean = false) {
+        val point = point(byte, readonly)
+        tapAt(id, point)
+    }
+    fun fling(id: Long) {
+        queued += 4
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> {
+                        sendNativeContactTimed(view, id, 0, 0, 70.0, 70.0, id * 1000L)
+                        sendNativeContactTimed(view, id, 0, 1, 70.0, 55.0, id * 1000L + 20L)
+                        sendNativeContactTimed(view, id, 0, 1, 70.0, 40.0, id * 1000L + 40L)
+                        sendNativeContactTimed(view, id, 0, 2, 70.0, 40.0, id * 1000L + 40L)
+                    }
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    fun tapAt(id: Long, point: Point, pen: Boolean = false) {
+        contact(id, 0, point, pen)
+        contact(id, 2, point, pen)
+    }
+    fun hold(id: Long, byte: Long, readonly: Boolean = false, action: () -> Unit) {
+        savedPoint = point(byte, readonly)
+        popup = true
+        contact(id, 0, savedPoint)
+        pause(150L) {
+            @Unsafe
+            {
+                assertEquals(1, trackingMenu())
+            }
+            action()
+        }
+    }
+    fun noMenu() {
+        @Unsafe
+        {
+            assertEquals(0, trackingMenu())
+        }
+    }
+}

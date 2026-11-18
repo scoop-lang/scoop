@@ -1,0 +1,74 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.Utf8Selection
+
+/** The same editor keeps its model and focus while its bars move around the body. */
+internal fun advanceFieldPlacement(probe: FieldProbe): Boolean {
+    when (probe.placementPhase) {
+        case 0 -> probe.nextPlacement {
+            var text = ""
+            for (_ in 0L ..< 12L)
+                text += "A long plain text row, with enough characters to exceed the editor width.\n"
+            text += "The final row is also deliberately long enough to reach both scrollable edges."
+            probe.placementText = text
+            probe.secondary.replaceAll(text)
+            probe.secondary.setSelection(Utf8Selection(0L, 0L))
+            probe.scrollbars = ScrollbarVisibility.Auto
+            probe.wrap = false
+            probe.change()
+            assertTrue(probe.focus[1L].requestFocus())
+        }
+        case 1 -> {
+            assertTrue(probe.focus[1L].hasFocus)
+            val surface = probe.secondaryDrawing!!
+            assertTrue(probe.vertical!!.bounds.x > surface.bounds.x + surface.bounds.width / 2.0)
+            assertTrue(probe.horizontal!!.visual.enabled)
+            probe.nextPlacement {
+                probe.scrollbarBehavior =
+                    probe.scrollbarBehavior.copy { placement = ScrollbarPlacement.Overlay }
+                probe.change()
+                val end = probe.secondary.text.byteLength
+                probe.secondary.setSelection(Utf8Selection(end, end))
+            }
+        }
+        case 2 -> {
+            assertTrue(probe.horizontal!!.visual.position > 0.99)
+            assertTrue(probe.vertical!!.visual.position > 0.99)
+            assertTrue(probe.focus[1L].hasFocus)
+            assertEquals(probe.placementText, probe.secondary.text)
+            assertEquals(1, probe.textareaCreates)
+            probe.nextPlacement {
+                probe.fieldDirection = LayoutDirection.Rtl
+                probe.change()
+                probe.secondary.setSelection(Utf8Selection(0L, 0L))
+            }
+        }
+        case 3 -> {
+            val surface = probe.secondaryDrawing!!
+            assertEquals(surface.bounds.x + surface.geometry.content.x, probe.vertical!!.bounds.x)
+            assertEquals(Utf8Selection(0L, 0L), probe.secondary.selection)
+            assertTrue(probe.focus[1L].hasFocus)
+            probe.nextPlacement {
+                probe.scrollbarBehavior =
+                    probe.scrollbarBehavior.copy { placement = ScrollbarPlacement.Gutter }
+                probe.change()
+            }
+        }
+        case 4 -> {
+            val surface = probe.secondaryDrawing!!
+            val vertical = probe.vertical!!.bounds
+            assertEquals(surface.bounds.x + surface.geometry.content.x, vertical.x)
+            assertTrue(probe.horizontal!!.bounds.x >= vertical.x + vertical.width)
+            assertEquals(Utf8Selection(0L, 0L), probe.secondary.selection)
+            assertEquals(probe.placementText, probe.secondary.text)
+            assertEquals(1, probe.textareaCreates)
+            assertTrue(probe.focus[1L].hasFocus)
+            return true
+        }
+        else -> fail(Some("unexpected text scrollbar placement phase"))
+    }
+    return false
+}

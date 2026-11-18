@@ -1,0 +1,343 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.abs
+import scoop.math.max
+import scoop.surface.*
+import scoop.window.*
+
+private class ScrollPanContact(
+    val start: ContactState,
+    val state: ScrollState,
+    val binding: ULong
+) {
+    var axes: ScrollAxes? = None
+    var claimed = false
+    var active = false
+    var latest = start
+    val velocity = ScrollVelocity()
+    init {
+        velocity.add(position(start), start.pointer.time)
+    }
+    fun sample(value: ContactState) {
+        latest = value
+        velocity.add(position(value), value.pointer.time)
+    }
+}
+
+/** A direct-contact scroll behavior borrowing its mount's area and viewport. */
+public class ScrollPan internal constructor(
+    private val area: InputArea,
+    private val viewport: ScrollViewport,
+    private var axes: ScrollAxes,
+    private var chain: ScrollChain,
+    private var options: TouchScrollOptions
+): Closeable {
+    private var closed = false
+    private val contacts = ArrayList<ContactId>()
+    private var contact: ScrollPanContact? = None
+    private var moved = false
+    private var state = viewport.state
+    private var applying = false
+    private var ownIntent: ULong? = None
+    private var intent = state.observeIntent { value -> positionRequested(value) }
+    private val events = area.scope.addEventHandler { context, event -> observe(context, event) }
+    private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
+    private val finished = area.scope.addEventFinished { event -> finish(event) }
+
+    init {
+        viewport.watchInput(area.scope)
+    }
+
+    public val isPanning: Boolean get() {
+        area.isClosed
+        return contact?.active ?: false
+    }
+    public val isClosed: Boolean get() {
+        area.isClosed
+        return closed
+    }
+
+    public fun update(axes: ScrollAxes, chain: ScrollChain, options: TouchScrollOptions) {
+        requireUi(!closed && !area.isClosed && viewport.active, "scroll pan behavior is closed")
+        val changed =
+            this.axes !=
+                axes ||
+                this.chain !=
+                chain ||
+                this.options.threshold !=
+                options.threshold ||
+                this.options.lockAxis !=
+                options.lockAxis ||
+                this.options.claimAtBoundary !=
+                options.claimAtBoundary
+        this.axes = axes
+        this.chain = chain
+        this.options = options
+        if (changed || !options.enabled || state !== viewport.state)
+            cancel()
+        if (state !== viewport.state) {
+            intent.close()
+            state = viewport.state
+            intent = state.observeIntent { value -> positionRequested(value) }
+        }
+    }
+
+    private fun positionRequested(value: ScrollIntent) {
+        when (value) {
+            case LayoutCorrection(_) -> return
+            else -> {}
+        }
+        if (applying && ownIntent == None) {
+            ownIntent = Some(value.requestRevision)
+            return
+        }
+        if (contact?.active ?: false)
+            cancel()
+    }
+
+    private fun observe(context: RoutedEventContext, event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Contact(InputContactEvent.Cancelled(val id, _, _)) -> {
+                forgetContact(contacts, id)
+                if (contact?.start?.id == Some(id))
+                    clear(false)
+            }
+            case Contact(InputContactEvent.Began(val value)) -> {
+                if (context.phase == RoutedPhase.Notification)
+                    return
+                rememberContact(contacts, value.id)
+                if (contacts.size > 1L) {
+                    cancel()
+                    return
+                }
+                if (options.enabled && viewport.active && state.hasSnapshot) {
+                    state.cancelAnimation()
+                    contact = Some(ScrollPanContact(value, state, viewport.bindingRevision))
+                }
+            }
+            case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> clear(true, false)
+            case Pointer(InputPointerEvent.Button(_, _, ElementState.Pressed, _)) -> {
+                viewport.cancelAnimation()
+                cancel()
+            }
+            else -> {}
+        }
+    }
+
+    private fun current(value: ContactState): ScrollPanContact? {
+        val candidate = contact ?: return None
+        if (candidate.start.id != value.id)
+            return None
+        if (!options.enabled || !viewport.matches(candidate.state, candidate.binding)) {
+            cancel()
+            return None
+        }
+        return Some(candidate)
+    }
+
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                moved = true
+                val candidate = current(value) ?: return
+                candidate.sample(value)
+                if (!candidate.active) {
+                    if (!selectAxes(candidate, value))
+                        return
+                    if (context.contactRemaining == None) {
+                        if (!options.claimAtBoundary && !canMove(candidate, value)) {
+                            cancel()
+                            return
+                        }
+                        val acquired = area.scope.claimContacts([value.id])
+                        if (!acquired || !same(candidate) || !viewport.active || area.isClosed) {
+                            if (acquired && !area.isClosed)
+                                area.scope.cancelContactClaim(value.id)
+                            clear(false)
+                            return
+                        }
+                        candidate.claimed = true
+                    }
+                    candidate.active = true
+                }
+                consume(context, candidate)
+            }
+            case Contact(InputContactEvent.Ended(val value)) -> {
+                val candidate = current(value) ?: return
+                candidate.sample(value)
+                if (candidate.active)
+                    consume(context, candidate, true)
+                clear(false, false)
+            }
+            else -> {}
+        }
+    }
+
+    private fun selectAxes(candidate: ScrollPanContact, value: ContactState): Boolean {
+        val start = area.toLocal(position(candidate.start))
+        val end = area.toLocal(position(value))
+        if (start == None || end == None) {
+            cancel()
+            return false
+        }
+        val dx = abs(end!!.x - start!!.x)
+        val dy = abs(end!!.y - start!!.y)
+        if (!dx.isFinite() || !dy.isFinite()) {
+            cancel()
+            return false
+        }
+        if (options.lockAxis) {
+            if (max(dx, dy) < options.threshold || max(dx, dy) == 0.0)
+                return false
+            val horizontal = dx >= dy
+            if ((horizontal && !axes.horizontal) || (!horizontal && !axes.vertical)) {
+                cancel()
+                return false
+            }
+            candidate.axes =
+                Some(
+                    if (horizontal)
+                        ScrollAxes.Horizontal
+                    else
+                        ScrollAxes.Vertical
+                )
+        } else {
+            val distance =
+                max(
+                    if (axes.horizontal)
+                        dx
+                    else
+                        0.0,
+                    if (axes.vertical)
+                        dy
+                    else
+                        0.0
+                )
+            if (distance < options.threshold || distance == 0.0)
+                return false
+            candidate.axes = Some(axes)
+        }
+        return true
+    }
+
+    private fun canMove(candidate: ScrollPanContact, value: ContactState): Boolean {
+        val start = area.toLocal(position(candidate.start)) ?: return false
+        val end = area.toLocal(position(value)) ?: return false
+        val selected = candidate.axes!!
+        val offset = candidate.state.offset
+        val maximum = candidate.state.maximum
+        return (
+            selected.horizontal &&
+                ((end.x < start.x && offset.x < maximum.x) || (end.x > start.x && offset.x > 0.0))
+        ) ||
+            (
+                selected.vertical &&
+                    (
+                        (end.y < start.y && offset.y < maximum.y) ||
+                            (end.y > start.y && offset.y > 0.0)
+                    )
+            )
+    }
+
+    private fun consume(
+        context: RoutedEventContext,
+        candidate: ScrollPanContact,
+        released: Boolean = false
+    ) {
+        if (!candidate.claimed && context.contactRemaining == None) {
+            cancel()
+            return
+        }
+        val selected = candidate.axes!!
+        applying = true
+        ownIntent = None
+        try {
+            viewport.consumeContact(
+                context,
+                selected,
+                if (released)
+                    Some(ScrollRelease(position(candidate.latest), candidate.velocity.value()))
+                else
+                    None
+            )
+        } finally {
+            applying = false
+            ownIntent = None
+        }
+        if (chain == ScrollChain.Contain && same(candidate))
+            context.preventDefault()
+    }
+
+    private fun same(candidate: ScrollPanContact): Boolean =
+        when (contact) {
+            case Some(val current) -> current === candidate
+            case None -> false
+        }
+
+    private fun finish(event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (!moved && contact?.start?.id == Some(value.id))
+                    cancel()
+                moved = false
+            }
+            case Contact(InputContactEvent.Ended(val value)) -> {
+                forgetContact(contacts, value.id)
+                if (contact?.start?.id == Some(value.id))
+                    cancel()
+            }
+            case Contact(InputContactEvent.Began(val value)) -> {
+                when (contact) {
+                    case Some(val current) -> {
+                        if (current.start.id != value.id)
+                            cancel()
+                    }
+                    case None -> {}
+                }
+            }
+            else -> {}
+        }
+    }
+
+    public fun cancel() {
+        area.isClosed
+        if (!closed)
+            clear(true)
+    }
+    private fun clear(release: Boolean, stopEffect: Boolean = true) {
+        val previous = contact
+        contact = None
+        if (stopEffect && viewport.active)
+            viewport.cancelAnimation()
+        when (previous) {
+            case Some(val value) -> {
+                if (release && value.claimed && !area.isClosed)
+                    area.scope.cancelContactClaim(value.start.id)
+            }
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        area.isClosed
+        if (closed)
+            return
+        closed = true
+        var failure = cleanupUi(None) { clear(true) }
+        contacts.clear()
+        failure = cleanupUi(failure) { intent.close() }
+        failure = cleanupUi(failure) { events.close() }
+        failure = cleanupUi(failure) { defaults.close() }
+        failure = cleanupUi(failure) { finished.close() }
+        throwUi(failure)
+    }
+}
+
+private fun position(value: ContactState): Point =
+    Point(value.pointer.logicalPosition.x, value.pointer.logicalPosition.y)

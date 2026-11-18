@@ -23,6 +23,8 @@ bool sw_modal_input_message(UINT message) {
   return (message >= WM_KEYFIRST && message <= WM_KEYLAST) ||
          (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST) ||
          (message >= WM_NCMOUSEMOVE && message <= WM_NCXBUTTONDBLCLK) ||
+         (message >= WM_POINTERUPDATE && message <= WM_POINTERHWHEEL) ||
+         (message >= WM_NCPOINTERUPDATE && message <= WM_NCPOINTERUP) ||
          message == WM_SYSCOMMAND || message == WM_IME_CHAR ||
          message == WM_IME_STARTCOMPOSITION || message == WM_IME_COMPOSITION;
 }
@@ -32,7 +34,8 @@ void scoop_window_input_blocked(SWWindow *window, int32_t blocked) {
   window->input_blocked = blocked != 0;
   if (blocked) {
     window->saved_enabled = IsWindowEnabled(window->hwnd);
-    sw_cancel_pointer(window, 3);
+    sw_cancel_contacts(window, SWPointerModal);
+    sw_cancel_pointer(window, SWPointerModal);
     sw_reset_input(window);
     sw_text_focus(window, false);
     EnableWindow(window->hwnd, FALSE);

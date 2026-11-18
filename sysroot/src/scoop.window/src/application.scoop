@@ -22,20 +22,25 @@ public enum ApplicationEvent {
         PopupResult
     ),
     ModalCompleted(ModalSessionId, ModalResult), FileDialogCompleted(FileDialogSessionId),
-    Window(WindowId, WindowEvent), MonitorsChanged, AboutToWait, ExitRequested(ExitReason), Exiting
+    Window(WindowId, WindowEvent), MonitorsChanged,
+    InteractionPreferencesChanged(InteractionPreferences), AboutToWait, ExitRequested(
+        ExitReason
+    ), Exiting
 }
 
 /** Events whose final notification is Destroyed. */
 public enum WindowEvent {
+    Contact(ContactEvent),
     CloseRequested, Closing, Destroyed, RedrawRequested, FrameChanged,
     FrameButtonChanged(WindowSystemButton, Boolean, Boolean),
     InputBlockedChanged(Boolean),
+    SoftwareKeyboardChanged(SoftwareKeyboardState),
     GeometryChanged(WindowMetrics), Moved(DesktopPosition), Focused(Boolean), Occluded(
         Boolean
     ), ThemeChanged(Theme?),
     Keyboard(KeyEvent), TextCommand(TextEditCommand), ModifiersChanged(Modifiers), Pointer(
         PointerEvent
-    ), TextInput(TextInputEvent)
+    ), Gesture(GestureEvent), TextInput(TextInputEvent)
 }
 
 /** Receives serial application events on the native owner thread. */

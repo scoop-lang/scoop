@@ -6,6 +6,25 @@ import scoop.ui.state
 /** Bind this stable source around the actual application run and mount entry points. */
 public class ThemeSource public constructor(initial: Theme) {
     public val current: State<Theme> = state(initial)
+    private var resolvedBase: Theme? = None
+    private var resolvedPreferences = ThemePreferences()
+    private var resolved: Theme? = None
+
+    /** Memoizes only the current immutable result; reading never mutates the shared base State. */
+    public fun resolve(preferences: ThemePreferences): Theme {
+        preferences.check()
+        val base = current.value
+        when (resolvedBase) {
+            case Some(val previous) -> if (previous === base && preferences == resolvedPreferences)
+                return resolved!!
+            case None -> {}
+        }
+        val result = base.withPreferences(preferences)
+        resolvedBase = Some(base)
+        resolvedPreferences = preferences
+        resolved = Some(result)
+        return result
+    }
 }
 
 context(source: ThemeSource)

@@ -14,6 +14,7 @@ public class MenuItemBuilder internal constructor() {
     public var focus: FocusOptions = FocusOptions()
     public var style: ButtonStyle = buttonStyle()
     public var closeOnSelect: Boolean? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
         focus = focus.copy(configure)
     }
@@ -21,7 +22,19 @@ public class MenuItemBuilder internal constructor() {
         style = style.copy(configure)
     }
     internal fun snapshot(key: ViewKey, label: String): MenuItemSpec =
-        MenuItemSpec(key, label, enabled, destructive, inset, content, icon, shortcut, focus, style)
+        MenuItemSpec(
+            key,
+            label,
+            enabled,
+            destructive,
+            inset,
+            content,
+            icon,
+            shortcut,
+            focus,
+            style,
+            semantics
+        )
 }
 
 public class MenuBuilder internal constructor() {

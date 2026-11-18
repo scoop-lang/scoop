@@ -1,0 +1,91 @@
+package scoop.examples.ui.gestures
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal class GestureCard(private val props: Props<CardInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val area = scope.createArea()
+    private val semantic = scope.semantics(SemanticRole.Image)
+    private val needle =
+        scope.resource {
+            path {
+                moveTo(Point(0.0, -38.0))
+                lineTo(Point(12.0, 18.0))
+                lineTo(Point(0.0, 10.0))
+                lineTo(Point(-12.0, 18.0))
+                closeContour()
+            }
+        }
+
+    private fun transform(event: TransformGestureEvent) {
+        val sample =
+            when (event) {
+                case Started(val value) -> value
+                case Changed(val value) -> value
+                case Ended(val value) -> value
+                case Discrete(val value) -> value
+                case Cancelled(_, _) -> return
+            }
+        props.value.transform(sample.scaleDelta, sample.rotationDelta)
+    }
+
+    public override fun onMount() {
+        scope.transformGesture(area) { event -> transform(event) }
+        scope.swipeGesture(area) {
+            value -> props.value.switchCard(
+                if (value.direction == SwipeDirection.Left)
+                    1
+                else
+                    -1
+            )
+        }
+    }
+    public override fun update(): UiInvalidation {
+        semantic.update(
+            SemanticProperties(
+                name = Some(f"Compass card ${props.value.card + 1}"),
+                description =
+                    Some(
+                        "Use the zoom, rotation, reset, previous and next buttons to adjust this card."
+                    )
+            )
+        )
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(700.0, 320.0))), Unit)
+
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.semantics(semantic, bounds)
+        val input = props.value
+        context.draw {
+            paint ->
+            paint.canvas.clipRect(bounds)
+            paint.canvas.drawRoundRect(bounds, 12.0, 12.0, Paint(Color(0.87, 0.91, 0.96)))
+            paint.canvas.translate(bounds.width / 2.0, bounds.height / 2.0)
+            paint.canvas.scale(input.scale, input.scale)
+            paint.canvas.rotate(input.rotation)
+            val color =
+                when (input.card) {
+                    0 -> Color(0.18, 0.38, 0.77)
+                    1 -> Color(0.13, 0.52, 0.40)
+                    else -> Color(0.63, 0.28, 0.48)
+                }
+            paint.canvas.drawRoundRect(Rect(-92.0, -64.0, 184.0, 128.0), 16.0, 16.0, Paint(color))
+            paint.canvas.drawCircle(
+                Point(0.0, 0.0),
+                46.0,
+                Paint(Color.White, PaintingStyle.Stroke, 2.0)
+            )
+            paint.canvas.drawPath(needle, Paint(Color.White))
+        }
+    }
+}

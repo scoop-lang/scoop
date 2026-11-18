@@ -8,16 +8,21 @@ import scoop.tests.surface.*
 import scoop.ui.*
 import scoop.ui.text.*
 import scoop.window.*
+import scoop.window.accessibility.*
 
-internal fun selectableContent(short: Boolean): StyledText =
+internal fun selectableContent(
+    short: Boolean,
+    alternateText: String = "[fresh]",
+    size: Double = 20.0
+): StyledText =
     styledText {
         style {
             families = ["Host Test"];
-            fontSize = 20.0
+            this.fontSize = size
         }
         if (short) {
             text("x link ")
-            inlineObject(InlineKey.Text("badge"), "[fresh]")
+            inlineObject(InlineKey.Text("badge"), alternateText)
         } else {
             text("link ")
             span {
@@ -35,7 +40,8 @@ private class SelectionTestInput(
     val inlines: Array<InlineView>,
     val maxLines: Long?,
     val action: Boolean,
-    val short: Boolean
+    val short: Boolean,
+    val options: SelectableTextOptions
 )
 
 internal fun selectableTestView(probe: EditProbe): View {
@@ -48,7 +54,14 @@ internal fun selectableTestView(probe: EditProbe): View {
             )
         ]
     return element(
-        SelectionTestInput(test.content, inlines, test.maxLines, test.action, test.short),
+        SelectionTestInput(
+            test.content,
+            inlines,
+            test.maxLines,
+            test.action,
+            test.short,
+            probe.selectableMenus.options
+        ),
         { props, mount -> SelectableTestElement(probe, props, scope = mount) },
         inlineChildren(test.content, inlines),
         key = ViewKey.Text("selectable")
@@ -60,6 +73,7 @@ private class SelectableTestElement(
     private val props: Props<SelectionTestInput>,
     scope: ComponentScope
 ): Element<ParagraphMeasurement>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Text)
     private var host: SelectableTextHost? = None
     public override fun onMount() {
         val value = scope.resource { SelectableTextHost(scope, probe.fonts, props.value.content) }
@@ -90,12 +104,22 @@ private class SelectableTestElement(
         host!!.update(
             probe.fonts,
             input.content,
+            input.options,
             focus = FocusOptions(Some(test.focus)),
             actions = actions,
             decorations = [TextRangeDecoration(range, underline = Some(Color(0.1, 0.3, 0.8)))],
-            onSelectionChanged = { _, _ -> test.selectionChanges += 1 }
+            onSelectionChanged =
+                {
+                    _, _ ->
+                    refreshSemantics()
+                    test.selectionChanges += 1
+                }
         )
+        refreshSemantics()
         return UiInvalidation.Layout
+    }
+    private fun refreshSemantics() {
+        semantic.updateSelectableText(host!!, SemanticProperties(automationId = Some("selectable")))
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ParagraphMeasurement
@@ -116,6 +140,7 @@ private class SelectableTestElement(
         return LayoutResult(measured.metrics, measured, { measured.close() })
     }
     public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
         host!!.scene(context, measured)
     }
     public override fun onUnmount() {
@@ -149,7 +174,7 @@ private class SelectableInline(private val probe: EditProbe, scope: ComponentSco
     }
 }
 
-private fun selectablePoint(host: SelectableTextHost, byte: Long): Point {
+internal fun selectablePoint(host: SelectableTextHost, byte: Long): Point {
     val caret = host.layout.caret(TextPosition(byte))!!
     val rect = host.area.toWindow(Rect(caret.x, caret.y + caret.height / 2.0, 0.0, 0.0))!!
     return Point(rect.x, rect.y)
@@ -191,6 +216,7 @@ internal fun advanceSelectableText(probe: EditProbe) {
                 window.clipboard.readText()
             )
             assertFalse(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+            assertFalse(host.execute(TextEditCommand.DeleteSelection))
             assertTrue(host.selectionBounds().size >= 2L)
             assertEquals(test.savedStarts, test.imeStarts)
             probe.next { selectableClick(window, host, 1L) }
@@ -198,6 +224,8 @@ internal fun advanceSelectableText(probe: EditProbe) {
         case 63 -> {
             assertEquals(2, test.clicks)
             probe.next {
+                // This scenario extends a selection from a link, rather than exporting it.
+                host.setSelection(TextPosition(1L), TextPosition(1L))
                 host.area.requestFocus();
                 editorPointer(window, selectablePoint(host, 1L), true)
             }
@@ -275,6 +303,10 @@ internal fun advanceSelectableText(probe: EditProbe) {
             }
         }
         case 72 -> {
+            if (!probe.selectableMenus.complete) {
+                probe.selectableMenus.advance(probe)
+                return
+            }
             assertEquals(test.content.text.byteLength, host.anchor.byteOffset)
             assertEquals(0L, host.cursor.byteOffset)
             assertTrue(host.execute(TextEditCommand.Copy))

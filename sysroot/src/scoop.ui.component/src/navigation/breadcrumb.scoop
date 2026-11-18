@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.component.row as makeRow
 import scoop.ui.component.wrap as makeWrapped
 
@@ -11,7 +12,7 @@ public class Breadcrumb public constructor(
     private val props: Props<BreadcrumbProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
@@ -19,23 +20,30 @@ public class Breadcrumb public constructor(
         val input = props.value
         val theme = themes.read(input.theme)
         val density = theme.tokens.typography.action.fontSize / 14.0
-        return panelFrame(
-            makeWrapped {
-                for (index in 0L ..< input.entries.size) {
-                    val entry = input.entries[index]
-                    this.item(
-                        component(
-                            BreadcrumbRowProps(entry, index == 0L, input, theme),
-                            { current, mount -> BreadcrumbRow(current, scope = mount) },
-                            entry.key
-                        )
-                    ) { this.max = entry.maxWidth }
-                }
-                this.spacing = input.spacing * density
-                this.lineSpacing = input.lineSpacing * density
-                this.alignment = CrossAlignment.Center
-            },
-            visual = input.style
+        return semanticContent(
+            panelFrame(
+                makeWrapped {
+                    for (index in 0L ..< input.entries.size) {
+                        val entry = input.entries[index]
+                        this.item(
+                            component(
+                                BreadcrumbRowProps(entry, index == 0L, input, theme),
+                                { current, mount -> BreadcrumbRow(current, scope = mount) },
+                                entry.key
+                            )
+                        ) { this.max = entry.maxWidth }
+                    }
+                    this.spacing = input.spacing * density
+                    this.lineSpacing = input.lineSpacing * density
+                    this.alignment = CrossAlignment.Center
+                },
+                visual = input.style
+            ),
+            SemanticRole.Group,
+            input.semantics.properties(enabled = input.enabled),
+            relations = input.semantics.relations,
+            mergeLabels = false,
+            reference = input.semantics.reference
         )
     }
 }
@@ -64,7 +72,7 @@ private class BreadcrumbRow(
             }
         val body =
             when (entry.content) {
-                case Link(val content, val action) -> component(
+                case Link(val content, val action) -> semanticButton(
                     ButtonProps(
                         ButtonContent.Resolved {
                             appearance ->
@@ -106,19 +114,34 @@ private class BreadcrumbRow(
                         breadcrumbButtonStyle(theme, entry.style),
                         input.root.theme,
                         entry.focus,
-                        variant = ButtonVariant.Ghost
+                        variant = ButtonVariant.Ghost,
+                        semantics = entry.semantics
                     ),
-                    { current, mount -> Button(current, scope = mount) }
-                )
-                case Current(val content) -> actionContent(
-                    navigationLabel(content, input.root.fonts),
-                    ActionContentStyle(
-                        plain,
-                        16.0 * density,
-                        6.0 * density,
-                        InteractionVisual(),
-                        false
+                    SemanticRole.Link,
+                    entry.semantics.properties(enabled = input.root.enabled && entry.enabled),
+                    SemanticActions(
+                        invoke =
+                            Some {
+                                action();
+                                SemanticActionResult.Completed
+                            }
                     )
+                )
+                case Current(val content) -> semanticContent(
+                    actionContent(
+                        navigationLabel(content, input.root.fonts),
+                        ActionContentStyle(
+                            plain,
+                            16.0 * density,
+                            6.0 * density,
+                            InteractionVisual(),
+                            false
+                        )
+                    ),
+                    SemanticRole.Link,
+                    entry.semantics.properties(selected = Some(true)),
+                    relations = entry.semantics.relations,
+                    reference = entry.semantics.reference
                 )
                 case Ellipsis -> navigationEllipsis(
                     20.0 * density,
@@ -175,7 +198,8 @@ internal fun navigationLabel(
                 label.inlines,
                 label.theme,
                 label.baseStyle,
-                label.underline
+                label.underline,
+                label.semantics
             )
         )
         else -> content

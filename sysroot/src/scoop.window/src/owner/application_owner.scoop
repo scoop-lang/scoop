@@ -28,12 +28,15 @@ internal class ApplicationOwner(
     var nextPopup = 1L
     val pendingInputs = ArrayList<NativeInputDelivery>()
     val nativeOperations = ArrayList<() -> Unit>()
+    var dragSource: DragSession? = None
     var nativeOperationDepth = 0
     val deadlines = ArrayList<WindowDeadline>()
     var armedDeadline: TimeMark? = None
     var monitorRecords: ArrayList<MonitorRecord> = ArrayList<MonitorRecord>()
     var nextMonitor: Long = 1L
     val watches: ArrayList<ApplicationWatch> = ArrayList<ApplicationWatch>()
+    var interactionPreferences = InteractionPreferences()
+    val preferencesObservers = ArrayList<InteractionPreferencesObserver>()
     var nextWatch: Long = 1L
     val active = ActiveApplication(this)
     var native: Ptr<Unit>? = None
@@ -47,6 +50,7 @@ internal class ApplicationOwner(
     var stopped: Boolean = false
     var initialized: Boolean = false
     var dispatchDepth: Int = 0
+    var nativeCallbackDepth: Int = 0
     var pumping: Boolean = false
     var flow: ControlFlow = ControlFlow.Wait
     var failure: Throwable? = None
@@ -103,6 +107,7 @@ internal class ApplicationOwner(
                         applicationId
                     )
                 native = Some(pointer)
+                interactionPreferences = copyInteractionPreferences(pointer)
                 mailbox.bind(pointer)
                 try {
                     when (attach) {
@@ -133,6 +138,7 @@ internal class ApplicationOwner(
                     }
                 }
             } finally {
+                retirePreferences()
                 mailbox.unbind()
                 when (native) {
                     case Some(val pointer) -> {
@@ -151,6 +157,7 @@ internal class ApplicationOwner(
     }
 
     fun nativeCallback(identity: Long, stage: Int) {
+        nativeCallbackDepth += 1
         try {
             if (identity == 0L) {
                 pump(stage)
@@ -162,6 +169,8 @@ internal class ApplicationOwner(
             recordFailure(error);
             beginExit();
             drainShutdown()
+        } finally {
+            nativeCallbackDepth -= 1
         }
     }
 
@@ -279,6 +288,7 @@ internal class ApplicationOwner(
         if (exiting)
             return
         exiting = true
+        retirePreferences()
         for (session in fileDialogs)
             session.cancel(FileDialogCancelReason.ApplicationExit)
         for (input in pendingInputs.toArray())

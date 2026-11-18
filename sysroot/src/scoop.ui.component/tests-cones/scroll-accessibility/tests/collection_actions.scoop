@@ -1,0 +1,225 @@
+package scoop.tests.ui.scroll.accessibility
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class VirtualCollectionActionsTest {
+    @Test
+    fun `explicit native item operations realize reveal cancel and retire actual rows`() {
+        val probe = CollectionActionProbe()
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+            }
+            assertTrue(probe.finished)
+            assertEquals(0, probe.counts.mounted)
+            assertEquals(1, probe.counts.invoked)
+            assertTrue(probe.counts.items.builds < 150)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class CollectionActionProbe: Closeable {
+    val counts = CollectionActionCounts()
+    val source = state(CollectionActionItems(counts))
+    val scroll = ScrollState()
+    val handle = VirtualListHandle()
+    var finished = false
+    private var phase = 0
+    private var waiting = false
+    private var frames = 0
+    private var sentFrame = 0
+    private var nextFrame = 1
+    private var presented: CollectionActionItems? = None
+    private var before = 0
+    private var sawPendingFocus = false
+    private var application: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var root: NativeNode? = None
+    private var native: NativeCollectionActionProbe? = None
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application = Some(active)
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop virtual item operations"
+                            size = LogicalSize(180.0, 160.0)
+                            requestActivation = false
+                        }
+                    )
+                ui = host.attach(window, { mount -> CollectionActionRoot(this, mount) })
+                @Unsafe
+                {
+                    val lease = window.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        root = Some(NativeNode(nativeRoot(view)!!))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                native =
+                    Some(
+                        NativeCollectionActionProbe(
+                            root!!,
+                            active.proxy(),
+                            { tag -> returned(tag) }
+                        ) { tag, result -> completed(tag, result) }
+                    )
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(25L))
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"item operation phase ${phase} timed out")
+            )
+            else -> {}
+        }
+    }
+
+    fun accepted(snapshot: CollectionActionItems) {
+        frames += 1
+        presented = Some(snapshot)
+        ready()
+    }
+    private fun ready() {
+        if (waiting || finished || frames < nextFrame)
+            return
+        when (presented) {
+            case Some(val current) -> if (current !== source.value)
+                return
+            case None -> return
+        }
+        waiting = true
+        application!!.proxy().post { _ -> send() }
+    }
+    private fun send() {
+        sentFrame = frames
+        before = counts.items.builds
+        native!!.post(phase)
+    }
+    private fun returned(tag: Int) {
+        // These changes happen before the native block can yield to a frame.
+        if (tag == -1)
+            sawPendingFocus = handle.isPending
+        if (tag == 6)
+            source.value = CollectionActionItems(counts, reverse = true)
+        if (tag == 9)
+            ui!!.close()
+    }
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(phase, tag)
+        if (result == -1) {
+            nextFrame = sentFrame + 1
+            waiting = false
+            ready()
+            return
+        }
+        assertEquals(0, result, Some(f"native item operation phase ${phase}"))
+        assertTrue(counts.mounted < 20)
+        if (phase == 0) {
+            assertEquals(before + 1, counts.items.builds)
+            assertEquals(Point(0.0, 0.0), scroll.offset)
+        }
+        if (phase == 3 || phase == 4) {
+            assertTrue(sawPendingFocus)
+            assertFalse(handle.isPending)
+        }
+        if (phase == 4 || phase == 5) {
+            assertEquals(Point(0.0, 0.0), scroll.offset)
+            assertEquals(before, counts.items.builds)
+        }
+        if (phase == 10) {
+            finished = true
+            application!!.requestExit()
+            return
+        }
+        phase += 1
+        waiting = false
+        nextFrame = sentFrame
+        when (phase) {
+            case 5 -> source.value = CollectionActionItems(counts, enabled = false)
+            case 6 -> source.value = CollectionActionItems(counts)
+            case 8 -> source.value = CollectionActionItems(counts, reverse = true, removed = true)
+            case 9 -> source.value = CollectionActionItems(counts, reverse = true)
+            case 10 -> {
+                waiting = true
+                send()
+                return
+            }
+            else -> {}
+        }
+        ready()
+    }
+    public override fun close() {
+        native?.close()
+        root?.close()
+    }
+}
+
+private class CollectionActionRoot(
+    private val probe: CollectionActionProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val source = probe.source.value
+        val probe = this.probe
+        val list =
+            virtualList(source, ItemExtent.Fixed(24.0)) {
+                width = Some(160.0)
+                height = Some(120.0)
+                state = Some(probe.scroll)
+                handle = Some(probe.handle)
+                anchor = VirtualListAnchor.None
+                scrollbars = ScrollbarVisibility.Hidden
+                itemSemantics = Some(ItemSemantics(source, { index -> source.describe(index) }))
+            }
+        return element(
+            source,
+            { props, mount -> CollectionActionPanel(probe, props, mount) },
+            [list]
+        )
+    }
+}
+
+private class CollectionActionPanel(
+    private val probe: CollectionActionProbe,
+    private val props: Props<CollectionActionItems>,
+    scope: ComponentScope
+): Element<CollectionActionItems>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        CollectionActionItems
+    > {
+        context.measureChild(0L, Constraints.tight(Size(160.0, 120.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 120.0))), props.value)
+    }
+    public override fun scene(context: SceneContext, snapshot: CollectionActionItems) {
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted(snapshot)
+        }
+    }
+}

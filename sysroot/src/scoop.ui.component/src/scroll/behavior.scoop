@@ -1,0 +1,81 @@
+package scoop.ui.component
+
+import scoop.time.Duration
+
+public enum ScrollbarPreset {
+    FollowSystem, Static, Custom
+}
+
+public enum ScrollbarTrackPress {
+    Page, Jump
+}
+
+public enum ScrollbarPlacement {
+    Overlay, Gutter
+}
+
+/** Immutable activity and feedback options; shape and colors stay in the theme. */
+public class ScrollbarBehavior internal constructor(
+    public val preset: ScrollbarPreset = ScrollbarPreset.FollowSystem,
+    public val autoHide: Boolean? = None,
+    public val idleDelay: Duration = Duration.milliseconds(1000L),
+    public val fadeIn: Duration = Duration.milliseconds(100L),
+    public val fadeOut: Duration = Duration.milliseconds(250L),
+    public val revealOnScroll: Boolean = true,
+    public val revealOnViewportHover: Boolean = false,
+    public val revealOnEdgeHover: Boolean = true,
+    public val revealOnKeyboard: Boolean = true,
+    public val widenOnHover: Boolean? = None,
+    public val shadeOnHover: Boolean? = None,
+    public val idleWidth: Double? = None,
+    public val hoverWidth: Double? = None,
+    public val dragWidth: Double? = None,
+    public val expandDuration: Duration = Duration.milliseconds(120L),
+    public val contractDuration: Duration = Duration.milliseconds(180L),
+    public val idleOpacity: Double? = None,
+    public val hoverOpacity: Double? = None,
+    public val dragOpacity: Double? = None,
+    public val shadeDuration: Duration = Duration.milliseconds(120L),
+    public val minimumHitThickness: Double? = None,
+    public val edgeThickness: Double? = None,
+    public val showTrack: Boolean? = None,
+    public val trackPress: ScrollbarTrackPress = ScrollbarTrackPress.Page,
+    public val repeatDelay: Duration? = Some(Duration.milliseconds(400L)),
+    public val repeatInterval: Duration = Duration.milliseconds(60L),
+    public val placement: ScrollbarPlacement = ScrollbarPlacement.Overlay
+) {
+    init {
+        for (value in [idleDelay, fadeIn, fadeOut, expandDuration, contractDuration, shadeDuration])
+            requireComponent(value >= Duration.ZERO, "negative scrollbar duration")
+        when (repeatDelay) {
+            case Some(val value) -> requireComponent(
+                value >= Duration.ZERO,
+                "negative scrollbar repeat delay"
+            )
+            case None -> {}
+        }
+        requireComponent(
+            repeatInterval > Duration.ZERO,
+            "scrollbar repeat interval must be positive"
+        )
+        for (value in [idleWidth, hoverWidth, dragWidth, minimumHitThickness, edgeThickness])
+            when (value) {
+                case Some(val width) -> nonnegative(width, "invalid scrollbar width")
+                case None -> {}
+            }
+        for (value in [idleOpacity, hoverOpacity, dragOpacity])
+            when (value) {
+                case Some(val opacity) -> requireComponent(
+                    opacity.isFinite() && opacity >= 0.0 && opacity <= 1.0,
+                    "invalid scrollbar opacity"
+                )
+                case None -> {}
+            }
+    }
+    public fun copy(configure: ScrollbarBehaviorBuilder.() -> Unit = {}): ScrollbarBehavior =
+        configureScrollbarBehavior(this, configure)
+}
+
+public fun scrollbarBehavior(
+    configure: ScrollbarBehaviorBuilder.() -> Unit = {}
+): ScrollbarBehavior = configureScrollbarBehavior(ScrollbarBehavior(), configure)

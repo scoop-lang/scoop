@@ -150,6 +150,7 @@ internal fun InputRouter.cancelScroll(reason: InputCancelReason, time: InputTime
 }
 
 internal fun InputRouter.cancelPointerInput(reason: InputCancelReason, time: InputTime) {
-    val failure = cleanupFailure(None) { cancelPress(reason, time, true) }
-    throwFailure(cleanupFailure(failure) { cancelScroll(reason, time, true) })
+    var failure = cleanupFailure(None) { cancelPress(reason, time, true) }
+    failure = cleanupFailure(failure) { cancelScroll(reason, time, true) }
+    throwFailure(cleanupFailure(failure) { cancelGestures(reason, time) })
 }

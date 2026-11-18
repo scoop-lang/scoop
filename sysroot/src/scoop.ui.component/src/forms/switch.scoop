@@ -2,6 +2,7 @@ package scoop.ui.component
 
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public enum SwitchSize {
     Default, Sm
@@ -15,7 +16,8 @@ public class SwitchProps public constructor(
     public val style: SwitchStyle = switchStyle(),
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions(),
-    public val labelTarget: FieldTarget? = None
+    public val labelTarget: FieldTarget? = None,
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public class Switch public constructor(
@@ -29,7 +31,27 @@ public class Switch public constructor(
             props.value.focus,
             { activate() }
         )
-    private val themes = ThemeAccess()
+    private val semantics = createComponentSemantics(scope, SemanticRole.Switch)
+    private val semanticToggle: () -> SemanticActionResult =
+        {
+            val input = props.value
+            if (!input.enabled)
+                SemanticActionResult.Unavailable
+            else {
+                val binding = input.checked
+                val expected = !binding.value
+                activate()
+                if (binding.value == expected)
+                    SemanticActionResult.Completed
+                else
+                    SemanticActionResult.Rejected
+            }
+        }
+    init {
+        semantics?.bindFocus(Some(control.focus))
+        scope.routeSemanticsChildren(semantics)
+    }
+    private val themes = ThemeAccess(scope)
     private fun activate() {
         val binding = props.value.checked
         binding.value = !binding.value
@@ -48,7 +70,9 @@ public class Switch public constructor(
                 input.checked.value,
                 control,
                 interaction.asVisual(input.enabled, input.invalid),
-                { activate() }
+                { activate() },
+                semantics,
+                semanticToggle
             ),
             { current, mount -> SwitchInk(current, scope = mount) }
         )
@@ -78,6 +102,7 @@ public class SwitchBuilder internal constructor() {
     public var theme: ThemeSource? = None
     public var focus: FocusOptions = FocusOptions()
     public var labelTarget: FieldTarget? = None
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public var key: ViewKey = ViewKey.Position
     public fun style(configure: SwitchStyleBuilder.() -> Unit): Unit {
         style = style.copy(configure)
@@ -86,5 +111,5 @@ public class SwitchBuilder internal constructor() {
         focus = focus.copy(configure)
     }
     internal fun snapshot(checked: Binding<Boolean>): SwitchProps =
-        SwitchProps(checked, enabled, invalid, size, style, theme, focus, labelTarget)
+        SwitchProps(checked, enabled, invalid, size, style, theme, focus, labelTarget, semantics)
 }

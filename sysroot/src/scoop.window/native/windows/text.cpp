@@ -63,8 +63,8 @@ static bool append(SWTextState *state, int32_t kind, const WCHAR *text,
                                         state->projection.text.data(), start,
                                         NULL, 0, NULL, NULL);
     int64_t last = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
-                                       state->projection.text.data(), end,
-                                       NULL, 0, NULL, NULL);
+                                       state->projection.text.data(), end, NULL,
+                                       0, NULL, NULL);
     if ((start && !first) || (end && !last)) {
       free((void *)edit.text);
       return false;
@@ -173,16 +173,16 @@ HRESULT sw_text_replace(SWTextState *state, LONG start, LONG end,
     emitted_length = (ULONG)updated.size();
     selection_offset = start + (LONG)length;
   }
-  int64_t selection = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
-                                          emitted, (int)selection_offset, NULL,
-                                          0, NULL, NULL);
+  int64_t selection =
+      WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, emitted,
+                          (int)selection_offset, NULL, 0, NULL, NULL);
   if (selection_offset && !selection)
     return E_INVALIDARG;
   bool use_range = explicit_range && state->projection.present;
   if (!empty_preedit &&
       !append(state, kind, emitted, (int)emitted_length,
-              kind == 0 ? selection : -1, kind == 0 ? selection : -1,
-              use_range, start, end))
+              kind == 0 ? selection : -1, kind == 0 ? selection : -1, use_range,
+              start, end))
     return E_OUTOFMEMORY;
   state->uses_range = state->uses_range || use_range;
   state->projection.text.replace((size_t)start, (size_t)(end - start),
@@ -203,51 +203,52 @@ HRESULT sw_text_replace(SWTextState *state, LONG start, LONG end,
   return S_OK;
 }
 
-HRESULT sw_text_select(SWTextState *state,
-                       const TS_SELECTION_ACP &selection) {
-  if (!state->editing)
-    return E_NOTIMPL;
-  if (!state->composing) {
-    LONG anchor = selection.style.ase == TS_AE_START ? selection.acpEnd
-                                                     : selection.acpStart;
-    LONG cursor = selection.style.ase == TS_AE_START ? selection.acpStart
-                                                     : selection.acpEnd;
-    if (selection.acpStart <= selection.acpEnd &&
-        anchor == state->projection.anchor && cursor == state->projection.cursor)
-      return S_OK;
-    return E_NOTIMPL;
-  }
-  if (!marked(state->projection) ||
-      selection.acpStart < state->projection.marked_start ||
-      selection.acpEnd > state->projection.marked_end ||
-      selection.acpStart > selection.acpEnd ||
-      !sw_text_boundary(state->projection.text, selection.acpStart) ||
-      !sw_text_boundary(state->projection.text, selection.acpEnd) ||
-      (selection.style.ase != TS_AE_START && selection.style.ase != TS_AE_END))
+HRESULT sw_text_select(SWTextState *state, const TS_SELECTION_ACP &selection) {
+  if (!state->editing || state->closed || state->canceling)
+    return TF_E_NOLOCK;
+  const SWTextDocument &document = state->projection;
+  if (!sw_text_range(document.text, selection.acpStart, selection.acpEnd) ||
+      (selection.style.ase != TS_AE_START && selection.style.ase != TS_AE_END &&
+       !(selection.style.ase == TS_AE_NONE &&
+         selection.acpStart == selection.acpEnd)))
     return TF_E_INVALIDPOS;
-  state->projection.anchor = selection.style.ase == TS_AE_START
-                                 ? selection.acpEnd
-                                 : selection.acpStart;
-  state->projection.cursor = selection.style.ase == TS_AE_START
-                                 ? selection.acpStart
-                                 : selection.acpEnd;
-  if (state->event && state->event->edit_count) {
-    SWTextEditData &edit = state->event->edits[state->event->edit_count - 1];
-    if (edit.kind == 0) {
-      LONG base = state->projection.marked_start;
-      int64_t anchor = WideCharToMultiByte(
-          CP_UTF8, WC_ERR_INVALID_CHARS, state->projection.text.data() + base,
-          state->projection.anchor - base, NULL, 0, NULL, NULL);
-      int64_t cursor = WideCharToMultiByte(
-          CP_UTF8, WC_ERR_INVALID_CHARS, state->projection.text.data() + base,
-          state->projection.cursor - base, NULL, 0, NULL, NULL);
-      if ((state->projection.anchor != base && !anchor) ||
-          (state->projection.cursor != base && !cursor))
-        return E_INVALIDARG;
-      edit.anchor = anchor;
-      edit.cursor = cursor;
+  LONG anchor = selection.style.ase == TS_AE_START ? selection.acpEnd
+                                                   : selection.acpStart;
+  LONG cursor = selection.style.ase == TS_AE_START ? selection.acpStart
+                                                   : selection.acpEnd;
+  if (anchor == document.anchor && cursor == document.cursor)
+    return S_OK;
+  if (marked(document) && (selection.acpStart < document.marked_start ||
+                           selection.acpEnd > document.marked_end))
+    return TF_E_INVALIDPOS;
+  if (!document.present && !marked(document))
+    return TF_E_NOSELECTION;
+
+  LONG base = document.present ? 0 : document.marked_start;
+  const WCHAR *text = document.text.data() + base;
+  int64_t first = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text,
+                                      anchor - base, NULL, 0, NULL, NULL);
+  int64_t last = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text,
+                                     cursor - base, NULL, 0, NULL, NULL);
+  if ((anchor != base && !first) || (cursor != base && !last))
+    return TF_E_INVALIDPOS;
+  if (document.present) {
+    if (!append(state, 4, L"", 0, first, last)) {
+      state->edit_invalid = true;
+      return E_OUTOFMEMORY;
     }
+    state->uses_range = true;
+  } else if (state->event && state->event->edit_count &&
+             state->event->edits[state->event->edit_count - 1].kind == 0) {
+    SWTextEditData &edit = state->event->edits[state->event->edit_count - 1];
+    edit.anchor = first;
+    edit.cursor = last;
+  } else if (!append(state, 0, text, document.marked_end - base, first, last)) {
+    state->edit_invalid = true;
+    return E_OUTOFMEMORY;
   }
+  state->projection.anchor = anchor;
+  state->projection.cursor = cursor;
   return S_OK;
 }
 
@@ -529,10 +530,10 @@ static int64_t utf16_offset(const uint8_t *text, int64_t length, int64_t offset,
                             LONG *result) {
   if (offset < 0 || offset > length || offset > INT_MAX)
     return 3;
-  int count = offset ? MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
-                                           (const char *)text, (int)offset,
-                                           NULL, 0)
-                     : 0;
+  int count =
+      offset ? MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                   (const char *)text, (int)offset, NULL, 0)
+             : 0;
   if (offset && !count)
     return 3;
   *result = count;
@@ -572,16 +573,15 @@ int64_t scoop_window_publish_text(void *pointer, SWTextSnapshotData data) {
           !marked(next))
         return 3;
     }
-    if (state->document.present &&
-        state->document.revision == next.revision &&
+    if (state->document.present && state->document.revision == next.revision &&
         (state->document.text != next.text ||
          state->document.anchor != next.anchor ||
          state->document.cursor != next.cursor ||
          state->document.marked_start != next.marked_start ||
          state->document.marked_end != next.marked_end))
       return 2;
-    bool changed = !state->document.present ||
-                   state->document.revision != next.revision;
+    bool changed =
+        !state->document.present || state->document.revision != next.revision;
     bool notify_text = false;
     bool notify_selection = !state->document.present ||
                             state->document.anchor != next.anchor ||

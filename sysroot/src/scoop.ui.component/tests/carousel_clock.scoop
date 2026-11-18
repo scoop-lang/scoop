@@ -1,0 +1,52 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.time.*
+
+@Test
+private class CarouselClockTest {
+    @Test
+    fun `interruption restarts a full interval and late delivery advances only once`() {
+        val start = CarouselClockTime().markNow()
+        val interval = Some(Duration.seconds(5L))
+        val clock = CarouselClock()
+        assertTrue(clock.configure(interval, true, start))
+        assertEquals(Some(start + Duration.seconds(5L)), clock.deadline)
+        assertTrue(clock.configure(interval, false, start + Duration.seconds(1L)))
+        assertEquals(None, clock.deadline)
+        assertFalse(clock.take(start + Duration.seconds(20L)))
+        assertTrue(clock.configure(interval, true, start + Duration.seconds(30L)))
+        assertEquals(Some(start + Duration.seconds(35L)), clock.deadline)
+        assertFalse(clock.take(start + Duration.seconds(34L)))
+        assertTrue(clock.take(start + Duration.seconds(70L)))
+        assertFalse(clock.take(start + Duration.seconds(70L)))
+        assertTrue(clock.configure(interval, true, start + Duration.seconds(70L)))
+        assertEquals(Some(start + Duration.seconds(75L)), clock.deadline)
+        assertFalse(clock.take(start + Duration.seconds(70L)))
+        assertTrue(clock.configure(None, true, start + Duration.seconds(71L)))
+        assertEquals(None, clock.deadline)
+        assertFalse(clock.take(start + Duration.seconds(80L)))
+    }
+    @Test
+    fun `changing the interval restarts the wait while an unchanged refresh preserves it`() {
+        val start = CarouselClockTime().markNow()
+        val clock = CarouselClock()
+        assertTrue(clock.configure(Some(Duration.seconds(5L)), true, start))
+        assertFalse(clock.configure(Some(Duration.seconds(5L)), true, start + Duration.seconds(1L)))
+        assertEquals(Some(start + Duration.seconds(5L)), clock.deadline)
+        assertTrue(clock.configure(Some(Duration.seconds(2L)), true, start + Duration.seconds(1L)))
+        assertEquals(Some(start + Duration.seconds(3L)), clock.deadline)
+        assertFalse(clock.configure(Some(Duration.seconds(2L)), true, start + Duration.seconds(2L)))
+        assertFalse(clock.take(start + Duration.seconds(2L)))
+        assertTrue(clock.take(start + Duration.seconds(3L)))
+        assertEquals(None, clock.deadline)
+        assertTrue(clock.configure(Some(Duration.seconds(2L)), true, start + Duration.seconds(3L)))
+        assertEquals(Some(start + Duration.seconds(5L)), clock.deadline)
+        clock.cancel()
+        assertEquals(None, clock.deadline)
+    }
+}
+
+private class CarouselClockTime: TimeSource {
+    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
+}

@@ -70,5 +70,37 @@ int32_t scoop_window_test_active_mode(void) { return active_mode; }
 int32_t scoop_window_test_completed_modes(void) { return completed_modes; }
 
 int32_t scoop_window_test_system_dpi(void) {
-  return SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE) != 0;
+  return SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE) !=
+         NULL;
+}
+
+extern int64_t scoop_window_windows_prepare_dpi(void);
+
+int32_t scoop_window_test_per_monitor_dpi(void) {
+  DPI_AWARENESS_CONTEXT previous =
+      SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+  if (!previous)
+    return 1;
+  HWND before = CreateWindowExW(0, L"STATIC", L"", WS_POPUP, 0, 0, 1, 1, NULL,
+                                NULL, GetModuleHandleW(NULL), NULL);
+  HWND after = NULL;
+  int32_t result = 2;
+  if (before && scoop_window_windows_prepare_dpi() == 0) {
+    after = CreateWindowExW(0, L"STATIC", L"", WS_POPUP, 0, 0, 1, 1, NULL, NULL,
+                            GetModuleHandleW(NULL), NULL);
+    if (after &&
+        AreDpiAwarenessContextsEqual(GetWindowDpiAwarenessContext(before),
+                                     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE) &&
+        AreDpiAwarenessContextsEqual(
+            GetWindowDpiAwarenessContext(after),
+            DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
+      result = 0;
+  }
+  if (after)
+    DestroyWindow(after);
+  if (before)
+    DestroyWindow(before);
+  if (!SetThreadDpiAwarenessContext(previous))
+    return 3;
+  return result;
 }

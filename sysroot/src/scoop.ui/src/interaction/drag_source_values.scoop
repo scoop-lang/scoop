@@ -1,0 +1,46 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.abs
+import scoop.window.*
+
+public class DragSourceOptions public constructor(
+    public val threshold: Double = 4.0,
+    public val enabled: Boolean = true,
+    public val mouse: Boolean = true,
+    public val contacts: Boolean = true
+) {
+    init {
+        requireUi(
+            threshold.isFinite() && threshold >= 0.0,
+            "drag threshold must be finite and nonnegative"
+        )
+    }
+}
+
+/** Local points share the accepted geometry; input snapshots retain window coordinates. */
+public struct DragSourceStart(
+    val start: Point,
+    val position: Point,
+    val press: PointerState,
+    val pointer: PointerState,
+    val input: DragInput
+)
+
+/** The completion belongs to this prepared source, even when later renders replace prepare. */
+public struct DragSourceData(
+    val content: DragContent,
+    val effects: DragEffects = DragEffects(true, false, false),
+    val localData: Any? = None,
+    val onCompleted: (DragResult) -> Unit = {}
+)
+
+internal fun dragSourceThreshold(
+    press: PointerState,
+    pointer: PointerState,
+    threshold: Double
+): Boolean {
+    val dx = pointer.logicalPosition.x - press.logicalPosition.x
+    val dy = pointer.logicalPosition.y - press.logicalPosition.y
+    return dx.isFinite() && dy.isFinite() && (abs(dx) >= threshold || abs(dy) >= threshold)
+}

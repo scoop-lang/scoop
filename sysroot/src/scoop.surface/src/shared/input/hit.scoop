@@ -1,0 +1,18 @@
+package scoop.surface
+
+import scoop.graphics.Point
+
+/** An owned route entry with coordinates from the same accepted scene. */
+public struct InputHit(val scope: InputScope, val localPosition: Point?)
+
+internal fun InputRouter.hitInput(point: Point): Array<InputHit> {
+    checkThread()
+    if (closed || !point.x.isFinite() || !point.y.isFinite())
+        return []
+    val route = deliveries(hit(point), Some(point))
+    return Array<InputHit>(route.size) {
+        index ->
+        val value = route[index]
+        InputHit(value.scope, value.position)
+    }
+}

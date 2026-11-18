@@ -69,6 +69,9 @@ public class CalendarBuilder internal constructor(): CalendarOptionsBuilder(
     public var footer: View? = None
     public var onValueChange: (CalendarValue) -> Unit = {}
     public var onPageChange: (LocalDate) -> Unit = {}
+    public var semantics: ComponentSemantics = ComponentSemantics()
+    public var daySemantics: (CalendarDay) -> ComponentSemantics =
+        { day -> ComponentSemantics(name = Some(day.data.date.toString())) }
     public fun style(configure: StyleOverrideBuilder.() -> Unit) {
         style = style.copy(configure)
     }
@@ -93,7 +96,9 @@ public class CalendarBuilder internal constructor(): CalendarOptionsBuilder(
             weekNumber,
             footer,
             onValueChange,
-            onPageChange
+            onPageChange,
+            semantics,
+            daySemantics
         )
 }
 

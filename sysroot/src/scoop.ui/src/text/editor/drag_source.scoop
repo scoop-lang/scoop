@@ -1,0 +1,308 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+private class EditorDragCandidate(val editor: TextEditorState) {
+    val revision = editor.contentRevision
+    val selection = editor.selection
+}
+
+/** Delays only an ordinary click inside the painted selection. */
+internal class EditorDragSource(
+    private val host: TextEditHost,
+    create: (DragSourceOptions, (DragSourceStart) -> DragSourceData?) -> DragSource
+): Closeable {
+    private var closed = false
+    private var pending: EditorDragCandidate? = None
+    private var active: EditorTextTransfer? = None
+    private val binding = create(options()) { start -> prepare(start) }
+    private val enabled: Boolean get() =
+        !closed &&
+            !host.closed &&
+            host.scope.isMounted &&
+            host.options.enabled &&
+            host.area.scope.isInputAllowed &&
+            textDragAllowed(
+                host.options.drag,
+                host.copyAllowed && !host.options.protectedText && !host.options.projection.masked
+            ) &&
+            (
+                host.options.drag.effects.copy ||
+                    (host.options.drag.effects.move && !host.options.readOnly)
+            )
+
+    private fun options(): DragSourceOptions =
+        DragSourceOptions(
+            host.options.drag.threshold,
+            enabled,
+            contacts = host.options.touch.enabled
+        )
+
+    private fun valid(candidate: EditorDragCandidate): Boolean =
+        enabled &&
+            candidate.editor ===
+            host.current &&
+            candidate.revision ==
+            host.current.contentRevision &&
+            candidate.selection ==
+            host.current.selection &&
+            !host.current.isComposing
+
+    fun update() {
+        if (closed)
+            return
+        if (host.closed || !host.scope.isMounted || binding.isClosed) {
+            close()
+            return
+        }
+        when (pending) {
+            case Some(val value) -> if (!valid(value))
+                cancelCandidate()
+            case None -> {}
+        }
+        binding.update(options()) { start -> prepare(start) }
+        when (active) {
+            case Some(val value) -> if (binding.isDragging) {
+                val configured = host.options.drag.effects
+                binding.updateEffects(
+                    DragEffects(
+                        value.effects.copy && configured.copy,
+                        value.effects.move && configured.move && value.canMove,
+                        false
+                    )
+                )
+            } else {
+                active = None
+            }
+            case None -> {}
+        }
+    }
+
+    fun cancelCandidate() {
+        pending = None
+    }
+
+    fun handle(context: RoutedEventContext, event: InputEvent): Boolean {
+        if (closed)
+            return false
+        when (event) {
+            case Contact(InputContactEvent.Began(val value)) -> {
+                pending = None
+                if (
+                    !enabled ||
+                        !binding.hasContactCandidate(value.id) ||
+                        host.current.isComposing ||
+                        value.pointer.modifiers.shift ||
+                        host.touchHandles.contact?.start?.id ==
+                        Some(value.id)
+                )
+                    return false
+                val point = context.localPosition ?: return false
+                val frame = host.accepted ?: return false
+                if (
+                    frame.editor !==
+                        host.current ||
+                        frame.revision !=
+                        host.current.revision ||
+                        frame.projection !==
+                        host.options.projection
+                )
+                    return false
+                val range = host.current.selection.range
+                if (range.start == range.end)
+                    return false
+                var inside = false
+                for (box in frame.layout.selection(frame.display.displayRange(range)))
+                    if (textMenuContains(box.rect, point)) {
+                        inside = true
+                        break
+                    }
+                if (!inside)
+                    return false
+                pending = Some(EditorDragCandidate(host.current))
+                return advanceContact(context, event)
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                val candidate = pending ?: return false
+                if (
+                    !valid(candidate) ||
+                        !binding.hasContactCandidate(value.id) ||
+                        host.touchHandles.contact?.start?.id !=
+                        None
+                ) {
+                    cancelCandidate()
+                    return false
+                }
+                return advanceContact(context, event)
+            }
+            case Contact(InputContactEvent.Ended(_)) -> {
+                pending = None
+                return false
+            }
+            case Pointer(
+                InputPointerEvent.Button(
+                    val pointer,
+                    MouseButton.Left,
+                    ElementState.Pressed,
+                    val count
+                )
+            ) -> {
+                pending = None
+                if (
+                    !enabled ||
+                        host.current.isComposing ||
+                        count !=
+                        1 ||
+                        pointer.state.modifiers.shift
+                )
+                    return false
+                val point = context.localPosition ?: return false
+                val frame = host.accepted ?: return false
+                if (
+                    !(frame.editor === host.current) ||
+                        frame.revision !=
+                        host.current.revision ||
+                        !(frame.projection === host.options.projection)
+                )
+                    return false
+                val range = host.current.selection.range
+                if (range.start == range.end)
+                    return false
+                var inside = false
+                for (box in frame.layout.selection(frame.display.displayRange(range)))
+                    if (textMenuContains(box.rect, point)) {
+                        inside = true
+                        break
+                    }
+                if (!inside)
+                    return false
+                editorStopDrag(host, false)
+                pending = Some(EditorDragCandidate(host.current))
+                binding.handle(context, event)
+                if (!binding.isDragging)
+                    active = None
+                return true
+            }
+            case Pointer(InputPointerEvent.Moved(_)) -> {
+                val candidate = pending ?: return false
+                if (!valid(candidate)) {
+                    cancelCandidate()
+                    return false
+                }
+                binding.handle(context, event)
+                if (!binding.isDragging)
+                    active = None
+                return true
+            }
+            case Pointer(
+                InputPointerEvent.Button(val pointer, MouseButton.Left, ElementState.Released, _)
+            ) -> {
+                val candidate = pending ?: return false
+                pending = None
+                if (valid(candidate)) {
+                    editorPress(host, pointer, context.localPosition, 1)
+                    editorStopDrag(host, true)
+                }
+                return true
+            }
+            else -> return false
+        }
+    }
+
+    private fun advanceContact(context: RoutedEventContext, event: InputEvent): Boolean {
+        binding.handle(context, event)
+        if (!binding.isDragging)
+            return false
+        host.keyboard.cancelPending()
+        host.touchPress.cancel()
+        host.touchPan.cancel()
+        host.touchHandles.hide()
+        return true
+    }
+
+    private fun prepare(start: DragSourceStart): DragSourceData? {
+        val candidate = pending ?: return None
+        pending = None
+        if (!valid(candidate) || start.press.modifiers.shift)
+            return None
+        val editor = candidate.editor
+        val config = host.options.drag
+        val effects =
+            DragEffects(config.effects.copy, config.effects.move && !host.options.readOnly, false)
+        val transfer =
+            EditorTextTransfer(editor, candidate.selection.range, effects) {
+                enabled &&
+                    host.current ===
+                    editor &&
+                    !host.options.readOnly &&
+                    host.options.drag.effects.move
+            }
+        active = Some(transfer)
+        return Some(
+            DragSourceData(DragContent.Text(transfer.text), effects, Some(transfer)) {
+                result -> completed(transfer, result, config.onCompleted)
+            }
+        )
+    }
+
+    private fun completed(
+        transfer: EditorTextTransfer,
+        native: DragResult,
+        notify: (TextDragResult) -> Unit
+    ) {
+        active = None
+        var result = textDragResult(native)
+        var failure: Throwable? = None
+        val moving =
+            when (native) {
+                case Dropped(DragEffect.Move) -> true
+                else -> false
+            }
+        if (moving && !transfer.moved) {
+            result = TextDragResult.SourceRetained
+            try {
+                when (
+                    val edit =
+                        prepareEditorDragRemoval(
+                            transfer,
+                            host.options.policy,
+                            !host.options.multiline
+                        )
+                ) {
+                    case Some(val value) -> {
+                        host.perform(
+                            {
+                                val changed = value.publish(transfer.editor, false)
+                                transfer.moved = true
+                                changed
+                            }
+                        )
+                        result = TextDragResult.Moved
+                    }
+                    case None -> {}
+                }
+            } catch (error: Throwable) {
+                if (transfer.moved)
+                    result = TextDragResult.Moved
+                failure = Some(error)
+            }
+        }
+        if (!host.closed && host.scope.isMounted) {
+            val completed = result
+            failure = cleanupUi(failure) { notify(completed) }
+        }
+        throwUi(failure)
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        pending = None
+        active = None
+        binding.close()
+    }
+}

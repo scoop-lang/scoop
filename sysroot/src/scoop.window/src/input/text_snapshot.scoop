@@ -43,7 +43,7 @@ public fun Window.clearImeCursorArea() {
     checkNativeStatus(platformClearImeCaret(this), "clear IME caret")
 }
 
-private fun Window.checkTextConnection(connection: TextInputConnection) {
+internal fun Window.checkTextConnection(connection: TextInputConnection) {
     owner.requireOpen()
     requireWindow(
         connection.window == id && connection.generation > 0L,

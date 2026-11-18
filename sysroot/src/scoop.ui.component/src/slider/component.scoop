@@ -22,10 +22,10 @@ public class Slider public constructor(
     private val props: Props<SliderProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val active = state<Long?>(None)
     private var slots: Array<SliderSlot> = []
-    private val control = SliderControl(scope, { currentInput() })
+    private val control = SliderControl(scope, { props.value }, active, { currentInput() })
     private fun currentInput(): SliderInput {
         val input = props.value
         return SliderInput(input, input.values.value, themes.read(input.theme), slots, active)

@@ -128,6 +128,8 @@ Surface／Checkbox 的 metrics 与 geometry 方法接收最后一个 direction: 
 
 `mixThemeColor` 在预乘 alpha 的 sRGB 通道数值上插值，alpha 同步线性插值，再还原为普通 Color；两端均透明时返回透明色，进度端点保留原值。StateColors 依次混合 normal／hovered 和 pressed，禁用直接使用 disabled。透明色中不可见的 RGB 不能在过渡中造成先变暗再变亮的闪色。
 
+`contrastThemeColors(pair: ColorPair, canvas: Color, minimum: Double = 7.0): ColorPair` 复用主题偏好的颜色配对算法，供实际底色不同于根背景的菜单、弹出层等默认装饰使用。颜色通道须有限，canvas 必须不透明，minimum 为有限的 1～21，非法参数抛出 IllegalArgumentException。计算按标准 sRGB 将颜色通道与源 alpha 截取到 0～1，先把 pair.background 合成到 canvas，再将前景向黑或白调整到指定相对亮度对比度；只有背景本身无法容纳该对比度时才调整背景。返回完整、不透明且满足 minimum 的配对；已经满足要求的颜色保留。它不读取系统偏好或改写主题，应用显式覆盖继续由调用方决定。
+
 `OutlineStyle(color, width, outset, borderColor: Color? = None)` 描述一个环及可选的外框颜色替换；None 表示保留部件自身边框，width=0 可省略环。它替代仅限焦点命名的旧描述，普通焦点仍通过部件及 Options 的 focus 配置。ThemeTokens.validation 是完整必需的 OutlineStyle，Surface／Checkbox／Radio Options 的 validation 可局部覆盖。四套主题显式提供验证外观；不根据具体主题名称分支。
 
 invalid 与 focusVisible 独立，前者是应用传入的展示状态，不改变焦点、输入资格或业务值。invalid 时选择 validation；否则只有 enabled 且 focusVisible 才选择 focus。禁用不显示普通焦点环；invalid 边框与环和控件一起合成，不单独再次降低 alpha。状态边框只替换颜色，保留同一份边宽，随后应用显式局部 Style 覆盖。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 ring: OutlineRing? 保存最终唯一的环，painter 直接绘制这个结果，不再自行重判焦点；invalid 与焦点不叠画两层环。metrics.focusOutset 为配置中焦点／验证两种环所需外扩的最大值，状态切换不改变内容布局。
@@ -164,7 +166,7 @@ RadioVisual 包含 selected 与交互状态及可选采样参数。RadioMetrics 
 
 ### 4.4 Scrollbar
 
-Scrollbar 接收 Orientation、有限 position／visibleFraction 及部件视觉状态。position 和 visibleFraction 按 0～1 的归一比例表达，几何计算将合法有限输入收敛到范围内。hoveredPart／pressedPart 使用 Track／Thumb／Decrement／Increment 等类型化枚举，整体 enabled 独立表达。
+Scrollbar 接收 Orientation、有限 position／visibleFraction 及部件视觉状态。position 和 visibleFraction 按 0～1 的归一比例表达，几何计算将合法有限输入收敛到范围内。hoveredPart／pressedPart 使用 Track／Thumb／Decrement／Increment 等类型化枚举，整体 enabled 独立表达。ScrollbarVisual.showTrack: Boolean = true 控制轨道绘制，不改变 thumb／按钮几何或调用方的轨道命中；opacity 仍作用于整条。调用方可用更大的 bounds 保留固定命中条带，再以 ScrollbarOptions.thickness 提供本帧绘制厚度，主题沿交叉轴居中绘制。
 
 ScrollbarMetrics 包含建议厚度、最小滑块长度、轨道／滑块内缩及可选端部按钮长度。ScrollbarGeometry 返回轨道、滑块、可选两端按钮的具体矩形／轮廓、滑块起始位置和可移动距离。先扣除端部按钮，再按 visibleFraction 计算并限制滑块长度；滑块行程是轨道可用主轴长度减去最终滑块长度。极短 bounds、全可见内容和零行程仍返回非负有限几何，不产生除零。
 
@@ -187,13 +189,32 @@ ScrollbarMetrics 包含建议厚度、最小滑块长度、轨道／滑块内缩
 
 `ThemeSource` 是应用持有的稳定普通 class，包含 `State<Theme>` 当前值。应用将来源通过语言 Context 绑定在真实 Application.run／runWithAsyncio 及挂载入口；控件挂载时取得来源，在每次 render 中读取当前值，使实际消费者订阅。一次来源更新合并逻辑工作和必要帧，不遍历未订阅的任意业务对象。
 
-Component 的挂载工厂在该入口构造实例，因此可以在构造阶段保存 ThemeSource 引用。首轮 render 早于 onMount，render 所需的普通来源引用不能等到 onMount 才初始化；onMount 继续用于登记控制器、订阅和 native 资源。保存来源不等于保存当时的 Theme，每次 render 仍读取 source.current.value。
+Component 的挂载工厂在该入口构造实例，因此可以在构造阶段保存 ThemeSource 引用。首轮 render 早于 onMount，render 所需的普通来源引用不能等到 onMount 才初始化；onMount 继续用于登记控制器、订阅和 native 资源。保存来源不等于保存当时的 Theme，每次 render 仍调用 source.read(scope)，同时读取基础主题与本根偏好。
 
 控件只保存来源和持久交互状态。Theme、已解析局部覆盖及几何经 Props／同帧 measure／paint 更新；切换风格或明暗可以按新的 metrics 重新布局，但保留组件实例、State、Binding、InputArea 和焦点。没有结构变化时不能通过更换 Element 类型或增删装饰包装实现主题切换。painter 资源替换不等于组件卸载。
 
 局部主题首期通过明确的 ThemeSource／Theme 参数和 Props 传入，组合控件显式转交需要继承的子项。不把临时 Context 当成 View 捕获或自动挂载树继承；需要子树 Provider 时另行设计。没有环境来源且未显式提供主题的控件，使用语言现有的缺失 Context 诊断，不偷偷建立全局可变默认主题。
 
 输入使用 Surface 已成功提交的几何。控件在 paint 放置主题给出的轮廓／区域，必要的拖动数据随该帧成功发布；失败帧不能提前替换已发布的输入几何。逻辑 enabled 和最新处理器仍在 update 生效，绘制变化不推迟禁用。完整 ScrollView 的拖动／滚动行为不属于此绘图批次。
+
+### 6.1 根交互偏好的主题消费
+
+`ThemePreferences(reduceMotion=false, highContrast=false, reduceTransparency=false, textScaleFactor=1.0)` 是纯值输入，文字缩放须为有限正数。`Theme.withPreferences(preferences): Theme` 返回采用这些偏好的不可变主题，必须同时更新实际使用的 tokens、部件及绘图数据；第三方主题也实现这一入口，不能只替换 tokens 而继续绘制旧的部件颜色。重复应用相同偏好不叠加字号；ShapeTheme 从保留的基础描述解析，恢复默认偏好得到原基础主题。对解析结果显式 copy 会建立新的基础描述，应用通常修改 ThemeSource.current 中的基础主题。
+
+`Theme.preferences: ThemePreferences` 公开当前主题已经应用的偏好，基础主题为默认值，包装主题转交所包装结果。控件用它解析自身产生的默认选区和底色，不能在主题解析后重新引入被关闭的透明外观；局部明确的颜色与样式仍优先。它是主题值的一部分，不重新查询系统或订阅窗口。
+
+`ThemeSource.resolve(preferences)` 读取当前 State 并复用最近一次相同基础主题／偏好的结果；不拥有 painter 或窗口资源。`ThemeSource.read(scope)` 从 ComponentScope.interactionPreferences 取得根已合并的设置，未知布尔值使用 false、未知文字缩放使用 1.0，再调用 resolve。内置控件和自绘示例通过 read 消费；current.value 保留未经根解析的基础值，供应用修改或纯数据检查。同一来源可供不同根使用，根的偏好不写回共享 State。
+
+内置 ShapeTheme 的具体规则如下：
+
+- reduceMotion=true 将有效 ThemeMotion 设为 Reduced，主题原本的 Reduced 继续有效；普通皮肤的 Full 不能恢复根已关闭的动画。现有过渡、位移和不定进度动效通过同一有效 ThemeMotion 停止或立即到达目标，不增加时钟。恢复后按各控件已有的启动规则运行。
+- textScaleFactor 作用于 body／caption／action 的字体大小，保留字体族、字重及相对行高。控件用新文字度量重新布局和命中，不缩放整个 Canvas，也不改变窗口 DPI；控件明确的局部字号继续由应用决定。
+- highContrast=true 使用主题当前明暗模式作为不透明背景，将默认语义配色、表面与标记的实际颜色调整为高对比。稳定交互状态下，启用文字／选中标记与背景的对比度至少 7:1，禁用文字至少 4.5:1，控件边界／焦点至少 3:1；对比度使用 sRGB 相对亮度。取消会降低辨识度的整体禁用透明度；基础主题用 disabledOpacity 表达的禁用文字和选中标记先将该衰减合成到实际底色，再满足禁用对比度，避免取消透明度后与启用状态完全同色。焦点环宽度至少 2 个逻辑单位；外环不再用固定颜色替换各状态已解析的边框。颜色仍保持可用的原色；不足时朝黑或白调整。这是内置主题的对比度策略，不冒充 OS 强制色调色板。
+- reduceTransparency=true 将默认填充颜色合成到对应的不透明背景，并去掉主题默认投影、辉光与模糊装饰；highContrast 同时采用这一处理。抗锯齿、图像内容与应用显式指定的绘图效果不被重写。局部颜色／样式覆盖仍归应用所有，应在相应界面单独验收对比度。
+
+上述变化沿根的既有显示依赖更新；实际排版、绘图与输入区域使用同一轮结果，保留挂载、编辑模型、IME 与焦点。测试同时检查四套主题的明暗配色和真实控件热切换，尤其验证停止动画后不继续请求帧。
+
+滚动边界与直接接触惯性使用 UI 规范 §7.7.2／§7.7.3 的 ScrollPhysicsOptions。各主题解析后的 MotionPreference.Reduced 必须由共享滚动控制器和文本宿主转交局部 reduceMotion；根热更新同时约束自绘 ScrollViewport。颜色、透明度、字体和滚动条静态外观继续沿既有 ThemeSource 解析，不在主题实现复制滚动物理。
 
 ## 7. 效果、缓存与能耗
 
@@ -205,11 +226,11 @@ ThemePainter 缓存考虑本轮主题参数、几何、效果和本帧采样值�
 
 ## 8. 实施与验收
 
-实施顺序为 graphics 基础滤镜及通用嵌套 PaintContext → 公共 Style／装饰 → 主题协议与几何／绘图基础 → 三套主题及离屏展示 → 基础控件消费主题 → 完整展示示例和真实 UI 组合。上述批次及原有布局、生命周期、异步进度目标均已完成本期 macOS 验收。每批格式、检查与定向测试通过后提交、推送、merge origin/main，正常缓存保留。
+实施顺序为 graphics 基础滤镜及通用嵌套 PaintContext → 公共 Style／装饰 → 主题协议与几何／绘图基础 → 三套主题及离屏展示 → 基础控件消费主题 → 完整展示示例和真实 UI 组合。上述基础批次及原有布局、生命周期、异步进度目标均已完成其 macOS 验收。本轮第 6.1 节新增偏好的实施与验证范围见 [UI 交互打磨记录](../ui/interaction-polish/PROGRESS.md)，不沿用历史批次的完成状态。每批格式、检查与定向测试通过后提交、推送、merge origin/main，正常缓存保留。
 
-主题展示示例并列显示四类公共部件和已实现控件的普通、hovered、pressed、disabled、selected／mixed 和 focused 状态；支持三风格、Light／Dark 和系统跟随。公共部件区域直接调用 Canvas 绘图，真实控件区域同时验证交互和主题切换。
+主题展示示例并列显示四类公共部件和已实现控件的普通、hovered、pressed、disabled、selected／mixed 和 focused 状态；支持四套风格、Light／Dark、系统跟随及窗口内高对比度／减少透明度开关。公共部件区域直接调用 Canvas 绘图，真实控件区域同时验证交互和主题切换，菜单、Select 和 Card／Alert 弹出面板展示实际表面的配色。
 
-展示的默认布局应在约 670 逻辑单位高的内容区域内显示状态表格、真实控件和效果开关。通过调整示例的排列与留白满足这一要求，不缩放整棵 UI 来掩盖主题尺寸差异；更小窗口继续遵守容器的显式 clip，首期不因此增加 ScrollView。
+展示的默认 1120×840 逻辑尺寸窗口完整显示状态表格、真实控件、偏好／效果开关和弹出预览入口。通过调整示例的排列与留白满足这一要求，不缩放整棵 UI 来掩盖主题尺寸差异；更小窗口继续遵守容器的显式 clip，首期不因此增加 ScrollView。
 
 所属 Cone 的 scoop.test 验证以下事实：
 

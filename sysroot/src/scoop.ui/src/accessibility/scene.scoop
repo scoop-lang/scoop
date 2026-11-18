@@ -1,0 +1,205 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.graphics.native.*
+import scoop.window.LogicalRect
+import scoop.window.LogicalPosition
+import scoop.window.LogicalSize
+import scoop.window.accessibility.*
+import scoop.window.accessibility.native.NativeSemanticHitTest
+import scoop.window.accessibility.native.NativeSemanticTextGeometry
+import scoop.ui.text.NativeTextSource
+
+private class SemanticPlacement(
+    val generation: ULong,
+    private val geometry: SemanticGeometry,
+    private val order: Long,
+    private val hit: NativeGeometry,
+    val reveal: SemanticRevealPlacement
+): Closeable {
+    private var closed = false
+    init {
+        @Unsafe
+        {
+            hit.retain(hit.context)
+        }
+    }
+    fun apply(node: AccessibilityNode) {
+        @Unsafe
+        {
+            node.setGeometry(
+                geometry,
+                NativeSemanticHitTest(hit.context, hit.retain, hit.release, hit.contains),
+                order
+            )
+        }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        @Unsafe
+        {
+            hit.release(hit.context)
+        }
+    }
+}
+
+/** A candidate owns immutable native snapshots until matching accepted geometry is installed. */
+internal class SemanticScene: Closeable {
+    private val placements = HashMap<SemanticNodeId, SemanticPlacement>()
+    private val text = HashMap<SemanticNodeId, SemanticTextPlacement>()
+
+    fun captureText(
+        binding: SemanticTextBinding,
+        canvas: Canvas,
+        bounds: Rect,
+        source: NativeTextSource,
+        path: Array<ScrollReveal>
+    ) {
+        val handle = binding.handle
+        requireUi(!text.containsKey(handle.id), "semantic text was already placed this frame")
+        @Unsafe
+        {
+            captureGeometry(canvas, bounds).use {
+                geometry -> @Unsafe
+                {
+                    geometry.withNativeGeometry {
+                        scene -> @Unsafe
+                        {
+                            source.withGeometry(scene) {
+                                native ->
+                                val placement =
+                                    SemanticTextPlacement(binding, handle.generation, native, path)
+                                try {
+                                    text[handle.id] = placement
+                                } catch (error: Throwable) {
+                                    placement.close()
+                                    throw error
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun capture(handle: SemanticsHandle, canvas: Canvas, rect: Rect, path: Array<ScrollReveal>) {
+        check(handle)
+        @Unsafe
+        {
+            captureGeometry(canvas, rect).use { shape -> append(handle, shape, path) }
+        }
+    }
+
+    fun capture(handle: SemanticsHandle, canvas: Canvas, shape: Path, path: Array<ScrollReveal>) {
+        check(handle)
+        @Unsafe
+        {
+            captureGeometry(canvas, shape).use { value -> append(handle, value, path) }
+        }
+    }
+
+    private fun check(handle: SemanticsHandle) {
+        requireUi(!placements.containsKey(handle.id), "semantic node was already placed this frame")
+    }
+
+    private fun append(handle: SemanticsHandle, shape: CanvasGeometry, path: Array<ScrollReveal>) {
+        val visible =
+            when (val value = shape.visibleBounds) {
+                case Some(val bounds) -> Some(semanticRect(bounds))
+                case None -> None
+            }
+        val rect = shape.bounds
+        val bounds = SemanticGeometry(semanticRect(rect), visible)
+        val revealed =
+            when (visible) {
+                case Some(val value) -> value.size.width > 0.0 && value.size.height > 0.0
+                case None -> false
+            }
+        @Unsafe
+        {
+            shape.withNativeGeometry {
+                hit ->
+                val placement =
+                    SemanticPlacement(
+                        handle.generation,
+                        bounds,
+                        placements.size,
+                        hit,
+                        SemanticRevealPlacement(handle.generation, path, rect, revealed)
+                    )
+                try {
+                    placements[handle.id] = placement
+                } catch (error: Throwable) {
+                    placement.close()
+                    throw error
+                }
+            }
+        }
+    }
+
+    fun apply(handle: SemanticsHandle) {
+        when (handle.textBinding) {
+            case Some(val binding) -> binding.path = None;
+            case None -> {}
+        }
+        when (val placement = placements[handle.id]) {
+            case Some(val value) -> if (value.generation == handle.generation) {
+                value.apply(handle.resource)
+                handle.revealPlacement = Some(value.reveal)
+                text[handle.id]?.apply(handle)
+                return
+            }
+            case None -> {}
+        }
+        handle.resource.geometry = None
+        handle.revealPlacement = None
+    }
+
+    public override fun close() {
+        for (placement in placements.values)
+            placement.close()
+        placements.clear()
+        for (placement in text.values)
+            placement.close()
+        text.clear()
+    }
+}
+
+private class SemanticTextPlacement(
+    private val binding: SemanticTextBinding,
+    private val generation: ULong,
+    private val native: NativeSemanticTextGeometry,
+    private val path: Array<ScrollReveal>
+): Closeable {
+    private var closed = false
+    init {
+        @Unsafe
+        {
+            native.retain(native.context)
+        }
+    }
+    fun apply(handle: SemanticsHandle) {
+        if (binding.active && generation == handle.generation)
+            @Unsafe
+            {
+                handle.resource.setTextGeometry(Some(native))
+                binding.path = Some(path)
+            }
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        @Unsafe
+        {
+            native.release(native.context)
+        }
+    }
+}
+
+private fun semanticRect(rect: Rect): LogicalRect =
+    LogicalRect(LogicalPosition(rect.x, rect.y), LogicalSize(rect.width, rect.height))

@@ -1,0 +1,103 @@
+package scoop.tests.window.menus
+
+import scoop.test.*
+import scoop.window.*
+
+internal fun checkTextMenuTemplates(application: ActiveApplication) {
+    val ordinary = application.textContextMenuTemplate(false)
+    assertEquals(TextContextMenuSource.Standard, ordinary.source)
+    for (template in [ordinary, application.textContextMenuTemplate()]) {
+        val commands = ArrayList<TextEditCommand>()
+        var separator = true
+        for (entry in template.entries)
+            when (entry) {
+                case Separator -> {
+                    assertFalse(separator)
+                    separator = true
+                }
+                case Command(val command, val label, val shortcut) -> {
+                    for (previous in commands)
+                        assertNotEquals(previous, command)
+                    assertTrue(label.byteLength > 0L)
+                    commands.add(command)
+                    separator = false
+                    if (command == TextEditCommand.DeleteSelection) {
+                        when (shortcut) {
+                            case None -> {}
+                            case Some(_) -> fail(
+                                Some("selection deletion must not claim the Delete key")
+                            )
+                        }
+                    } else
+                        assertTrue(shortcut!!.modifiers.primary)
+                }
+            }
+        assertFalse(separator)
+        assertEquals(7L, commands.size)
+        for (
+            command in [
+                TextEditCommand.Undo,
+                TextEditCommand.Redo,
+                TextEditCommand.Cut,
+                TextEditCommand.Copy,
+                TextEditCommand.Paste,
+                TextEditCommand.DeleteSelection,
+                TextEditCommand.SelectAll
+            ]
+        )
+            assertEquals(1L, countTextMenuCommand(commands, command))
+    }
+    val translated =
+        application.textContextMenuTemplate(
+            false,
+            Some(TextContextMenuLabels(copy = Some("复制所选文本"), deleteSelection = Some("")))
+        )
+    assertEquals("复制所选文本", textMenuTitle(translated, TextEditCommand.Copy))
+    assertEquals("", textMenuTitle(translated, TextEditCommand.DeleteSelection))
+    assertEquals(
+        textMenuTitle(ordinary, TextEditCommand.Paste),
+        textMenuTitle(translated, TextEditCommand.Paste)
+    )
+    assertNotEquals("复制所选文本", textMenuTitle(ordinary, TextEditCommand.Copy))
+    assertTrue(isContextMenuClick(MouseButton.Right, textMenuModifiers()))
+    assertFalse(isContextMenuClick(MouseButton.Left, textMenuModifiers()))
+    assertFalse(isContextMenuClick(MouseButton.Middle, textMenuModifiers()))
+    checkPlatformTextTemplate(application)
+}
+
+internal fun textMenuTitle(template: TextContextMenuTemplate, target: TextEditCommand): String {
+    for (entry in template.entries)
+        when (entry) {
+            case Command(val command, val label, _) -> {
+                if (command == target)
+                    return label
+            }
+            case Separator -> {}
+        }
+    return fail(Some("missing edit command"))
+}
+
+internal fun textMenuModifiers(control: Boolean = false, alt: Boolean = false): Modifiers =
+    Modifiers(
+        false,
+        control,
+        alt,
+        false,
+        false,
+        false,
+        ModifierSides(None, None),
+        ModifierSides(None, None),
+        ModifierSides(None, None),
+        ModifierSides(None, None)
+    )
+
+private fun countTextMenuCommand(
+    commands: ArrayList<TextEditCommand>,
+    target: TextEditCommand
+): Long {
+    var count = 0L
+    for (command in commands)
+        if (command == target)
+            count += 1L
+    return count
+}

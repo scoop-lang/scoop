@@ -1,0 +1,43 @@
+package scoop.ui.text
+
+import scoop.ui.*
+import scoop.window.*
+
+/** Reports source deletion separately from the native destination's Move result. */
+public enum TextDragResult {
+    Copied, Moved, SourceRetained, NotDropped, Failed(WindowException)
+}
+
+/** Selection export is independent of paste and drop acceptance. */
+public class TextDragOptions public constructor(
+    public val enabled: Boolean = true,
+    public val threshold: Double = 4.0,
+    public val effects: DragEffects = DragEffects(true, true, false),
+    public val copyPolicy: TextCopyPolicy = TextCopyPolicy.Default,
+    public val onCompleted: (TextDragResult) -> Unit = {}
+) {
+    internal fun check() {
+        requireUi(threshold.isFinite() && threshold >= 0.0, "invalid text drag threshold")
+        requireUi(
+            !effects.link && (effects.copy || effects.move),
+            "text dragging requires Copy or Move"
+        )
+    }
+}
+
+internal fun textDragAllowed(options: TextDragOptions, defaultCopy: Boolean): Boolean =
+    options.enabled &&
+        when (options.copyPolicy) {
+            case Default -> defaultCopy
+            case Allow -> true
+            case Deny -> false
+        }
+
+internal fun textDragResult(result: DragResult): TextDragResult =
+    when (result) {
+        case Dropped(DragEffect.Copy) -> TextDragResult.Copied
+        case Dropped(DragEffect.Move) -> TextDragResult.Moved
+        case Dropped(DragEffect.Link) -> TextDragResult.NotDropped
+        case NotDropped -> TextDragResult.NotDropped
+        case Failed(val error) -> TextDragResult.Failed(error)
+    }

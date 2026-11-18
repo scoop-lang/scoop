@@ -73,16 +73,16 @@ internal fun MountedNode.replaceDependencies(collector: DependencyCollector) {
     replaceStateDependencies(this, dependencies, collector)
 }
 
-/** Only root-default font reads are observed here; update retains its ordinary mutation rules. */
+/** Only root display inputs are observed here; update retains its ordinary mutation rules. */
 internal fun MountedNode.updateInputs(action: () -> UiInvalidation): UiInvalidation {
     val collector = DependencyCollector()
-    scope.fontReads = Some(collector)
+    scope.displayReads = Some(collector)
     try {
         val invalidation = action()
         if (active && root.isOpen)
             replaceDependencies(collector)
         return invalidation
     } finally {
-        scope.fontReads = None
+        scope.displayReads = None
     }
 }

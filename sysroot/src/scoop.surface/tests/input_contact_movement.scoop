@@ -1,0 +1,260 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+private fun contactMoves(event: InputEvent): Boolean =
+    when (event) {
+        case Contact(InputContactEvent.Moved(_)) -> true
+        case Contact(InputContactEvent.Ended(_)) -> true
+        else -> false
+    }
+
+@Test
+private class InputContactMovementTest {
+    @Test
+    fun `nested contact consumers preserve window displacement and count threshold distance once`() {
+        InputRig().use {
+            rig ->
+            val parent = rig.area("parent")
+            val child = rig.area("child", parent = Some(parent.scope))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, parent, Rect(0.0, 0.0, 160.0, 100.0))
+                canvas.scale(2.0, 4.0)
+                frame.place(canvas, child, Rect(0.0, 0.0, 60.0, 25.0))
+            }
+            rig.contact(ContactEvent.Began(contactInput(1L, 10.0, 20.0)))
+            rig.contact(ContactEvent.Moved(contactInput(1L, 12.0, 24.0)))
+            val childAmounts = ArrayList<Point>()
+            val parentAmounts = ArrayList<Point>()
+            child.scope.defaultAction =
+                {
+                    context,
+                    event -> if (contactMoves(event)) {
+                        assertEquals(None, context.scrollRemaining)
+                        assertEquals(None, context.contactRemaining)
+                        when (event) {
+                            case Contact(InputContactEvent.Ended(_)) ->
+                            assertFalse(child.scope.claimContacts([ContactId(1L)]))
+                            else -> assertTrue(child.scope.claimContacts([ContactId(1L)]))
+                        }
+                        context.consumeContactMovement {
+                            amount ->
+                            childAmounts.add(amount)
+                            Point(amount.x / 2.0, amount.y / 2.0)
+                        }
+                    }
+                }
+            parent.scope.defaultAction =
+                {
+                    context,
+                    event -> if (contactMoves(event)) {
+                        context.consumeContactMovement {
+                            amount ->
+                            assertEquals(Some(amount), context.contactRemaining)
+                            parentAmounts.add(amount)
+                            amount
+                        }
+                        assertEquals(Some(Point(0.0, 0.0)), context.contactRemaining)
+                    }
+                }
+            rig.contact(ContactEvent.Moved(contactInput(1L, 20.0, 40.0)))
+            rig.contact(ContactEvent.Moved(contactInput(1L, 24.0, 48.0)))
+            rig.contact(ContactEvent.Ended(contactInput(1L, 28.0, 56.0)))
+            assertEquals(3L, childAmounts.size)
+            assertEquals(3L, parentAmounts.size)
+            assertEquals(Point(5.0, 5.0), childAmounts[0L])
+            assertEquals(Point(5.0, 10.0), parentAmounts[0L])
+            for (index in 1L ..< 3L) {
+                assertEquals(Point(2.0, 2.0), childAmounts[index])
+                assertEquals(Point(2.0, 4.0), parentAmounts[index])
+            }
+            assertFalse(parent.scope.activity.hasContact)
+        }
+    }
+
+    @Test
+    fun `an exclusive contact claim does not let an ancestor start movement sharing`() {
+        InputRig().use {
+            rig ->
+            val parent = rig.area("parent")
+            val child = rig.area("child", parent = Some(parent.scope))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, parent, Rect(0.0, 0.0, 100.0, 80.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 60.0, 40.0))
+            }
+            val denied = ContactTestCount()
+            child.scope.defaultAction =
+                {
+                    _,
+                    event -> if (contactMoves(event))
+                        assertTrue(child.scope.claimContacts([ContactId(1L)]))
+                }
+            parent.scope.defaultAction =
+                {
+                    context,
+                    event -> if (contactMoves(event)) {
+                        assertEquals(None, context.contactRemaining)
+                        assertFailsWith<IllegalStateException> {
+                            context.consumeContactMovement { amount -> amount }
+                        }
+                        assertEquals(None, context.contactRemaining)
+                        denied.value += 1
+                    }
+                }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Moved(contactInput(1L, 20.0)))
+            assertEquals(1, denied.value)
+            assertTrue(child.scope.activity.hasContact)
+        }
+    }
+
+    @Test
+    fun `contact displacement uses frozen rotated geometry for both endpoints`() {
+        InputRig().use {
+            rig ->
+            val child = rig.area("child")
+            val amounts = ArrayList<Point>()
+            rig.frame {
+                frame, canvas ->
+                canvas.concat(Transform(0.0, 1.0, -1.0, 0.0, 100.0, 0.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0))
+            }
+            rig.contact(ContactEvent.Began(contactInput(1L, 80.0, 20.0)))
+            child.scope.handler =
+                {
+                    _,
+                    event -> if (contactMoves(event))
+                        rig.frame {
+                            frame, canvas ->
+                            canvas.scale(3.0, 3.0)
+                            frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0))
+                        }
+                }
+            child.scope.defaultAction =
+                {
+                    context,
+                    event -> if (contactMoves(event)) {
+                        assertEquals(Some(Point(28.0, 8.0)), context.localPosition)
+                        assertTrue(child.scope.claimContacts([ContactId(1L)]))
+                        context.consumeContactMovement {
+                            amount ->
+                            amounts.add(amount)
+                            Point(8.0, 0.0)
+                        }
+                        assertEquals(Some(Point(12.0, 0.0)), context.contactRemaining)
+                    }
+                }
+            rig.router.rootScope.defaultAction =
+                {
+                    context,
+                    event -> if (contactMoves(event))
+                        context.consumeContactMovement {
+                            amount ->
+                            amounts.add(amount)
+                            amount
+                        }
+                }
+            rig.contact(ContactEvent.Moved(contactInput(1L, 92.0, 28.0)))
+            assertEquals(2L, amounts.size)
+            assertEquals(Point(8.0, -12.0), amounts[0L])
+            assertEquals(Point(12.0, 0.0), amounts[1L])
+        }
+    }
+
+    @Test
+    fun `contact consumers validate their borrow direction recursion and containment`() {
+        InputRig().use {
+            rig ->
+            val child = rig.area("child")
+            val borrows = ArrayList<RoutedEventContext>()
+            val outer = ContactTestCount()
+            rig.frame { frame, canvas -> frame.place(canvas, child, Rect(0.0, 0.0, 80.0, 50.0)) }
+            child.scope.handler =
+                {
+                    context,
+                    event -> if (contactMoves(event))
+                        assertFailsWith<IllegalStateException> {
+                            context.consumeContactMovement { amount -> amount }
+                        }
+                }
+            child.scope.defaultAction =
+                {
+                    context,
+                    event -> if (contactMoves(event)) {
+                        assertTrue(child.scope.claimContacts([ContactId(1L)]))
+                        assertFailsWith<IllegalArgumentException> {
+                            context.consumeContactMovement { _ -> Point(11.0, 0.0) }
+                        }
+                        assertFailsWith<IllegalArgumentException> {
+                            context.consumeContactMovement { _ -> Point(-1.0, 0.0) }
+                        }
+                        context.consumeContactMovement {
+                            amount ->
+                            assertEquals(Point(10.0, 0.0), amount)
+                            assertFailsWith<IllegalStateException> {
+                                context.consumeContactMovement { value -> value }
+                            }
+                            Point(3.0, 0.0)
+                        }
+                        assertEquals(Some(Point(7.0, 0.0)), context.contactRemaining)
+                        borrows.add(context)
+                        context.preventDefault()
+                        context.consumeContactMovement { _ -> fail() }
+                    }
+                }
+            rig.router.rootScope.defaultAction =
+                {
+                    _,
+                    event -> if (contactMoves(event))
+                        outer.value += 1
+                }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Moved(contactInput(1L, 20.0)))
+            assertEquals(0, outer.value)
+            assertEquals(1L, borrows.size)
+            assertFailsWith<IllegalStateException> { borrows[0L].contactRemaining }
+        }
+    }
+
+    @Test
+    fun `cancelling during contact consumption stops ancestors and preserves other contacts`() {
+        InputRig().use {
+            rig ->
+            val child = rig.area("child")
+            val outer = ContactTestCount()
+            rig.frame { frame, canvas -> frame.place(canvas, child, Rect(0.0, 0.0, 80.0, 50.0)) }
+            child.scope.defaultAction =
+                {
+                    context,
+                    event -> if (contactMoves(event)) {
+                        assertTrue(child.scope.claimContacts([ContactId(1L)]))
+                        context.consumeContactMovement {
+                            amount ->
+                            child.scope.cancelContactClaim(ContactId(1L))
+                            amount
+                        }
+                        assertEquals(None, context.contactRemaining)
+                        context.consumeContactMovement { _ -> fail() }
+                    }
+                }
+            rig.router.rootScope.defaultAction =
+                {
+                    _,
+                    event -> if (contactMoves(event))
+                        outer.value += 1
+                }
+            rig.contact(ContactEvent.Began(contactInput(1L)))
+            rig.contact(ContactEvent.Began(contactInput(2L, 30.0)))
+            rig.contact(ContactEvent.Moved(contactInput(1L, 20.0)))
+            rig.contact(ContactEvent.Moved(contactInput(1L, 25.0)))
+            assertEquals(0, outer.value)
+            assertTrue(child.scope.activity.hasContact)
+            child.scope.cancelContactClaim(ContactId(2L))
+            assertTrue(child.scope.activity.hasContact)
+        }
+    }
+}

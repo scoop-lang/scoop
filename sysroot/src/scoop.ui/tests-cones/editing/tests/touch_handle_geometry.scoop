@@ -1,0 +1,118 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun textTouchHandleGeometry(p: TextTouchProbe) {
+    when (p.phase) {
+        0 -> {
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = None,
+                    multiTapInterval = Some(Duration.seconds(10L))
+                )
+            p.menu = p.menu.copy { mode = TextContextMenuMode.Disabled }
+            p.model = TextEditorState("אבג דהו זחט")
+            p.changed()
+        }
+        1 -> touchTap(p, 2L)
+        2 -> touchTap(p, 2L)
+        3 -> {
+            touchSelection(p, 0L, 6L)
+            touchHandleBegin(p, 1100L, anchor = true)
+        }
+        4 -> touchHandleMove(p, 1100L, 11L)
+        5 -> {
+            touchSelection(p, 11L, 6L)
+            touchHandleEnd(p, 1100L)
+        }
+        6 -> touchTap(p, 2L)
+        7 -> touchHandleBegin(p, 1101L)
+        8 -> {
+            touchHandleMove(p, 1101L, 9L)
+            touchHandleMove(p, 1101L, 14L, end = true)
+        }
+        9 -> {
+            touchSelection(p, 14L, 14L)
+            touchTap(p, 2L)
+        }
+        10 -> touchHandleBegin(p, 1102L)
+        11 -> touchHandleMove(p, 1102L, 9L)
+        12 -> {
+            touchSelection(p, 9L, 9L)
+            p.contact(1102L, 3, p.handlePointer)
+        }
+        13 -> touchHandleMove(p, 1102L, 14L, end = true)
+        14 -> {
+            touchSelection(p, 9L, 9L)
+            touchHandleBegin(p, 1103L)
+        }
+        15 -> touchHandleMove(p, 1103L, 2L)
+        16 -> {
+            touchSelection(p, 2L, 2L)
+            p.editor!!.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        17 -> touchHandleMove(p, 1103L, 14L, end = true)
+        18 -> {
+            touchSelection(p, 2L, 2L)
+            p.model = TextEditorState(p.text)
+            p.model.setSelection(Utf8Selection(0L, 0L))
+            p.changed()
+        }
+        19 -> touchTap(p, 5L)
+        20 -> touchHandleBegin(p, 1104L)
+        21 -> touchHandleMove(p, 1104L, 11L)
+        22 -> {
+            touchSelection(p, 11L, 11L)
+            p.enabled = false
+            p.changed()
+        }
+        23 -> touchHandleMove(p, 1104L, 15L, end = true)
+        24 -> {
+            touchSelection(p, 11L, 11L)
+            p.enabled = true
+            p.touch =
+                TextTouchOptions(
+                    longPressDelay = None,
+                    selectionHandles =
+                        TextSelectionHandleOptions(
+                            radius = 8.0,
+                            hitRadius = 22.0,
+                            color = Some(Color(0.7, 0.2, 0.3))
+                        )
+                )
+            p.changed()
+        }
+        25 -> touchTap(p, 6L, readonly = true)
+        26 -> touchHandleBegin(p, 1105L, readonly = true)
+        27 -> touchHandleMove(p, 1105L, 12L, readonly = true)
+        28 -> {
+            touchSelection(p, 12L, 12L, true)
+            p.outer.scrollTo(Point(0.0, 0.0))
+        }
+        29 -> touchHandleMove(p, 1105L, 16L, readonly = true, end = true)
+        30 -> {
+            touchSelection(p, 12L, 12L, true)
+            touchTap(p, 5L)
+        }
+        31 -> touchHandleBegin(p, 1106L)
+        32 -> {
+            touchHandleMove(p, 1106L, 11L)
+            touchHandleMove(p, 1106L, 15L, end = true)
+        }
+        33 -> {
+            touchSelection(p, 15L, 15L)
+            assertEquals(p.text, p.model.text)
+            assertTrue(editorDocument(p.window!!, p.model))
+            p.pause(80L)
+        }
+        34 -> {
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected text handle geometry phase"))
+    }
+}

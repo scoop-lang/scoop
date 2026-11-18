@@ -7,6 +7,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
 import scoop.window.*
+import scoop.window.accessibility.*
 import scoop.ui.component.row as commandRow
 import scoop.ui.component.label as commandLabel
 import scoop.ui.direction as commandDirection
@@ -17,11 +18,24 @@ internal class CommandRows(
     val theme: Theme,
     private val active: Binding<ViewKey?>,
     private val highlight: (ViewKey) -> Unit,
-    private val select: (ViewKey) -> Unit
+    private val select: (ViewKey, Boolean) -> SemanticActionResult
 ): ItemSource {
     public override val count: Long get() = source.count
     public override fun keyAt(index: Long): ViewKey = source.keyAt(index)
     public override fun indexOfKey(key: ViewKey): Long? = source.indexOfKey(key)
+    fun describe(index: Long): SemanticItemProperties? =
+        Some(
+            when (val entry = source.entryAt(index)) {
+                case Item(val item) -> SemanticItemProperties(
+                    name = Some(item.label),
+                    enabled = input.input.enabled && item.enabled
+                )
+                case Label(_, val content) -> SemanticItemProperties(
+                    name = candidateCaption(content)
+                )
+                case Separator(_) -> SemanticItemProperties(name = Some(""))
+            }
+        )
     public override fun build(index: Long): View =
         component(
             CommandRowProps(source.entryAt(index), input, theme, active, highlight, select),
@@ -35,7 +49,7 @@ internal class CommandRowProps(
     val theme: Theme,
     val active: Binding<ViewKey?>,
     val highlight: (ViewKey) -> Unit,
-    val select: (ViewKey) -> Unit
+    val select: (ViewKey, Boolean) -> SemanticActionResult
 )
 
 private class CommandRow(
@@ -158,7 +172,7 @@ private class CommandRow(
                 }.then(item.style)
             )
         return element(
-            CandidateRowInkProps(item.key, enabled, input.highlight, input.select),
+            CandidateRowInkProps(item.key, item.label, enabled, input.highlight, input.select),
             { current, mount -> CandidateRowInk(current, scope = mount) },
             [decorated]
         )

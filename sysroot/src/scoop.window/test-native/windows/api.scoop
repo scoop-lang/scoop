@@ -1,5 +1,14 @@
 package scoop.tests.window
 
+/** Arms an actual WM_TIMER callback on a hidden window, without posting WM_TIMER. */
+@Unsafe
+@Extern(name = "scoop_window_test_start_polling_timer")
+public fun startNativePollingTimer(window: Ptr<Unit>): Boolean
+
+@Unsafe
+@Extern(name = "scoop_window_test_polling_timer_fired")
+public fun nativePollingTimerFired(): Boolean
+
 /** Posts a real Win32 message to the application's HWND for protocol tests. */
 @Unsafe
 @Extern(name = "PostMessageW", lib = "user32")
@@ -26,6 +35,11 @@ public fun completedNativeModes(): Int
 @Extern(name = "scoop_window_test_system_dpi")
 public fun setSystemDpiMode(): Int
 
+/** Verifies owner-thread V2 preparation without changing an existing V1 HWND. */
+@Unsafe
+@Extern(name = "scoop_window_test_per_monitor_dpi")
+public fun exercisePerMonitorDpi(): Int
+
 @Unsafe
 @Extern(name = "scoop_window_test_text")
 public fun exerciseNativeText(window: Ptr<Unit>): Int
@@ -45,3 +59,8 @@ public fun nativeInputSequence(window: Ptr<Unit>)
 @Unsafe
 @Extern(name = "scoop_window_test_pointer_cancellation")
 public fun nativePointerCancellation(window: Ptr<Unit>)
+
+/** Sends mouse down/up input; Windows produces its own click messages and timing. */
+@Unsafe
+@Extern(name = "scoop_window_test_mouse_clicks")
+public fun nativeMouseClicks(window: Ptr<Unit>): Int

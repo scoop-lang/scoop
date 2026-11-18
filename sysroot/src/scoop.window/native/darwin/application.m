@@ -1,6 +1,42 @@
 #import "window.h"
 
 @implementation SWEvent
+- (SWEventData)data {
+  return _payload.window;
+}
+- (void)setData:(SWEventData)value {
+  _payload.window = value;
+}
+- (SWKeyboardData)keyboard {
+  return _payload.keyboard;
+}
+- (void)setKeyboard:(SWKeyboardData)value {
+  _payload.keyboard = value;
+}
+- (SWPointerData)pointer {
+  return _payload.pointer;
+}
+- (void)setPointer:(SWPointerData)value {
+  _payload.pointer = value;
+}
+- (SWGestureData)gesture {
+  return _payload.gesture;
+}
+- (void)setGesture:(SWGestureData)value {
+  _payload.gesture = value;
+}
+- (SWContactData)contact {
+  return _payload.contact;
+}
+- (void)setContact:(SWContactData)value {
+  _payload.contact = value;
+}
+- (int64_t)modifiers {
+  return _payload.modifiers;
+}
+- (void)setModifiers:(int64_t)value {
+  _payload.modifiers = value;
+}
 @end
 
 void sw_wake(SWApplication *application) {
@@ -34,8 +70,8 @@ static void deadline(CFRunLoopTimerRef timer, void *context) {
 - (NSApplicationTerminateReply)applicationShouldTerminate:
     (NSApplication *)sender {
   SWEvent *event = [SWEvent new];
+  event.header = (SWEventHeader){.kind = 101};
   SWEventData data = {0};
-  data.kind = 101;
   event.data = data;
   [self enqueue:event];
   return NSTerminateCancel;
@@ -46,8 +82,8 @@ static void deadline(CFRunLoopTimerRef timer, void *context) {
 }
 - (void)applicationDidChangeScreenParameters:(NSNotification *)notification {
   SWEvent *event = [SWEvent new];
+  event.header = (SWEventHeader){.kind = 100};
   SWEventData data = {0};
-  data.kind = 100;
   event.data = data;
   [self enqueue:event];
 }
@@ -57,7 +93,7 @@ static void deadline(CFRunLoopTimerRef timer, void *context) {
 }
 - (void)menuDidBeginTracking:(NSNotification *)notification {
   for (SWWindow *window in self.windows.allValues)
-    [window.view cancelPointer:1];
+    [window.view cancelPointer:SWPointerCaptureLost];
 }
 @end
 
@@ -98,6 +134,7 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
                            (__bridge CFStringRef)NSModalPanelRunLoopMode);
     CFRunLoopAddSource(CFRunLoopGetMain(), owner.source, kCFRunLoopCommonModes);
     app.delegate = owner;
+    sw_preferences_start(owner);
     [NSNotificationCenter.defaultCenter
         addObserver:owner
            selector:@selector(menuDidBeginTracking:)
@@ -163,6 +200,8 @@ void scoop_window_application_stop(void *pointer) {
 
 void scoop_window_application_destroy(void *pointer) {
   SWApplication *owner = (__bridge_transfer SWApplication *)pointer;
+  sw_preferences_stop(owner);
+  owner.textServicesPopup = nil;
   [NSNotificationCenter.defaultCenter removeObserver:owner];
   NSApp.delegate = nil;
   if (owner.timer) {
@@ -183,12 +222,30 @@ void *scoop_window_next_event(void *pointer) {
   return (__bridge_retained void *)event;
 }
 
+SWEventHeader scoop_window_event_header(void *pointer) {
+  return [(__bridge SWEvent *)pointer header];
+}
 SWEventData scoop_window_event_data(void *pointer) {
+  return [(__bridge SWEvent *)pointer data];
+}
+SWKeyboardData scoop_window_event_keyboard(void *pointer) {
   SWEvent *event = (__bridge SWEvent *)pointer;
-  SWEventData data = event.data;
+  SWKeyboardData data = event.keyboard;
   data.text = event.text.bytes;
   data.text_length = (int64_t)event.text.length;
   return data;
+}
+SWPointerData scoop_window_event_pointer(void *pointer) {
+  return [(__bridge SWEvent *)pointer pointer];
+}
+SWGestureData scoop_window_event_gesture(void *pointer) {
+  return [(__bridge SWEvent *)pointer gesture];
+}
+SWContactData scoop_window_event_contact(void *pointer) {
+  return [(__bridge SWEvent *)pointer contact];
+}
+int64_t scoop_window_event_modifiers(void *pointer) {
+  return [(__bridge SWEvent *)pointer modifiers];
 }
 
 void scoop_window_event_release(void *pointer) {

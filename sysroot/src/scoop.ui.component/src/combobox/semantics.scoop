@@ -1,0 +1,36 @@
+package scoop.ui.component
+
+import scoop.window.accessibility.*
+import scoop.ui.*
+
+internal fun <T: Equals<T>> comboSelectionSemantics(
+    source: ChoiceSource<T>,
+    selected: Array<T>,
+    multiple: Boolean
+): SemanticCollectionSelection {
+    val keys = ArrayList<SemanticItemKey>()
+    for (value in selected)
+        when (source.indexOfValue(value)) {
+            case Some(val index) -> keys.add(componentSemanticKey(source.keyAt(index)))
+            case None -> {}
+        }
+    return SemanticCollectionSelection(keys.toArray(), multiple)
+}
+
+/** Values are captured by render, so a published row never reads a changing binding. */
+internal fun <T: Equals<T>> comboItemSemantics(
+    entry: ChoiceEntry<T>,
+    selected: Array<T>,
+    enabled: Boolean
+): SemanticItemProperties? =
+    Some(
+        when (entry) {
+            case Item(val item) -> SemanticItemProperties(
+                name = Some(item.choice.label),
+                enabled = enabled && item.choice.enabled,
+                selected = Some(comboContains(selected, item.choice.value))
+            )
+            case Label(_, val content) -> SemanticItemProperties(name = candidateCaption(content))
+            case Separator(_) -> SemanticItemProperties(name = Some(""))
+        }
+    )

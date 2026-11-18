@@ -109,12 +109,23 @@ int64_t scoop_window_menu_unbind(SWMenu *menu) {
   return 0;
 }
 
-static void popup_closed(GtkPopover *popover, gpointer data) {
+static gboolean popup_completed(gpointer data) {
   SWMenu *menu = data;
-  if (!menu->presenting)
-    return;
+  menu->completion_idle = 0;
   menu->presenting = false;
   sw_menu_event(menu, 111, menu->selected, menu->window->identity);
+  return G_SOURCE_REMOVE;
+}
+
+static void popup_closed(GtkPopover *popover, gpointer data) {
+  SWMenu *menu = data;
+  if (!menu->presenting || menu->completion_idle)
+    return;
+  // GTK closes the popover before activating its model button's GAction.
+  // Keep the binding until that dispatch finishes so the action precedes
+  // completion and contributes the selected item.
+  menu->completion_idle =
+      g_idle_add_full(G_PRIORITY_HIGH_IDLE, popup_completed, menu, NULL);
 }
 
 int64_t scoop_window_menu_popup(SWMenu *menu, SWWindow *window, double x,
@@ -140,6 +151,7 @@ int64_t scoop_window_menu_popup(SWMenu *menu, SWWindow *window, double x,
   gtk_popover_set_pointing_to(GTK_POPOVER(menu->popup), &rect);
   g_signal_connect(menu->popup, "closed", G_CALLBACK(popup_closed), menu);
   menu->presenting = true;
+  sw_cancel_contacts(window, SWPointerSystemOperation);
   gtk_popover_popup(GTK_POPOVER(menu->popup));
   return 0;
 }

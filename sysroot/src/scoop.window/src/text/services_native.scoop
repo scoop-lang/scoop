@@ -1,0 +1,210 @@
+package scoop.window
+
+internal fun platformTextServiceCapabilities(): TextServiceCapabilities {
+    @Unsafe
+    {
+        val flags = nativeTextServiceFlags()
+        return TextServiceCapabilities(
+            flags.and(1) != 0,
+            flags.and(2) != 0,
+            flags.and(4) != 0,
+            flags.and(8) != 0,
+            flags.and(16) != 0
+        )
+    }
+}
+
+internal fun platformCheckText(text: String, options: TextCheckingOptions): Array<
+    TextCheckFinding
+> {
+    @Unsafe
+    {
+        val flags =
+            (
+                if (options.spelling)
+                    1
+                else
+                    0
+            ) +
+                (
+                    if (options.grammar)
+                        2
+                    else
+                        0
+                ) +
+                (
+                    if (options.replacements)
+                        4
+                    else
+                        0
+                )
+        val result =
+            text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes (options.language ?: "").withUtf8Bytes {
+                        language,
+                        languageLength -> @Unsafe
+                        {
+                            return@withUtf8Bytes nativeTextCheck(
+                                bytes,
+                                length,
+                                flags,
+                                language,
+                                languageLength
+                            )
+                        }
+                    }
+                }
+            }
+        val owner = created(result, "check text")
+        try {
+            return Array<TextCheckFinding>(nativeTextServiceCount(owner)) {
+                index -> @Unsafe
+                {
+                    val item = nativeTextServiceItem(owner, index)
+                    return@Array TextCheckFinding(
+                        Utf8Range(item.start, item.end),
+                        when (item.kind) {
+                            1 -> TextCheckKind.Spelling
+                            2 -> TextCheckKind.Grammar
+                            3 -> TextCheckKind.Replacement
+                            else -> throw WindowException(
+                                "decode text check",
+                                WindowErrorKind.NativeFailure
+                            )
+                        },
+                        textServiceString(owner, index, -1L),
+                        Array<String>(item.suggestions) {
+                            suggestion -> textServiceString(owner, index, suggestion)
+                        }
+                    )
+                }
+            }
+        } finally {
+            nativeTextServiceDestroy(owner)
+        }
+    }
+}
+
+private fun textServiceString(owner: Ptr<Unit>, index: Long, suggestion: Long): String {
+    @Unsafe
+    {
+        val value = nativeTextServiceString(owner, index, suggestion)
+        return String.fromUtf8(value.bytes, value.length)
+    }
+}
+
+internal fun platformPerformTextService(name: String, text: String): String? {
+    @Unsafe
+    {
+        val result =
+            name.withUtf8Bytes {
+                service,
+                serviceLength -> @Unsafe
+                {
+                    return@withUtf8Bytes text.withUtf8Bytes {
+                        bytes,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes nativePerformTextService(
+                                service,
+                                serviceLength,
+                                bytes,
+                                length
+                            )
+                        }
+                    }
+                }
+            }
+        return decodeClipboardText(result, "perform text service")
+    }
+}
+
+internal fun platformShowTextDefinition(
+    window: Ptr<Unit>,
+    text: String,
+    anchor: LogicalRect
+): Boolean {
+    @Unsafe
+    {
+        return text.withUtf8Bytes {
+            bytes,
+            length -> @Unsafe
+            {
+                val status =
+                    nativeShowTextDefinition(
+                        window,
+                        bytes,
+                        length,
+                        anchor.origin.x,
+                        anchor.origin.y,
+                        anchor.size.width,
+                        anchor.size.height
+                    )
+                if (status > 1L)
+                    checkNativeStatus(status, "show text definition")
+                return@withUtf8Bytes status == 1L
+            }
+        }
+    }
+}
+
+@CLayout
+private struct NativeTextCheckItem(
+    val start: Long,
+    val end: Long,
+    val kind: Int,
+    val suggestions: Long
+)
+
+@CLayout
+private struct NativeTextServiceString(val bytes: Ptr<UInt8>, val length: Long)
+
+@Extern(name = "scoop_window_text_service_flags")
+private fun nativeTextServiceFlags(): Int
+
+@Extern(name = "scoop_window_text_check")
+private fun nativeTextCheck(
+    text: Ptr<UInt8>,
+    length: Long,
+    flags: Int,
+    language: Ptr<UInt8>,
+    languageLength: Long
+): NativeCreateResult
+
+@Extern(name = "scoop_window_text_service_count")
+private fun nativeTextServiceCount(owner: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_text_service_item")
+private fun nativeTextServiceItem(owner: Ptr<Unit>, index: Long): NativeTextCheckItem
+
+@Extern(name = "scoop_window_text_service_string")
+private fun nativeTextServiceString(
+    owner: Ptr<Unit>,
+    index: Long,
+    suggestion: Long
+): NativeTextServiceString
+
+@Extern(name = "scoop_window_text_service_destroy")
+private fun nativeTextServiceDestroy(owner: Ptr<Unit>)
+
+@Extern(name = "scoop_window_text_service_perform")
+private fun nativePerformTextService(
+    name: Ptr<UInt8>,
+    nameLength: Long,
+    text: Ptr<UInt8>,
+    length: Long
+): NativeClipboardText
+
+@Extern(name = "scoop_window_text_definition")
+private fun nativeShowTextDefinition(
+    window: Ptr<Unit>,
+    text: Ptr<UInt8>,
+    length: Long,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double
+): Long

@@ -1,0 +1,80 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.InputArea
+import scoop.time.Duration
+import scoop.window.ContactState
+
+/** Direct contact holds leave ordinary taps available until recognition succeeds. */
+public class LongPressOptions public constructor(
+    public val enabled: Boolean = true,
+    public val delay: Duration = Duration.milliseconds(500L),
+    public val threshold: Double = 8.0
+) {
+    init {
+        requireUi(delay.floorSeconds >= 0L, "negative long press delay")
+        requireUi(
+            threshold.isFinite() && threshold >= 0.0,
+            "long press threshold must be finite and nonnegative"
+        )
+    }
+}
+
+/** The latest real contact is paired with its current Accepted local position. */
+public struct LongPressSample(val contact: ContactState, val position: Point)
+
+public class LongPress internal constructor(
+    scope: ComponentScope,
+    private val area: InputArea,
+    initial: LongPressOptions,
+    onLongPress: (LongPressSample) -> Unit
+): Closeable {
+    private var receive = onLongPress
+    private var closed = false
+    private val press =
+        ContactPress(
+            scope,
+            area,
+            initial.enabled,
+            initial.threshold,
+            Some(initial.delay),
+            false,
+            None,
+            { true },
+            None,
+            { value -> receive(LongPressSample(value.contact, value.position)) }
+        )
+
+    public val isClosed: Boolean get() {
+        area.isClosed
+        return closed
+    }
+
+    public fun update(value: LongPressOptions, onLongPress: (LongPressSample) -> Unit) {
+        requireUi(!closed && !area.isClosed, "long press behavior is closed")
+        receive = onLongPress
+        press.update(value.enabled, value.threshold, Some(value.delay), false, None)
+    }
+
+    public fun cancel() {
+        area.isClosed
+        press.cancel()
+    }
+
+    public override fun close() {
+        area.isClosed
+        if (closed)
+            return
+        closed = true
+        press.close()
+    }
+}
+
+public fun ComponentScope.longPress(
+    area: InputArea,
+    options: LongPressOptions = LongPressOptions(),
+    onLongPress: (LongPressSample) -> Unit
+): LongPress {
+    requireBehaviorArea(area)
+    return resource { LongPress(this, area, options, onLongPress) }
+}

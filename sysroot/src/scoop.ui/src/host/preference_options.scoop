@@ -1,0 +1,106 @@
+package scoop.ui
+
+import scoop.time.Duration
+import scoop.window.InteractionPreferences
+
+/** None follows the system; explicit values apply to this UI root only. */
+public struct UiPreferences(
+    val autoHideScrollbars: Boolean? = None,
+    val reduceMotion: Boolean? = None,
+    val highContrast: Boolean? = None,
+    val reduceTransparency: Boolean? = None,
+    val textScaleFactor: Double? = None,
+    val caretBlinkInterval: Duration? = None,
+    val caretWidthPixels: Int? = None,
+    val caretAspectRatio: Double? = None
+) {
+    public fun copy(configure: UiPreferencesBuilder.() -> Unit = {}): UiPreferences {
+        val builder = UiPreferencesBuilder(this)
+        builder.configure()
+        return builder.build()
+    }
+
+    internal fun check() {
+        when (textScaleFactor) {
+            case Some(val value) -> requireUi(
+                value.isFinite() && value > 0.0,
+                "invalid text scale factor"
+            )
+            case None -> {}
+        }
+        when (caretBlinkInterval) {
+            case Some(val value) -> requireUi(
+                value.floorSeconds >= 0L,
+                "negative caret blink interval"
+            )
+            case None -> {}
+        }
+        when (caretWidthPixels) {
+            case Some(val value) -> requireUi(value > 0, "invalid caret pixel width")
+            case None -> {}
+        }
+        when (caretAspectRatio) {
+            case Some(val value) -> requireUi(
+                value.isFinite() && value > 0.0,
+                "invalid caret aspect ratio"
+            )
+            case None -> {}
+        }
+    }
+
+    internal fun resolve(system: InteractionPreferences): InteractionPreferences =
+        InteractionPreferences(
+            resolveUiPreference(autoHideScrollbars, system.autoHideScrollbars),
+            resolveUiPreference(reduceMotion, system.reduceMotion),
+            resolveUiPreference(highContrast, system.highContrast),
+            resolveUiPreference(reduceTransparency, system.reduceTransparency),
+            resolveUiPreference(textScaleFactor, system.textScaleFactor),
+            resolveUiPreference(caretBlinkInterval, system.caretBlinkInterval),
+            if (caretAspectRatio != None && caretWidthPixels == None)
+                None
+            else
+                resolveUiPreference(caretWidthPixels, system.caretWidthPixels),
+            if (caretWidthPixels != None && caretAspectRatio == None)
+                None
+            else
+                resolveUiPreference(caretAspectRatio, system.caretAspectRatio),
+            system.doubleClickInterval
+        )
+}
+
+/** Mutable only while constructing an immutable root configuration. */
+public class UiPreferencesBuilder internal constructor(value: UiPreferences) {
+    public var autoHideScrollbars = value.autoHideScrollbars
+    public var reduceMotion = value.reduceMotion
+    public var highContrast = value.highContrast
+    public var reduceTransparency = value.reduceTransparency
+    public var textScaleFactor = value.textScaleFactor
+    public var caretBlinkInterval = value.caretBlinkInterval
+    public var caretWidthPixels = value.caretWidthPixels
+    public var caretAspectRatio = value.caretAspectRatio
+
+    internal fun build(): UiPreferences {
+        val result =
+            UiPreferences(
+                autoHideScrollbars,
+                reduceMotion,
+                highContrast,
+                reduceTransparency,
+                textScaleFactor,
+                caretBlinkInterval,
+                caretWidthPixels,
+                caretAspectRatio
+            )
+        result.check()
+        return result
+    }
+}
+
+public fun uiPreferences(configure: UiPreferencesBuilder.() -> Unit = {}): UiPreferences =
+    UiPreferences().copy(configure)
+
+private fun <T> resolveUiPreference(explicit: T?, system: T?): T? =
+    when (explicit) {
+        case Some(_) -> explicit
+        case None -> system
+    }

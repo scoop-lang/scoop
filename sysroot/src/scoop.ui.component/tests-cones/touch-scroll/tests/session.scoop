@@ -1,0 +1,255 @@
+package scoop.tests.ui.touchscroll
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.sendNativeContact
+import scoop.tests.window.sendNativeContactTimed
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.StateColors
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class TouchScrollComponentTest {
+    @Test
+    fun `touch scroll area preserves taps bars and cancellation through native contacts`() {
+        run(false)
+    }
+    @Test
+    fun `touch virtual list recycles old rows while preserving the active scroll`() {
+        run(true)
+    }
+
+    @Test
+    fun `elastic scroll area keeps content geometry and follows reduced motion`() {
+        run(false, true)
+    }
+    @Test
+    fun `elastic virtual list preserves legal ranges row geometry and bounded realization`() {
+        run(true, true)
+    }
+    @Test
+    fun `scroll area inertia follows shared physics theme changes and unmount`() {
+        run(false, inertia = true)
+    }
+    @Test
+    fun `virtual list inertia survives row recycling and stops with its viewport`() {
+        run(true, inertia = true)
+    }
+    private fun run(virtual: Boolean, elastic: Boolean = false, inertia: Boolean = false) {
+        val p = TouchProbe(virtual, elastic, inertia)
+        try {
+            UiHost { host, active, event -> p.event(host, active, event) }.use {
+                host -> Application(
+                    applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
+            }
+            assertTrue(p.finished)
+            assertEquals(
+                if (elastic || inertia)
+                    0
+                else
+                    1,
+                p.clicks
+            )
+            assertFalse(p.scroll.isAttached)
+            assertEquals(0, p.alive)
+            if (virtual) {
+                // A 120-unit viewport spans at most six 24-unit rows. The old and
+                // selected ranges may coexist until the layout selection finishes.
+                assertTrue(p.peak <= 12)
+            } else
+                assertEquals(1L, p.rows.size)
+            assertTrue(p.view!!.restored())
+        } catch (error: Throwable) {
+            println(
+                f"touch scroll virtual=${virtual}, phase=${p.phase}, offset=${p.scroll.offset.y}"
+            )
+            println(f"pixels=${p.pixel}/${p.hiddenPixel}, rows=${p.alive}, peak=${p.peak}")
+            throw error
+        } finally {
+            p.waiter?.close()
+            p.frames?.close()
+            p.view?.close()
+        }
+    }
+}
+
+internal class TouchProbe(
+    val virtual: Boolean,
+    val elastic: Boolean = false,
+    val inertia: Boolean = false
+) {
+    val scroll = ScrollState()
+    val baseTheme = shadcnTheme { scrollbar { track = StateColors.solid(Color(0.9, 0.9, 0.9)) } }
+    val theme = ThemeSource(baseTheme)
+    val generation = state(0)
+    var touch = TouchScrollOptions()
+    var physics = ScrollPhysicsOptions(inertia = ScrollInertiaOptions(false))
+    var ui: UiWindow? = None
+    var rowOrigin = 0.0
+    var enabled = true
+    var gone = false
+    var window: Window? = None
+    var frames: FrameProbe? = None
+    var view: ViewProbe? = None
+    var waiter: WindowDeadline? = None
+    val rows = ArrayList<TouchRowRecord>()
+    var original: TouchRowRecord? = None
+    var alive = 0
+    var peak = 0
+    var clicks = 0
+    var pixel = -1L
+    var hiddenPixel = -1L
+    var passes = 0
+    var stillPasses = 0
+    var accepted = -1
+    var phase = 0
+    var queued = 0
+    var received = 0
+    var pending = false
+    var animatedSteps = false
+    var waiting = false
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop touch scrolling"
+                            size = LogicalSize(260.0, 180.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                view = Some(observeWindow(native))
+                waiter =
+                    Some(native.createDeadline { active.proxy().post { _ -> waiting = false } })
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                ui =
+                    host.attach(
+                        native,
+                        { mount -> TouchScene(this, scope = mount) },
+                        preferences =
+                            uiPreferences {
+                                reduceMotion = Some(true)
+                                autoHideScrollbars = Some(true)
+                                reduceTransparency = Some(false)
+                            }
+                    )
+                native.requestFocus()
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                )
+            }
+            case Window(_, WindowEvent.Contact(_)) -> received += 1
+            case AboutToWait -> {
+                val native = window ?: return
+                if (
+                    !finished &&
+                        !pending &&
+                        !waiting &&
+                        native.isFocused &&
+                        received ==
+                        queued &&
+                        accepted ==
+                        generation.value &&
+                        (animatedSteps || !frames!!.snapshot().required)
+                ) {
+                    pending = true
+                    active.proxy().post {
+                        _ ->
+                        pending = false
+                        if (!finished) {
+                            if (inertia)
+                                touchInertiaStep(this)
+                            else
+                                if (elastic)
+                                    touchElasticStep(this)
+                                else
+                                    touchStep(this)
+                            phase += 1
+                        }
+                    }
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"touch scroll timeout phase=${phase}, focused=${window!!.isFocused}, visible=${
+                        window!!.isVisible
+                    }, occluded=${window!!.isOccluded}, required=${
+                        frames!!.snapshot().required
+                    }, pending=${pending}, waiting=${waiting}, received=${received}/${
+                        queued
+                    }, accepted=${accepted}/${generation.value}"
+                )
+            )
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> {}
+        }
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun pause(milliseconds: Long) {
+        waiting = true
+        waiter!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+    fun row(index: Long): TouchRowRecord? {
+        for (value in rows)
+            if (value.index == index && value.active)
+                return Some(value)
+        return None
+    }
+    fun contact(id: Long, phase: Int, y: Double, pen: Boolean = false) {
+        queued += 1
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(
+                        view,
+                        id,
+                        if (pen)
+                            1
+                        else
+                            0,
+                        phase,
+                        50.0,
+                        y
+                    )
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+    fun fling(id: Long) {
+        queued += 4
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> {
+                        sendNativeContactTimed(view, id, 0, 0, 50.0, 80.0, id * 1000L)
+                        sendNativeContactTimed(view, id, 0, 1, 50.0, 65.0, id * 1000L + 20L)
+                        sendNativeContactTimed(view, id, 0, 1, 50.0, 50.0, id * 1000L + 40L)
+                        sendNativeContactTimed(view, id, 0, 2, 50.0, 50.0, id * 1000L + 40L)
+                    }
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+}

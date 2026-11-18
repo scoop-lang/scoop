@@ -1,0 +1,306 @@
+package scoop.tests.ui.accessibility.content
+
+import scoop.collections.HashMap
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class ContentTest {
+    @Test
+    fun `content merging preserves independent controls and changes without drawing`() {
+        val probe = ContentProbe()
+        try {
+            UiHost(
+                onRootError = { _, error -> throw error },
+                handler = { host, active, event -> probe.event(host, active, event) }
+            ).use { host -> Application().run(host) }
+            assertTrue(probe.finished)
+            assertEquals(12, probe.mounts)
+            assertEquals(1, probe.ownerPresses)
+            assertEquals(1, probe.labelPresses)
+            for (node in probe.nodes.values)
+                assertTrue(node.isClosed)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class ContentProbe: Closeable {
+    val merge = state(false)
+    val ignoreWrapper = state(false)
+    val ignoreOwner = state(false)
+    val hideWrapper = state(false)
+    val hideOwner = state(false)
+    val interactive = state(false)
+    val bindFocus = state(true)
+    val useLabel = state(false)
+    val reverse = state(false)
+    val name = state<String?>(None)
+    val text = state("Save")
+    val nodes = HashMap<String, SemanticsHandle>()
+    var mounts = 0
+    var measures = 0
+    var scenes = 0
+    var ownerPresses = 0
+    var labelPresses = 0
+    var finished = false
+    private var phase = 0
+    private var active: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var tree: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private val native = HashMap<String, NativeNode>()
+    private val ids = HashMap<String, SemanticNodeId>()
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                calls =
+                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                val current =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop semantic content"
+                            requestActivation = false
+                            size = LogicalSize(240.0, 220.0)
+                        }
+                    )
+                window = Some(current)
+                ui = host.attach(current, { scope -> ContentRoot(this, scope) })
+                @Unsafe
+                {
+                    val lease = current.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val value) -> value
+                            }
+                        tree = Some(NativeNode(nativeRoot(view)!!))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                for (entry in nodes) {
+                    ids[entry.key] = entry.value.id
+                    native[entry.key] = tree!!.find(entry.key)!!
+                }
+                expectChildren(
+                    "owner",
+                    ["first", "wrapper", "group", "rich", "focus", "secret", "protected"]
+                )
+                assertTrue(native["owner"]!!.text(0, None))
+                current.setVisible(false)
+                merge.value = true
+                ignoreWrapper.value = true
+                next(1)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"semantic content timed out at ${phase}")
+            )
+            else -> {}
+        }
+    }
+
+    private fun next(value: Int) {
+        phase = value
+        assertTrue(active!!.proxy().post { _ -> advance() })
+    }
+    private fun inspect(action: () -> Unit) {
+        window!!.setVisible(true)
+        try {
+            action()
+        } finally {
+            window!!.setVisible(false)
+        }
+    }
+    private fun advance() {
+        for (entry in nodes)
+            assertEquals(ids[entry.key], Some(entry.value.id))
+        when (phase) {
+            case 1 -> {
+                inspect {
+                    assertTrue(native["owner"]!!.text(0, Some("Save changes")))
+                    expectChildren(
+                        "owner",
+                        ["link", "group", "rich", "focus", "secret", "protected"]
+                    )
+                    assertFalse(native["first"]!!.flag(0))
+                    assertFalse(native["second"]!!.flag(0))
+                    assertFalse(native["wrapper"]!!.flag(0))
+                    assertTrue(native["rich-link"]!!.parent(native["rich"]!!))
+                    assertTrue(native["group-label"]!!.parent(native["group"]!!))
+                }
+                assertEquals(0L, nodes["owner"]!!.relations.labelledBy.size)
+                text.value = "Archive"
+                next(2)
+            }
+            case 2 -> {
+                assertTrue(native["owner"]!!.text(0, Some("Archive changes")))
+                assertEquals(0, measures)
+                assertEquals(0, scenes)
+                reverse.value = true
+                next(3)
+            }
+            case 3 -> {
+                inspect { assertTrue(native["owner"]!!.text(0, Some("changes Archive"))) }
+                interactive.value = true
+                next(4)
+            }
+            case 4 -> {
+                window!!.setVisible(true)
+                assertTrue(native["owner"]!!.text(0, Some("changes")))
+                assertTrue(native["first"]!!.text(0, Some("changes")))
+                expectChildren(
+                    "owner",
+                    ["link", "first", "group", "rich", "focus", "secret", "protected"]
+                )
+                calls!!.post(native["first"]!!, 1)
+            }
+            case 5 -> {
+                inspect {
+                    assertTrue(native["owner"]!!.text(0, Some("changes Archive Focus")))
+                    assertFalse(native["focus"]!!.flag(0))
+                    assertFalse(native["first"]!!.flag(0))
+                }
+                nodes["first"]!!.update(
+                    SemanticProperties(
+                        name = Some("Archive"),
+                        value = Some("Archive"),
+                        automationId = Some("first"),
+                        selection = Some(Utf8Selection(0L, 7L))
+                    )
+                )
+                next(50)
+            }
+            case 50 -> {
+                inspect {
+                    assertTrue(native["first"]!!.flag(0))
+                    assertTrue(native["owner"]!!.text(0, Some("changes Focus")))
+                    assertTrue(native["first"]!!.selection(0L, 7L))
+                }
+                nodes["first"]!!.update(
+                    SemanticProperties(name = Some("Archive"), automationId = Some("first"))
+                )
+                next(51)
+            }
+            case 51 -> {
+                inspect {
+                    assertFalse(native["first"]!!.flag(0))
+                    assertTrue(native["owner"]!!.text(0, Some("changes Archive Focus")))
+                }
+                bindFocus.value = true
+                hideWrapper.value = true
+                next(6)
+            }
+            case 6 -> {
+                inspect {
+                    assertTrue(native["owner"]!!.text(0, Some("Archive")))
+                    expectChildren("owner", ["group", "rich", "focus", "secret", "protected"])
+                    assertFalse(native["link"]!!.flag(0))
+                }
+                hideWrapper.value = false
+                useLabel.value = true
+                next(7)
+            }
+            case 7 -> {
+                inspect {
+                    assertTrue(native["owner"]!!.text(0, Some("Separate")))
+                    assertFalse(native["first"]!!.flag(0))
+                }
+                assertEquals(nodes["group-label"]!!.id, nodes["owner"]!!.relations.labelledBy[0L])
+                name.value = Some("")
+                next(8)
+            }
+            case 8 -> {
+                assertTrue(native["owner"]!!.text(0, Some("")))
+                name.value = None
+                useLabel.value = false
+                merge.value = false
+                next(9)
+            }
+            case 9 -> {
+                window!!.setVisible(true)
+                assertTrue(native["owner"]!!.text(0, None))
+                expectChildren(
+                    "owner",
+                    ["second", "link", "first", "group", "rich", "focus", "secret", "protected"]
+                )
+                assertTrue(native["first"]!!.parent(native["owner"]!!))
+                assertTrue(native["second"]!!.flag(0))
+                calls!!.post(native["owner"]!!, 2)
+            }
+            case 10 -> {
+                window!!.setVisible(true)
+                assertFalse(native["owner"]!!.flag(0))
+                assertTrue(native["first"]!!.parent(tree!!))
+                assertTrue(native["group"]!!.parent(tree!!))
+                assertEquals(8L, tree!!.count)
+                calls!!.post(native["owner"]!!, 3)
+            }
+            case 11 -> {
+                inspect {
+                    assertEquals(0L, tree!!.count)
+                    assertFalse(native["first"]!!.flag(0))
+                    assertFalse(native["link"]!!.flag(0))
+                }
+                finished = true
+                window!!.requestDestroy()
+                active!!.requestExit()
+            }
+            else -> fail(Some("unexpected content phase"))
+        }
+    }
+    private fun completed(tag: Int, result: Int) {
+        window!!.setVisible(false)
+        when (tag) {
+            case 1 -> {
+                assertEquals(1, result)
+                assertEquals(1, labelPresses)
+                interactive.value = false
+                bindFocus.value = false
+                next(5)
+            }
+            case 2 -> {
+                assertEquals(1, result)
+                assertEquals(1, ownerPresses)
+                merge.value = true
+                ignoreOwner.value = true
+                next(10)
+            }
+            case 3 -> {
+                assertEquals(0, result)
+                assertEquals(1, ownerPresses)
+                ignoreOwner.value = false
+                hideOwner.value = true
+                next(11)
+            }
+            else -> fail(Some("unexpected content action"))
+        }
+    }
+    private fun expectChildren(id: String, expected: Array<String>) {
+        val node = native[id]!!
+        assertEquals(expected.size, node.count)
+        for (index in 0L ..< expected.size)
+            node.child(index).use { child -> assertTrue(child.text(3, Some(expected[index]))) }
+    }
+    public override fun close() {
+        calls?.close()
+        for (node in native.values)
+            node.close()
+        native.clear()
+        tree?.close()
+        tree = None
+    }
+}

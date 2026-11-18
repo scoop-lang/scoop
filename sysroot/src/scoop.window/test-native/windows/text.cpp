@@ -1,14 +1,18 @@
 #include "../../native/windows/text_internal.h"
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <string>
 
 namespace {
 struct EditSession : ITfEditSession {
-  explicit EditSession(std::function<HRESULT()> body) : body(std::move(body)) {}
+  explicit EditSession(std::function<HRESULT()> body,
+                       TfEditCookie *cookie = nullptr)
+      : body(std::move(body)), cookie(cookie) {}
   virtual ~EditSession() = default;
   std::function<HRESULT()> body;
+  TfEditCookie *cookie;
   ULONG references = 1;
 
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void **object) override {
@@ -28,7 +32,11 @@ struct EditSession : ITfEditSession {
       delete this;
     return remaining;
   }
-  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie) override { return body(); }
+  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie granted) override {
+    if (cookie)
+      *cookie = granted;
+    return body();
+  }
 };
 
 SWTextState *text_state(HWND hwnd) {
@@ -36,15 +44,16 @@ SWTextState *text_state(HWND hwnd) {
   return window ? static_cast<SWTextState *>(window->text) : nullptr;
 }
 
-HRESULT edit(HWND hwnd, bool write, const std::function<HRESULT()> &body) {
+HRESULT edit(HWND hwnd, bool write, const std::function<HRESULT()> &body,
+             TfEditCookie *cookie = nullptr) {
   SWTextState *state = text_state(hwnd);
   if (!state || !state->context)
     return E_UNEXPECTED;
-  EditSession *session = new EditSession(body);
+  EditSession *session = new EditSession(body, cookie);
   HRESULT session_result = E_FAIL;
   DWORD flags = (write ? TF_ES_READWRITE : TF_ES_READ) | TF_ES_SYNC;
-  HRESULT hr = state->context->RequestEditSession(0, session, flags,
-                                                  &session_result);
+  HRESULT hr =
+      state->context->RequestEditSession(0, session, flags, &session_result);
   session->Release();
   return FAILED(hr) ? hr : session_result;
 }
@@ -72,8 +81,8 @@ HRESULT composition(HWND hwnd, bool start) {
   if (!store)
     return E_UNEXPECTED;
   ITfContextOwnerCompositionSink *sink = nullptr;
-  HRESULT hr = store->QueryInterface(IID_ITfContextOwnerCompositionSink,
-                                     (void **)&sink);
+  HRESULT hr =
+      store->QueryInterface(IID_ITfContextOwnerCompositionSink, (void **)&sink);
   if (FAILED(hr))
     return hr;
   if (start) {
@@ -99,8 +108,8 @@ HRESULT document(ITextStoreACP *store, const std::wstring &expected,
   WCHAR actual[256];
   ULONG count = 0, runs = 0;
   LONG next = 0;
-  HRESULT hr = store->GetText(0, -1, actual, 256, &count, nullptr, 0, &runs,
-                              &next);
+  HRESULT hr =
+      store->GetText(0, -1, actual, 256, &count, nullptr, 0, &runs, &next);
   if (FAILED(hr) || expected != std::wstring(actual, count))
     return E_FAIL;
   TS_SELECTION_ACP selection;
@@ -137,6 +146,95 @@ HRESULT unavailable(ITextStoreACP *store) {
   LONG next;
   HRESULT hr = store->GetText(0, 1, value, 4, &count, nullptr, 0, &runs, &next);
   return FAILED(hr) && SUCCEEDED(no_caret(store)) ? S_OK : E_FAIL;
+}
+
+HRESULT text_queries(HWND hwnd, ITextStoreACP *store) {
+  SWTextState *state = text_state(hwnd);
+  const std::wstring expected = state->document.text;
+  LONG length = static_cast<LONG>(expected.size());
+  TfEditCookie cookie = 0;
+  return edit(
+      hwnd, false,
+      [&] {
+        for (ULONG capacity : {1UL, 128UL}) {
+          std::wstring actual;
+          LONG position = 0;
+          while (position < length) {
+            WCHAR buffer[128];
+            TS_RUNINFO run{};
+            ULONG copied = 0, runs = 0;
+            LONG next = -1;
+            HRESULT hr = store->GetText(position, -1, buffer, capacity, &copied,
+                                        &run, 1, &runs, &next);
+            if (FAILED(hr) || !copied || copied > capacity || runs != 1 ||
+                run.type != TS_RT_PLAIN || run.uCount != copied ||
+                next != position + static_cast<LONG>(copied))
+              return E_FAIL;
+            actual.append(buffer, copied);
+            position = next;
+          }
+          if (actual != expected)
+            return E_FAIL;
+        }
+        TS_RUNINFO run{};
+        ULONG copied = 1, runs = 0;
+        LONG next = -1;
+        if (FAILED(store->GetText(0, -1, nullptr, 0, &copied, &run, 1, &runs,
+                                  &next)) ||
+            copied || runs != 1 || run.uCount != expected.size() ||
+            next != length)
+          return E_FAIL;
+        if (FAILED(store->GetText(length, -1, nullptr, 0, &copied, &run, 1,
+                                  &runs, &next)) ||
+            copied || runs || next != length)
+          return E_FAIL;
+        if (FAILED(store->GetText(0, -1, nullptr, 0, &copied, nullptr, 0, &runs,
+                                  &next)) ||
+            copied || runs || next)
+          return E_FAIL;
+        LONG start = -1, end = -1;
+        if (FAILED(store->QueryInsert(length, length, 6000, &start, &end)) ||
+            start != length || end != length ||
+            FAILED(store->QueryInsert(0, length, LONG_MAX, &start, &end)) ||
+            start != 0 || end != length ||
+            SUCCEEDED(
+                store->QueryInsert(length, length, LONG_MAX, &start, &end)))
+          return E_FAIL;
+        if (FAILED(store->InsertTextAtSelection(TS_IAS_QUERYONLY, nullptr, 6000,
+                                                &start, &end, nullptr)) ||
+            start != std::min(state->document.anchor, state->document.cursor) ||
+            end != std::max(state->document.anchor, state->document.cursor) ||
+            sw_text_query(state)->text != expected ||
+            SUCCEEDED(store->InsertTextAtSelection(
+                TS_IAS_QUERYONLY | TS_IAS_NOQUERY, nullptr, 6000, &start, &end,
+                nullptr)))
+          return E_FAIL;
+        HRESULT session = S_OK;
+        if (store->RequestLock(TS_LF_READ | TS_LF_SYNC, &session) != S_OK ||
+            session != TF_E_SYNCHRONOUS)
+          return E_FAIL;
+
+        ITfRange *range = nullptr;
+        HRESULT hr = state->context->GetStart(cookie, &range);
+        if (FAILED(hr))
+          return hr;
+        LONG shifted = 0;
+        hr = range->ShiftEnd(cookie, LONG_MAX, &shifted, nullptr);
+        std::wstring actual;
+        while (SUCCEEDED(hr) && actual.size() < expected.size()) {
+          WCHAR buffer[128];
+          ULONG count = 0;
+          hr = range->GetText(cookie, TF_TF_MOVESTART, buffer, 128, &count);
+          if (FAILED(hr) || !count || count > 128) {
+            hr = E_FAIL;
+            break;
+          }
+          actual.append(buffer, count);
+        }
+        range->Release();
+        return SUCCEEDED(hr) && actual == expected ? S_OK : E_FAIL;
+      },
+      &cookie);
 }
 
 int32_t snapshot(HWND hwnd, int32_t phase) {
@@ -231,6 +329,54 @@ int32_t snapshot(HWND hwnd, int32_t phase) {
   case 11:
     hr = edit(hwnd, false, [&] { return caret(store, 3); });
     break;
+  case 12:
+    hr = edit(hwnd, true, [&] {
+      TS_SELECTION_ACP selection = {};
+      selection.acpStart = 8;
+      selection.acpEnd = 10;
+      selection.style.ase = TS_AE_START;
+      return store->SetSelection(1, &selection);
+    });
+    break;
+  case 13:
+    hr = edit(hwnd, true, [&] {
+      HRESULT result = document(store, L"external😀", 10, 8);
+      if (FAILED(result) || FAILED(caret(store, 8)))
+        return E_FAIL;
+      TS_SELECTION_ACP selection = {};
+      selection.acpStart = 8;
+      selection.acpEnd = 10;
+      selection.style.ase = TS_AE_START;
+      if (FAILED(store->SetSelection(1, &selection)))
+        return E_FAIL;
+      selection.acpStart = 9;
+      if (SUCCEEDED(store->SetSelection(1, &selection)))
+        return E_FAIL;
+      return document(store, L"external😀", 10, 8);
+    });
+    break;
+  case 14:
+    hr = text_queries(hwnd, store);
+    break;
+  case 15:
+    hr = edit(hwnd, true, [&] {
+      SWTextState *state = text_state(hwnd);
+      const std::wstring original = state->projection.text;
+      LONG start = -1, end = -1;
+      if (FAILED(store->InsertTextAtSelection(TS_IAS_QUERYONLY, nullptr, 6000,
+                                              &start, &end, nullptr)) ||
+          start != 0 || end != 4 || state->projection.text != original)
+        return E_FAIL;
+      TS_TEXTCHANGE change{};
+      HRESULT result = store->InsertTextAtSelection(TS_IAS_NOQUERY, L"换😀", 3,
+                                                    nullptr, nullptr, &change);
+      return SUCCEEDED(result) && change.acpStart == 0 &&
+                     change.acpOldEnd == 4 && change.acpNewEnd == 3 &&
+                     state->projection.text == L"换😀" + original.substr(4)
+                 ? S_OK
+                 : E_FAIL;
+    });
+    break;
   default:
     return 2;
   }
@@ -252,8 +398,8 @@ int32_t scoop_window_test_text(void *pointer) {
     WCHAR value[4];
     ULONG count, runs;
     LONG next;
-    if (SUCCEEDED(store->GetText(0, 1, value, 4, &count, nullptr, 0, &runs,
-                                &next)))
+    if (SUCCEEDED(
+            store->GetText(0, 1, value, 4, &count, nullptr, 0, &runs, &next)))
       return E_FAIL;
     RECT rect;
     BOOL clipped;
@@ -332,7 +478,8 @@ int32_t scoop_window_test_caret(HWND hwnd) {
     if (FAILED(result))
       return result;
     double scale = GetDpiForWindow(hwnd) / 96.0;
-    POINT first = {(LONG)std::lround(12 * scale), (LONG)std::lround(20 * scale)};
+    POINT first = {(LONG)std::lround(12 * scale),
+                   (LONG)std::lround(20 * scale)};
     POINT second = {(LONG)std::ceil(14 * scale), (LONG)std::ceil(38 * scale)};
     ClientToScreen(hwnd, &first);
     ClientToScreen(hwnd, &second);
@@ -355,8 +502,8 @@ static bool surface_caret(HWND hwnd, bool available, double x, double y,
       return no_caret(store);
     RECT rect;
     BOOL clipped = TRUE;
-    HRESULT result = store->GetTextExt(1, (LONG)cursor, (LONG)cursor, &rect,
-                                       &clipped);
+    HRESULT result =
+        store->GetTextExt(1, (LONG)cursor, (LONG)cursor, &rect, &clipped);
     if (FAILED(result))
       return result;
     double scale = GetDpiForWindow(hwnd) / 96.0;
@@ -365,8 +512,8 @@ static bool surface_caret(HWND hwnd, bool available, double x, double y,
                     (LONG)std::ceil((y + height) * scale)};
     ClientToScreen(hwnd, &first);
     ClientToScreen(hwnd, &second);
-    if (rect.left != first.x || rect.top != first.y ||
-        rect.right != second.x || rect.bottom != second.y || clipped)
+    if (rect.left != first.x || rect.top != first.y || rect.right != second.x ||
+        rect.bottom != second.y || clipped)
       return E_FAIL;
     if (query_point) {
       POINT center = {(rect.left + rect.right) / 2,

@@ -8,6 +8,7 @@ import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.sendNativeContact
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
@@ -15,12 +16,20 @@ import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.TextEditorState
 import scoop.window.*
+import scoop.window.native.*
 
 @Test
 private class DrawerWindowTest {
     @Test
     fun `native drawer combines measured snaps scroll arbitration nesting and focus retention`() {
-        val p = DrawerProbe()
+        run(false)
+    }
+    @Test
+    fun `contact drawer shares scroll boundaries handle admission and focus behavior`() {
+        run(true)
+    }
+    private fun run(contacts: Boolean) {
+        val p = DrawerProbe(contacts)
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }
         try {
             context(p.theme) {
@@ -53,7 +62,12 @@ private class DrawerWindowTest {
     }
 }
 
-internal class DrawerProbe {
+internal class DrawerProbe(
+    val contactInput: Boolean = false,
+    private val exercise: ((DrawerProbe) -> Unit)? = None
+) {
+    private var contactId = 0L
+    private var contactDown = false
     val theme = ThemeSource(shadcnTheme())
     val fonts = FontCollection(false)
     val generation = state(0)
@@ -82,7 +96,11 @@ internal class DrawerProbe {
     var rejectClose = false
     var veto = false
     var enabled = true
+    var nativeSwipe = true
+    var swipeToClose = true
+    var observeGrips = false
     var only = false
+    var dragThreshold = 4.0
     var motion = false
     var gone = false
     var shortContent = false
@@ -97,6 +115,8 @@ internal class DrawerProbe {
     var headerBounds = bodyBounds
     var editorBounds = bodyBounds
     var footerBounds = bodyBounds
+    var gripBounds = bodyBounds
+    var nestedGripBounds = bodyBounds
     var editorRing = false
     var footerRing = false
     var from = Point(0.0, 0.0)
@@ -132,12 +152,21 @@ internal class DrawerProbe {
     fun move(point: Point) {
         last = point;
         trace.add(f"phase ${phase}: send ${point.x}, ${point.y}")
-        assertTrue(moveSurfacePointer(native!!, point.x, point.y))
+        if (contactInput) {
+            if (contactDown)
+                contact(1, point)
+        } else
+            assertTrue(moveSurfacePointer(native!!, point.x, point.y))
     }
     fun start(rect: Rect) {
         from = Point(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0)
         move(from);
-        assertTrue(view!!.button(from.x, from.y, true))
+        if (contactInput) {
+            contactId += 1L
+            contactDown = true
+            contact(0, from)
+        } else
+            assertTrue(view!!.button(from.x, from.y, true))
     }
     fun out(distance: Double) {
         val vertical = side == SheetSide.Top || side == SheetSide.Bottom
@@ -167,7 +196,31 @@ internal class DrawerProbe {
         )
     }
     fun release() {
-        assertTrue(view!!.button(last.x, last.y, false))
+        if (contactInput) {
+            contact(2, last)
+            contactDown = false
+        } else
+            assertTrue(view!!.button(last.x, last.y, false))
+    }
+    private fun contact(phase: Int, point: Point) {
+        @Unsafe
+        {
+            val lease = native!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(
+                        view,
+                        contactId,
+                        0,
+                        phase,
+                        point.x,
+                        point.y
+                    )
+                }
+            } finally {
+                lease.close()
+            }
+        }
     }
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -209,7 +262,10 @@ internal class DrawerProbe {
                         !nestedGrip.isPending
                 ) {
                     hold = 140L;
-                    advanceDrawer(this);
+                    when (exercise) {
+                        case Some(val action) -> action(this)
+                        case None -> advanceDrawer(this)
+                    }
                     phase += 1
                     ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
                 } else

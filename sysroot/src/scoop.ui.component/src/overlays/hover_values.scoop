@@ -29,7 +29,8 @@ internal class HoverPopupInput(
     val onClosed: (OverlayCloseReason) -> Unit,
     val fonts: FontCollection?,
     val theme: ThemeSource?,
-    val style: StyleOverride
+    val style: StyleOverride,
+    val semantics: ComponentSemantics
 ) {
     init {
         nonnegative(width, "invalid hover popup width")
@@ -60,7 +61,9 @@ public class TooltipProps public constructor(
     public val onClosed: (OverlayCloseReason) -> Unit = {},
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val longPress: LongPressOptions = LongPressOptions()
 ) {
     internal val input =
         HoverPopupInput(
@@ -73,7 +76,15 @@ public class TooltipProps public constructor(
             gap,
             viewportPadding,
             maxWidth,
-            HoverOptions(openDelay, closeDelay, transitDelay, corridorPadding, focus, enabled),
+            HoverOptions(
+                openDelay,
+                closeDelay,
+                transitDelay,
+                corridorPadding,
+                focus,
+                enabled,
+                longPress
+            ),
             arrow,
             handle,
             transition,
@@ -81,7 +92,8 @@ public class TooltipProps public constructor(
             onClosed,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 
@@ -107,7 +119,9 @@ public class HoverCardProps public constructor(
     public val onClosed: (OverlayCloseReason) -> Unit = {},
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val longPress: LongPressOptions = LongPressOptions()
 ) {
     internal val input =
         HoverPopupInput(
@@ -120,7 +134,15 @@ public class HoverCardProps public constructor(
             gap,
             viewportPadding,
             width,
-            HoverOptions(openDelay, closeDelay, transitDelay, corridorPadding, focus, enabled),
+            HoverOptions(
+                openDelay,
+                closeDelay,
+                transitDelay,
+                corridorPadding,
+                focus,
+                enabled,
+                longPress
+            ),
             arrow,
             handle,
             transition,
@@ -128,6 +150,7 @@ public class HoverCardProps public constructor(
             onClosed,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }

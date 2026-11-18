@@ -7,23 +7,7 @@
 #include <stdint.h>
 
 typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
-typedef struct {
-  int64_t window;
-  int32_t kind, flags;
-  int64_t a, b, c, d;
-  double x, y, z, w, scale, dx, dy;
-  const uint8_t *text;
-  int64_t text_length;
-  int64_t time_seconds, time_nanoseconds;
-} SWEventData;
-typedef struct {
-  int32_t kind;
-  int64_t anchor, cursor;
-  const uint8_t *text;
-  int64_t text_length;
-  int32_t has_replacement;
-  int64_t replacement_start, replacement_end;
-} SWTextEditData;
+#include "../events.h"
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
@@ -35,7 +19,7 @@ typedef struct {
   int64_t error;
 } SWResult;
 
-@class SWApplication, SWWindow, SWMenu;
+@class SWApplication, SWWindow, SWMenu, SWDropTarget, SWDragSource;
 
 @interface SWTextSnapshot : NSObject
 @property(nonatomic, strong) NSString *text;
@@ -49,8 +33,16 @@ typedef struct {
 @property(nonatomic, strong) NSData *text;
 @end
 
-@interface SWEvent : NSObject
+@interface SWEvent : NSObject {
+  SWEventPayload _payload;
+}
+@property(nonatomic) SWEventHeader header;
 @property(nonatomic) SWEventData data;
+@property(nonatomic) SWKeyboardData keyboard;
+@property(nonatomic) SWPointerData pointer;
+@property(nonatomic) SWGestureData gesture;
+@property(nonatomic) SWContactData contact;
+@property(nonatomic) int64_t modifiers;
 @property(nonatomic, strong) NSEvent *nativeInput;
 @property(nonatomic, strong) NSData *text;
 @property(nonatomic, strong) NSArray<SWTextEdit *> *edits;
@@ -69,17 +61,23 @@ typedef struct {
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, id> *watches;
 @property(nonatomic, weak) SWMenu *menuBar;
 @property(nonatomic, weak) NSMenu *dockMenu;
+@property(nonatomic, weak) SWDragSource *dragSource;
 @property(nonatomic, strong) NSMutableArray *modalStack;
+@property(nonatomic, strong) NSMutableArray *preferenceObservers;
+@property(nonatomic, weak) SWMenu *textServicesPopup;
 - (void)enqueue:(SWEvent *)event;
 @end
 
 @interface SWView : NSView
 @property(nonatomic, weak) SWWindow *owner;
+@property(nonatomic, strong) NSAccessibilityElement *semanticRoot;
+@property(nonatomic, strong) SWDropTarget *dropTarget;
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWEvent *> *pressedKeys;
 @property(nonatomic, strong) NSMutableSet<NSNumber *> *pressedButtons;
 @property(nonatomic) NSEventModifierFlags modifiers;
 @property(nonatomic) BOOL functionHeld;
+@property(nonatomic) SWGestureSequence magnifyInput, rotateInput;
 @property(nonatomic, strong) NSTrackingArea *tracking;
 @property(nonatomic, strong) NSCursor *cursor;
 @property(nonatomic) BOOL pointerInside, cursorVisible, cursorHidden;
@@ -101,6 +99,9 @@ typedef struct {
 @end
 
 @interface SWView (Input)
+- (void)installInput;
+- (void)activateInput;
+- (void)deactivateInput;
 - (void)resetInput;
 @end
 NSEventModifierFlags sw_input_modifiers(SWView *view,
@@ -109,24 +110,22 @@ NSEventModifierFlags sw_input_modifiers(SWView *view,
 - (void)updateCursor;
 - (void)cancelPointer:(int32_t)reason;
 @end
+@interface SWView (Gesture)
+- (void)cancelGestures;
+@end
 @interface SWView (Text) <NSTextInputClient>
 - (void)beginTextBatch;
 - (void)endTextBatch;
 - (void)cancelComposition;
 @end
 
-enum {
-  SWKeyboard = 10,
-  SWModifiers = 11,
-  SWPointer = 12,
-  SWTextBatch = 13,
-  SWImeState = 14
-};
+enum { SWTextBatch = 13, SWImeState = 14 };
 void sw_commit(SWView *view, NSString *text);
 void sw_modifiers(SWView *view, NSEventModifierFlags flags);
 int32_t sw_text_command(SEL selector);
 BOOL sw_text_boundary(NSString *text, NSUInteger offset);
 BOOL sw_text_range(NSString *text, NSRange range);
+NSUInteger sw_text_utf16_offset(const uint8_t *text, int64_t length);
 void sw_append_text(SWView *view, int32_t kind, NSString *text,
                     NSRange selection);
 BOOL sw_document_edit(SWView *view, int32_t kind, NSString *text,
@@ -153,9 +152,12 @@ void sw_invalidate_text_caret(SWView *view);
 @end
 
 void sw_wake(SWApplication *application);
+id sw_accessibility_focused(SWView *view);
+void sw_preferences_start(SWApplication *application);
+void sw_preferences_stop(SWApplication *application);
 BOOL sw_menu_key_equivalent(SWApplication *application, NSEvent *event);
 SWEvent *sw_event(SWWindow *window, int32_t kind);
-void sw_stamp_input(SWEventData *data);
+void sw_stamp_event(SWEventHeader *data);
 SWSnapshot sw_snapshot(SWWindow *window);
 double sw_desktop_top(void);
 void sw_frame_invalidate(SWWindow *owner);

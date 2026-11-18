@@ -24,7 +24,9 @@ Application 构造接收 ApplicationOptions 并取得独立快照，run 接收 A
 
 ApplicationProxy 提供跨线程 post 与 requestExit；post 为 `(ActiveApplication) -> Unit`，返回 Boolean，异步排队。false 表示拒绝且不保留闭包；true 不保证之后关闭时仍执行。关闭停止业务投递，清理通知继续处理。所有原生窗口操作只在 owner 线程；WindowId／DeviceId／MonitorId 和不可变快照可跨线程保存。
 
-ControlFlow 为 Wait／Poll／WaitUntil(TimeMark)，默认 Wait；TimeMark 必须来自 MonotonicTimeSource。每轮消费有限快照，新增事件进入后续轮；锁内不执行用户代码，不递归调用 handler。OS 必须立即得到的回答使用已发布 native 状态，不等待可挂起的用户处理。
+ControlFlow 为 Wait／Poll／WaitUntil(TimeMark)，默认 Wait；TimeMark 必须来自 MonotonicTimeSource。每轮消费有限快照，新增事件进入后续轮；锁内不执行用户代码，不递归调用 handler。OS 必须立即得到的普通查询使用已发布 native 状态，不等待可挂起的用户处理。accessibility 同步动作的有限 owner 入口是明确例外，遵守[无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)；不得据此重入业务、布局或事件循环。
+
+有限业务批次也必须给原生输入、绘制和定时消息留出处理机会。Win32 的普通 PeekMessage 优先返回 posted 消息，持续的应用唤醒不能据此饿死鼠标／触摸、窗框操作、WM_PAINT 或 WM_TIMER；每轮分别处理有限原生类别与普通队列，再进入等待。原生输入与 TranslateMessage 生成的字符保留正常队列次序，不能因只取硬件输入而让后续按键越过尚未交付的字符。
 
 run Context 在业务回调中恢复，外线程 post 不替换该 Context。用户异常终止业务派发并开始有序收尾；native bridge 捕获异常，不跨 C／ObjC 栈展开。最终清理通知继续执行，异常记录后继续关闭其他资源。
 
@@ -50,17 +52,47 @@ mediaType 是无参数的具体 `text/<subtype>` MIME 名称，按 ASCII 小写�
 
 Windows 写入使用应用已有的隐藏宿主窗口取得 clipboard owner，不使用空 HWND 执行 EmptyClipboard／SetClipboardData；因此该入口无需依赖仍存活的业务窗口。
 
+#### 2.2.1 PRIMARY 选区
+
+`ActiveApplication.primarySelection` 与 `Window.primarySelection` 返回独立的 PrimarySelection 入口，不使用普通 Clipboard 作为回退。isAvailable 表示当前显示后端有原生 PRIMARY；defaultPasteEnabled 结合该能力与平台中键粘贴设置。readText() 区分无正文的 None 和已有空正文的 Some("")；claimText(text) 返回可关闭的 PrimarySelectionClaim，不可用返回 None，真实传输或写入错误仍报 WindowException。正文沿普通纯文本的 UTF-8、换行与 NUL 合同处理。
+
+claim 的 isCurrent 只表示它仍是当前原生选区内容的本地拥有者，不承诺接收进程已经读取。再次发布、外部拥有者接替或应用退出后旧 claim 不再 current；关闭只撤下这一 claim 仍拥有的内容，不能清掉后来的拥有者。claim 不持有窗口 lease，调用方按实际文本宿主生命期关闭；应用收尾释放仍持有的原生内容。获取、读写、查询与关闭沿同一 owner 线程，应用退出后 claim 可幂等关闭，普通读写仍拒绝。
+
+GTK 使用 gdk_display_get_primary_clipboard、GdkContentProvider 与真实内容所有权。GTK 4.18 在缺少 Wayland primary-selection 协议时返回普通 GdkClipboard 的进程内缓冲；该对象不算原生 PRIMARY，入口报告不可用。X11／Wayland 的实际跨程序传输分别验收，不自行实现另一套选区协议。macOS／Windows 不提供这一缓冲，明确返回不可用，不冒充普通剪贴板。
+
+#### 2.2.2 系统文本服务
+
+ActiveApplication.textServices 返回与活动应用同线程的 SystemTextServices。capabilities 分别报告 spelling、grammar、automaticReplacement、dictionary、services；能力表示存在公共调用入口，不承诺已安装某种语言、服务提供者或词典。checkText(text, TextCheckingOptions(spelling=true, grammar=true, replacements=false, language=None)) 返回 TextCheckFinding 数组，包含绝对 UTF-8 range、kind（Spelling／Grammar／Replacement）、description 和 suggestions。结果只描述传入的不可变正文，不持有或修改编辑模型；应用负责将结果绑定到原 revision，不能对已变正文直接应用旧范围。不支持的检查种类不产生伪造结果。
+
+macOS 使用 NSSpellChecker 的独立检查接口，显式检查支持拼写、语法细节和替换建议；replacements 只启用系统当前允许的拼写更正、引号、破折号和文本替换。Windows 使用 ISpellChecker，对语言实际提供的拼写错误、建议及更正结果逐项转换；未安装语言返回空结果，缺少语法公共提供者不报告 grammar 能力。GTK 不附带跨应用文本检查器，本轮明确报告不可用，应用可沿现有 TextEditPolicy 和范围装饰接入自己的检查器。不建立隐藏 NSTextView、另一份可写文档或另一套撤销历史。
+
+文本 Services 的发现与选择使用[原生菜单规范](SCOOP-WINDOW-MENUS-SPEC.md)的 MenuItemKind.TextServices：AppKit 在真实子菜单展示时填充适用服务，不能把展示前的空 itemArray 当作没有提供者，也不提供依赖该数组的名称枚举 API。返回文本经 MenuActivation.textServiceResult 交给调用方。performService(name, text) 仍可按已知服务名称使用独立临时 pasteboard 发送文本，成功后返回其正文，提供者拒绝返回 None；两种入口均不读写普通 Clipboard／PRIMARY、不隐式写回模型。系统选择的翻译等提供者取决于实际安装，不声明存在独立通用的翻译 API。应用关闭后 SystemTextServices 方法报 InvalidState。
+
+Window.showTextDefinition(text, anchor) 使用调用方提供的当前可见内容坐标，在平台词典入口显示只读查询；无入口返回 false。调用方负责受保护文本及 Accepted 几何的资格。听写继续经同一原生文本输入连接产生 Commit／Preedit；不伪造一个未公开的启动听写命令。上述服务的真实提供者及系统 UI 在对应平台另行验收。
+
+Window.requestHapticFeedback(pattern=Generic) 返回 HapticFeedbackRequest（Requested／Unavailable／Unsupported），pattern 为 Generic、Alignment 或 LevelChange。Requested 只表示已调用原生反馈入口，不承诺机器连接了支持设备或一定产生感觉；不提供虚假的设备检测。macOS 使用 NSHapticFeedbackManager.defaultPerformer，隐藏、关闭中或输入被阻塞的窗口不请求；Windows／GTK 无对应普通窗口的公共统一入口时返回 Unsupported。调用方决定何时请求并提供关闭选项，不用声音、振动窗口或持续定时器替代触觉。
+
 ### 2.3 窗口活动状态观察
 
 `Window.activity` 返回自有 `WindowActivity(focused, visible, occluded)` 快照；`observeActivity(callback)` 返回 Closeable 登记，创建时记录当前快照，不内联调用 callback。窗口 owner 线程在原生 Focused／Occluded／GeometryChanged 事件派发前、setVisible 实际操作后比较当前快照，仅值变化时同步通知。回调可以读取状态、取消自身登记或关闭窗口；取消后不再接收当前批次余下通知，后注册的观察者不加入正在派发的批次。回调异常遵守所在普通业务调用的失败处理。
 
 观察不增加窗口 lease、线程、定时器或 redraw。close 幂等；窗口进入 Closing 时撤销全部登记并释放回调，不再读取已销毁窗口。此入口服务需要准确暂停剩余时间的 UI 通知，不能用焦点控件或绘制是否发生来推测窗口活动状态。
 
+### 2.4 系统交互偏好
+
+`ActiveApplication.interactionPreferences` 和 `Window.interactionPreferences` 返回应用 owner 已发布的不可变 `InteractionPreferences` 快照。字段为 `autoHideScrollbars: Boolean?`、`reduceMotion: Boolean?`、`highContrast: Boolean?`、`reduceTransparency: Boolean?`、`textScaleFactor: Double?`、`caretBlinkInterval: Duration?`、`caretWidthPixels: Int?`、`caretAspectRatio: Double?`、`doubleClickInterval: Duration?`。None 表示该平台没有可用的公开值，Some(false) 表示系统明确关闭对应偏好；正文字体缩放与物理显示器 DPI 分别表达，不从主题名或字体大小猜测系统值。
+
+caretBlinkInterval 是一次显示／隐藏切换的间隔，零表示常显；原生整周期在边界除以二。caretWidthPixels 是系统实际给出的物理像素宽度，caretAspectRatio 是系统给出的光标宽高比，两者不以假定字号互相转换。非零时间、缩放、宽度与宽高比必须为有效正值；未知值交给 UI 的明确默认配置，不在 Window 层伪造 OS 值。
+
+`observeInteractionPreferences(callback: (InteractionPreferences) -> Unit): Closeable` 在 ActiveApplication 与 Window 上登记应用级观察者。取得快照和登记要求 owner 线程、应用仍运行且未开始退出；从 Window 取得入口不延长该窗口生命周期。登记不内联通知，当前值直接从属性读取。原生变化经普通事件队列进入 owner；发布完整快照后，只在值确实变化时通知当时的观察者，再发送 `ApplicationEvent.InteractionPreferencesChanged(snapshot)`。回调可读取新值、注销自己或其他观察者、登记新观察者及请求退出；新登记不进入当前批次，被关闭的登记立即停止通知。回调沿正常业务派发与异常处理，不递归进入 handler。退出清空观察者，close 在 owner 上幂等，已保留的值快照仍可普通读取。
+
+AppKit 读取 NSScroller.preferredScrollerStyle、NSWorkspace 的减少动画／提高对比度／减少透明度、NSEvent.doubleClickInterval，订阅公开偏好通知及应用重新激活。没有公开独立数值的 caret／文字缩放保持 None。Windows 读取 UISettings 的自动隐藏、文字缩放与高级效果，及 SystemParametersInfo／GetCaretBlinkTime／GetDoubleClickTime 的实际设置；WinRT 接口缺失时只将对应值标为未知，已可用的 Win32 设置继续提供。GTK 读取 overlay scrolling、动画、cursor blink／周期／宽高比和双击时间，并读取 AdwStyleManager 的高对比度；GTK 4.18 没有明确公开值的减少透明度和独立文字缩放保持 None。所有后端通过系统通知更新，没有逐帧查询或设置轮询。
+
 ## 3. 事件模型
 
-ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
+ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、InteractionPreferencesChanged(InteractionPreferences)、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
 
-WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。触摸、手势、文件拖放和平台专有激活结果随对应能力后续增加。
+WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、Contact(ContactEvent)、Gesture(GestureEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。平台专有激活结果随对应能力后续增加；数据拖放使用独立会话合同。
 
 NewEvents 原因区分 Init、Poll、Wake 与 Deadline；平台没有信息时不伪造输入硬件时间。允许合并 redraw、连续 geometry 和 pointer move，但不得跨过按键／按钮、IME 编辑、焦点、close 等顺序边界；Commit、drop、button、touch 的开始／结束及 lifecycle 不得丢弃。
 
@@ -122,6 +154,8 @@ showModal 从隐藏的既有窗口创建 ModalSession，区分 Owner／Applicati
 
 ## 5. 输入与文本
 
+文本连接的输入用途、软键盘请求与实际遮挡通知见[输入用途规范](SCOOP-WINDOW-TEXT-INPUT-PURPOSE-SPEC.md)。这些能力不改变系统激活策略或输入事务。
+
 KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（手工构造时缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。`Modifiers.altGraph: Boolean?` 保存已确定的文本修饰语义，None 表示未知，macOS 为 Some(false)；Linux 从当前 XKB 的 LevelThree／Mode_switch 文本修饰状态产生 Some(true) 或 Some(false)，缺少 keymap 时为 None。Super 始终是实际 Command／Win 键，不能用 Windows Control 冒充 Super。Function 表示实际 Fn 状态，不把 AppKit 为方向键等附加的功能键类别标志作为额外修饰键。
 
 TextEditCommand 表达 Move(TextMovement, extendSelection)、Delete(TextDeletion)、Copy／Cut／Paste／SelectAll、Undo／Redo、InsertNewline／InsertTab／InsertBacktab 和 Cancel。TextMovement 区分逻辑 Backward／Forward、视觉 Left／Right、Up／Down、逻辑／视觉词移动、视觉行的逻辑／视觉两端、逻辑段落和文档两端及 PageUp／PageDown；TextDeletion 表达前后 grapheme、词、当前视觉行或逻辑段落的两端。Window 只保存原生语义，不执行排版、选择或文档修改。
@@ -144,7 +178,7 @@ owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照�
 
 原生 Edit 的可选 origin 为 TextInputOrigin(connection, sequence)，sequence 只表达同一输入连接中已经排队的批次顺序。应用处理完一批后，把它的 origin 随已生效 state 传入 after；已经处理的序号不倒退、不越过该连接实际排队的末项。非原生纯值批次及不参与文档事务的普通 Win32 字符批次为 None。native 只保存最新已发布文档、当前原生事务的临时投影以及已经排队和已经处理的两个序号，不保留文档历史或建立另一套编辑状态。普通 CurrentSelection 批次可连续排队；在较早批次尚未处理完时，无法确定的 surrounding 查询返回 unavailable，不能把预测的未来 revision 当作已应用版本。
 
-NSTextInputClient／ITextStoreACP 的同步查询读取原生不可变文档副本；同一次原生解释或 TSF 编辑事务内允许对其临时副本依次投影本批操作。macOS attributedSubstring 返回已知、完整 UTF-16 标量范围的纯文本 attributed string 及 actualRange；Windows GetText 返回已知 ACP 范围的纯文本。selection／marked 的文档范围保留实际 native 组合信息。未知范围、尚未同步的 surrounding、切断 surrogate 或缺少布局时返回平台 unavailable 结果，不回调 managed handler、不布局、不挂起。
+NSTextInputClient／ITextStoreACP 的同步查询读取原生不可变文档副本；同一次原生解释或 TSF 编辑事务内允许对其临时副本依次投影本批操作。macOS attributedSubstring 返回已知、完整 UTF-16 标量范围的纯文本 attributed string 及 actualRange；Windows GetText 按 UTF-16 单元读取已知 ACP 范围，允许 surrogate 跨缓冲区分段返回，文本、run 长度与下一读取位置必须描述同一已返回区间。selection／marked 的文档范围保留实际 native 组合信息；修改文档或转换为 UTF-8 的范围仍须位于完整字符边界。未知范围、尚未同步的 surrounding、编辑范围切断 surrogate 或缺少布局时返回平台 unavailable 结果，不回调 managed handler、不布局、不挂起。
 
 IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查；公共 clearImeCursorArea 撤销它。候选窗使用原生客户区到屏幕坐标转换后的位置。公共文档接入使用 `publishTextInputCaret(connection, revision, area: LogicalRect?): Boolean`：只有当前连接、所有较早原生编辑已处理且 revision 与已发布文档一致时才接收，None 明确撤销几何。文档改变、待处理原生编辑和连接结束立即使旧几何不可用。macOS firstRect 与 Windows GetTextExt 只报告确知的活动 cursor 位置；macOS characterIndex 与 Windows GetACPFromPoint 只在该有效 caret 矩形内报告其索引，其他范围／位置返回 unavailable，不编造整个文档的布局。
 
@@ -160,14 +194,39 @@ TextInputBatch 保存可选 baseRevision、origin 与有序的 TextInputOperatio
 | Preedit | text、可选 selection（相对 preedit，保留活动端）、replacement；空 text 清除组合 |
 | Commit | text、replacement；replacement 为 CurrentSelection 或 Range(Utf8Range)，范围引用该批前序操作产生的临时文本 |
 | DeleteSurrounding | beforeBytes、afterBytes；相对当前 selection 两侧，须校验长度与字符边界 |
+| SetSelection | 文档坐标的 Utf8Selection，保留活动端方向；只改变选区，不替换正文。存在 marked range 时两端须留在该范围内；先 ClearPreedit 可接受组合后再选择其他正文 |
 
 纯值批次开始时核对 baseRevision，按顺序在临时文本上解释范围，整批通过后发布一次新快照。任何范围或 revision 失效均拒绝整批，不能部分应用。AppKit 的 CurrentSelection Preedit／Commit 保持 baseRevision=None；只有引用实际已发布文档的显式范围使本批携带该文档的 baseRevision。取消组合产生空 Preedit，删除应用正在显示的组合内容；上层编辑器可据其组合事务恢复替换前基线。unmarkText 表示接受已经显示的组合，产生 ClearPreedit 而保留正文；它与 cancelComposition 不同，不能把接受组合变成删除或第二次插入。原生 insertText 接受实际纯文本及显式替换，包括空字符串和换行，普通未解释按键的 fallback 仍过滤控制键。原生 UTF-16 选区必须合法且不切断 surrogate pair，非法批次拒绝并撤销组合。
 
 AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选区。没有文档快照时，显式 replacement 只能引用已知 native marked segment，归一为整段 CurrentSelection 替换，选区先平移再转 UTF-8。有文档快照时，显式 replacement 使用文档坐标，按本批前序操作的临时文本转成 UTF-8；若较早排队编辑尚未处理或范围未知，则拒绝整批，不能退回 marked 局部索引或重新解释旧范围。过期的 managed baseRevision 同样拒绝整批，由宿主关闭到 Disabled 后用当前 state 重开连接。无效 native 批次丢弃全部待交付操作；仅在批次开始前已有 native preedit 时产生一次空 Preedit 撤销它，不能因拒绝一个新组合而误删应用原选区。
 
-`TextInputState.apply(batch)` 提供上述字节编辑规则的纯值实现，供输入归一和应用同步快照使用，不承担文档布局。CurrentSelection 在存在 marked range 时替换组合文本，否则替换 selection；ClearPreedit 只清除 marked 标记。Preedit 插入后设置 marked range，并把相对 selection 平移到新文本；Commit 清除组合，光标落在插入末尾。DeleteSurrounding 删除 selection 之前／之后指定字节，保留选区正文与活动端方向，清除组合标记。成功批次统一使 revision 加一，空批次保持原值；过期 revision 报 IllegalStateException，非法范围、尺寸或 revision 溢出报 IllegalArgumentException，原快照保持不变。
+`TextInputState.apply(batch)` 提供上述字节编辑规则的纯值实现，供输入归一和应用同步快照使用，不承担文档布局。CurrentSelection 在存在 marked range 时替换组合文本，否则替换 selection；ClearPreedit 只清除 marked 标记。Preedit 插入后设置 marked range，并把相对 selection 平移到新文本；Commit 清除组合，光标落在插入末尾。DeleteSurrounding 删除 selection 之前／之后指定字节，保留选区正文与活动端方向，清除组合标记。SetSelection 使用该批前序操作之后的文档坐标，保留正文和 marked range；原生文档选择携带 baseRevision，不以插入空字符串模拟选择。成功批次统一使 revision 加一，空批次保持原值；过期 revision 报 IllegalStateException，非法范围、尺寸或 revision 溢出报 IllegalArgumentException，原快照保持不变。
 
-Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力，Gesture 只报告原生手势；这些扩展不是当前交付接口。
+Pointer 区分位置、按钮、进入／离开、滚轮；滚轮区分行／像素并保留相位。DeviceId 不可得时为 None。失焦清理组合与按下状态，必要的补发 release 标记 synthetic。后续 raw motion 使用设备单位，Touch 保留 contact id、phase 和可选压力；原始接触不被已识别手势替代。
+
+WindowEvent.Gesture(GestureEvent) 交付系统已经识别的手势。GestureEvent.Magnify(PointerState, GesturePhase, Double) 的值为相对缩放增量，当前事件的缩放倍率是 1 + delta；Rotate 的同形载荷使用顺时针为正的弧度增量。两者的 GesturePhase 为 None／Began／Changed／Ended／Cancelled；None 表示系统未提供序列相位，该事件独立消费。GestureEvent.Swipe(PointerState, Double, Double) 是离散方向动作，x 向右、y 向下；方向值不冒充像素位移、速度或接触轨迹。PointerState 在此只保存位置、DPI、修饰键、时间和可得设备身份，不修改鼠标按钮状态或伪造触点。
+
+AppKit 的 magnifyWithEvent／rotateWithEvent／swipeWithEvent 在 Window input 内转换；旋转角度和 swipe 的坐标方向只在平台边界转换一次。连续缩放／旋转分别维护实际活动状态；失焦、模态、菜单跟踪或系统窗口操作取消仍活动的序列，重复取消不再发事件，结束／取消后的迟到更新不重启序列。无原生独立手势流的平台继续报告实际取得的滚轮／接触事实，不从普通滚轮合成缩放或 swipe。原始触摸的识别及自定义手势属于 Surface／UI 的输入消费层。
+
+WindowEvent.Contact 交付直接接触的 Began／Moved／Ended(ContactState) 和 Cancelled(ContactId, PointerCancelReason, InputTime)。ContactState 保存 id、kind: ContactKind.Touch／Pen、位置快照 pointer: PointerState 和 pressure: Double?。ContactId 是窗口内一次实际接触的身份，结束后平台可以复用数值；不能跨窗口比较或把它当作永久设备身份。pointer 保存发生时的逻辑／物理位置、DPI、修饰键、时间及可得设备身份，pressure 仅在系统提供有效的归一化 0～1 值时为 Some。笔尖接触与鼠标按钮保持不同来源；不以触点合成鼠标 hover 或按钮。
+
+Windows 使用 WM_POINTER 及 GetPointerInfo／GetPointerTouchInfo／GetPointerPenInfo；原生取消标记和捕获变化终止对应接触。整个原生 pointer 序列保持一致的默认处理，兼容鼠标消息按实际设备来源去重，不再次进入 UI 队列；原生消息处理路径保留，后续触摸 OLE 来源须从系统要求的合成鼠标入口启动。GTK 使用原始 GdkTouchEvent 序列和笔尖事件，表面坐标转换到实际内容视图；已接收的接触不再由 GtkGestureClick 发出另一份点击。原始触点不经平台内建手势枚举裁剪。
+
+无活动 Began 的更新和结束不新建接触；接触取消、窗口失焦、模态或系统接管后清理活动记录，迟到输入不复活。单接触捕获丢失只取消该接触，普通鼠标捕获变化不终止无关触点。AppKit 触控板归一化位置不冒充窗口中的直接触屏坐标；没有实际接触事件时不伪造 Contact。
+
+平台输入沿原 Application 队列与 owner 交付。native 事件头保存窗口、种类和观察时间；载荷按窗口事件、键盘、修饰键、鼠标、接触与原生手势分别保存，不把不同输入的字段叠加到一份无名参数表。三平台共用 native 输入结构和对应的 Scoop CLayout 声明；公共解码只处理 Scoop 的输入种类与相位，平台键码和修饰位通过各自的既有适配函数解释。原生输入附件由输入模块管理，复制、交付及释放仍遵守原系统窗口操作／拖放的时序。
+
+平台 input 模块负责键盘／鼠标／接触／原生手势采集、输入状态初始化与释放、焦点切换的输入收尾以及原生输入附件。Windows 和 GTK 的窗口输入状态随原窗口保存；GTK 的布局与修饰键来源状态仍随 Application 保存。AppKit 沿 SWView 的原生 responder 与对象寿命维护状态，不增加平行宿主。销毁时先停止相应回调，再释放输入资源；窗口事件循环、模态过滤和原生默认处理顺序保持，文本模块继续拥有 IME 文档事务。新增输入继续沿同一平台边界转换，识别和控件间归属由 Surface／UI 承担。
+
+滚动相位使用 Window 自己的 None／MayBegin／Began／Stationary／Changed／Ended／Cancelled 编码。AppKit 在平台入口显式转换 NSEventPhase；GTK 的连续滚动开始、更新和结束分别转换为 Began／Changed／Ended，传统 wheel 或没有原生阶段的事件保持 None。PixelDelta 使用当前事件 scale 对应的物理像素；AppKit／GTK 的逻辑表面像素只在平台入口乘一次 scale，Surface 转为局部逻辑像素时再除一次，LineDelta 不随 DPI 缩放。contact 与 momentum 相位独立，不把 begin／end 合并成一个普通滚动更新。
+
+PointerEvent.Button 的 clicks 是本次按下的连续点击次数，至少为 1；与该按下配对的释放沿用同一次数，不因其间的移动、其他按钮或下一次计数变化而改写。不同窗口各自记录；按钮变化、失焦、系统操作／捕获取消、超时、超出点击距离或实际拖动结束旧多击序列。四次及更多点击保留实际次数，上层编辑器可统一按三击选择单位处理。
+
+AppKit 继续使用 NSEvent.clickCount；GTK 使用 GtkGestureClick 的 pressed／released 次数，不在 Window 重算固定 0.5 秒／5 像素阈值。GTK 4.18 自身按 gtk-double-click-time、gtk-double-click-distance、gtk-dnd-drag-threshold 及设备／按钮变化结束计数；显式 Window 输入取消还重置该控制器，普通 Left 不取消按下，拖动后的 Up 保留原次数。
+
+Win32 在原生 down／double-click／up 消息上补足 3、4 等连续计数，使用 GetMessageTime 的同源毫秒差、GetDoubleClickTime 及 GetSystemMetrics 的双击矩形。比较点使用屏幕物理像素，不使用内容逻辑坐标，窗口移动和 DPI 变化不会把不同屏幕位置当成同一点；双击矩形宽／高按中心点展开。SM_CXDRAG／SM_CYDRAG 为按下位置各方向的物理容差，移动越界只结束多击计数，继续当前按下／拖动／释放路由。已结束按下的正常 ReleaseCapture 不清空多击历史，异常捕获丢失和显式取消则清空。系统已标记的双击可作为首次可见输入的计数 2；已明确取消的序列不因该标记恢复。当前 Win32 鼠标入口仍为 DeviceId=None 的系统聚合指针，不伪造独立硬件身份。
+
+这些计数不建立新的 timer／轮询；Windows 只在输入处理时读取阈值，GTK 沿现有控制器生命周期运行。Windows 连续次数达到 Int.MAX_VALUE 后保持该值，不溢出或回到 1。平台消息时间的局部比较不改变公共 InputTime 仍可为 Observed 的合同。原生次数的验收必须经过真实平台输入路径；直接提交 count=3 只验证编辑器消费，不能证明平台计数正确。阈值来源见 [GetSystemMetrics](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getsystemmetrics)；GTK 的取消与 released 配对行为以 [GTK 4.18 GtkGestureClick 实现](https://gitlab.gnome.org/GNOME/gtk/-/blob/4.18.0/gtk/gtkgestureclick.c)为基线。
 
 ScrollDelta 的 x／y 表示内容在窗口坐标系中的位移：正 x 向右，正 y 向下。滚动容器将其取反为 offset，因此查看更右方／下方的内容分别对应负 x／y。后端以 OS 已应用用户滚动方向设置的事件为准，只归一坐标含义，不再次应用自然滚动设置；GTK 两轴取反，Win32 水平轴取反、垂直轴保留，AppKit 保留原生内容位移。LineDelta 和 PixelDelta 的单位／比例与相位合同不变。
 
@@ -220,9 +279,9 @@ Darwin 使用语言规范 12.2.1、实现规范 2.7 的普通 native Objective-C
 
 ## 10. Win32 后端
 
-Windows 窗口使用 Unicode HWND，创建前确认 Per-Monitor V2；已声明其他 DPI 模式时明确失败，不改变现有 UI 的坐标合同。每次 WM_DPICHANGED 使用建议窗口矩形并重新读取内容像素尺寸，原子发布完整 metrics。内容逻辑坐标以窗口 DPI 换算；DesktopPosition／DesktopRect 使用物理虚拟桌面坐标。最小化提供零 drawable，隐藏／最小化期间保留 dirty；Windows 不提供普通顶层窗口完整遮挡查询，isOccluded 只报告系统可确认的最小化或 DWM cloaked 状态。
+Windows 窗口使用 Unicode HWND，创建前确认 owner 线程使用 Per-Monitor V2。尚未设置进程 DPI 时设置并确认；启动环境或宿主已经使用 Per-Monitor V1 时，沿 Win32 的混合 DPI 能力仅把当前创建线程升级到 V2，不再尝试改写已确定的进程默认值，既有 HWND 保留其创建时的 awareness。System Aware 等会虚拟化坐标的已配置模式仍明确失败，不改变现有 UI 的坐标合同。每次 WM_DPICHANGED 使用建议窗口矩形并重新读取内容像素尺寸，原子发布完整 metrics。内容逻辑坐标以窗口 DPI 换算；DesktopPosition／DesktopRect 使用物理虚拟桌面坐标。最小化提供零 drawable，隐藏／最小化期间保留 dirty；Windows 不提供普通顶层窗口完整遮挡查询，isOccluded 只报告系统可确认的最小化或 DWM cloaked 状态。
 
-通知的启动入口也会在 Application 之前创建 COM／消息窗口，因此与应用创建共用原生 DPI 准备函数，先确定 Per-Monitor V2 再创建任何 HWND。后续应用创建读取同一个线程／进程模式，不以已有隐藏窗口为理由改变 DPI 合同；见[系统通知规范](SCOOP-DESKTOP-NOTIFICATION-SPEC.md)。
+通知的启动入口也会在 Application 之前创建 COM／消息窗口，因此与应用创建共用原生 DPI 准备函数，先确定 owner 使用 Per-Monitor V2 再创建该入口的 HWND。后续应用创建读取同一个线程／进程模式，不以已有隐藏窗口为理由改变 DPI 合同；见[系统通知规范](SCOOP-DESKTOP-NOTIFICATION-SPEC.md)。
 
 窗口属性通过正常 Win32／DWM API 实施，原生返回值在边界保留并转换为 WindowException。native 薄层的创建结果同时返回资源和状态码；setter 以状态码报告失败，不使用另一个错误缓存。Windows 8 起 DwmEnableBlurBehindWindow 不产生模糊效果，setBlur(true) 返回 Unsupported 且无副作用；要求 blur 的创建失败。主题建议使用 DWM 支持的暗色标题栏属性；缺少该属性时返回 Unsupported。透明背景供实际 renderer 使用，不承诺所有渲染设备都有 alpha 支持。内容保护为 WDA_MONITOR 系统提示，仍返回 Requested。
 
@@ -230,7 +289,9 @@ Windows 窗口使用 Unicode HWND，创建前确认 Per-Monitor V2；已声明�
 
 owner 线程持有 ITfThreadMgr 和 TfClientId，每窗口管理 ITfDocumentMgr、context stack 与焦点。应用实现 ITextStoreACP 及必要的 composition／edit sink，系统提供 ITfContext。COM/C++ 对象不跨 Scoop ABI。连接启用、焦点、禁用、restart 与销毁均核对 connection generation；旧连接的迟到回调不能修改新状态。当前文档模型为纯文本、单选区；不为 TSF 富文本属性、embedded object 或多选区增加另一套公共模型，无法由公共批次表达的操作原子拒绝。
 
-ITextStoreACP 的 ACP 范围是 UTF-16 单元范围，在 native 边界转换为 Scoop UTF-8 字节范围，切断 surrogate 或越界时拒绝整个操作。RequestLock 遵守 TSF 同步／异步锁规则；锁内只访问原生快照或临时投影，不调用 managed handler、布局或挂起。每个原子编辑事务按实际顺序投影文本操作，再生成一个带 connection／sequence 的 TextInputBatch；显式范围携带快照 baseRevision，无快照或范围未知时返回 unavailable，不能退回局部猜测。无效事务不部分交付；publishTextInputState(after=origin) 后才推进已处理序号，事务外存在未确认编辑时 surrounding／caret 查询不可用。
+ITextStoreACP 的 ACP 范围是 UTF-16 单元范围；需要转换为 Scoop UTF-8 字节范围的编辑操作在 native 边界检查，切断 surrogate 或越界时拒绝整个操作。RequestLock 遵守 TSF 同步／异步锁规则；锁内只访问原生快照或临时投影，不调用 managed handler、布局或挂起。每个原子编辑事务按实际顺序投影文本操作，再生成一个带 connection／sequence 的 TextInputBatch；显式范围携带快照 baseRevision，无快照或范围未知时返回 unavailable，不能退回局部猜测。无效事务不部分交付；publishTextInputState(after=origin) 后才推进已处理序号，事务外存在未确认编辑时 surrounding／caret 查询不可用。
+
+QueryInsert 返回当前文档内可替换的区间，不把待插入长度加进查询结果；InsertTextAtSelection 的 QUERYONLY 同样只查询当前替换区间，不改变文本、选择、组合或编辑序号，NOQUERY 允许省略区间输出。TSF 自身调用产生的文本／选择修改通过调用结果与同一个编辑批次交付，不在锁内反向发送 OnTextChange／OnSelectionChange；应用主动发布的修改仍按既有发布路径通知。同步锁不能重入时通过 session 结果拒绝；成功的同步锁取代此前待交付的异步请求，但保留该回调中新请求的后续锁。
 
 composition 的开始、范围更新、提交、取消和 unmark 归一到现有 Preedit／Commit／ClearPreedit 操作；取消删除应用正在显示的组合，unmark 保留正文并仅清除组合标记。一个连接只有一个 composition 写入者。候选窗和点命中使用当前 revision 对应的已发布 caret，经客户区／DPI 转换回答 GetTextExt／GetACPFromPoint；文档变化、待确认编辑、连接结束、窗口尺寸或 DPI 变化立即使旧几何失效。
 
@@ -269,7 +330,13 @@ GTK 的 GMainContext、eventfd 唤醒、最近 deadline 和借入的 readable fd
 
 GTK 在首次内容分配前取得的焦点先保存在原生快照中；首次 GeometryChanged 使窗口进入 Open 后，再交付当前 Focused 状态。Surface 的初始逻辑焦点因此能与 OS 焦点一致，不要求用户先切换到其他窗口再返回。
 
-窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
+GTK 原生 popup 的输入转移仍属于同一宿主窗口，按[菜单规范](SCOOP-WINDOW-MENUS-SPEC.md#3-动作与快捷键)结合实际 toplevel 状态与 mapped 子菜单报告 Focused；避免把菜单取得输入误报为文本目标失焦，同时保留真正窗口失活的取消行为。
+
+GTK 的 toplevel `suspended` 状态按窗口 Occluded 报告，恢复时同步清除。compositor 暂停发送帧时，上层由已有的不可绘制处理和有限 deadline 收束动画与交互，不继续等待不会到达的帧。
+
+窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。内容尺寸请求按 GTK 的实际测量结果补入标题栏与窗口 CSS 内边距，不把这些装饰扣在应用请求的内容区内；窗口管理器及原生最小尺寸的约束仍由 GeometryChanged 确认。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。内容尺寸分配和 widget 的 scale-factor 通知都更新同一完整 metrics；只有缩放变化、逻辑尺寸不变时，也发布 GeometryChanged，使渲染配置、输入场景和文本几何继续更新。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
+
+GTK 原始接触事件与原生鼠标控制器采用相同的内容逻辑坐标：先从 GdkEvent 的 surface 位置减去 GtkNative 的 surface translation，再通过 widget 变换进入实际内容视图。标题栏与阴影只扣除一次，不把桌面位置或分数显示比例乘入局部位置；物理接触位置使用该次窗口的 backing scale 换算。
 
 X11 的 outerBounds 查询实际原生顶层外框：沿 X11 窗口树取得 WM frame，读取其当前几何并转换到 GDK 桌面坐标；不能取得时返回 None。位置请求也以外框左上角的桌面坐标表达，在 WM 声明支持时使用 EWMH `_NET_MOVERESIZE_WINDOW` 的 NorthWest gravity，否则沿现有 X11 移动请求交给 WM。请求坐标先转换为 X11 原生单位，成功仍只代表 Requested。托盘定位使用这份实际外框尺寸，不以内容区冒充窗口尺寸。
 
@@ -297,3 +364,8 @@ Linux native handle 为 `Gtk(window: Ptr<Unit>, view: Ptr<Unit>)`，分别是 Gt
 表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
 
 WindowAttributes 和 ApplicationOptions 发布只读值；完整修改通过 copy 产生新配置。macOS 的 ApplicationOptionsBuilder.macOSActivationPolicy 属性与 WindowAttributesBuilder.macOSTitlebar(TitlebarOptionsBuilder.() -> Unit) 配置平台字段；macOSTitlebar 块基于当前 flags，三个布尔字段默认 false。创建配置上的 setMacOSActivationPolicy／setMacOSTitlebar 删除，Window.setMacOSTitlebar 仍是对现有窗口的显式操作。配置不激活应用、不请求焦点、不创建窗口；Application／ActiveApplication.createWindow 的执行合同不变。
+
+
+## 13. 数据拖放
+
+Window 的标准格式、操作协商、接收资源与同步边界见[数据拖放规范](SCOOP-WINDOW-DRAG-DROP-SPEC.md)。三个桌面后端提供 registerDropTarget 和从当前真实输入启动的 beginDrag；源结果报告系统实际接受的操作，不自动删除来源。UI 接收沿 Accepted 路由。Touch／Pen 来源沿各平台公开入口启动，Windows 等待真实的系统兼容鼠标入口；真实设备与跨程序验收继续按交互打磨计划集中执行。

@@ -17,9 +17,11 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 
 现有控件使用 `ComponentScope.createDeadline` 接入 Hover、Typeahead、文本编辑、Select 滚动和 Carousel 自动播放的原生定时回调；错误按所属 UiHost 根隔离，时间源与调度仍由 window／surface 提供。示例普通 View 函数接收显示值、模型与动作，默认文字使用根字体；函数提取不增加挂载节点，不改变 key／子顺序或局部状态归属。
 
+控件定时行为直接监听已有窗口活动通知。Select 的悬停重复、滚动条的按住重复、Carousel 自动播放与附件滚轮的延迟吸附，在失活、隐藏或遮挡时立即取消旧预约；恢复后依据当前资格建立新的等待，不补做中断期间的操作。自动隐藏滚动条在窗口不可呈现时撤销 idle deadline 并收束隐藏过渡，常显条保持自己的显示策略；活动窗口中的可见淡出仍正常完成。Toast 继续保留未用完的展示时间，DatePicker 的一次逻辑失焦提交沿既有版本检查，不把这些业务截止点当作装饰动画取消。
+
 ## 1. 定位与依赖
 
-生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。Darwin、Windows、Linux GNU 使用同一份上层源码，具体批次的构建与运行范围见对应实施记录；原生桌面组件见第 52 节。
+控件行为、布局与绘制使用共享 Scoop 源码，不包含 OS native 代码或运行时平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。accessibility 使用同一套 UI 语义资源，分别由下层 AppKit、Windows UIA 和 Linux AT-SPI provider 投影；未连接辅助技术服务不改变控件行为，也不伪造原生查询或动作成功。Darwin、Windows、Linux GNU 的具体构建与运行范围见对应实施记录；原生桌面组件见第 52 节。
 
 `scoop.ui.component` 是独立的普通 Scoop Cone，提供基于 `scoop.ui` 的自绘基础控件。它依赖框架、公共 `scoop.ui.style` 及实际使用的 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window` 和 core／std／math／platform；使用下层类型的源码须声明相应直接依赖，不能借由框架的间接依赖访问它们。
 
@@ -30,6 +32,35 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 公共控件实现覆盖 macOS 与 Linux GNU。Linux 的 Wayland／X11 共用相同的布局、交互、主题和文本编辑组件，由 window／surface 提供平台输入与 GLES 呈现；编辑快捷键遵守 UI 规范中的 Linux Ctrl 约定。Windows 接入后续单独推进。普通控件测试使用本 Cone 的 scoop.test，原有 macOS 范围见 [UI 实施记录](../ui/PROGRESS.md)，Linux 范围见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。
 
 Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 所需能力的扩充设计见[基础交互能力设计](../ui/foundations/DESIGN.md)。各项按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收，当前公开合同以本文件及 UI 规范为准；Code Block 不在本次扩充设计范围内。
+
+### 1.1 默认无障碍语义
+
+Label、Button、Checkbox、Switch／Toggle／RadioGroup／ToggleGroup、Input／Textarea、SelectableStyledText 与 Typography 的 Props 和 builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。该不可变覆盖值包含 name、description、error、automationId（均为 String?，默认 None）、relations（默认空 SemanticRelations）以及 hidden／ignored（默认 false）。显式空文字保留其覆盖含义；它不允许改写角色、值、选区、checked、只读、protectedText 或动作。禁用及焦点取现有控件与实际输入范围；hidden 排除语义子树，ignored 只忽略当前节点，不改变真实输入。
+
+`ComponentSemantics.copy { ... }` 通过 ComponentSemanticsBuilder 修改一份完整覆盖值，保留未指定字段和原 SemanticsReference；复制不创建节点、不改变绑定。内置组合控件用同一方式补充自己的名称、状态和实际关系，不丢弃应用覆盖。
+
+- Label 使用 Text，正文取 StyledText.toPlainText，包括行内 alternateText；行内交互子控件保留独立语义。名称覆盖不修改正文。正文投影按不可变内容身份复用，纯语义覆盖变化不重新测量段落。
+- Button 使用 Button，并合并自己声明的纯静态 Label 后代；名称优先显式覆盖、labelledBy，最后内容标签。Custom／Resolved 中的独立交互内容不被合并。Invoke 调用现有最新 onClick，不模拟指针或隐式获得焦点；仅换 handler 仍可复用渲染。
+- Checkbox 使用 Checkbox，checked 映射 Off／On／Mixed，Toggle 使用原有 nextCheckState 与 Binding；写入被拒绝时返回 Rejected，并继续报告实际值，不预先翻转语义状态。Boolean、自有状态及组合入口传递同一覆盖值。
+- Switch／Toggle 的 Props 与 builder 同样提供 ComponentSemantics，分别使用 Switch／ToggleButton。布尔值取实际 checked／pressed Binding，语义 Toggle 与指针／键盘走同一写入入口；只有实际采纳期望值才返回 Completed，禁用或拒绝不提前翻转投影。Switch 沿原 FieldTarget 发布标签／说明／错误与 required；Toggle 沿 Button 的静态内容合并与独立交互后代规则。
+- RadioGroup／ToggleGroup 的 Props、条目与对应 builder 均提供 ComponentSemantics。RadioGroup 创建 RadioGroup 容器和 RadioButton 子项；Invoke 按当前 key 选择真实 Binding，重复选择已选项不取消且不重复调用 setter。ToggleGroup 使用 Group 容器和 ToggleButton 子项，单选／多选继续使用原选择规则。条目按稳定 ViewKey 保持身份，重排更新阅读顺序，删除退休旧对象。组和条目的 enabled、隐藏与命名分别生效，现有 roving 焦点和 FieldTarget 不另建目标。普通 Radio 标签参与内容合并；自定义内容可用语义覆盖命名，独立交互后代保留。
+- Input／Textarea 在拥有 TextEditHost 的绘制 Element 内持有 TextField 节点，正常 update 调用 updateTextEditor；正文、选区、焦点、只读、受保护用途、策略、undo 与菜单沿宿主合同。placeholder 不作为名称。既有 description 在没有显式 description 时作为说明，invalid 时同时作为缺省错误文字；显式空说明／错误可覆盖。装饰性的重复说明不再额外进入阅读树，行内／子控件仍独立。
+
+语义资源在构造时创建并由 scope 自动释放，属性由正常 update 发布；场景只登记真实表面／文本区域，使用 UI 的 Accepted 几何合同。Button／Checkbox 的后代绘制 Element 可登记由祖先 Component 拥有的 handle，真实 FocusTarget 仍由原挂载拥有。不为语义另建 Press、输入区域、焦点目标或文本模型。复用 LabelProps／ButtonProps／InputProps／TextareaProps 的包装和显示比较必须传递并比较覆盖值，不能把纯名称或关系更新吞掉。
+
+ScrollAreaProps／ScrollAreaBuilder 与 VirtualListProps／VirtualListBuilder 同样提供 ComponentSemantics。共享 ScrollControl 创建 ScrollArea 节点，绑定原焦点目标并路由内容后代；虚拟列表的集合语义继续按 S7 接入，不把滚动容器当作完整集合。每个真实轴由原 ScrollBarControl 持有 ScrollBar 子节点；Input／Textarea 的条归入原 TextField 节点。范围与增减／位置动作使用 UI 的 updateScrollBar 和原 ScrollViewport／TextEditHost，不创建第二份滚动状态或 Tab 目标。
+
+条在正常 update 和视口 Accepted 回调之后更新范围、enabled 与动作；被禁用的轴和零范围退出阅读树，恢复使用原身份。Auto／Always／Hidden、闲置淡出及 hover 只决定实际条的外观和几何，不移除非零范围的滚动能力。条的 Scene 登记只使用实际绘制区域；未绘制时仍可操作逻辑轴，但没有条的点击位置。绑定变化撤下旧范围，位置发布不等待名称或文本改变；读写与普通滚动共用请求和意图规则。
+
+其余控件、完整表单状态、Reveal 与平台验收继续按[交互与无障碍计划](../ui/interaction-polish/PLAN.md)推进；本节不把基础控件接入等同于全控件或外部辅助技术验收。
+
+ComponentSemantics 另提供 busy=false 与 live=Off，供应用描述真实忙碌与动态区域；它们不改变控件输入资格。Input 的 invalid 独立于是否存在错误文字发布。Slider 的每个真实 thumb 提供 Slider、实际 FocusTarget、考虑邻项间距的数值上下限及步长；Props／builder 的 semantics 为默认值，thumb 的可选 semantics 可覆盖。SetNumber、Increment／Decrement 复用键盘的原 RangeSpec 移动及提交入口，受控 setter 拒绝不假报完成，不额外获得焦点。
+
+Progress 提供 ProgressBar 及实际 minimum／maximum／value，未知进度不提供 range。Props／builder 可用 ComponentSemantics 命名或显式启用 live；默认不随动画采样公告。名称优先显式语义，其次明确文字 label；自定义 label 不为取名而构造。Typography 的 H1～H4 提供对应 Heading 级别，普通可选正文保留原文本选择和行内操作，纯静态正文可合并，读出名称包含 alternateText。
+
+ComponentSemantics.reference 可借用当前真实控件的 SemanticsReference，不改变其身份或焦点。VirtualListHandle.semanticId 单独引用集合节点；Command／Combobox 的输入使用 controls 与按稳定 key 的 activeDescendant 关联当前结果，活动高亮不冒充 selected。Tabs 提供 TabGroup／Tab、实际 selected、当前面板的 controls／labelledBy；未选中的保留面板退出阅读树。Tab 的 Invoke／SetSelected(true) 调用原选择模型，重复选择保持状态，拒绝取消单个已选 Tab；受控拒绝返回 Rejected，不抢键盘焦点。
+
+自绘 Menu 的实际行使用 MenuItem，发布同一 checked／expanded 与名称，普通激活、复选／单选和子菜单展开沿原入口确认实际结果；菜单容器提供关闭动作。Disclosure 的真实按钮发布 expanded，SetExpanded 复用原受控开关并确认采纳，折叠但保留的正文隐藏。Dialog／Sheet／Drawer 提供 Dialog、标题／说明、真实 modal 与可执行的关闭动作；关闭仍遵守原 veto 和受控 Binding，不以隐藏绘图冒充关闭。上述语义继续绑定原 PressControl／FocusTarget，不建立第二个输入目标。
 
 ## 2. 控件与使用入口
 
@@ -152,7 +183,13 @@ Label 的 settings 为 None 时通过 ParagraphHost 继承有效布局方向；�
 
 ### 3.1 SelectableStyledText
 
-SelectableStyledTextProps／SelectableStyledText／selectableStyledText(content) 是公共 SelectableTextHost 的普通组件适配。receiver builder 提供 fonts、settings、inlines、options、focus、actions、decorations、onSelectionChanged 和 key；StyledText 保留全部样式及行内对象，通过 inlineChildren 构造相同的 keyed 子描述。它自己不复制文本选择、命中或剪贴板算法，也不持有额外编辑模型。
+SelectableStyledTextProps／SelectableStyledText／selectableStyledText(content) 是公共 SelectableTextHost 的普通组件适配。receiver builder 提供 fonts、settings、inlines、options、focus、actions、decorations、onSelectionChanged、semantics 和 key；semantics 默认为 ComponentSemantics()。StyledText 保留全部样式及行内对象，通过 inlineChildren 构造相同的 keyed 子描述。它自己不复制文本选择、命中或剪贴板算法，也不持有额外编辑模型。
+
+绘制 Element 在自己的 scope 创建 Text 语义资源，正常 update 调用 updateSelectableText，选择通知先刷新语义，再恰好调用一次最新业务 onSelectionChanged。正文、行内替代文字映射、选区、真实焦点、禁用和菜单沿原宿主；不提供写入动作。行内控件归入该语义节点，保留独立能力；Scene 登记当前段落区域，卸载沿原 scope 退休。TypographyProps／TypographyBuilder 也提供同一 semantics 覆盖值，选择与静态正文两个分支均传递它；切换分支使用对应实际宿主并退休旧引用。标题级别及范围动作的专门语义仍按 S5／S11 推进，不把正文接入等同于完整富文本 provider。
+
+options.contextMenu 直接配置只读文本的原生 Copy／SelectAll 菜单，默认 PreferSystem；使用 SelectableTextOptions(contextMenu = textContextMenu { ... }) 选择模式、选区策略和标签。Typography 的 selection 选项沿用同一入口，不另建菜单状态或编辑宿主。
+
+options.drag 与 Typography.selection.drag 原样传给 SelectableTextHost，默认允许按普通复制表示拖出选区。它们只提供 Copy，正文和行内对象替代文字仍来自同一个 StyledText，不创建可写编辑器。
 
 未指定 fonts 时使用 scope.defaultFonts，并在 update 中读取当前集合；显式字体只借用。Element 的 update／measure／scene 委托同一宿主，焦点与范围动作遵守 UI 规范第 7.5.4 节。Label 继续保留原来的纯显示行为。
 
@@ -301,11 +338,55 @@ ScrollArea 与 VirtualList 通过 ScrollViewport.present 的内容回调登记�
 
 Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, apply)，将内容位移取反为 offset，返回实际消费位移；子项到边界后只交接剩余原始单位。Contain 在本层消费后 preventDefault。新 wheel（包括零位移手势开始）先取消旧平滑滚动；系统 phase／momentum 沿用 Surface 路由。控件不另建惯性时钟。
 
-滚动条覆盖视口边缘，不改变内容测量；双轴条在角落各让出另一条的厚度。竖条位于继承 LayoutDirection 的 End（LTR 右、RTL 左），横条位于底部，并在对应侧让出竖条。方向热切换保留内容实例、焦点和物理 offset，不反转正文或隐式请求新的滚动位置；新方向的几何 Accepted 后取消尚未结束的旧条拖动。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在零范围时隐藏，Always 画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
+ScrollAreaProps／VirtualListProps 及对应 builder 提供 touchScroll: TouchScrollOptions = TouchScrollOptions()，配置直接接触的 enabled、threshold 与 lockAxis。共享 ScrollControl 将同一视口、axes、UI 层的 ScrollChain 和配置交给公共 ScrollPan；其他使用该控制器的视口采用相同缺省行为。开始、锁轴、嵌套余量和终止规则见 UI spec 第 7.7.1 节。触摸滚动不反转 RTL 的物理 offset，也不改变键盘／语义定位；达到阈值后取消原子控件的点击候选。滚动唤醒滚动条后，活动触点阻止空闲自动隐藏，结束／取消后重新计算已有空闲 deadline，不额外创建定时器。
 
-滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头仍是普通单次默认动作。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab，焦点环遵守 FocusOptions.visibility；Automatic 的指针焦点不显示，真实键盘和程序聚焦显示，Always／Never 分别固定显示策略，指示变化单独请求重绘。ScrollArea 和 VirtualList 共用此合同。PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。只有水平轴时，RTL 的 Home／End 对应物理最大／零偏移，PageDown／PageUp 对应向左／向右一页；有垂直轴时继续按自上而下解析。wheel、滚动条、reveal 和 ScrollState.offset 始终使用物理坐标。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
+ScrollAreaProps／VirtualListProps／MessageScrollerProps 及对应 builder 同时提供 `scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()`，共享 ScrollControl 将其交给原视口。InputProps／TextareaProps／InputOtpProps 与已有输入包装也透传 scrollPhysics；TextEditOptions 使用同名字段。主题 MotionPreference.Reduced 与根减少动画共同关闭边界效果和装饰平滑滚动，热切换不更换编辑器、列表或 ScrollState。文本输入区域覆盖固定视口，正文、caret 和语义文本几何使用同一 ScrollLayout.presentationOffset；滚动条按合法 snapshot 表示范围。
+
+scrollPhysics.inertia 统一配置直接 Touch／Pen 释放后的减速，默认启用；关闭该项保留已有边界配置。共享滚动控制器和文本宿主使用 UI 规范 §7.7.3 的同一实际路径、时间与取消合同，主题 Reduced 同时停止惯性和回弹，不为各类控件复制运动循环。
+
+ScrollbarPlacement.Overlay 覆盖视口边缘，不改变正文测量；Gutter 在允许的滚动轴上固定预留最大条带。双轴条在角落各让出另一轴的条带，Gutter 即使该轴暂时没有溢出也保留角部。竖条位于继承 LayoutDirection 的 End（LTR 右、RTL 左），横条位于底部，并在对应侧让出竖条。方向热切换保留内容实例与焦点，不反转正文或登记新的滚动意图；Overlay 左侧留白变化时沿 UI 的 LayoutCorrection 尽可能保持正文的窗口位置，其他情形只按新范围收敛；新方向的几何 Accepted 后取消尚未结束的旧条拖动。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在原始正文未溢出时隐藏，Always 在实际零范围时画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
+
+滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头在默认阶段接管按下，按下及重复行为由下述 ScrollbarBehavior 配置。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab，焦点环遵守 FocusOptions.visibility；Automatic 的指针焦点不显示，真实键盘和程序聚焦显示，Always／Never 分别固定显示策略，指示变化单独请求重绘。ScrollArea 和 VirtualList 共用此合同。PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。只有水平轴时，RTL 的 Home／End 对应物理最大／零偏移，PageDown／PageUp 对应向左／向右一页；有垂直轴时继续按自上而下解析。wheel、滚动条、reveal 和 ScrollState.offset 始终使用物理坐标。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
+
+Home／End 只定位启用的滚动轴，其他轴保留当前 offset。Overlay 为显露正文而增加的边缘留白不能使这些按键移动未启用的轴；例如水平 RTL 列表的 Home 到达物理最右端时，纵向阅读位置保持不变。
+
+ScrollAreaProps／VirtualListProps／TextareaProps 及对应 builder 提供 scrollbarBehavior；ScrollArea、VirtualList 与 MessageScroller 默认 `scrollbarBehavior()`（Overlay），Textarea 默认 `scrollbarBehavior { placement = ScrollbarPlacement.Gutter }`，同名 receiver 方法在当前配置上调用 copy，重复配置保留先前覆盖。`scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit = {}): ScrollbarBehavior` 构造不可变值；`copy` 使用相同 builder。行为不属于主题：主题继续负责静态颜色、形状、按钮与基础厚度，Behavior 负责出现条件、运动和操作。ScrollbarVisibility.Auto 仅在原始正文溢出时呈现，Always 允许呈现实际零范围的禁用外观，Hidden 不呈现；这组条件与闲置自动隐藏分别判断。
+
+| ScrollbarBehaviorBuilder 字段 | 默认值与含义 |
+| --- | --- |
+| preset: ScrollbarPreset | FollowSystem；另有 Static、Custom |
+| placement: ScrollbarPlacement | Overlay；可选 Gutter，Textarea 默认 Gutter |
+| autoHide: Boolean? | None，按预设；显式值覆盖预设 |
+| idleDelay: Duration | 1000 ms，最后一次活动结束后等待时间 |
+| fadeIn／fadeOut: Duration | 100／250 ms，零表示立即切换 |
+| revealOnScroll／revealOnEdgeHover／revealOnKeyboard: Boolean | true |
+| revealOnViewportHover: Boolean | false |
+| widenOnHover／shadeOnHover: Boolean? | None，自动隐藏预设启用、固定预设关闭；可独立覆盖 |
+| idleWidth／hoverWidth／dragWidth: Double? | None；固定预设均取主题厚度，自动隐藏预设 idle 取其一半，其余取主题厚度；显式长度为逻辑单位 |
+| expandDuration／contractDuration: Duration | 120／180 ms；零表示立即切换 |
+| idleOpacity／hoverOpacity／dragOpacity: Double? | None；固定预设均为 1，自动隐藏预设为 0.55／0.85／1 |
+| shadeDuration: Duration | 120 ms；零表示立即切换 |
+| minimumHitThickness: Double? | None，取主题厚度和 12 逻辑单位的较大值；绘制宽度与命中厚度分别计算 |
+| edgeThickness: Double? | None，取固定最大条宽与命中厚度的较大值；用于非消费式边缘唤醒 |
+| showTrack: Boolean? | None，固定预设显示、自动隐藏预设不显示；不移除轨道点击能力或显式配置的端部按钮 |
+| trackPress: ScrollbarTrackPress | Page；可选 Jump，按下即把 thumb 中点移到指针并继续拖动 |
+| repeatDelay: Duration?／repeatInterval: Duration | 400／60 ms；repeatDelay=None 禁用按住重复；轨道 Page 和端部按钮复用同一机制 |
+
+FollowSystem 读取根的有效 InteractionPreferences.autoHideScrollbars，未知值按 false 处理；Static 按 false、Custom 按 true 解析自动隐藏基值。宽度／深浅及轨道默认值随该预设基值解析，显式覆盖互相独立。系统常显因此关闭 FollowSystem 的默认闲置隐藏；显式 autoHide 优先于系统值。根 reduceMotion=true 或主题 MotionPreference.Reduced 使所有上述过渡立即完成，但不取消明确的自动隐藏。reduceTransparency=true 使已显示滚动条不使用半透明或淡入淡出，仍保留显示／隐藏和宽度行为。
+
+所有时长非负，repeatInterval 必须为正；宽度／边缘长度必须有限且非负，透明度必须有限且位于 0～1。无效配置抛 IllegalArgumentException。固定条带宽取有效 idle／hover／drag 绘制宽度和最小命中厚度的最大值，动画不改变正文测量或双轴角部。thumb／按钮的命中范围沿交叉轴扩展到条带，主轴仍采用实际主题几何。展宽绘制沿交叉轴缩放完整主题形状，内缩和描边同时缩放；不通过修改主轴内缩改变 thumb 行程，细条也不会被原主题的大内缩挤空。完全透明时不登记可操作区域；隐藏的边缘观察不消费正文按下，重新出现需新帧 Accepted 后才可操作。
+
+同一滚动控件共用出现状态和一个实际 deadline，动画沿 Surface 的 Animatable 推进。滚动定位、配置允许的视口／边缘进入和真实键盘活动唤醒；LayoutCorrection 不刷新闲置时间。可见条上的 hover、按住、thumb 拖动、当前子树的滚动路由／momentum、相关按住键及程序滚动动画暂缓隐藏，活动结束后重新等待 idleDelay。禁用、输入域退出、状态替换、卸载及失去有效几何取消重复操作；隐藏后不保留周期轮询。Page 按住仅向初始方向翻页，thumb 到达指针、离开原部件或抵达边界后停止；重新进入可继续。Jump 不做分页重复。端部按钮每步使用 lineStep。
+
+视口／边缘悬停触发由关闭改为开启时，使用当前 Accepted 几何、有效输入域和指针位置重新判定；已经处于对应区域的指针可以立即唤醒，不要求先离开再进入。配置更新不沿用已失效的悬停事实，新出现的条仍须经新帧 Accepted 才可操作。
+
+Gutter 的最大条带在内容测量前从实际视口扣除；ScrollArea 的无界交叉轴在一次正文测量后加回占位，最终外尺寸仍服从父约束。竖条及占位在 End，横条在底部。Auto／Always 预留相同空间，Hidden 不预留；范围、hover、fade 或闲置隐藏均不改变正文尺寸。显式 placement、条带宽度、可见条件或主题度量变化才请求需要的重新布局。Textarea 使用同一规则，wrap=true 只允许竖条。
+
+Overlay 使用本帧原始正文溢出和可见条件确定 ScrollPadding：竖条预留 End 侧、横条预留底部，长度取该轴固定最大条带并按视口收敛。Auto 不用留白造成的额外范围触发另一条；Always 按允许轴预留，Hidden 为零。留白在隐藏与展宽之间保持稳定，不跟随透明度改变。范围与 thumb 使用含留白的实际快照；翻页、文本拖选的边缘自动滚动和 caret／FocusTarget 显露使用 visibleSize。仅允许单轴的控件仍可用交叉轴的有限留白显露边缘焦点，wheel／列表主轴导航继续沿已配置轴处理。虚拟列表的阅读锚点只校正主轴，保留该次快照交叉轴的显露位置。
 
 ### 6.3 VirtualList
+
+VirtualListProps／virtualList 另提供 `itemSemantics: ItemSemantics? = None`。有描述时必须引用相同 ItemSource 快照；无描述时只提供真实身份、集合位置和未知名称。列表在 ScrollArea 内发布 List 与按需逻辑条目，已挂载行提供真实子控件与 Accepted 几何，查询不调用 build、滚动或聚焦；数据描述合同见 [UI 无障碍规范 §6.1](SCOOP-UI-ACCESSIBILITY-SPEC.md#61-lazy-集合的数据描述)。
 
 VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。另可提供 VirtualListHandle 与 VirtualListAnchor（None／KeepVisible／FollowEnd，默认 KeepVisible），以及逻辑主轴末端的 endPadding（VirtualListEndPadding，默认 Fixed(0)）。Fixed(length) 为有限非负长度；FillViewport 按当前 Start 定位、恢复或 KeepVisible 的未截断逻辑起点，填充该点到视口末端缺少的空间。填充在本次测量中随实际条目尺寸更新，先于滚动范围收敛，避免视口增高或正文缩短时先把阅读位置截断。两者参与 content extent 和滚动范围，不对应数据 key 或可见项；水平 RTL 时留在物理左端。None 保持数值位置，仅按实际范围收敛。单主轴列表的两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。
 
@@ -320,6 +401,8 @@ ItemExtent.Fixed(value) 要求有限正值，按 count × value 计算总长，�
 水平列表按继承的 LayoutDirection 排列，RTL 的第一项位于逻辑起点即物理右侧，条目绘图不镜像；不足一屏的内容也在逻辑起点对齐。ScrollState.offset 仍是从物理左侧计量的偏移，阅读锚点则使用逻辑排列方向。默认零位置首次呈现从逻辑首项开始；非零构造位置或显式 scrollTo 等请求按物理位置处理。方向热切换按稳定 key 保持阅读位置，重新测量依赖方向的条目，不重新创建同一 key。scrollToItem 的 Start／End 和横向 PageUp／PageDown／Home／End 按逻辑起终点解析，wheel 与滚动条继续使用物理位移。
 
 KeepVisible 记录最近 Accepted 帧中首个可见 key 及项内偏移。前方插入／删除或尺寸变化时，使用当前尺寸索引保持该 key 的阅读位置；key 被删除则使用原索引附近的存活项。项缩小时收敛项内偏移。FollowEnd 仅在最近成功位置已处于末端时保持新末端，否则沿 KeepVisible；初始定位及较新的 scrollTo／wheel／动画意图优先，不能被旧阅读锚点覆盖。Discarded 不替换阅读锚点。VirtualReadingSnapshot.endPadding 记录同一 Accepted 布局的实际末端留白。
+
+惯性和回弹不关闭上述锚点规则；只用 ScrollState.hasPositionAnimation 区分显式平滑定位的优先级。惯性采样保留原定位意图序号，列表给出 Accepted 锚点对应的新逻辑位置，未发布的正常位移由 ScrollViewport.layout 按 UI 规范 §7.7 合并。prepend、行高、视口或末端留白尺寸变化时，锚点／FollowEnd 先保持阅读位置，再停止旧物理运动；None 保留数值位置并按新范围收敛。按 key 显露或恢复先结束旧运动，正常显式 animateTo 仍到达自己的数值目标。
 
 VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAttached、isPending 和 scrollToItem(key, alignment = Nearest, margin = 0, previousItemPeek = 0)。margin 与 previousItemPeek 是有限非负逻辑长度；Start 定位减去 margin 及不超过上一项实际长度的 peek，首项的 peek 为零；End／Nearest 使用 margin 扩张目标范围，Center 保持中心。带 peek 的请求按需测量紧前一项，与目标共用本帧结果。key 必须显式，未挂载返回 false；true 表示请求已接收，key 在下一布局中解析，不存在时结束请求。请求先使 ScrollState 停止旧动画并登记新的定位意图，再按估计前缀定位并测量目标，以实际尺寸修正；一次布局不重复测量同一项，需要补足范围时请求后续帧，Accepted 后结束。更新的列表请求或普通 ScrollState 定位、handle／state 替换及卸载使旧请求失效。一个 handle 不能同时绑定两个活动列表。
 
@@ -381,7 +464,7 @@ interactionStyles(configure: InteractionStylesBuilder.() -> Unit = {}): Interact
 | InteractionStylesBuilder | hovered／pressed／focused／disabled: StyleOverride，分别默认 styleOverride() |
 | ButtonStyleBuilder | kind: SurfaceKind = Action；surface: SurfaceOptions = surfaceOptions()；text: SpanStyle? = None；states: InteractionStyles = interactionStyles()；transition: StyleValue<AnimationSpec?> = Inherit |
 | CheckboxStyleBuilder | marker: CheckboxOptions = checkboxOptions()；padding: Insets? = None；states: InteractionStyles = interactionStyles()；transition／selectionTransition: StyleValue<AnimationSpec?> = Inherit |
-| TextFieldStyleBuilder | surface: SurfaceOptions = surfaceOptions()；text／placeholder／description: SpanStyle? = None；states: InteractionStyles = interactionStyles()；selectionColor／inactiveSelectionColor／caretColor／markedColor: Color? = None；caretWidth: Double = 1.0；scrollbar: ScrollbarOptions = scrollbarOptions() |
+| TextFieldStyleBuilder | surface: SurfaceOptions = surfaceOptions()；text／placeholder／description: SpanStyle? = None；states: InteractionStyles = interactionStyles()；selectionColor／inactiveSelectionColor／selectionTextColor／inactiveSelectionTextColor／caretColor／markedColor: Color? = None；caretWidth: Double? = None；scrollbar: ScrollbarOptions = scrollbarOptions() |
 
 嵌套配置使用真实同名成员：InteractionStylesBuilder 的四种状态接收 StyleOverrideBuilder；surface／marker／scrollbar 接收对应部件 OptionsBuilder；states 接收 InteractionStylesBuilder；text／placeholder／description 接收 SpanStyleBuilder。这些成员均返回 Unit、基于当前值修改，重复块累积，空块保留已有字段。可选文字覆盖尚为 None 时，文字配置块从全部继承的 spanStyle() 开始；直接给属性赋入完整值表示替换，赋入 None 移除该文字覆盖。
 
@@ -391,7 +474,11 @@ transition／selectionTransition 还提供同名 Unit 设置方法，将同一�
 
 公共 style 的 `Insets(left, top, right, bottom)` 表达有限非负内边距，`Insets.all(value)` 构造四边相等的值，控件不再复制同名类型。布局操作检查边距、尺寸及求和结果，颜色和绘图参数继续由 graphics 检查。首批交互过渡复用 Surface Animatable<Double> 生成 0～1 采样，主题根据它解析颜色或标记外观；目标相同的普通更新不重新启动动画，显式清除 transition 时直接吸附到当前目标。
 
-此前 ComponentDefaults 的固定视觉默认值方案由 ThemeSource／Theme 取代。应用在实际运行入口绑定稳定 ThemeSource；控件挂载保存来源，在 render 读取当前 Theme，其余局部属性继续继承主题。显式来源可经 Props 提供，组合控件向子标签转交；不存在自动挂载树 Provider。切换风格、明暗或效果保持组件实例、State、区域和焦点，只更新 Props、必要布局及绘图资源。
+此前 ComponentDefaults 的固定视觉默认值方案由 ThemeSource／Theme 取代。应用在实际运行入口绑定稳定 ThemeSource；控件挂载保存来源，在 render 通过 ThemeSource.read(scope) 取得当前根偏好解析后的 Theme，其余局部属性继续继承主题。减少动画、高对比度、减少透明度和文字缩放的解析规则见主题规范第 6.1 节；来源的基础 State 不被根覆盖改写。显式来源可经 Props 提供，组合控件向子标签转交；不存在自动挂载树 Provider。切换风格、明暗或效果保持组件实例、State、区域和焦点，只更新 Props、必要布局及绘图资源。
+
+自绘菜单、弹出层、Card／Alert／Modal／Toast 的默认文字和边框以实际表面为背景解析：高对比度的文字配对至少 7:1，默认边界至少 3:1，危险操作尽量保留原有色调；标题、说明及快捷键不能只借用另一个底色上的对比度结果。必要的配对调整复用 Style.contrastThemeColors。减少透明度把默认半透明底色与装饰合成到对应表面。Select 触发器的文字与悬停／按下底色沿同一语义配对，默认占位和图标同步处理。无填充状态保留，用户的 surface、text、states、popupStyle 等明确覆盖最后应用；不改变菜单行为、输入、逻辑焦点、语义身份或生命周期。
+
+菜单及 Select 候选项禁用时，默认正文、快捷键和选择标记采用同一禁用文字色，不保留悬停底色；高对比度下对实际弹出表面的对比度至少 4.5:1。主题已经用整体 disabledOpacity 表达禁用时，不再重复衰减文字；显式文字和自定义内容仍由应用决定。
 
 控件或其 Element 通过 ComponentScope.resource 登记自己创建的资源，或登记拥有可替换资源的缓存对象；输入区域和动画通过作用域的对应入口取得。卸载沿框架的子先父顺序清理，应用不为 Label／Button／Checkbox 逐个 use。借用的 Image／Path／字体、Binding 与外部模型不得由控件擅自关闭。
 
@@ -419,13 +506,29 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 
 ## 9. Input／Textarea
 
-InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget、group 和当前回调均经 Props 更新；标签关联遵守第 15 节，连接位置遵守第 16 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+InputProps／TextareaProps／InputOtpProps 及对应 builder 提供 touch: TextTouchOptions = TextTouchOptions() 和 touchScroll: TouchScrollOptions = TouchScrollOptions()，分别透传共享编辑宿主的 tap／连续多击／长按与直接滚动配置。multiTap 开关和显式或跟随系统的 multiTapInterval 也沿同一配置传递；第二／第三次成功短按复用词／逻辑行选择。输入组、Combobox、Command、Sidebar 等借用 InputProps 的包装保留这些值；SelectableStyledText／Typography 通过原 SelectableTextOptions.touch 配置只读选择。长按与键盘／语义菜单共用同一选区、编辑模型和原生会话，行为及取消规则见 UI 规范的文本宿主部分，不在控件中重复识别触点。
+
+TextTouchOptions.selectionHandles 使用 TextSelectionHandleOptions，控制触摸 caret／选区端点的 enabled、radius、hitRadius 与 color，继续沿上述 Props／builder 透传。把手调整和边缘滚动由共享文本宿主执行，复用同一模型、Accepted 裁剪及滚动路径；控件不增加独立手势识别器、焦点或语义节点。单独关闭把手保留短按、多击、长按与键盘／语义选择。
+
+文本输入的 InputProps／TextareaProps／InputOtpProps 及各自 builder 的 `caretBlink: Duration? = None` 默认跟随根系统偏好；`Some(Duration.ZERO)` 保持光标可见。TextFieldStyle 与 InputOtpStyle 的 `caretWidth: Double? = None` 同样交给共享 TextEditHost 解析，显式值是有限正数，单位为逻辑像素。其优先级及 Accepted 几何合同见[UI 规范 §8.3](SCOOP-UI-SPEC.md#83-系统交互偏好)。
+
+InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget、group 和当前回调均经 Props 更新；标签关联遵守第 15 节，连接位置遵守第 16 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 None，跟随根系统偏好；显式 Some(Duration.ZERO) 保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
 
 InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy()，直接交给同一 TextEditHost；输入、粘贴、删除及组合最终提交在发布前按 UI 规范第 7.5.1 节处理。onEdited 只观察最终结果，不用作过滤或光标修复；控件不复制策略或历史实现。
 
+InputProps／TextareaProps／InputOtpProps 及其 builder 提供 `contextMenu: TextContextMenuOptions = TextContextMenuOptions()`，默认优先使用平台可接入的系统文本菜单模板。builder 的 `contextMenu { ... }` 更新当前配置，可分别设置 Disabled／StandardNative／PreferSystem、选区外辅助点击的选择策略和标准命令标签。右键与平台辅助点击、菜单键／Shift+F10、只读和禁用状态、菜单目标与生命周期遵守[原生菜单规范 §6](SCOOP-UI-NATIVE-MENUS-SPEC.md#6-文本框内建上下文菜单)。InputGroup、ButtonGroup、Command、Combobox、SidebarInput 直接透传同一输入配置，不创建第二个菜单或编辑模型；OTP 的整组输入共用一个菜单目标，编辑仍经过长度和模式策略。
+
+三类输入 Props／builder 提供 acceptDrops=true，并由上述包装原样传给 TextEditOptions。三平台 TextEditHost 共用 Copy 或完整 Move 的文本／URL 接收，在共享排版中显示临时落点并沿普通编辑策略提交；readOnly、enabled 与该开关共同决定资格，OTP 继续通过同一字符／长度策略。来源 DragDrop 与 Paste 共用导入清洗，原生系统会话和编辑事务见[UI 数据拖放规范 §4、5](SCOOP-UI-DRAG-DROP-SPEC.md#4-文本-copy-接收)。
+
+InputProps／TextareaProps 及 builder 提供 inputPurpose=TextInputPurpose.Normal、softwareKeyboard=true，所有输入包装透传；OTP 的 inputPurpose: TextInputPurpose?=None 按 Digits pattern 选 Digits，其余 pattern 选 Normal，显式值覆盖缺省。保护、原生请求结果及真实遮挡显露见[输入用途规范](SCOOP-WINDOW-TEXT-INPUT-PURPOSE-SPEC.md#3-ui-文本宿主)。用途不替代 OTP 或普通编辑策略。
+
+Input／Textarea／OTP 的 Props 与 builder 另提供 primarySelection=TextPrimarySelectionOptions() 和 automaticTextReplacement=false，InputGroup、ButtonGroup、Command、Combobox、SidebarInput 原样透传。contextMenu.systemServices 与 touch.hapticFeedback 沿共享文本宿主合同；Typography／SelectableStyledText 使用自己的 SelectableTextOptions 配置 PRIMARY。系统服务不绕过 OTP 的字符、长度或导入策略，不对受保护／遮蔽正文进行检查或导出。
+
+三类输入 Props／builder 提供 drag=TextDragOptions()，上述包装透传同一不可变配置。共享宿主实现选区拖出、只读 Copy、受保护用途的默认导出限制、完整 Move 与 SourceRetained 通知；OTP 的清洗／裁剪仍属于同一策略，有损接收不能被报告为完整 Move。drag 与 acceptDrops 独立。
+
 两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时使用按 body 字号／14 缩放的横向 10、纵向 8，Input 保持主题内缩。
 
-projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；Props／builder 直接传给宿主。内置遮罩默认禁用 Copy／Cut，明确 Allow 时复制原文；切换显隐保留模型、历史与 IME 连接，控件不创建另一份显示文档。
+projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；Props／builder 直接传给宿主。InputProps／TextareaProps／InputOtpProps 及各自 builder 另提供 `protectedText: Boolean = false`，独立于视觉显隐。受保护用途或内置遮罩默认禁用 Copy／Cut，Input／Textarea 明确 Copy Allow 时复制原文；允许复制不解除用途标记。InputGroup、ButtonGroup、Command、Combobox、SidebarInput 原样透传。切换显隐或保护标记保留模型、选择、历史与 IME 连接，控件不创建另一份显示文档；密码显隐示例必须始终设置 protectedText=true。
 
 Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默认四行、wrap=true、tab=Navigate、submit=PrimaryEnter；rows 为正整数，可明确选择 Insert Tab 或其他 TextSubmitKeys。编辑、Unicode 导航、组合、剪贴板、只读和候选框均委托同一 TextEditHost；不在组件内再映射原生按键或排版文字。
 
@@ -433,9 +536,13 @@ Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默
 
 TextFieldStyle 包含 SurfaceOptions、正文／placeholder／description 的 SpanStyle、InteractionStyles、可选选择／非活动选择／caret／marked 颜色、caretWidth 和 ScrollbarOptions。表面使用 Theme 的 Plain 几何和 Background／Foreground 绘制阶段，padding、边框内缩及显式内容效果沿公共 Style 处理。默认选择取强调色的半透明值，caret／marked 取强调色。invalid 仅改变外观，正文合法性由业务决定：默认错误边框和状态环来自 tokens.validation，即使未聚焦也显示；description 使用 palette.destructive.background。明确的局部表面与 validation 覆盖仍优先，focus 只覆盖正常焦点外观，禁用说明使用 disabledText。没有内置验证器或提交阻断。正文区域（背景、文字、边框和状态环）整体应用 SurfaceGeometry.opacity，description 在此层之外。placeholder 始终使用 muted.foreground，再随正文区域合成；局部 placeholder 覆盖仍优先。
 
+TextFieldStyle／InputOtpStyle 及 builder 的 selectionTextColor／inactiveSelectionTextColor 是可选的选区文字覆盖，默认沿主题解析：普通偏好保留原文字，减少透明度把默认选区背景合成到主题背景，高对比度分别采用 primary 与 secondary 的完整背景／文字配对。显式选区背景保留原文字，除非同时明确指定文字覆盖；不替应用的局部配色推导对比度。Input／Textarea／OTP 共用此规则；高对比度或减少透明度时，OTP 的默认槽底色使用不透明主题背景，明确的 surface 覆盖仍优先。偏好和文字缩放热切换保留同一编辑模型、选择和撤销历史。
+
+TypographyProps 与 builder 的 `selection: SelectableTextOptions? = None` 表示从当前有效主题取得上述默认选区配色；Some 使用应用完整的选项。根偏好、显式主题和基础主题更新沿普通 render 依赖解析，公开选项仍转交同一 SelectableTextHost；不另建选择状态。
+
 有界宽度占满父约束，无界宽度使用显式 SurfaceOptions.suggestedSize.width，缺省 240，再满足主题 minimumSize。Input 一行、Textarea rows 行的建议高度使用同一字体与正文样式下真实空段落的行高，合并 padding、边框和主题建议／最小高度，再按父约束收敛；不以字符数估算布局。Host 每帧只按最终内视口测量一次，基线来自该布局并加实际内容偏移。description 作为普通 Label 在边框外下方按同宽约束测量，不作为输入正文或滚动内容。
 
-Textarea 的 scrollbars 默认为 Auto，可选 Always／Hidden。非 Hidden 固定预留主题垂直条宽；wrap=false 时另预留水平条高，避免文字溢出改变滚动条后再反复测量。Auto 只在实际范围非零时显示，Always 显示禁用的零范围外观，Hidden 不预留。复用已有 ScrollBarControl 与宿主本帧 scrollSnapshot，只有宿主持有 ScrollViewport。条的滚动和输入沿既有残量、捕获及成功几何规则；Input 只水平显露，不绘制滚动条。
+Textarea 的 scrollbars 默认为 Auto，可选 Always／Hidden，scrollbarBehavior.placement 默认 Gutter，可显式切换 Overlay。占位、End 方向、双轴角部与显露留白采用 §6.2 的统一规则；wrap=false 时允许横条，wrap=true 只允许竖条。Auto 只在原始正文溢出时显示，Always 允许零范围外观，Hidden 不预留。复用已有 ScrollBarControl 与宿主本帧 scrollSnapshot，只有宿主持有 ScrollViewport。条的滚动和输入沿既有残量、捕获及成功几何规则；Input 只水平显露，不绘制滚动条。
 
 外框留白使用不参与 Tab 的区域，在正文之前放置；点击留白把焦点交给同一宿主，不建立第二个文本连接。正文区域仍执行普通定位和选择。主题／明暗、描述、只读或模型替换更新保留控件挂载；编辑模型替换按 TextEditHost 的旧组合／连接收尾规则生效。模态、虚拟项固定、外层显露和绘制缓存只沿框架既有能力组合。
 
@@ -467,6 +574,8 @@ ChildrenBuilder 提供 svgView 与 icon 追加成员。两种展示均不创建�
 ButtonProps／ContentButtonBuilder 增加 variant: ButtonVariant = Default、size: ButtonSize = Default。ButtonVariant 为 Default／Outline／Secondary／Ghost／Destructive／Link；ButtonSize 为 Xs／Sm／Default／Lg／IconXs／IconSm／Icon／IconLg。ButtonStyle.kind 继续选择主题基础表面的尺寸与外观，variant／size 在其上解析，随后依次应用显式 surface／text 及适用的 states；明确的局部覆盖优先。状态解析只消费公共 token、mode 和几何，不判断主题实现类型。
 
 Default 保留所选主题部件；Outline 使用背景与边框、hover 使用 muted（Dark 为 input 的 0.3／0.5 alpha）；Secondary 使用 secondary，Button hover 以 OKLCH 混入 5% foreground；Ghost 无底色、hover 使用 muted（Dark alpha 0.5）；Destructive 使用 destructive 的 0.1／0.2 alpha 底色及同色文字，Dark 为 0.2／0.3；Link 无底色与可见边框，使用 primary 文字，hover 时给文字入口加下划线。Destructive 的普通焦点边框 alpha 0.4，环 Light／Dark alpha 0.2／0.4，宽度与外扩沿主题 validation。invalid 优先于普通焦点，显式局部外框／状态环覆盖仍有效。无整体禁用衰减（disabledOpacity 截取后为 1）的主题，新增非 Default 变体使用 disabledText，并将底色与 muted 等量混合；采用整体衰减的主题保留未衰减颜色，避免重复衰减。颜色过渡沿现有 hover／press 采样并使用主题的预乘 alpha 插值；Outline／Secondary／Ghost 的 pressed 在 hover 背景上混入 8% background.foreground，Destructive 的 pressed alpha 为 Light 0.3／Dark 0.4，Link 保持透明。按下与悬停使用不同终点，松开后返回当前悬停或普通状态。Secondary 的 OKLCH 色彩混合只服务此处 hover 预设，不引入 CSS 解析器。
+
+上述派生颜色描述普通偏好。高对比度下，Button／Badge 的非 Default 变体、Toggle 和 Tabs 使用当前主题的完整语义前景／背景配对，不再对已解析的颜色套固定 alpha 或混入其他配对的文字颜色；稳定状态的启用文字保持至少 7:1、禁用文字至少 4.5:1。Switch 的关闭轨道与 thumb 保持至少 3:1，开启时采用 primary 配对。Slider 的 thumb、Sidebar 的标题和两者默认焦点外观同样采用已解析颜色，默认焦点环至少 2 个逻辑单位，包括文字缩小的情况。减少透明度把这些控件派生的半透明底色和装饰合成到其已知主题表面；完全透明的无填充保持无填充。应用显式的 surface／text／thumb／states 覆盖仍在默认解析之后生效，不修改输入、逻辑焦点、语义或模型。
 
 以 Nova 32 高表面为基准，Xs／Sm／Default／Lg 建议高 24／28／32／36，对应文字字号 12／12.8／14／14，图标尺寸 12／14／16／16，内容间距 4／4／6／6；其他主题按基础建议高和操作字号等比例派生。Icon 四尺寸取对应边长，图标为 12／16／16／16，无文字专用水平留白；正常父约束、内容最小需求及显式局部尺寸仍优先，不能裁掉放大后的字体。默认保留主题圆角，Xs／Sm 使用 medium 圆角；局部 corners 可覆盖。禁用清除交互过渡，但不清除 invalid。
 
@@ -578,7 +687,7 @@ Spinner、Skeleton 与 Progress 复用 scope-owned Animatable 的循环和可见
 
 H2 带底边 1 和底部留白 8；Blockquote 带逻辑起端边 2 和留白 24；InlineCode 使用 muted 背景、small 圆角、水平 4.8／垂直 3.2 留白。尺寸随正文密度缩放，H2 的细线保持 1；所有装饰可用 style 覆盖。InlineCode 先取自然宽，再在父约束内换行／收缩，不占满段落为行内对象提供的最大宽度；基线包含实际垂直留白。普通文字使用角色基础样式；StyledText 保留原基础样式与片段，显式 textStyle: TextStyle 覆盖最终基础样式，不重写嵌套 span。
 
-builder 公共字段为 fonts／theme、textStyle、style、settings、selectable: Boolean = true、selection: SelectableTextOptions、focus、actions／decorations、onSelectionChanged、inlines、key；settings／textStyle／style／focus 提供对应接收者配置。选择模式直接使用 SelectableStyledText，非选择模式使用 Label。文字更新、方向、主题与局部样式更新沿现有文本宿主保留合法选区；没有额外编辑文档或剪贴板实现。选择以各个实际段落为边界，不建立跨段落文档模型。
+builder 公共字段为 fonts／theme、textStyle、style、settings、selectable: Boolean = true、selection: SelectableTextOptions? = None、focus、actions／decorations、onSelectionChanged、inlines、key；settings／textStyle／style／focus 提供对应接收者配置。选择模式直接使用 SelectableStyledText，非选择模式使用 Label。文字更新、方向、主题与局部样式更新沿现有文本宿主保留合法选区；没有额外编辑文档或剪贴板实现。选择以各个实际段落为边界，不建立跨段落文档模型。
 
 TypographyTextBuilder 另有 text、add(TextSpan)、span、code(String, InlineKey)、inline(InlineKey, View, alternateText, configure)。code 创建带真实大小、基线和圆角背景的非选择 InlineCode 子 View，作为原段落内的一个行内对象参与排版／选择，复制时使用原代码文字；不会给子 View 再创建选择宿主。明确 key 保持行内对象身份，默认 code key 按声明位置生成；重复 key 沿 StyledText 规则报错。其他行内 View 也通过现有 InlineView 测量、命中和替代文字合同处理。range action 的位置始终是 StyledText 的 UTF-8 字节位置，行内对象占 U+FFFC 的三个字节。
 
@@ -605,6 +714,10 @@ ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取�
 `fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText／View 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。Props 的 content 为 FieldLabelContent.Text(LabelText) 或 Custom(View)；builder 提供 fonts／theme、textStyle: SpanStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。Custom 保留完整 View 及自身样式，标签只提供原有指针关联，可包裹含控件的 choice card；子控件消费的点击不再次触发标签动作。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
 
 标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox／Switch 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。
+
+FieldLabel 的 Props／builder 提供 `semantics: ComponentSemantics = ComponentSemantics()`。它拥有 Group 语义节点，合并自己的纯静态标签，保留 Custom 中的独立交互后代；覆盖名称不改写子内容或指针动作。Group 的 enabled 与实际标签输入区域一致，目标未绑定或禁用时，子按钮也报告不可用，文字仍可阅读。FieldTarget 同时登记这些实际节点，已接入默认语义的 Button、Checkbox、Input／Textarea 从原 FieldLink 取得 labelledBy。多个独立标签按关联登记顺序提供文字，稳定挂载重排不改变既有关联顺序；需要完整自定义名称时使用控件的显式 name。注释节点、控件或目标替换／卸载时更新关系，不复用退休引用；跨窗口关联保留原指针规则，但不导出跨窗口语义引用。
+
+相同 FieldTarget 也可登记第 23 节的说明和错误节点。控件每类显式非空关系优先于该类自动关系，显式 name／description／error（包括空串）继续优先于关系解析。关系变化在普通逻辑更新中刷新现有控件节点，不要求布局、绘制、焦点或用户动作；正文变化沿已有引用依赖更新名称和说明。关联资源由注释的挂载拥有，FieldTarget 只借用活跃资源，不保活已卸载组件。
 
 ## 16. ButtonGroup
 
@@ -671,7 +784,7 @@ ToggleVariant 为 Default／Outline，ToggleSize 为 Sm／Default／Lg。pressed
 
 ## 19. Input OTP
 
-`inputOtp(state: TextEditorState, length: Long, configure: InputOtpBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 的同名成员创建一个 InputOtpProps／InputOtp。length 必须为正；Props 包含 state、length、parts: Array<InputOtpPart>=[]、pattern=Digits、enabled=true、readOnly=false、invalid=false、fonts／theme／labelTarget=None、focus=FocusOptions()、style=inputOtpStyle()、caretBlink=500ms、onEdited／onComplete 两个默认空回调。所有编辑、选区、composition 和撤销历史只有一份 TextEditorState；整体只有一个 Tab 目标和 TextEditHost，FieldTarget 沿现有输入标签关联。
+`inputOtp(state: TextEditorState, length: Long, configure: InputOtpBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 的同名成员创建一个 InputOtpProps／InputOtp。length 必须为正；Props 包含 state、length、parts: Array<InputOtpPart>=[]、pattern=Digits、enabled=true、readOnly=false、invalid=false、fonts／theme／labelTarget=None、focus=FocusOptions()、style=inputOtpStyle()、caretBlink=None、onEdited／onComplete 两个默认空回调。所有编辑、选区、composition 和撤销历史只有一份 TextEditorState；整体只有一个 Tab 目标和 TextEditHost，FieldTarget 沿现有输入标签关联。
 
 InputOtpPart 为 Group(InputOtpGroup)／Separator(View)。InputOtpGroup 保存非空的 Array<InputOtpSlot>，slot 包含 index 和 invalid=false；全部 group 的索引必须按正文逻辑顺序恰好覆盖 0..<length。parts 为空时使用一个默认组。显式描述必须以组开始和结束，不能出现连续 separator；相邻组可直接相连。builder 的 `group { slot(index, invalid=false) }` 和 `separator(content: View)` 构建描述，`separator()` 使用 16 单位的减号图形。分隔内容是正常 View，保留其 key 与挂载；槽和组是同一编辑表面的几何，不各自挂载输入控件。方向改变按逻辑起止侧翻转布局，组和分隔符不进入正文、粘贴结果或复制文本。
 
@@ -679,7 +792,7 @@ InputOtpPattern 为 Digits／Alphanumeric／Custom(TextEditPolicy)。前两者�
 
 onEdited 沿 TextEditHost 的正文通知；onComplete 只在宿主接受的操作改变已提交正文、组合已经结束且新正文恰为 length 个 grapheme 时调用。满长度下真正替换内容可再次完成；纯选择、主题／方向／分组变化、重复 render、取消或拒绝后恢复原基线不重复通知。回调读取最新 Props，允许调用方替换正文或移除控件，不自动提交表单或移走焦点。
 
-InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: SpanStyle?、focusOutline／validation: OutlineStyle?、selectionColor／inactiveSelectionColor／caretColor／markedColor: Color?、caretWidth=1。提供 inputOtpStyle、copy 和对应 builder；surface 只覆盖槽的装饰，text 覆盖主题正文。默认槽为 32×32，按主题正文大小／14 缩放；组内接缝只画一条 input 边框，组首尾使用 medium 圆角。Dark 底色为 input 的 0.3 倍 alpha；Light 透明。活动槽按统一焦点规则显示 ring，invalid 优先，局部装饰继续优先。禁用透明度作用于整个组合，readonly 仍允许选择、复制和导航。
+InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: SpanStyle?、focusOutline／validation: OutlineStyle?、selectionColor／inactiveSelectionColor／selectionTextColor／inactiveSelectionTextColor／caretColor／markedColor: Color?、caretWidth: Double? = None。提供 inputOtpStyle、copy 和对应 builder；surface 只覆盖槽的装饰，text 覆盖主题正文。默认槽为 32×32，按主题正文大小／14 缩放；组内接缝只画一条 input 边框，组首尾使用 medium 圆角。普通偏好下 Dark 底色为 input 的 0.3 倍 alpha、Light 透明；高对比度或减少透明度时默认采用不透明主题背景。活动槽按统一焦点规则显示 ring，invalid 优先，局部装饰继续优先。禁用透明度作用于整个组合，readonly 仍允许选择、复制和导航。
 
 槽位、间隙、鼠标命中、方向导航、选区、marked 装饰与原生 caret 共享 UI 规范第 7.5.3.1 节的 TextEditLayout。空槽中的可见 caret 居中，已有字符处使用真实插入边缘；只在 caret 确实可见时闪烁。临时超长 preedit 或外部超长正文按同一槽几何向逻辑末尾扩展，延续末组边框并可滚动显露；不改写模型来凑固定槽数。测量为外侧焦点环预留空间；有限窄宽和零尺寸沿同一视口裁剪，主题／分组／方向变化保留输入宿主与选区；卸载释放排版、取消闪烁及输入连接，字体由调用方持有。
 
@@ -717,9 +830,9 @@ spacing=0 时沿轴连接边框和圆角，Outline 相邻处只画一条边，�
 
 每个 thumb 有独立 FocusTarget 和正常 Tab 停靠点。仅真实、无修饰的 key-down／repeat 执行动作：水平 Left／Right、垂直 Down／Up 分别减少／增加，水平 RTL 和 reversed 各反转一次；Home／End 到当前 thumb 允许的最小／最大值，PageUp／PageDown 增减十个步长。其他轴箭头、Space／Enter 及 key-up 保留给外层。只移动当前 thumb，保持邻居和身份，达到边界仍消费已认领的键。每次实际被 Binding 采纳的键盘变化调用 onValueCommit 一次，拒绝或无变化不通知。
 
-指针输入复用 threshold=0 的轴向 Drag，覆盖轨道和 thumb 扩展命中区。轨道按下选取最近可移动 thumb，同距优先当前聚焦项，再按下标；点击 thumb 保留抓取位置，点击轨道立即移动最近 thumb。移动使用最近 Accepted 的轨道／thumb 几何和该次样本，不从待提交布局推算；横向与纵向的端点将 thumb 保留在控件尺寸内。只有正常 release 提交一次实际最终变化；onValueCommit 接收当前采纳的完整数组，外部同步更新不合成通知。
+鼠标、直接触摸和笔尖输入复用 threshold=0 的轴向 Drag，覆盖轨道和 thumb 扩展命中区。轨道按下选取最近可移动 thumb，同距优先当前聚焦项，再按下标；点击 thumb 保留抓取位置，点击轨道立即移动最近 thumb。第二触点沿公共 Drag 规则取消单接触拖动。移动使用最近 Accepted 的轨道／thumb 几何和该次样本，不从待提交布局推算；横向与纵向的端点将 thumb 保留在控件尺寸内。只有正常 release 提交一次实际最终变化；onValueCommit 接收当前采纳的完整数组，外部同步更新不合成通知。
 
-取消恢复本次按下前的数组，但仅在当前值仍等于最后一次自身写入结果且范围未被业务替换时尝试恢复，setter 仍可拒绝。外部值／范围、thumb 数量、方向、orientation 变化使旧拖动结束；外部新值与范围保留。禁用、失焦、几何丢失、Escape、被阻止的释放和卸载均有取消出口。`onValueCancel(values, reason: DragCancelReason)` 报告收尾后的实际数组及原因；取消不再调用 commit。所有动作使用最新 Props，回调可以移除控件；输入资源随挂载收尾，没有常驻时钟或第二份受控值。
+取消恢复本次按下前的数组，但仅在当前值仍等于最后一次自身写入结果且范围未被业务替换时尝试恢复，setter 仍可拒绝。外部值／范围、thumb 数量、方向、orientation 变化使旧拖动结束；外部新值与范围保留。禁用、失焦、几何丢失、Escape、被阻止的释放和卸载均有取消出口。`onValueCancel(values, reason: DragCancelReason)` 报告收尾后的实际数组及原因；取消不再调用 commit。所有动作使用最新 Props，回调可以移除控件；取消只读取仍有效的业务配置和值，不依赖已卸载作用域的主题或几何查询。输入资源随挂载收尾，没有常驻时钟或第二份受控值。
 
 SliderStyle 的 length／thickness／thumbSize／hitInsets 可覆盖默认 160／4／12／8（按主题 body 字号／14 缩放）；长度有限非负。有限主轴填充可用空间，无界主轴使用 length；交叉轴取 thumbSize，父约束优先，包括零尺寸。纵向最小值在下端，reversed 翻转；单 thumb 的 range 从数值最小端延伸到 thumb，多 thumb 在首末之间填充。track／range 使用普通 StyleOverride，默认 muted.background／primary.background 与全圆角；thumb 使用普通 StyleOverride 并映射为现有 SurfaceOptions，默认白底、ring 色 1 单位边框。hover／pressed／focus-visible 使用 3 单位主题 ring，invalid 使用统一 validation。主题及样式更新走现有 geometry／StylePainter／ThemePainter；disabled 透明度对整控件覆盖一次。动画只平滑交互颜色／光环，值位置立即响应绑定；reduced motion 遵循主题，静止后停止请求帧。
 
@@ -741,9 +854,13 @@ SliderStyle 的 length／thickness／thumbSize／hitInsets 可覆盖默认 160�
 
 ## 23. Field 与表单分组
 
-`field(control: View, configure: FieldBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 成员构造 FieldProps／Field。control 必需且始终保留在同一直接父级的固定槽中；其余输入为 heading: FieldHeading?、description: PanelContent?、errors: Array<String>=[]、error: PanelContent?、orientation=Vertical、controlPlacement=End、descriptionPlacement=AfterControl、required=false、requiredText="Required"、invalid=false、breakpoint／controlWidth／spacing／contentSpacing=None、fonts／theme=None、padding=Insets()、style=styleOverride()；builder 另有 key。FieldHeading 为 Label(FieldLabelContent, FieldTarget) 或 Title(PanelContent)，label／title 成员选择一个标题，支持 String／StyledText／View；description／error 同样接受这些内容。required 只附加可本地化说明，不执行校验或创建提交规则。
+`field(control: View, configure: FieldBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 成员构造 FieldProps／Field。control 必需且始终保留在同一直接父级的固定槽中；其余输入为 heading: FieldHeading?、description: PanelContent?、errors: Array<String>=[]、error: PanelContent?、orientation=Vertical、controlPlacement=End、descriptionPlacement=AfterControl、required=false、requiredText="Required"、invalid=false、breakpoint／controlWidth／spacing／contentSpacing=None、fonts／theme=None、padding=Insets()、style=styleOverride()；builder 另有 key。FieldHeading 为 Label(FieldLabelContent, FieldTarget) 或 Title(PanelContent)，label／title 成员选择一个标题，支持 String／StyledText／View；description／error 同样接受这些内容。required 显示可本地化说明，并向明确关联的语义目标发布必填属性，不执行校验或创建提交规则。
 
 Field 不读取不透明 control 的属性或后代，不拥有编辑模型、选择绑定、控件工厂或校验状态。invalid 只决定自动标题与必填说明的错误色；error 自定义内容优先于 errors，错误数组忽略空字符串并按首次出现顺序去重，一条直接显示、多条显示带缩进的项目符号，空数组不产生错误槽。控件自身的 enabled／invalid、Field 的状态和业务错误由调用方明确传入；没有自动状态同步、通用 Form engine、类型反射或额外类型身份。FieldLabel 沿第 15 节关联目标并反映其 enabled；普通 title 没有激活动作。自定义标题／说明／错误 View 保留调用方样式与交互。
+
+FieldProps／FieldBuilder 增加 `target: FieldTarget? = None`，用于明确关联普通 title、description 和 error。None 时从 FieldHeading.Label 取得原目标；显式 target 与该标签目标必须相同，避免一个 Field 的标题和说明指向不同控件。控件仍须通过自己的 labelTarget 绑定目标，Field 不搜索或改写 control。Title 提供 labelledBy，description 提供 describedBy，实际呈现的错误提供 errorMessages；错误去重结果及自定义内容优先级与视觉一致，项目符号为装饰。没有目标时保留普通文字阅读，invalid 等其余状态投影随 S5 继续实现。
+
+Field 的 required 同时通过这个目标向已接入语义的 Button、Checkbox、Input／Textarea 发布 SemanticProperties.required。必填来源由 Field 挂载拥有，只在同一窗口中参与目标的当前状态；存在任一活跃 required=true 来源即为必填，关闭、换绑或全部恢复 false 后清除。普通逻辑更新传播该事实，不以标签或错误是否存在为条件，也不等待绘制。目标在同一窗口中已有活跃语义节点时，requiredText 继续显示，但作为装饰退出阅读树，避免同时读属性和重复提示；没有这样的目标时保留普通文字阅读。它仍不执行验证、不禁止操作，不改变业务模型；ComponentSemantics 的命名覆盖不改写此实际状态。
 
 FieldOrientation 为 Vertical／Horizontal／Responsive。Responsive 仅在本次有限可用内容宽度达到 breakpoint 时横排；默认阈值为 448，按主题 body 字号／14 缩放，无界宽度按纵排。FieldControlPlacement 为 Start／End，按逻辑方向决定控制槽在标题前／后；FieldDescriptionPlacement 为 AfterControl／WithHeading。纵排按标题与 control 的指定顺序排列说明及错误，错误总在最后；WithHeading 将说明紧随标题。横排把标题和 control 分列，说明依配置归列；End 的错误在 control 列，Start 的错误在标题列，适用于 Checkbox／Switch 与说明组合。RTL 只交换逻辑横向位置，不改变挂载、键盘顺序或输入方向的显式设置。
 
@@ -752,6 +869,8 @@ FieldOrientation 为 Vertical／Horizontal／Responsive。Responsive 仅在本�
 `fieldTitle`、`fieldDescription`、`fieldLegend` 的 String／StyledText／View 入口构造 FieldTextProps／FieldText；普通字段文本使用 body 字号和 20／14 行高，Title／LegendLabel 字重 500，Description 为 muted.foreground，Error 为 destructive.background。Legend 默认字号 16、行高 24／16、字重 500，可选 FieldLegendVariant.Label；尺寸仍按字号缩放。FieldTextBuilder 配置 fonts／theme、textStyle: SpanStyle?、style 和 key，FieldLegendBuilder 另有 variant。自动标题与说明和这些独立入口使用同一解析函数；自定义 View 不被重写。
 
 `fieldError(errors: Array<String>, configure: FieldErrorBuilder.() -> Unit = {})` 及自定义内容重载使用 FieldErrorProps／FieldError，遵循上述错误数组和优先级规则；builder 支持 content、fonts／theme、textStyle、style、key。多条错误间距为 4、项目符号列与正文缩进共 16，按字号缩放；错误与普通说明不增加 Tab 停靠点，富交互内容由调用方显式提供。没有内容时尺寸为零。
+
+FieldTextProps／FieldTextBuilder 和 FieldErrorProps／FieldErrorBuilder 提供 `target: FieldTarget? = None` 与 `semantics: ComponentSemantics = ComponentSemantics()`；FieldLegendBuilder 继承这两个字段。Title／Legend／LegendLabel 在指定目标时作为标签，Description 作为说明，Error 作为错误。使用同一 Group 容器合并静态正文并保留独立操作后代，错误为空时不创建注释节点。更新、换绑、关闭及显式覆盖沿第 15 节规则；这些注释不增加 Tab 目标、重复编辑模型或验证引擎。
 
 `fieldGroup { ... }` 与 `fieldContent { ... }` 使用同一 FieldStackProps／FieldStack，FieldStackKind.Group／Content 的默认间距分别为 20／2，按字号缩放。FieldStackBuilder 继承 ChildrenBuilder，提供 spacing、theme、padding、style、key；子项是普通 View，嵌套组或选择组的间距由调用方显式配置，不检查后代类型。`fieldSet(content: View) { legend(...); description(...) }` 使用 FieldSetProps／FieldSet，FieldSetBuilder 提供 legend: PanelContent?、variant=Legend、description、spacing、fonts／theme、padding、style、key，默认间距 16。legend／说明增删保留固定 content 槽；字段组和集合不建立另一套焦点域或禁用状态。
 
@@ -848,6 +967,8 @@ Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: 
 
 默认 inverse 配色取 background.foreground／background.background；前景色先按其 alpha 与不透明 background.background 合成，作为不透明提示底色，避免系统半透明文字色透出后面的控件。12 字号、水平 padding=12、竖直=6、corner=6、自然宽度不超过 maxWidth，正文过长正常换行；自定义正文保留其样式。默认含箭头，100ms 淡入缩放位移，Reduced Motion 无动画。Portal 为 NonModal、focus=None、Escape／外部按下关闭且外部继续处理；退出重开保留正文实例。验收覆盖原触发动作只执行一次、延迟取消、Escape 抑制及重新进入、正文不可交互、拒绝绑定／换绑、定位／箭头翻转、禁用／失焦／卸载和静止停帧。
 
+TooltipProps／HoverCardProps 及共用 builder 提供 longPress: LongPressOptions=LongPressOptions()，透传公共 Hover 的直接触摸入口。长按显示同一提示／卡片，释放后保持；组外按下、Escape、禁用与窗口失活按原关闭路径收束。Tooltip 在新的触发器接触开始时关闭已有提示，但不消费普通短按。子内容已处理的文本长按、直接拖动或滚动不会同时触发外层提示。
+
 ## 30. HoverCard
 
 `hoverCard(trigger: View, content: View, configure: HoverCardBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 HoverCardProps／HoverCard。与 Tooltip 共用可选受控 open、定位、Hover 延迟／通路、回调、字体／主题／样式及生命周期规则；默认 side=Bottom、width=256、openDelay=600ms、closeDelay=300ms、transitDelay=350ms、corridorPadding=6、focus=true、arrow=None，其他默认与 Tooltip 相同，不提供 maxWidth。正文是完整 View，可选择文字、按按钮或编辑；悬浮打开不主动取走焦点，点击进入正文后普通焦点与 Hover 组内保持规则生效。没有模态屏障或自动焦点恢复。
@@ -861,7 +982,7 @@ Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: 
 
 共同配置在 Props.options: ModalOptions 中保存为不可变快照，三个 builder 直接展开同名配置成员。ModalOptions 的配置为 trigger: PopupTriggerSpec?=None、title／description: PanelContent?、header: View?=None、scrollable=false、scrollState: ScrollState?=None、focus=OverlayFocusOptions()、handle=None、enabled=true、viewportPadding=16、contentPadding=16、backdrop: Paint?=Some(Black 10%)、transition=Inherit、onOpenChange、onCloseRequest、onClosed、fonts／theme／style；builder 继承 PanelBuilder 的标题便利成员并增加 trigger(String／StyledText／View, PopupTriggerBuilder block)、header(View)、focus block、transition(AnimationSpec?)，key 沿正常描述规则。外部普通 Button 也可直接写同一 Binding，不要求内置 trigger。trigger 的 View 必须是非交互内容，内置 Button 是唯一激活目标，不检查或克隆 View。
 
-Dialog 额外配置 width=384、footer: View?=None、showCloseButton=true、close: PopupTriggerSpec?=None、dismiss=OverlayDismiss(escape=true, outsidePress=CloseAndConsume)。默认关闭按钮是右上逻辑 End 的 Ghost／IconSm X，可通过 close 内容／样式替换或完全隐藏；调用当前 OverlayHandle.requestClose，统一经过 veto 与受控 setter。Modal 禁止 CloseAndContinue。所有显式尺寸与 viewportPadding 有限且非负。关闭请求、失败帧屏障、嵌套域、初始／循环／恢复焦点和退出重开均沿 Portal 合同；Escape 一次只请求最上层，点击背景不穿透。
+Dialog 额外配置 width=384、footer: View?=None、showCloseButton=true、close: PopupTriggerSpec?=None、dismiss=OverlayDismiss(escape=true, outsidePress=CloseAndConsume)。默认关闭按钮是右上逻辑 End 的 Ghost／IconSm X，语义名称为 “Close”；Dialog／Sheet／Drawer 共用此默认入口。可通过 close 内容／样式替换或完全隐藏；自定义文字内容沿普通按钮取名，自定义图标可用 close 的 semantics.name 提供本地化名称。关闭按钮调用当前 OverlayHandle.requestClose，统一经过 veto 与受控 setter。Modal 禁止 CloseAndContinue。所有显式尺寸与 viewportPadding 有限且非负。关闭请求、失败帧屏障、嵌套域、初始／循环／恢复焦点和退出重开均沿 Portal 合同；Escape 一次只请求最上层，点击背景不穿透。
 
 默认面板采用 popover 配色、foreground 10% 的 1 边框、12 圆角、16 padding／区域间距，标题 16／500、描述 body／muted 色，header 自定义时替换标题和说明区域；关闭按钮为头部保留空间。footer 在面板底部，默认带顶边框、muted 50% 背景、16 padding 和下方圆角；正文滚动不移动 header／footer。scrollable=true 时复用 ScrollArea 的滚动控制与 ScrollViewport，正文占据可用的有限高度并可借用调用方 ScrollState，关闭不销毁借用状态；false 时正文按自然高度测量，并受可用高度与裁剪约束；切换 scrollable 保留同一正文与滚动 owner。正文的 16 内边距属于滚动内容，视口包含这段留白，不能紧贴子控件外框裁掉焦点环；页脚动作排列及标题排列不额外裁剪各自的布局外框，溢出仍受面板和显式视口约束。焦点环按主题的 outset 向外绘制，不增加控件测量尺寸，也不重复叠加环的 border width。视口过小时各区受有限非负约束，不产生负尺寸。100ms 淡入／缩放 95%→100%，遮罩只淡入不缩放，Reduced Motion 关闭动画。绘制、输入、编辑器光标与选区共用实际面板变换。
 
@@ -893,6 +1014,8 @@ SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布
 
 `contextMenu(content: View, menu: MenuContent, configure: ContextMenuBuilder.() -> Unit = {})` 构造 ContextMenuProps／ContextMenu；open 可选，缺省为该挂载的本地 State，其他菜单选项及回调同上。右键 Press 使用原生事件的窗口逻辑坐标打开 AtPoint，消费此右键动作而不触发原内容主动作；没有有效已提交区域时不打开。Menu 键或 Shift+F10 在焦点所属内容的作用域打开，以已提交内容矩形逻辑起侧下角定位，不猜测未放置几何。包装区域提供 tabStop=false 的焦点退路，原内容的按钮／选择／编辑保留各自输入所有权；键盘打开不覆盖原后代焦点。
 
+ContextMenuProps 与 ContextMenuBuilder 的 longPress 默认为 LongPressOptions()，通过公共 LongPress 接入 Touch／Pen；可单独关闭或配置延迟、移动容差。成功后以真实接触的窗口逻辑位置打开同一菜单，正文已有焦点保留，无焦点时沿同一包装退路。普通短按仍交给正文，内层文本长按或滚动已接管时不再打开外层菜单；菜单已经打开、触发器禁用或失效时不另建候选。关闭触摸长按不改变右键、Menu 键和 Shift+F10。
+
 `menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {})` 构造 MenubarProps／Menubar；menu(key, trigger, content) 添加 MenubarEntry。外部 None／缺失／禁用 key 保留原值且不打开对应层。trigger 共享横向 roving 导航；关闭时左右只移动焦点，打开时左右／hover 切换菜单，Down／Up 进入首／末项，子菜单方向键优先。切换设置新的菜单 key 并请求聚焦其入口；各根以 OverlayFocusOptions.restoreTarget 指定自己的入口，约束模式阻止提前聚焦时，Escape 后仍恢复当前入口，旧层恢复不得覆盖新意图。hover 切换只响应相应焦点模式允许的背景指针事件。默认横向 2 spacing、含边框的 4 padding、32 高、background 配色、1 border、8 圆角；trigger 为 24 高、6／2 padding、4 圆角的无边框表面，hover／打开使用 muted 配色。宽窄、明暗、RTL 和动态条目变化保留稳定 key。三个入口均有 ChildrenBuilder 真正成员 DSL。
 
 验收覆盖动作／勾选／单选、快捷键标签、重复 key 错误、类型化 DSL、真实 typeahead／roving／Tab 续行、右键及键盘菜单、多根切换、嵌套／悬浮通路、拒绝绑定／veto／最新回调、禁用／零尺寸／重排／卸载、长菜单滚动、主题／RTL、退出重开与静止停帧；Breadcrumb、InputGroup、ButtonGroup 和 Dialog 组合复用同一实现。
@@ -922,6 +1045,8 @@ active 缺省由本挂载持有，外部 active 则使用当前 Binding。有效
 
 默认外观为 popover 配色、12 圆角和 4 内边距；搜索输入用 InputGroup、32 高、8 圆角及 16 搜索图标。列表最大高度 288，滚动条隐藏、滚动残量限制在列表；组标题 12／500、muted 色，条目正文 14／20、逻辑水平 padding 8／垂直 6、4 圆角、图标 16；活动行 muted 背景，disabled 整行 50% 透明度，shortcut 为 12，未带 shortcut 的活动行显示末尾勾号。尺寸随主题正文密度缩放，RTL 解析逻辑顺序；单行省略的条目正文继承布局方向并沿逻辑 Start 对齐，平台快捷键保留 LTR。VirtualList 消费同一元数据，只有可见／overscan 项创建 View，活动项通过 scrollToItem 显露且不调用 focusItem；调用方可提供超大 Provided 来源。Dialog 通过普通 `dialog(open, command(...))` 组合，初始焦点指定该输入的 FocusHandle，动作和关闭策略由应用决定；借用编辑器／字体／滚动模型卸载后保留。
 
+Command 的 VirtualList 用同一 CommandRows 快照提供 ItemSemantics：实际命令的名称来自 label，enabled 来自命令与输入的实际资格；活动高亮不是业务选择，不发布为 selected 或键盘焦点。组标题仅在 PanelContent 有明确文字时提供名称，自定义 View 不为取名而构造。名称查询与离屏描述不 build、滚动或执行命令。实际挂载行提供 Button 语义并合并装饰文字；辅助技术沿同一按 key 选择入口执行当前命令及 onSelect，禁用／组合中拒绝，旧 key 不转发到另一项。该入口不请求输入焦点，指针与键盘原有焦点行为保留。
+
 ## 36. Combobox
 
 `combobox(value, choices, query) { ... }` 同时提供 `Binding<T?>` 单选及 `Binding<Array<T>>` 多选重载，`T: Equals<T>`，query 为调用方的唯一 TextEditorState。choices 接受 ChoiceSource<T> 或小规模 Array<Choice<T>>。ComboboxProps 保存 ComboboxSelection.Single／Multiple、source 和 InputProps；ComboboxBuilder<T> 继承 InputBuilder，输入样式、字体、焦点、标签、编辑策略和通知直接沿用。选择值、已提交 query、active key 和 open 为四份不同含义的状态；搜索和导航不写入选择，外部替换选择不打开弹窗，也不改写 query。
@@ -935,6 +1060,8 @@ ComboboxFilter.Contains 为默认，使用 Unicode case-fold 后的 label／keyw
 inputPlacement 默认 Inline：InputGroup 包含搜索输入和可选展开／清空按钮，多选 chips 与输入在同一表面内换行；单选在空 query 时用当前值文字作为输入的前景色提示，实际 query 仍为空。Popup 模式由普通按钮显示值，搜索输入放在弹窗内；labelTarget 关联当前可见入口。showTrigger 默认 true，width=240、maxHeight=252，popupWidth 可独立指定，尺寸有限非负。open／active／scroll／listHandle／OverlayHandle 均可借用；默认点击输入或实际已提交编辑可打开，程序改 query 不自行打开。enabled=false 或 readOnly 禁止打开和选择；禁用与卸载取消 Press／导航，不关闭借用模型。
 
 弹窗使用同一 Portal 锚定入口，默认 Bottom／Start、gap=4、viewportPadding=8，popover 配色、8 圆角、1 像素 foreground 10% 边框、floating 阴影和 100ms 动画，Reduced Motion 复用主题。Inline 不把焦点移入列表，Popup 初始聚焦搜索并在关闭后恢复入口；Tab 关闭后沿原方向移出，Escape／外点／veto／退出重开沿用 Portal，不保存第二套关闭会话。候选行正文 14、垂直 padding=4、逻辑开始 padding=6、末尾勾号宽 16；组标题 12、muted、padding 8／6，列表 padding=4，活动行 accent 背景／前景、disabled 整行 50% 透明度。chips 为 21 高、12 字号、muted 背景、4 圆角，换行间距 4，最小输入宽 64；芯片旁的 Bare 输入仅按正文与水平 4 的内缩测量，32 的默认建议高度由 InputGroup 外框承担，不能再叠加一份独立输入高度。表面完整复用 InputGroup 的焦点环与 invalid。RTL 解析布局与段落方向，按钮值文字单行省略。popupStyle／triggerStyle 及行 style 提供通常的局部外观覆盖。
+
+Combobox 的条目描述读取本次筛选结果与 render 捕获的选择值，不能在已发布描述的 getter 中读取正在变化的 Binding。名称来自 Choice.label，selected 只表达实际领域值是否被选中；active 高亮与编辑焦点保持独立。单选实际行使用 RadioButton，重复选择不取消单选；多选使用 Checkbox，Press 切换该值，checked 与逻辑条目的 selected 来自同一选择模型。辅助技术复用选择入口及其 setter 采纳检查，拒绝时返回 Rejected 且不清 query、不关闭；正常采纳后仍执行原清查询、关闭与通知策略，不额外请求编辑焦点。描述／查询不创建离屏行；需操作远处条目时，沿已有 Realize／Reveal 取得真实行控件。
 
 ## 37. NavigationMenu
 
@@ -952,13 +1079,13 @@ Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 
 
 `resizable(sizes: Binding<Array<ResizableSize>>) { panel(key, content) { ... }; handle(afterKey) { ... } }` 创建 ResizableProps／Resizable。ResizableSize 为显式 key、fraction（有限 0..1）与 collapsed=false；展开项的 fraction 按相对权重分配，全部为零时等分。缺失项使用等权默认值，未知 key 保留，显示和窗口缩放不暗写 Binding。模型 key 唯一。折叠项保留最近展开时占全部面板实际长度的比例，恢复时用当前总长换算并受相邻面板约束；不允许折叠的面板忽略模型中的 collapsed，不改写模型。
 
-每个 ResizablePanelProps 保存唯一显式 key、普通 View 正文、minimum=0、maximum=None、collapsible=false、collapsedSize=0 和 style。尺寸为有限非负逻辑长度，maximum 不小于 minimum，可折叠项的 collapsedSize 不超过 minimum。面板之间自动生成一个把手，handle(afterKey) 覆盖其 withHandle／enabled／FocusOptions／style；afterKey 必须对应一个有后继的面板且不重复。根支持 orientation=Horizontal、enabled=true、withHandle=false、length=None、keyboardStep=10、dragThreshold=4、theme、style、clip=false、onSizesChange／onSizesCommit／onSizesCancel。有限父约束内默认占满主轴，未约束时取 length 或 320；交叉轴可用空间有限时铺满，否则取正文自然尺寸。
+每个 ResizablePanelProps 保存唯一显式 key、普通 View 正文、minimum=0、maximum=None、collapsible=false、collapsedSize=0 和 style。尺寸为有限非负逻辑长度，maximum 不小于 minimum，可折叠项的 collapsedSize 不超过 minimum。面板之间自动生成一个把手，handle(afterKey) 覆盖其 withHandle／enabled／FocusOptions／style／hitWidth；hitWidth 默认为 20，是有限正的主题密度逻辑宽度，只改变以分隔线为中心的命中带，不改变面板分配或可见线宽。面板以反向场景顺序呈现，使每个尾部分隔把手覆盖后一个面板的交互内容；逻辑挂载、Tab 和语义阅读顺序仍按声明顺序。afterKey 必须对应一个有后继的面板且不重复。根支持 orientation=Horizontal、enabled=true、withHandle=false、length=None、keyboardStep=10、dragThreshold=4、theme、style、clip=false、onSizesChange／onSizesCommit／onSizesCancel。有限父约束内默认占满主轴，未约束时取 length 或 320；交叉轴可用空间有限时铺满，否则取正文自然尺寸。
 
 分配复用 allocateFlex：折叠项使用 collapsedSize，展开项按比例和 min／max 分配剩余长度；分隔线占 1 主题密度单位。最小尺寸总和超出可用长度时保留明确 overflow，不产生负面板；所有项到达 maximum 后允许尾部空白。逻辑顺序和 key 稳定，横向 RTL 只转换放置坐标与拖动符号。正文按面板边界裁剪，零尺寸正文不放置但保留挂载；缩放、方向切换、重排和折叠恢复不替换正文实例。根仅在 clip=true 或明确 style.clipContent 时裁剪，焦点环向外绘制且不增加分隔线布局尺寸。
 
-拖动复用 Drag 的主轴阈值、指针声明与取消，仅通过 resizePair 转移相邻两项的实际长度，保留这对及其他面板总长。可折叠项的 collapsedSize 与 minimum 之间不作为持久尺寸，取距离目标最近的合法展开／折叠边界。写回展开项比例以复现实际分配，折叠项保留恢复比例，未知模型项不丢弃。onSizesChange 只报告 setter 实际采纳的变化；松开后整体有变化时调用一次 onSizesCommit。取消在 Binding 未被外部替换且配置兼容时恢复手势前模型，再通知 onSizesCancel(value, reason)；外部更新、相邻项／约束／方向变化、禁用、窗口尺寸变化、失焦、零几何、阻止默认释放及卸载都终止手势，不覆盖新的外部状态。
+鼠标、Touch／Pen 拖动复用同一个 Drag 的主轴阈值、归属与取消；第二触点取消当前单接触拖动，不提交尺寸。仅通过 resizePair 转移相邻两项的实际长度，保留这对及其他面板总长。可折叠项的 collapsedSize 与 minimum 之间不作为持久尺寸，取距离目标最近的合法展开／折叠边界。写回展开项比例以复现实际分配，折叠项保留恢复比例，未知模型项不丢弃。onSizesChange 只报告 setter 实际采纳的变化；松开后整体有变化时调用一次 onSizesCommit。取消在 Binding 未被外部替换且配置兼容时恢复手势前模型，再通知 onSizesCancel(value, reason)；外部更新、相邻项／约束／方向变化、禁用、窗口尺寸变化、失焦、零几何、阻止默认释放及卸载都终止手势，不覆盖新的外部状态。
 
-把手保留普通 Tab 顺序，主轴方向键按物理方向调整（水平 RTL 对换），PageUp／PageDown 增／减十倍步长，Home／End 到达相邻约束端点。Enter 折叠／恢复相邻的第一个可折叠面板；Escape 取消当前拖动。一次有效键操作提交一次，拒绝 Binding 不假报提交。只有把手焦点处理这些键，正文编辑／按键保留自身默认行为。把手使用 1 像素 border 色分隔线、居中的 4 像素命中带，可选 4×24 圆角握柄（纵向布局旋转），可见焦点使用 ring 色 1 像素外环；光标为对应轴的系统 resize 光标，无持续动画或轮询。
+把手保留普通 Tab 顺序，主轴方向键按物理方向调整（水平 RTL 对换），PageUp／PageDown 增／减十倍步长，Home／End 到达相邻约束端点。Enter 折叠／恢复相邻的第一个可折叠面板；Escape 取消当前拖动。一次有效键操作提交一次，拒绝 Binding 不假报提交。只有把手焦点处理这些键，正文编辑／按键保留自身默认行为。把手使用 1 像素 border 色分隔线、居中的 hitWidth 命中带，可选 4×24 圆角握柄（纵向布局旋转），可见焦点使用 ring 色 1 像素外环；光标为对应轴的系统 resize 光标，无持续动画或轮询。
 
 ## 39. Carousel
 
@@ -970,26 +1097,29 @@ Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 
 
 吸附由实际测量项目起点产生。非循环位置夹在 0 与内容末端减视口之间，重合的尾部锚点不产生无意义的上一／下一动作；不足一屏时两个方向都不可用。循环按实际总长和接缝间距移动同一批内容，每个 key 仅有一个交互实例；仅在移走任一项后余下环长仍可覆盖视口时启用，否则按非循环处理。内容、尺寸、方向或外部定位改变使旧拖动／动画目标失效，以当前选择重新定位；不清空项目状态。
 
-Drag 到达主轴阈值后声明原指针路径并取消子项 Press，未达阈值保留子项点击；释放用当前位置、速度和 snapTarget 投影到实际锚点。循环选择最近的相邻周期目标，完成后归一化坐标；非循环越界有有限阻力，释放吸附。Escape、失焦、禁用、几何失效、阻止默认释放及卸载结束手势，取消回到当前选择且不改写选择 Binding。正文按键保留自己的默认动作；仅视口自身焦点处理主轴方向键、Home／End 与 PageUp／PageDown（一屏），普通 Tab 和按钮 Press 独立。
+鼠标、Touch／Pen 的 Drag 到达主轴阈值后认领原输入路径并取消子项 Press，未达阈值保留子项点击；释放用当前位置、速度和 snapTarget 投影到实际锚点。循环选择最近的相邻周期目标，完成后归一化坐标；非循环越界有有限阻力，释放吸附。Escape、失焦、禁用、几何失效、阻止默认释放及卸载结束手势，取消回到当前选择且不改写选择 Binding。正文按键保留自己的默认动作；仅视口自身焦点处理主轴方向键、Home／End 与 PageUp／PageDown（一屏），普通 Tab 和按钮 Press 独立。
 
-CarouselAutoplay(interval) 是显式配置，interval 必须大于零。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
+CarouselAutoplay(interval) 是显式配置，interval 必须大于零。轮播区域内有活动触点（含尚未达到拖动阈值的候选及导航按钮）时暂停，最后一个接触结束或取消后重新等待完整 interval，不依赖 hover 或焦点暂停开关。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。待播放时 interval 改变从这次配置更新重新等待完整新间隔；相同间隔的重复刷新保留原截止点。一次迟到回调至多前进一项，完成后按当前状态预约下一次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
+
+CarouselProps／CarouselBuilder 的 nativeSwipe 默认 true，使用公共 SwipeGesture 接收系统已识别的有限方向动作。主轴按实际 LTR／RTL 映射到同一 previous／next 请求，复用现有绑定、循环和边界规则；识别时取消旧拖动与动画意图，不创建第二份选择或自动播放状态。关闭 nativeSwipe 保留直接 Drag、按钮和键盘操作，滚轮不转换为 swipe。
 
 ## 40. Drawer
 
 `drawer(open: Binding<Boolean>, content: View) { ... }` 创建 DrawerProps／Drawer。标题、说明、header／footer、trigger／close、字体、主题、滚动正文及关闭 veto 复用 ModalOptions 和 DismissibleModalBuilder；默认 side=Bottom、showCloseButton=false、viewportPadding=0。side 使用 SheetSide 的 Top／Bottom／Start／End，横向随 RTL 解析。mode 默认 Modal，也可显式选择 NonModal／FocusContained；只有 Modal 默认绘制遮罩，三种模式的指针、Tab、Escape、初始／恢复焦点、退出重开及 onClosed 均由同一 Portal 处理。swipe 关闭沿 OverlayHandle 的 Explicit 请求，不直接绕过业务 veto 或拒绝绑定。
 
-根另有 width／height、viewportGap=96、viewportStyle、snapPoints、snap: Binding<Long>?、initialSnap=0、swipeToClose=true、dragThreshold=4、projectionSeconds=0.15、swipeHandle、controller: DrawerHandle?、parent: DrawerHandle?、onSnapChange(index) 和 onDragCancel(reason)。尺寸、间距、阈值及投影时长有限非负。snapPoints 是垂直方向的 `Array<DrawerSnapPoint>`，Fraction 为面板最大高度的有限比例 `(0,1]`，Length 为有限正逻辑长度；水平方向不接受 snapPoints。保留声明索引，按实际高度夹取显示，重复位置不产生多余键盘步骤。不受控时在本 Drawer 挂载中保留索引；受控索引越界只夹取显示，外部替换不回放用户通知，只有 setter 实际采纳的变化才通知。
+根另有 width／height、viewportGap=96、viewportStyle、snapPoints、snap: Binding<Long>?、initialSnap=0、swipeToClose=true、dragThreshold=4、projectionSeconds=0.15、swipeHandle、controller: DrawerHandle?、parent: DrawerHandle?、onSnapChange(index) 和 onDragCancel(reason)。尺寸、间距、阈值及投影时长有限非负。snapPoints 是垂直方向的 `Array<DrawerSnapPoint>`，Fraction 为面板最大高度的有限比例 `(0,1]`，Length 为有限正逻辑长度；水平方向不接受 snapPoints。保留声明索引，按实际高度夹取显示，重复位置不产生多余键盘步骤。不受控时在本 Drawer 挂载中保留索引；受控索引越界只夹取显示。snap 的可观察来源在 render 中登记依赖，外部状态变化更新索引与实际位置，无需另行替换 Props，即使同时打开／关闭子抽屉也保持一致。外部替换不回放用户通知，只有 setter 实际采纳的变化才通知。
 
 无显式高度及 snapPoints 时，垂直面板按正文自然高度测量，上限为视口高度减 viewportGap；有 snapPoints 时使用该上限或明确 height，按可见高度位移吸附。横向默认宽为可用宽度的 75%、最大 384 密度单位，高度填满。固定高度或横向面板的滚动正文填满头尾之间的剩余空间，页脚位于面板底部；自然高度的垂直面板仍随短正文收缩。窗口缩放、方向／尺寸／吸附配置变化使旧手势失效，按当前模型重新定位，不重建同类型正文。默认 popup 使用 popover 配色、内侧 12 圆角和 1 像素边线；正文仍保留内部 16 留白保护焦点环，滚动位置复用 ScrollState。viewportStyle 只装饰外层视口，popup 外观使用公共 style。
 
 swipeHandle 通过 `swipeHandle { visible=true }` 配置，默认隐藏；可设 only、focus、style 和普通 View content。only=true 要求把手可见。默认握柄为主轴厚 4、交叉轴长 96 的 muted 圆角条，位于面板内侧的 12 单位区域，命中带至少 20；四个方向均有实际布局和命中。把手是独立焦点目标，主轴方向键按物理方向展开／收缩到下一个不同锚点，Home／End 到最小／最大吸附位置；正文编辑器保留自己的按键。Escape 在活动拖动中取消本次手势，其余由 Portal 关闭。
 
-Drag 达到主轴阈值后才声明原指针路径，未达阈值保留正文点击。把手和非滚动头尾可直接拖动；从正文起步时，Bottom 要求滚动已到顶部，Top 要求已到底部，横向不接管纵向滚动。正文仍有可消费的主轴滚动时不抢手势；滚轮／外部 ScrollState 意图到来时取消已有拖动。释放使用实际可见长度、速度和 snapTarget 投影；swipeToClose 允许零位置作为关闭目标，否则只在现有锚点间吸附。超过最大展开长度时采用有限阻力。取消、失焦、几何失效、禁用、外部模型替换、阻止默认释放及卸载不提交 snap，回到当前有效模型；关闭被拒绝同样回弹。
+鼠标、Touch／Pen 使用同一 Drag，达到主轴阈值后才认领原输入路径，未达阈值保留正文点击；第二触点取消活动拖动。起始区域用该次输入位置和 Accepted 几何精确命中，不依赖鼠标悬停。把手和非滚动头尾可直接拖动；从正文起步时，Bottom 要求滚动已到顶部，Top 要求已到底部，横向不接管纵向滚动。正文的 ScrollPan 使用同一 dragThreshold，并设置 claimAtBoundary=false；阈值为零时，正文触点按下只登记候选，仍等待首个非零移动决定滚动方向。可滚方向先由正文接管，起步已经处于相应边界且向外移动时让 Drawer 接管。已开始的正文滚动到达边界后仍保持本次滚动归属，不中途改成抽屉拖动。正文仍有可消费的主轴滚动时不抢手势；滚轮／外部 ScrollState 意图到来时取消已有拖动。释放使用实际可见长度、速度和 snapTarget 投影；swipeToClose 允许零位置作为关闭目标，否则只在现有锚点间吸附。超过最大展开长度时采用有限阻力。取消、失焦、几何失效、禁用、外部模型替换、阻止默认释放及卸载不提交 snap，回到当前有效模型；关闭被拒绝同样回弹。
 
 DrawerHandle 只绑定一个活动 popup，提供可观察 snapshot（snapIndex、extent、visibleExtent、dragging、nestedDepth）和 `snapTo(index, animated=true)`。popup 完成退出或卸载后解除绑定，应用可以继续保留句柄。parent 显式关联同窗口内已挂载的父 DrawerHandle，用于嵌套外观与手势协调；不能自指、成环或跨窗口。焦点层级仍来自正常 Portal 嵌套，parent 不建立另一套模态或恢复会话。父面板按实际前层尺寸缩放，每层缩小 5%、向内露出 16 并略微压暗；子层拖动时逐渐还原父层。子层打开期间不启动父层拖动，子层关闭／重开和整体卸载正常解除关联。
 
-默认进入 450ms、退出 400ms，位移从对应窗口外侧进入，采用 Nova 的缓出曲线；吸附／回弹与嵌套缩放使用本挂载 Animatable，Presence 继续承担退出生命周期。主题 Reduced Motion 或 transition(None) 同时关闭这些过渡。动画、手势和可见性结束后不保留持续帧请求；仅验证现有桌面指针，不声称提供尚未交付的触屏后端。
+默认进入 450ms、退出 400ms，位移从对应窗口外侧进入，采用 Nova 的缓出曲线；吸附／回弹与嵌套缩放使用本挂载 Animatable，Presence 继续承担退出生命周期。主题 Reduced Motion 或 transition(None) 同时关闭这些过渡。动画、手势和可见性结束后不保留持续帧请求；本地受控触点和桌面指针分别验证；真实触屏／笔与各平台原生输入按设备矩阵验收。
 
+DrawerProps／DrawerBuilder 的 nativeSwipe 默认 true。系统离散 swipe 使用公共行为及同一 Accepted 正文／把手准入规则：朝内请求下一较大停靠点，朝外请求下一较小停靠点；已经在最小停靠点且 swipeToClose=true 时沿原 Overlay 关闭请求执行，保留拒绝绑定与 veto。方向由实际 side 与 RTL 解析，横向单停靠抽屉的朝外动作同样关闭。直接拖动继续使用原位置／速度投影，不同时建立另一份触点识别；关闭 nativeSwipe 不改变它及键盘操作。
 
 ## 41. Sidebar
 
@@ -1069,6 +1199,8 @@ selectedKeys、hiddenColumns、widths 分开保存，只通过相应显式动作
 DataTable 提供选择列、排序按钮、列显隐菜单、页码／页大小控制和 toolbar／footer／empty 插槽；列菜单只列出 hideable 的列，无可切换列时禁用入口。筛选输入由应用的 TextEditorState 与 setFilter 组合，行操作直接使用 cell 中的实际按钮或菜单。默认 bodyHeight=320，itemExtent 为 Variable(48)，可配置准确 Fixed 或其他估计；行使用稳定来源 key 和 VirtualList 的活动项保留、焦点显露与 KeepVisible，不让页索引冒充身份。主题／fonts／enabled／滚动状态与句柄可显式传入，静止后停帧。验收覆盖稳定多列排序、重复标签、空页及末页删除、本页三态与禁用行、Provided 替换、列隐藏／共享宽度／RTL／横向滚动、实际拖动和虚拟行中的编辑／弹层。
 
 
+TableColumn 另提供可选 `semanticText: ((Row) -> String)? = None`，从同一不可变行数据返回可读文字；它与用于显示的 cell 工厂分开，不能为无障碍查询构造 View。DataTable 的 ItemSemantics 按稳定 key 发布当前页的行位置与实际 selected；行名称按可见列顺序连接明确提供的“header: semanticText”，没有任何描述时为未知而非假造文字。隐藏列不进入该摘要，提供的空文字仍是已知值。元数据读取只取得所查询行及其已声明描述，不扫描整表。实际行的选择 Checkbox 与表头全选 Checkbox 有明确操作名称，仍分别调用原 setSelected／selectPage，行内其他操作由原 cell 的真实控件提供。普通 Table 的任意 View 与尚无 semanticText 的列继续保留其实际挂载语义，不猜测内容。
+
 ## 46. Chart
 
 `chart(model) { ... }` 消费应用持有的 ChartModel。ChartData 保存有稳定 ChartDatumKey 的 datum 数组和有稳定 ChartSeriesKey 的系列数组；datum 有 label、可选数值 x 和供 Pie／Radial 扇区使用的可选颜色，系列有 label、逐 datum 的 `Double?`、可选颜色／图标和 Cartesian mark 覆盖。两种 key 是不同值类型，唯一性分别检查；系列长度必须匹配 datum，所有实际坐标有限，None 表示缺值。显示文字可以重复。ChartModel.replaceData 是普通应用动作；显隐状态独立于数据，持续存在的 key 保留显隐和配色槽，新的系列按声明次序取得五色 palette 槽，隐藏或重排不改变其他系列颜色。
@@ -1079,7 +1211,7 @@ ChartAxis 提供 Category／Linear、Auto／Fixed domain、includeZero、nice、
 
 Pie 按每个可见系列形成同心环，值非负，缺值和零值不占角度；总量为零时没有扇区和可命中项。startAngle／endAngle 为顺时针弧度，默认从顶部绘制一周；负跨度反向绘制，非零跨度的绝对值不超过一周。innerRadius 是 [0, 1) 内的外半径比例。扇区绘制与命中使用相同的内外半径和角度，活动扇区沿径向突出，命中也包含突出区域；可显示标签及普通 View 中心内容，中心内容只在内孔可容纳的正方形内布局。Radar 用 datum 分类作为等角极轴，可见系列共享数值域、网格和刻度；缺值断开相邻边。Radial 用同一数值域将各个 datum／可见系列的有效项分配到同心轨道，提供背景轨道和数值标签，负值从零点反向延展；零值保留轨道但没有可选择的数值条。极坐标图不使用 Cartesian mark／stack／orientation／xAxis，Radar 的分类标签来自 datum，Pie／Radial 的 datum 颜色覆盖系列颜色。
 
-ChartTooltipPayload 使用同一 datum、系列名称／图标／颜色和原始数值，默认提示列出该 datum 的可见有效系列；formatter、隐藏标题／指示及 Dot／Line／Dashed 指示可配置，并允许返回普通 View 的自定义 tooltip。Legend 使用真实按钮切换系列，可配置图标及标签格式。Legend 和 Tooltip 不解析字段路径，不依赖 Any、WebView 或浏览器渲染器。
+ChartTooltipPayload 使用同一 datum、系列名称／图标／颜色和原始数值，默认提示列出该 datum 的可见有效系列；formatter、隐藏标题／指示及 Dot／Line／Dashed 指示可配置，并允许返回普通 View 的自定义 tooltip。Touch／Pen 的成功短按以 Accepted 几何选取数据并保持提示；移动超过公共 Press 容差、第二触点或滚动接管后不产生选择。鼠标点击复用相同命中；Enter／Space 保持当前有效选择，无选择时选首个数据，方向键与语义集合动作继续可用。Legend 使用真实按钮切换系列，可配置图标及标签格式。Legend 和 Tooltip 不解析字段路径，不依赖 Any、WebView 或浏览器渲染器。
 
 图表自身是一个焦点目标，active 可用外部 `Binding<ChartSelection?>` 控制；默认由控件持有。指针用最近点／条形／扇区的实际几何选择数据，移出后关闭鼠标提示。键盘逻辑前后键逐 datum 导航，上下键切换可见系列，Home／End 定位边界，Escape 清空提示；缺值和无图形项跳过，普通 Tab 继续离开图表。拒绝 setter 保留调用方状态，禁用和卸载撤销输入；业务选择、取数与异步取消归应用。
 
@@ -1097,6 +1229,8 @@ MessageScrollState 持有一个 ScrollState、一个 VirtualListHandle、当前�
 Holding 使用既有 KeepVisible 保持当前 key／项内偏移。beginTurn(key) 接受应用的显式新回合请求，在下一次来源更新后解析一次，将回合放到 scrollMargin 加实际 previousItemPeek 的位置；它不从新增锚点自动推导发送行为。Anchoring 使用 endPadding=FillViewport，在当前实际布局中收敛为 `max(0, viewport - anchorInset - turnExtent)`，后续增高、缩短和窗口缩放沿同一阅读位置调整留白。Accepted 后记录实际留白，转入 Holding 时冻结该长度，避免继承自动填充策略。正文填满时，仅 autoScroll 开启才进入 Following 并定位实际末端；默认不制造滚动动画。Following 复用 VirtualList 的 FollowEnd，正常新增或流式更新保持末端。
 
 User 滚动意图（包括边界无位移）、正文指针操作、键盘及选择开始立即进入 Holding，停止较旧定位；不消费正文输入。释放选择不会自动拉回。用户随后主动滚回 edgeThreshold 内且没有活动指针选择时，autoScroll 可重新跟随；显式 hold、搜索、restore 或正文操作之后的普通数据更新不恢复旧策略。外部 Programmatic 意图也进入 Holding；内部定位识别自己同步产生的意图，LayoutCorrection 不改变阅读策略。preserveOnPrepend=false 只对来源在前方插入时保留数值偏移，普通正文增高仍沿 KeepVisible。
+
+同一次用户释放后的惯性仍可在后续 Accepted 帧实际进入末端阈值，不能在第一帧尚未到达末端时丢掉该意图。来源或正文／视口／留白范围变化结束这次自动恢复资格，不能把数据收缩造成的到达末端当作用户滚回。已经处于实际末端且没有回合留白时直接恢复 Following，不额外登记定位或取消回弹；仅接近末端或仍需清除回合留白时沿原 End 请求完成定位。
 
 scrollToMessage(key, alignment)、scrollToStart、scrollToEnd、restore(VirtualReadingAnchor) 和 hold 是应用动作。未知非空来源中的显式目标返回 false，不改变位置或策略；beginTurn 允许同一动作先替换来源再请求新 key，随后一次解析失败即结束。scrollToEnd 清理回合留白，并在 autoScroll 开启时重新跟随；其他显式定位进入 Holding。较新动作、真实来源替换期间的 restore、reset、宿主替换和卸载结束旧请求。reset 可指定新的初始位置，清理旧阅读事实与意图；卸载后的迟到动作不重新挂载宿主或预约帧。
 
@@ -1153,3 +1287,25 @@ questionnaire(state, onSubmit) 的 busy／enabled 是显式应用输入。默认
 windowChrome、windowDragRegion、windowResizeRegion、windowControls 的能力协商、原生区域、实际系统几何及关闭请求见[窗框组件规范](SCOOP-UI-WINDOW-CHROME-SPEC.md)。窗口／应用 scope 的工具窗口、类型化模态与文件面板控制器，以及打开／保存按钮见[原生窗口组件规范](SCOOP-UI-NATIVE-WINDOWS-SPEC.md)。控制器只销毁自己创建的窗口，借用和实际原生退休继续遵守 Window／UI 合同。
 
 nativeTrayIcon 在独立 scoop.ui.component.tray Cone 中实现相同的应用挂载协议，菜单复用上述公共描述；普通组件不依赖托盘或 Linux DBusMenu。独立 API、NativeMenuUseId 归属与资源收尾见[托盘组件规范](SCOOP-UI-TRAY-SPEC.md)。同一组功能最终由综合 desktop demo 展示，实施与三平台验证状态见[桌面能力实施记录](../desktop-ui/PROGRESS.md)。
+
+组合输入的 InputProps／InputBuilder 可带 TextFieldExpansion(expanded, setExpanded)，用于实际候选弹层的状态和请求入口；Combobox 自动提供该值，查询不会展开或转移焦点。Select、DropdownMenu 和 Combobox 触发器发布实际 expanded 与 controls 关系，辅助技术的展开／折叠请求沿原 open Binding 和关闭 veto，返回实际采纳结果。SelectProps／SelectBuilder 与 SelectItem／SelectItemBuilder 提供 ComponentSemantics，分别控制触发器和选项的命名及关系。
+
+## 53. 组合控件的默认语义
+
+所有默认语义来自控件当前数据和已接受布局，不通过重放鼠标事件实现动作。ComponentSemantics 可覆盖名称、描述、错误、关系和公告策略，不能覆盖真实 enabled、readOnly、selected、expanded 或编辑资格；自定义内容保留原交互后代。业务 Binding 拒绝改变或关闭回调否决请求时，语义动作也返回 Rejected。
+
+RadioGroup、Tabs、Calendar 等静态选择容器显式发布 Single／Multiple 和 required，不由原生 role 推测。ConversationActionBuilder 及对应 Bubble／Marker／Attachment 等 Props 接受 ComponentSemantics；可点击卡片使用实际 PressControl 的语义动作和焦点，失去动作时保留内容挂载、退休旧动作身份。Questionnaire 的 choice 卡片发布真实勾选或单选状态，正文、错误和提交按钮沿同一模型。MessageScroller 接受 ItemSemantics，未提供的离屏内容保持未知，查询不得调用 TranscriptItem.content。
+
+InputOtpProps／InputOtpBuilder 提供 semantics，整个 OTP 对应一个 TextField，复用同一 TextEditHost、字段标签／required／错误和选区，不为每个视觉槽创建独立文本输入。受保护内容、长度过滤、撤销、替换及拖放均沿原编辑策略。
+
+CalendarProps／CalendarBuilder 提供 semantics 和 daySemantics(CalendarDay)。月份对应有限 Table，每个视觉行对应 Row，星期标题、周号和日期携实际行列位置；日期默认使用完整 ISO 日期命名，可由 daySemantics 本地化，发布实际 selected、enabled 和 required。单选／多选的 setSelected 沿原选择约束，范围选择沿同一两次激活流程；未完成的预览不能冒充已选中范围。翻页按钮有明确名称，查询不翻页、不移动焦点。
+
+DatePickerProps／DatePickerBuilder 提供 semantics、popupSemantics。输入或触发按钮发布展开状态、当前文本／解析错误及 controls；日期弹层和 NavigationMenu 面板复用原 open、关闭请求及 veto，不建立第二套开关状态。图标触发器必须有可读名称。
+
+ToastProps／ToastBuilder 提供 semantics，默认 live=Polite，可明确改为 Assertive 或 Off；ToastAction 也可设置 semantics。每条通知具有独立 Group，标题和描述来自可读取内容，关闭动作沿原 ToastState，关闭按钮有明确名称。首次实际显示后只公告一次，内容后续变化使用同一节点的 live 更新；Loading 使用 busy 暂缓公告，关闭或模态域外节点不发迟到公告。叠放且内容未放置的通知不暴露不可操作的子按钮。
+
+ImageView、PathView、Spinner 和 Separator 的 Props／builder 提供 `semantics: ComponentSemantics? = None`，默认用于装饰。显式提供时分别发布 Image、无数值的 ProgressBar 和带方向的 Separator；应用提供有意义的名称，库不从像素或资源路径猜测替代文字。Avatar 默认 Image，名称沿 fallback 或显式 semantics，在图片加载成功后保留；交互 badge 后代仍独立存在。Breadcrumb 的链接发布 Link、当前项发布 selected；Pagination 的页项发布实际选中状态，图标形式的上一页／下一页仍使用配置文字命名。
+
+可调整宽度的表头为实际拖动区域发布带数值范围的竖向 Separator，名称包含列标题，步进与键盘保持一致；未接受布局时不声称已知当前宽度。最大宽度未设时使用有限 Double 的上限，不将当前窗口宽度当作列宽限制。语义调整经过同一列宽 Binding 并检查采纳结果。Sidebar rail 发布实际展开状态，WindowControls 的最小化／最大化／还原／关闭按钮可通过 semantics 回调命名；Badge、Item 和其他可点击卡片的语义动作复用原 PressControl。
+
+WindowControls 的默认命名函数 `windowControlSemantics(button, maximized)` 为公共函数，应用覆盖个别按钮时可继续调用它处理其余按钮。它只返回 ComponentSemantics，不创建窗口资源或执行窗口操作。

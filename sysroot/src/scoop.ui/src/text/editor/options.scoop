@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.time.Duration
 import scoop.ui.*
+import scoop.window.TextInputPurpose
 
 public enum TextTabBehavior {
     Navigate, Insert
@@ -24,13 +25,32 @@ public class TextEditOptions public constructor(
     public val direction: TextDirection? = None,
     public val alignment: TextAlignment = TextAlignment.Start,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    public val caretBlink: Duration = Duration.milliseconds(500L),
+    public val caretBlink: Duration? = None,
     public val policy: TextEditPolicy = textEditPolicy(),
     public val projection: TextProjection = textProjection(),
-    public val copy: TextCopyPolicy = TextCopyPolicy.Default
+    public val copy: TextCopyPolicy = TextCopyPolicy.Default,
+    public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
+    /** A protected purpose remains set when its display projection becomes plain text. */
+    public val protectedText: Boolean = false,
+    public val acceptDrops: Boolean = true,
+    public val drag: TextDragOptions = TextDragOptions(),
+    public val touch: TextTouchOptions = TextTouchOptions(),
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
+    public val inputPurpose: TextInputPurpose = TextInputPurpose.Normal,
+    public val softwareKeyboard: Boolean = true,
+    public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions(),
+    public val automaticTextReplacement: Boolean = false
 ) {
     internal fun check() {
-        requireUi(caretBlink.floorSeconds >= 0L, "negative caret blink interval")
+        drag.check()
+        when (caretBlink) {
+            case Some(val value) -> requireUi(
+                value.floorSeconds >= 0L,
+                "negative caret blink interval"
+            )
+            case None -> {}
+        }
         checkPaintCachePolicy(paintCache)
     }
 }
@@ -44,10 +64,21 @@ public class TextEditAppearance public constructor(
     public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25),
     public val caretColor: Color = Color.Black,
     public val markedColor: Color = Color.Black,
-    public val caretWidth: Double = 1.0
+    public val caretWidth: Double? = None,
+    public val reduceMotion: Boolean = false,
+    /** None preserves the original selected glyph colors in the active window. */
+    public val selectionTextColor: Color? = None,
+    /** None preserves the original selected glyph colors in an inactive window. */
+    public val inactiveSelectionTextColor: Color? = None
 ) {
     internal fun check() {
-        requireUi(caretWidth.isFinite() && caretWidth > 0.0, "invalid caret width")
+        when (caretWidth) {
+            case Some(val value) -> requireUi(
+                value.isFinite() && value > 0.0,
+                "invalid caret width"
+            )
+            case None -> {}
+        }
         for (color in [selectionColor, inactiveSelectionColor, caretColor, markedColor])
             requireUi(
                 color.red.isFinite() &&
@@ -56,6 +87,11 @@ public class TextEditAppearance public constructor(
                     color.alpha.isFinite(),
                 "non-finite editor color"
             )
+        for (color in [selectionTextColor, inactiveSelectionTextColor])
+            when (color) {
+                case Some(val value) -> checkSelectableColor(value)
+                case None -> {}
+            }
         requireUi(!fonts.isClosed, "editor fonts are closed")
     }
 }

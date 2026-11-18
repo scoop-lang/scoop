@@ -9,6 +9,9 @@ import scoop.ui.component.*
 import scoop.ui.component.label as makeLabel
 
 internal class MenuScene(private val p: MenuProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
+        p.touch?.mount(scope)
+    }
     private fun choices(): MenuContent {
         val p = this.p
         val version = p.version
@@ -61,20 +64,23 @@ internal class MenuScene(private val p: MenuProbe, scope: ComponentScope): Compo
                         fonts = Some(p.fonts);
                         focus = FocusOptions(Some(p.after))
                     },
-                    contextMenu(
-                        button("Context", { p.contextClicks += 1 }) {
-                            fonts = Some(p.fonts);
-                            focus = FocusOptions(Some(p.contextFocus))
-                        },
-                        menu {
-                            item(ViewKey.Text("context"), "Context action", { p.actions += 1 }) {
-                                focus = FocusOptions(Some(p.contextItem))
+                    p.touch?.content(p) ?:
+                        contextMenu(
+                            button("Context", { p.contextClicks += 1 }) {
+                                fonts = Some(p.fonts);
+                                focus = FocusOptions(Some(p.contextFocus))
+                            },
+                            menu {
+                                item(
+                                    ViewKey.Text("context"),
+                                    "Context action",
+                                    { p.actions += 1 }
+                                ) { focus = FocusOptions(Some(p.contextItem)) }
                             }
-                        }
-                    ) {
-                        open = Some(p.contextOpen.binding());
-                        fonts = Some(p.fonts)
-                    },
+                        ) {
+                            open = Some(p.contextOpen.binding());
+                            fonts = Some(p.fonts)
+                        },
                     menubar(p.barOpen.binding()) {
                         menu(
                             ViewKey.Text("file"),

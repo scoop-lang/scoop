@@ -91,6 +91,7 @@ private class WinMenuHandler: ApplicationHandler {
     }
 
     private fun start(application: ActiveApplication) {
+        checkTextMenuTemplates(application)
         application.setControlFlow(
             ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
         )

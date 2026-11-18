@@ -1,0 +1,22 @@
+package scoop.tests.window.accessibility
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal fun checkImage(provider: AccessibilityProvider, view: Ptr<Unit>) {
+    val image = provider.createNode(SemanticRole.Image)
+    image.update(SemanticProperties(name = Some("Compass"), description = Some("North marker")))
+    image.geometry =
+        Some(SemanticGeometry(LogicalRect(LogicalPosition(10.0, 20.0), LogicalSize(100.0, 80.0))))
+    provider.publish()
+    @Unsafe
+    {
+        assertEquals(0, nativeImage(view))
+    }
+    image.close()
+    provider.publish()
+}
+
+@Extern(name = "scoop_ax_test_image")
+private fun nativeImage(view: Ptr<Unit>): Int

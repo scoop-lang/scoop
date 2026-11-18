@@ -35,6 +35,8 @@ static void display_closed(GdkDisplay *display, gboolean error, gpointer data) {
   sw_fail(data, EPIPE);
 }
 static void finish(SWApplication *app) {
+  sw_primary_cleanup(app);
+  sw_preferences_stop(app);
   if (app->display_closed)
     g_signal_handler_disconnect(app->display, app->display_closed);
   if (app->monitors_changed)
@@ -118,6 +120,7 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
       g_signal_connect(adw_style_manager_get_default(), "notify::dark",
                        G_CALLBACK(sw_theme_changed), app);
   sw_application = app;
+  sw_preferences_start(app);
   return (SWResult){app, 0};
 }
 int32_t scoop_window_application_run(SWApplication *app) {

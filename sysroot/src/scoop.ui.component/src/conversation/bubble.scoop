@@ -32,7 +32,8 @@ public class BubbleProps public constructor(
     public val focusOutline: OutlineStyle? = None,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 ) {
     init {
         when (maxWidthFraction) {
@@ -72,14 +73,15 @@ public class BubbleBuilder internal constructor(): ConversationActionBuilder() {
             focusOutline,
             fonts,
             theme,
-            style
+            style,
+            semantics
         )
 }
 
 public class Bubble(private val props: Props<BubbleProps>, scope: ComponentScope): Component(
     scope
 ) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
     public override fun onMount() {
         themes.mount(props.value.theme)
@@ -123,7 +125,8 @@ public class Bubble(private val props: Props<BubbleProps>, scope: ComponentScope
                     input.onClick,
                     input.enabled,
                     input.focus,
-                    input.fonts
+                    input.fonts,
+                    semantics = input.semantics
                 )
             )
         val reactionInset =

@@ -78,17 +78,30 @@ int32_t scoop_test_gtk_menu_open(GtkWidget *view) {
   return item && gtk_widget_activate(item);
 }
 
-int32_t scoop_test_gtk_popup(GtkWidget *view, int64_t identity) {
+static GtkWidget *find_item_button(GtkWidget *widget) {
+  if (GTK_IS_ACTIONABLE(widget) && gtk_widget_get_visible(widget) &&
+      gtk_widget_is_sensitive(widget))
+    return widget;
+  for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+       child = gtk_widget_get_next_sibling(child)) {
+    GtkWidget *item = find_item_button(child);
+    if (item)
+      return item;
+  }
+  return NULL;
+}
+
+int32_t scoop_test_gtk_popup(GtkWidget *view, int32_t activate) {
   for (GtkWidget *child = gtk_widget_get_first_child(view); child;
        child = gtk_widget_get_next_sibling(child)) {
     if (!GTK_IS_POPOVER(child) || !gtk_widget_get_mapped(child))
       continue;
-    if (!identity)
+    if (!activate)
       return 1;
-    char *name = g_strdup_printf("scoop-menu.item%" G_GINT64_FORMAT, identity);
-    gboolean activated = gtk_widget_activate_action(child, name, NULL);
-    g_free(name);
-    return activated;
+    // The test popup contains one action. Activate its actual generated row;
+    // dispatching the GAction directly skips GTK's close-before-action path.
+    GtkWidget *item = find_item_button(child);
+    return item && gtk_widget_activate(item);
   }
   return 0;
 }

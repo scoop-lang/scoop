@@ -1,0 +1,190 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class UiDropRoutingTest {
+    @Test
+    fun `drop routing uses current mounted targets and commits one actual receiver`() {
+        val first = UiDropProbe()
+        val second = UiDropProbe()
+        UiHost(
+            onRootError =
+                {
+                    _, error ->
+                    assertTrue(error is UiDropFailure)
+                    first.failures += 1
+                },
+            handler =
+                {
+                    host,
+                    active,
+                    event -> when (event) {
+                        case Resumed -> {
+                            first.attach(host, active)
+                            second.attach(host, active)
+                            checkRoutes(first)
+                            checkUpdates(first)
+                            checkOwnership(first, second)
+                            first.finished = true
+                            active.requestExit()
+                        }
+                        else -> {}
+                    }
+                }
+        ).use { host -> Application().run(host) }
+        assertTrue(first.finished)
+        assertEquals(0, first.measures)
+        assertEquals(0, first.scenes)
+        assertEquals(1, first.failures)
+        assertTrue(first.child!!.isClosed)
+        assertTrue(second.child!!.isClosed)
+    }
+}
+
+private fun checkRoutes(probe: UiDropProbe) {
+    assertEquals(probe.copyDecision(), probe.select())
+    assertCalls([2, 1], probe.offers)
+    assertEquals(None, probe.child!!.hover)
+    assertEquals(
+        Some(DropHover(Point(50.0, 30.0), DragFormat.Text, DragEffect.Copy)),
+        probe.parent!!.hover
+    )
+    assertEquals(None, probe.sibling!!.hover)
+    probe.clearLog()
+    probe.acceptParent = false
+    assertEquals(DropDecision.Reject, probe.select())
+    assertCalls([2, 1], probe.offers)
+    assertCalls([1], probe.leaves)
+    assertEquals(None, probe.parent!!.hover)
+
+    probe.clearLog()
+    probe.acceptParent = true
+    probe.invalidChild = true
+    assertEquals(probe.copyDecision(), probe.select())
+    assertCalls([2, 1], probe.offers)
+    probe.invalidChild = false
+    probe.acceptChild = true
+    probe.clearLog()
+    assertEquals(probe.copyDecision(), probe.select())
+    assertCalls([2], probe.offers)
+    assertCalls([1], probe.leaves)
+    assertEquals(
+        Some(DropHover(Point(5.0, 5.0), DragFormat.Text, DragEffect.Copy)),
+        probe.child!!.hover
+    )
+
+    InputBoundary(probe.child!!.area.scope).use {
+        boundary ->
+        probe.acceptChild = false
+        assertEquals(DropDecision.Reject, probe.select())
+        boundary.update(InputBoundaryMode.FocusOnly, true)
+        assertEquals(probe.copyDecision(), probe.select())
+    }
+    probe.acceptChild = true
+    probe.clearLog()
+    probe.select()
+    probe.clearLog()
+    probe.acceptData = false
+    assertFalse(probe.controller.dropCandidates(probe.request(), probe.route()))
+    assertFalse(probe.controller.dropCandidates(probe.request(), probe.route()))
+    probe.controller.flushLeaves()
+    assertCalls([2], probe.drops)
+    assertCalls([2], probe.leaves)
+    assertEquals(None, probe.child!!.hover)
+    probe.acceptData = true
+}
+
+private fun checkUpdates(probe: UiDropProbe) {
+    probe.clearLog()
+    probe.select()
+    probe.child!!.update(probe.handlers(2, 2))
+    assertFalse(probe.controller.dropCandidates(probe.request(), probe.route()))
+    assertEquals(0L, probe.drops.size)
+    probe.select()
+    assertFalse(
+        probe.controller.dropCandidates(
+            probe.request(),
+            [
+                DropCandidate(probe.child!!, Point(6.0, 5.0)),
+                DropCandidate(probe.parent!!, Point(50.0, 30.0))
+            ]
+        )
+    )
+    assertFalse(
+        probe.controller.dropCandidates(
+            DropRequest(probe.offer(), DragEffect.Copy, DragContent.Url("https://example.test")),
+            probe.route()
+        )
+    )
+    assertTrue(probe.controller.dropCandidates(probe.request(), probe.route()))
+    probe.controller.flushLeaves()
+    assertCalls([2], probe.drops)
+    assertCalls([2], probe.versions)
+
+    probe.clearLog()
+    probe.select()
+    probe.child!!.update(probe.handlers(2), false)
+    assertEquals(None, probe.child!!.hover)
+    assertEquals(0L, probe.leaves.size)
+    probe.ui!!.root.flush()
+    assertCalls([2], probe.leaves)
+    assertEquals(probe.copyDecision(), probe.select())
+    assertEquals(
+        Some(DropHover(Point(50.0, 30.0), DragFormat.Text, DragEffect.Copy)),
+        probe.parent!!.hover
+    )
+    probe.child!!.update(probe.handlers(2), true)
+    probe.disableChild = true
+    assertEquals(probe.copyDecision(), probe.select())
+    assertEquals(None, probe.child!!.hover)
+    probe.disableChild = false
+    probe.child!!.update(probe.handlers(2))
+}
+
+private fun checkOwnership(first: UiDropProbe, second: UiDropProbe) {
+    assertFailsWith<IllegalArgumentException> {
+        first.scope!!.dropTarget(first.child!!.area, first.handlers(2))
+    }
+    assertFailsWith<IllegalArgumentException> {
+        first.scope!!.dropTarget(second.child!!.area, first.handlers(2))
+    }
+    val old = first.child!!
+    val area = old.area
+    first.select()
+    first.clearLog()
+    old.close()
+    assertFalse(area.isClosed)
+    assertEquals(None, old.hover)
+    first.ui!!.root.flush()
+    assertEquals(0L, first.leaves.size)
+    assertFailsWith<IllegalStateException> { old.update(first.handlers(2)) }
+    first.child = Some(first.scope!!.dropTarget(area, first.handlers(2, 3)))
+    assertFalse(first.controller.dropCandidates(first.request(), first.route()))
+    assertEquals(first.copyDecision(), first.select())
+    first.throwOnDrop = true
+    first.scope!!.dispatch {
+        first.controller.dropCandidates(first.request(), first.route());
+        Unit
+    }
+
+    second.acceptChild = true
+    second.closeOnDrop = true
+    assertEquals(second.copyDecision(), second.select())
+    assertTrue(second.controller.dropCandidates(second.request(), second.route()))
+    assertTrue(second.ui!!.isClosed || !second.ui!!.root.isOpen)
+    assertEquals(None, second.child!!.hover)
+    assertFalse(second.controller.dropCandidates(second.request(), second.route()))
+    second.window!!.registerDropTarget(
+        DropHandlers(offer = { _ -> DropDecision.Reject }, drop = { _ -> false })
+    ).close()
+}
+
+private fun assertCalls(expected: Array<Int>, actual: ArrayList<Int>) {
+    assertEquals(expected.size, actual.size)
+    for (index in 0L ..< expected.size)
+        assertEquals(expected[index], actual[index])
+}

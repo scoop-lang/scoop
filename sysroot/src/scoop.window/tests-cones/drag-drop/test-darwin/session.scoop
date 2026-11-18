@@ -1,0 +1,352 @@
+package scoop.tests.window.drop
+
+import scoop.platform.fs.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.native.*
+
+private class DropFailure: Exception(Some("expected drop handler failure"))
+
+private class DropContext(val number: Int)
+
+context(value: DropContext)
+private fun callbackContext(): Int = value.number
+
+@Test
+private class DropTest {
+    @Test
+    fun `AppKit destination negotiates metadata and completes owned payloads before retirement`() {
+        val handler = DropHandler()
+        try {
+            var raised = false
+            try {
+                context(DropContext(37)) {
+                    Application().run(handler)
+                }
+            } catch (error: DropFailure) {
+                raised = true
+            }
+            assertTrue(raised)
+            assertEquals(23, handler.step)
+            assertTrue(handler.failed)
+            assertEquals(2, handler.destroyed)
+            @Unsafe
+            {
+                assertEquals(0, nativeLast(handler.probe!!, 23))
+            }
+        } finally {
+            handler.release()
+        }
+    }
+}
+
+private struct HeldWindow(val id: WindowId, val lease: NativeWindowLease)
+
+private class DropHandler: ApplicationHandler {
+    var step = 0
+    var destroyed = 0
+    var failed = false
+    var probe: Ptr<Unit>? = None
+    private var application: ActiveApplication? = None
+    private var window: Window? = None
+    private var target: DropTarget? = None
+    private var callback: ForeignCallback<(Ptr<Unit>, Int, Int) -> Int>? = None
+    private val leases = ArrayList<HeldWindow>()
+    private var offers = 0
+    private var drops = 0
+    private var leaves = 0
+    private var beforeOffers = 0
+    private var beforeDrops = 0
+    private var beforeLeaves = 0
+    private var received: DropRequest? = None
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                this.application = Some(application)
+                val view = createWindow()
+                @Unsafe
+                {
+                    probe = nativeOpen(view)
+                    assertTrue(probe != None)
+                    val proxy = application.proxy()
+                    callback =
+                        Some(
+                            foreignCallback<(Ptr<Unit>, Int, Int) -> Int>(
+                                {
+                                    completed: Int, result: Int ->
+                                    if (completed == -1)
+                                        target!!.enabled = false
+                                    else
+                                        proxy.post { _ -> complete(completed, result) }
+                                    0
+                                },
+                                0,
+                                ForeignCallbackMode.Reusable
+                            )
+                        )
+                }
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                )
+                post(0)
+            }
+            case Window(val id, WindowEvent.Closing) -> {
+                for (held in leases)
+                    if (held.id == id)
+                        held.lease.close()
+            }
+            case Window(_, WindowEvent.Destroyed) -> destroyed += 1
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"drop step ${step} timed out"))
+            else -> {}
+        }
+    }
+
+    private fun createWindow(): Ptr<Unit> {
+        val value =
+            application!!.createWindow(
+                windowAttributes {
+                    title = "Scoop drag destination"
+                    size = LogicalSize(320.0, 200.0)
+                }
+            )
+        window = Some(value)
+        register()
+        @Unsafe
+        {
+            val lease = value.acquireNativeWindow()
+            leases.add(HeldWindow(value.id, lease))
+            return when (lease.handle) {
+                case AppKit(_, val view) -> view
+            }
+        }
+    }
+
+    private fun handlers(): DropHandlers =
+        DropHandlers(
+            offer = { value -> offer(value) },
+            drop = { value -> drop(value) },
+            leave =
+                {
+                    assertEquals(37, callbackContext());
+                    leaves += 1
+                }
+        )
+
+    private fun register() {
+        target = Some(window!!.registerDropTarget(handlers()))
+        assertTrue(target!!.enabled)
+        assertFalse(target!!.isClosed)
+        assertFailsWith<IllegalStateException> { window!!.registerDropTarget(handlers()) }
+    }
+
+    private fun offer(value: DropOffer): DropDecision {
+        assertEquals(37, callbackContext())
+        offers += 1
+        assertEquals(LogicalPosition(35.0, 45.0), value.position)
+        assertEquals(step == 2, value.local)
+        assertTrue(value.effects.copy)
+        assertEquals(step == 1, value.effects.move)
+        assertEquals(step == 2 || step == 7, value.effects.link)
+        if (step == 2) {
+            assertTrue(value.formats.text)
+            assertTrue(value.formats.url)
+            assertFalse(value.formats.files)
+        }
+        if (step == 6) {
+            assertFalse(value.formats.text)
+            assertFalse(value.formats.url)
+            assertFalse(value.formats.files)
+        }
+        if (step == 13)
+            target!!.enabled = false
+        if (step == 14)
+            target!!.close()
+        if (step == 18) {
+            @Unsafe
+            {
+                assertEquals(0, nativeReenter(probe!!))
+            }
+        }
+        if (step == 23) {
+            failed = true
+            throw DropFailure()
+        }
+        return when (step) {
+            case 1 -> DropDecision.Accept(DragFormat.Text, DragEffect.Move)
+            case 5 -> DropDecision.Accept(DragFormat.Text, DragEffect.Move)
+            case 2 -> DropDecision.Accept(DragFormat.Url, DragEffect.Link)
+            case 7 -> DropDecision.Accept(DragFormat.Url, DragEffect.Link)
+            case 3 -> DropDecision.Accept(DragFormat.Files, DragEffect.Copy)
+            case 4 -> DropDecision.Accept(DragFormat.Files, DragEffect.Copy)
+            case 8 -> DropDecision.Accept(DragFormat.Files, DragEffect.Copy)
+            else -> DropDecision.Accept(DragFormat.Text, DragEffect.Copy)
+        }
+    }
+
+    private fun drop(value: DropRequest): Boolean {
+        assertEquals(37, callbackContext())
+        drops += 1
+        received = Some(value)
+        assertEquals(LogicalPosition(35.0, 45.0), value.offer.position)
+        when (step) {
+            case 1 -> {
+                assertEquals(DragEffect.Move, value.effect)
+                when (value.content) {
+                    case Text(val text) -> assertEquals("", text)
+                    else -> fail(Some("expected empty text"))
+                }
+                return false
+            }
+            case 2 -> {
+                assertEquals(DragEffect.Link, value.effect)
+                when (value.content) {
+                    case Url(val url) -> assertEquals("https://example.test/path?q=1", url)
+                    else -> fail(Some("expected URL representation"))
+                }
+            }
+            case 3 -> {
+                assertEquals(DragEffect.Copy, value.effect)
+                when (value.content) {
+                    case Files(val files) -> {
+                        assertEquals(2L, files.size)
+                        assertEquals("first", files[0L].readText())
+                        assertEquals("second", files[1L].readText())
+                    }
+                    else -> fail(Some("expected full file list"))
+                }
+            }
+            else -> {
+                assertEquals(DragEffect.Copy, value.effect)
+                when (value.content) {
+                    case Text(val text) -> assertEquals("中文😀\r\nvalue", text)
+                    else -> fail(Some("expected Unicode text"))
+                }
+            }
+        }
+        if (step == 15)
+            target!!.close()
+        if (step == 16) {
+            @Unsafe
+            {
+                assertEquals(0, nativeReenter(probe!!))
+            }
+        }
+        if (step == 20)
+            window!!.requestDestroy()
+        return true
+    }
+
+    private fun complete(completed: Int, result: Int) {
+        assertEquals(step, completed)
+        assertEquals(0, result, Some(f"native drop step ${step}, source line ${result}"))
+        val expectedDrops =
+            if (
+                step <=
+                    3 ||
+                    step ==
+                    10 ||
+                    step ==
+                    15 ||
+                    step ==
+                    16 ||
+                    step ==
+                    18 ||
+                    step ==
+                    20 ||
+                    step ==
+                    21
+            )
+                1
+            else
+                0
+        val expectedLeaves =
+            if (step == 10)
+                2
+            else
+                if (step == 9 || step == 11 || step == 14 || step == 15 || step == 20)
+                    0
+                else
+                    1
+        assertEquals(expectedDrops, drops - beforeDrops, Some(f"drop count at ${step}"))
+        if (expectedDrops == 1) {
+            // The native payload has been released before this owner turn.
+            when (received!!.content) {
+                case Text(val text) -> assertEquals(
+                    if (step == 1)
+                        ""
+                    else
+                        "中文😀\r\nvalue",
+                    text
+                )
+                case Url(val url) -> assertEquals("https://example.test/path?q=1", url)
+                case Files(val files) -> assertEquals("second", files[1L].readText())
+            }
+        }
+        assertEquals(expectedLeaves, leaves - beforeLeaves, Some(f"leave count at ${step}"))
+        if (step == 12)
+            assertEquals(beforeOffers, offers)
+        else
+            assertTrue(offers > beforeOffers)
+        when (step) {
+            case 9 -> target!!.handlers = handlers()
+            case 11 -> target!!.enabled = false
+            case 12 -> target!!.enabled = true
+            case 13 -> target!!.enabled = true
+            case 17 -> {
+                target!!.enabled = true
+                target!!.periodicUpdates = true
+            }
+            case 18 -> target!!.periodicUpdates = false
+            case 14 -> replaceClosedTarget()
+            case 15 -> replaceClosedTarget()
+            case 20 -> {
+                assertTrue(target!!.isClosed)
+                val view = createWindow()
+                @Unsafe
+                {
+                    nativeRebind(probe!!, view)
+                }
+            }
+            else -> {}
+        }
+        post(completed + 1)
+    }
+
+    private fun replaceClosedTarget() {
+        assertTrue(target!!.isClosed)
+        target!!.close()
+        assertFailsWith<IllegalStateException> { target!!.enabled = true }
+        assertFailsWith<IllegalStateException> { target!!.handlers = handlers() }
+        register()
+    }
+
+    private fun post(next: Int) {
+        step = next
+        beforeOffers = offers
+        beforeDrops = drops
+        beforeLeaves = leaves
+        @Unsafe
+        {
+            nativePost(probe!!, step, callback!!.function, callback!!.context)
+        }
+    }
+
+    fun release() {
+        @Unsafe
+        {
+            when (probe) {
+                case Some(val value) -> nativeClose(value);
+                case None -> {}
+            }
+            when (callback) {
+                case Some(val value) -> releaseForeignCallback(value)
+                case None -> {}
+            }
+        }
+        probe = None
+        callback = None
+    }
+}

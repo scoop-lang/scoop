@@ -25,6 +25,8 @@ public class PaginationBuilder internal constructor() {
     public var nextFocus: FocusOptions = FocusOptions()
     public var pageFocus: (Long) -> FocusOptions = { _ -> FocusOptions() }
     public var onValueChange: (Long) -> Unit = {}
+    public var semantics: ComponentSemantics = ComponentSemantics()
+    public var pageSemantics: (Long) -> ComponentSemantics = { _ -> ComponentSemantics() }
     public var key: ViewKey = ViewKey.Position
     public fun add(item: PaginationItem) {
         val entries = ArrayList<PaginationItem>()
@@ -77,7 +79,9 @@ public class PaginationBuilder internal constructor() {
             previousFocus,
             nextFocus,
             pageFocus,
-            onValueChange
+            onValueChange,
+            semantics,
+            pageSemantics
         )
 }
 

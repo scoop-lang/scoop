@@ -26,6 +26,7 @@ public class ComboboxBuilder<T: Equals<T>> internal constructor(): InputBuilder(
     public var empty: PanelContent =
         PanelContent.Label(LabelProps(LabelText.Plain("No results found.", None)))
     public var triggerStyle: ButtonStyle = buttonStyle()
+    public var triggerSemantics: ComponentSemantics = ComponentSemantics()
     public var triggerFocus: FocusOptions = FocusOptions()
     public var popupStyle: StyleOverride = styleOverride()
     public var scroll: ScrollState? = None
@@ -95,7 +96,8 @@ public class ComboboxBuilder<T: Equals<T>> internal constructor(): InputBuilder(
             onValuesChange,
             onOpenChange,
             onCloseRequest,
-            onClosed
+            onClosed,
+            triggerSemantics
         )
 }
 

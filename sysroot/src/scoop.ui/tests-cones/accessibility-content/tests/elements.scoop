@@ -1,0 +1,181 @@
+package scoop.tests.ui.accessibility.content
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class ContentInput(
+    val merge: Boolean,
+    val ignoreWrapper: Boolean,
+    val ignoreOwner: Boolean,
+    val hideWrapper: Boolean,
+    val hideOwner: Boolean,
+    val interactive: Boolean,
+    val bindFocus: Boolean,
+    val useLabel: Boolean,
+    val name: String?,
+    val text: String
+)
+
+internal class ContentRoot(private val probe: ContentProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val input =
+            ContentInput(
+                probe.merge.value,
+                probe.ignoreWrapper.value,
+                probe.ignoreOwner.value,
+                probe.hideWrapper.value,
+                probe.hideOwner.value,
+                probe.interactive.value,
+                probe.bindFocus.value,
+                probe.useLabel.value,
+                probe.name.value,
+                probe.text.value
+            )
+        val first = part(input, "first")
+        val wrapper =
+            part(
+                input,
+                "wrapper",
+                SemanticRole.Group,
+                [part(input, "second"), part(input, "link", SemanticRole.Button)]
+            )
+        val children = ArrayList<View>()
+        if (probe.reverse.value) {
+            children.add(wrapper)
+            children.add(first)
+        } else {
+            children.add(first)
+            children.add(wrapper)
+        }
+        children.add(part(input, "group", SemanticRole.Group, [part(input, "group-label")]))
+        children.add(
+            part(input, "rich", SemanticRole.Text, [part(input, "rich-link", SemanticRole.Button)])
+        )
+        children.add(part(input, "focus"))
+        children.add(part(input, "secret", SemanticRole.TextField))
+        children.add(part(input, "protected"))
+        return part(input, "owner", SemanticRole.Button, children.toArray())
+    }
+
+    private fun part(
+        input: ContentInput,
+        id: String,
+        role: SemanticRole = SemanticRole.Text,
+        children: Array<View> = []
+    ): View =
+        element(
+            input,
+            { props, mount -> ContentElement(probe, props, mount, id, role) },
+            children,
+            key = ViewKey.Text(id)
+        )
+}
+
+private class ContentElement(
+    private val probe: ContentProbe,
+    private val props: Props<ContentInput>,
+    scope: ComponentScope,
+    private val id: String,
+    role: SemanticRole
+): Element<Unit>(scope) {
+    private val semantic = scope.semantics(role)
+    private val area: InputArea? =
+        if (id == "focus")
+            Some(scope.createArea(focusable = true))
+        else
+            None
+    private val target: FocusTarget? =
+        when (area) {
+            case Some(val value) -> Some(scope.focusTarget(value))
+            case None -> None
+        }
+    init {
+        probe.nodes[id] = semantic
+        probe.mounts += 1
+        scope.routeSemanticsChildren(Some(semantic))
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        val name: String? =
+            when (id) {
+                case "owner" -> input.name
+                case "first" -> if (input.interactive)
+                    None
+                else
+                    Some(input.text)
+                case "second" -> Some("changes")
+                case "group-label" -> Some("Separate")
+                case "focus" -> Some("Focus")
+                else -> Some(id)
+            }
+        val labels: Array<SemanticNodeId> =
+            if (id == "owner" && input.useLabel)
+                [probe.nodes["group-label"]!!.id]
+            else
+                if (id == "first" && input.interactive)
+                    [probe.nodes["owner"]!!.id]
+                else
+                    []
+        var actions = SemanticActions()
+        if (id == "owner" || (id == "first" && input.interactive))
+            actions =
+                SemanticActions(
+                    invoke =
+                        Some {
+                            if (id == "owner")
+                                probe.ownerPresses += 1
+                            else
+                                probe.labelPresses += 1
+                            SemanticActionResult.Completed
+                        }
+                )
+        semantic.update(
+            SemanticProperties(
+                name = name,
+                automationId = Some(id),
+                ignored =
+                    (id == "wrapper" && input.ignoreWrapper) ||
+                        (id == "owner" && input.ignoreOwner),
+                hidden =
+                    (id == "wrapper" && input.hideWrapper) || (id == "owner" && input.hideOwner),
+                protectedText = id == "protected" || id == "secret"
+            ),
+            actions,
+            SemanticRelations(labelledBy = labels)
+        )
+        if (id == "owner")
+            semantic.mergeLabels = input.merge
+        if (id == "focus")
+            semantic.bindFocus(
+                if (input.bindFocus)
+                    target
+                else
+                    None
+            )
+        return UiInvalidation.None
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures += 1
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints.tight(Size(120.0, 20.0)))
+            context.placeChild(index, Point(0.0, index.toDouble() * 20.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(200.0, 200.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.scenes += 1
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.semantics(semantic, bounds)
+        when (area) {
+            case Some(val value) -> context.place(value, bounds)
+            case None -> {}
+        }
+        context.children()
+    }
+}

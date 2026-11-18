@@ -1,0 +1,351 @@
+package scoop.tests.ui.editing
+
+import scoop.test.*
+import scoop.tests.surface.moveSurfacePointer
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class EditorContextMenuProbe {
+    var enabled = true
+    var options =
+        textContextMenu {
+            mode = TextContextMenuMode.StandardNative
+            labels =
+                Some(
+                    TextContextMenuLabels(
+                        Some("Menu Undo"),
+                        Some("Menu Redo"),
+                        Some("Menu Cut"),
+                        Some("Menu Copy"),
+                        Some("Menu Paste"),
+                        Some("Menu Delete"),
+                        Some("Menu Select All")
+                    )
+                )
+        }
+    var complete = false
+    private var phase = 0
+    private var observed = false
+    private var oldDocument: TextEditorState? = None
+    private var otherText = ""
+
+    fun start(probe: EditProbe) {
+        @Unsafe
+        {
+            observeMenus()
+        }
+        observed = true
+        probe.primary.replaceAll("one two")
+        probe.primary.setSelection(Utf8Selection(3L, 0L))
+        probe.policy = textEditPolicy()
+        probe.readonly = false
+        probe.displayTest.projection = textProjection()
+        probe.displayTest.copy = TextCopyPolicy.Default
+        probe.displayTest.protectedText = false
+        probe.primaryWidth = 240.0
+        assertTrue(probe.focus[0L].requestFocus())
+        probe.change()
+    }
+
+    fun advance(probe: EditProbe) {
+        val field = probe.field(0L)
+        val state = probe.primary
+        val window = probe.window!!
+        when (phase) {
+            case 0 -> open(
+                probe,
+                {
+                    editorPointer(window, probe.point(0L, 0L), true, shift = true)
+                    editorContextClick(window, probe.point(0L, 1L))
+                }
+            ) {
+                assertEquals(Utf8Selection(3L, 0L), state.selection)
+                assertEquals(1, menuEnabled("Menu Delete"))
+                @Unsafe
+                {
+                    cancelMenu()
+                }
+            }
+            case 1 -> {
+                val point = probe.point(0L, 6L)
+                assertTrue(moveSurfacePointer(window, point.x, point.y))
+                probe.later {
+                    assertEquals(Utf8Selection(3L, 0L), state.selection)
+                    editorPointer(window, point, false)
+                    options = options.copy { mode = TextContextMenuMode.PreferSystem }
+                    changed(probe)
+                }
+            }
+            case 2 -> open(probe, { editorContextClick(window, probe.point(0L, 5L), true) }) {
+                assertEquals(Utf8Range(4L, 7L), state.selection.range)
+                choose("Menu Cut")
+            }
+            case 3 -> {
+                assertEquals("one ", state.text)
+                assertClipboardText(window, "two")
+                assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("one two", state.text)
+                state.setSelection(Utf8Selection(3L, 0L))
+                options = options.copy { selection = TextContextMenuSelection.PlaceCaret }
+                changed(probe)
+            }
+            case 4 -> open(probe, { editorContextClick(window, probe.point(0L, 5L)) }) {
+                assertEquals(Utf8Selection(5L, 5L), state.selection)
+                assertEquals(0, menuEnabled("Menu Copy"))
+                assertEquals(0, menuEnabled("Menu Delete"))
+                assertEquals(1, menuEnabled("Menu Paste"))
+                @Unsafe
+                {
+                    cancelMenu()
+                }
+            }
+            case 5 -> {
+                state.setSelection(Utf8Selection(3L, 0L))
+                options = options.copy { selection = TextContextMenuSelection.Preserve }
+                changed(probe)
+            }
+            case 6 -> open(probe, { editorContextClick(window, probe.point(0L, 5L)) }) {
+                assertEquals(Utf8Selection(3L, 0L), state.selection)
+                choose("Menu Delete")
+            }
+            case 7 -> {
+                assertEquals(" two", state.text)
+                assertClipboardText(window, "two")
+                assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("one two", state.text)
+                probe.policy = textEditPolicy { maxLength = Some(7L) }
+                state.setSelection(Utf8Selection(3L, 0L))
+                changed(probe)
+            }
+            case 8 -> open(probe, { editorShiftF10(window) }) {
+                assertEquals("one two", state.text)
+                assertEquals(Utf8Selection(3L, 0L), state.selection)
+                window.clipboard.writeText("fresh")
+                choose("Menu Paste")
+            }
+            case 9 -> {
+                assertEquals("fre two", state.text)
+                assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("one two", state.text)
+                probe.policy = textEditPolicy()
+                probe.readonly = true
+                state.setSelection(Utf8Selection(3L, 0L))
+                changed(probe)
+            }
+            case 10 -> open(
+                probe,
+                {
+                    assertEquals(1, editorSemanticMenu(window, "editor0", false))
+                    assertEquals(0, editorSemanticMenu(window, "editor0", true))
+                }
+            ) {
+                assertEquals(1, editorSemanticMenuResult())
+                for (title in ["Menu Cut", "Menu Paste", "Menu Delete", "Menu Undo", "Menu Redo"])
+                    assertEquals(0, menuEnabled(title))
+                assertEquals(1, menuEnabled("Menu Copy"))
+                choose("Menu Copy")
+            }
+            case 11 -> {
+                assertEquals("one two", state.text)
+                assertClipboardText(window, "one")
+                probe.readonly = false
+                options = options.copy { mode = TextContextMenuMode.Disabled }
+                changed(probe)
+            }
+            case 12 -> {
+                assertFalse(field.showContextMenu())
+                editorShiftF10(window)
+                editorContextClick(window, probe.point(0L, 1L))
+                probe.later {
+                    @Unsafe
+                    {
+                        assertEquals(0, trackingMenu())
+                    }
+                    assertEquals("one two", state.text)
+                    options = options.copy { mode = TextContextMenuMode.StandardNative }
+                    changed(probe)
+                }
+            }
+            case 13 -> {
+                otherText = probe.multiline.text
+                open(probe, { assertTrue(field.showContextMenu()) }) {
+                    choose("Menu Delete")
+                    assertTrue(probe.focus[1L].requestFocus())
+                }
+            }
+            case 14 -> {
+                assertEquals("one two", state.text)
+                assertEquals(otherText, probe.multiline.text)
+                assertFalse(field.showContextMenu())
+                assertTrue(probe.focus[0L].requestFocus())
+                changed(probe)
+            }
+            case 15 -> open(probe, { assertTrue(field.showContextMenu()) }) {
+                choose("Menu Delete")
+                oldDocument = Some(state)
+                probe.primary = TextEditorState("replacement")
+                update(probe)
+                assertFalse(field.showContextMenu())
+                probe.change()
+            }
+            case 16 -> {
+                assertEquals("one two", oldDocument!!.text)
+                assertEquals("replacement", state.text)
+                probe.preventKeys = true
+                editorShiftF10(window)
+                probe.later {
+                    @Unsafe
+                    {
+                        assertEquals(0, trackingMenu())
+                    }
+                    probe.preventKeys = false
+                    state.setSelection(Utf8Selection(0L, state.text.byteLength))
+                    changed(probe)
+                }
+            }
+            case 17 -> open(probe, { assertTrue(field.showContextMenu()) }) {
+                choose("Menu Delete")
+                enabled = false
+                update(probe)
+                probe.change()
+            }
+            case 18 -> {
+                assertEquals("replacement", state.text)
+                assertFalse(field.showContextMenu())
+                enabled = true
+                probe.displayTest.protectedText = true
+                update(probe)
+                assertTrue(probe.focus[0L].requestFocus())
+                changed(probe)
+            }
+            case 19 -> open(probe, { assertTrue(field.showContextMenu()) }) {
+                assertEquals(0, menuEnabled("Menu Cut"))
+                assertEquals(0, menuEnabled("Menu Copy"))
+                assertEquals(1, menuEnabled("Menu Paste"))
+                assertEquals(1, menuEnabled("Menu Delete"))
+                window.clipboard.writeText("permitted")
+                choose("Menu Paste")
+            }
+            case 20 -> {
+                assertEquals("permitted", state.text)
+                assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("replacement", state.text)
+                state.setSelection(Utf8Selection(0L, state.text.byteLength))
+                probe.displayTest.copy = TextCopyPolicy.Allow
+                changed(probe)
+            }
+            case 21 -> open(probe, { assertTrue(field.showContextMenu()) }) {
+                assertEquals(1, menuEnabled("Menu Copy"))
+                choose("Menu Copy")
+                probe.displayTest.copy = TextCopyPolicy.Default
+                update(probe)
+                probe.change()
+            }
+            case 22 -> {
+                assertClipboardText(window, "permitted")
+                assertEquals("replacement", state.text)
+                assertTrue(field.execute(TextEditCommand.DeleteSelection))
+                assertEquals("", state.text)
+                assertTrue(field.execute(TextEditCommand.Undo))
+                assertEquals("replacement", state.text)
+                changed(probe)
+            }
+            case 23 -> open(probe, { assertTrue(field.showContextMenu()) }) {
+                choose("Menu Delete")
+                complete = true
+                window.requestDestroy()
+            }
+            else -> fail(Some("unexpected text menu phase"))
+        }
+    }
+
+    private fun changed(probe: EditProbe) {
+        phase += 1
+        probe.change()
+    }
+
+    private fun update(probe: EditProbe) {
+        probe.field(0L).update(
+            probe.primary,
+            probe.appearance,
+            probe.options(0L),
+            FocusOptions(handle = Some(probe.focus[0L])),
+            onEdited = { value -> probe.edited(value) }
+        )
+    }
+
+    private fun open(probe: EditProbe, request: () -> Unit, during: () -> Unit) {
+        probe.popupPending = true
+        request()
+        probe.later {
+            @Unsafe
+            {
+                assertEquals(
+                    1,
+                    trackingMenu(),
+                    Some(f"text menu phase=${this @EditorContextMenuProbe.phase}")
+                )
+            }
+            during()
+            phase += 1
+        }
+    }
+
+    fun close() {
+        if (!observed)
+            return
+        observed = false
+        @Unsafe
+        {
+            endMenus()
+        }
+    }
+}
+
+internal fun choose(title: String) {
+    @Unsafe
+    {
+        assertEquals(
+            1,
+            title.withUtf8Bytes {
+                bytes,
+                count -> @Unsafe
+                {
+                    return@withUtf8Bytes popupAction(bytes, count)
+                }
+            }
+        )
+    }
+}
+
+internal fun menuEnabled(title: String): Int {
+    @Unsafe
+    {
+        return title.withUtf8Bytes {
+            bytes,
+            count -> @Unsafe
+            {
+                return@withUtf8Bytes popupEnabled(bytes, count)
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_test_menu_observe")
+internal fun observeMenus()
+
+@Extern(name = "scoop_test_menu_tracking")
+internal fun trackingMenu(): Int
+
+@Extern(name = "scoop_test_menu_end")
+internal fun endMenus()
+
+@Extern(name = "scoop_test_popup_cancel")
+internal fun cancelMenu()
+
+@Extern(name = "scoop_test_popup_action")
+private fun popupAction(bytes: Ptr<UInt8>, length: Long): Int
+
+@Extern(name = "scoop_test_popup_enabled")
+private fun popupEnabled(bytes: Ptr<UInt8>, length: Long): Int

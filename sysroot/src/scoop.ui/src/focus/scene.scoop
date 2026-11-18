@@ -23,10 +23,15 @@ internal class FocusScene: Closeable {
         return []
     }
     fun capture(viewport: ScrollViewport, layout: ScrollLayout, canvas: Canvas): ScrollReveal {
-        val size = layout.snapshot.viewport
+        val snapshot = layout.snapshot
+        val size = snapshot.visibleSize
         @Unsafe
         {
-            val geometry = captureGeometry(canvas, Rect(0.0, 0.0, size.width, size.height))
+            val geometry =
+                captureGeometry(
+                    canvas,
+                    Rect(snapshot.padding.left, snapshot.padding.top, size.width, size.height)
+                )
             val boundary = ScrollReveal(viewport, viewport.state, layout, geometry)
             boundaries.add(boundary)
             return boundary

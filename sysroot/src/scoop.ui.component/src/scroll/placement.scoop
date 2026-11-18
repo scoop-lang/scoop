@@ -1,0 +1,76 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+/** Fixed reservation is independent of overflow and transient feedback. */
+internal fun scrollbarGutter(
+    axes: ScrollAxes,
+    visibility: ScrollbarVisibility,
+    thickness: Double,
+    placement: ScrollbarPlacement
+): Size =
+    if (placement == ScrollbarPlacement.Gutter && visibility != ScrollbarVisibility.Hidden)
+        Size(
+            if (axes.vertical)
+                thickness
+            else
+                0.0,
+            if (axes.horizontal)
+                thickness
+            else
+                0.0
+        )
+    else
+        Size(0.0, 0.0)
+
+internal fun scrollbarViewport(outer: Size, gutter: Size, direction: LayoutDirection): Rect {
+    val width = upperBound(gutter.width, outer.width)
+    val height = upperBound(gutter.height, outer.height)
+    return Rect(
+        if (direction == LayoutDirection.Rtl)
+            width
+        else
+            0.0,
+        0.0,
+        outer.width - width,
+        outer.height - height
+    )
+}
+
+/** Only body overflow creates an Auto bar; reveal margins never create another bar. */
+internal fun scrollbarPadding(
+    viewport: Size,
+    content: Size,
+    axes: ScrollAxes,
+    visibility: ScrollbarVisibility,
+    thickness: Double,
+    placement: ScrollbarPlacement,
+    direction: LayoutDirection
+): ScrollPadding {
+    if (placement != ScrollbarPlacement.Overlay || viewport.width == 0.0 || viewport.height == 0.0)
+        return ScrollPadding()
+    val vertical =
+        if (axes.vertical && showScrollbar(visibility, content.height - viewport.height))
+            upperBound(thickness, viewport.width)
+        else
+            0.0
+    val horizontal =
+        if (axes.horizontal && showScrollbar(visibility, content.width - viewport.width))
+            upperBound(thickness, viewport.height)
+        else
+            0.0
+    return ScrollPadding(
+        left =
+            if (direction == LayoutDirection.Rtl)
+                vertical
+            else
+                0.0,
+        right =
+            if (direction == LayoutDirection.Ltr)
+                vertical
+            else
+                0.0,
+        bottom = horizontal
+    )
+}

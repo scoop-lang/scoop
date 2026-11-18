@@ -1,0 +1,168 @@
+package scoop.window
+
+import scoop.test.*
+
+/** A managed lifecycle test double; it does not claim an AppKit drag ran. */
+private class DragNativeProbe(
+    private val mode: Int,
+    private val afterClose: () -> Unit,
+    private val defer: (() -> Unit) -> Unit
+): NativeDragSource {
+    var session: DragSession? = None
+    var starts = 0
+    var closes = 0
+    var effects = DragEffects(true, true, true)
+    public override fun setEffects(value: DragEffects) {
+        effects = value
+    }
+    public override fun start() {
+        starts += 1
+        if (mode >= 8) {
+            defer {
+                assertFalse(session!!.isStarted)
+                when (mode) {
+                    case 8 -> assertTrue(session!!.cancelPending())
+                    case 9 -> {
+                        session!!.nativeEvent(2, 22)
+                        session!!.nativeEvent(2, 22)
+                    }
+                    else -> {
+                        session!!.nativeEvent(0, 0)
+                        assertTrue(session!!.isStarted)
+                        assertFalse(session!!.cancelPending())
+                        session!!.nativeEvent(1, 1)
+                    }
+                }
+            }
+            return
+        }
+        if (mode == 5)
+            throw WindowException("expected start failure", WindowErrorKind.NativeFailure)
+        session!!.nativeEvent(0, 0)
+        assertTrue(session!!.isStarted)
+        assertFalse(session!!.cancelPending())
+        if (mode == 2) {
+            session!!.effects = DragEffects(true, false, false)
+            assertEquals(DragEffects(true, false, false), effects)
+        }
+        if (mode == 6) {
+            session!!.close()
+            assertEquals(1, closes)
+            session!!.nativeEvent(1, 1)
+            assertNoResult(session!!)
+            afterClose()
+        } else {
+            val effect =
+                if (mode == 7)
+                    1
+                else
+                    mode
+            session!!.nativeEvent(1, effect)
+            session!!.nativeEvent(1, effect)
+        }
+    }
+    public override fun close() {
+        closes += 1
+    }
+}
+
+internal class DragLogicProbe(
+    private val window: Window,
+    private val application: ActiveApplication,
+    private val time: InputTime
+) {
+    private var step = -1
+    var completions = 0
+    var finished = false
+    var last: DragSession? = None
+
+    fun next() {
+        step += 1
+        val mode =
+            when (step) {
+                case 8 -> 8
+                case 9 -> 9
+                case 10 -> 10
+                case 11 -> 7
+                else -> step - 1
+            }
+        val native =
+            DragNativeProbe(
+                mode,
+                { assertTrue(application.proxy().post { _ -> next() }) },
+                { action -> assertTrue(application.proxy().post { _ -> action() }) }
+            )
+        val original =
+            if (mode == 0)
+                DragEffects(true, false, false)
+            else
+                DragEffects(true, true, true)
+        val marker = DragLocalMarker()
+        val session =
+            DragSession(window.owner, original, Some(marker)) {
+                result ->
+                completions += 1
+                assertTrue(last!!.isClosed)
+                when (last!!.localData) {
+                    case Some(_) -> fail(Some("closed source retained local data"))
+                    case None -> {}
+                }
+                assertFailsWith<IllegalStateException> { last!!.effects = original }
+                assertEquals(1, native.closes)
+                assertEquals(
+                    if (mode == -1)
+                        0
+                    else
+                        1,
+                    native.starts
+                )
+                assertEquals(mode != -1 && mode != 5 && mode != 8 && mode != 9, last!!.isStarted)
+                when (result) {
+                    case Dropped(val effect) -> {
+                        assertTrue(mode == 1 || mode == 2 || mode == 4 || mode == 7 || mode == 10)
+                        assertEquals(
+                            when (mode) {
+                                case 2 -> DragEffect.Move
+                                case 4 -> DragEffect.Link
+                                else -> DragEffect.Copy
+                            },
+                            effect
+                        )
+                    }
+                    case NotDropped -> assertTrue(mode == -1 || mode == 0 || mode == 3 || mode == 8)
+                    case Failed(val error) -> {
+                        assertTrue(mode == 5 || mode == 9)
+                        assertEquals(WindowErrorKind.NativeFailure, error.kind)
+                    }
+                }
+                if (mode == 7) {
+                    finished = true
+                    throw DragCompletionFailure()
+                }
+                next()
+            }
+        native.session = Some(session)
+        last = Some(session)
+        session.bind(native)
+        when (val data = session.localData) {
+            case Some(val value) -> assertTrue(value === marker)
+            case None -> fail(Some("source lost its local data"))
+        }
+        session.effects = DragEffects(false, false, false)
+        assertEquals(DragEffects(false, false, false), native.effects)
+        session.effects = original
+        assertEquals(original, native.effects)
+        if (mode == 0)
+            assertFailsWith<IllegalArgumentException> {
+                session.effects = DragEffects(true, true, false)
+            }
+        session.schedule(time)
+        assertNoResult(session)
+        if (mode == -1) {
+            assertTrue(session.cancelPending())
+            assertEquals(1, native.closes)
+        }
+    }
+}
+
+private class DragLocalMarker

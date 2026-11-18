@@ -1,0 +1,159 @@
+package scoop.ui.text
+
+import scoop.collections.map
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.InputArea
+import scoop.ui.*
+
+private class TextHandleScrollBinding(boundary: ScrollReveal) {
+    val viewport = boundary.viewport
+    val state = boundary.state
+    val binding = boundary.layout.binding
+}
+
+/** Uses the current focus/reveal path, including enclosing read-only viewports. */
+internal class TextHandleScroll(
+    private val focus: FocusTarget,
+    private val area: InputArea,
+    private val interrupt: () -> Unit
+): Closeable {
+    private var closed = false
+    private val bindings =
+        focus.node.root.focus.textSelectionScrollPath(area).map {
+            value -> TextHandleScrollBinding(value)
+        }
+    private val subscriptions = ArrayList<Closeable>()
+    private var issuing: ScrollState? = None
+    private var revision = 0UL
+
+    init {
+        for (binding in bindings)
+            subscriptions.add(
+                binding.state.observeIntent {
+                    event -> when (event) {
+                        case LayoutCorrection(_) -> {}
+                        case User(val value) -> {
+                            val own =
+                                when (issuing) {
+                                    case Some(val state) -> state ===
+                                        binding.state &&
+                                        revision ==
+                                        value
+                                    case None -> false
+                                }
+                            if (!closed && !own)
+                                interrupt()
+                        }
+                        case Programmatic(_) -> if (!closed)
+                            interrupt()
+                    }
+                }
+            )
+    }
+
+    fun valid(): Boolean {
+        if (closed)
+            return false
+        val route = focus.node.root.focus.textSelectionScrollPath(area)
+        if (route.size != bindings.size)
+            return false
+        for (index in 0L ..< route.size) {
+            val actual = route[index]
+            val expected = bindings[index]
+            if (
+                actual.viewport !==
+                    expected.viewport ||
+                    actual.state !==
+                    expected.state ||
+                    actual.layout.binding !=
+                    expected.binding ||
+                    !actual.active
+            )
+                return false
+        }
+        return true
+    }
+
+    fun canMove(pointer: Point): Boolean {
+        if (!valid())
+            return false
+        for (boundary in focus.node.root.focus.textSelectionScrollPath(area))
+            if (textHandleScrollDelta(boundary, pointer) != Point(0.0, 0.0))
+                return true
+        return false
+    }
+
+    fun move(pointer: Point): Boolean {
+        if (!valid())
+            return false
+        val route = focus.node.root.focus.textSelectionScrollPath(area)
+        var index = route.size
+        while (index > 0L) {
+            index -= 1L
+            val boundary = route[index]
+            val delta = textHandleScrollDelta(boundary, pointer)
+            if (delta == Point(0.0, 0.0))
+                continue
+            issuing = Some(boundary.state)
+            revision = boundary.state.requestRevision + 1UL
+            val consumed =
+                try {
+                    boundary.state.scrollBy(delta, ScrollOrigin.User)
+                } finally {
+                    issuing = None
+                }
+            return consumed != Point(0.0, 0.0)
+        }
+        return false
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        var failure: Throwable? = None
+        for (subscription in subscriptions)
+            failure = cleanupUi(failure) { subscription.close() }
+        subscriptions.clear()
+        throwUi(failure)
+    }
+}
+
+private fun textHandleScrollDelta(boundary: ScrollReveal, pointer: Point): Point {
+    if (!boundary.current)
+        return Point(0.0, 0.0)
+    val visible = boundary.geometry.visibleBounds ?: return Point(0.0, 0.0)
+    val bounds = localReveal(boundary.geometry, visible) ?: return Point(0.0, 0.0)
+    val point = boundary.geometry.toLocal(pointer) ?: return Point(0.0, 0.0)
+    val snapshot = boundary.layout.snapshot
+    return Point(
+        textHandleEdge(point.x, bounds.x, bounds.width, snapshot.offset.x, snapshot.maximum.x),
+        textHandleEdge(point.y, bounds.y, bounds.height, snapshot.offset.y, snapshot.maximum.y)
+    )
+}
+
+private fun textHandleEdge(
+    value: Double,
+    start: Double,
+    size: Double,
+    offset: Double,
+    limit: Double
+): Double {
+    val inset = min(24.0, size / 3.0)
+    val distance =
+        if (value < start + inset && offset > 0.0)
+            value - start - inset
+        else
+            if (value > start + size - inset && offset < limit)
+                value - start - size + inset
+            else
+                0.0
+    if (distance == 0.0)
+        return 0.0
+    val step = min(40.0, max(2.0, abs(distance) * 0.25))
+    return if (distance < 0.0)
+        -step
+    else
+        step
+}

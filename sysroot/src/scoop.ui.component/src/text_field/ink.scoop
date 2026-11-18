@@ -7,6 +7,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
 import scoop.window.*
+import scoop.window.accessibility.SemanticRole
 
 internal class TextFieldInk(
     internal val props: Props<TextFieldInkProps>,
@@ -25,17 +26,52 @@ internal class TextFieldInk(
             )
         }
     internal val lineHeight = TextFieldLineHeight()
+    private val semantics = createComponentSemantics(scope, SemanticRole.TextField)
     private val padding = scope.createArea()
-    private val field = scope.resource { FieldLink(scope, host.area, host.focus) }
+    private val paddingPress =
+        scope.press(padding, PressOptions(props.value.input.options.enabled)) {
+            host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)
+        }
+    private val field =
+        scope.resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
+    internal val scrollbarFeedback =
+        scope.resource {
+            ScrollbarFeedback(scope, { scrollbarProps() }, host.area) { feedbackChanged() }
+        }
     private val horizontal =
-        ScrollBarControl(scope, { scrollbarProps() }, host.area, Orientation.Horizontal)
+        ScrollBarControl(
+            scope,
+            { scrollbarProps() },
+            host.area,
+            Orientation.Horizontal,
+            scrollbarFeedback,
+            semantics
+        ) { handle, orientation -> updateBar(handle, orientation) }
     private val vertical =
-        ScrollBarControl(scope, { scrollbarProps() }, host.area, Orientation.Vertical)
+        ScrollBarControl(
+            scope,
+            { scrollbarProps() },
+            host.area,
+            Orientation.Vertical,
+            scrollbarFeedback,
+            semantics
+        ) { handle, orientation -> updateBar(handle, orientation) }
     private val painters = scope.resource { ThemePainterCache() }
     private val content = scope.resource { StylePainter() }
 
+    private fun updateBar(handle: SemanticsHandle, orientation: Orientation) {
+        val value = scrollbarProps()
+        handle.updateScrollBar(
+            host,
+            scrollSemanticOrientation(orientation),
+            value.lineStep,
+            scrollBarProperties(value, orientation)
+        )
+    }
+
     init {
         scope.routeChildren(host.area)
+        scope.routeSemanticsChildren(semantics)
         padding.scope.parent = Some(host.area.scope)
         padding.scope.defaultAction =
             {
@@ -50,6 +86,12 @@ internal class TextFieldInk(
                     else -> {}
                 }
             }
+    }
+    private fun feedbackChanged() {
+        horizontal.feedbackChanged()
+        vertical.feedbackChanged()
+        if (scope.isMounted)
+            scope.requestFrame()
     }
     private fun appearance(): TextEditAppearance {
         val value = props.value
@@ -70,10 +112,14 @@ internal class TextFieldInk(
             value.input.options.enabled,
             value.input.focus,
             value.input.options.paintCache,
-            value.theme
+            value.theme,
+            scrollbarBehavior = value.input.scrollbarBehavior
         )
     }
     public override fun update(): UiInvalidation {
+        paddingPress.update(PressOptions(props.value.input.options.enabled)) {
+            host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)
+        }
         val value = props.value
         val input = value.input
         host.update(
@@ -86,11 +132,41 @@ internal class TextFieldInk(
             input.onSubmit
         )
         field.update(input.labelTarget, input.options.enabled)
+        updateSemantics()
         padding.scope.enabled = input.options.enabled
+        scrollbarFeedback.update()
         horizontal.update()
         vertical.update()
         painters.get(value.theme)
         return UiInvalidation.Layout
+    }
+    private fun updateSemantics() {
+        val handle = semantics ?: return
+        if (handle.isClosed)
+            return
+        val input = props.value.input
+        val description =
+            if (input.description.byteLength == 0L)
+                None
+            else
+                Some(input.description)
+        handle.bindReference(input.semantics.reference)
+        handle.updateTextEditor(
+            host,
+            input.semantics.properties(
+                description = description,
+                required = field.isRequired(handle),
+                invalid = input.invalid,
+                expanded = input.expansion?.expanded,
+                error =
+                    if (input.invalid)
+                        description
+                    else
+                        None
+            ),
+            field.relations(handle, input.semantics.relations),
+            input.expansion?.setExpanded
+        )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         TextFieldDrawing
@@ -98,6 +174,10 @@ internal class TextFieldInk(
     public override fun scene(context: SceneContext, current: TextFieldDrawing) {
         val value = props.value
         val geometry = current.geometry
+        when (semantics) {
+            case Some(val handle) -> context.semantics(handle, geometry.bounds)
+            case None -> {}
+        }
         val painter = painters.get(value.theme)
         if (geometry.opacity < 1.0)
             context.saveLayer(geometry.opacity)
@@ -114,7 +194,19 @@ internal class TextFieldInk(
         content.scene(context, geometry.bounds, geometry.contentStyle) {
             local ->
             local.translate(geometry.content.x, geometry.content.y)
-            host.scene(local, current.editor)
+            local.save()
+            try {
+                local.translate(current.viewport.x, current.viewport.y)
+                host.scene(local, current.editor)
+            } finally {
+                local.restore()
+            }
+            scrollbarFeedback.scene(
+                local,
+                Rect(0.0, 0.0, geometry.content.width, geometry.content.height),
+                current.horizontal,
+                current.vertical
+            )
             horizontal.scene(local, current.editor.scrollSnapshot, current.horizontal, painter)
             vertical.scene(local, current.editor.scrollSnapshot, current.vertical, painter)
         }

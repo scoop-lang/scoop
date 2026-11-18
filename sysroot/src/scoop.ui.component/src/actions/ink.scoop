@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 internal enum ActionBehavior {
     Passive, Press(PressControl, () -> Unit, FocusOptions)
@@ -17,13 +18,20 @@ internal class ActionInkProps(
     val behavior: ActionBehavior,
     val group: GroupPosition? = None,
     val labelTarget: FieldTarget? = None,
-    val actionable: Boolean = true
+    val actionable: Boolean = true,
+    val semantics: SemanticsHandle? = None,
+    val semanticOptions: ComponentSemantics = ComponentSemantics(),
+    val semanticToggle: (() -> SemanticActionResult)? = None,
+    val semanticState: SemanticProperties? = None,
+    val semanticActions: SemanticActions? = None,
+    val prepareSemantics: (() -> SemanticsHandle?)? = None
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
 internal class ActionInk(private val props: Props<ActionInkProps>, scope: ComponentScope): Element<
     SurfaceMetrics
 >(scope) {
+    private var currentSemantics: SemanticsHandle? = None
     private var field: FieldLink? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
@@ -38,6 +46,11 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
     }
     public override fun update(): UiInvalidation {
         val value = props.value
+        currentSemantics =
+            when (value.prepareSemantics) {
+                case Some(val prepare) -> prepare()
+                case None -> value.semantics
+            }
         when (value.behavior) {
             case Press(val owner, val action, val focus) -> {
                 val control = owner
@@ -49,11 +62,19 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                 control.area.scope.enabled = value.visual.interaction.enabled
                 control.focus.options = focus
                 if (panelPresent(value.labelTarget) && !panelPresent(field))
-                    field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
+                    field =
+                        Some(
+                            scope.resource {
+                                FieldLink(scope, control.area, control.focus, currentSemantics) {
+                                    updateSemantics()
+                                }
+                            }
+                        )
                 field?.update(value.labelTarget, value.visual.interaction.enabled)
             }
             case Passive -> {}
         }
+        updateSemantics()
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual.interaction,
@@ -76,6 +97,58 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
             UiInvalidation.Layout
         else
             UiInvalidation.Scene
+    }
+    private fun updateSemantics() {
+        val value = props.value
+        val handle = currentSemantics ?: return
+        if (handle.isClosed)
+            return
+        handle.bindReference(value.semanticOptions.reference)
+        when (value.behavior) {
+            case Press(_, val action, _) -> handle.update(
+                value.semanticState?.copy {
+                    required =
+                        value.semanticState!!.required ||
+                            (this @ActionInk.field?.isRequired(handle) ?: false)
+                } ?:
+                    value.semanticOptions.properties(
+                        enabled = value.visual.interaction.enabled && value.actionable,
+                        invalid = value.visual.interaction.invalid,
+                        required = this @ActionInk.field?.isRequired(handle) ?: false,
+                        checked =
+                            when (value.shape) {
+                                case Toggle(_, _, val pressed) -> Some(
+                                    if (pressed)
+                                        SemanticChecked.On
+                                    else
+                                        SemanticChecked.Off
+                                )
+                                else -> None
+                            }
+                    ),
+                value.semanticActions ?:
+                    if (!value.actionable)
+                        SemanticActions()
+                    else
+                        when (val toggle = value.semanticToggle) {
+                            case Some(_) -> SemanticActions(toggle = toggle)
+                            case None -> SemanticActions(
+                                invoke =
+                                    Some {
+                                        action();
+                                        SemanticActionResult.Completed
+                                    }
+                            )
+                        },
+                field?.relations(handle, value.semanticOptions.relations) ?:
+                    value.semanticOptions.relations
+            )
+            case Passive -> handle.update(
+                value.semanticState ?:
+                    value.semanticOptions.properties(enabled = value.visual.interaction.enabled),
+                relations = value.semanticOptions.relations
+            )
+        }
     }
     private fun metrics(value: ActionInkProps, direction: LayoutDirection): SurfaceMetrics =
         groupSurfaceMetrics(
@@ -157,6 +230,10 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                 context.layoutDirection
             )
         val painter = painters!!.get(value.theme)
+        when (val handle = currentSemantics) {
+            case Some(val semantic) -> context.semantics(semantic, geometry.bounds)
+            case None -> {}
+        }
         if (geometry.opacity < 1.0)
             context.saveLayer(geometry.opacity)
         context.draw {

@@ -72,7 +72,9 @@ public class TableColumn<Row> public constructor(
     public val filter: ((Row, String) -> Boolean)? = None,
     public val remoteSort: Boolean = false,
     public val hideable: Boolean = true,
-    public val resizable: Boolean = true
+    public val resizable: Boolean = true,
+    /** Reads data without constructing the cell view. None means its text is unknown. */
+    public val semanticText: ((Row) -> String)? = None
 ) {
     init {
         requireComponent(id != "", "table column id must not be empty")

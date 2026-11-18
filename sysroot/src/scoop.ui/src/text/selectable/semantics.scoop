@@ -1,0 +1,150 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+/** Publishes this mount's styled read-only text, including inline alternative text. */
+public fun SemanticsHandle.updateSelectableText(
+    host: SelectableTextHost,
+    properties: SemanticProperties = SemanticProperties(),
+    relations: SemanticRelations = SemanticRelations()
+) {
+    checkOpen()
+    checkSemanticsMutation()
+    host.checkOpen()
+    requireUi(
+        role == SemanticRole.Text && owner === host.focus.node,
+        "selectable semantics require this mount's text node and host"
+    )
+    val content = host.content
+    val snapshot =
+        if (properties.protectedText) {
+            host.semanticText = None
+            None
+        } else
+            Some(selectableSemanticText(host))
+    val available = { !host.closed && host.content === content }
+    val select: ((Utf8Selection) -> SemanticActionResult)? =
+        when (snapshot) {
+            case None -> None
+            case Some(val text) -> Some {
+                selection -> if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    if (!host.options.enabled || !host.area.scope.isInputAllowed)
+                        SemanticActionResult.Rejected
+                    else {
+                        val caret = selection.anchor == selection.cursor
+                        val anchor =
+                            text.mapping.reverse(
+                                TextPosition(
+                                    selection.anchor,
+                                    if (caret || selection.anchor > selection.cursor)
+                                        TextAffinity.Downstream
+                                    else
+                                        TextAffinity.Upstream
+                                )
+                            )
+                        val cursor =
+                            text.mapping.reverse(
+                                TextPosition(
+                                    selection.cursor,
+                                    if (caret || selection.cursor > selection.anchor)
+                                        TextAffinity.Downstream
+                                    else
+                                        TextAffinity.Upstream
+                                )
+                            )
+                        selectableStopDrag(host)
+                        host.setSelection(anchor, cursor)
+                        SemanticActionResult.Completed
+                    }
+            }
+        }
+    val showContextMenu: (() -> SemanticActionResult)? =
+        if (host.options.contextMenu.mode == TextContextMenuMode.Disabled)
+            None
+        else
+            Some {
+                if (!available())
+                    SemanticActionResult.Unavailable
+                else
+                    if (host.options.contextMenu.mode == TextContextMenuMode.Disabled)
+                        SemanticActionResult.Unsupported
+                    else
+                        semanticTextMenu(host.focus, host.contextMenu) {
+                            available() && host.showContextMenu()
+                        }
+            }
+    bindFocus(Some(host.focus))
+    updateText(
+        if (properties.protectedText)
+            None
+        else
+            Some(host.semantics),
+        properties.copy {
+            value = snapshot?.text
+            selection =
+                when (snapshot) {
+                    case None -> None
+                    case Some(val text) -> Some(
+                        Utf8Selection(
+                            text.mapping.forward(host.anchor).byteOffset,
+                            text.mapping.forward(host.cursor).byteOffset
+                        )
+                    )
+                }
+            enabled = properties.enabled && host.options.enabled
+            readOnly = true
+            protectedText = properties.protectedText
+            cursorAffinity =
+                if (!properties.protectedText && host.cursor.affinity == TextAffinity.Upstream)
+                    SemanticTextAffinity.Upstream
+                else
+                    SemanticTextAffinity.Downstream
+        },
+        SemanticActions(
+            setSelection = select,
+            showContextMenu = showContextMenu,
+            revealText =
+                when (snapshot) {
+                    case Some(val text) -> Some {
+                        range,
+                        scroll -> if (!available())
+                            SemanticActionResult.Unavailable
+                        else
+                            semanticSelectableReveal(this, host, text, range, scroll)
+                    }
+                    case None -> None
+                }
+        ),
+        relations
+    )
+    for (action in host.actions)
+        action.refreshSemantics()
+}
+
+/** Immutable derived text is reused while pointer selection changes. */
+internal class SelectableSemanticText(content: StyledText) {
+    val text = content.toPlainText()
+    val edits =
+        Array<TextEditReplacement>(content.inlineObjects.size) {
+            index ->
+            val item = content.inlineObjects[index]
+            TextEditReplacement(Utf8Range(item.range.start, item.range.end), item.alternateText)
+        }
+    val mapping = EditorReplacementMap(edits)
+    val boundaries = editorGraphemeBytes(text)
+}
+
+internal fun selectableSemanticText(host: SelectableTextHost): SelectableSemanticText {
+    when (host.semanticText) {
+        case Some(val text) -> return text
+        case None -> {}
+    }
+    val text = SelectableSemanticText(host.content)
+    host.semanticText = Some(text)
+    return text
+}

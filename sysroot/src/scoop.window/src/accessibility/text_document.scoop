@@ -1,0 +1,86 @@
+package scoop.window.accessibility
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.window.*
+
+/** Retained endpoints only; the actual editor remains the sole owner of text. */
+public class SemanticTextDocument public constructor(length: Long): Closeable {
+    private val thread = currentThreadId()
+    internal var pointer: Ptr<Unit>? = Some(createDocument(length))
+    public val isClosed: Boolean get() = pointer == None
+    private fun checkOpen(): Ptr<Unit> {
+        requireWindow(currentThreadId() == thread, "text document used from another thread")
+        return pointer ?: throw IllegalStateException(Some("semantic text document is closed"))
+    }
+    public fun reset(length: Long) {
+        val current = checkOpen()
+        @Unsafe
+        {
+            checkNativeStatus(nativeDocumentReset(current, length), "reset semantic text document")
+        }
+    }
+    /** A synchronous pure mapper; it must not reenter this document or call UI operations. */
+    @Unsafe
+    public fun mapOffsets(
+        length: Long,
+        mapper: FunPtr<(Ptr<Unit>, Long, Int) -> Long>,
+        context: Ptr<Unit>
+    ) {
+        checkNativeStatus(
+            nativeDocumentMap(checkOpen(), length, mapper, context),
+            "map semantic text endpoints"
+        )
+    }
+    internal val revision: ULong get() {
+        val current = checkOpen()
+        @Unsafe
+        {
+            return nativeDocumentState(current).revision
+        }
+    }
+    public override fun close() {
+        if (isClosed)
+            return
+        val current = checkOpen()
+        pointer = None
+        @Unsafe
+        {
+            nativeDocumentClose(current);
+            nativeDocumentRelease(current)
+        }
+    }
+}
+
+private fun createDocument(length: Long): Ptr<Unit> {
+    requireWindow(length >= 0L, "negative semantic document length")
+    @Unsafe
+    {
+        return created(nativeDocumentCreate(length), "create semantic text document")
+    }
+}
+
+@CLayout
+private struct NativeDocumentState(val revision: ULong, val length: Long, val alive: Int)
+
+@Extern(name = "scoop_window_text_document_create")
+private fun nativeDocumentCreate(length: Long): NativeCreateResult
+
+@Extern(name = "scoop_window_text_document_reset")
+private fun nativeDocumentReset(document: Ptr<Unit>, length: Long): Long
+
+@Extern(name = "scoop_window_text_document_map")
+private fun nativeDocumentMap(
+    document: Ptr<Unit>,
+    length: Long,
+    mapper: FunPtr<(Ptr<Unit>, Long, Int) -> Long>,
+    context: Ptr<Unit>
+): Long
+
+@Extern(name = "sw_text_document_state")
+private fun nativeDocumentState(document: Ptr<Unit>): NativeDocumentState
+
+@Extern(name = "scoop_window_text_document_close")
+private fun nativeDocumentClose(document: Ptr<Unit>)
+
+@Extern(name = "sw_text_document_release")
+private fun nativeDocumentRelease(document: Ptr<Unit>)

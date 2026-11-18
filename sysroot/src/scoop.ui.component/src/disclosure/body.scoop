@@ -3,12 +3,15 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.surface.FrameSubmission
 import scoop.ui.*
+import scoop.window.accessibility.*
 
 internal class DisclosureBodyProps(
     val presence: Presence?,
     val open: Boolean,
     val shown: Boolean,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val reference: SemanticsReference? = None,
+    val labelledBy: SemanticNodeId? = None
 )
 
 internal struct DisclosureBodyLayout(val clipped: Boolean, val placed: Boolean)
@@ -18,8 +21,10 @@ internal class DisclosureBody(
     scope: ComponentScope
 ): Element<DisclosureBodyLayout>(scope) {
     private var revision = 0UL
+    private val semantics = createComponentSemantics(scope, SemanticRole.Group)
     public override fun onMount() {
         scope.input.enabled = false
+        scope.routeSemanticsChildren(semantics)
     }
     public override fun update(): UiInvalidation {
         revision += 1UL
@@ -27,6 +32,16 @@ internal class DisclosureBody(
         if (!input.open || !input.enabled)
             scope.input.enabled = false
         scope.isFrameEnabled = input.open
+        when (semantics) {
+            case Some(val handle) -> {
+                handle.bindReference(input.reference)
+                handle.update(
+                    SemanticProperties(hidden = !input.open, enabled = input.enabled),
+                    relations = SemanticRelations(labelledBy = semanticIds(input.labelledBy))
+                )
+            }
+            case None -> {}
+        }
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -56,6 +71,13 @@ internal class DisclosureBody(
         return LayoutResult(LayoutMetrics(size), DisclosureBodyLayout(clipped, placed))
     }
     public override fun scene(context: SceneContext, layout: DisclosureBodyLayout) {
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
         if (layout.clipped)
             context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
         context.children()

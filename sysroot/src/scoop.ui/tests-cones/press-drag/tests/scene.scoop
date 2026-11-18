@@ -2,6 +2,7 @@ package scoop.tests.ui.gestures
 
 import scoop.graphics.*
 import scoop.surface.*
+import scoop.test.*
 import scoop.ui.*
 import scoop.window.*
 
@@ -34,6 +35,8 @@ private class GesturePanel(
                 )
             )
         scope.routeChildren(area)
+        probe.longPress?.mount(probe, scope, area, true)
+        probe.swipe?.mount(probe, scope, area)
         scope.resource { scope.input.addEventFinished { _ -> probe.completed += 1 } }
         scope.input.captureHandler =
             {
@@ -43,6 +46,14 @@ private class GesturePanel(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                     ) -> {
                         if (probe.preventRelease)
+                            context.consume()
+                    }
+                    case Contact(InputContactEvent.Ended(_)) -> {
+                        if (probe.preventRelease)
+                            context.consume()
+                    }
+                    case Contact(InputContactEvent.Moved(_)) -> {
+                        if (probe.preventMovement)
                             context.consume()
                     }
                     else -> {}
@@ -59,6 +70,8 @@ private class GesturePanel(
     public override fun scene(context: SceneContext, measured: Unit) {
         val shift = props.value
         context.translate(shift, 0.0)
+        if (probe.mirror.value)
+            context.scale(-1.0, 1.0)
         context.place(probe.parent!!, Rect(0.0, 0.0, 220.0, 120.0))
         context.children()
         context.onFrameComplete {
@@ -83,12 +96,22 @@ private class GestureChild(private val probe: GestureProbe, scope: ComponentScop
                         case Pointer(
                             InputPointerEvent.Cancelled(InputCancelReason.Claimed, _)
                         ) -> probe.childCancellations += 1
+                        case Contact(
+                            InputContactEvent.Cancelled(_, InputCancelReason.Claimed, _)
+                        ) -> probe.childCancellations += 1
                         else -> {}
                     }
                 }
             )
         scope.focusTarget(probe.area!!)
+        for (threshold in [-1.0, Double.NaN, Double.POSITIVE_INFINITY])
+            assertFailsWith<IllegalArgumentException> {
+                scope.press(probe.area!!, PressOptions(touchThreshold = threshold)) {
+                    probe.clicks += 1000
+                }
+            }
         probe.press = Some(scope.press(probe.area!!) { probe.clicks += 1 })
+        probe.longPress?.mount(probe, scope, probe.area!!, false)
         probe.mounts += 1
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

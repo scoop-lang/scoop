@@ -1,0 +1,163 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.pow
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class ControlColorPreferencesTest {
+    @Test
+    fun `high contrast switch marks and focus rings remain visible at reduced text sizes`() {
+        val bounds = Rect(0.0, 0.0, 100.0, 40.0)
+        val item = SidebarMenuItemProps(ViewKey.Number(1L), "Item", {})
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (base in colorPreferenceThemes(mode))
+                for (scale in [0.5, 1.0, 2.0]) {
+                    val theme =
+                        base.withPreferences(
+                            ThemePreferences(highContrast = true, textScaleFactor = scale)
+                        )
+                    val canvas = theme.tokens.palette.background.background
+                    for (progress in [0.0, 1.0]) {
+                        val input = SwitchProps(state(progress == 1.0).binding())
+                        val surface =
+                            theme.surfaceGeometry(
+                                bounds,
+                                SurfaceVisual(SurfaceKind.Plain),
+                                switchOptions(input, theme, InteractionVisual(), progress)
+                            )
+                        val thumb = switchThumbStyle(input, theme, progress).background!!.color
+                        assertColorContrast(thumb, surface.style.background!!.color, 3.0)
+                    }
+                    val visual = InteractionVisual(focusVisible = true)
+                    val slider =
+                        theme.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain, visual),
+                            sliderThumbOptions(theme, sliderStyle(), visual)
+                        )
+                    assertTrue(slider.ring!!.border.width >= 2.0)
+                    assertColorContrast(slider.ring!!.border.color, canvas, 3.0)
+                    assertColorContrast(
+                        slider.style.border!!.resolve(LayoutDirection.Ltr).left.color,
+                        slider.style.background!!.color,
+                        3.0
+                    )
+                    val sidebar = sidebarMenuStyle(theme, item, false).surface.focus!!
+                    assertTrue(sidebar.width >= 2.0)
+                    assertColorContrast(
+                        sidebar.color,
+                        theme.tokens.palette.sidebar.background.background,
+                        3.0
+                    )
+                }
+    }
+
+    @Test
+    fun `reduced transparency keeps track and outline paint opaque and respects explicit styles`() {
+        val bounds = Rect(0.0, 0.0, 100.0, 40.0)
+        val focus = InteractionVisual(focusVisible = true)
+        val explicit = Color(0.1, 0.2, 0.3, 0.4)
+        val style =
+            switchStyle {
+                track { style { background(Some(Paint(explicit))) } }
+                thumb { background(Some(Paint(explicit))) }
+            }
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (base in colorPreferenceThemes(mode)) {
+                val theme = base.withPreferences(ThemePreferences(reduceTransparency = true))
+                val input = SwitchProps(state(false).binding())
+                for (progress in [0.0, 0.5, 1.0]) {
+                    val surface =
+                        theme.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain),
+                            switchOptions(input, theme, InteractionVisual(), progress)
+                        )
+                    assertEquals(1.0, surface.style.background!!.color.alpha)
+                }
+                assertEquals(
+                    1.0,
+                    sliderThumbOptions(theme, sliderStyle(), focus).focus!!.color.alpha
+                )
+                val item = SidebarMenuItemProps(ViewKey.Number(1L), "Item", {})
+                assertEquals(1.0, sidebarMenuStyle(theme, item, false).surface.focus!!.color.alpha)
+                for (
+                    preferences in [
+                        ThemePreferences(highContrast = true),
+                        ThemePreferences(reduceTransparency = true)
+                    ]
+                ) {
+                    val resolved = base.withPreferences(preferences)
+                    val custom = SwitchProps(state(true).binding(), style = style)
+                    val surface =
+                        resolved.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain),
+                            switchOptions(custom, resolved, InteractionVisual(), 1.0)
+                        )
+                    assertEquals(explicit, surface.style.background!!.color)
+                    assertEquals(
+                        explicit,
+                        switchThumbStyle(custom, resolved, 1.0).background!!.color
+                    )
+                    val slider = sliderStyle { thumb { background(Some(Paint(explicit))) } }
+                    val thumb =
+                        resolved.surfaceGeometry(
+                            bounds,
+                            SurfaceVisual(SurfaceKind.Plain, focus),
+                            sliderThumbOptions(resolved, slider, focus)
+                        )
+                    assertEquals(explicit, thumb.style.background!!.color)
+                    val outline = OutlineStyle(explicit, 1.0, 0.0)
+                    val localItem =
+                        SidebarMenuItemProps(
+                            ViewKey.Number(2L),
+                            "Local",
+                            {},
+                            style = buttonStyle { surface { this.focus = Some(outline) } }
+                        )
+                    assertEquals(
+                        Some(outline),
+                        sidebarMenuStyle(resolved, localItem, false).surface.focus
+                    )
+                }
+            }
+    }
+}
+
+internal fun colorPreferenceThemes(mode: ThemeMode): Array<Theme> =
+    [macosTheme(mode), materialTheme(mode), fluentTheme(mode), shadcnTheme(mode)]
+
+internal fun assertColorContrast(foreground: Color, background: Color, minimum: Double) {
+    assertEquals(1.0, foreground.alpha)
+    assertEquals(1.0, background.alpha)
+    val a = colorPreferenceLuminance(foreground)
+    val b = colorPreferenceLuminance(background)
+    val ratio =
+        if (a >= b)
+            (a + 0.05) / (b + 0.05)
+        else
+            (b + 0.05) / (a + 0.05)
+    assertTrue(ratio >= minimum - 0.000001, Some(f"contrast ${ratio} below ${minimum}"))
+}
+
+private fun colorPreferenceLuminance(color: Color): Double =
+    0.2126 *
+        colorPreferenceLinear(color.red) +
+        0.7152 *
+        colorPreferenceLinear(color.green) +
+        0.0722 *
+        colorPreferenceLinear(color.blue)
+
+private fun colorPreferenceLinear(value: Double): Double =
+    if (value <= 0.04045)
+        value / 12.92
+    else
+        pow((value + 0.055) / 1.055, 2.4)

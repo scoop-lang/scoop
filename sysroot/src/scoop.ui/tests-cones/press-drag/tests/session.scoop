@@ -5,9 +5,11 @@ import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
+import scoop.tests.window.sendNativeContact
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.window.*
+import scoop.window.native.*
 
 @Test
 private class PressDragUiTest {
@@ -41,7 +43,7 @@ private class PressDragUiTest {
     }
 }
 
-private fun reportGestureFailure(error: Throwable) {
+internal fun reportGestureFailure(error: Throwable) {
     if (error is ResourceUseException) {
         reportGestureFailure(error.primaryFailure);
         reportGestureFailure(error.cleanupFailure)
@@ -66,8 +68,11 @@ private fun reportGestureFailure(error: Throwable) {
                 println(error.message ?: "gesture failure")
 }
 
-internal class GestureProbe {
+internal class GestureProbe(
+    private val exercise: ((GestureProbe, ActiveApplication) -> Unit)? = None
+) {
     val shift = state(0.0)
+    val mirror = state(false)
     var committedShift: Double? = None
     var parent: InputArea? = None
     var area: InputArea? = None
@@ -83,15 +88,24 @@ internal class GestureProbe {
     var childCancellations = 0
     var completed = 0
     var preventRelease = false
+    var preventMovement = false
     var finished = false
+    var waiting = false
+    var longPress: LongPressScenario? = None
+    var swipe: SwipeScenario? = None
+    var gesturesQueued = 0
+    var gesturesReceived = 0
     var phase = 0
     private var runtime: UiHost? = None
     private var expected = 0
     private var pending = false
-    private var starts = 0
-    private var ends = 0
-    private var cancels = 0
-    private var last: DragSample? = None
+    var starts = 0
+    var ends = 0
+    var cancels = 0
+    var last: DragSample? = None
+    var lastCancel: DragCancelReason? = None
+    private var queuedContacts = 0
+    private var receivedContacts = 0
     private var focusRetried = false
 
     fun dragged(event: DragEvent) {
@@ -105,9 +119,10 @@ internal class GestureProbe {
                 ends += 1;
                 last = Some(value)
             }
-            case Cancelled(val value, _) -> {
+            case Cancelled(val value, val reason) -> {
                 cancels += 1;
                 last = Some(value)
+                lastCancel = Some(reason)
             }
         }
     }
@@ -144,38 +159,93 @@ internal class GestureProbe {
                     focusRetried = true;
                     native.requestFocus()
                 }
-                if (!pending && native.isFocused && completed >= expected) {
+                if (
+                    !pending &&
+                        !waiting &&
+                        native.isFocused &&
+                        completed >=
+                        expected &&
+                        receivedContacts >=
+                        queuedContacts &&
+                        gesturesReceived >=
+                        gesturesQueued
+                ) {
                     pending = true
                     active.proxy().post {
                         application ->
                         pending = false;
                         if (!finished)
-                            advance(application)
+                            when (exercise) {
+                                case Some(val action) -> action(this, application)
+                                case None -> advance(application)
+                            }
                     }
                 }
             }
+            case Window(_, WindowEvent.Contact(_)) -> receivedContacts += 1
+            case Window(_, WindowEvent.Gesture(_)) -> gesturesReceived += 1
             case Window(_, WindowEvent.Destroyed) -> active.requestExit()
             case NewEvents(StartCause.Deadline) -> fail(Some("press and drag timeout"))
             else -> {}
         }
     }
-    private fun move(x: Double, y: Double) {
+    fun move(x: Double, y: Double) {
         expected += 1;
         assertTrue(moveSurfacePointer(window!!, x, y))
     }
-    private fun button(x: Double, y: Double, down: Boolean) {
+    fun button(x: Double, y: Double, down: Boolean) {
         expected += 1;
         assertTrue(view!!.button(x, y, down))
     }
-    private fun key(code: Int, down: Boolean, repeat: Boolean = false, command: Boolean = false) {
+    fun key(code: Int, down: Boolean, repeat: Boolean = false, command: Boolean = false) {
         expected += 1;
         assertTrue(sendSurfaceKey(window!!, code, down, repeat, command))
     }
-    private fun dragEnabled(value: Boolean) {
+    fun dragEnabled(value: Boolean) {
         drag!!.update(
             DragOptions(DragAxis.Horizontal, enabled = value),
             { _ -> true },
             { event -> dragged(event) }
+        )
+    }
+
+    fun contact(id: Long, phase: Int, x: Double = 30.0, y: Double = 30.0, pen: Boolean = false) {
+        queuedContacts += 1
+        @Unsafe
+        {
+            val lease = window!!.acquireNativeWindow()
+            try {
+                when (lease.handle) {
+                    case AppKit(_, val view) -> sendNativeContact(
+                        view,
+                        id,
+                        if (pen)
+                            1
+                        else
+                            0,
+                        phase,
+                        x,
+                        y
+                    )
+                }
+            } finally {
+                lease.close()
+            }
+        }
+    }
+
+    fun cancelMouse(active: ActiveApplication) {
+        runtime!!.onEvent(
+            active,
+            ApplicationEvent.Window(
+                window!!.id,
+                WindowEvent.Pointer(
+                    PointerEvent.Cancelled(
+                        PointerCancelReason.CaptureLost,
+                        InputTime.Event(MonotonicTimeSource.markNow())
+                    )
+                )
+            )
         )
     }
 

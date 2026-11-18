@@ -1,0 +1,25 @@
+package scoop.window.accessibility
+
+public enum SemanticScrollAlignment {
+    Start, Center, End, Nearest
+}
+
+public struct SemanticTextScroll(
+    val horizontal: SemanticScrollAlignment = SemanticScrollAlignment.Nearest,
+    val vertical: SemanticScrollAlignment = SemanticScrollAlignment.Nearest
+)
+
+internal fun semanticTextScroll(value: Double): SemanticTextScroll? {
+    if (!value.isFinite() || value < 0.0 || value > 15.0 || value != value.toInt().toDouble())
+        return None
+    val code = value.toInt()
+    return Some(SemanticTextScroll(semanticAlignment(code % 4), semanticAlignment(code / 4)))
+}
+
+private fun semanticAlignment(value: Int): SemanticScrollAlignment =
+    when (value) {
+        case 0 -> SemanticScrollAlignment.Start
+        case 1 -> SemanticScrollAlignment.Center
+        case 2 -> SemanticScrollAlignment.End
+        else -> SemanticScrollAlignment.Nearest
+    }

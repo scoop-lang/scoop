@@ -4,19 +4,22 @@ package scoop.window
 internal fun ApplicationOwner.copyNativeEvent(pointer: Ptr<Unit>): ApplicationEvent? {
     @Unsafe
     {
-        val event = nativeEventData(pointer)
-        if (event.kind == 110)
-            return copyMenuActivation(event)
-        if (event.kind == 111)
-            return copyPopupCompletion(event)
-        if (event.kind == 112)
+        val header = nativeEventHeader(pointer)
+        if (header.kind == 110)
+            return copyMenuActivation(pointer)
+        if (header.kind == 111)
+            return copyPopupCompletion(nativeEventData(pointer))
+        if (header.kind == 112)
             return None
-        if (event.window == 0L)
+        if (header.window == 0L)
             return Some(
-                when (event.kind) {
+                when (header.kind) {
                     100 -> ApplicationEvent.MonitorsChanged
+                    102 -> ApplicationEvent.InteractionPreferencesChanged(
+                        copyInteractionPreferences(native!!)
+                    )
                     101 -> ApplicationEvent.ExitRequested(
-                        if (event.flags == 1)
+                        if (nativeEventData(pointer).flags == 1)
                             ExitReason.User
                         else
                             ExitReason.System
@@ -28,175 +31,69 @@ internal fun ApplicationOwner.copyNativeEvent(pointer: Ptr<Unit>): ApplicationEv
                 }
             )
         val value =
-            when (event.kind) {
-                1 -> WindowEvent.CloseRequested
-                2 -> WindowEvent.GeometryChanged(
-                    WindowMetrics(
-                        LogicalSize(event.x, event.y),
-                        PhysicalSize(event.z.toInt(), event.w.toInt()),
-                        event.scale
-                    )
+            when (header.kind) {
+                10 -> WindowEvent.Keyboard(
+                    copyKeyEvent(pointer, header, nativeEventKeyboard(pointer))
                 )
-                3 -> WindowEvent.Moved(DesktopPosition(event.x, event.y))
-                4 -> WindowEvent.Focused(event.flags != 0)
-                5 -> WindowEvent.Occluded(event.flags != 0)
-                6 -> WindowEvent.ThemeChanged(
-                    Some(
-                        if (event.flags != 0)
-                            Theme.Dark
-                        else
-                            Theme.Light
-                    )
-                )
-                10 -> WindowEvent.Keyboard(copyKeyEvent(pointer, event))
-                11 -> WindowEvent.ModifiersChanged(platformModifiers(event.a))
-                12 -> WindowEvent.Pointer(copyPointerEvent(event))
-                13 -> WindowEvent.TextInput(
-                    TextInputEvent.Edit(copyNativeTextBatch(pointer, event))
-                )
-                15 -> WindowEvent.RedrawRequested
-                17 -> WindowEvent.FrameChanged
-                19 -> WindowEvent.InputBlockedChanged(event.flags != 0)
-                18 -> WindowEvent.FrameButtonChanged(
-                    systemButtonValue(event.a.toInt()),
-                    event.flags.and(1) != 0,
-                    event.flags.and(2) != 0
-                )
-                16 -> WindowEvent.TextCommand(menuTextCommand(event.a.toInt()))
-                14 -> WindowEvent.TextInput(
-                    if (event.flags != 0)
-                        TextInputEvent.Enabled(platformTextConnection(event))
-                    else
-                        TextInputEvent.Disabled(platformTextConnection(event))
-                )
-                else -> throw WindowException(
-                    "unknown native window event",
-                    WindowErrorKind.NativeFailure
-                )
+                11 -> WindowEvent.ModifiersChanged(platformModifiers(nativeEventModifiers(pointer)))
+                12 -> WindowEvent.Pointer(copyPointerEvent(header, nativeEventPointer(pointer)))
+                20 -> WindowEvent.Gesture(copyGestureEvent(header, nativeEventGesture(pointer)))
+                21 -> WindowEvent.Contact(copyContactEvent(header, nativeEventContact(pointer)))
+                else -> copyWindowEvent(pointer, header)
             }
-        return Some(ApplicationEvent.Window(WindowId(event.window), value))
+        return Some(ApplicationEvent.Window(WindowId(header.window), value))
     }
 }
 
-private fun copyNativeText(event: NativeEvent): String {
+private fun copyWindowEvent(pointer: Ptr<Unit>, header: NativeEventHeader): WindowEvent {
     @Unsafe
     {
-        return when (event.text) {
-            case Some(val bytes) -> String.fromUtf8(bytes, event.textLength)
-            case None -> ""
-        }
-    }
-}
-
-private fun copyKeyEvent(pointer: Ptr<Unit>, event: NativeEvent): KeyEvent {
-    val text = copyNativeText(event)
-    val logical =
-        when (platformNamedKey(event.a, event.c)) {
-            case Some(val value) -> LogicalKey.Named(value)
-            case None -> if (event.flags.and(8) != 0)
-                LogicalKey.Dead(
-                    if (text.byteLength > 0L)
-                        Some(text)
+        val event = nativeEventData(pointer)
+        return when (header.kind) {
+            1 -> WindowEvent.CloseRequested
+            2 -> WindowEvent.GeometryChanged(
+                WindowMetrics(
+                    LogicalSize(event.x, event.y),
+                    PhysicalSize(event.z.toInt(), event.w.toInt()),
+                    event.scale
+                )
+            )
+            3 -> WindowEvent.Moved(DesktopPosition(event.x, event.y))
+            4 -> WindowEvent.Focused(event.flags != 0)
+            5 -> WindowEvent.Occluded(event.flags != 0)
+            6 -> WindowEvent.ThemeChanged(
+                Some(
+                    if (event.flags != 0)
+                        Theme.Dark
                     else
-                        None
+                        Theme.Light
                 )
-            else
-                if (text.byteLength > 0L)
-                    LogicalKey.Character(text)
+            )
+            13 -> WindowEvent.TextInput(
+                TextInputEvent.Edit(copyNativeTextBatch(pointer, header.window, event))
+            )
+            15 -> WindowEvent.RedrawRequested
+            17 -> WindowEvent.FrameChanged
+            19 -> WindowEvent.InputBlockedChanged(event.flags != 0)
+            22 -> WindowEvent.SoftwareKeyboardChanged(
+                copySoftwareKeyboard(event.flags, event.x, event.y, event.z, event.w)
+            )
+            18 -> WindowEvent.FrameButtonChanged(
+                systemButtonValue(event.a.toInt()),
+                event.flags.and(1) != 0,
+                event.flags.and(2) != 0
+            )
+            16 -> WindowEvent.TextCommand(menuTextCommand(event.a.toInt()))
+            14 -> WindowEvent.TextInput(
+                if (event.flags != 0)
+                    TextInputEvent.Enabled(platformTextConnection(header.window, event))
                 else
-                    LogicalKey.Unidentified(platformUnknownLogicalKey(event.a, event.c))
+                    TextInputEvent.Disabled(platformTextConnection(header.window, event))
+            )
+            else -> throw WindowException(
+                "unknown native window event",
+                WindowErrorKind.NativeFailure
+            )
         }
-    val state =
-        if (event.flags.and(1) != 0)
-            ElementState.Pressed
-        else
-            ElementState.Released
-    val modifiers = platformModifiers(event.b)
-    val synthetic = event.flags.and(4) != 0
-    return KeyEvent(
-        platformPhysicalKey(event.a),
-        logical,
-        platformKeyLocation(event.a),
-        state,
-        event.flags.and(2) != 0,
-        modifiers,
-        synthetic,
-        copyInputTime(event),
-        textCommands = platformTextCommands(pointer, logical, modifiers, state, synthetic)
-    )
-}
-
-private fun copyPointerEvent(event: NativeEvent): PointerEvent {
-    val time = copyInputTime(event)
-    if (event.flags == 7)
-        return PointerEvent.Cancelled(
-            when (event.a) {
-                0L -> PointerCancelReason.FocusLost
-                1L -> PointerCancelReason.CaptureLost
-                2L -> PointerCancelReason.SystemOperation
-                3L -> PointerCancelReason.Modal
-                else -> throw WindowException(
-                    "unknown pointer cancellation",
-                    WindowErrorKind.NativeFailure
-                )
-            },
-            time
-        )
-    val state =
-        PointerState(
-            LogicalPosition(event.x, event.y),
-            PhysicalPosition(event.z, event.w),
-            event.scale,
-            platformModifiers(event.b),
-            time
-        )
-    return when (event.flags) {
-        0 -> PointerEvent.Entered(state)
-        1 -> PointerEvent.Left(state)
-        2 -> PointerEvent.Moved(state)
-        3 -> PointerEvent.Button(state, mouseButton(event.a), ElementState.Pressed, event.c.toInt())
-        4 -> PointerEvent.Button(
-            state,
-            mouseButton(event.a),
-            ElementState.Released,
-            event.c.toInt()
-        )
-        5 -> PointerEvent.Wheel(
-            state,
-            ScrollDelta.LineDelta(event.dx, event.dy),
-            scrollPhase(event.a),
-            scrollPhase(event.c)
-        )
-        6 -> PointerEvent.Wheel(
-            state,
-            ScrollDelta.PixelDelta(event.dx, event.dy),
-            scrollPhase(event.a),
-            scrollPhase(event.c)
-        )
-        else -> throw WindowException("unknown native pointer event", WindowErrorKind.NativeFailure)
     }
-}
-
-private fun mouseButton(code: Long): MouseButton =
-    when (code) {
-        0L -> MouseButton.Left;
-        1L -> MouseButton.Right;
-        2L -> MouseButton.Middle
-        else -> MouseButton.Other(code.toUInt())
-    }
-
-private fun scrollPhase(value: Long): ScrollPhase {
-    if (value.and(16L) != 0L)
-        return ScrollPhase.Cancelled
-    if (value.and(8L) != 0L)
-        return ScrollPhase.Ended
-    if (value.and(1L) != 0L)
-        return ScrollPhase.Began
-    if (value.and(32L) != 0L)
-        return ScrollPhase.MayBegin
-    if (value.and(4L) != 0L)
-        return ScrollPhase.Changed
-    if (value.and(2L) != 0L)
-        return ScrollPhase.Stationary
-    return ScrollPhase.None
 }

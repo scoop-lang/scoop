@@ -32,6 +32,22 @@ path = "tests/values.scoop"
 when = { os = "windows" }
 
 [[test.sources]]
+path = "tests/collections.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/collections.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/semantic_publication.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/semantic_publication.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
 path = "tests/monitors.scoop"
 when = { os = "windows" }
 
@@ -42,6 +58,14 @@ when = { os = "windows" }
 [[test.sources]]
 path = "test-windows"
 when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/native_input.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/native_input.scoop"
+when = { os = "linux", env = "gnu" }
 
 [test-dependencies]
 "scoop:scoop.test" = "0.1.0"
@@ -56,6 +80,65 @@ cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonp
 
 [[native.sources]]
 path = "native/darwin/application.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/preferences.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/text_menu.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/text_services.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/text_services.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/text_services.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/haptic.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/haptic.c"
+when = { os = ["linux", "windows"] }
+
+[[native.sources]]
+path = "native/windows/text_services.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/darwin/accessibility.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/accessibility_text_document.c"
+
+[[native.sources]]
+path = "native/darwin/accessibility_node.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/accessibility_collection.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/accessibility_grid.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/accessibility_text.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/accessibility_text_geometry.m"
 when = { os = "darwin" }
 
 [[native.sources]]
@@ -75,7 +158,7 @@ path = "native/darwin/monitors.m"
 when = { os = "darwin" }
 
 [[native.sources]]
-path = "native/darwin/keyboard.m"
+path = "native/darwin/input/keyboard.m"
 when = { os = "darwin" }
 
 [[native.sources]]
@@ -99,7 +182,15 @@ path = "native/darwin/menu_presentation.m"
 when = { os = "darwin" }
 
 [[native.sources]]
-path = "native/darwin/pointer.m"
+path = "native/darwin/menu_services.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/input/pointer.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/input/gesture.m"
 when = { os = "darwin" }
 
 [[native.sources]]
@@ -116,6 +207,18 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/darwin/clipboard.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/drop.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/drag.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/drag_data.m"
 when = { os = "darwin" }
 
 [[native.libraries]]
@@ -145,6 +248,14 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/windows/application.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/preferences.cpp"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "runtimeobject"
 when = { os = "windows" }
 
 [[native.sources]]
@@ -196,7 +307,19 @@ path = "native/windows/monitors.c"
 when = { os = "windows" }
 
 [[native.sources]]
-path = "native/windows/input.c"
+path = "native/windows/input/keyboard.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/input/pointer.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/input/contact.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/input/lifecycle.c"
 when = { os = "windows" }
 
 [[native.sources]]
@@ -293,6 +416,10 @@ path = "native/linux/application.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
+path = "native/linux/preferences.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
 path = "native/linux/clipboard.c"
 when = { os = "linux", env = "gnu" }
 
@@ -301,7 +428,19 @@ path = "native/linux/events.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
-path = "native/linux/input.c"
+path = "native/linux/input/keyboard.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/input/pointer.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/input/contact.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/input/lifecycle.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
@@ -454,4 +593,240 @@ path = "tests/dialog_paths.scoop"
 when = { os = "windows" }
 [[test.sources]]
 path = "tests/dialog_paths.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/input/lifecycle.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/input/delivery.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/input/delivery.c"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/input/delivery.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/tree.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/tree.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/publication.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/publication.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/text.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/text.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/element.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/element.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/accessibility/grid.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/accessibility/grid.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/windows/accessibility/controls.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/dialog.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/grid.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/host.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/node.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/notifications.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/properties.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/scroll.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/text_content.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/text_navigation.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/text_provider.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/accessibility/text_range.cpp"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "uiautomationcore"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "oleaut32"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/accessibility/cache.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/component.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/controls.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/dispatch.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/editable_text.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/host.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/hypertext.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/notifications.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/objects.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/properties.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/table.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/text.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/text_boundaries.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/accessibility/text_geometry.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/windows/drag_data.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/drag.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/drop.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/drag_data.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/drag.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/drop.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/darwin/software_keyboard.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/windows/software_keyboard.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/windows/text_purpose.cpp"
+when = { os = "windows" }
+
+[[native.sources]]
+path = "native/linux/software_keyboard.c"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/software_keyboard.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/software_keyboard.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/primary_selection.c"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/primary_selection.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/primary_selection.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_services.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_services.scoop"
 when = { os = "linux", env = "gnu" }

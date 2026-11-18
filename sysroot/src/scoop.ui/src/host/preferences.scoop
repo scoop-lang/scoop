@@ -1,0 +1,113 @@
+package scoop.ui
+
+import scoop.window.InteractionPreferences
+import scoop.window.interactionPreferences
+import scoop.window.observeInteractionPreferences
+
+/** One native observation per root; effective changes reuse ordinary UI invalidation. */
+internal class RootPreferences(private val root: UiRoot, initial: UiPreferences): Closeable {
+    private var system = root.window.interactionPreferences
+    var options = initial
+    var value = initial.resolve(system)
+    val signal = StateSignal()
+    var revision = 0L
+    val observers = ArrayList<UiPreferenceObserver>()
+    private val pending = ArrayList<InteractionPreferences>()
+    private var notifying = false
+    private var native: Closeable? = None
+
+    init {
+        initial.check()
+    }
+
+    fun start() {
+        native =
+            Some(
+                root.window.observeInteractionPreferences {
+                    next -> if (root.isOpen)
+                        root.surface.dispatch {
+                            system = next
+                            publish()
+                        }
+                }
+            )
+    }
+
+    fun replace(next: UiPreferences) {
+        options = next
+        publish()
+    }
+
+    fun observe(action: (InteractionPreferences) -> Unit): Closeable {
+        checkFocusMutation()
+        val observer = UiPreferenceObserver(root, this, action)
+        observers.add(observer)
+        return observer
+    }
+
+    private fun publish() {
+        val next = options.resolve(system)
+        if (next == value)
+            return
+        value = next
+        revision += 1L
+        signal.changed(UiInvalidation.Layout)
+        root.requestFrame()
+        pending.add(next)
+        if (notifying)
+            return
+        notifying = true
+        try {
+            while (root.isOpen && pending.size > 0L) {
+                val event = pending.removeAt(0L)
+                for (observer in observers.toArray()) {
+                    if (!root.isOpen)
+                        break
+                    observer.deliver(event)
+                }
+            }
+        } finally {
+            notifying = false
+            pending.clear()
+        }
+    }
+
+    public override fun close() {
+        native?.close()
+        native = None
+        for (observer in observers)
+            observer.retire()
+        observers.clear()
+        pending.clear()
+    }
+}
+
+internal class UiPreferenceObserver(
+    private val root: UiRoot,
+    private val owner: RootPreferences,
+    action: (InteractionPreferences) -> Unit
+): Closeable {
+    private var callback: ((InteractionPreferences) -> Unit)? = Some(action)
+
+    fun deliver(value: InteractionPreferences) {
+        callback?.invoke(value)
+    }
+
+    fun retire() {
+        callback = None
+    }
+
+    public override fun close() {
+        root.checkThread()
+        when (callback) {
+            case None -> return
+            case Some(_) -> Unit
+        }
+        retire()
+        for (index in 0L ..< owner.observers.size)
+            if (owner.observers[index] === this) {
+                owner.observers.removeAt(index)
+                return
+            }
+    }
+}

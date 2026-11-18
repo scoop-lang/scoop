@@ -1,0 +1,339 @@
+package scoop.tests.ui.choice.accessibility
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.FieldTarget
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class ChoiceSemanticsTest {
+    @Test
+    fun `native choices use actual bindings and retain keyed identities`() {
+        val probe = ChoicesProbe()
+        try {
+            context(ThemeSource(shadcnTheme())) {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application().run(host)
+                }
+            }
+            assertTrue(probe.finished)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class ChoicesProbe: Closeable {
+    val switched = state(false)
+    val pressed = state(false)
+    val reject = state(false)
+    val enabled = state(true)
+    val radio = state<String?>(Some("a"))
+    val radioMode = state(0)
+    val reverse = state(false)
+    val removeB = state(false)
+    val hideRadio = state(false)
+    val single = state<String?>(None)
+    val multiple = state<Array<String>>([])
+    val caption = state("Switch label")
+    val required = state(true)
+    val toggleName = state<String?>(None)
+    val switchTarget = FieldTarget()
+    val radioTarget = FieldTarget()
+    var radioWrites = 0
+    var finished = false
+    private var active: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var tree: NativeNode? = None
+    private var switchNode: NativeNode? = None
+    private var toggleNode: NativeNode? = None
+    private var radioGroup: NativeNode? = None
+    private var a: NativeNode? = None
+    private var b: NativeNode? = None
+    private var c: NativeNode? = None
+    private var oldB: NativeNode? = None
+    private var singleA: NativeNode? = None
+    private var singleB: NativeNode? = None
+    private var multiA: NativeNode? = None
+    private var multiB: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private val retained = ArrayList<NativeNode>()
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop choice accessibility"
+                            requestActivation = false
+                            size = LogicalSize(320.0, 600.0)
+                        }
+                    )
+                window = Some(native)
+                ui = host.attach(native, { scope -> ChoicesRoot(this, scope) })
+                @Unsafe
+                {
+                    val lease = native.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        tree = Some(NativeNode(nativeRoot(view)!!))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                switchNode = Some(find("switch"))
+                toggleNode = Some(find("toggle"))
+                radioGroup = Some(find("radios"))
+                a = Some(find("radio-a"))
+                b = Some(find("radio-b"))
+                c = Some(find("radio-c"))
+                singleA = Some(find("single-a"))
+                singleB = Some(find("single-b"))
+                multiA = Some(find("multi-a"))
+                multiB = Some(find("multi-b"))
+                calls =
+                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                initial()
+                calls!!.post(switchNode!!, 0)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("choice accessibility timed out"))
+            else -> {}
+        }
+    }
+    private fun initial() {
+        assertTrue(switchNode!!.text(2, Some("AXButton")))
+        assertTrue(switchNode!!.text(6, Some("AXSwitch")))
+        assertTrue(switchNode!!.text(0, Some("Switch label")))
+        assertTrue(switchNode!!.text(5, Some("Switch help\nSwitch error")))
+        assertTrue(switchNode!!.flag(9))
+        assertTrue(toggleNode!!.text(2, Some("AXButton")))
+        assertTrue(toggleNode!!.text(6, Some("AXToggle")))
+        assertTrue(toggleNode!!.text(0, Some("Toggle label")))
+        assertEquals(0L, toggleNode!!.count)
+        assertTrue(radioGroup!!.text(2, Some("AXRadioGroup")))
+        assertTrue(radioGroup!!.text(0, Some("Radio choices")))
+        assertEquals(3L, radioGroup!!.count)
+        assertTrue(a!!.parent(radioGroup!!))
+        assertTrue(b!!.parent(radioGroup!!))
+        assertTrue(a!!.text(2, Some("AXRadioButton")))
+        assertEquals(1L, a!!.numericValue)
+        assertEquals(0L, b!!.numericValue)
+        assertTrue(b!!.text(0, Some("Choose B")))
+        assertTrue(b!!.flag(9))
+        assertFalse(c!!.flag(1))
+        assertTrue(find("single").text(2, Some("AXGroup")))
+        assertTrue(find("multiple").text(0, Some("Multiple")))
+    }
+    private fun completed(tag: Int, result: Int) {
+        val expected =
+            if (
+                tag ==
+                    2 ||
+                    tag ==
+                    3 ||
+                    tag ==
+                    4 ||
+                    tag ==
+                    7 ||
+                    tag ==
+                    8 ||
+                    tag ==
+                    9 ||
+                    tag ==
+                    12 ||
+                    tag ==
+                    13 ||
+                    tag ==
+                    20
+            )
+                0
+            else
+                1
+        assertEquals(expected, result)
+        when (tag) {
+            case 0 -> {
+                assertTrue(switched.value)
+                assertEquals(1L, switchNode!!.numericValue)
+                assertFalse(switchNode!!.flag(4))
+                calls!!.post(toggleNode!!, 1)
+            }
+            case 1 -> {
+                assertTrue(pressed.value)
+                assertEquals(1L, toggleNode!!.numericValue)
+                reject.value = true
+                afterUpdate { calls!!.post(switchNode!!, 2) }
+            }
+            case 2 -> {
+                assertEquals(1L, switchNode!!.numericValue)
+                calls!!.post(toggleNode!!, 3)
+            }
+            case 3 -> {
+                assertEquals(1L, toggleNode!!.numericValue)
+                reject.value = false
+                enabled.value = false
+                afterUpdate {
+                    assertFalse(switchNode!!.flag(3))
+                    assertFalse(toggleNode!!.flag(3))
+                    calls!!.post(switchNode!!, 4)
+                }
+            }
+            case 4 -> {
+                assertTrue(switched.value)
+                enabled.value = true
+                afterUpdate { calls!!.post(b!!, 5) }
+            }
+            case 5 -> {
+                assertEquals(Some("b"), radio.value)
+                assertEquals(1, radioWrites)
+                assertEquals(0L, a!!.numericValue)
+                assertEquals(1L, b!!.numericValue)
+                calls!!.post(b!!, 6)
+            }
+            case 6 -> {
+                assertEquals(Some("b"), radio.value)
+                assertEquals(1, radioWrites)
+                calls!!.post(c!!, 7)
+            }
+            case 7 -> {
+                assertEquals(1, radioWrites)
+                radioMode.value = 1
+                afterUpdate { calls!!.post(a!!, 8) }
+            }
+            case 8 -> {
+                assertEquals(Some("b"), radio.value)
+                assertEquals(2, radioWrites)
+                radioMode.value = 2
+                afterUpdate { calls!!.post(a!!, 9) }
+            }
+            case 9 -> {
+                assertEquals(Some("c"), radio.value)
+                assertEquals(0L, a!!.numericValue)
+                assertEquals(1L, c!!.numericValue)
+                radioMode.value = 0
+                afterUpdate { calls!!.post(a!!, 10) }
+            }
+            case 10 -> {
+                assertEquals(Some("a"), radio.value)
+                reverse.value = true
+                afterUpdate {
+                    radioGroup!!.child(0L).use { node -> assertTrue(node.text(3, Some("radio-c"))) }
+                    assertTrue(b!!.flag(0))
+                    calls!!.post(b!!, 11)
+                }
+            }
+            case 11 -> {
+                assertEquals(Some("b"), radio.value)
+                oldB = b
+                removeB.value = true
+                afterUpdate {
+                    assertEquals(2L, radioGroup!!.count)
+                    assertFalse(oldB!!.flag(0))
+                    calls!!.post(oldB!!, 12)
+                }
+            }
+            case 12 -> {
+                assertEquals(Some("b"), radio.value)
+                removeB.value = false
+                afterUpdate {
+                    b = Some(find("radio-b"))
+                    assertTrue(b!!.flag(0))
+                    assertFalse(oldB!!.flag(0))
+                    hideRadio.value = true
+                    afterUpdate {
+                        assertFalse(b!!.flag(0))
+                        calls!!.post(b!!, 13)
+                    }
+                }
+            }
+            case 13 -> {
+                hideRadio.value = false
+                afterUpdate {
+                    assertTrue(b!!.flag(0))
+                    assertTrue(b!!.flag(9))
+                    calls!!.post(singleA!!, 14)
+                }
+            }
+            case 14 -> {
+                assertEquals(Some("a"), single.value)
+                assertEquals(1L, singleA!!.numericValue)
+                calls!!.post(singleB!!, 15)
+            }
+            case 15 -> {
+                assertEquals(Some("b"), single.value)
+                assertEquals(0L, singleA!!.numericValue)
+                assertEquals(1L, singleB!!.numericValue)
+                calls!!.post(singleB!!, 16)
+            }
+            case 16 -> {
+                assertEquals(None, single.value)
+                assertEquals(0L, singleB!!.numericValue)
+                calls!!.post(multiA!!, 17)
+            }
+            case 17 -> {
+                assertEquals(1L, multiple.value.size)
+                assertEquals("a", multiple.value[0L])
+                calls!!.post(multiB!!, 18)
+            }
+            case 18 -> {
+                assertEquals(2L, multiple.value.size)
+                assertEquals(1L, multiA!!.numericValue)
+                assertEquals(1L, multiB!!.numericValue)
+                calls!!.post(multiA!!, 19)
+            }
+            case 19 -> {
+                assertEquals(1L, multiple.value.size)
+                assertEquals("b", multiple.value[0L])
+                assertEquals(0L, multiA!!.numericValue)
+                caption.value = "Updated switch"
+                required.value = false
+                toggleName.value = Some("")
+                afterUpdate {
+                    assertTrue(switchNode!!.text(0, Some("Updated switch")))
+                    assertFalse(switchNode!!.flag(9))
+                    assertTrue(toggleNode!!.text(0, Some("")))
+                    ui!!.close()
+                    assertFalse(switchNode!!.flag(0))
+                    assertFalse(b!!.flag(0))
+                    assertFalse(multiB!!.flag(0))
+                    calls!!.post(switchNode!!, 20)
+                }
+            }
+            case 20 -> {
+                finished = true
+                window!!.requestDestroy()
+                active!!.requestExit()
+            }
+            else -> fail(Some("unexpected choice action"))
+        }
+    }
+    private fun find(identifier: String): NativeNode {
+        val result = tree!!.find(identifier)!!
+        retained.add(result)
+        return result
+    }
+    private fun afterUpdate(action: () -> Unit) {
+        assertTrue(active!!.proxy().post { _ -> action() })
+    }
+    public override fun close() {
+        calls?.close()
+        for (node in retained)
+            node.close()
+        retained.clear()
+        tree?.close()
+    }
+}

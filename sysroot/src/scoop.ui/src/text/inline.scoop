@@ -1,7 +1,9 @@
 package scoop.ui.text
 
 import scoop.collections.HashMap
-import scoop.graphics.Size
+import scoop.graphics.*
+import scoop.window.*
+import scoop.window.accessibility.*
 import scoop.graphics.text.*
 import scoop.ui.*
 
@@ -22,20 +24,75 @@ public class InlineView internal constructor(
 /** Keeps occurrence identity separate from the child view's own key. */
 public fun inlineChildren(content: StyledText, inlines: Array<InlineView>): Array<View> {
     val ordered = orderedInlines(content, inlines)
-    return Array<View>(ordered.size) {
-        index ->
+    val text = content.toPlainText()
+    val result = ArrayList<View>()
+    var shift = 0L
+    for (index in 0L ..< ordered.size) {
         val item = ordered[index]
+        val occurrence = content.inlineObjects[index]
+        val start = occurrence.range.start + shift
+        val end = start + occurrence.alternateText.byteLength
+        shift = end - occurrence.range.end
         val key =
             when (item.key) {
                 case Text(val value) -> ViewKey.Text(value)
                 case Number(val value) -> ViewKey.Number(value)
             }
-        component(item.view, { props, mount -> InlineChild(props, scope = mount) }, key)
+        result.add(
+            element(
+                InlineChildProps(text, occurrence.alternateText, Utf8Range(start, end)),
+                { props, mount -> InlineChild(props, scope = mount) },
+                [item.view],
+                key
+            )
+        )
     }
+    return result.toArray()
 }
 
-private class InlineChild(private val props: Props<View>, scope: ComponentScope): Component(scope) {
-    public override fun render(): View = props.value
+private class InlineChildProps(val text: String, val name: String, val range: Utf8Range)
+
+private class InlineChild(
+    private val props: Props<InlineChildProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private var semantics: SemanticsHandle? = None
+    public override fun update(): UiInvalidation {
+        val handle = semantics ?: scope.semantics(SemanticRole.Group)
+        semantics = Some(handle)
+        scope.routeSemanticsChildren(semantics)
+        val parent = scope.semanticAncestor()
+        val input = props.value
+        handle.textChild =
+            when (parent) {
+                case Some(val value) -> if (
+                    value.role == SemanticRole.Text || value.role == SemanticRole.TextField
+                )
+                    Some(SemanticTextChildBinding(value, input.text, input.range))
+                else
+                    None
+                case None -> None
+            }
+        handle.update(SemanticProperties(name = Some(input.name)))
+        return UiInvalidation.Scene
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        when (semantics) {
+            case Some(val handle) -> context.semantics(
+                handle,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
+            case None -> {}
+        }
+        context.children()
+    }
 }
 
 internal fun orderedInlines(content: StyledText, inlines: Array<InlineView>): Array<InlineView> {

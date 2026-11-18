@@ -79,7 +79,11 @@ internal fun nativeTextCount(event: Ptr<Unit>): Long
 internal fun nativeTextEdit(event: Ptr<Unit>, index: Long): NativeTextEdit
 
 /** Copies native-owned strings before releasing the enclosing event. */
-internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextInputBatch {
+internal fun copyNativeTextBatch(
+    pointer: Ptr<Unit>,
+    window: Long,
+    event: NativeWindowEventData
+): TextInputBatch {
     @Unsafe
     {
         val count = nativeTextCount(pointer)
@@ -109,6 +113,7 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextIn
                     1 -> TextInputOperation.Commit(text, replacement)
                     2 -> TextInputOperation.ClearPreedit
                     3 -> TextInputOperation.DeleteSurrounding(edit.anchor, edit.cursor)
+                    4 -> TextInputOperation.SetSelection(Utf8Selection(edit.anchor, edit.cursor))
                     else -> throw WindowException(
                         "unknown native text operation",
                         WindowErrorKind.NativeFailure
@@ -122,7 +127,7 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextIn
             else
                 None,
             operations,
-            when (platformTextConnection(event)) {
+            when (platformTextConnection(window, event)) {
                 case Some(val connection) -> Some(TextInputOrigin(connection, event.c))
                 case None -> None
             }

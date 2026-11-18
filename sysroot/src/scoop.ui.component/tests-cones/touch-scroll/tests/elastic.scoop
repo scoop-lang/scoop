@@ -1,0 +1,144 @@
+package scoop.tests.ui.touchscroll
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.MotionPreference
+
+private fun rowY(p: TouchProbe, last: Boolean = false): Double {
+    val index =
+        if (last && p.virtual)
+            99999L
+        else
+            0L
+    return p.row(index)!!.area!!.toWindow(Rect(0.0, 0.0, 1.0, 1.0))!!.y
+}
+
+private fun near(expected: Double, actual: Double) {
+    assertTrue(abs(expected - actual) < 0.001, Some(f"expected ${expected}, got ${actual}"))
+}
+
+internal fun touchElasticStep(p: TouchProbe) {
+    when (p.phase) {
+        0 -> {
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
+            p.physics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Elastic,
+                    0.5,
+                    40.0,
+                    inertia = ScrollInertiaOptions(false)
+                )
+            p.changed()
+        }
+        1 -> {
+            p.rowOrigin = rowY(p)
+            p.contact(301L, 0, 60.0)
+            p.contact(301L, 1, 100.0)
+        }
+        2 -> {
+            assertEquals(Point(0.0, 0.0), p.scroll.offset)
+            near(p.rowOrigin + 40.0 / 3.0, rowY(p))
+            p.contact(301L, 1, 80.0)
+        }
+        3 -> {
+            assertEquals(Point(0.0, 0.0), p.scroll.offset)
+            near(p.rowOrigin + 8.0, rowY(p))
+            p.contact(301L, 1, 60.0)
+        }
+        4 -> {
+            assertEquals(Point(0.0, 0.0), p.scroll.offset)
+            near(p.rowOrigin, rowY(p))
+            p.contact(301L, 2, 60.0)
+        }
+        5 -> p.scroll.scrollTo(p.scroll.maximum)
+        6 -> {
+            assertEquals(p.scroll.maximum, p.scroll.offset)
+            p.rowOrigin = rowY(p, true)
+            p.contact(302L, 0, 80.0)
+            p.contact(302L, 1, 40.0)
+        }
+        7 -> {
+            assertEquals(p.scroll.maximum, p.scroll.offset)
+            near(p.rowOrigin - 40.0 / 3.0, rowY(p, true))
+            p.contact(302L, 2, 40.0)
+        }
+        8 -> {
+            assertFalse(p.scroll.isAnimating)
+            near(p.rowOrigin, rowY(p, true))
+            p.scroll.scrollTo(Point(0.0, 0.0))
+        }
+        9 -> {
+            p.rowOrigin = rowY(p)
+            p.contact(303L, 0, 60.0)
+            p.contact(303L, 1, 100.0)
+        }
+        10 -> {
+            assertTrue(rowY(p) > p.rowOrigin)
+            p.theme.current.value =
+                p.baseTheme.copy { tokens { motion { preference = MotionPreference.Reduced } } }
+            p.changed()
+        }
+        11 -> {
+            near(p.rowOrigin, rowY(p))
+            assertEquals(Point(0.0, 0.0), p.scroll.offset)
+            p.contact(303L, 2, 100.0)
+            p.theme.current.value = p.baseTheme
+            p.changed()
+        }
+        12 -> {
+            p.contact(304L, 0, 60.0)
+            p.contact(304L, 1, 100.0)
+        }
+        13 -> {
+            assertTrue(rowY(p) > p.rowOrigin)
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(true) }
+        }
+        14 -> {
+            near(p.rowOrigin, rowY(p))
+            p.contact(304L, 2, 100.0)
+            p.ui!!.preferences = uiPreferences { reduceMotion = Some(false) }
+            p.physics =
+                ScrollPhysicsOptions(ScrollBoundary.Hard, inertia = ScrollInertiaOptions(false))
+            p.changed()
+        }
+        15 -> {
+            p.contact(305L, 0, 60.0)
+            p.contact(305L, 1, 100.0)
+        }
+        16 -> {
+            near(p.rowOrigin, rowY(p))
+            assertEquals(Point(0.0, 0.0), p.scroll.offset)
+            p.contact(305L, 2, 100.0)
+            p.physics =
+                ScrollPhysicsOptions(
+                    ScrollBoundary.Elastic,
+                    0.5,
+                    40.0,
+                    inertia = ScrollInertiaOptions(false)
+                )
+            p.changed()
+        }
+        17 -> {
+            p.contact(306L, 0, 60.0)
+            p.contact(306L, 1, 100.0)
+        }
+        18 -> {
+            assertTrue(rowY(p) > p.rowOrigin)
+            p.gone = true
+            p.changed()
+        }
+        19 -> {
+            assertFalse(p.scroll.isAttached)
+            assertEquals(0, p.alive)
+            p.contact(306L, 2, 100.0)
+        }
+        20 -> {
+            assertFalse(p.frames!!.snapshot().required)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected component elastic phase"))
+    }
+}

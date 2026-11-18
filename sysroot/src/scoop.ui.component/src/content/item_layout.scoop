@@ -7,7 +7,7 @@ import scoop.ui.component.row as itemRow
 import scoop.ui.style.*
 
 internal class ItemRenderer(private val scope: ComponentScope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     private val medium = spanStyle { this.weight = Some(500) }
@@ -15,7 +15,12 @@ internal class ItemRenderer(private val scope: ComponentScope) {
     fun mount(theme: ThemeSource?) {
         themes.mount(theme)
     }
-    fun render(input: ItemProps, interaction: InteractionState, behavior: ActionBehavior): View {
+    fun render(
+        input: ItemProps,
+        interaction: InteractionState,
+        behavior: ActionBehavior,
+        semantics: SemanticsHandle?
+    ): View {
         val theme = themes.read(input.theme)
         val density = theme.tokens.typography.body.fontSize / 14.0
         val gap = itemGap(input.size) * density
@@ -132,7 +137,7 @@ internal class ItemRenderer(private val scope: ComponentScope) {
                 this.alignment = CrossAlignment.Stretch
             }
         return element(
-            ItemInkProps(input, theme, interaction.asVisual(input.enabled), behavior),
+            ItemInkProps(input, theme, interaction.asVisual(input.enabled), behavior, semantics),
             { current, mount -> ItemInk(current, scope = mount) },
             [content]
         )
@@ -169,7 +174,8 @@ private fun itemCaption(
                     input.inlines,
                     input.theme,
                     input.baseStyle,
-                    input.underline
+                    input.underline,
+                    input.semantics
                 )
             ),
             base,

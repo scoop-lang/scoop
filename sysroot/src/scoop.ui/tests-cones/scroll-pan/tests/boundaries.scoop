@@ -1,0 +1,85 @@
+package scoop.tests.ui.scrollpan
+
+import scoop.graphics.Point
+import scoop.test.*
+import scoop.tests.surface.moveSurfacePointer
+import scoop.ui.*
+
+internal fun panBoundaryStep(p: PanProbe) {
+    when (p.phase) {
+        0 -> {
+            assertTrue(moveSurfacePointer(p.window!!, 330.0, 230.0))
+            p.chain = ScrollChain.Contain
+            p.innerOptions = TouchScrollOptions(claimAtBoundary = false)
+            p.outer.scrollTo(Point(0.0, 40.0))
+            p.changed()
+        }
+        1 -> {
+            p.contact(101L, 0, 50.0, 55.0)
+            p.contact(101L, 1, 50.0, 85.0)
+        }
+        2 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            assertEquals(Point(0.0, 10.0), p.outer.offset)
+            assertFalse(p.innerPan!!.isPanning)
+            assertTrue(p.outerPan!!.isPanning)
+            p.contact(101L, 1, 50.0, 25.0)
+        }
+        3 -> {
+            assertEquals(Point(0.0, 0.0), p.inner.offset)
+            assertEquals(Point(0.0, 70.0), p.outer.offset)
+            p.contact(101L, 2, 50.0, 25.0)
+            p.outer.scrollTo(Point(0.0, 0.0))
+            p.inner.scrollTo(p.inner.maximum)
+        }
+        4 -> {
+            p.contact(102L, 0, 50.0, 55.0)
+            p.contact(102L, 1, 50.0, 25.0)
+        }
+        5 -> {
+            assertEquals(p.inner.maximum, p.inner.offset)
+            assertEquals(Point(0.0, 30.0), p.outer.offset)
+            assertFalse(p.innerPan!!.isPanning)
+            p.contact(102L, 2, 50.0, 25.0)
+            p.reset()
+            p.inner.scrollTo(Point(0.0, 25.0))
+        }
+        6 -> {
+            p.contact(103L, 0, 50.0, 55.0)
+            p.contact(103L, 1, 50.0, 15.0)
+        }
+        7 -> {
+            assertEquals(Point(0.0, 65.0), p.inner.offset)
+            assertTrue(p.innerPan!!.isPanning)
+            p.contact(103L, 1, 50.0, -200.0)
+        }
+        8 -> {
+            assertEquals(p.inner.maximum, p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            assertTrue(p.innerPan!!.isPanning)
+            p.contact(103L, 2, 50.0, -200.0)
+            p.reset()
+        }
+        9 -> {
+            p.contact(104L, 0, 50.0, 55.0)
+            p.contact(104L, 1, 50.0, 15.0)
+        }
+        10 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            p.innerOptions = TouchScrollOptions()
+            p.changed()
+        }
+        11 -> {
+            assertFalse(p.innerPan!!.isPanning)
+            p.contact(104L, 1, 50.0, -25.0)
+            p.contact(104L, 2, 50.0, -25.0)
+        }
+        12 -> {
+            assertEquals(Point(0.0, 40.0), p.inner.offset)
+            assertEquals(Point(0.0, 0.0), p.outer.offset)
+            p.finished = true
+            p.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected scroll boundary phase"))
+    }
+}

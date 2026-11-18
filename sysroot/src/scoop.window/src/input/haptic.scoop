@@ -1,0 +1,38 @@
+package scoop.window
+
+public enum HapticFeedbackPattern {
+    Generic, Alignment, LevelChange
+}
+
+public enum HapticFeedbackRequest {
+    Requested, Unavailable, Unsupported
+}
+
+/** Requested confirms native submission, not the presence of a haptic device. */
+public fun Window.requestHapticFeedback(
+    pattern: HapticFeedbackPattern = HapticFeedbackPattern.Generic
+): HapticFeedbackRequest {
+    owner.requireOpen()
+    val kind =
+        when (pattern) {
+            case Generic -> 0
+            case Alignment -> 1
+            case LevelChange -> 2
+        }
+    @Unsafe
+    {
+        val status = nativeHapticFeedback(owner.pointer!!, kind)
+        return when (status) {
+            0L -> HapticFeedbackRequest.Requested
+            1L -> HapticFeedbackRequest.Unavailable
+            -1L -> HapticFeedbackRequest.Unsupported
+            else -> {
+                checkNativeStatus(status, "request haptic feedback")
+                HapticFeedbackRequest.Unavailable
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_window_haptic_feedback")
+private fun nativeHapticFeedback(window: Ptr<Unit>, pattern: Int): Long

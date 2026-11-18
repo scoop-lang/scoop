@@ -1,0 +1,72 @@
+package scoop.surface
+
+import scoop.graphics.Point
+import scoop.graphics.native.CanvasGeometry
+import scoop.window.ContactState
+
+/** Sharing begins with the claimant, separately for each movement delivery. */
+internal class ContactConsumption(private val route: InputContactRoute) {
+    private var shared: ScrollConsumption? = None
+
+    val remaining: Point? get() =
+        when (shared) {
+            case Some(val value) -> Some(scrollVector(value.remaining))
+            case None -> None
+        }
+
+    fun consume(
+        receiver: InputScope,
+        geometry: CanvasGeometry?,
+        apply: (Point) -> Point,
+        notifyEmpty: Boolean = false
+    ) {
+        val value =
+            when (shared) {
+                case Some(val current) -> current
+                case None -> {
+                    if (!sameScope(route.claimant, Some(receiver)))
+                        throw IllegalStateException(
+                            Some("contact movement must be opened by its owner")
+                        )
+                    val start =
+                        position(
+                            if (route.movementStarted)
+                                route.previous
+                            else
+                                route.origin
+                        )
+                    val end = position(route.latest)
+                    val delta = Point(end.x - start.x, end.y - start.y)
+                    checkedScrollPoint(delta)
+                    val current =
+                        ScrollConsumption(InputScrollDelta.Pixels(delta.x, delta.y), start, None)
+                    shared = Some(current)
+                    route.movementStarted = true
+                    current
+                }
+            }
+        val anchor =
+            when (geometry) {
+                case Some(val current) -> Some(
+                    current.toLocal(value.point) ?:
+                        throw IllegalArgumentException(
+                            Some("contact movement transformation overflow")
+                        )
+                )
+                case None -> None
+            }
+        value.consume(1.0, geometry, anchor, apply, notifyEmpty)
+    }
+}
+
+internal fun contactConsumption(event: InputEvent, route: InputContactRoute?): ContactConsumption? {
+    val current = route ?: return None
+    return when (event) {
+        case Contact(InputContactEvent.Moved(_)) -> Some(ContactConsumption(current))
+        case Contact(InputContactEvent.Ended(_)) -> Some(ContactConsumption(current))
+        else -> None
+    }
+}
+
+private fun position(value: ContactState): Point =
+    Point(value.pointer.logicalPosition.x, value.pointer.logicalPosition.y)

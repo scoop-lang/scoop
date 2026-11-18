@@ -4,13 +4,14 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 import scoop.ui.style.style as baseStyle
 
 public class Questionnaire(
     private val props: Props<QuestionnaireProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val handles = ChoiceHandles()
     private val editorFocus = FocusHandle()
     private val text = ActionTextStyle()
@@ -253,6 +254,16 @@ public class Questionnaire(
                     this.theme = input.theme
                     this.style { this.surface { this.focus = input.focusOutline } }
                     this.onEdited = { _ -> owner.edited(question.key) }
+                    this.semantics =
+                        ComponentSemantics(
+                            name = Some(question.freeform!!.title),
+                            description = Some(question.title),
+                            error =
+                                when (state.issue(question.key)) {
+                                    case Some(val issue) -> Some(input.strings.issue(issue))
+                                    case None -> None
+                                }
+                        )
                 }
             else
                 empty()
@@ -347,7 +358,32 @@ public class Questionnaire(
                 this.spacing = 12.0 * d
                 this.alignment = CrossAlignment.Stretch
             }
-        return input.part(QuestionnairePart.Item, item)
+        return semanticContent(
+            input.part(QuestionnairePart.Item, item),
+            if (question.kind == QuestionKind.Single)
+                SemanticRole.RadioGroup
+            else
+                SemanticRole.Group,
+            SemanticProperties(
+                name = Some(question.title),
+                description = Some(question.description),
+                enabled = enabled && question.enabled,
+                busy = input.busy,
+                required = question.required,
+                invalid = state.issue(question.key) != None,
+                error =
+                    when (state.issue(question.key)) {
+                        case Some(val issue) -> Some(input.strings.issue(issue))
+                        case None -> None
+                    },
+                selectionMode =
+                    if (question.kind == QuestionKind.Single)
+                        Some(SemanticSelectionMode.Single)
+                    else
+                        None
+            ),
+            mergeLabels = false
+        )
     }
 }
 

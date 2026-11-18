@@ -5,6 +5,21 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
 
+internal fun drawerSwipe(control: DrawerControl, sample: SwipeGestureSample) {
+    control.cancel(DragCancelReason.Explicit)
+    if (!control.available() || !control.read().props.nativeSwipe)
+        return
+    val shape = control.geometry!!
+    val positive =
+        sample.direction == SwipeDirection.Right || sample.direction == SwipeDirection.Down
+    val expand = positive != (shape.outward > 0.0)
+    when (drawerAdjacent(shape.snaps, control.current(), expand)) {
+        case Some(val index) -> control.select(index, true)
+        case None -> if (!expand && control.read().props.swipeToClose)
+            control.close()
+    }
+}
+
 internal fun drawerDrag(control: DrawerControl, event: DragEvent) {
     when (event) {
         case Started(val sample) -> {

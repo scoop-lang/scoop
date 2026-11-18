@@ -1,0 +1,88 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.tests.window.sendGtkDragPointer
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+@Test
+private class LinuxDragInputTest {
+    @Test
+    @Ignore("Requires an isolated X11 display for protocol input; run separately with --ignored")
+    fun `GTK mouse motion retains native input for threshold based data dragging`() {
+        val handler = GtkDragInputHandler()
+        Application().run(handler)
+        assertEquals(1, handler.completions)
+        assertEquals(1, handler.destroyed)
+    }
+}
+
+private class GtkDragInputHandler: ApplicationHandler {
+    var window: Window? = None
+    var stage = 0
+    var completions = 0
+    var destroyed = 0
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                window =
+                    Some(
+                        application.createWindow(
+                            windowAttributes {
+                                title = "Scoop GTK drag input"
+                                size = LogicalSize(240.0, 160.0)
+                                requestActivation = false
+                            }
+                        )
+                    )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("GTK drag input timed out"))
+            case Window(_, WindowEvent.RedrawRequested) -> if (stage == 0) {
+                stage = 1
+                send(0)
+            }
+            case Window(
+                _,
+                WindowEvent.Pointer(
+                    PointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                )
+            ) -> if (stage == 1) {
+                stage = 2
+                send(1)
+            }
+            case Window(_, WindowEvent.Pointer(PointerEvent.Moved(_))) -> if (stage == 2) {
+                stage = 3
+                try {
+                    val session =
+                        window!!.beginDrag(DragContent.Text("drag 😀")) {
+                            result ->
+                            when (result) {
+                                case NotDropped -> {}
+                                else -> fail(Some("pending drag did not cancel"))
+                            }
+                            completions += 1
+                            window!!.requestDestroy()
+                            application.requestExit()
+                        }
+                    assertFalse(session.isStarted)
+                    assertTrue(session.cancelPending())
+                } finally {
+                    send(2)
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> destroyed += 1
+            else -> {}
+        }
+    }
+
+    private fun send(phase: Int) {
+        @Unsafe
+        {
+            assertEquals(1, sendGtkDragPointer(window!!.owner.pointer!!, phase))
+        }
+    }
+}

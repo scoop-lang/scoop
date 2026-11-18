@@ -10,6 +10,10 @@ import scoop.ui.text.*
 import scoop.window.*
 
 internal fun advanceEditing(probe: EditProbe) {
+    if (probe.phase == 91) {
+        probe.contextMenus.advance(probe)
+        return
+    }
     if (probe.phase >= 75) {
         advanceSystemIme(probe)
         return
@@ -29,6 +33,9 @@ internal fun advanceEditing(probe: EditProbe) {
         case 1 -> {
             assertEquals(Utf8Selection(8L, 1L), first.selection)
             assertEquals(0, probe.edits)
+            assertFalse(probe.field(2L).execute(TextEditCommand.DeleteSelection))
+            assertEquals("A😀éZ", first.text)
+            assertEquals(Utf8Selection(8L, 1L), first.selection)
             probe.next { assertEquals(0, editorText(window, "仮😀", 1, 1L, 2L)) }
         }
         case 2 -> {
@@ -43,6 +50,9 @@ internal fun advanceEditing(probe: EditProbe) {
         }
         case 3 -> {
             assertTrue(probe.field(2L).isClosed)
+            assertFailsWith<IllegalStateException> {
+                probe.field(2L).execute(TextEditCommand.DeleteSelection)
+            }
             assertTrue(first.isComposing)
             assertEquals(probe.savedEdits, probe.edits)
             probe.next { editorInterpret(window, 2) }
@@ -127,6 +137,20 @@ internal fun advanceEditing(probe: EditProbe) {
                 assertEquals("", first.text)
                 assertTrue(probe.field(0L).execute(TextEditCommand.Redo))
                 assertEquals("B 😀 C", first.text)
+                val clipboard = window.clipboard.readText()
+                first.setSelection(Utf8Selection(6L, 2L))
+                assertTrue(window.textCommandAvailability!!.deleteSelection)
+                assertTrue(probe.field(0L).execute(TextEditCommand.DeleteSelection))
+                assertEquals("B  C", first.text)
+                assertEquals(clipboard, window.clipboard.readText())
+                assertFalse(window.textCommandAvailability!!.deleteSelection)
+                val revision = first.revision
+                assertTrue(probe.field(0L).execute(TextEditCommand.DeleteSelection))
+                assertEquals(revision, first.revision)
+                assertEquals("B  C", first.text)
+                assertTrue(probe.field(0L).execute(TextEditCommand.Undo))
+                assertEquals("B 😀 C", first.text)
+                assertEquals(Utf8Selection(6L, 2L), first.selection)
                 probe.readonly = true
                 probe.change()
             }
@@ -135,6 +159,8 @@ internal fun advanceEditing(probe: EditProbe) {
             assertTrue(probe.focus[0L].hasFocus)
             assertEquals(1, editorText(window, "blocked"))
             assertTrue(probe.field(0L).execute(TextEditCommand.Delete(TextDeletion.Backward)))
+            assertFalse(window.textCommandAvailability!!.deleteSelection)
+            assertTrue(probe.field(0L).execute(TextEditCommand.DeleteSelection))
             assertEquals("B 😀 C", first.text)
             probe.next {
                 probe.readonly = false;

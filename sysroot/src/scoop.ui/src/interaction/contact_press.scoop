@@ -1,0 +1,325 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.hypot
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.window.*
+
+internal class ContactPressSample(val contact: ContactState, val position: Point, val count: Int)
+
+private class ContactPressCandidate(val start: ContactPressSample, val interval: Duration) {
+    var latest = start.contact
+    var claimed = false
+}
+
+/** Text and public hold behaviors share admission and one optional hold deadline. */
+internal class ContactPress(
+    private val scope: ComponentScope,
+    private val area: InputArea,
+    private var enabled: Boolean,
+    private var threshold: Double,
+    private var delay: Duration?,
+    private var multiTap: Boolean,
+    private var interval: Duration?,
+    private val ready: () -> Boolean,
+    private val tap: ((ContactPressSample) -> Boolean)?,
+    private val hold: (ContactPressSample) -> Unit
+): Closeable {
+    private var closed = false
+    private val contacts = ArrayList<ContactId>()
+    private var candidate: ContactPressCandidate? = None
+    private var taps: ContactTapSequence? = None
+    private var timer: WindowDeadline? = None
+    private var moved = false
+    private val events = area.scope.addEventHandler { context, event -> observe(context, event) }
+    private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
+    private val finished = area.scope.addEventFinished { event -> finish(event) }
+    private val windowEvents =
+        scope.observeWindow(scope.nativeWindow) { event -> observeWindow(event) }
+    private val activity =
+        scope.observeWindowActivity {
+            value -> if (!value.focused || !value.visible || value.occluded)
+                cancel()
+        }
+
+    fun update(
+        enabled: Boolean,
+        threshold: Double,
+        delay: Duration?,
+        multiTap: Boolean,
+        interval: Duration?
+    ) {
+        if (
+            this.enabled !=
+                enabled ||
+                this.threshold !=
+                threshold ||
+                this.delay !=
+                delay ||
+                this.multiTap !=
+                multiTap ||
+                this.interval !=
+                interval
+        )
+            cancel()
+        this.enabled = enabled
+        this.threshold = threshold
+        this.delay = delay
+        this.multiTap = multiTap
+        this.interval = interval
+    }
+
+    private fun allowed(): Boolean =
+        !closed &&
+            !area.isClosed &&
+            scope.isMounted &&
+            enabled &&
+            area.scope.isInputAllowed &&
+            scope.nativeWindow.state ==
+            WindowState.Open &&
+            scope.nativeWindow.isFocused &&
+            scope.nativeWindow.isVisible &&
+            !scope.nativeWindow.isOccluded &&
+            ready()
+
+    private fun observe(context: RoutedEventContext, event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Contact(InputContactEvent.Cancelled(val id, _, _)) -> {
+                taps = None
+                forgetContact(contacts, id)
+                if (candidate?.start?.contact?.id == Some(id))
+                    clear(false)
+            }
+            case FocusChanged(false) -> {
+                if (!area.scope.activity.hasFocus)
+                    cancel()
+            }
+            case Contact(InputContactEvent.Began(val value)) -> {
+                if (context.phase == RoutedPhase.Notification)
+                    return
+                rememberContact(contacts, value.id)
+                if (contacts.size > 1L)
+                    cancel()
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> blockHeld(context, value)
+            case Contact(InputContactEvent.Ended(val value)) -> blockHeld(context, value)
+            case Pointer(InputPointerEvent.Button(_, _, ElementState.Pressed, _)) -> cancel()
+            case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> cancel()
+            case Keyboard(val key) -> if (key.state == ElementState.Pressed)
+                cancel()
+            case TextCommand(_) -> cancel()
+            else -> {}
+        }
+    }
+
+    private fun observeWindow(event: WindowEvent) {
+        if (closed || area.isClosed)
+            return
+        when (event) {
+            case Contact(ContactEvent.Began(val value)) -> {
+                val point = value.pointer.logicalPosition
+                if (!area.hitTest(Point(point.x, point.y)))
+                    cancel()
+            }
+            case Pointer(PointerEvent.Button(_, _, ElementState.Pressed, _)) -> cancel()
+            case Pointer(PointerEvent.Wheel(_, _, _, _)) -> cancel()
+            case Keyboard(val value) -> if (value.state == ElementState.Pressed)
+                cancel()
+            case TextCommand(_) -> cancel()
+            case Gesture(_) -> cancel()
+            else -> {}
+        }
+    }
+
+    private fun blockHeld(context: RoutedEventContext, value: ContactState) {
+        val current = candidate ?: return
+        if (current.claimed && current.start.contact.id == value.id) {
+            moved = true
+            context.preventDefault()
+        }
+    }
+
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Contact(InputContactEvent.Began(val value)) -> {
+                if (contacts.size != 1L || !allowed())
+                    return
+                val point = local(value) ?: return
+                val interval =
+                    this.interval ?:
+                        scope.interactionPreferences.doubleClickInterval ?:
+                        Duration.milliseconds(500L)
+                val count =
+                    if (multiTap)
+                        contactTapCount(area, taps, value, threshold, interval)
+                    else
+                        1
+                taps = None
+                candidate =
+                    Some(ContactPressCandidate(ContactPressSample(value, point, count), interval))
+                when (delay) {
+                    case Some(val duration) -> {
+                        val clock = timer ?: scope.createDeadline { expired() }
+                        timer = Some(clock)
+                        clock.schedule(MonotonicTimeSource.markNow() + duration)
+                    }
+                    case None -> {}
+                }
+            }
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                moved = true
+                val current = candidate ?: return
+                if (current.start.contact.id != value.id)
+                    return
+                current.latest = value
+                when (sample(current, value)) {
+                    case Some(_) -> {}
+                    case None -> cancel()
+                }
+            }
+            case Contact(InputContactEvent.Ended(val value)) -> {
+                val current = candidate ?: return
+                if (current.start.contact.id != value.id)
+                    return
+                val result = sample(current, value)
+                clear(false)
+                val action = tap ?: return
+                when (result) {
+                    case Some(val value) -> {
+                        context.consume()
+                        if (multiTap)
+                            taps = Some(ContactTapSequence(current.start, current.interval))
+                        if (!action(value))
+                            taps = None
+                    }
+                    case None -> {}
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun local(value: ContactState): Point? {
+        val point = Point(value.pointer.logicalPosition.x, value.pointer.logicalPosition.y)
+        return if (area.hitTest(point))
+            area.toLocal(point)
+        else
+            None
+    }
+
+    private fun sample(current: ContactPressCandidate, value: ContactState): ContactPressSample? {
+        if (!allowed() || contacts.size != 1L)
+            return None
+        val start = current.start.contact.pointer.logicalPosition
+        val end = value.pointer.logicalPosition
+        if (hypot(end.x - start.x, end.y - start.y) > threshold)
+            return None
+        val point = local(value) ?: return None
+        val origin = area.toLocal(Point(start.x, start.y)) ?: return None
+        val first = current.start.position
+        if (hypot(origin.x - first.x, origin.y - first.y) > threshold)
+            return None
+        return Some(ContactPressSample(value, point, current.start.count))
+    }
+
+    private fun expired() {
+        val current = candidate ?: return
+        val result =
+            when (sample(current, current.latest)) {
+                case Some(val value) -> value
+                case None -> {
+                    cancel();
+                    return
+                }
+            }
+        try {
+            if (!area.scope.claimContacts([current.start.contact.id])) {
+                clear(false)
+                return
+            }
+            current.claimed = true
+            if (!same(current) || !allowed()) {
+                if (!area.isClosed)
+                    area.scope.cancelContactClaim(current.start.contact.id)
+                clear(false)
+                return
+            }
+            hold(result)
+        } catch (error: Throwable) {
+            val failure = cleanupUi(Some(error)) { cancel() }
+            throwUi(failure)
+        }
+    }
+
+    private fun same(value: ContactPressCandidate): Boolean =
+        when (candidate) {
+            case Some(val current) -> current === value
+            case None -> false
+        }
+
+    private fun finish(event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Contact(InputContactEvent.Moved(val value)) -> {
+                if (!moved && candidate?.start?.contact?.id == Some(value.id))
+                    cancel()
+                moved = false
+            }
+            case Contact(InputContactEvent.Ended(val value)) -> {
+                forgetContact(contacts, value.id)
+                if (candidate?.start?.contact?.id == Some(value.id))
+                    clear(false)
+            }
+            case Contact(InputContactEvent.Began(val value)) -> {
+                when (candidate) {
+                    case Some(val current) -> if (current.start.contact.id != value.id)
+                        cancel()
+                    case None -> taps = None
+                }
+            }
+            else -> {}
+        }
+    }
+
+    fun cancel() {
+        if (!closed) {
+            taps = None
+            clear(true)
+        }
+    }
+
+    private fun clear(release: Boolean) {
+        val previous = candidate
+        candidate = None
+        moved = false
+        timer?.cancel()
+        when (previous) {
+            case Some(val current) -> if (release && current.claimed && !area.isClosed)
+                area.scope.cancelContactClaim(current.start.contact.id)
+            case None -> {}
+        }
+    }
+
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        taps = None
+        var failure = cleanupUi(None) { clear(true) }
+        contacts.clear()
+        failure = cleanupUi(failure) { timer?.close() }
+        failure = cleanupUi(failure) { activity.close() }
+        failure = cleanupUi(failure) { windowEvents.close() }
+        failure = cleanupUi(failure) { events.close() }
+        failure = cleanupUi(failure) { defaults.close() }
+        failure = cleanupUi(failure) { finished.close() }
+        throwUi(failure)
+    }
+}

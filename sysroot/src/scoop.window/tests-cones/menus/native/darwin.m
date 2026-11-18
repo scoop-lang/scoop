@@ -2,7 +2,21 @@
 #include <stdint.h>
 
 static id tracking_observer;
+static id tracking_end_observer;
 static NSMenu *tracking_menu;
+
+int32_t scoop_test_default_text_menu_title(int32_t role, const uint8_t *bytes,
+                                           int64_t length) {
+  NSString *title = [[NSString alloc] initWithBytes:bytes
+                                             length:(NSUInteger)length
+                                           encoding:NSUTF8StringEncoding];
+  SEL action = role == 4 ? @selector(cut:)
+                         : (role == 5 ? @selector(copy:) : @selector(paste:));
+  for (NSMenuItem *item in NSTextView.defaultMenu.itemArray)
+    if (item.action == action)
+      return [item.title isEqualToString:title];
+  return 0;
+}
 
 static NSMenuItem *find_item(NSMenu *menu, NSString *title) {
   for (NSMenuItem *item in menu.itemArray) {
@@ -61,9 +75,17 @@ int32_t scoop_test_native_menu_editor(void *pointer) {
   BOOL enabled = item.enabled;
   BOOL sent = [NSApp sendAction:item.action to:item.target from:item];
   BOOL selected = editor.selectedRange.length == field.stringValue.length;
+  NSMenuItem *deletion = find_item(NSApp.mainMenu, @"Native Delete");
+  [deletion.menu update];
+  BOOL deletionEnabled = deletion.enabled;
+  [NSApp sendAction:deletion.action to:deletion.target from:deletion];
+  BOOL deleted = editor.string.length == 0;
+  [deletion.menu update];
+  BOOL emptyDisabled = !deletion.enabled;
   [window makeFirstResponder:previous];
   [field removeFromSuperview];
-  return enabled && sent && selected;
+  return enabled && sent && selected && deletionEnabled && deleted &&
+         emptyDisabled;
 }
 
 int64_t scoop_test_menu_property(void *pointer, const uint8_t *text,
@@ -94,9 +116,29 @@ void scoop_test_menu_observe(void) {
               usingBlock:^(NSNotification *notification) {
                 tracking_menu = notification.object;
               }];
+  tracking_end_observer = [NSNotificationCenter.defaultCenter
+      addObserverForName:NSMenuDidEndTrackingNotification
+                  object:nil
+                   queue:nil
+              usingBlock:^(NSNotification *notification) {
+                if (tracking_menu == notification.object)
+                  tracking_menu = nil;
+              }];
 }
 
 int32_t scoop_test_menu_tracking(void) { return tracking_menu != nil; }
+
+int32_t scoop_test_popup_enabled(const uint8_t *text, int64_t length) {
+  NSString *title = [[NSString alloc] initWithBytes:text
+                                             length:(NSUInteger)length
+                                           encoding:NSUTF8StringEncoding];
+  NSMenuItem *item = find_item(tracking_menu, title);
+  return item ? item.enabled : -1;
+}
+
+void scoop_test_popup_cancel(void) {
+  [tracking_menu cancelTrackingWithoutAnimation];
+}
 
 int32_t scoop_test_popup_action(const uint8_t *text, int64_t length) {
   NSString *title = [[NSString alloc] initWithBytes:text
@@ -111,6 +153,8 @@ int32_t scoop_test_popup_action(const uint8_t *text, int64_t length) {
 
 void scoop_test_menu_end(void) {
   [NSNotificationCenter.defaultCenter removeObserver:tracking_observer];
+  [NSNotificationCenter.defaultCenter removeObserver:tracking_end_observer];
   tracking_observer = nil;
+  tracking_end_observer = nil;
   tracking_menu = nil;
 }

@@ -1,0 +1,116 @@
+package scoop.tests.ui.choice.accessibility
+
+import scoop.graphics.text.styledText
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal class ChoicesRoot(private val probe: ChoicesProbe, scope: ComponentScope): Component(
+    scope
+) {
+    private val switchBinding =
+        binding(
+            { probe.switched.value },
+            {
+                next -> if (!probe.reject.value)
+                    probe.switched.value = next
+            }
+        )
+    private val toggleBinding =
+        binding(
+            { probe.pressed.value },
+            {
+                next -> if (!probe.reject.value)
+                    probe.pressed.value = next
+            }
+        )
+    private val radioBinding =
+        binding(
+            { probe.radio.value },
+            {
+                next ->
+                probe.radioWrites += 1
+                when (probe.radioMode.value) {
+                    case 0 -> probe.radio.value = next
+                    case 1 -> {}
+                    else -> probe.radio.value = Some("c")
+                }
+            }
+        )
+    public override fun render(): View {
+        val probe = this.probe
+        val toggleSource = this.toggleBinding
+        val toggleText = styledText { text("Toggle label") }
+        val switchView =
+            switchControl(switchBinding) {
+                enabled = probe.enabled.value
+                labelTarget = Some(probe.switchTarget)
+                semantics = ComponentSemantics(automationId = Some("switch"))
+            }
+        val radioView =
+            radioGroup(radioBinding) {
+                semantics =
+                    ComponentSemantics(
+                        name = Some("Radio choices"),
+                        automationId = Some("radios"),
+                        hidden = probe.hideRadio.value
+                    )
+                val entries =
+                    if (probe.reverse.value)
+                        ["c", "b", "a"]
+                    else
+                        ["a", "b", "c"]
+                for (entry in entries) {
+                    if (probe.removeB.value && entry == "b")
+                        continue
+                    item(Choice(ViewKey.Text(entry), entry, entry, entry != "c")) {
+                        labelTarget =
+                            if (entry == "b")
+                                Some(probe.radioTarget)
+                            else
+                                None
+                        semantics = ComponentSemantics(automationId = Some(f"radio-${entry}"))
+                    }
+                }
+            }
+        val singleView =
+            toggleGroup(probe.single.binding()) {
+                semantics = ComponentSemantics(name = Some("Single"), automationId = Some("single"))
+                item(Choice(ViewKey.Text("a"), "a", "First")) {
+                    semantics = ComponentSemantics(automationId = Some("single-a"))
+                }
+                item(Choice(ViewKey.Text("b"), "b", "Second")) {
+                    semantics = ComponentSemantics(automationId = Some("single-b"))
+                }
+            }
+        val multiView =
+            toggleGroup(probe.multiple.binding()) {
+                semantics =
+                    ComponentSemantics(name = Some("Multiple"), automationId = Some("multiple"))
+                item(Choice(ViewKey.Text("a"), "a", "First")) {
+                    semantics = ComponentSemantics(automationId = Some("multi-a"))
+                }
+                item(Choice(ViewKey.Text("b"), "b", "Second")) {
+                    semantics = ComponentSemantics(automationId = Some("multi-b"))
+                }
+            }
+        return column {
+            this.field(switchView) {
+                label(probe.caption.value, probe.switchTarget)
+                description("Switch help")
+                errors = ["Switch error"]
+                required = probe.required.value
+            }
+            this.toggle(toggleText, toggleSource) {
+                enabled = probe.enabled.value
+                semantics =
+                    ComponentSemantics(name = probe.toggleName.value, automationId = Some("toggle"))
+            }
+            this.field(radioView) {
+                label("Choose B", probe.radioTarget)
+                required = true
+            }
+            this.add(singleView)
+            this.add(multiView)
+        }
+    }
+}

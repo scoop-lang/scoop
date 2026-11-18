@@ -223,6 +223,19 @@ internal class DrawerBodyMarker(
         area = Some(current)
         props.value.bodyArea = Some(current);
         scope.routeChildren(current)
+        scope.resource {
+            current.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Contact(InputContactEvent.Began(_)) -> {
+                        val control = props.value.control ?: return@addDefaultAction
+                        if (control.active && control.read().props.dragThreshold == 0.0)
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+        }
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

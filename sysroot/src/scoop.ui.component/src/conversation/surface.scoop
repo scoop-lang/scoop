@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.window.accessibility.*
 
 public enum MessageAlignment {
     Start, End
@@ -18,6 +19,7 @@ public open class ConversationActionBuilder internal constructor() {
     public var theme: ThemeSource? = None
     public var style: StyleOverride = styleOverride()
     public var key: ViewKey = ViewKey.Position
+    public var semantics: ComponentSemantics = ComponentSemantics()
     public fun style(configure: StyleOverrideBuilder.() -> Unit) {
         style = style.copy(configure)
     }
@@ -34,7 +36,11 @@ internal class ConversationSurfaceProps(
     val onClick: (() -> Unit)?,
     val enabled: Boolean,
     val focus: FocusOptions,
-    val fonts: FontCollection? = None
+    val fonts: FontCollection? = None,
+    val semantics: ComponentSemantics = ComponentSemantics(),
+    val semanticRole: SemanticRole? = None,
+    val semanticState: SemanticProperties? = None,
+    val semanticActions: SemanticActions? = None
 )
 
 /** Keeps one input and content identity when an optional action changes. */
@@ -50,6 +56,40 @@ internal class ConversationSurface(
             }
         }
     private val control = PressControl(scope, PressOptions(false), props.value.focus, click)
+    private var semantics: SemanticsHandle? = None
+    private fun prepareSemantics(): SemanticsHandle? {
+        val input = props.value
+        val role =
+            input.semanticRole ?:
+                if (panelPresent(input.onClick))
+                    SemanticRole.Button
+                else
+                    SemanticRole.Group
+        when (semantics) {
+            case Some(val old) -> if (old.isClosed || old.role != role) {
+                if (!old.isClosed)
+                    old.close()
+                semantics = None
+            }
+            case None -> {}
+        }
+        if (!panelPresent(semantics))
+            semantics = createComponentSemantics(scope, role)
+        when (semantics) {
+            case Some(val target) -> {
+                target.mergeLabels = true
+                target.bindFocus(
+                    if (panelPresent(input.onClick))
+                        Some(control.focus)
+                    else
+                        None
+                )
+            }
+            case None -> {}
+        }
+        scope.routeSemanticsChildren(semantics)
+        return semantics
+    }
     public override fun render(): View {
         val input = props.value
         val visual =
@@ -68,7 +108,8 @@ internal class ConversationSurface(
                         value.inlines,
                         value.theme,
                         value.baseStyle,
-                        value.underline
+                        value.underline,
+                        value.semantics
                     )
                 )
                 else -> input.content
@@ -82,7 +123,15 @@ internal class ConversationSurface(
                     input.style,
                     visual,
                     ActionBehavior.Press(control, click, input.focus),
-                    actionable = panelPresent(input.onClick)
+                    actionable = panelPresent(input.onClick),
+                    semanticOptions = input.semantics,
+                    semanticState =
+                        Some(
+                            input.semanticState ?:
+                                input.semantics.properties(enabled = input.enabled)
+                        ),
+                    semanticActions = input.semanticActions,
+                    prepareSemantics = Some { prepareSemantics() }
                 ),
                 { current, mount -> ActionInk(current, mount) },
                 [
@@ -152,7 +201,8 @@ internal fun conversationCaption(
                     value.inlines,
                     value.theme,
                     value.baseStyle,
-                    value.underline
+                    value.underline,
+                    value.semantics
                 )
             )
             else -> content

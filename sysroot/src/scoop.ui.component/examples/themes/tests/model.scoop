@@ -30,6 +30,8 @@ private class ShowcaseModelTest {
         assertEquals(Some(16.0), model.source.current.value.scrollbarMetrics().buttonLength)
         model.selectMode(ModeChoice.System)
         assertEquals(ThemeMode.Dark, model.source.current.value.tokens.mode)
+        model.select(ThemeChoice.Shadcn)
+        assertEquals(ThemeMode.Dark, model.source.current.value.tokens.mode)
         model.enabled.value = false
         model.glow.value = true
         model.select(ThemeChoice.MacOS)

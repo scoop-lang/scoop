@@ -1,0 +1,45 @@
+package scoop.tests.window.clicks
+
+import scoop.test.*
+
+@Extern(name = "scoop_test_click_sequence")
+private fun nativeSequence(scenario: Int): Int
+
+private fun checkSequence(scenario: Int) {
+    @Unsafe
+    {
+        assertEquals(
+            0,
+            nativeSequence(scenario),
+            Some("native clicks.c returned the line of a failed contract check")
+        )
+    }
+}
+
+@Test
+private class ClickSequenceTest {
+    @Test
+    fun `ordinary and native double messages form a complete consecutive count`() {
+        checkSequence(0)
+    }
+    @Test
+    fun `time limits use input timestamps including DWORD wrap`() {
+        checkSequence(1)
+    }
+    @Test
+    fun `screen pixel rectangles retain boundaries and distinguish moved windows`() {
+        checkSequence(2)
+    }
+    @Test
+    fun `dragging out and back ends the old count without restoring a native double`() {
+        checkSequence(3)
+    }
+    @Test
+    fun `cancellation button changes and overflow preserve a valid count`() {
+        checkSequence(4)
+    }
+    @Test
+    fun `each press applies current system time and distance thresholds`() {
+        checkSequence(5)
+    }
+}

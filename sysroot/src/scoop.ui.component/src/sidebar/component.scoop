@@ -12,7 +12,7 @@ public class Sidebar public constructor(
     private val props: Props<SidebarProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     private val mobile = state(false)
     private val scroll = ScrollState()
     private val layer = OverlayHandle()
@@ -192,7 +192,9 @@ internal class SidebarPanel(
         val footer = context.measureChild(2L, Constraints(width, Some(width)))
         val height =
             when (constraints.maxHeight) {
-                case Some(val value) -> Some(max(0.0, value - header.size.height - footer.size.height))
+                case Some(val value) -> Some(
+                    max(0.0, value - header.size.height - footer.size.height)
+                )
                 case None -> None
             }
         val body = context.measureChild(1L, Constraints(width, Some(width), maxHeight = height))

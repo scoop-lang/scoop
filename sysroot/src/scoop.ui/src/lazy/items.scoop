@@ -23,8 +23,10 @@ internal class LazyItemEntry(
     var lastUsed: TimeMark
 ) {
     var selected = true
+    var semanticPins = 0
     val pinned: Boolean get() =
-        node.active && (node.scope.hasInputActivity || node.root.focus.hasPendingIn(node))
+        node.active &&
+            (semanticPins > 0 || node.scope.hasInputActivity || node.root.focus.hasPendingIn(node))
 }
 
 internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
@@ -33,6 +35,16 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     private var entries: Array<LazyItemEntry> = []
     private val keyed = HashMap<ViewKey, LazyItemEntry>()
     val count: Long get() = total
+
+    fun uses(value: ItemSource): Boolean = source === value
+    fun bindSemantics(parent: SemanticsHandle) {
+        for (entry in entries)
+            bindLazyItemSemantics(entry, parent)
+    }
+    fun unbindSemantics() {
+        for (entry in entries)
+            entry.node.semanticItem?.close()
+    }
 
     fun keyAt(index: Long): ViewKey = checkedItemKey(source, total, index)
     fun focusedEntry(): LazyItemEntry? {
@@ -135,6 +147,10 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         keyed.put(key, entry)
         // Keep the new mount reachable before any user render or lifecycle callback.
         publishOrder(node)
+        when (node.lazySemantics) {
+            case Some(val parent) -> bindLazyItemSemantics(entry, parent)
+            case None -> {}
+        }
         child.rebuild(UpdateTurn())
         child.mountPending()
         if (!node.root.isOpen)
@@ -220,7 +236,14 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         )
     private fun publishOrder(node: MountedNode) {
         entries = entries.sortedBy<LazyItemEntry, Long> { entry -> entry.index }.toArray()
+        var changed = node.children.size != entries.size
+        if (!changed)
+            for (index in 0L ..< entries.size)
+                if (node.children[index] !== entries[index].node)
+                    changed = true
         node.children = Array(entries.size) { index -> entries[index].node }
+        if (changed)
+            node.root.semantics?.structureChanged()
     }
     private fun retain(node: MountedNode, keep: Array<LazyItemEntry>) {
         val previous = entries

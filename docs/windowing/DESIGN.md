@@ -280,7 +280,7 @@ Windows 平台移植的参考状态见[分支进度](https://github.com/scoop-la
 | Win32／DXGI rendering surface | 实施时增加 NativeWindowHandle.Win32，并遵守 lease 寿命 |
 | 系统关机、激活限制、DWM 功能差异 | 退出原因、RequestStatus、WindowFeature／WindowException |
 
-Windows 后端要求创建窗口的 owner 使用 Per-Monitor V2。应用优先通过已有 `[windows].rc` 嵌入 DPI manifest；没有声明时，在任何 HWND 或依赖 DPI 的 UI 初始化前设置并确认实际模式。已是所需模式时直接使用；已有不同模式或设置失败明确报告 WindowException，不能用被虚拟化的坐标冒充真实物理尺寸。`subsystem = "gui"` 只决定 executable subsystem，不隐含 DPI 设置，也不需要新增窗口专用的资源配置语言。参考[默认 DPI awareness](https://learn.microsoft.com/en-us/windows/win32/hidpi/setting-the-default-dpi-awareness-for-a-process)与 [WM_DPICHANGED](https://learn.microsoft.com/en-us/windows/win32/hidpi/wm-dpichanged)。
+Windows 后端要求创建窗口的 owner 使用 Per-Monitor V2。应用优先通过已有 `[windows].rc` 嵌入 DPI manifest；没有声明且进程尚未配置时，在任何 HWND 或依赖 DPI 的 UI 初始化前设置并确认实际模式。已是所需模式时直接使用；已有 Per-Monitor V1 时仅升级创建线程到 V2，既有 HWND 的 awareness 保持不变。System Aware 等虚拟化模式或设置失败明确报告 WindowException，不能用被虚拟化的坐标冒充真实物理尺寸。`subsystem = "gui"` 只决定 executable subsystem，不隐含 DPI 设置，也不需要新增窗口专用的资源配置语言。参考[默认 DPI awareness](https://learn.microsoft.com/en-us/windows/win32/hidpi/setting-the-default-dpi-awareness-for-a-process)、[线程 DPI awareness](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setthreaddpiawarenesscontext)与 [WM_DPICHANGED](https://learn.microsoft.com/en-us/windows/win32/hidpi/wm-dpichanged)。
 
 平台专有能力放 `platform.windows`；共同语义继续通过公共窗口 API 表达。真实 Windows 接入发现 API、事件、native 产物或构建合同需要变化时直接修订，并同步其他实际后端和调用方。首期不以“未来无需改 API”为验收承诺，也不创建 Windows 窗口空实现；后续验收必须包含真实模态循环、混合 DPI 和 renderer。
 

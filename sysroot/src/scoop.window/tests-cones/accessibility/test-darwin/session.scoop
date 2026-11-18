@@ -1,0 +1,455 @@
+package scoop.tests.window.accessibility
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+private class NativeActionFailure: Exception(Some("expected accessibility action failure"))
+
+private class ActionContext(val number: Int)
+
+context(value: ActionContext)
+private fun actionContext(): Int = value.number
+
+@Test
+private class AccessibilityTest {
+    @Test
+    fun `AppKit reads published nodes and completes real actions before retirement`() {
+        val handler = AccessibilityHandler()
+        try {
+            assertFailsWith<NativeActionFailure> {
+                context(ActionContext(37)) {
+                    Application().run(handler)
+                }
+            }
+            assertEquals(11, handler.operation)
+            assertEquals(1, handler.presses)
+            assertEquals(1, handler.toggles)
+            assertEquals(2, handler.writes)
+            assertEquals(2, handler.focusRequests)
+            assertEquals(2, handler.destroyed)
+            assertTrue(handler.failed)
+            @Unsafe
+            {
+                assertEquals(0, nativeLast(handler.probe!!, 11))
+            }
+        } finally {
+            handler.release()
+        }
+    }
+}
+
+private struct HeldWindow(val id: WindowId, val lease: NativeWindowLease)
+
+private class AccessibilityHandler: ApplicationHandler {
+    var probe: Ptr<Unit>? = None
+    var operation = 0
+    var presses = 0
+    var toggles = 0
+    var writes = 0
+    var focusRequests = 0
+    var destroyed = 0
+    var failed = false
+    private var application: ActiveApplication? = None
+    private var window: Window? = None
+    private var provider: AccessibilityProvider? = None
+    private var group: AccessibilityNode? = None
+    private var button: AccessibilityNode? = None
+    private var box: AccessibilityNode? = None
+    private var field: AccessibilityNode? = None
+    private var buttonId: SemanticNodeId? = None
+    private var value = "alpha"
+    private val leases = ArrayList<HeldWindow>()
+    private var callback: ForeignCallback<(Ptr<Unit>, Int, Int) -> Int>? = None
+    private var scroll: AccessibilityScrollProbe? = None
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                this.application = Some(application)
+                val proxy = application.proxy()
+                @Unsafe
+                {
+                    callback =
+                        Some(
+                            foreignCallback<(Ptr<Unit>, Int, Int) -> Int>(
+                                {
+                                    operation: Int, result: Int ->
+                                    proxy.post {
+                                        _ -> if (operation < 0)
+                                            completeScroll(-operation - 1, result)
+                                        else
+                                            complete(operation, result)
+                                    }
+                                    0
+                                },
+                                0,
+                                ForeignCallbackMode.Reusable
+                            )
+                        )
+                }
+                initial()
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(12L))
+                )
+                scroll = Some(AccessibilityScrollProbe(provider!!, currentView()))
+                scroll!!.post(0, callback!!)
+            }
+            case Window(val id, WindowEvent.Closing) -> {
+                for (held in leases)
+                    if (held.id == id)
+                        held.lease.close()
+            }
+            case Window(_, WindowEvent.Destroyed) -> destroyed += 1
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"accessibility operation ${operation} timed out")
+            )
+            else -> {}
+        }
+    }
+
+    private fun createWindow(): Ptr<Unit> {
+        val current =
+            application!!.createWindow(
+                windowAttributes {
+                    title = "Scoop accessibility"
+                    size = LogicalSize(320.0, 200.0)
+                }
+            )
+        window = Some(current)
+        @Unsafe
+        {
+            val lease = current.acquireNativeWindow()
+            leases.add(HeldWindow(current.id, lease))
+            return when (lease.handle) {
+                case AppKit(_, val view) -> view
+            }
+        }
+    }
+
+    private fun currentView(): Ptr<Unit> {
+        @Unsafe
+        {
+            return when (leases[leases.size - 1L].lease.handle) {
+                case AppKit(_, val view) -> view
+            }
+        }
+    }
+
+    private fun initial() {
+        val view = createWindow()
+        val tree = window!!.createAccessibilityProvider()
+        provider = Some(tree)
+        assertFailsWith<IllegalStateException> { window!!.createAccessibilityProvider() }
+        checkRelations(tree, view)
+        checkHitGeometry(tree, view)
+        checkImage(tree, view)
+        val parent = tree.createNode(SemanticRole.Group)
+        group = Some(parent)
+        parent.update(SemanticProperties(automationId = Some("group")))
+        parent.geometry = Some(SemanticGeometry(rect(0.0, 0.0, 300.0, 150.0)))
+        val text = tree.createNode(SemanticRole.Text, Some(parent))
+        text.update(SemanticProperties(automationId = Some("text"), value = Some("")))
+        text.geometry = Some(SemanticGeometry(rect(0.0, 0.0, 0.0, 10.0)))
+        button = Some(tree.createNode(SemanticRole.Button, Some(parent)))
+        buttonId = Some(button!!.id)
+        button!!.reparent(Some(parent), 1L)
+        updateButton("Save")
+        button!!.geometry =
+            Some(SemanticGeometry(rect(10.0, 20.0, 40.0, 30.0), Some(rect(10.0, 20.0, 20.0, 30.0))))
+        box = Some(tree.createNode(SemanticRole.Checkbox))
+        box!!.reparent(None, 1L)
+        updateBox(true)
+        field = Some(tree.createNode(SemanticRole.TextField))
+        field!!.reparent(None, 2L)
+        updateField()
+        val secret = tree.createNode(SemanticRole.TextField)
+        secret.reparent(None, 3L)
+        secret.update(SemanticProperties(automationId = Some("secret"), protectedText = true))
+        val offscreen = tree.createNode(SemanticRole.Text)
+        offscreen.reparent(None, 4L)
+        offscreen.update(SemanticProperties(automationId = Some("offscreen")))
+        offscreen.geometry = Some(SemanticGeometry(rect(0.0, 500.0, 40.0, 30.0), None))
+        val hidden = tree.createNode(SemanticRole.Group)
+        hidden.update(SemanticProperties(hidden = true))
+        tree.createNode(SemanticRole.Text, Some(hidden)).update(
+            SemanticProperties(automationId = Some("hidden-child"))
+        )
+        assertFailsWith<IllegalArgumentException> { parent.reparent(Some(button!!)) }
+        assertFailsWith<IllegalArgumentException> {
+            button!!.update(SemanticProperties(checked = Some(SemanticChecked.On)))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            secret.update(SemanticProperties(value = Some("password"), protectedText = true))
+        }
+        for (role in [SemanticRole.Switch, SemanticRole.ToggleButton, SemanticRole.RadioButton]) {
+            val choice = tree.createNode(role)
+            choice.update(SemanticProperties(checked = Some(SemanticChecked.On)))
+            val geometry =
+                SemanticGeometry(rect(0.0, 0.0, 20.0, 20.0), Some(rect(0.0, 0.0, 20.0, 20.0)))
+            choice.geometry = Some(geometry)
+            val revision = choice.contentRevision
+            assertFailsWith<IllegalArgumentException> {
+                choice.update(SemanticProperties(checked = Some(SemanticChecked.Mixed)))
+            }
+            assertEquals(Some(geometry), choice.geometry)
+            assertEquals(revision, choice.contentRevision)
+            choice.close()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            button!!.geometry = Some(SemanticGeometry(rect(0.0, 0.0, -1.0, 3.0)))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            button!!.geometry =
+                Some(SemanticGeometry(rect(0.0, 0.0, 3.0, 3.0), Some(rect(2.0, 0.0, 2.0, 1.0))))
+        }
+        tree.publish()
+        @Unsafe
+        {
+            probe = Some(nativeOpen(view))
+            assertEquals(0, nativeCheck(probe!!, 0))
+            val unseen = tree.createNode(SemanticRole.Group)
+            tree.publish()
+            unseen.close()
+            assertEquals(0, nativeCheck(probe!!, 0))
+            tree.publish()
+            assertEquals(0, nativePress(probe!!))
+            updateButton("Later")
+            assertEquals(0, nativeCheck(probe!!, 1))
+            tree.publish()
+            assertEquals(0, nativeCheck(probe!!, 2))
+        }
+        updateButton("Save")
+        button!!.geometry = Some(SemanticGeometry(rect(10.0, 20.0, 40.0, 30.0)))
+        tree.publish()
+        assertEquals(0, presses)
+    }
+
+    private fun completeScroll(phase: Int, result: Int) {
+        if (scroll!!.complete(phase, result))
+            scroll!!.post(phase + 1, callback!!)
+        else {
+            scroll!!.close()
+            scroll = None
+            post(0)
+        }
+    }
+
+    private fun updateButton(name: String) {
+        button!!.update(
+            SemanticProperties(
+                name = Some(name),
+                description = Some("Write the document"),
+                automationId = Some("save")
+            ),
+            SemanticActions(
+                invoke =
+                    Some {
+                        assertEquals(37, actionContext())
+                        @Unsafe
+                        {
+                            assertEquals(0, nativePress(probe!!))
+                        }
+                        presses += 1
+                        updateButton("Saved")
+                        SemanticActionResult.Completed
+                    }
+            )
+        )
+    }
+
+    private fun updateBox(enabled: Boolean) {
+        box!!.update(
+            SemanticProperties(
+                automationId = Some("check"),
+                enabled = enabled,
+                checked =
+                    Some(
+                        if (toggles == 0)
+                            SemanticChecked.Off
+                        else
+                            SemanticChecked.On
+                    )
+            ),
+            SemanticActions(
+                toggle =
+                    Some {
+                        toggles += 1
+                        updateBox(true)
+                        SemanticActionResult.Completed
+                    }
+            )
+        )
+    }
+
+    private fun updateField() {
+        field!!.update(
+            SemanticProperties(
+                automationId = Some("field"),
+                name = Some("Title"),
+                value = Some(value)
+            ),
+            SemanticActions(
+                setValue =
+                    Some {
+                        next ->
+                        writes += 1
+                        if (next == "deny")
+                            SemanticActionResult.Rejected
+                        else {
+                            value = next
+                            updateField()
+                            SemanticActionResult.Completed
+                        }
+                    },
+                focus =
+                    Some {
+                        focused ->
+                        focusRequests += 1
+                        if (focused) {
+                            window!!.requestFocus()
+                            if (window!!.isFocused) {
+                                provider!!.focused = field
+                                SemanticActionResult.Completed
+                            } else
+                                SemanticActionResult.Rejected
+                        } else {
+                            provider!!.focused = None
+                            SemanticActionResult.Completed
+                        }
+                    }
+            )
+        )
+    }
+
+    private fun post(next: Int) {
+        operation = next
+        @Unsafe
+        {
+            nativePost(probe!!, next, callback!!.function, callback!!.context)
+        }
+    }
+
+    private fun complete(completed: Int, result: Int) {
+        assertEquals(operation, completed)
+        assertEquals(0, result, Some("native/darwin.m returned a failed contract line"))
+        when (completed) {
+            case 5 -> {
+                group!!.update(SemanticProperties(automationId = Some("group"), hidden = true))
+                provider!!.publish()
+            }
+            case 6 -> {
+                assertEquals(1, presses)
+                group!!.update(SemanticProperties(automationId = Some("group")))
+                updateBox(false)
+                provider!!.publish()
+            }
+            case 7 -> {
+                assertEquals(1, toggles)
+                button!!.update(
+                    SemanticProperties(automationId = Some("save")),
+                    SemanticActions(
+                        invoke =
+                            Some {
+                                button!!.close()
+                                SemanticActionResult.Completed
+                            }
+                    )
+                )
+                provider!!.publish()
+            }
+            case 8 -> {
+                assertTrue(button!!.isClosed)
+                assertFailsWith<IllegalStateException> { button!!.update(SemanticProperties()) }
+                button = Some(provider!!.createNode(SemanticRole.Button, group))
+                assertFalse(button!!.id == buttonId!!)
+                button!!.update(
+                    SemanticProperties(automationId = Some("save")),
+                    SemanticActions(
+                        invoke =
+                            Some {
+                                provider!!.close()
+                                SemanticActionResult.Completed
+                            }
+                    )
+                )
+                provider!!.publish()
+                @Unsafe
+                {
+                    nativeRefreshButton(probe!!)
+                }
+            }
+            case 9 -> {
+                assertTrue(provider!!.isClosed)
+                assertEquals(WindowState.Open, window!!.state)
+                val old = button!!
+                provider = Some(window!!.createAccessibilityProvider())
+                button = Some(provider!!.createNode(SemanticRole.Button))
+                assertFalse(button!!.id == buttonId!!)
+                assertFailsWith<IllegalArgumentException> { button!!.reparent(Some(old)) }
+                button!!.update(
+                    SemanticProperties(automationId = Some("save")),
+                    SemanticActions(
+                        invoke =
+                            Some {
+                                window!!.requestDestroy()
+                                SemanticActionResult.Completed
+                            }
+                    )
+                )
+                provider!!.publish()
+                @Unsafe
+                {
+                    assertEquals(0, nativeRebind(probe!!, currentView()))
+                }
+            }
+            case 10 -> {
+                assertTrue(provider!!.isClosed)
+                val view = createWindow()
+                provider = Some(window!!.createAccessibilityProvider())
+                button = Some(provider!!.createNode(SemanticRole.Button))
+                button!!.update(
+                    SemanticProperties(automationId = Some("save")),
+                    SemanticActions(
+                        invoke =
+                            Some {
+                                failed = true
+                                throw NativeActionFailure()
+                            }
+                    )
+                )
+                provider!!.publish()
+                @Unsafe
+                {
+                    assertEquals(0, nativeRebind(probe!!, view))
+                }
+            }
+            else -> {}
+        }
+        post(completed + 1)
+    }
+
+    fun release() {
+        scroll?.close()
+        scroll = None
+        @Unsafe
+        {
+            when (probe) {
+                case Some(val value) -> nativeClose(value);
+                case None -> {}
+            }
+            when (callback) {
+                case Some(val value) -> releaseForeignCallback(value);
+                case None -> {}
+            }
+        }
+        probe = None
+        callback = None
+    }
+}
+
+private fun rect(x: Double, y: Double, width: Double, height: Double): LogicalRect =
+    LogicalRect(LogicalPosition(x, y), LogicalSize(width, height))

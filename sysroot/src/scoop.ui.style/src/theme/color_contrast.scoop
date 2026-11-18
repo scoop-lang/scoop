@@ -1,0 +1,29 @@
+package scoop.ui.style
+
+import scoop.graphics.Color
+
+/**
+ * Composite a color pair onto an opaque sRGB canvas and reach the requested contrast.
+ * Preserve a sufficient background; adjust it only when no foreground could meet the ratio.
+ * Channels must be finite and the minimum must be between 1 and 21, inclusive.
+ */
+public fun contrastThemeColors(pair: ColorPair, canvas: Color, minimum: Double = 7.0): ColorPair {
+    requireStyle(
+        minimum.isFinite() && minimum >= 1.0 && minimum <= 21.0,
+        "theme contrast minimum must be finite and between 1 and 21"
+    )
+    requireStyle(
+        finiteContrastColor(pair.background) &&
+            finiteContrastColor(pair.foreground) &&
+            finiteContrastColor(canvas),
+        "theme contrast colors must be finite"
+    )
+    requireStyle(canvas.alpha == 1.0, "theme contrast canvas must be opaque")
+    return preferencePair(pair, opaqueThemeColor(canvas, Color.White), true, minimum)
+}
+
+private fun finiteContrastColor(value: Color): Boolean =
+    value.red.isFinite() &&
+        value.green.isFinite() &&
+        value.blue.isFinite() &&
+        value.alpha.isFinite()

@@ -1,0 +1,30 @@
+package scoop.ui.text
+
+import scoop.ui.*
+import scoop.window.accessibility.SemanticActionResult
+
+/** An explicit menu action may focus its target; menu tracking stays on the existing native queue. */
+internal fun semanticTextMenu(
+    focus: FocusTarget,
+    menu: TextContextMenu,
+    open: () -> Boolean
+): SemanticActionResult {
+    if (!focus.active)
+        return SemanticActionResult.Unavailable
+    if (!focus.available)
+        return SemanticActionResult.Rejected
+    if (menu.pending)
+        return SemanticActionResult.Busy
+    if (!focus.handle.isFocusActive) {
+        if (!focus.handle.requestFocus())
+            return SemanticActionResult.Rejected
+        if (!focus.active)
+            return SemanticActionResult.Unavailable
+        if (!focus.handle.isFocusActive)
+            return SemanticActionResult.Busy
+    }
+    return if (open())
+        SemanticActionResult.Completed
+    else
+        SemanticActionResult.Rejected
+}

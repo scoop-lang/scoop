@@ -25,13 +25,26 @@ internal fun toggleOptions(
             colors.muted.background
         else
             Color.Transparent
-    val fill =
+    val sampled =
         StateColors(
             normal,
             colors.muted.background,
             mixThemeColor(colors.muted.background, colors.background.foreground, 0.08),
             normal
         ).resolve(visual)
+    val fill =
+        if (theme.preferences.highContrast)
+            if (selected || (visual.enabled && (visual.hovered || visual.pressed)))
+                actionContrastPair(
+                    theme,
+                    ActionShape.Toggle(variant, size, selected),
+                    ButtonVariant.Default,
+                    visual
+                ).background
+            else
+                Color.Transparent
+        else
+            componentBackground(theme, sampled)
     val border = controlBorder(theme, style.surface, visual, colors.input)
     val local =
         styleOverride {

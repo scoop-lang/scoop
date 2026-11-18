@@ -1,0 +1,264 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.InputArea
+import scoop.window.*
+
+/** Coordinates are frozen from one accepted input path before asking receivers. */
+internal struct DropCandidate(val target: DropArea, val position: Point)
+
+private class DropReply<T>(var value: T)
+
+private struct DropSelection(
+    val target: DropArea,
+    val position: Point,
+    val windowPosition: LogicalPosition,
+    val format: DragFormat,
+    val effect: DragEffect,
+    val revision: ULong
+)
+
+internal class RootDrops(
+    private val root: UiRoot,
+    create: (DropHandlers) -> DropTarget
+): Closeable {
+    private val areas = ArrayList<DropArea>()
+    private val leaves = ArrayList<DropArea>()
+    private var selected: DropSelection? = None
+    private var closed = false
+    private val native =
+        create(
+            DropHandlers(
+                offer = { value -> nativeOffer(value) },
+                drop = { value -> nativeDrop(value) },
+                leave =
+                    {
+                        dispatch { endSelection(true, false) };
+                        Unit
+                    }
+            )
+        )
+
+    fun create(
+        scope: ComponentScope,
+        area: InputArea,
+        handlers: DropAreaHandlers,
+        enabled: Boolean
+    ): DropArea {
+        for (current in areas)
+            requireUi(current.area !== area, "input area already has a drop receiver")
+        val value = DropArea(scope, this, area, handlers, enabled)
+        areas.add(value)
+        native.enabled = true
+        return value
+    }
+
+    private fun candidates(position: LogicalPosition): Array<DropCandidate> {
+        val result = ArrayList<DropCandidate>()
+        for (hit in root.surface.hitInput(Point(position.x, position.y))) {
+            val local = hit.localPosition ?: continue
+            for (area in areas)
+                if (area.area.scope === hit.scope) {
+                    result.add(DropCandidate(area, local))
+                    break
+                }
+        }
+        return result.toArray()
+    }
+    private fun dispatch(flush: Boolean = true, action: () -> Unit): Boolean {
+        if (closed || !root.isOpen || root.host.isDispatching)
+            return false
+        when (currentEvaluation()) {
+            case Some(_) -> return false
+            case None -> {}
+        }
+        return root.surface.dispatch {
+            flushLeaves()
+            action()
+            if (flush && root.isOpen)
+                root.flush()
+        }
+    }
+    private fun nativeOffer(value: DropOffer): DropDecision {
+        val result = DropReply(DropDecision.Reject)
+        val alive =
+            dispatch(false) { result.value = offerCandidates(value, candidates(value.position)) }
+        val proposal = selected ?: return DropDecision.Reject
+        return if (
+            alive &&
+                !closed &&
+                proposal.target.available &&
+                proposal.revision ==
+                proposal.target.revision
+        )
+            result.value
+        else
+            DropDecision.Reject
+    }
+    private fun nativeDrop(value: DropRequest): Boolean {
+        val result = DropReply(false)
+        dispatch { result.value = dropCandidates(value, candidates(value.offer.position)) }
+        return result.value
+    }
+
+    internal fun offerCandidates(value: DropOffer, route: Array<DropCandidate>): DropDecision {
+        if (closed || !root.isOpen)
+            return DropDecision.Reject
+        var next: DropSelection? = None
+        for (candidate in route) {
+            val area = candidate.target
+            if (!area.available)
+                continue
+            val revision = area.revision
+            val decision = area.offer(value, candidate.position)
+            if (closed || !root.isOpen)
+                return DropDecision.Reject
+            if (!area.available || revision != area.revision)
+                continue
+            when (decision) {
+                case Accept(val format, val effect) -> {
+                    if (value.formats.contains(format) && value.effects.allows(effect)) {
+                        next =
+                            Some(
+                                DropSelection(
+                                    area,
+                                    candidate.position,
+                                    value.position,
+                                    format,
+                                    effect,
+                                    revision
+                                )
+                            )
+                        break
+                    }
+                }
+                case Reject -> {}
+            }
+        }
+        val previous = selected
+        val same =
+            when ((previous, next)) {
+                case(Some(val a), Some(val b)) -> a.target === b.target
+                case(None, None) -> true
+                else -> false
+            }
+        if (!same)
+            endSelection(true, false)
+        when (next) {
+            case Some(val value) -> {
+                if (
+                    closed ||
+                        !root.isOpen ||
+                        !value.target.available ||
+                        value.target.revision !=
+                        value.revision
+                ) {
+                    endSelection(true, false)
+                    return DropDecision.Reject
+                }
+                selected = Some(value)
+                value.target.publish(Some(DropHover(value.position, value.format, value.effect)))
+                return DropDecision.Accept(value.format, value.effect)
+            }
+            case None -> return DropDecision.Reject
+        }
+    }
+
+    internal fun dropCandidates(value: DropRequest, route: Array<DropCandidate>): Boolean {
+        if (closed || !root.isOpen)
+            return false
+        val proposal = selected ?: return false
+        val area = proposal.target
+        if (
+            !area.available ||
+                proposal.revision !=
+                area.revision ||
+                proposal.windowPosition !=
+                value.offer.position ||
+                proposal.effect !=
+                value.effect ||
+                !value.offer.formats.contains(proposal.format) ||
+                !value.offer.effects.allows(proposal.effect) ||
+                !matchesFormat(value.content, proposal.format)
+        )
+            return false
+        var current = false
+        for (candidate in route)
+            if (candidate.target === area && candidate.position == proposal.position) {
+                current = true
+                break
+            }
+        if (!current)
+            return false
+        // Consume before invoking user code, including a callback that closes this root.
+        selected = None
+        area.publish(None)
+        val result = area.receive(value, proposal.position)
+        if (!area.isClosed)
+            leaves.add(area)
+        return result
+    }
+
+    fun updated(area: DropArea) {
+        when (selected) {
+            case Some(val value) -> if (value.target === area && !area.available)
+                endSelection(true, true)
+            case None -> {}
+        }
+    }
+    private fun endSelection(notify: Boolean, deferred: Boolean) {
+        val value = selected ?: return
+        selected = None
+        value.target.publish(None)
+        if (notify && !value.target.isClosed) {
+            if (deferred) {
+                leaves.add(value.target)
+                root.host.enqueue(root)
+            } else {
+                value.target.leave()
+            }
+        }
+    }
+    fun flushLeaves() {
+        val work = leaves.toArray()
+        leaves.clear()
+        for (area in work)
+            if (!closed && root.isOpen && !area.isClosed)
+                area.leave()
+    }
+    fun retire(area: DropArea) {
+        when (selected) {
+            case Some(val value) -> if (value.target === area)
+                endSelection(false, false)
+            case None -> {}
+        }
+        for (index in 0L ..< areas.size)
+            if (areas[index] === area) {
+                areas.removeAt(index)
+                break
+            }
+        if (!closed && !native.isClosed && areas.size == 0L)
+            native.enabled = false
+    }
+    public override fun close() {
+        root.checkThread()
+        if (closed)
+            return
+        closed = true
+        selected = None
+        leaves.clear()
+        var failure = cleanupUi(None) { native.close() }
+        val work = areas.toArray()
+        areas.clear()
+        for (area in work)
+            failure = cleanupUi(failure) { area.close() }
+        throwUi(failure)
+    }
+}
+
+private fun matchesFormat(content: DragContent, format: DragFormat): Boolean =
+    when (content) {
+        case Text(_) -> format == DragFormat.Text
+        case Url(_) -> format == DragFormat.Url
+        case Files(_) -> format == DragFormat.Files
+    }

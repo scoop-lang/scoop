@@ -1,0 +1,139 @@
+package scoop.tests.ui.accessibility.selectable
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal fun selectableText(alternative: String, size: Double = 14.0): StyledText =
+    styledText {
+        style {
+            families = ["UI Sans"];
+            this.fontSize = size
+        }
+        text("A")
+        inlineObject(InlineKey.Text("badge"), alternative)
+        text("é")
+        inlineObject(InlineKey.Text("silent"), "")
+        text("Z")
+    }
+
+private struct SelectableInput(
+    val content: StyledText,
+    val inlines: Array<InlineView>,
+    val enabled: Boolean,
+    val protectedText: Boolean,
+    val menus: Boolean
+)
+
+internal class SelectableRoot(private val probe: SelectableProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val content = probe.content.value
+        val inlines =
+            [
+                inlineView(InlineKey.Text("badge"), element({ mount -> InlineBox(mount) })),
+                inlineView(InlineKey.Text("silent"), element({ mount -> InlineBox(mount) }))
+            ]
+        val input =
+            SelectableInput(
+                content,
+                inlines,
+                probe.enabled.value,
+                probe.protectedText.value,
+                probe.menus.value
+            )
+        return element(
+            input,
+            { props, mount -> SelectableField(probe, props, mount) },
+            inlineChildren(content, inlines)
+        )
+    }
+}
+
+private class SelectableField(
+    private val probe: SelectableProbe,
+    private val props: Props<SelectableInput>,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Text)
+    private val host =
+        scope.resource { SelectableTextHost(scope, probe.fonts, props.value.content) }
+    init {
+        probe.semantic = Some(semantic)
+        probe.host = Some(host)
+        probe.mounts += 1
+        val wrong = scope.semantics(SemanticRole.TextField)
+        assertFailsWith<IllegalArgumentException> { wrong.updateSelectableText(host) }
+        wrong.close()
+        host.setSelection(TextPosition(7L), TextPosition(1L))
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        host.update(
+            probe.fonts,
+            input.content,
+            SelectableTextOptions(
+                enabled = input.enabled,
+                contextMenu =
+                    textContextMenu {
+                        mode =
+                            if (input.menus)
+                                TextContextMenuMode.StandardNative
+                            else
+                                TextContextMenuMode.Disabled
+                    }
+            ),
+            onSelectionChanged =
+                {
+                    _, _ ->
+                    refresh()
+                    probe.changes += 1
+                }
+        )
+        refresh()
+        return UiInvalidation.Layout
+    }
+    private fun refresh() {
+        semantic.updateSelectableText(
+            host,
+            SemanticProperties(
+                name = Some("Read-only document"),
+                automationId = Some("selectable"),
+                protectedText = props.value.protectedText
+            )
+        )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        probe.measures += 1
+        val measured = host.measure(context, constraints, inlines = props.value.inlines)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        probe.scenes += 1
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+        host.scene(context, measured)
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.geometryReady()
+        }
+    }
+}
+
+private class InlineBox(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(10.0, 10.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 10.0, 10.0), Paint(Color.Black))
+        }
+    }
+}

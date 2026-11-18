@@ -1,12 +1,14 @@
 package scoop.ui
 
 import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
 import scoop.surface.FrameContext
 import scoop.surface.FrameCompletion
 import scoop.surface.FrameSubmission
 import scoop.surface.InputArea
 import scoop.surface.WindowRegionHandle
 import scoop.time.TimeMark
+import scoop.ui.text.NativeTextSource
 
 internal class ScenePass {
     var presentedChildren = false
@@ -53,11 +55,51 @@ public class SceneContext internal constructor(
         checkActive()
         return epochs.size > 0L || paintCache != PaintCachePolicy.None
     }
+    /** Text contact targets follow this frame's enclosing viewport clips. */
+    internal fun textHandleBounds(bounds: Rect): Rect? {
+        checkActive()
+        pass.cacheable = false
+        @Unsafe
+        {
+            val geometry = captureGeometry(frame.canvas, bounds)
+            try {
+                val visible = geometry.visibleBounds ?: return None
+                val local = localReveal(geometry, visible) ?: return None
+                return intersectReveal(bounds, local)
+            } finally {
+                geometry.close()
+            }
+        }
+    }
     /** Captures current transform and clip without creating an input target. */
     public fun anchor(handle: LayoutAnchor, rect: Rect) {
         checkActive()
         handle.capture(node, node.root.overlays.frame, frame.canvas, rect)
         recorder?.add(SceneCommand.Anchor(handle, rect))
+    }
+    /** Captures semantic geometry in the same transformed and clipped scene. */
+    public fun semantics(handle: SemanticsHandle, bounds: Rect) {
+        checkActive()
+        checkSemanticOwner(node, handle)
+        handle.controller.capture(handle, frame.canvas, bounds, scrollPath)
+        recorder?.add(SceneCommand.Semantics(handle, bounds))
+    }
+    /** Captures a precise path; like path input placement, this scene is not cached. */
+    public fun semantics(handle: SemanticsHandle, shape: Path) {
+        checkActive()
+        checkSemanticOwner(node, handle)
+        pass.cacheable = false
+        handle.controller.capture(handle, frame.canvas, shape, scrollPath)
+    }
+    internal fun textSemantics(
+        binding: SemanticTextBinding,
+        bounds: Rect,
+        source: NativeTextSource
+    ) {
+        checkActive()
+        checkSemanticOwner(node, binding.handle)
+        pass.cacheable = false
+        binding.handle.controller.captureText(binding, frame.canvas, bounds, source, scrollPath)
     }
     /** Runs after this frame ends, while this node remains mounted and its root remains open. */
     public fun onFrameComplete(action: (FrameCompletion) -> Unit) {
@@ -197,7 +239,10 @@ public class SceneContext internal constructor(
             child ->
             val snapshot = layout.snapshot
             child.clipRect(Rect(0.0, 0.0, snapshot.viewport.width, snapshot.viewport.height))
-            child.translate(origin.x - snapshot.offset.x, origin.y - snapshot.offset.y)
+            child.translate(
+                origin.x - layout.presentationOffset.x + snapshot.padding.left,
+                origin.y - layout.presentationOffset.y + snapshot.padding.top
+            )
             block(child)
         }
     }

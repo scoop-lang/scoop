@@ -6,6 +6,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.Theme
+import scoop.window.accessibility.*
 
 internal class SelectPopupProps(
     val open: Binding<Boolean>,
@@ -31,7 +32,7 @@ internal class SelectPopup(
     private val props: Props<SelectPopupProps>,
     scope: ComponentScope
 ): Component(scope) {
-    private val themes = ThemeAccess()
+    private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.options.theme)
     }
@@ -59,7 +60,29 @@ internal class SelectPopup(
             element(
                 PopupMotionProps(input.options.enabled, 8.0 * density),
                 { current, mount -> PopupMotion(current, scope = mount) },
-                [panel]
+                [
+                    semanticContent(
+                        panel,
+                        SemanticRole.Menu,
+                        input.options.semantics.properties(
+                            enabled = input.options.enabled,
+                            modal = input.options.mode == OverlayMode.Modal
+                        ),
+                        SemanticActions(
+                            dismiss =
+                                Some {
+                                    input.handle.requestClose()
+                                    if (!inputs.value.open.value)
+                                        SemanticActionResult.Completed
+                                    else
+                                        SemanticActionResult.Rejected
+                                }
+                        ),
+                        relations = input.options.semantics.relations,
+                        mergeLabels = false,
+                        reference = input.options.semantics.reference
+                    )
+                ]
             )
         ) {
             placement =
@@ -147,7 +170,7 @@ internal class SelectPanel(
             styleOverride {
                 background(Some(Paint(theme.tokens.palette.popover.background)))
                 border(
-                    Some(Border.all(1.0, theme.tokens.palette.background.foreground.withAlpha(0.1)))
+                    Some(Border.all(1.0, componentPanelBorder(theme, theme.tokens.palette.popover)))
                 )
                 corners(Corners.all(8.0 * density));
                 boxShadows(theme.tokens.effects.floating)

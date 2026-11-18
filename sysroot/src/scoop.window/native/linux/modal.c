@@ -55,7 +55,8 @@ void scoop_window_input_blocked(SWWindow *window, int32_t blocked) {
   window->input_blocked = blocked != 0;
   if (blocked) {
     window->saved_sensitive = gtk_widget_get_sensitive(window->window);
-    sw_cancel_pointer(window, 3);
+    sw_cancel_contacts(window, SWPointerModal);
+    sw_cancel_pointer(window, SWPointerModal);
     sw_reset_input(window);
     gtk_im_context_focus_out(sw_ime_context(window));
     gtk_widget_set_sensitive(window->window, FALSE);

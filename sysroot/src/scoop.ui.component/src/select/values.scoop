@@ -18,7 +18,8 @@ public class SelectItem<T: Equals<T>> public constructor(
     public val content: View? = None,
     public val icon: View? = None,
     public val focus: FocusOptions = FocusOptions(),
-    public val style: ButtonStyle = buttonStyle()
+    public val style: ButtonStyle = buttonStyle(),
+    public val semantics: ComponentSemantics = ComponentSemantics()
 )
 
 public enum SelectEntry<T: Equals<T>> {
@@ -82,7 +83,9 @@ public class SelectProps<T: Equals<T>> public constructor(
     public val onValueChange: (T?) -> Unit = {},
     public val onOpenChange: (Boolean) -> Unit = {},
     public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
-    public val onClosed: (OverlayCloseReason) -> Unit = {}
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val popupSemantics: ComponentSemantics = ComponentSemantics()
 ) {
     public val typeahead: TypeaheadOptions = typeahead ?: menuTypeahead()
     init {

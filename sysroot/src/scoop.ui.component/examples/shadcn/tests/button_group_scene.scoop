@@ -51,7 +51,7 @@ internal class ButtonGroupScene(
                 this.fonts = Some(this @ButtonGroupScene.probe.fonts)
                 this.text("https://") {}
                 this.input(this @ButtonGroupScene.probe.measurementEditor) {
-                    this.caretBlink = Duration.ZERO
+                    this.caretBlink = Some(Duration.ZERO)
                 }
                 this.button("Go", {}) {}
             }
@@ -103,7 +103,7 @@ internal class ButtonGroupScene(
                 makeInput(probe.editor) {
                     this.fonts = Some(this @ButtonGroupScene.probe.fonts)
                     this.focus { this.handle = Some(this @ButtonGroupScene.probe.focus[index]) }
-                    this.caretBlink = Duration.ZERO
+                    this.caretBlink = Some(Duration.ZERO)
                     this.group = Some(position)
                 }
             else
