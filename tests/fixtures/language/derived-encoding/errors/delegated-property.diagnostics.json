@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1311",
-    "message": "property `value` requires an explicit encode implementation or Serialize(ignore = true)",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic encode requires readable storage for `value`; provide an explicit encode implementation or mark it Serialize(ignore = true)",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 172,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 152
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 172,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 152
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 117,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 93
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Item.Companion` does not implement interface method `ValueEncoder<Item>.encode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 159,
+      "end": 212,
       "kind": "source",
       "path": "main.scoop",
-      "start": 122
+      "start": 175
     },
     "severity": "error"
   }

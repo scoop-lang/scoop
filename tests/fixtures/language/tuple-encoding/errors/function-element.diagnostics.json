@@ -1,24 +1,41 @@
 [
   {
-    "code": "E1312",
-    "message": "automatic encode has no ValueEncoder<() -> Unit> field codec",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "no field ValueEncoder for () -> Unit: provide a primary val dependency, a conforming companion, or an explicit encode implementation",
     "notes": [
       {
-        "code": "H1301",
-        "kind": "help",
-        "message": "provide a primary val dependency, a conforming companion, or an explicit encode implementation",
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
         "notes": [],
         "origin": {
-          "kind": "none"
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 63,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 30
         }
       }
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 47,
+      "end": 63,
       "kind": "source",
       "path": "main.scoop",
-      "start": 0
+      "start": 30
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Coding` does not implement interface method `ValueEncoder<(Int, () -> Unit)>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 113,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 66
     },
     "severity": "error"
   }

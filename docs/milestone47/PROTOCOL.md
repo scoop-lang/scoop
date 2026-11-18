@@ -1,6 +1,6 @@
 # M47：同步 generator 协议与语义查询
 
-状态：通用查询与同步协议已实现，codec 迁移待实施。初稿：2026-10-15；公共基础修订：2026-10-21。本文配套[主设计](DESIGN.md)及[可恢复语法／LSP 公共基础](../language-service/DESIGN.md)，只定义通用 HIR 查询与独立 generator 的同步交互。计划中的首个生产调用方为承接 M46 的 codec generator；消息和查询本身不含序列化策略。generator 返回可读的方法体源码文本，driver 使用同一 parser 的严格片段适配和正常 HIR lowering 填充指定 interface 的缺失实现，不扩展 AST 的绑定能力或编译器语义。真实 generator 的协议与产物闭环验证见[公共基础验收](../language-service/PROGRESS.md)。
+本文定义通用 HIR 查询与独立生成器之间的同步协议。`scoop.codec` 和 `scoop.cli` 都使用该协议查询模型并返回 Scoop 方法体源码。driver 将源码交给普通 parser，HIR lowering 在对应接口实现的定义环境中检查方法体。两个库各自决定字段与构造策略。[M47 主设计](DESIGN.md) · [codec 与 CLI 迁移及验收](CODEC-CLI-MIGRATION.md) · [公共基础验收](../language-service/PROGRESS.md)
 
 ## 1. 一条线性会话
 
@@ -243,7 +243,7 @@ logical property 与 backing field 保留各自的实际 target，不能丢失 u
 
 源码到 AST 只做词法与语法解析，不查询 HIR、类型或依赖库。当前 parser 已有函数体代码块解析，实施时仅包装通用片段入口并要求完整消费输入；不把生成片段伪装成新类或新方法后重新注册声明。
 
-可恢复语法基础接入后，文件、函数体和类型仍共用同一 lexer／grammar。生成片段可以保留错误语法以显示诊断，但只有没有词法／语法错误的完整 AST 能交回 lowerer；M47 不接受缺失节点或错误节点作为方法实现。后续编辑器使用同一语法结果，不另维护生成器专用 parser。
+文件、函数体和类型共用同一 lexer 和 grammar。生成片段提供方法正文及局部绑定的定义来源，注解所在文件提供词法作用域。方法签名沿用接口声明。片段内隐式引入的 receiver 和形参绑定定位在开头的左大括号，正文中显式写出的局部声明保留各自位置。调试信息与诊断使用相应源文件的坐标。parser 可以保留错误节点用于诊断，只有完整且通过语法检查的正文交给 lowerer。
 
 driver 将 parser 产出的现有函数体 AST 交给 hir-lower，在目标方法原有的 package／import、owner、receiver、参数、泛型与访问域中处理。片段中的名称按普通规则解析，调用正常参与重载与类型检查。generator 必须用普通名称、限定名和显式类型实参表达意图，不能要求引用查询中的某个 ID 就直接选定 callee。
 
@@ -262,9 +262,11 @@ driver 将 parser 产出的现有函数体 AST 交给 hir-lower，在目标方�
 
 ## 6. 诊断和源码关联
 
+生成器报告特定实现的诊断时可以附上当前批次的 `method: MethodId`。driver 使用该方法对应的接口选择器标注请求位置，主诊断仍可定位到当前或依赖 Cone 的字段、注解或构造器。整个批次的诊断可以省略 method。
+
 生成诊断采用现有 severity、message、主位置和 notes 的结构化模型。字段错误优先定位到字段／Serialize 应用，缺失 codec 定位到实际字段并关联生成请求，任务级失败定位到 GenerateWith 应用，必要时关联实际继承位置；配置错误定位到 generator 参数或 interface 的实际数组元素。重复接口或跨 generator 方法冲突关联前后两个配置元素。
 
-结果中的诊断编码为 `{code?: DiagnosticIdentifier, severity: "error" | "warning", message: String, location: SourceLocation | null, notes: [Note]}`；`Note` 保存 `{code?: DiagnosticIdentifier, message: String, location: SourceLocation | null, importPath: [String], notes: [Note]}`。`code` 使用编译器规范 §2.11 的注册编号或外部工具标识，查询适配保留原编号和递归附加信息；生成器自行报告且省略 code 时，主诊断使用外部标识 GENERATOR_DIAGNOSTIC，附注使用 N0001。没有主位置的任务错误使用该批首个生成请求位置；显式位置保留原 SourceIdentity 和 UTF-8 byte range。来源只按当前／已选依赖的普通 provider 引用解析，路径及范围检查只承担格式职责，不读取路径指向的外部源码。`compiler/query` 的语义错误使用 JSON-RPC `-32000`，data 为 `{diagnostics: [Diagnostic]}`；格式错误与未知方法仍使用标准错误码。查询失败不终止合法会话，生成器可以继续查询或返回自己的结果。
+结果中的诊断编码为 `{method?: MethodId, code?: DiagnosticIdentifier, severity: "error" | "warning", message: String, location: SourceLocation | null, notes: [Note]}`；`Note` 保存 `{code?: DiagnosticIdentifier, message: String, location: SourceLocation | null, importPath: [String], notes: [Note]}`。`code` 使用编译器规范 §2.11 的注册编号或外部工具标识，查询适配保留原编号和递归附加信息；生成器自行报告且省略 code 时，主诊断使用外部标识 GENERATOR_DIAGNOSTIC，附注使用 N0001。没有主位置的错误使用所指方法的生成请求位置，未指定方法时使用该批首个生成请求位置；显式位置保留原 SourceIdentity 和 UTF-8 byte range。来源只按当前／已选依赖的普通 provider 引用解析，路径及范围检查只承担格式职责，不读取路径指向的外部源码。`compiler/query` 的语义错误使用 JSON-RPC `-32000`，data 为 `{diagnostics: [Diagnostic]}`；格式错误与未知方法仍使用标准错误码。查询失败不终止合法会话，生成器可以继续查询或返回自己的结果。
 
 driver 将每个 source 原样保存在本次编译的诊断源码中，以目标方法关联其展示位置。parser 产生的 byte span 直接对应这段文本；词法、语法与 HIR 诊断显示片段中的行列和内容，并附注对应的 GenerateWith 应用。无需 generator 返回 AST 节点来源表，也不将所有生成表达式的错误压到注解的同一个位置。
 

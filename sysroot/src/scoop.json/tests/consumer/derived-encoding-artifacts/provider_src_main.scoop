@@ -10,6 +10,7 @@ public struct Packet<T>(
         public fun encoder(element: ValueEncoder<T>): ValueEncoder<Packet<T>> = PacketEncoder<T>(element)
     }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Packet<T>>"])
 internal class PacketEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Packet<T>>
 
 public enum Event<T> {
@@ -20,9 +21,11 @@ public enum Event<T> {
         public fun encoder(element: ValueEncoder<T>): ValueEncoder<Event<T>> = EventEncoder<T>(element)
     }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Event<T>>"])
 internal class EventEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Event<T>>
 
 public class Row public constructor(private val id: Int, public val name: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Row>"])
     public companion object : ValueEncoder<Row>
 }
 public class PublicRow public constructor(public val id: Int, @Serialize(rename = "label") public val name: String)

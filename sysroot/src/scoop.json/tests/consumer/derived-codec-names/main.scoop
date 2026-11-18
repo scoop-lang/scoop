@@ -1,0 +1,33 @@
+package scoop.json.tests.consumer.derived_codec_names
+
+import Option as CoreOption
+import ValueDecoder as Reader
+import ValueEncoder as Writer
+import scoop.json.Json
+import scoop.test.*
+
+private struct Option(val marker: Int)
+private struct ValueEncoder<T>(val marker: T)
+private struct ValueDecoder<T>(val marker: T)
+private struct ValueEncoderFunction<T>(val marker: T)
+private struct ValueDecoderFunction<T>(val marker: T)
+
+private struct Record(
+    @Serialize(rename = "pair-value") val `when`: CoreOption<(Int, String)> = CoreOption.None
+) {
+    @GenerateWith("scoop.codec", ["Writer<Record>", "Reader<Record>"])
+    public companion object : Writer<Record>, Reader<Record>
+}
+
+@Test
+private class CodecNames {
+    @Test
+    fun useDeclaredTypesInThePresenceOfLocalNames() {
+        val value = Record(CoreOption.Some((7, "seven")))
+        val text = "{\"pair-value\":[7,\"seven\"]}"
+        assertEquals(text, Json.encodeToString(value))
+        assertEquals(value, Json.decodeFromString<Record>(text))
+        assertEquals("{}", Json.encodeToString(Record()))
+        assertEquals(Record(), Json.decodeFromString<Record>("{}"))
+    }
+}

@@ -1,24 +1,54 @@
 [
   {
-    "code": "E1312",
-    "message": "automatic encode has no ValueEncoder<T> field codec",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "no field ValueEncoder for T: provide a primary val dependency, a conforming companion, or an explicit encode implementation",
     "notes": [
       {
-        "code": "H1301",
-        "kind": "help",
-        "message": "provide a primary val dependency, a conforming companion, or an explicit encode implementation",
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
         "notes": [],
         "origin": {
-          "kind": "none"
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 82,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 59
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 82,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 59
         }
       }
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 105,
+      "end": 27,
       "kind": "source",
       "path": "main.scoop",
-      "start": 29
+      "start": 15
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "class `Codec` does not implement interface method `ValueEncoder<Item<T>>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 161,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 85
     },
     "severity": "error"
   }

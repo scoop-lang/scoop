@@ -1,2 +1,6 @@
-enum Value { @Serialize(ignore = true) Some }
+enum Value {
+    @Serialize(ignore = true) Some
+    @GenerateWith("scoop.codec", ["ValueEncoder<Value>"])
+    companion object : ValueEncoder<Value>
+}
 fun main() {}

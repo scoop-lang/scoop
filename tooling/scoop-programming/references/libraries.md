@@ -80,11 +80,16 @@
 
 ```scoop
 struct User(val name: String, val note: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<User>", "ValueDecoder<User>"])
     public companion object : ValueEncoder<User>, ValueDecoder<User>
 }
 ```
 
 `Json.encodeToString`／`Json.decodeFromString<User>` 使用公开 companion 能力；其他入口也可能接受显式 codec。struct 本身不意味着任意序列化入口都可用。增改字段时确认字段类型具有相应能力，并为缺字段行为提供真实默认值。JSON null、缺失字段和 Scoop 的 Option 分别遵循对应 API 合同。
+
+## 命令行参数
+
+给参数类型的 companion 声明 `CliArguments<Options>` 并标注 `@GenerateWith("scoop.cli", ["CliArguments<Options>"])`。`CliParser(CliConfig("serve"), Options.Companion).parseCommandLine(argv)` 解析完整 argv。字段可标注 `@CliArgument`、`@CliOption`、`@CliFlag` 或 `@CliIgnore`，自定义字段可实现 `CliValueParser<T>`。生成的绑定使用模型主构造器的默认值，额外构造入口写在 companion 的具名工厂中。可运行示例见 `scoop example cli/options`。
 
 ## 异步与网络
 

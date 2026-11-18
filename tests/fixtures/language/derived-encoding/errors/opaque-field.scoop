@@ -1,3 +1,3 @@
-struct Item(val value: Any) { companion object : ValueEncoder<Item> }
+struct Item(val value: Any) { @GenerateWith("scoop.codec", ["ValueEncoder<Item>"]) companion object : ValueEncoder<Item> }
 
 fun main() {}

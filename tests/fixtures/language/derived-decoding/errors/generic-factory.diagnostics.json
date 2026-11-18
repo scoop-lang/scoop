@@ -1,24 +1,67 @@
 [
   {
-    "code": "E1312",
-    "message": "automatic decode has no ValueDecoder<Element<T>> field codec",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "no field ValueDecoder for Element<T>: provide a primary val dependency, a conforming companion, or an explicit decode implementation",
     "notes": [
       {
-        "code": "H1301",
-        "kind": "help",
-        "message": "provide a primary val dependency, a conforming companion, or an explicit decode implementation",
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
         "notes": [],
         "origin": {
-          "kind": "none"
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 435,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 412
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 435,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 412
         }
       }
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 407,
+      "end": 380,
       "kind": "source",
       "path": "main.scoop",
-      "start": 323
+      "start": 359
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "class `ElementReader` does not implement interface method `ValueDecoder<Element<T>>.decode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 336,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 242
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "class `Reader` does not implement interface method `ValueDecoder<Item<T>>.decode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 522,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 438
     },
     "severity": "error"
   }

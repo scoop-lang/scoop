@@ -18,7 +18,7 @@ public struct DTO(
     @DebugRedact val secret: String = "secret",
     val option: Int? = None
 ) {
-    public companion object : ValueEncoder<DTO>, ValueDecoder<DTO>, ValueInspector<DTO>
+    @GenerateWith("scoop.codec", ["ValueEncoder<DTO>", "ValueDecoder<DTO>"]) public companion object : ValueEncoder<DTO>, ValueDecoder<DTO>, ValueInspector<DTO>
 }
 
 public class InternalState public constructor(internal val value: Int)

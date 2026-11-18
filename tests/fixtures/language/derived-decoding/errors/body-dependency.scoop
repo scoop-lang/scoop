@@ -1,5 +1,5 @@
 public struct Item<T>(val value: T)
-public class Reader<T>(value: ValueDecoder<T>) : ValueDecoder<Item<T>> {
+@GenerateWith("scoop.codec", ["ValueDecoder<Item<T>>"]) public class Reader<T>(value: ValueDecoder<T>) : ValueDecoder<Item<T>> {
     private val stored: ValueDecoder<T> = value
 }
 

@@ -1,8 +1,10 @@
 # M47 设计：HIR 查询与接口实现生成器
 
-状态：通用机制已实现，codec 迁移待实施。初稿：2026-10-15；公共基础修订：2026-10-21。原调研基线：`e548b9ebe`；本次公共基础核对基线：`4de3ae9e8`。M46 已完成；本文以 [M46 主设计](../milestone46/DESIGN.md)、[Serialize／Option 合同](../milestone46/SERIALIZE.md)及其完成后的实现为迁移基线，不实施或重新安排 M46。
+通用机制、条件接口以及 codec 和 CLI 两个生成器均已实现。初稿：2026-10-15；公共基础修订：2026-10-21。原调研基线：`e548b9ebe`；本次公共基础核对基线：`4de3ae9e8`。M46 已完成；本文以 [M46 主设计](../milestone46/DESIGN.md)、[Serialize／Option 合同](../milestone46/SERIALIZE.md)及其完成后的实现为迁移基线，不实施或重新安排 M46。
 
-依据：[语言规范](../specs/SCOOP-SPEC.md) 8.5、9.4～9.6、11.13，[编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md) 2.1、2.2、2.7、2.11、2.17、2.20，以及[路线图](../ROADMAP.md)。本文规定功能边界、编译编排、试点迁移和验收；[同步协议与语义查询](PROTOCOL.md)规定进程交互、HIR 查询与方法体源码片段。通用查询、同步协议与方法体填充已随公共基础实现，实际范围见[实施与验收](../language-service/PROGRESS.md)；codec 迁移仍按本文推进，各批行为变更先同步相应 spec。
+条件接口的选择规则、codec 与 CLI 的库接口、模型构造约定和验收顺序见[完整迁移方案](CODEC-CLI-MIGRATION.md)。
+
+依据：[语言规范](../specs/SCOOP-SPEC.md) 8.5、9.4～9.6、11.13，[编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md) 2.1、2.2、2.7、2.11、2.17、2.20，以及[路线图](../ROADMAP.md)。本文规定功能边界、编译编排、试点迁移和验收；[同步协议与语义查询](PROTOCOL.md)规定进程交互、HIR 查询与方法体源码片段。通用查询、同步协议与方法体填充已随公共基础实现，实际范围见[实施与验收](../language-service/PROGRESS.md)。两个内置生成器的实现与验收见[联合迁移方案](CODEC-CLI-MIGRATION.md)。
 
 ## 1. 本期交付与边界
 
@@ -43,9 +45,9 @@ public annotation class GenerateWith(
 语言规范 9.4 与现有 M35 实现已支持 annotation class 的一维 `Array<String>` 参数，包括空数组、字符串常量元素、尾随逗号、元素来源以及跨 Cone metadata。M47 直接复用现有 parser、注解数组绑定和产物表示，无需新增字符串数组支持。
 
 ```scoop
-@GenerateWith(generator = "my.encoder", `interface` = ["Encodable<User>"])
-@GenerateWith(generator = "my.decoder", `interface` = ["Decodable<User>"])
-public class UserCodec : Encodable<User>, Decodable<User> {}
+@GenerateWith(generator = "my.encoder", `interface` = ["ValueEncoder<User>"])
+@GenerateWith(generator = "my.decoder", `interface` = ["ValueDecoder<User>"])
+public class UserCodec : ValueEncoder<User>, ValueDecoder<User> {}
 ```
 
 源码 parser 不识别 GenerateWith 的名字或参数含义，只产生普通 annotation AST；HIR 使用普通参数／target／Repeatable 规则绑定它。之后 driver 通过普通 core 命名空间查到 GenerateWith 的实际声明，读取正常 metadata 中对它的应用，解释 generator 名称与 interface 数组中的各个字符串，选择要填充的既有接口实现。导入别名、generator 的常量字符串及数组中的字符串常量元素都沿普通注解规则工作；不在 parser／HIR 中增加 GenerateWith 专属的 core role、schema 校验或注解节点。
@@ -58,19 +60,21 @@ codec 试点在一条注解中列出两个接口，由工具链注册的同一�
 public struct User(val id: Long, val name: String?) {
     @GenerateWith(
         generator = "scoop.codec",
-        `interface` = ["Encodable<User>", "Decodable<User>"]
+        `interface` = ["ValueEncoder<User>", "ValueDecoder<User>"]
     )
-    public companion object : Encodable<User>, Decodable<User> {}
+    public companion object : ValueEncoder<User>, ValueDecoder<User> {}
 }
 ```
 
-注解必须放在真正实现接口的 companion／codec 上，不能标在 User 外层并隐式转发到 companion。继承列表必须显式保留；单有 GenerateWith 不会让类型实现某个接口。Encodable／Decodable 和其他用户 interface 都使用这一通用机制。
+注解放在实际实现接口的 companion 或独立 codec 上，类型头或条件实现块显式声明相应接口。`ValueEncoder`、`ValueDecoder` 和用户定义的接口都使用这一机制。
 
 interface 数组中的每个字符串都是一个独立的类型选择配置。driver 按数组顺序，复用普通类型语法入口将每个元素解析为恰好一个完整类型，再通过已有类型绑定入口，在被修饰 owner 的词法上下文中解析 import、类型参数、限定名和透明 alias。之后与该 owner 已有的完整 interface application 比较并选定实际 typed 引用；不能按显示字符串相等、FQN 回退或隐式添加继承来完成匹配。generator 名称须非空；数组元素为空字符串、类型语法错误、非 interface、裸泛型模板、错误实参数量或未继承应用均定位到相应数组元素。
 
 空数组沿普通注解规则合法，表示这条配置没有选择接口，不建立生成任务；类型的接口实现完整性仍照常检查。数组自身保留顺序与重复元素，driver 再按 2.2 检查接口绑定是否重复或冲突。
 
 类型字符串的解释发生在普通注解绑定之后，不把它变成 annotation 类型实参，不新增 InterfaceRef 参数类别、专用 annotation AST 或 parser 分支。选定后的 typed 引用用于任务与后续查询；原注解仍保存普通 `String` 与 `Array<String>`，不改变其参数类型或普通 metadata。
+
+语言规范 9.1.8 的条件实现也可以由 owner 的注解选择。生成配置引用实现关系中的完整接口应用，方法查询及返回的正文各自使用原实现条件。基类条件随基类实参代入。
 
 ### 2.2 方法选择与部分实现
 
@@ -82,7 +86,7 @@ abstract 类型继续遵守原有抽象 requirement 规则，不为允许保留�
 
 生成绑定属于实际实现类型，数组中的每个元素建立一条 `(owner, interface application) -> generator` 绑定；同一注解选定接口的缺失方法合并成一个任务集合。选定的 interface application 必须存在于 owner 已声明的继承闭包中；注解不新增 conformance，也不能通过变型转换推造一个新的继承应用。绑定保留完整类型实参，`I<A>` 与 `I<B>` 是不同绑定，可以列在同一数组中；开放类型中的参数按 owner 的真实 binder 绑定，具体化时不重新选择 generator。
 
-每条绑定覆盖选定 interface 及其父接口带入的 requirement，不扩展到该 owner 的其他无关接口。比如 owner 已继承 `Combined<T> : Encodable<T>, Decodable<T>`，可以为两个实际父接口分别选择 generator，也可以为 Combined 的完整 requirement 集合选择同一个 generator。读取这些 requirement 仍保留其实际声明身份，不复制成新声明。
+每条绑定覆盖选定 interface 及其父接口带入的 requirement。比如 owner 已继承 `Combined<T> : ValueEncoder<T>, ValueDecoder<T>`，可以为两个实际父接口分别选择 generator，也可以为 Combined 的完整 requirement 集合选择同一个 generator。读取这些 requirement 时保留其实际声明身份。
 
 同一 owner、同一规范化 interface application 的重复配置报错，包括同一数组内重复、不同 GenerateWith 应用间重复，以及 alias 指向同一实际应用的情况；即使 generator 相同也不静默覆盖。错误定位到后一个数组元素并关联前一个。不同应用可能覆盖同一实现方法，沿现有实现关系去重，只产生一个 MethodId：相同 generator 合并任务并保留相关绑定与 requirement；不同 generator 则在后一配置处报告冲突并关联前一处，不按顺序试探。已有合法手写／继承／default 实现的方法先被排除，不为无需生成的方法报告这种冲突。
 
@@ -90,7 +94,7 @@ abstract 类型继续遵守原有抽象 requirement 规则，不为允许保留�
 
 ### 2.3 宿主工具注册
 
-`scoop.codec` 默认注册到随工具链分发的宿主程序 `scoop-codec-generator`；这只提供“名称→程序”的工具配置，不自动为任何 interface 或实现类型创建生成绑定。首版通过可重复的 CLI 选项提供自定义绑定，`scoop build/run/test` 和 `scoopc build` 使用同一含义：
+`scoop.codec` 与 `scoop.cli` 分别默认注册到随工具链分发的宿主程序 `scoop-codec-generator` 与 `scoop-cli-generator`；这只提供“名称→程序”的工具配置，不自动为任何 interface 或实现类型创建生成绑定。首版通过可重复的 CLI 选项提供自定义绑定，`scoop build/run/test` 和 `scoopc build` 使用同一含义：
 
 ```text
 --generator my.generator=/absolute/path/to/my-generator
@@ -124,9 +128,7 @@ hir-lower 按原声明上下文检查并 lower 生成正文
 已有完整性、effect 等检查 → 完整 HIR → MIR／LIR／codegen
 ```
 
-生成钩子放在现有 encode／decode 正文合成的位置附近：普通源码正文已处理，必要声明与注解已按原规则绑定，最终 HIR 尚未封装。普通继承处理建立既有方法签名并记录仍缺失的实现；driver 到生成点才读取 GenerateWith，将配置匹配到其中的实际 interface application。未被填充的必要方法在最终完整性检查中诊断。不能为解析这个注解另设提前绑定流程，也不能为读取注解反复绑定同一应用。
-
-当前实现的定位点是 `hir-lower/src/pipeline/run.rs` 中的 `check_inheritance`、`lower_derived_encoding_bodies` 和 `lower_derived_decoding_bodies`，以及 `driver/src/request/preflight/current_hir.rs` 的 current-Cone lowering 调用。M46 可能调整这些目录和函数；实施按职责接入，不要求 M46 保持调研时的函数名。
+普通继承检查建立方法签名并记录缺失的实现。`lower_source_bodies_with_cancellation` 处理用户正文后，`generate_method_bodies` 调用 driver 提供的生成钩子。此时注解已绑定，driver 可以匹配 `@GenerateWith` 选中的完整接口，并在对应条件下请求正文。最终完整性检查报告仍缺少实现的必要方法。[HIR 流水线](../../compiler/hir-lower/src/pipeline/run.rs) · [接口与方法选择](../../compiler/driver/src/generation/plan.rs)
 
 这是 HIR lowering 内部的正常合成步骤，不发布一个供下游消费的“半成品 HIR”阶段。待生成正文只属于前端正在构建的状态；成功返回的 HIR 必须保存全部必要的完整 typed body。
 
@@ -188,7 +190,7 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 
 ### 5.1 迁移的是算法
 
-独立程序同时处理 Encodable 与 Decodable 任务，并共享字段配置、结构查询和 codec 选择的公共部分。它通过普通依赖命名空间取得 core 声明，在查询与策略判断中使用 typed ID，最终用正常名称和语法生成源码。编译器无需知道哪一个任务表示 encode 或 decode。
+独立程序同时处理 `ValueEncoder<T>` 与 `ValueDecoder<T>` 任务，共享字段配置、结构查询和 codec 选择。它通过普通依赖命名空间取得 core 声明，按 typed ID 做策略判断，再为相应方法生成普通 Scoop 源码。
 
 迁移时给 M46 实际请求缺省正文的 companion／codec 添加对应的 GenerateWith，包含 core 中的普通 helper、库源码、示例和 fixture。只请求 encode 时数组只列编码接口；两个方向使用 scoop.codec 时列在同一数组中，也可通过两条注解选择不同 generator。已有完整手写实现不需要添加配置。相比 M46，仅有空的接口继承声明不再隐式触发 codec 合成；这个显式请求的源码变化属于 M47，编解码行为继续保持 M46 合同。不保留 interface 级默认配置或 compiler-known codec 自动触发作为第二条路径。
 
@@ -199,7 +201,7 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 | 字段 codec 的依赖、递归 this、companion、容器和 tuple 组合选择 | codec generator，使用普通类型关系与成员查询 |
 | Serialize 的 rename／required／emitNull／ignore 解释与策略诊断 | codec generator |
 | 字段读取、presence 分支、variant 分支、container 调用与返回 | codec generator 生成普通源码片段 |
-| 缺失值分支与构造调用的源码组织 | generator；以现有语法和普通库能力实现，默认值迁移缺口按 5.2 核对 |
+| 缺失值分支与构造调用的源码组织 | generator 按 5.2 的主构造器约定生成普通具名调用 |
 | 默认值定义处的绑定、普通调用默认参数、访问／类型／effect 检查与 HIR 构造 | 编译器的已有公共语义路径 |
 | Option 的 null 表示、各 container 的运行行为、JsonValue | M46 的普通 core／JSON 实现 |
 
@@ -207,7 +209,7 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 
 禁止把迁出改成“外部程序请求编译器生成 codec，再原样返回”：共享查询中没有 `selectFieldCodec`、`serializeOptions`、`planDecodeRecord` 或 `generateEncodeBody`。编译器返回字段类型、构造/default 引用、普通注解等事实，由 generator 作出相应决策。
 
-### 5.2 M46 行为与需要核对的迁移缺口
+### 5.2 M46 行为与生成器的主构造器约定
 
 | 行为 | generator 需要保留的事实与顺序 |
 | --- | --- |
@@ -217,15 +219,13 @@ M47 沿用协议中的四类正文可用状态。编辑态缺失语法、失败�
 | 编码 | 字段至多读取一次；ignore 不读取；先决定 None 是否省略，再建立 child、求值 codec、编码完整字段值 |
 | None 省略 | 仅按 M46 条件判断：原声明外层 Option、没有 required／emitNull，且缺失可直接恢复 None；不执行 default 或推断任意表达式等价性 |
 | 解码 | key 存在时交给完整字段 codec；缺失时显式 default 优先，再考虑原声明 Option 的 None；显式 null 和错误值不触发 default |
-| default 时机 | 先读取已提供字段并完成容器检查，再按声明序补缺失值，允许引用前参，每次构造至多执行一次，最后调用普通构造器 |
+| default 时机 | 先读取已提供字段并完成容器检查，再执行一次普通构造调用。对缺失且有默认值的形参省略具名实参，由普通调用按声明序求值，默认表达式可以引用前参 |
 | 形状与访问域 | struct、现有合格 final class、enum 的命名／位置 payload、tuple／Unit 沿原范围；普通字段／property／constructor 可见性保持 |
 | wire 外形 | 普通 enum 外层单 key、tuple 精确长度、M46 Option null 表示及手写 codec 组合保持 |
 
 表中行为是 codec 试点的迁移目标，不意味着任意已绑定 HIR 都能直接打印为等价源码。默认值查询可以用于查看前参依赖、类型与直接 None 等事实；它不提供可写回的绑定引用，也不替 generator 生成正文。
 
-普通调用省略实参时，编译器已有默认参数机制保留定义处绑定。decoder 的运行时字段缺失、default 求值顺序及跨作用域引用，需要在 M46 完成后的真实用例上验证如何由普通源码表达。将 default 中的短名、重载调用或局部声明直接复制到 codec 作用域，不能视为语义已保持；可见性合法也不等于绑定相同。
-
-这属于试点需要核对的具体缺口。先使用现有调用规则、普通源码和库能力实现；确实无法完成时，明确失败用例及原有机制缺失之处，再作必要的最小修补。本设计不预设默认值反编译器、AST 绑定引用、绑定旁表或 default 展开 RPC；不能靠这些新增能力宣称迁移已经闭合，也不能静默放弃 M46 的原有行为。
+自动解码 record 要求主构造器是从生成方法作用域可见的唯一构造器。生成正文先读取字段、完成容器检查，再按字段是否出现使用普通具名实参调用主构造器。省略实参时由现有调用规则使用定义处绑定的默认值。额外构造入口使用 `companion object` 上的具名工厂，生成器在不满足约定时报告诊断。CLI 生成的 `bind` 共用该约定。具体示例和验收见[联合设计第 4 节](CODEC-CLI-MIGRATION.md#4-自动构造的约定与-companion-工厂)。
 
 Option、Array、MutableArray、ArrayList、Unit 和 tuple 所需普通 helper 的选择算法归 generator；这些数据类型自身的编译器表示职责保持原有归属。生成器也不得把可空字段改成绕过完整 Option codec、直接调用元素 codec 的专用路径。
 
@@ -299,7 +299,7 @@ GenerateWith 与 Serialize 都按普通 annotation metadata 保存在各自实�
 | --- | --- | --- |
 | M47-1 | 同步 spec；对齐公共源码／上下文，整理固定视图的通用 HIR 查询及已有实现，声明普通 GenerateWith，复用字符串数组参数与既有方法签名 | 普通数组注解绑定、显式继承、多接口任务合并、任务去重与冲突诊断；查询结果与原有语义一致，不依赖生成会话的数据模型 |
 | M47-2 | 同步协议、driver 查询循环、CLI 注册；返回源码文本，复用 parser 及正常正文 lowering，完成通用功能闭环 | 用户 interface 全部／部分生成；真实子进程查询后提交源码；语法与类型诊断定位到片段；错误 ID、EOF、失败退出与宿主／target 分离 |
-| M47-3 | 用 M46 encoder／decoder 做迁移试点；核对 5.2 的实际缺口并作必要修补，策略外移且 Serialize 只走普通注解绑定 | M46 合成回归、普通注解／跨 Cone 读取、default 定义处绑定与求值顺序；生成源码可检查，不依赖新增 AST 语义引用或隐式 fallback |
+| M47-3 | 用 M46 encoder／decoder 做迁移试点；按 5.2 的主构造器约定迁出策略，Serialize 只走普通注解绑定 | M46 合成回归、普通注解／跨 Cone 读取、default 定义处绑定与求值顺序；生成源码可检查，不依赖新增 AST 语义引用或隐式 fallback |
 | M47-4 | 工具分发／core bootstrap、实际工具输入缓存、泛型与 `.slib` 消费；清理只为旧合成存在的数据 | core 构建、工具变更失效、缓存命中不重跑、下游复用已有方法不调用上游 generator、三目标必要组合验收 |
 
 各批提交必须保持相应入口完整可用，不以空 body、返回未实现错误的占位分支或自动 fallback 作为交付。
@@ -308,6 +308,7 @@ GenerateWith 与 Serialize 都按普通 annotation metadata 保存在各自实�
 | --- | --- |
 | 语言规范 9.4 | GenerateWith 的普通 annotation class 声明、`String`／`Array<String>` 参数、target 与 Repeatable；复用已有字符串数组支持，不扩展 annotation 语法或值域；Serialize 的普通检查边界 |
 | 语言规范 9.5、11.13 | 实现类型显式选择 interface application 与 generator；迁移原隐式 codec 请求，保持 M46 编解码规则，说明策略诊断按实际生成方向发生 |
+| 语言规范 12.7 | 用 `CliArguments<T>` 生成参数表和绑定方法，用 `CliValueParser<T>` 转换自定义字段。CLI 注解、构造约定与调用方迁移见[联合设计](CODEC-CLI-MIGRATION.md) |
 | 语言规范 9.6 | 静态描述通过工具查询用于 interface body 生成，仍无运行期反射或任意源码宏 |
 | 实现规范 2.1、2.2、2.11、2.20 | 公共源码／查询与严格片段适配、原方法上下文、必要的正文补齐接入、完整 HIR 和 typed identity；编辑态恢复结果不进入成功 HIR |
 | 实现规范 2.7 | 宿主 generator 配置、同步进程编排、缓存输入与失败诊断 |
@@ -327,11 +328,11 @@ GenerateWith 与 Serialize 都按普通 annotation metadata 保存在各自实�
 | 源码与调试 | 保存可读片段，诊断行列对应实际生成文本并关联 GenerateWith；参数、泛型名称与 import 沿原方法上下文工作；打印的 ID、注释或显示文件名不具有绑定语义 |
 | 同步协议 | 真实程序按“任务→多次查询／响应→源码结果”完成；中文、转义及较大片段的分段管道读写正确；stderr 日志不污染协议；协议版本／帧／退出错误可定位 |
 | Serialize 普通化 | 参数类型、target、重复仍走通用检查；策略错误来自实际 generator；手写 codec 不触发专用解释；同名不同 annotation、alias、re-export 与跨 Cone identity 正确 |
-| M46 语义保持 | rename／required／emitNull／ignore、None 省略、原声明 T／T?、直接 None default、带副作用及引用前参的 default、完整字段 codec 优先、全部合成形状及错误路径 |
+| M46 语义保持 | rename／required／emitNull／ignore、None 省略、原声明 T／T?、直接 None default、带副作用及引用前参的 default、完整字段 codec 优先、符合主构造器约定的合成形状及错误路径 |
 | 真实查询 | codec generator 自己作出字段配置、codec 和构造决策；查询提供原声明／应用类型、普通注解和 default 事实；同一内部查询接口可由进程适配层外的实际编译器调用使用，无 codec 计划或 default 展开入口 |
 | 构建与缓存 | core bootstrap、CLI 注册、修改 generator 后失效、缓存命中不调用、无任务不启动、程序缺失／失败不回退 |
 | 产物与运行 | 源码和工具保持存在，复用 DTO metadata 并生成本地 codec；再次构建／下游消费不重跑有效的上游生成任务；泛型、ZST／大值和托管引用按必要组合覆盖，不增加源码／工具隔离场景 |
 
 先执行变更语言对应的格式化和 lint，再执行相关 Rust 测试、fixture runner 规则测试及正式 CLI fixture。将 generator binary 纳入 fixture 的正式工具准备，不能用内存测试后端代替端到端验证。按实际变更选择 Darwin 与 Linux 的适用组合；未涉及 LIR、codegen 或目标 ABI 时，Linux GNU 与 musl 选择一组完整验证。只有实际影响共享 ABI、GC 或产物基础时才据此扩大回归。
 
-M47 完成的判据是：保持 M46 编解码行为的真实程序经独立 generator 编译运行；编译器中已无 Serialize 专用解释和 encode／decode 策略合成；普通用户 interface 也能通过同一同步协议补充方法实现。codec 迁移的上述完成条件尚未闭合；已交付通用机制的验证见[公共基础验收](../language-service/PROGRESS.md)。
+codec 和 CLI 已用独立宿主程序完成库测试、条件接口和预编译产物消费验证。普通用户接口也通过相同协议生成方法。[codec 与 CLI 本机验收](CODEC-CLI-MIGRATION.md#7-本机验收结果) · [公共基础验收](../language-service/PROGRESS.md)

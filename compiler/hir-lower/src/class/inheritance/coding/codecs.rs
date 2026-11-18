@@ -15,7 +15,7 @@ enum CodecValue {
         companion: TypeId,
         element: Box<SelectedCodec>,
     },
-    Tuple(Vec<SelectedCodec>),
+    Tuple,
 }
 
 enum CodecDependency {
@@ -39,8 +39,7 @@ impl Lowerer {
                 scoop_source::DiagnosticCode::E1313,
                 span,
                 format!(
-                    "automatic {} has ambiguous primary val dependencies for {}: {}",
-                    context.direction.method(),
+                    "automatic inspect has ambiguous primary val dependencies for {}: {}",
                     self.type_name(ty),
                     dependencies
                         .iter()
@@ -75,12 +74,7 @@ impl Lowerer {
                 .any(|name| self.core_coding_nominal(name) == Some(application.template))
                 .then(|| application.arguments[0])
         });
-        // Preserve injected element codecs and recursive `this` when core containers
-        // also expose a default companion. Inspection keeps its existing precedence.
-        let compose_container = container_element.is_some()
-            && !matches!(context.direction, CodingDirection::Inspect(_));
-        if !compose_container
-            && let Some(companion) = companion
+        if let Some(companion) = companion
             && self.is_subtype(companion, interface)
         {
             return Some(SelectedCodec {
@@ -95,9 +89,8 @@ impl Lowerer {
                     scoop_source::DiagnosticCode::E1404,
                     span,
                     format!(
-                        "core container {} requires its predefined {} companion",
-                        self.type_name(ty),
-                        context.direction.factory()
+                        "core container {} requires its predefined inspector companion",
+                        self.type_name(ty)
                     ),
                 );
                 return None;
@@ -111,7 +104,7 @@ impl Lowerer {
             });
         }
         if ty == self.unit {
-            let unit_codec = self.core_coding_nominal(context.direction.unit_codec())?;
+            let unit_codec = self.core_coding_nominal("UnitInspector")?;
             let singleton = self
                 .apply_nominal_type(unit_codec, Vec::new())
                 .expect("a Unit codec is an ordinary object");
@@ -120,22 +113,21 @@ impl Lowerer {
                 value: CodecValue::Singleton(singleton),
             });
         }
-        if let Type::Tuple(elements) = self.types[ty].clone() {
-            let elements = elements
-                .into_iter()
-                .map(|ty| self.select_field_codec(context, ty, span))
-                .collect::<Option<Vec<_>>>()?;
+        if matches!(self.types[ty], Type::Tuple(_)) {
             return Some(SelectedCodec {
                 ty,
-                value: CodecValue::Tuple(elements),
+                value: CodecValue::Tuple,
             });
         }
-        let kind = if matches!(context.direction, CodingDirection::Inspect(_)) {
-            "inspector"
-        } else {
-            "codec"
-        };
-        self.error_with_note(scoop_source::DiagnosticCode::E1312, span, format!("automatic {__diagnostic_arg0} has no {__diagnostic_arg1}<{__diagnostic_arg2}> field {kind}" , __diagnostic_arg0 = context.direction.method(), __diagnostic_arg1 = context.direction.protocol(), __diagnostic_arg2 = self.type_name(ty)), scoop_source::DiagnosticNote::without_location(scoop_source::DiagnosticCode::H1301, format!("provide a primary val dependency, a conforming companion, or an explicit {__diagnostic_arg3} implementation" , __diagnostic_arg3 = context.direction.method())));
+        self.error_with_note(
+            scoop_source::DiagnosticCode::E1312,
+            span,
+            format!("automatic inspect has no ValueInspector<{}> field inspector", self.type_name(ty)),
+            scoop_source::DiagnosticNote::without_location(
+                scoop_source::DiagnosticCode::H1301,
+                "provide a primary val dependency, a conforming companion, or an explicit inspect implementation",
+            ),
+        );
         None
     }
 

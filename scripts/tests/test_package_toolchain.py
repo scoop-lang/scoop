@@ -278,7 +278,17 @@ class ComponentArchiveTests(unittest.TestCase):
                 driver = "sco.exe" if "windows" in host else "scoop"
                 names_in_bin = [
                     driver,
-                    *(name + suffix for name in ("scoopc", "scoop-link", "scoop-lsp", "scoop-pm")),
+                    *(
+                        name + suffix
+                        for name in (
+                            "scoopc",
+                            "scoop-link",
+                            "scoop-lsp",
+                            "scoop-pm",
+                            "scoop-codec-generator",
+                            "scoop-cli-generator",
+                        )
+                    ),
                 ]
                 self.assertEqual(
                     {path.name for path in (bin_root / "bin").iterdir()}, set(names_in_bin)

@@ -7,10 +7,12 @@ import scoop.http.client.*
 import scoop.url.Url
 
 struct GreetingInput(val name: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<GreetingInput>"])
     public companion object: ValueEncoder<GreetingInput>
 }
 
 struct GreetingOutput(val message: String) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<GreetingOutput>"])
     public companion object: ValueDecoder<GreetingOutput>
 }
 

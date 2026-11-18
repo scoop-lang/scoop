@@ -42,6 +42,18 @@ impl Lowerer {
         self.check_nominal_interface_implementation(owner, span, &owner.describe(self));
     }
 
+    pub(crate) fn owner_conformances(&self, owner: Owner) -> &[hir::InterfaceImplementation] {
+        match owner {
+            Owner::Class(id) => &self.classes[id].interface_implementations,
+            Owner::Object(id) => {
+                &self.classes[self.objects[id].backing_class].interface_implementations
+            }
+            Owner::Struct(id) => &self.structs[id].interface_implementations,
+            Owner::Enum(id) => &self.enums[id].interface_implementations,
+            Owner::Interface(_) => &[],
+        }
+    }
+
     pub(crate) fn owner_interfaces(&mut self, owner: Owner) -> Vec<TypeId> {
         let roots = match owner {
             Owner::Class(id) => return self.class_interfaces_all(id),
@@ -280,28 +292,12 @@ impl Lowerer {
                         }
                         InterfaceDefaultSelection::Obligation(_) => {
                             if let Some(function) = self
-                                .derive_missing_encoding(
+                                .derive_missing_inspection(
                                     owner,
                                     &member,
                                     &all_interfaces,
                                     &candidates,
                                 )
-                                .or_else(|| {
-                                    self.derive_missing_decoding(
-                                        owner,
-                                        &member,
-                                        &all_interfaces,
-                                        &candidates,
-                                    )
-                                })
-                                .or_else(|| {
-                                    self.derive_missing_inspection(
-                                        owner,
-                                        &member,
-                                        &all_interfaces,
-                                        &candidates,
-                                    )
-                                })
                                 .or_else(|| {
                                     self.declare_generated_interface_method(
                                         owner,

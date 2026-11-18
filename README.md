@@ -65,7 +65,7 @@ Windows 安装包的主命令为 `sco`，上述命令中的 `scoop` 替换为 `s
 以下为 macOS／Linux shell 示例，在仓库根目录执行：
 
 ```sh
-cargo build --release -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm --bins
+cargo build --release -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-generators --bins
 export PATH="$PWD/target/release:$PATH"
 ```
 
@@ -98,7 +98,7 @@ cargo test --workspace
 正式 CLI fixture 使用配套命令和已准备的开发 sysroot。runner 默认从 `target/debug` 读取工具，因此另行构建这些命令：
 
 ```sh
-cargo build -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm --bins
+cargo build -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-generators --bins
 export SCOOP_SYSROOT="$PWD/sysroot"
 python3 -m unittest discover -s tests/fixture_runner/tests
 python3 tests/run_fixtures.py --all

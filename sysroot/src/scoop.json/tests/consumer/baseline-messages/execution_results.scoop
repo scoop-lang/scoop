@@ -2,6 +2,7 @@ package scoop.json.tests.consumer.baseline_messages
 
 import scoop.test.*
 struct FetchedDocument(val url: String, val content: FetchedContent, val retrieved_at: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FetchedDocument>", "ValueDecoder<FetchedDocument>"])
     companion object : ValueEncoder<FetchedDocument>, ValueDecoder<FetchedDocument> {}
 }
 struct FetchedContent(
@@ -10,9 +11,11 @@ struct FetchedContent(
     val title: String? = None,
     val citations: CitationConfig? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FetchedContent>", "ValueDecoder<FetchedContent>"])
     companion object : ValueEncoder<FetchedContent>, ValueDecoder<FetchedContent> {}
 }
 struct ServerError(val error_code: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ServerError>", "ValueDecoder<ServerError>"])
     companion object : ValueEncoder<ServerError>, ValueDecoder<ServerError> {}
 }
 enum FetchResult {
@@ -43,6 +46,7 @@ enum FetchResult {
     }
 }
 struct CodeOutput(val stdout: String, val stderr: String, val return_code: Long, val content: Array<CodeFile>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeOutput>", "ValueDecoder<CodeOutput>"])
     companion object : ValueEncoder<CodeOutput>, ValueDecoder<CodeOutput> {}
 }
 struct EncryptedOutput(
@@ -51,6 +55,7 @@ struct EncryptedOutput(
     val return_code: Long,
     val content: Array<CodeFile>
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<EncryptedOutput>", "ValueDecoder<EncryptedOutput>"])
     companion object : ValueEncoder<EncryptedOutput>, ValueDecoder<EncryptedOutput> {}
 }
 enum CodeResult {

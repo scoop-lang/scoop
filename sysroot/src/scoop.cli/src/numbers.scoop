@@ -2,7 +2,7 @@ package scoop.cli
 
 internal fun digit(value: Char): Boolean = value >= '0' && value <= '9'
 
-internal fun magnitude(owner: CliDecoder, text: String, start: Long): ULong {
+internal fun magnitude(owner: CliFieldValues, text: String, start: Long): ULong {
     if (start == text.charLength) { owner.fail("expected a decimal integer") }
     var result = 0uL
     for (index in start until text.charLength) {
@@ -15,7 +15,7 @@ internal fun magnitude(owner: CliDecoder, text: String, start: Long): ULong {
     return result
 }
 
-internal fun signedInteger(owner: CliDecoder, text: String): Long {
+internal fun signedInteger(owner: CliFieldValues, text: String): Long {
     if (text.charLength == 0L) { owner.fail("expected a decimal integer") }
     val negative = text.getCharAt(0L) == '-'
     val start = if (negative || text.getCharAt(0L) == '+') { 1L } else { 0L }
@@ -28,19 +28,19 @@ internal fun signedInteger(owner: CliDecoder, text: String): Long {
     return value.toLong()
 }
 
-internal fun unsignedInteger(owner: CliDecoder, text: String): ULong {
+internal fun unsignedInteger(owner: CliFieldValues, text: String): ULong {
     if (text.charLength == 0L || text.getCharAt(0L) == '-') { owner.fail("expected an unsigned decimal integer") }
     return magnitude(owner, text, if (text.getCharAt(0L) == '+') { 1L } else { 0L })
 }
 
-internal fun decimalDigits(owner: CliDecoder, text: String, start: Long): Long {
+internal fun decimalDigits(owner: CliFieldValues, text: String, start: Long): Long {
     var index = start
     while (index < text.charLength && digit(text.getCharAt(index))) { index = index + 1L }
     if (index == start) { owner.fail("expected a decimal digit") }
     return index
 }
 
-internal fun checkDecimal(owner: CliDecoder, text: String) {
+internal fun checkDecimal(owner: CliFieldValues, text: String) {
     if (text.charLength == 0L) { owner.fail("expected a decimal number") }
     var index = if (text.getCharAt(0L) == '+' || text.getCharAt(0L) == '-') { 1L } else { 0L }
     index = decimalDigits(owner, text, index)

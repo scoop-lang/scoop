@@ -36,21 +36,27 @@ enum ServerCall {
     }
 }
 struct SearchUse(val id: String, val input: SearchInput) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchUse>", "ValueDecoder<SearchUse>"])
     companion object : ValueEncoder<SearchUse>, ValueDecoder<SearchUse> {}
 }
 struct SearchInput(val query: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchInput>", "ValueDecoder<SearchInput>"])
     companion object : ValueEncoder<SearchInput>, ValueDecoder<SearchInput> {}
 }
 struct FetchUse(val id: String, val input: FetchInput) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FetchUse>", "ValueDecoder<FetchUse>"])
     companion object : ValueEncoder<FetchUse>, ValueDecoder<FetchUse> {}
 }
 struct FetchInput(val url: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FetchInput>", "ValueDecoder<FetchInput>"])
     companion object : ValueEncoder<FetchInput>, ValueDecoder<FetchInput> {}
 }
 struct CodeUse(val id: String, val input: CodeInput) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeUse>", "ValueDecoder<CodeUse>"])
     companion object : ValueEncoder<CodeUse>, ValueDecoder<CodeUse> {}
 }
 struct CodeInput(val code: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeInput>", "ValueDecoder<CodeInput>"])
     companion object : ValueEncoder<CodeInput>, ValueDecoder<CodeInput> {}
 }
 struct ServerUse(val call: ServerCall) {

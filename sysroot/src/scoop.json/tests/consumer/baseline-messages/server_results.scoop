@@ -8,12 +8,15 @@ struct SearchHit(
     val encrypted_content: String,
     val page_age: String? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchHit>", "ValueDecoder<SearchHit>"])
     companion object : ValueEncoder<SearchHit>, ValueDecoder<SearchHit> {}
 }
 struct SearchError(val type: String, val error_code: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchError>", "ValueDecoder<SearchError>"])
     companion object : ValueEncoder<SearchError>, ValueDecoder<SearchError> {}
 }
 struct CodeFile(val type: String, val file_id: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeFile>", "ValueDecoder<CodeFile>"])
     companion object : ValueEncoder<CodeFile>, ValueDecoder<CodeFile> {}
 }
 enum SearchResults {

@@ -122,10 +122,30 @@ mod tests {
 
     #[test]
     fn default_program_is_paired_with_the_selected_compiler() {
-        let root = std::env::temp_dir().join("selected-toolchain");
-        assert_eq!(
-            GeneratorPrograms::default().program_for_compiler("scoop.codec", &root.join("scoopc")),
-            Some(root.join(crate::host_executable_name("scoop-codec-generator")))
-        );
+        let installation = tempfile::tempdir().unwrap();
+        let root = installation.path().join("bin");
+        std::fs::create_dir(&root).unwrap();
+        let compiler = root.join(crate::host_executable_name("scoopc"));
+        std::fs::write(&compiler, "compiler").unwrap();
+        let selected = root
+            .join("..")
+            .join("bin")
+            .join(compiler.file_name().unwrap());
+        for (name, executable) in [
+            ("scoop.codec", "scoop-codec-generator"),
+            ("scoop.cli", "scoop-cli-generator"),
+        ] {
+            let program = root
+                .canonicalize()
+                .unwrap()
+                .join(crate::host_executable_name(executable));
+            std::fs::write(&program, "generator").unwrap();
+            let input = record_generator_input(name, &program, 1).unwrap();
+            assert!(
+                GeneratorPrograms::default()
+                    .inputs_current(&[input], &selected)
+                    .unwrap()
+            );
+        }
     }
 }

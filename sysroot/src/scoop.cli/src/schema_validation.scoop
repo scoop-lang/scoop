@@ -28,19 +28,19 @@ internal fun checkOptionName(name: String) {
     }
 }
 
-internal fun checkChoices(choices: Array<CliChoice>) {
+internal fun checkChoices(choices: Array<String>) {
     if (choices.size == 0L) { configuration("CLI choices must not be empty") }
     val names = ArrayList<String>()
-    for (choice in choices) { addUnique(names, choice.spelling, "choice") }
+    for (choice in choices) { addUnique(names, choice, "choice") }
 }
 
 internal fun checkedEntries(entries: Array<CliEntry>): CliLayout {
     val names = ArrayList<String>()
     names.add("-h"); names.add("--help")
-    val wires = ArrayList<String>()
+    val fields = ArrayList<String>()
     var positionalCount = 0L
     for (entry in entries) {
-        addUnique(wires, entry.wireKey, "wire key")
+        addUnique(fields, entry.sourceName, "source name")
         when (entry.role) {
             case CliRole.Argument(_) -> {
                 positionalCount = positionalCount + 1L
@@ -86,4 +86,9 @@ internal fun checkedEntries(entries: Array<CliEntry>): CliLayout {
         }
     }
     return CliLayout(entries, positions.toArray())
+}
+
+internal fun isRepeated(shape: CliValueShape): Boolean = when (shape) {
+    case CliValueShape.Repeated(_) -> true
+    else -> false
 }

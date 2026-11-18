@@ -4,15 +4,15 @@ import scoop.json.Json
 var starts: Int = 0
 fun start(): Int { starts += 1; return starts }
 struct User(val id: Long, val name: String) {
-    public companion object Codec : ValueEncoder<User>, ValueDecoder<User> {
+    @GenerateWith("scoop.codec", ["ValueEncoder<User>", "ValueDecoder<User>"]) public companion object Codec : ValueEncoder<User>, ValueDecoder<User> {
         val marker: Int = start()
     }
 }
 struct WriteOnly(val value: Long) {
-    public companion object : ValueEncoder<WriteOnly> {}
+    @GenerateWith("scoop.codec", ["ValueEncoder<WriteOnly>"]) public companion object : ValueEncoder<WriteOnly> {}
 }
 struct ReadOnly(val value: Long) {
-    public companion object : ValueDecoder<ReadOnly> {}
+    @GenerateWith("scoop.codec", ["ValueDecoder<ReadOnly>"]) public companion object : ValueDecoder<ReadOnly> {}
 }
 struct Explicit(val value: Long)
 object Custom : ValueEncoder<Explicit>, ValueDecoder<Explicit> {

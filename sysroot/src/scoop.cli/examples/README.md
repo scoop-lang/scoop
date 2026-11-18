@@ -14,6 +14,8 @@ scoop run --release repeated_options.scoop -- -Isrc -Iinclude --mode Thorough -o
 scoop run --release repeated_options.scoop
 ```
 
+示例的 Options.Companion 通过 `@GenerateWith("scoop.cli", ["CliArguments<Options>"])` 生成布局和绑定，参数解析错误使用 `CliParseException`。
+
 问候程序的参数、帮助和错误退出见 `scoop example cli/options`（[正文](../../../share/scoop/examples/topics/cli/options.md)）。
 
 重复选项示例只打印解析结果，不访问指定目录或写文件；不传参时输出 `mode=Fast` 和 `output=stdout`。

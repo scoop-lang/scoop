@@ -1,5 +1,5 @@
 struct Item<T>(val value: T)
-class Codec<T>(element: ValueEncoder<T>) : ValueEncoder<Item<T>> {
+@GenerateWith("scoop.codec", ["ValueEncoder<Item<T>>"]) class Codec<T>(element: ValueEncoder<T>) : ValueEncoder<Item<T>> {
     private val saved: ValueEncoder<T> = element
 }
 

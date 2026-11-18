@@ -34,6 +34,7 @@ public class InheritedCodec public constructor() : BaseCodec()
 
 public interface Extended<T> : ValueEncoder<T> { public fun label(): String }
 public struct Item(val value: Int) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Item>"])
     public companion object : Extended<Item> {
         public fun encode(number: Int): Int = number + 1
         public fun another(encoder: Encoder) {}
@@ -41,6 +42,7 @@ public struct Item(val value: Int) {
     }
 }
 public struct Envelope<T>(val value: T)
+@GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>"])
 public class EnvelopeEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Envelope<T>>
 
 private fun exerciseConsumer() {

@@ -338,11 +338,12 @@ impl hir::SemanticQueries for FrontendQueries<'_, '_> {
         })
     }
 
-    fn interfaces(&mut self, owner: hir::NominalOwner) -> Vec<hir::TypeId> {
-        self.lowerer
-            .in_context(hir::SemanticContext::Nominal(owner), |lowerer| {
-                lowerer.query_owner_interfaces(owner)
-            })
+    fn resolve_implemented_interface(
+        &mut self,
+        owner: hir::NominalOwner,
+        syntax: &scoop_ast::TypeRef,
+    ) -> Result<hir::InterfaceSelection, Vec<Diagnostic>> {
+        self.lowerer.resolve_implemented_interface(owner, syntax)
     }
 
     fn requirements(&mut self, interface: hir::TypeId) -> Vec<hir::AppliedRequirement> {

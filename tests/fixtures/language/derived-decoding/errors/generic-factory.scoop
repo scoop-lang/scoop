@@ -3,8 +3,8 @@ public struct Element<T>(val value: T) {
         public fun decoder(element: ValueDecoder<T>): ValueDecoder<Element<T>> = ElementReader(element)
     }
 }
-public class ElementReader<T>(private val element: ValueDecoder<T>) : ValueDecoder<Element<T>>
+@GenerateWith("scoop.codec", ["ValueDecoder<Element<T>>"]) public class ElementReader<T>(private val element: ValueDecoder<T>) : ValueDecoder<Element<T>>
 public struct Item<T>(val value: Element<T>)
-public class Reader<T>(private val element: ValueDecoder<T>) : ValueDecoder<Item<T>>
+@GenerateWith("scoop.codec", ["ValueDecoder<Item<T>>"]) public class Reader<T>(private val element: ValueDecoder<T>) : ValueDecoder<Item<T>>
 
 fun main() {}

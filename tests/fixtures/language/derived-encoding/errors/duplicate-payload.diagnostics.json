@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1314",
+    "code": "GENERATOR_DIAGNOSTIC",
     "message": "automatic encode has duplicate field name `same`",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 165,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 145
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 165,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 145
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 109,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 94
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Item.Companion` does not implement interface method `ValueEncoder<Item>.encode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 152,
+      "end": 205,
       "kind": "source",
       "path": "main.scoop",
-      "start": 115
+      "start": 168
     },
     "severity": "error"
   }

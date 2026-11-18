@@ -29,7 +29,7 @@ impl Lowerer {
         let previous_params = self.functions[function].params.clone();
         let known_result = (!self.signatures[&function].result_pending)
             .then_some(self.signatures[&function].return_ty);
-        let result = self.with_function_scope(function, &name, |lowerer| {
+        let result = self.with_function_scope(function, &name, None, |lowerer| {
             let mut query = PrefixQuery {
                 body,
                 facts: &mut facts,

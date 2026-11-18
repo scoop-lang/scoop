@@ -47,5 +47,6 @@ enum CacheMiss {
     }
 }
 struct CacheChanged(val cache_missed_input_tokens: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CacheChanged>", "ValueDecoder<CacheChanged>"])
     companion object : ValueEncoder<CacheChanged>, ValueDecoder<CacheChanged> {}
 }

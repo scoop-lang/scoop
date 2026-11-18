@@ -67,6 +67,8 @@ pub enum GeneratorSeverity {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GeneratorDiagnostic {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub method: Option<MethodId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code: Option<scoop_source::DiagnosticIdentifier>,
     pub severity: GeneratorSeverity,
     pub message: String,
@@ -90,6 +92,7 @@ pub struct GeneratorNote {
 impl GeneratorDiagnostic {
     pub fn from_diagnostic(diagnostic: &scoop_source::SourceDiagnostic) -> Self {
         Self {
+            method: None,
             code: Some(diagnostic.code.clone()),
             severity: match diagnostic.severity {
                 DiagnosticSeverity::Error => GeneratorSeverity::Error,

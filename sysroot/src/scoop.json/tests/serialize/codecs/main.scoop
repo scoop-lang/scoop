@@ -21,6 +21,7 @@ struct Record(
     @Serialize(emitNull = true) val keep: String?,
     @Serialize(required = true) val must: String?
 )
+@GenerateWith("scoop.codec", ["ValueEncoder<Record>", "ValueDecoder<Record>"])
 class Codec(val writer: ValueEncoder<String?>, val reader: ValueDecoder<String?>)
     : ValueEncoder<Record>, ValueDecoder<Record>
 

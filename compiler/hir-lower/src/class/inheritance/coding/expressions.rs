@@ -106,18 +106,4 @@ impl Lowerer {
             },
         )
     }
-
-    pub(in crate::class::inheritance) fn end_coding_container(
-        &mut self,
-        receiver: hir::Expr,
-        span: Span,
-        sink: &mut Vec<hir::Statement>,
-    ) -> Option<()> {
-        let value = self.coding_call(receiver, "end", Vec::new(), span, sink)?;
-        sink.push(hir::Statement {
-            kind: hir::StatementKind::Expr(value),
-            span,
-        });
-        Some(())
-    }
 }

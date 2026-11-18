@@ -1,10 +1,33 @@
 package scoop.cli
 
-internal struct CliSource(val index: Long, val spelling: String)
-internal class CliInput(internal val node: CliNode, internal val source: Option<CliSource>)
-internal enum CliNode { Text(String), BooleanValue(Boolean), Record(Array<CliMember>), Sequence(Array<CliInput>) }
-internal struct CliMember(val name: String, val value: CliInput)
-internal enum CliInputResult { Help, Value(CliInput) }
+/** Original argv item and its zero-based index in the supplied array. */
+public struct CliSource(val index: Long, val spelling: String)
+public enum CliToken { Text(String), Flag(Boolean) }
+public struct CliOccurrence(val token: CliToken, val source: CliSource)
+
+/** A command-line error with its source field path and original token, when present. */
+public class CliParseException public constructor(
+    public val path: String, public val reason: String, public val source: Option<CliSource> = None
+) : Exception(Some(when (source) {
+    case Some(val item) -> reason + " at token " + item.index.toString() + " (" + item.spelling + ")"
+    case None -> reason
+}))
+
+internal struct CliNamedField(val name: String, val values: CliFieldValues)
+internal enum CliInputResult { Help, Value(CliValues) }
+
+/** Immutable collected fields, looked up by their source names. */
+public class CliValues internal constructor(private val fields: Array<CliNamedField>) {
+    public fun optional(name: String): Option<CliFieldValues> {
+        for (field in fields) { if (field.name == name) { return Some(field.values) } }
+        return None
+    }
+    public fun required(name: String): CliFieldValues = when (optional(name)) {
+        case Some(val field) -> field
+        case None -> inputError(childPath("", name), None, "missing required field")
+    }
+}
+
 internal struct CliAlias(val index: Long, val negative: Boolean)
 
 internal fun childPath(path: String, name: String): String {
@@ -20,11 +43,7 @@ internal fun childPath(path: String, name: String): String {
 }
 
 internal fun inputError(path: String, source: Option<CliSource>, message: String): Nothing {
-    val detail = when (source) {
-        case Some(val location) -> message + " at token " + location.index.toString() + " (" + location.spelling + ")"
-        case None -> message
-    }
-    throw DecodingException(path, detail)
+    throw CliParseException(path, message, source)
 }
 
 internal fun optionToken(text: String): Boolean = text.charLength >= 2L && text.getCharAt(0L) == '-' &&
@@ -38,20 +57,19 @@ internal fun findAlias(entries: Array<CliEntry>, name: String): Option<CliAlias>
     return None
 }
 
-internal fun choiceInput(choices: Array<CliChoice>, text: String, source: CliSource, path: String): CliInput {
-    for (choice in choices) {
-        if (choice.spelling == text) {
-            val payload = CliInput(CliNode.Record([]), Some(source))
-            return CliInput(CliNode.Record([CliMember(choice.wireName, payload)]), Some(source))
-        }
+internal fun textInput(entry: CliEntry, text: String, source: CliSource): CliOccurrence {
+    val choices = when (entry.valueShape) {
+        case CliValueShape.Choice(val names) -> Some(names)
+        case CliValueShape.Repeated(CliElementShape.Choice(val names)) -> Some(names)
+        case CliValueShape.Flag -> inputError(childPath("", entry.sourceName), Some(source), "flag does not accept a value")
+        else -> None
     }
-    return inputError(path, Some(source), "unknown choice " + text)
-}
-
-internal fun textInput(entry: CliEntry, text: String, source: CliSource): CliInput = when (entry.valueShape) {
-    case CliValueShape.Text -> CliInput(CliNode.Text(text), Some(source))
-    case CliValueShape.Repeated(CliElementShape.Text) -> CliInput(CliNode.Text(text), Some(source))
-    case CliValueShape.Choice(val choices) -> choiceInput(choices, text, source, childPath("", entry.wireKey))
-    case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> choiceInput(choices, text, source, childPath("", entry.wireKey))
-    case CliValueShape.Flag -> inputError(childPath("", entry.wireKey), Some(source), "flag does not accept a value")
+    when (choices) {
+        case Some(val names) -> {
+            for (name in names) { if (name == text) { return CliOccurrence(CliToken.Text(text), source) } }
+            inputError(childPath("", entry.sourceName), Some(source), "unknown choice " + text)
+        }
+        case None -> {}
+    }
+    return CliOccurrence(CliToken.Text(text), source)
 }

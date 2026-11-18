@@ -7,6 +7,7 @@ private enum UnitEnvelope<T> {
     Present(T),
     Missing
 
+    @GenerateWith("scoop.codec", ["ValueEncoder<UnitEnvelope<T>>", "ValueDecoder<UnitEnvelope<T>>"])
     public companion object {
         override interface ValueEncoder<UnitEnvelope<T>> where T.Companion : ValueEncoder<T> {}
         override interface ValueDecoder<UnitEnvelope<T>> where T.Companion : ValueDecoder<T> {}

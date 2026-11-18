@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1309",
+    "code": "GENERATOR_DIAGNOSTIC",
     "message": "Serialize emitNull requires a field declared as core Option",
-    "notes": [],
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 106,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 86
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 106,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 86
+        }
+      }
+    ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
       "end": 39,
       "kind": "source",
       "path": "main.scoop",
       "start": 12
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Codec` does not implement interface method `ValueEncoder<Item>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 142,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 109
     },
     "severity": "error"
   }

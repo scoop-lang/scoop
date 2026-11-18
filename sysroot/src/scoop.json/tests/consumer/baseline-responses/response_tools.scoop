@@ -9,12 +9,15 @@ struct FunctionSpec(
     val strict: Boolean? = None,
     val description: String? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FunctionSpec>", "ValueDecoder<FunctionSpec>"])
     companion object : ValueEncoder<FunctionSpec>, ValueDecoder<FunctionSpec> {}
 }
 struct FileSearchTool(val vector_store_ids: Array<String>, val max_num_results: Long? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FileSearchTool>", "ValueDecoder<FileSearchTool>"])
     companion object : ValueEncoder<FileSearchTool>, ValueDecoder<FileSearchTool> {}
 }
 struct WebSearchTool(val search_context_size: String? = None, val user_location: UserLocation? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<WebSearchTool>", "ValueDecoder<WebSearchTool>"])
     companion object : ValueEncoder<WebSearchTool>, ValueDecoder<WebSearchTool> {}
 }
 struct UserLocation(
@@ -23,24 +26,31 @@ struct UserLocation(
     val country: String? = None,
     val timezone: String? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<UserLocation>", "ValueDecoder<UserLocation>"])
     companion object : ValueEncoder<UserLocation>, ValueDecoder<UserLocation> {}
 }
 struct ComputerTool(val display_width: Long, val display_height: Long, val environment: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ComputerTool>", "ValueDecoder<ComputerTool>"])
     companion object : ValueEncoder<ComputerTool>, ValueDecoder<ComputerTool> {}
 }
 struct CodeTool(val container: ContainerChoice) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeTool>", "ValueDecoder<CodeTool>"])
     companion object : ValueEncoder<CodeTool>, ValueDecoder<CodeTool> {}
 }
 struct MCPConfig(val server_label: String, val server_url: String, val allowed_tools: Array<String>? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<MCPConfig>", "ValueDecoder<MCPConfig>"])
     companion object : ValueEncoder<MCPConfig>, ValueDecoder<MCPConfig> {}
 }
 struct ContainerObject(val type: String, val file_ids: Array<String> = []) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ContainerObject>", "ValueDecoder<ContainerObject>"])
     companion object : ValueEncoder<ContainerObject>, ValueDecoder<ContainerObject> {}
 }
 struct ImageTool(val size: String? = None, val quality: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ImageTool>", "ValueDecoder<ImageTool>"])
     companion object : ValueEncoder<ImageTool>, ValueDecoder<ImageTool> {}
 }
 struct NamedFunction(val name: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<NamedFunction>", "ValueDecoder<NamedFunction>"])
     companion object : ValueEncoder<NamedFunction>, ValueDecoder<NamedFunction> {}
 }
 enum ContainerChoice {

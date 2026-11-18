@@ -1,0 +1,15 @@
+schema = 1
+name = "generator-visible-constructor"
+root = "generator-visible-constructor.scoop"
+inputs = ["generator-visible-constructor.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["serialization", "negative", "language", "expected-error"]
+
+[[steps]]
+name = "reject"
+argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "generator-visible-constructor.diagnostics.json"}

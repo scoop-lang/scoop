@@ -8,6 +8,7 @@ private fun check(value: Boolean, code: Int, location: SourceLocation = currentS
 }
 
 public struct Pair<A, B>(val first: A, val second: B)
+@GenerateWith("scoop.codec", ["ValueDecoder<Pair<A, B>>"])
 public class PairDecoder<A, B>(private val first: ValueDecoder<A>, private val second: ValueDecoder<B>)
     : ValueDecoder<Pair<A, B>>
 
@@ -20,13 +21,16 @@ public struct Nested<T>(
     val units: MutableArray<Unit>,
     val functions: ArrayList<() -> Int>
 )
+@GenerateWith("scoop.codec", ["ValueDecoder<Nested<T>>"])
 public struct NestedDecoder<T>(val element: ValueDecoder<T>, val function: ValueDecoder<() -> Int>)
     : ValueDecoder<Nested<T>>
 
 public struct Phantom<T>(val value: Int) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<Phantom<T>>"])
     public companion object : ValueDecoder<Phantom<T>>
 }
 public struct Envelope<T>(val item: Phantom<T>)
+@GenerateWith("scoop.codec", ["ValueDecoder<Envelope<T>>"])
 public class EnvelopeDecoder<T>() : ValueDecoder<Envelope<T>>
 
 private fun exerciseConsumer() {

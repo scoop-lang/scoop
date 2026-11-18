@@ -9,13 +9,10 @@ internal fun joined(values: Array<String>, separator: String): String {
     return result.toString()
 }
 
-internal fun choicesText(choices: Array<CliChoice>): String =
-    joined(Array<String>(choices.size) { index -> choices[index].spelling }, "|")
-
 internal fun metavar(entry: CliEntry): String {
     val label = if (entry.valueName != "") { entry.valueName } else { when (entry.valueShape) {
-        case CliValueShape.Choice(val choices) -> choicesText(choices)
-        case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> choicesText(choices)
+        case CliValueShape.Choice(val choices) -> joined(choices, "|")
+        case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> joined(choices, "|")
         else -> "VALUE"
     } }
     return "<" + label + ">" + if (isRepeated(entry.valueShape)) { "..." } else { "" }
@@ -36,8 +33,8 @@ internal fun helpEntry(entry: CliEntry, writer: TextWriter) {
     if (entry.help != "") { writer.write("  " + entry.help) }
     if (entry.valueName != "") {
         when (entry.valueShape) {
-            case CliValueShape.Choice(val choices) -> writer.write(" [choices: " + choicesText(choices) + "]")
-            case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> writer.write(" [choices: " + choicesText(choices) + "]")
+            case CliValueShape.Choice(val choices) -> writer.write(" [choices: " + joined(choices, "|") + "]")
+            case CliValueShape.Repeated(CliElementShape.Choice(val choices)) -> writer.write(" [choices: " + joined(choices, "|") + "]")
             else -> {}
         }
     }

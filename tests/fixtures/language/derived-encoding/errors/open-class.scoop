@@ -1,3 +1,3 @@
-open class Item(val value: Int) { companion object : ValueEncoder<Item> }
+open class Item(val value: Int) { @GenerateWith("scoop.codec", ["ValueEncoder<Item>"]) companion object : ValueEncoder<Item> }
 
 fun main() {}

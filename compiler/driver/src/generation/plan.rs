@@ -25,16 +25,14 @@ pub(super) fn plan(
                     continue;
                 }
             };
-        let existing = queries.interfaces(annotation.owner);
         for element in elements {
-            let binding =
-                match configuration::interface(queries, annotation.owner, element, &existing) {
-                    Ok(binding) => binding,
-                    Err(errors) => {
-                        diagnostics.extend(errors);
-                        continue;
-                    }
-                };
+            let binding = match configuration::interface(queries, annotation.owner, element) {
+                Ok(binding) => binding,
+                Err(errors) => {
+                    diagnostics.extend(errors);
+                    continue;
+                }
+            };
             if let Err(error) =
                 planner.bind(queries, &pending, annotation.owner, generator, binding)
             {

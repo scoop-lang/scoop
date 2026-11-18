@@ -5,6 +5,7 @@ struct Native(val sources: Array<Selection> = [], val include: Array<String> = [
     @Serialize(rename = "c_flags") val cFlags: Array<String> = [],
     @Serialize(rename = "cxx_flags") val cxxFlags: Array<String> = [],
     val cxx: Boolean = false, val libraries: Array<Library> = []) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Native>"])
     companion object : ValueEncoder<Native>, ValueDecoder<Native> {
         public override fun decode(decoder: Decoder): Native {
             val fields = strict(decoder, ["sources", "include", "c_flags", "cxx_flags", "cxx", "libraries"])
@@ -20,9 +21,11 @@ struct Native(val sources: Array<Selection> = [], val include: Array<String> = [
         }
     }
 }
+@GenerateWith("scoop.codec", ["ValueDecoder<Native>"])
 object NativeFields : ValueDecoder<Native> {}
 
 struct Library(val name: String, val kind: String = "default", @Serialize(rename = "when") val predicate: Predicate? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Library>"])
     companion object : ValueEncoder<Library>, ValueDecoder<Library> {
         public override fun decode(decoder: Decoder): Library {
             val fields = strict(decoder, ["name", "kind", "when"])
@@ -36,4 +39,5 @@ struct Library(val name: String, val kind: String = "default", @Serialize(rename
         }
     }
 }
+@GenerateWith("scoop.codec", ["ValueDecoder<Library>"])
 object LibraryFields : ValueDecoder<Library> {}

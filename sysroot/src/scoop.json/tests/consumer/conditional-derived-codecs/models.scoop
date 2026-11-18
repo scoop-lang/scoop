@@ -3,6 +3,7 @@ package scoop.json.tests.consumer.conditional_derived_codecs
 import scoop.collections.HashMap
 
 struct Envelope<T>(val value: T) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>", "ValueDecoder<Envelope<T>>"])
     public companion object {
         override interface ValueEncoder<Envelope<T>> where T.Companion : ValueEncoder<T> {}
         override interface ValueDecoder<Envelope<T>> where T.Companion : ValueDecoder<T> {}
@@ -10,6 +11,7 @@ struct Envelope<T>(val value: T) {
 }
 
 struct Nested<T>(val value: Envelope<T>, val values: HashMap<Int, T>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Nested<T>>", "ValueDecoder<Nested<T>>"])
     public companion object {
         override interface ValueEncoder<Nested<T>> where T.Companion : ValueEncoder<T> {}
         override interface ValueDecoder<Nested<T>> where T.Companion : ValueDecoder<T> {}
@@ -17,16 +19,19 @@ struct Nested<T>(val value: Envelope<T>, val values: HashMap<Int, T>) {
 }
 
 class Node<T>(public val value: T, public val next: Node<T>? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Node<T>>", "ValueDecoder<Node<T>>"])
     public companion object {
         override interface ValueEncoder<Node<T>> where T.Companion : ValueEncoder<T> {}
         override interface ValueDecoder<Node<T>> where T.Companion : ValueDecoder<T> {}
     }
 }
 
+@GenerateWith("scoop.codec", ["ValueEncoder<Envelope<T>>"])
 class SuppliedEncoder<T>(private val element: ValueEncoder<T>) {
     override interface ValueEncoder<Envelope<T>> where T.Companion : ValueEncoder<T> {}
 }
 
+@GenerateWith("scoop.codec", ["ValueDecoder<Envelope<T>>"])
 class SuppliedDecoder<T>(private val element: ValueDecoder<T>) {
     override interface ValueDecoder<Envelope<T>> where T.Companion : ValueDecoder<T> {}
 }

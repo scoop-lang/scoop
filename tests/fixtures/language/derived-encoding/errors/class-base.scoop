@@ -1,4 +1,4 @@
 open class Base()
-class Item(val value: Int) : Base() { companion object : ValueEncoder<Item> }
+class Item(val value: Int) : Base() { @GenerateWith("scoop.codec", ["ValueEncoder<Item>"]) companion object : ValueEncoder<Item> }
 
 fun main() {}

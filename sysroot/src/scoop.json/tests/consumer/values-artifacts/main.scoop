@@ -9,6 +9,7 @@ import scoop.json.tests.consumer.values_artifacts.p1.*
 fun check(value: Boolean, location: SourceLocation = currentSourceLocation()) {
     assertTrue(value, location = location)
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Document>", "ValueDecoder<Document>"])
 object Local : ValueEncoder<Document>, ValueDecoder<Document>
 
 private fun exerciseConsumer() {

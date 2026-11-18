@@ -7,6 +7,7 @@ public struct Box<T>(val value: T) {
         public fun encoder(element: ValueEncoder<T>): ValueEncoder<Box<T>> = BoxEncoder<T>(element)
     }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Box<T>>"])
 private class BoxEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Box<T>>
 public fun unitFromProvider(): Any = Unit
 public fun <T> erase(value: T): Any = value

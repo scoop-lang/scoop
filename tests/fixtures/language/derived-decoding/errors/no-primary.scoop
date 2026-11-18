@@ -1,4 +1,4 @@
 public class Item { public constructor() {} }
-public object Reader : ValueDecoder<Item>
+@GenerateWith("scoop.codec", ["ValueDecoder<Item>"]) public object Reader : ValueDecoder<Item>
 
 fun main() {}

@@ -66,7 +66,26 @@ impl hir::MethodBodyGenerator for ExternalGenerator<'_> {
             } = session::generate(queries, &batch, &program).map_err(|error| vec![error])?;
             self.used.push(used);
             for reported in diagnostics {
-                match diagnostics::resolve(queries, reported, &batch.generator, origin) {
+                let requested = match reported.method {
+                    Some(id) => {
+                        let Some(method) = batch
+                            .tasks
+                            .iter()
+                            .flat_map(|task| task.methods.iter())
+                            .find(|m| m.method == id)
+                        else {
+                            errors.push(diagnostic(
+                                scoop_source::DiagnosticCode::E2511,
+                                origin,
+                                "generator diagnostic names a method outside its pending batch",
+                            ));
+                            continue;
+                        };
+                        &method.origin
+                    }
+                    None => origin,
+                };
+                match diagnostics::resolve(queries, reported, &batch.generator, requested) {
                     Ok(diagnostic)
                         if diagnostic.severity == scoop_ast::DiagnosticSeverity::Warning =>
                     {

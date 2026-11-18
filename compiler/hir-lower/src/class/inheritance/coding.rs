@@ -3,71 +3,16 @@ use crate::imports::{ImportLookupLayer, lookup::TypeLookupTarget};
 use crate::namespace::TopLevelTypeTarget;
 use ast::Span;
 
-mod annotations;
 mod codecs;
-mod defaults;
 mod expressions;
 mod tuple;
-pub(super) use codecs::SelectedCodec;
 
 #[derive(Clone, Copy)]
 pub(super) struct CodingContext {
     pub owner: Owner,
     pub target: TypeId,
     pub interface: hir::SourceNominalId,
-    pub direction: CodingDirection,
-}
-
-#[derive(Clone, Copy)]
-pub(super) enum CodingDirection {
-    Encode,
-    Decode,
-    Inspect(super::inspection::InspectionTypeFactory),
-}
-
-impl CodingDirection {
-    fn method(self) -> &'static str {
-        match self {
-            Self::Encode => "encode",
-            Self::Decode => "decode",
-            Self::Inspect(_) => "inspect",
-        }
-    }
-    fn factory(self) -> &'static str {
-        match self {
-            Self::Encode => "encoder",
-            Self::Decode => "decoder",
-            Self::Inspect(_) => "inspector",
-        }
-    }
-    fn protocol(self) -> &'static str {
-        match self {
-            Self::Encode => "ValueEncoder",
-            Self::Decode => "ValueDecoder",
-            Self::Inspect(_) => "ValueInspector",
-        }
-    }
-    fn stream(self) -> &'static str {
-        match self {
-            Self::Encode => "Encoder",
-            Self::Decode => "Decoder",
-            Self::Inspect(_) => "ValueView",
-        }
-    }
-    fn unit_codec(self) -> &'static str {
-        match self {
-            Self::Encode => "UnitEncoder",
-            Self::Decode => "UnitDecoder",
-            Self::Inspect(_) => "UnitInspector",
-        }
-    }
-    fn function_codec(self) -> &'static str {
-        match self {
-            Self::Encode => "ValueEncoderFunction",
-            Self::Decode => "ValueDecoderFunction",
-            Self::Inspect(_) => "ValueInspectorFunction",
-        }
-    }
+    pub factory: super::inspection::InspectionTypeFactory,
 }
 
 impl Lowerer {

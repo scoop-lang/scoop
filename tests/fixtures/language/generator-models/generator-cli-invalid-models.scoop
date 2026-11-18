@@ -1,0 +1,46 @@
+//! dep: scoop:scoop.cli:0.1.0
+import scoop.cli.*
+
+interface EntriesOnly<T> : CliArguments<T> {
+    public override fun bind(values: CliValues): T = throw IllegalStateException()
+}
+open class Open(val value: Int)
+@GenerateWith("scoop.cli", ["CliArguments<Open>"])
+object OpenArguments : EntriesOnly<Open>
+enum Payload { Data(Int) }
+enum Number : Int { One = 1 }
+struct InvalidPayload(val value: Payload)
+struct Integral(val value: Number)
+struct Repeated(val value: Array<Array<Int>>)
+struct BadFlag(@CliFlag val value: Boolean?)
+struct Conflict(@CliFlag @CliOption val value: Boolean)
+struct Ignored(@CliIgnore val value: Int)
+struct Aliases(@CliOption(names = ["-x"]) val first: Int, @CliOption(names = ["-x"]) val second: Int)
+struct Positional(@CliArgument(position = 1L) val value: Int)
+class Extra(val value: Int) { val additional: Int = 2 }
+@GenerateWith("scoop.cli", ["CliArguments<InvalidPayload>"])
+object InvalidPayloadArguments : EntriesOnly<InvalidPayload>
+@GenerateWith("scoop.cli", ["CliArguments<Integral>"])
+object IntegralArguments : EntriesOnly<Integral>
+@GenerateWith("scoop.cli", ["CliArguments<Repeated>"])
+object RepeatedArguments : EntriesOnly<Repeated>
+@GenerateWith("scoop.cli", ["CliArguments<BadFlag>"])
+object BadFlagArguments : EntriesOnly<BadFlag>
+@GenerateWith("scoop.cli", ["CliArguments<Conflict>"])
+object ConflictArguments : EntriesOnly<Conflict>
+@GenerateWith("scoop.cli", ["CliArguments<Ignored>"])
+object IgnoredArguments : EntriesOnly<Ignored>
+@GenerateWith("scoop.cli", ["CliArguments<Aliases>"])
+object AliasesArguments : EntriesOnly<Aliases>
+@GenerateWith("scoop.cli", ["CliArguments<Positional>"])
+object PositionalArguments : EntriesOnly<Positional>
+@GenerateWith("scoop.cli", ["CliArguments<Extra>"])
+object ExtraArguments : EntriesOnly<Extra>
+struct Multiple(val id: Int, val bias: Int = id + 2) {
+    constructor(id: Int) : this(id, 99) {}
+    @GenerateWith("scoop.cli", ["CliArguments<Multiple>"])
+    companion object : CliArguments<Multiple> {
+        public override fun entries(): Array<CliEntry> = []
+    }
+}
+fun main() {}

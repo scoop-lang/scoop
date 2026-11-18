@@ -18,9 +18,11 @@ private fun <T> erase(value: T): Any = value
 private fun <T> encoded(value: T, codec: ValueEncoder<T>): String = Json.encodeToString(value, codec)
 
 public struct Row(val empty: Unit, val count: Int) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Row>", "ValueDecoder<Row>"])
     public companion object : ValueEncoder<Row>, ValueDecoder<Row>
 }
 public struct Generic<T>(val value: T)
+@GenerateWith("scoop.codec", ["ValueEncoder<Generic<T>>"])
 private class GenericEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Generic<T>>
 
 private class Bound(private val codec: ValueEncoder<Unit>) : ValueEncoder<Unit> {

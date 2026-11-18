@@ -7,16 +7,7 @@ impl MemberIndex {
         owner: Owner,
         check: &impl Fn() -> bool,
     ) -> Result<(), EditingCancelled> {
-        let conformances = match owner {
-            Owner::Class(id) => &lowerer.classes[id].interface_implementations,
-            Owner::Struct(id) => &lowerer.structs[id].interface_implementations,
-            Owner::Enum(id) => &lowerer.enums[id].interface_implementations,
-            Owner::Object(id) => {
-                &lowerer.classes[lowerer.objects[id].backing_class].interface_implementations
-            }
-            Owner::Interface(_) => return Ok(()),
-        }
-        .clone();
+        let conformances = lowerer.owner_conformances(owner).to_vec();
         for conformance in conformances {
             for implementation in conformance.methods {
                 if check() {

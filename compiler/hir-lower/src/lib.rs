@@ -810,8 +810,6 @@ pub(crate) struct Lowerer {
         HashMap<TypeId, hir::DerivedEqualityApplicationId>,
     /// Ordinary encode members awaiting their complete bodies, paired with
     /// the selected core protocol declaration.
-    derived_encoding_methods: Vec<(FunctionId, hir::SourceNominalId)>,
-    derived_decoding_methods: Vec<(FunctionId, hir::SourceNominalId)>,
     derived_inspection_methods: Vec<(FunctionId, hir::SourceNominalId)>,
     generation: generation::PendingGeneration,
     interface_delegates: HashMap<ClassId, Vec<class::InterfaceDelegateSource>>,

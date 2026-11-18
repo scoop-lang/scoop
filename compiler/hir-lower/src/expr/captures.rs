@@ -218,7 +218,7 @@ impl Lowerer {
         creation: hir::ExpressionOrigin,
     ) -> Vec<hir::Capture> {
         let provider = self.current_intrinsic_provider();
-        let file = u32::try_from(self.current_file).expect("source file index exceeds u32");
+        let file = u32::try_from(self.current_text_file()).expect("source file index exceeds u32");
         let source_context = self.source_context_for_current_file();
         let context = self
             .capture_contexts

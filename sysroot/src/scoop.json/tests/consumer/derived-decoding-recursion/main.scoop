@@ -8,6 +8,7 @@ private fun check(value: Boolean, code: Int, location: SourceLocation = currentS
 }
 
 public class Node public constructor(public val value: Int, public val next: Option<Node>)
+@GenerateWith("scoop.codec", ["ValueDecoder<Node>"])
 public class NodeDecoder(private val element: ValueDecoder<Int>) : ValueDecoder<Node>
 private class Offset(private val amount: Int) : ValueDecoder<Int> {
     public override fun decode(decoder: Decoder): Int = Int.Companion.decode(decoder) + amount
@@ -16,9 +17,11 @@ private class Offset(private val amount: Int) : ValueDecoder<Int> {
 public enum Tree {
     Leaf,
     Branch(val node: TreeNode)
+    @GenerateWith("scoop.codec", ["ValueDecoder<Tree>"])
     public companion object : ValueDecoder<Tree>
 }
 public class TreeNode public constructor(public val child: Tree) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<TreeNode>"])
     public companion object : ValueDecoder<TreeNode>
 }
 

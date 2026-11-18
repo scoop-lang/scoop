@@ -76,6 +76,7 @@ public annotation class Repeatable
 /**
  * Selects a host source generator for existing interface implementations.
  * Each interface string is resolved in the annotated implementation's scope.
+ * Conditional implementations, including inherited ones, keep their original bounds.
  */
 @Target([AnnotationTarget.Class])
 @Repeatable

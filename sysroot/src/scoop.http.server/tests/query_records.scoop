@@ -9,10 +9,12 @@ private struct QueryPage(
     @Serialize(rename = "tag") val tags: Array<String> = [],
     val enabled: Boolean = false
 ) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<QueryPage>"])
     public companion object: ValueDecoder<QueryPage>
 }
 
 private struct OptionalTags(val tag: Array<String>?) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<OptionalTags>"])
     public companion object: ValueDecoder<OptionalTags>
 }
 

@@ -44,17 +44,22 @@ enum Delta {
     }
 }
 struct TextDelta(val text: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<TextDelta>", "ValueDecoder<TextDelta>"])
     companion object : ValueEncoder<TextDelta>, ValueDecoder<TextDelta> {}
 }
 struct JSONDelta(val partial_json: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<JSONDelta>", "ValueDecoder<JSONDelta>"])
     companion object : ValueEncoder<JSONDelta>, ValueDecoder<JSONDelta> {}
 }
 struct ThinkingDelta(val thinking: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ThinkingDelta>", "ValueDecoder<ThinkingDelta>"])
     companion object : ValueEncoder<ThinkingDelta>, ValueDecoder<ThinkingDelta> {}
 }
 struct SignatureDelta(val signature: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SignatureDelta>", "ValueDecoder<SignatureDelta>"])
     companion object : ValueEncoder<SignatureDelta>, ValueDecoder<SignatureDelta> {}
 }
 struct CitationDelta(val citation: Citation) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CitationDelta>", "ValueDecoder<CitationDelta>"])
     companion object : ValueEncoder<CitationDelta>, ValueDecoder<CitationDelta> {}
 }

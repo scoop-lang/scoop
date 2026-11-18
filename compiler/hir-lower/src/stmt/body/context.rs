@@ -6,9 +6,12 @@ impl Lowerer {
         &mut self,
         id: FunctionId,
         name: &str,
+        implicit_parameter_span: Option<ast::Span>,
         lower: impl FnOnce(&mut Self) -> Vec<hir::Statement>,
     ) -> hir::Body {
-        let mut scope = self.with_function_scope(id, name, lower);
+        let mut scope = self.with_function_scope(id, name, implicit_parameter_span, |state| {
+            state.with_inherited_method_condition(id, lower)
+        });
         scope.entry.extend(scope.value);
         hir::Body {
             locals: scope.locals,
@@ -20,6 +23,7 @@ impl Lowerer {
         &mut self,
         id: FunctionId,
         name: &str,
+        implicit_parameter_span: Option<ast::Span>,
         lower: impl FnOnce(&mut Self) -> T,
     ) -> crate::stmt::FunctionScopeResult<T> {
         let outer_loop_targets = std::mem::take(&mut self.loop_targets);
@@ -76,7 +80,10 @@ impl Lowerer {
             .or_else(|| owner.map(|owner| self.owner_ty(owner)))
             .or(extension_receiver)
         {
-            let local = self.alloc_this_local(host_ty, self.functions[id].span);
+            let local = self.alloc_this_local(
+                host_ty,
+                implicit_parameter_span.unwrap_or(self.functions[id].span),
+            );
             self.scopes.declare("this".to_string(), local);
             self.current_this = Some((local, host_ty));
             if matches!(owner, Some(crate::Owner::Class(_))) {
@@ -134,7 +141,7 @@ impl Lowerer {
                 param.name.text.clone(),
                 param.ty,
                 index,
-                param.name.span,
+                implicit_parameter_span.unwrap_or(param.name.span),
             );
             self.scopes.declare(param.name.text.clone(), local);
             params.push(hir::Param {
@@ -146,7 +153,7 @@ impl Lowerer {
         self.functions[id].params = params;
         let outer_capture_scope =
             owner.and_then(|owner| self.enter_local_type_captures(owner, capture_environment));
-        entry.extend(self.lower_context_entry(id));
+        entry.extend(self.lower_context_entry(id, implicit_parameter_span));
 
         let value = lower(self);
         self.pop_scope();

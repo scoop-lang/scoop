@@ -32,4 +32,5 @@ struct TextOnly(val text: String, val cache_control: CacheControl? = None) {
         }
     }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<TextOnly>", "ValueDecoder<TextOnly>"])
 object TextFields : ValueEncoder<TextOnly>, ValueDecoder<TextOnly> {}

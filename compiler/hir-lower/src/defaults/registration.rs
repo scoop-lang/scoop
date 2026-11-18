@@ -22,20 +22,6 @@ impl Lowerer {
             self.current_file = self.function_files[&function];
             self.register_function_parameter_interface(function);
         }
-        for (function, _) in self.derived_encoding_methods.clone() {
-            if (function.into_raw().into_u32() as usize) < start {
-                continue;
-            }
-            self.current_file = self.function_files[&function];
-            self.register_function_parameter_interface(function);
-        }
-        for (function, _) in self.derived_decoding_methods.clone() {
-            if (function.into_raw().into_u32() as usize) < start {
-                continue;
-            }
-            self.current_file = self.function_files[&function];
-            self.register_function_parameter_interface(function);
-        }
         for (function, _) in self.derived_inspection_methods.clone() {
             if (function.into_raw().into_u32() as usize) < start {
                 continue;

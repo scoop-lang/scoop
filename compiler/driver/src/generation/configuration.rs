@@ -79,7 +79,6 @@ pub(super) fn interface(
     queries: &mut dyn hir::SemanticQueries,
     owner: hir::NominalOwner,
     element: &hir::AnnotationElementV1,
-    existing: &[hir::TypeId],
 ) -> Result<GeneratorBinding, Vec<Diagnostic>> {
     let origin = hir::SemanticSourceLocation {
         source: element.source.clone(),
@@ -107,32 +106,23 @@ pub(super) fn interface(
         diagnostics
     };
     let syntax = scoop_parser::parse_type(text).map_err(locate)?;
-    let context = hir::SemanticContext::Nominal(owner);
-    let ty = queries.resolve_type(context, &syntax).map_err(locate)?;
-    let description = queries
-        .describe_type(context.into(), ty)
-        .map_err(|error| locate(vec![error]))?;
-    if !matches!(
-        description.structure,
-        hir::SemanticTypeStructure::Nominal(hir::SemanticNominalDescription {
-            kind: hir::StaticNominalKind::Interface,
-            ..
-        })
-    ) {
-        return Err(vec![diagnostic(
-            scoop_source::DiagnosticCode::E1317,
-            &origin,
-            "GenerateWith interface element must name an interface application",
-        )]);
-    }
-    let Some(&interface) = existing.iter().find(|&&interface| {
-        queries.type_relation(context, hir::SemanticTypeRelation::Equal, ty, interface)
-    }) else {
-        return Err(vec![diagnostic(
-            scoop_source::DiagnosticCode::E1317,
-            &origin,
-            "GenerateWith selects an interface application not inherited by this type",
-        )]);
+    let message = match queries
+        .resolve_implemented_interface(owner, &syntax)
+        .map_err(locate)?
+    {
+        hir::InterfaceSelection::Implemented(interface) => {
+            return Ok(GeneratorBinding { interface, origin });
+        }
+        hir::InterfaceSelection::NotInterface => {
+            "GenerateWith interface element must name an interface application"
+        }
+        hir::InterfaceSelection::NotImplemented => {
+            "GenerateWith selects an interface application not inherited by this type"
+        }
     };
-    Ok(GeneratorBinding { interface, origin })
+    Err(vec![diagnostic(
+        scoop_source::DiagnosticCode::E1317,
+        &origin,
+        message,
+    )])
 }

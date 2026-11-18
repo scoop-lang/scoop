@@ -4,6 +4,7 @@ import scoop.json.Json
 import scoop.test.*
 
 private class SavedUrl public constructor(public val link: Url, public val optional: Url? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SavedUrl>", "ValueDecoder<SavedUrl>"])
     public companion object : ValueEncoder<SavedUrl>, ValueDecoder<SavedUrl>
 }
 

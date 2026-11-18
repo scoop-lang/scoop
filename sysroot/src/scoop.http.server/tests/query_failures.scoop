@@ -3,10 +3,12 @@ package scoop.http.server
 import scoop.test.*
 
 private struct QueryNestedChild(val n: Int) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<QueryNestedChild>"])
     public companion object: ValueDecoder<QueryNestedChild>
 }
 
 private struct QueryNestedRecord(val child: QueryNestedChild) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<QueryNestedRecord>"])
     public companion object: ValueDecoder<QueryNestedRecord>
 }
 

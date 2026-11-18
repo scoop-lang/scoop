@@ -20,6 +20,7 @@ private object Contextual : ValueEncoder<Int> {
 }
 
 struct Item<T>(val pair: (T, Array<T>))
+@GenerateWith("scoop.codec", ["ValueEncoder<Item<T>>"])
 class ItemEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Item<T>>
 
 private fun exerciseConsumer() {

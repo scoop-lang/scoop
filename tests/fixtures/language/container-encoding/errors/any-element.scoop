@@ -1,4 +1,4 @@
 struct Record(val values: Array<Any>) {
-    companion object : ValueEncoder<Record>
+    @GenerateWith("scoop.codec", ["ValueEncoder<Record>"]) companion object : ValueEncoder<Record>
 }
 fun main() {}

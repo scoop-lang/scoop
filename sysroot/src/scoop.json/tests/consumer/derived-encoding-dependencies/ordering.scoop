@@ -15,6 +15,7 @@ private struct Payload(val number: Int, val text: String) {
     }
 }
 private class Source(public var value: Payload) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Source>"])
     public companion object : ValueEncoder<Source>
 }
 private class TraceEncoder(private val source: Source)
@@ -45,15 +46,18 @@ private class TraceEncoder(private val source: Source)
 }
 
 private struct Unvisited() {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Unvisited>"])
     public companion object : ValueEncoder<Unvisited> {
         init { throw IllegalStateException(Some("an unused codec was initialized")) }
     }
 }
 private struct Skip(@Serialize(ignore = true) val ignored: Unvisited, val value: Int) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Skip>"])
     public companion object : ValueEncoder<Skip>
 }
 private enum Choice {
     Main(Int), Other(Unvisited)
+    @GenerateWith("scoop.codec", ["ValueEncoder<Choice>"])
     public companion object : ValueEncoder<Choice>
 }
 

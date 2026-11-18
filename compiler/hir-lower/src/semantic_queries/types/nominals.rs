@@ -74,6 +74,20 @@ impl Lowerer {
                 _ => unreachable!("primitive declarations carry an intrinsic kind"),
             }
         };
+        let identity = target
+            .and_then(|owner| self.nominal_identity(owner).source())
+            .or_else(|| dependency.map(|item| &item.identity));
+        let source_path = identity.map(|identity| self.nominal_source_path(declaration, identity));
+        let class_hierarchy = if matches!(kind, hir::StaticNominalKind::Class) {
+            let class = self.class_definition(declaration);
+            let modifier = class.modifier;
+            let base = class
+                .base_class
+                .map(|base| self.instantiate_ty(base, &arguments));
+            Some(hir::SemanticClassHierarchy { modifier, base })
+        } else {
+            None
+        };
         let companion = self.declared_companion_type(ty).map(|companion| {
             self.apply_nominal_type(companion, arguments.clone())
                 .expect("a companion shares its resolved host arguments")
@@ -81,6 +95,9 @@ impl Lowerer {
         Ok(Some(hir::SemanticNominalDescription {
             declaration,
             kind,
+            class_hierarchy,
+            integral_representation: self.integral_enum_kind(ty),
+            source_path,
             arguments,
             parameters,
             companion,

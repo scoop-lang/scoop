@@ -4,9 +4,11 @@ import scoop.test.*
 import scoop.json.*
 
 struct TextBlock(val text: String, val cache_control: CacheControl? = None, val citations: Array<Citation>? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<TextBlock>", "ValueDecoder<TextBlock>"])
     companion object : ValueEncoder<TextBlock>, ValueDecoder<TextBlock> {}
 }
 struct ImageBlock(val source: Source) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ImageBlock>", "ValueDecoder<ImageBlock>"])
     companion object : ValueEncoder<ImageBlock>, ValueDecoder<ImageBlock> {}
 }
 struct DocumentBlock(
@@ -15,27 +17,35 @@ struct DocumentBlock(
     val context: String? = None,
     val citations: CitationConfig? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<DocumentBlock>", "ValueDecoder<DocumentBlock>"])
     companion object : ValueEncoder<DocumentBlock>, ValueDecoder<DocumentBlock> {}
 }
 struct ThinkingBlock(val thinking: String, val signature: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ThinkingBlock>", "ValueDecoder<ThinkingBlock>"])
     companion object : ValueEncoder<ThinkingBlock>, ValueDecoder<ThinkingBlock> {}
 }
 struct RedactedBlock(val data: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<RedactedBlock>", "ValueDecoder<RedactedBlock>"])
     companion object : ValueEncoder<RedactedBlock>, ValueDecoder<RedactedBlock> {}
 }
 struct ToolUse(val id: String, val name: String, val input: JsonValue) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ToolUse>", "ValueDecoder<ToolUse>"])
     companion object : ValueEncoder<ToolUse>, ValueDecoder<ToolUse> {}
 }
 struct ToolResult(val tool_use_id: String, val content: Content? = None, val is_error: Boolean = false) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ToolResult>", "ValueDecoder<ToolResult>"])
     companion object : ValueEncoder<ToolResult>, ValueDecoder<ToolResult> {}
 }
 struct SearchResultBlock(val tool_use_id: String, val content: SearchResults) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchResultBlock>", "ValueDecoder<SearchResultBlock>"])
     companion object : ValueEncoder<SearchResultBlock>, ValueDecoder<SearchResultBlock> {}
 }
 struct FetchResultBlock(val tool_use_id: String, val content: FetchResult) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FetchResultBlock>", "ValueDecoder<FetchResultBlock>"])
     companion object : ValueEncoder<FetchResultBlock>, ValueDecoder<FetchResultBlock> {}
 }
 struct CodeResultBlock(val tool_use_id: String, val content: CodeResult) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CodeResultBlock>", "ValueDecoder<CodeResultBlock>"])
     companion object : ValueEncoder<CodeResultBlock>, ValueDecoder<CodeResultBlock> {}
 }
 struct SearchBlock(
@@ -44,14 +54,18 @@ struct SearchBlock(
     val content: Array<TextOnly>,
     val citations: CitationConfig? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<SearchBlock>", "ValueDecoder<SearchBlock>"])
     companion object : ValueEncoder<SearchBlock>, ValueDecoder<SearchBlock> {}
 }
 struct UploadBlock(val file_id: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<UploadBlock>", "ValueDecoder<UploadBlock>"])
     companion object : ValueEncoder<UploadBlock>, ValueDecoder<UploadBlock> {}
 }
 struct CitationConfig(val enabled: Boolean) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CitationConfig>", "ValueDecoder<CitationConfig>"])
     companion object : ValueEncoder<CitationConfig>, ValueDecoder<CitationConfig> {}
 }
 struct CacheControl(val type: String, val ttl: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CacheControl>", "ValueDecoder<CacheControl>"])
     companion object : ValueEncoder<CacheControl>, ValueDecoder<CacheControl> {}
 }

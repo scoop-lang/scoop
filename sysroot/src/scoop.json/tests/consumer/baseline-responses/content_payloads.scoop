@@ -2,12 +2,15 @@ package scoop.json.tests.consumer.baseline_responses
 
 import scoop.test.*
 struct TextPart(val text: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<TextPart>", "ValueDecoder<TextPart>"])
     companion object : ValueEncoder<TextPart>, ValueDecoder<TextPart> {}
 }
 struct RefusalPart(val refusal: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<RefusalPart>", "ValueDecoder<RefusalPart>"])
     companion object : ValueEncoder<RefusalPart>, ValueDecoder<RefusalPart> {}
 }
 struct ResponseImage(val detail: String = "auto", val file_id: String? = None, val image_url: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ResponseImage>", "ValueDecoder<ResponseImage>"])
     companion object : ValueEncoder<ResponseImage>, ValueDecoder<ResponseImage> {}
 }
 struct ResponseFile(
@@ -16,21 +19,27 @@ struct ResponseFile(
     val filename: String? = None,
     val file_url: String? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ResponseFile>", "ValueDecoder<ResponseFile>"])
     companion object : ValueEncoder<ResponseFile>, ValueDecoder<ResponseFile> {}
 }
 struct AudioPart(val input_audio: InputAudio) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<AudioPart>", "ValueDecoder<AudioPart>"])
     companion object : ValueEncoder<AudioPart>, ValueDecoder<AudioPart> {}
 }
 struct InputAudio(val data: String, val format: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<InputAudio>", "ValueDecoder<InputAudio>"])
     companion object : ValueEncoder<InputAudio>, ValueDecoder<InputAudio> {}
 }
 struct OutputText(val text: String, val annotations: Array<ResponseAnnotation> = []) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<OutputText>", "ValueDecoder<OutputText>"])
     companion object : ValueEncoder<OutputText>, ValueDecoder<OutputText> {}
 }
 struct URLCitation(val start_index: Long, val end_index: Long, val title: String, val url: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<URLCitation>", "ValueDecoder<URLCitation>"])
     companion object : ValueEncoder<URLCitation>, ValueDecoder<URLCitation> {}
 }
 struct FileCitation(val file_id: String, val index: Long, val filename: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<FileCitation>", "ValueDecoder<FileCitation>"])
     companion object : ValueEncoder<FileCitation>, ValueDecoder<FileCitation> {}
 }
 enum ResponseAnnotation {

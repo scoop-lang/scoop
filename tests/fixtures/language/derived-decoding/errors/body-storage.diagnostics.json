@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1311",
+    "code": "GENERATOR_DIAGNOSTIC",
     "message": "automatic decode requires stored property `value` to be a primary constructor parameter or Serialize(ignore = true)",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 119,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 99
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 119,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 99
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 66,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 41
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Reader` does not implement interface method `ValueDecoder<Item>.decode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 110,
+      "end": 163,
       "kind": "source",
       "path": "main.scoop",
-      "start": 69
+      "start": 122
     },
     "severity": "error"
   }

@@ -7,13 +7,19 @@ fun check(value: Boolean, code: Int, location: SourceLocation = currentSourceLoc
     assertTrue(value, location = location)
 }
 public struct Record(@Serialize(rename = "point") val value: (Int, String)) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Record>", "ValueDecoder<Record>"])
     public companion object : ValueEncoder<Record>, ValueDecoder<Record>
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<(A, B)>"])
 class PairEncoder<A, B>(private val first: ValueEncoder<A>, private val second: ValueEncoder<B>)
     : ValueEncoder<(A, B)>
+@GenerateWith("scoop.codec", ["ValueEncoder<(Int,)>"])
 private object Single : ValueEncoder<(Int,)>
+@GenerateWith("scoop.codec", ["ValueEncoder<(Int, String)>", "ValueDecoder<(Int, String)>"])
 private object PairCodec : ValueEncoder<(Int, String)>, ValueDecoder<(Int, String)>
+@GenerateWith("scoop.codec", ["ValueEncoder<((Int, String), Unit)>", "ValueDecoder<((Int, String), Unit)>"])
 private object NestedCodec : ValueEncoder<((Int, String), Unit)>, ValueDecoder<((Int, String), Unit)>
+@GenerateWith("scoop.codec", ["ValueEncoder<(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)>"])
 private object Twelve : ValueEncoder<(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)>
 
 private fun exerciseConsumer() {

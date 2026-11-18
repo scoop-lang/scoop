@@ -7,41 +7,41 @@ import scoop.cli.tests.consumer.cli_artifacts.p1.*
 import scoop.cli.*
 import scoop.json.Json
 
-object Concrete : ValueDecoder<GenericArguments<Option<String>>>
+@GenerateWith("scoop.cli", ["CliArguments<GenericArguments<Option<String>>>"])
+object Concrete : CliArguments<GenericArguments<Option<String>>>
 struct Flags(@Toggle(names = ["-v"]) val enabled: Boolean = false) {
-    companion object : ValueDecoder<Flags>
+    @GenerateWith("scoop.cli", ["CliArguments<Flags>"])
+    companion object : CliArguments<Flags>
 }
 
 fun scenario() {
-    val schema = Cli.schema(typeInfo<Arguments>(), CliConfig("artifact", "CLI from libraries"))
-    check(schema.entries.size == 4L)
-    equal(schema.entries[0L].wireKey, "wire-source")
-    check(schema.entries[1L].required && schema.entries[1L].hasDefault)
-    check(!schema.entries[2L].required && !schema.entries[2L].hasDefault)
-    check(!contains(schema.help(), "not optional") && !contains(schema.help(), "cache"))
-    val parser = CliParser(schema, Arguments.Companion)
+    val parser = CliParser(CliConfig("artifact", "CLI from libraries"), Arguments.Companion)
+    check(parser.entries.size == 4L)
+    equal(parser.entries[0L].sourceName, "source")
+    check(parser.entries[1L].required && parser.entries[1L].hasDefault)
+    check(!parser.entries[2L].required && !parser.entries[2L].hasDefault)
+    check(!contains(parser.help(), "not optional") && !contains(parser.help(), "cache"))
     fails("/output", { parser.parse(["input"]) })
     val value = parsed(parser.parse(["input", "-o="]))
     check(value.cache == 42 && value.output == Some("") && value.extra == None)
     equal(Json.encodeToString(value, Arguments.Companion), "{\"wire-source\":\"input\",\"output\":\"\",\"extra\":null,\"secret\":\"private\"}")
     equal(DebugPrinter.format(Arguments.inspect(value)), "Arguments(source=\"input\", cache=42, output=Option<String>.Some(\"\"), extra=Option<String>.None, secret=\"<redacted>\")")
-    val classes = Cli.schema(typeInfo<ClassArguments>(), CliConfig("class"))
-    check(parsed(CliParser(classes, ClassArguments.Companion).parse([])).code == 3)
-    check(parsed(CliParser(classes, ClassArguments.Companion).parse(["--code=9"])).code == 9)
-    val callback = forwarded<Option<String>>(Option<String>.decoder(String.Companion))
+    val classes = CliParser(CliConfig("class"), ClassArguments.Companion)
+    check(parsed(classes.parse([])).code == 3)
+    check(parsed(classes.parse(["--code=9"])).code == 9)
+    val callback = forwarded<Option<String>>(CliParsers.optional(CliParsers.stringValue))
     gcCollect()
     val generic = callback()
     fails("/value", { generic.parse([]) })
     check(parsed(generic.parse(["-iabc"])).value == Some("abc"))
-    val genericInfo = genericSchema<Option<String>>()
+    val genericInfo = CliParser(CliConfig("generic"), Concrete)
     check(genericInfo.entries[0L].required && !genericInfo.entries[0L].hasDefault)
-    fails("/value", { CliParser(genericInfo, Concrete).parse([]) })
-    val maybeSchema = Cli.schema(typeInfo<MaybeArguments<Option<String>>>(), CliConfig("maybe"))
-    check(!maybeSchema.entries[0L].required && !maybeSchema.entries[0L].hasDefault)
-    val maybe = CliParser(maybeSchema, MaybeCodec<Option<String>>(Option<String>.decoder(String.Companion)))
+    fails("/value", { genericInfo.parse([]) })
+    val maybe = CliParser(CliConfig("maybe"), MaybeArgumentsParser<Option<String>>(CliParsers.optional(CliParsers.stringValue)))
+    check(!maybe.entries[0L].required && !maybe.entries[0L].hasDefault)
     check(parsed(maybe.parse([])).value == None)
     check(parsed(maybe.parse(["--value=null"])).value == Some(Some("null")))
-    val flags = CliParser(Cli.schema(typeInfo<Flags>(), CliConfig("flags")), Flags.Companion)
+    val flags = CliParser(CliConfig("flags"), Flags.Companion)
     check(parsed(flags.parse(["-v"])).enabled)
 
 }

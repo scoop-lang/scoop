@@ -1,24 +1,54 @@
 [
   {
-    "code": "E1312",
-    "message": "automatic encode has no ValueEncoder<Any> field codec",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "no field ValueEncoder for Any: provide a primary val dependency, a conforming companion, or an explicit encode implementation",
     "notes": [
       {
-        "code": "H1301",
-        "kind": "help",
-        "message": "provide a primary val dependency, a conforming companion, or an explicit encode implementation",
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
         "notes": [],
         "origin": {
-          "kind": "none"
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 96,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 74
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 96,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 74
         }
       }
     ],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 83,
+      "end": 36,
       "kind": "source",
       "path": "main.scoop",
-      "start": 44
+      "start": 14
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Record.Companion` does not implement interface method `ValueEncoder<Record>.encode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 138,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 99
     },
     "severity": "error"
   }

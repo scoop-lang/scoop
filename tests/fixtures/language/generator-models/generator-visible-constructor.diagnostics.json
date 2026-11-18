@@ -1,0 +1,55 @@
+[
+  {
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "automatic construction requires the primary constructor to be the only visible constructor",
+    "notes": [
+      {
+        "code": "N0001",
+        "kind": "note",
+        "message": "move this construction entry to a named companion factory",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 95,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 58
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 153,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 130
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 153,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 130
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Options.Companion` does not implement interface method `ValueDecoder<Options>.decode`",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 200,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 160
+    },
+    "severity": "error"
+  }
+]

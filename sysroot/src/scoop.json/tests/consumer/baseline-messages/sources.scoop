@@ -39,14 +39,18 @@ enum Source {
     }
 }
 struct Base64Source(val media_type: String, val data: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Base64Source>", "ValueDecoder<Base64Source>"])
     companion object : ValueEncoder<Base64Source>, ValueDecoder<Base64Source> {}
 }
 struct URLSource(val url: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<URLSource>", "ValueDecoder<URLSource>"])
     companion object : ValueEncoder<URLSource>, ValueDecoder<URLSource> {}
 }
 struct TextSource(val media_type: String, val data: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<TextSource>", "ValueDecoder<TextSource>"])
     companion object : ValueEncoder<TextSource>, ValueDecoder<TextSource> {}
 }
 struct ContentSource(val content: Array<Block>) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ContentSource>", "ValueDecoder<ContentSource>"])
     companion object : ValueEncoder<ContentSource>, ValueDecoder<ContentSource> {}
 }

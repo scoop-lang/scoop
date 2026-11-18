@@ -4,9 +4,11 @@ import scoop.test.*
 import scoop.json.*
 
 struct Data(val id: Long, val text: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Data>", "ValueDecoder<Data>"])
     companion object : ValueEncoder<Data>, ValueDecoder<Data> {}
 }
 struct Envelope(val data: JsonValue, val extra: JsonValue?) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Envelope>", "ValueDecoder<Envelope>"])
     companion object : ValueEncoder<Envelope>, ValueDecoder<Envelope> {}
 }
 class Saved(var encoder: Encoder?)

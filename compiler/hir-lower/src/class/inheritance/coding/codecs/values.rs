@@ -19,17 +19,9 @@ impl Lowerer {
                 let receiver = self.coding_singleton(*companion, span)?;
                 let receiver = self.coding_local(receiver, span, sink);
                 let element = self.selected_codec_value(context, element, span, sink)?;
-                self.coding_call(
-                    receiver,
-                    context.direction.factory(),
-                    vec![element],
-                    span,
-                    sink,
-                )?
+                self.coding_call(receiver, "inspector", vec![element], span, sink)?
             }
-            CodecValue::Tuple(elements) => {
-                self.coding_tuple_function(context, selected.ty, elements, span, sink)?
-            }
+            CodecValue::Tuple => self.coding_tuple_function(context, selected.ty, span, sink)?,
         };
         let interface = self
             .apply_nominal_type(context.interface, vec![selected.ty])

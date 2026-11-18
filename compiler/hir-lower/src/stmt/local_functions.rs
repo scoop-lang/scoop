@@ -23,7 +23,7 @@ impl Lowerer {
             self.begin_local_result_inference(function, decl);
             let lowered = self.with_local_function_scope(local, |state, declaration_origin| {
                 let params = state.bind_local_parameters(function);
-                let mut statements = state.lower_context_entry(function);
+                let mut statements = state.lower_context_entry(function, None);
                 let body_statements = state.lower_local_function_body(function, decl, return_ty);
                 statements.extend(body_statements);
                 let captures = state.finish_current_captures(declaration_origin);

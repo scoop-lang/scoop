@@ -1711,6 +1711,8 @@ DocHidden 从生成的 API 页面、成员目录和搜索中省略目标及其�
 
 core 提供普通 annotation class `GenerateWith`，带 `@Target([AnnotationTarget.Class])` 和 `@Repeatable`。两个参数分别为 `generator: String` 与 `interface: Array<String>`，均无默认值；interface 是关键字，声明及具名实参使用普通反引号转义。编译 driver 在注解绑定后按实际 core 声明读取配置；class／struct／enum／object 可以选择自己已继承的完整接口应用，interface 本体不能替实现者配置生成。类型字符串使用普通类型语法、import、alias 和 owner binder。空接口数组不产生任务；非空白 generator 名称、接口应用存在、重复绑定及重叠方法归属按 [M47 设计](../milestone47/DESIGN.md)2.1～2.3 检查。已有合法实现先排除，生成配置不继承、不增加接口或改变可见性。此注解不具有 compiler role，不改变 parser 或普通注解绑定规则。
 
+选择范围包括 9.1.8 中本类型声明的条件接口和沿基类实参继承的条件接口，以及这些接口的父接口。注解写在实际实现类型上，数组元素只写接口类型，如 `"I<T>"`。若类型实参使用实现块才允许的约束或 `T.Companion` 投影，该接口在自己的条件下匹配。生成器对每个待填方法的查询和生成正文沿用该方法的条件。调用方仍须证明原条件，泛型具体化直接使用定义处生成的正文。
+
 ### 9.5 companion 与普通 codec 的编码、解码接口
 
 两个方向都用显式目标类型参数表达，由companion或普通codec对象实现：
@@ -2563,12 +2565,12 @@ public annotation class Serialize(
 )
 ```
 
-两者都是由companion或普通codec对象实现的普通实例interface，this始终是codec。请求默认实现的声明分别列出对应完整interface application；encode的数据参数和decode的结果由T确定。目标数据类型不会因codec存在获得接口，编译器不自动添加companion或向另一声明转移conformance。两个方向独立，也可由同一codec同时实现；不新增内建Codable标记，普通组合interface沿原规则使用。
+两者都是由companion或普通codec对象实现的普通实例interface，this始终是codec。请求默认实现的声明在实际实现者上用 `@GenerateWith("scoop.codec", [...])` 选择对应完整 interface application；encode的数据参数和decode的结果由T确定。目标数据类型不会因codec存在获得接口，编译器不自动添加companion或向另一声明转移conformance。两个方向独立，也可由同一codec同时实现；不新增内建Codable标记，普通组合interface沿原规则使用。
 
 #### 11.13.1 实现选择与合成条件
 
-- 先按普通override/default规则选择合法的用户实现或继承实现；缺少实现时，才为当前实现类型上的核心requirement合成普通方法。两个方向独立决定，手写一个不影响另一个。错误的显式override仍然报错；无关的合法overload不占用requirement。
-- 编译器只识别实际core协议声明的typed identity；用户同名interface或annotation没有特殊行为。用户subinterface可继承完整的`ValueEncoder<T>`或`ValueDecoder<T>`并增加其他requirement；编译器只补齐encode/decode，其他缺失方法仍是正常错误。
+- 先按普通override/default规则选择合法的用户实现或继承实现；缺少实现且实际实现者选择 `scoop.codec` 时，由该生成器为核心 requirement 生成普通方法体。两个方向独立决定，手写一个不影响另一个。错误的显式override仍然报错；无关的合法overload不占用requirement。
+- 生成器按实际 core 声明身份识别协议和注解。用户subinterface可继承完整的`ValueEncoder<T>`或`ValueDecoder<T>`并增加其他requirement；该生成器只补齐 encode/decode，其他缺失方法仍是正常错误。
 - 两个方向的被描述类型都是interface application中的T，不是codec的receiver类型。struct按源码字段处理，enum按variant/payload处理，tuple按元素处理。按11.13.4在定义处为每个参与字段分别确定`ValueEncoder<F>`或`ValueDecoder<F>`值，encode读取value的字段，不读取codec自身的依赖字段作为数据。缺失能力、歧义或不可构造形状报错，不生成运行期失败stub。
 - 数据class的自动处理范围仍是普通final class且没有显式class基类。encode读取value所属目标owner的存储property；带自定义accessor或委托的property须显式处理。decode还要求目标有唯一primary constructor，所有参与状态来自其val/var参数；未参与的普通构造参数须有 default；ignore 的存储参数可由 default 或声明处 Option 的 None 补值，其他存储状态须明确 Serialize(ignore = true) 并能按既有规则初始化。字段读取和constructor调用都必须处于codec的正常访问域；合成不创建超出9.1.5的额外权限。
 - computed/abstract property不作为存储字段参与派生。无参与字段的普通struct/class编码为record，不能把intrinsic类型当成空record。开放/抽象class、带class基类、singleton或其他不满足上述映射的目标使用手写codec；object可以实现任一方向，但自动构造不会尝试创建新的singleton。将编码移入codec不扩大class自动派生范围。
@@ -2585,6 +2587,8 @@ List/MutableList没有唯一默认解码结果。核心库提供普通
 
 Any、函数、Ptr及两种原生函数指针没有默认codec。用户可手写`ValueEncoder<List<T>>`、
 `ValueDecoder<List<T>>`、`ValueEncoder<Any>`或`ValueDecoder<Any>`等实现；不从运行期类型名推断具体codec。
+
+用于自动解码的 record 须从生成方法的访问域只见一个构造器，且为主构造器。其他构造入口使用 companion 上的具名工厂。生成正文通过普通具名调用省略缺失且有默认值的形参。编译器按 8.5 绑定和实例化默认值。只生成编码或手写解码的类型可按普通规则定义构造器。
 
 #### 11.13.2 容器协议与库边界
 
@@ -2727,7 +2731,9 @@ public struct Box<T>(val value: T) {
     }
 }
 
+@GenerateWith("scoop.codec", ["ValueEncoder<Box<E>>"])
 public class BoxEncoder<E>(private val element: ValueEncoder<E>) : ValueEncoder<Box<E>>
+@GenerateWith("scoop.codec", ["ValueDecoder<Box<E>>"])
 public class BoxDecoder<E>(private val element: ValueDecoder<E>) : ValueDecoder<Box<E>>
 ```
 
@@ -3303,27 +3309,26 @@ M63包管理允许显式Git/registry来源及根覆盖，但core仍固定为上�
 
 ### 12.7 独立命令行参数库
 
-`scoop:scoop.cli:0.1.0` 是显式依赖 core 的普通 library Cone，源码 package 为 scoop.cli，发布在 sysroot/src/scoop.cli。应用显式依赖并 import；core 不依赖 CLI，CLI 不依赖 JSON。编译器不解释 CLI 注解，不增加 runtime ABI。
+`scoop:scoop.cli:0.1.0` 是依赖 core 的普通 library Cone。应用导入 `scoop.cli`，在 companion 或普通实现者上声明 `CliArguments<T>`，并用 `@GenerateWith("scoop.cli", ["CliArguments<T>"])` 生成缺失方法。条件接口遵守 9.1.8。手写方法、继承实现和 interface default 按普通规则优先。
 
-`Cli.schema<T>(info: TypeInfo<T>, config: CliConfig): CliSchema<T>` 生成默认 record schema；`CliSchema<T>(info, config, entries: Array<CliEntry>)` 提供相同已检查模型的显式入口。CliConfig 保存 programName 与 summary（默认空串）。schema 只在构造边界检查配置，之后只读；CliParser<T>(schema, codec: ValueDecoder<T>) 不重放验证。parse(arguments: Array<String>) 接收不含程序项的参数；parseCommandLine(argv) 跳过 argv[0]，空完整 argv 报输入错误。两者返回 CliResult.Parsed(T) 或 HelpRequested。schema.help() 与 writeHelp(TextWriter) 生成相同、以换行结束的纯文本；不执行 codec、constructor、default 或 getter，也不绑定 stdout、终端或进程退出。
+`CliArguments<T>.entries(): Array<CliEntry>` 描述参数布局，`bind(values: CliValues): T` 构造应用值。自定义字段可由独立的 `CliValueParser<F>` 提供 `shape(): CliValueShape` 和 `parseValue(values: CliFieldValues): F`。生成器按完整字段类型先查实现者主构造器上唯一匹配的 val，再查内置类型、容器组合和该类型可见且满足接口的 companion。泛型字段可使用当前方法的条件。CLI 的类型转换、字段名与错误语义均独立于 11.13 的 codec。
 
-CliOption(names = [], help = "", valueName = "", defaultText = "")、CliFlag(names = [], negativeNames = [], help = "", defaultText = "")、CliArgument(position: Long, help = "", valueName = "", defaultText = "") 是 Field／Property 上的普通不可重复注解，三个 role 互斥。无 role 时 exact Boolean 为 flag，其余为带值 option；无 names 时使用完整源码名的 --name。长名以 -- 起始且后续非空，不能含 =、空白或控制字符；短名为 - 加一个 ASCII 字母。所有正负 alias 唯一，-h／--help 保留；negativeNames 显式指定，不自动生成。flag 只适用于 exact Boolean，Option<Boolean> 和序列使用文本 true／false。
+`CliParser<T>(config: CliConfig, arguments: CliArguments<T>)` 在构造时调用一次 entries 并检查布局。`parse` 接收纯参数，`parseCommandLine` 跳过 argv[0] 并拒绝空完整 argv。两者返回 `CliResult.Parsed(T)` 或 `HelpRequested`。parser 的 `help()` 与 `writeHelp(TextWriter)` 输出相同的文本。CliConfig 保存 programName 与 summary（默认空串）。
 
-CliEntry 保存 sourceName、wireKey、CliRole（Option、Flag、Argument(Long)）、CliValueShape、names／negativeNames、help、valueName、defaultText、required、hasDefault 与可选 ObservedMember。CliValueShape 为 Text、Flag、Choice(Array<CliChoice>)、Repeated(CliElementShape)；CliElementShape 只含 Text 与 Choice，从数据结构排除嵌套序列和重复 flag。CliChoice 保存文本 spelling 与 variant wireName。显式 schema 与自动 schema 使用同一 parser／Decoder；显式模型可以与普通手写 codec 配合，不分析 codec 正文。
+`CliOption(names, help, valueName, defaultText, required)`、`CliFlag(names, negativeNames, help, defaultText, required)`、`CliArgument(position, help, valueName, defaultText, required)` 是 Field／Property 上互斥的普通注解。required 默认 false，文本与数组默认空，position 必须给出。无 role 时 exact Boolean 为 flag，其余为 option。无 names 时使用 `--` 加源码名。正负 alias 必须唯一。短名为一个 ASCII 字母，长名的双连字符后必须有名称，名称不得含等号、空白或控制字符。保留 -h 和 --help。negativeNames 由模型显式给出。flag 只适用于 exact Boolean。
 
-自动 schema 仅接收 struct 或无 class 基类的普通 final class，使用真实 primary constructor 参数映射。computed property 不参与；自定义存储 accessor、delegate、未映射构造状态或额外 class storage 要求显式 schema。按实际 annotationKey 读取 Serialize：ignore 排除字段，rename 只改变 wireKey，required 强制出现，emitNull 不影响解码。参与字段 required 为 serialize.required || (!parameter.hasDefault && !member.isOptionAtDeclaration)；hasDefault 与原声明 Option 事实保持分开。原字段 T 后来取 Option 不因此可缺省。字段缺失始终留给所选 codec，parser 不生成 None、空数组或默认值，不执行 defaultText。
+CliEntry 含 sourceName、role、valueShape、names、negativeNames、help、valueName、defaultText、required 和 hasDefault。shape 表示 Text、Flag、Choice 或 Repeated。Choice 保存允许的文本拼写。Repeated 的元素是文本或 choice。生成器在定义处诊断能静态确定的注解、alias、位置及形状错误，手写 entries 和自定义 shape 在 parser 建立时做相同布局检查。
 
-标量支持 String、Char、定宽整数、Float／Double、Boolean 和纯 unit enum；enum 的文本用源码 variant 名，wireName 使用其 Serialize.rename。Option 透明展开，允许最多一层 Array／MutableArray／ArrayList，支持 Option<Array<S>> 与 Array<Option<S>>；按实际 nominal identity 匹配，不能按展示名猜类型。payload enum、整型 enum 和其他 wrapper 需要显式 shape／codec。存在的文本 null 是普通 String，空文本也是实际值；不存在的字段才是 missing。
+自动模型为 struct 或无 class 基类的 final class，参数映射到真实主构造器成员。computed property 跳过。额外存储、委托、自定义存储 accessor 或未映射的构造状态可由手写接口处理。生成 bind 要求从该方法可见的唯一构造器是主构造器。业务上的其他构造入口可写成 companion 具名工厂。生成器用普通具名实参调用，缺失有默认值的形参省略，由语言按 8.5 求值。没有显式默认值的原声明 Option 缺失时补 None。原声明 T 的实际参数取 Option 不改变必填性。`@CliIgnore` 将字段排除，参数必须有默认值或可按声明补 None。role 的 required 可显式要求出现。defaultText 仅用于 help。
+
+内置值转换支持 String、Char、定宽整数、Float、Double、Boolean 和纯 unit enum。enum 按源码 variant 名接受拼写。Option 透明展开，支持一层 Array、MutableArray 或 ArrayList，包括 Option<Array<S>> 与 Array<Option<S>>。已提供的 "null" 是文本，空字符串是实际值。CliValues 按 sourceName 提供 required 与 optional 查询。CliFieldValues 可重复读取，保留各次出现的原始 token、下标及文本或布尔值。重复项按序转换，错误保留元素位置。
 
 argv 已完成 shell 分词。支持 --name=value／--name value、-pvalue／-p=value／-p value、连续短 flag 与最后一个带值短 option。带值 option 可接受空 attached 文本；flag 拒绝 attached 值。需要下一 token 时，--、长 option 或 - 加 ASCII 字母起始的 token 表示缺值；-3、-0.5 可作为值或 positional。单 - 是普通值，-- 终止选项解释。未知 alias、重复 scalar／flag（含正负 alias 混用）、多余 positional、缺值均报错；Repeated 按出现顺序收集，不按逗号拆分。position 从 0 连续，必填单值先于可缺省位置项，最多最后一项为 variadic；未出现的 variadic 保持 missing。options 可穿插 positional。
 
--h／--help 在选项边界立即返回 HelpRequested，不处理后续 token，也不调用 decode；此前语法错误仍报错。--path=--help 是值，-- 后的 --help 是 positional，--port --help 先报告 port 缺值；短名组按顺序识别 h。help 包含 programName／summary、usage、全部 alias、metavar／choices、required 状态、help 及显式 defaultText。可缺省且 hasDefault 的项无 defaultText 时标注“有默认值”，仅隐式 None 不虚构 constructor default；required 项不展示可省略的默认提示。
+-h／--help 在选项边界立即返回 HelpRequested，不处理后续 token，也不调用 bind；此前语法错误仍报错。--path=--help 是值，-- 后的 --help 是 positional，--port --help 先报告 port 缺值；短名组按顺序识别 h。help 包含 programName／summary、usage、全部 alias、metavar／choices、required 状态、help 及显式 defaultText。可缺省且 hasDefault 的项无 defaultText 时标注“有默认值”，仅隐式 None 不虚构 constructor default；required 项不展示可省略的默认提示。
 
-私有归一化节点只有 Text、BooleanValue、Record、Sequence，并保留必要 token 下标／拼写；attached value 的来源仍保留完整原 token。CliDecoder 实现 11.13 的稳定视图：keyed 可复读且 keys 不随读取改变；optional 只区分缺失；unkeyed 每次创建独立游标，element 取得 child 后推进一次，子值失败不再推进；singleValue 的成功或失败均不消耗节点。isNull 恒 false，readNull 总是报错。keyed.end 无全量消费要求；unkeyed.end 检查剩余元素且失败不推进。没有全局 selected／consumed 状态、根完成重放或重试时深拷贝／重新分词。
+数值转换消费整个 token。整数接受十进制、可选正号、前导零，按目标宽度检查上下界，unsigned 拒绝负号。浮点接受有符号十进制、有数字的小数部分和指数，直接按目标精度转换，保留负零并拒绝非有限结果。Char 要求一个 Unicode 标量。Boolean 接受 flag 或精确 true／false。argv 和库内转换错误抛出 CliParseException，含按源码字段名生成的路径、原因以及可用的 token 来源。动态布局错误抛 IllegalArgumentException，用户转换、构造与 writer 的异常按普通调用传播。
 
-readString 只接受 Text；readBoolean 接受 BooleanValue 或 exact true／false。Long／ULong 按完整十进制 token 逐位检查范围，允许正号和前导零，ULong 拒绝负号；不接受空白、下划线、hex、小数或指数。Float／Double 接受可选符号、至少一位整数、可选小数（点后至少一位）及 exponent（可选符号后至少一位），拒绝空白、hex、NaN／Infinity；直接按目标精度转换并检查有限值。CLI 以普通 extern 声明复用现有 scoop_rt_json_parse_float／double，不依赖 JSON Cone，也不复制 native 解析器。窄整数、Char 和 wrapper 的进一步检查由原 codec 完成。
-
-配置错误抛 IllegalArgumentException；argv 与 Decoder 错误抛 DecodingException，包含 wire path、原因及可用的 token 来源。codec／constructor／default／writer 的普通异常原样传播，writer 可能已产生部分输出。CLI 不支持首版范围以外的子命令、环境变量、配置文件、shell completion 或自动嵌套 record 展平。
 
 ---
 

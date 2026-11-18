@@ -10,12 +10,13 @@ fun check(value: Boolean, location: SourceLocation = currentSourceLocation()) {
 object Defaults { var calls: Int = 0 }
 public fun nextValue(): Int { Defaults.calls += 1; return 7 }
 
-public struct Empty() { public companion object : ValueEncoder<Empty> }
+public struct Empty() { @GenerateWith("scoop.codec", ["ValueEncoder<Empty>"]) public companion object : ValueEncoder<Empty> }
 public struct Box<T>(val value: T) {
     public companion object {
         public fun encoder(element: ValueEncoder<T>): ValueEncoder<Box<T>> = BoxEncoder<T>(element)
     }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Box<T>>"])
 public class BoxEncoder<T>(private val element: ValueEncoder<T>) : ValueEncoder<Box<T>>
 public struct Record<T>(
     @Serialize(rename = "v/~") val value: T,
@@ -25,8 +26,10 @@ public struct Record<T>(
         public fun encoder(element: ValueEncoder<T>): ValueEncoder<Record<T>> = RecordEncoder<T>(element)
     }
 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Record<T>>"])
 public struct RecordEncoder<T>(val element: ValueEncoder<T>) : ValueEncoder<Record<T>>
 public struct WithDefaults(val first: Int = nextValue(), val second: Int = first + 1) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<WithDefaults>"])
     public companion object : ValueEncoder<WithDefaults>
 }
 
@@ -34,6 +37,7 @@ public class Row public constructor(private val id: Int, public val name: String
     public val computed: String get() = name
     @Serialize(rename = "counter") public var count: Long = 2L
     @Serialize(ignore = true) private val cache: (Int) -> Int = { value -> value + 1 }
+    @GenerateWith("scoop.codec", ["ValueEncoder<Row>"])
     public companion object : ValueEncoder<Row>
 }
 

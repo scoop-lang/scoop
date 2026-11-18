@@ -5,6 +5,7 @@ import scoop.json.Json
 
 enum FieldState<T> { Missing, Null, Value(T) }
 struct Name(val text: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Name>", "ValueDecoder<Name>"])
     companion object : ValueEncoder<Name>, ValueDecoder<Name> {}
 }
 

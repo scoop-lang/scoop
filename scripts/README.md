@@ -12,6 +12,8 @@
 
 OpenSSL 的 Darwin/AArch64 构建也保留 Apple Clang 的平台特性，不传 `-mcpu=generic`；x86-64 仍显式使用对应 CPU 基线。Windows 打包在 MSVC 开发环境中运行，Rust build script／proc macro 的 linker 使用 `VCToolsInstallDir` 下的 x64 `link.exe`，避免 Git／MSYS 的同名工具。Linux 收集共享库时保留已有 `LD_LIBRARY_PATH`，同时优先查找选定 LLVM 的库；随包 Python 等依赖仍复制进发行包并改写为相对加载路径。
 
+内置的 `scoop-codec-generator` 和 `scoop-cli-generator` 是随 `scoopc` 安装的宿主程序。开发时用 `cargo build -p scoop-generators --bins` 构建到同一 profile 的工具目录。
+
 五个命令（`scoop`、`scoopc`、`scoop-link`、`scoop-lsp`、`scoop-pm`）的 `--version` 显示相同发行版本与源码 revision。开发构建读取默认版本和当前 Git revision；发行构建显式设置 `SCOOP_RELEASE_VERSION` 与 `SCOOP_SOURCE_REVISION`，不在运行时读取 Git 或发行清单。
 
 Windows 安装包将主驱动命名为 `sco.exe`，其版本信息使用 `sco`；其他可执行程序保持原名，macOS／Linux 仍用 `scoop`。Cargo package 和内部输出名继续为 `scoop`／`scoop.exe`，`package_toolchain.py` 组装时只重命名 Windows 主驱动。维护脚本的 `--scoop` 接受实际路径：开发构建可传 `.../release/scoop.exe`，安装包验证传 `.../bin/sco.exe`；外部命令仍以 `scoop-` 开头。
@@ -156,7 +158,7 @@ musl 的 C 开发环境也需要 Linux UAPI 头。Debian／Ubuntu 的 `musl-gcc`
 ~/.scoop/
   VERSION               发行版本、源码 revision 与宿主平台（bin 包）
   post-install.sh       Unix 安装后文档生成入口；Windows 为 post-install.ps1（bin 包）
-  bin/                  scoop、scoopc、scoop-link、scoop-lsp、scoop-pm（bin 包）；
+  bin/                  scoop、scoopc、scoop-link、scoop-lsp、scoop-pm 及两个内置生成器（bin 包）；
                         scoop-lldb 等 LLVM 启动器（bin 包）
   commands/             scoop-example 与其他外部子命令（bin 包）
   lib/<target-triple>/  预编译 *.slib、native 链接库、四种 runtime 配置（lib-base-<target> 包）；

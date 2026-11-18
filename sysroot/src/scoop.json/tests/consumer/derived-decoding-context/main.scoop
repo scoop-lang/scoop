@@ -20,6 +20,7 @@ context(state: DecodeState)
 public fun fallback(): Int = state.offset
 
 public struct Item<T>(val pair: (T, Array<T>), val fallback: Int = fallback())
+@GenerateWith("scoop.codec", ["ValueDecoder<Item<T>>"])
 public class ItemDecoder<T>(private val element: ValueDecoder<T>) : ValueDecoder<Item<T>>
 
 private fun exerciseConsumer() {

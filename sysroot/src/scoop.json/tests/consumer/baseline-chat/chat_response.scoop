@@ -9,6 +9,7 @@ struct ChatCompletion(
     val choices: Array<ChatCompletionChoice>,
     @Serialize(required = true) val usage: ChatUsage?
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatCompletion>", "ValueDecoder<ChatCompletion>"])
     companion object : ValueEncoder<ChatCompletion>, ValueDecoder<ChatCompletion> {}
 }
 struct ChatCompletionChoice(
@@ -17,6 +18,7 @@ struct ChatCompletionChoice(
     val finish_reason: String,
     @Serialize(required = true) val logprobs: ChatLogprobs?
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatCompletionChoice>", "ValueDecoder<ChatCompletionChoice>"])
     companion object : ValueEncoder<ChatCompletionChoice>, ValueDecoder<ChatCompletionChoice> {}
 }
 struct ChatResponseMessage(
@@ -26,6 +28,7 @@ struct ChatResponseMessage(
     val tool_calls: Array<ChatCall>? = None,
     val annotations: Array<ChatAnnotation> = []
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatResponseMessage>", "ValueDecoder<ChatResponseMessage>"])
     companion object : ValueEncoder<ChatResponseMessage>, ValueDecoder<ChatResponseMessage> {}
 }
 struct ChatUsage(
@@ -35,9 +38,11 @@ struct ChatUsage(
     val prompt_tokens_details: PromptTokens? = None,
     val completion_tokens_details: CompletionTokens? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatUsage>", "ValueDecoder<ChatUsage>"])
     companion object : ValueEncoder<ChatUsage>, ValueDecoder<ChatUsage> {}
 }
 struct PromptTokens(val cached_tokens: Long, val audio_tokens: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<PromptTokens>", "ValueDecoder<PromptTokens>"])
     companion object : ValueEncoder<PromptTokens>, ValueDecoder<PromptTokens> {}
 }
 struct CompletionTokens(
@@ -46,9 +51,11 @@ struct CompletionTokens(
     val accepted_prediction_tokens: Long,
     val rejected_prediction_tokens: Long
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<CompletionTokens>", "ValueDecoder<CompletionTokens>"])
     companion object : ValueEncoder<CompletionTokens>, ValueDecoder<CompletionTokens> {}
 }
 struct ChatLogprobs(val content: Array<TokenProbability>?, val refusal: Array<TokenProbability>?) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatLogprobs>", "ValueDecoder<ChatLogprobs>"])
     companion object : ValueEncoder<ChatLogprobs>, ValueDecoder<ChatLogprobs> {}
 }
 struct TokenProbability(
@@ -57,21 +64,27 @@ struct TokenProbability(
     val bytes: Array<Long>?,
     val top_logprobs: Array<AlternativeProbability>
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<TokenProbability>", "ValueDecoder<TokenProbability>"])
     companion object : ValueEncoder<TokenProbability>, ValueDecoder<TokenProbability> {}
 }
 struct AlternativeProbability(val token: String, val logprob: Double, val bytes: Array<Long>?) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<AlternativeProbability>", "ValueDecoder<AlternativeProbability>"])
     companion object : ValueEncoder<AlternativeProbability>, ValueDecoder<AlternativeProbability> {}
 }
 struct ChatCitation(val url_citation: URLCitation) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ChatCitation>", "ValueDecoder<ChatCitation>"])
     companion object : ValueEncoder<ChatCitation>, ValueDecoder<ChatCitation> {}
 }
 struct URLCitation(val start_index: Long, val end_index: Long, val title: String, val url: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<URLCitation>", "ValueDecoder<URLCitation>"])
     companion object : ValueEncoder<URLCitation>, ValueDecoder<URLCitation> {}
 }
 struct APIError(val message: String, val type: String, val param: String? = None, val code: String? = None) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<APIError>", "ValueDecoder<APIError>"])
     companion object : ValueEncoder<APIError>, ValueDecoder<APIError> {}
 }
 struct ErrorEnvelope(val error: APIError) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<ErrorEnvelope>", "ValueDecoder<ErrorEnvelope>"])
     companion object : ValueEncoder<ErrorEnvelope>, ValueDecoder<ErrorEnvelope> {}
 }
 enum ChatAnnotation {

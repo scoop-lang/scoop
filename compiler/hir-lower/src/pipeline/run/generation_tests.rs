@@ -106,6 +106,10 @@ fn missing_method_keeps_one_signature_and_all_real_requirements() {
         let function = pending.function;
         let signature = queries.signature(function);
         assert_eq!(signature.name, "echo");
+        assert_eq!(
+            signature.origin.source.logical_path().as_str(),
+            "src/user.scoop"
+        );
         assert_eq!(signature.parameters[0].name, "value");
         assert_eq!(signature.type_parameters[0].name, "T");
         assert_eq!(signature.owner_parameter_count, 1);
@@ -150,15 +154,14 @@ fn missing_method_keeps_one_signature_and_all_real_requirements() {
         module.source_files[value.origin.definition().file as usize].source,
         "{ return value }"
     );
-    let hir::LocalValueDefinitionSite::Source(parameter) =
-        body.locals[module.functions[function].params[1].local].definition
-    else {
-        panic!("source parameter origin")
-    };
-    assert_eq!(
-        module.source_files[parameter.file as usize].name,
-        "user.scoop"
-    );
+    for parameter in &module.functions[function].params {
+        let hir::LocalValueDefinitionSite::Source(origin) = body.locals[parameter.local].definition
+        else {
+            panic!("source parameter origin")
+        };
+        assert_eq!(origin.file, value.origin.definition().file);
+        assert_eq!(origin.span, ast::Span::new(0, 1));
+    }
 }
 
 #[test]

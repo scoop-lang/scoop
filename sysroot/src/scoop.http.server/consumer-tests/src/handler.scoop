@@ -4,6 +4,7 @@ import scoop.http.*
 import scoop.http.server.*
 
 internal struct ConsumerQuery(val count: Int = 1) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<ConsumerQuery>"])
     public companion object : ValueDecoder<ConsumerQuery>
 }
 

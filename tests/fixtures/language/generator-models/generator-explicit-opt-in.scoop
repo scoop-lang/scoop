@@ -1,0 +1,3 @@
+struct Marked(@Serialize(ignore = true, required = true) val value: Int = 7)
+object Missing : ValueEncoder<Marked>
+fun main() {}

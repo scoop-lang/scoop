@@ -1,7 +1,7 @@
 public class Value public constructor()
-public object ValueCodecDecoder : ValueDecoder<Value>
+@GenerateWith("scoop.codec", ["ValueDecoder<Value>"]) public object ValueCodecDecoder : ValueDecoder<Value>
 public struct Item<T>(val value: T) {
-    public companion object : ValueDecoder<Item<T>> {
+    @GenerateWith("scoop.codec", ["ValueDecoder<Item<T>>"]) public companion object : ValueDecoder<Item<T>> {
         public val irrelevant: ValueDecoder<Value> = ValueCodecDecoder
     }
 }

@@ -25,11 +25,11 @@ impl Lowerer {
             hir::Type::Param(parameter) => Shape::Parameter(self.query_parameter(parameter)?),
             hir::Type::Companion(parameter) => {
                 let host = self.query_parameter(parameter)?;
-                let bounds = host
-                    .companion
-                    .clone()
-                    .ok_or_else(|| unbound_parameter(parameter))?;
-                Shape::Companion { host, bounds }
+                let host_ty = self.intern_type(hir::Type::Param(parameter));
+                if host.companion.is_none() && !self.assumed_conditional_companion(host_ty) {
+                    return Err(unbound_parameter(parameter));
+                }
+                Shape::Companion { host }
             }
             hir::Type::Integer(_)
             | hir::Type::Boolean
@@ -42,7 +42,15 @@ impl Lowerer {
                     .expect("a resolved nominal retains its declaration"),
             ),
         };
+        let visible_companion = match &structure {
+            Shape::Nominal(nominal) => nominal
+                .companion
+                .filter(|&ty| self.nominal_is_accessible(ty)),
+            Shape::Parameter(_) => self.projected_companion_type(ty).ok(),
+            _ => None,
+        };
         Ok(hir::SemanticTypeDescription {
+            visible_companion,
             ty,
             structure,
             name: self.type_name(ty),

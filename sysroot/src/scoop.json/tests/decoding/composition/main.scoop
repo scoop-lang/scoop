@@ -4,10 +4,12 @@ import scoop.test.*
 import scoop.json.Json
 
 struct First(val id: Long, val text: Long) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<First>"])
     companion object : ValueDecoder<First> {}
 }
 
 struct Second(val id: Long, val text: String) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<Second>"])
     companion object : ValueDecoder<Second> {}
 }
 
@@ -16,6 +18,7 @@ val count = Count(0L)
 fun nextDefault(): Long { count.defaults += 1L; return 9L }
 
 struct Defaults(val id: Long, val limit: Long = nextDefault()) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<Defaults>"])
     companion object : ValueDecoder<Defaults> {}
 }
 
@@ -28,6 +31,7 @@ object RetryRecord : ValueDecoder<Second> {
     }
 }
 
+@GenerateWith("scoop.codec", ["ValueDecoder<(Long, String)>"])
 object Pair : ValueDecoder<(Long, String)> {}
 
 private fun exercise() {

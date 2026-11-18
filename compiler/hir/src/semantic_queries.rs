@@ -68,6 +68,7 @@ pub type SemanticCallableSignature =
 /// Complete type structure and the ordinary direct parent relation.
 #[derive(Clone, Debug)]
 pub struct SemanticTypeDescription {
+    pub visible_companion: Option<TypeId>,
     pub ty: TypeId,
     pub structure: SemanticTypeStructure,
     pub name: String,
@@ -192,7 +193,11 @@ pub trait SemanticQueries {
         left: TypeId,
         right: TypeId,
     ) -> bool;
-    fn interfaces(&mut self, owner: NominalOwner) -> Vec<TypeId>;
+    fn resolve_implemented_interface(
+        &mut self,
+        owner: NominalOwner,
+        syntax: &ast::TypeRef,
+    ) -> Result<InterfaceSelection, Vec<Diagnostic>>;
     fn requirements(&mut self, interface: TypeId) -> Vec<AppliedRequirement>;
     fn requirement_slot(
         &mut self,

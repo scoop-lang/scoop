@@ -3,8 +3,10 @@ package scoop.json.tests.serialize.option
 import scoop.test.*
 import scoop.json.Json
 
+@GenerateWith("scoop.codec", ["ValueEncoder<(Long?, String?)>", "ValueDecoder<(Long?, String?)>"])
 object Pair : ValueEncoder<(Long?, String?)>, ValueDecoder<(Long?, String?)> {}
 struct Nested(val value: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Nested>", "ValueDecoder<Nested>"])
     companion object : ValueEncoder<Nested>, ValueDecoder<Nested> {}
 }
 

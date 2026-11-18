@@ -614,11 +614,11 @@ M23-6a 的共同 HIR 前置条件已经验收；本阶段的实际机器定义�
 - 每项功能先同步规范、实现和针对性验证，再提交；先本机测试，再在 Linux 完整验证。M46 已完成，后续按用户要求严格先完成 M48，再推进 M38。
 - 分批执行、性能修复、失败闭合与验收概要见[实施记录](milestone46/PROGRESS.md)。
 
-### M47 HIR 查询与接口实现生成器（通用机制已接入，codec 迁移待实施，[设计](milestone47/DESIGN.md)、[协议](milestone47/PROTOCOL.md)）
+### M47 HIR 查询与接口实现生成器（条件接口、codec 和 CLI 已接入，[设计](milestone47/DESIGN.md)、[协议](milestone47/PROTOCOL.md)）
 
-- 从完整声明与签名提供通用 typed 语义查询，以同步宿主 generator 返回普通方法体源码，driver 经正式 parser／HIR 补齐既有接口实现；M46 codec 策略作为迁移试点。
+- 从完整声明与签名提供类型化语义查询。宿主生成器返回普通方法体源码，由 driver 交给 parser 和 HIR 检查。条件接口、M46 codec 合成的迁移及 CLI 专用参数解析接口见[codec 与 CLI 联合迁移方案](milestone47/CODEC-CLI-MIGRATION.md)。
 - 2026-10-21 补充[可恢复语法／LSP 公共基础](language-service/DESIGN.md)与[调研](language-service/INVESTIGATION.md)：共用源码坐标、同一 grammar、语义上下文、查询与源码关联；编辑态未知不进入成功 HIR。
-- 固定编译视图、严格片段入口、共享查询及真实 generator 双向协议已随公共基础接入；可恢复 CST、编辑态语义、LSP 与引用／编辑能力也已完成 A～E 交付，验证范围和当前限制见[实施记录](language-service/PROGRESS.md)。codec 迁移仍按 M47 设计推进。
+- 固定编译视图、严格片段入口、共享查询及真实 generator 双向协议已随公共基础接入；可恢复 CST、编辑态语义、LSP 与引用／编辑能力也已完成 A～E 交付，验证范围和当前限制见[实施记录](language-service/PROGRESS.md)。`scoop.codec` 与 `scoop.cli` 已通过同一宿主协议为普通及条件接口生成方法。
 
 ## 3. 备注
 

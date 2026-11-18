@@ -16,7 +16,7 @@ impl Lowerer {
             let function = self.local_functions[local].source_function();
             self.with_local_function_scope(local, |state, _| {
                 state.bind_local_parameters(function);
-                state.lower_context_entry(function);
+                state.lower_context_entry(function, None);
                 if state.diagnostics.len() != before {
                     return None;
                 }

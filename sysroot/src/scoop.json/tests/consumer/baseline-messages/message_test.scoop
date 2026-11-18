@@ -5,6 +5,7 @@ import scoop.json.*
 import scoop.text.*
 
 struct Location(val location: String) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Location>", "ValueDecoder<Location>"])
     companion object : ValueEncoder<Location>, ValueDecoder<Location> {}
 }
 fun messagesBaseline(moving: Boolean) {

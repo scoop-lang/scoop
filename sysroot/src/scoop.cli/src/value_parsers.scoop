@@ -1,0 +1,63 @@
+package scoop.cli
+
+/** A field parser with an explicit token shape and conversion function. */
+public class CliFieldParser<T> public constructor(
+    private val fieldShape: CliValueShape, private val convert: (CliFieldValues) -> T
+) : CliValueParser<T> {
+    public override fun shape(): CliValueShape = fieldShape
+    public override fun parseValue(values: CliFieldValues): T = convert(values)
+}
+
+/** Built-in parsers used by generated and handwritten bindings. */
+public object CliParsers {
+    public val stringValue: CliValueParser<String> =
+        CliFieldParser<String>(CliValueShape.Text) { values -> values.readString() }
+    public val charValue: CliValueParser<Char> =
+        CliFieldParser<Char>(CliValueShape.Text) { values -> values.readChar() }
+    public val booleanValue: CliValueParser<Boolean> =
+        CliFieldParser<Boolean>(CliValueShape.Text) { values -> values.readBoolean() }
+    public val int8Value: CliValueParser<Int8> =
+        CliFieldParser<Int8>(CliValueShape.Text) { values -> values.readInt8() }
+    public val int16Value: CliValueParser<Int16> =
+        CliFieldParser<Int16>(CliValueShape.Text) { values -> values.readInt16() }
+    public val intValue: CliValueParser<Int> =
+        CliFieldParser<Int>(CliValueShape.Text) { values -> values.readInt() }
+    public val longValue: CliValueParser<Long> =
+        CliFieldParser<Long>(CliValueShape.Text) { values -> values.readLong() }
+    public val uInt8Value: CliValueParser<UInt8> =
+        CliFieldParser<UInt8>(CliValueShape.Text) { values -> values.readUInt8() }
+    public val uInt16Value: CliValueParser<UInt16> =
+        CliFieldParser<UInt16>(CliValueShape.Text) { values -> values.readUInt16() }
+    public val uIntValue: CliValueParser<UInt> =
+        CliFieldParser<UInt>(CliValueShape.Text) { values -> values.readUInt() }
+    public val uLongValue: CliValueParser<ULong> =
+        CliFieldParser<ULong>(CliValueShape.Text) { values -> values.readULong() }
+    public val floatValue: CliValueParser<Float> =
+        CliFieldParser<Float>(CliValueShape.Text) { values -> values.readFloat() }
+    public val doubleValue: CliValueParser<Double> =
+        CliFieldParser<Double>(CliValueShape.Text) { values -> values.readDouble() }
+
+    public fun <T> optional(element: CliValueParser<T>): CliValueParser<Option<T>> =
+        CliFieldParser<Option<T>>(element.shape()) { values -> Some(element.parseValue(values)) }
+
+    public fun <T> array(element: CliValueParser<T>): CliValueParser<Array<T>> =
+        CliFieldParser<Array<T>>(repeatedShape(element.shape())) { values ->
+            Array<T>(values.items.size) { index -> element.parseValue(values.element(index)) }
+        }
+    public fun <T> mutableArray(element: CliValueParser<T>): CliValueParser<MutableArray<T>> =
+        CliFieldParser<MutableArray<T>>(repeatedShape(element.shape())) { values ->
+            MutableArray<T>(values.items.size) { index -> element.parseValue(values.element(index)) }
+        }
+    public fun <T> arrayList(element: CliValueParser<T>): CliValueParser<ArrayList<T>> =
+        CliFieldParser<ArrayList<T>>(repeatedShape(element.shape())) { values ->
+            val result = ArrayList<T>(values.items.size)
+            for (index in 0L until values.items.size) { result.add(element.parseValue(values.element(index))) }
+            result
+        }
+
+    private fun repeatedShape(element: CliValueShape): CliValueShape = when (element) {
+        case CliValueShape.Text -> CliValueShape.Repeated(CliElementShape.Text)
+        case CliValueShape.Choice(val choices) -> CliValueShape.Repeated(CliElementShape.Choice(choices))
+        else -> configuration("a repeated argument requires text or choices")
+    }
+}

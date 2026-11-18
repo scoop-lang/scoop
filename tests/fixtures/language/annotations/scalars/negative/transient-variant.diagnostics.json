@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1309",
-    "message": "Serialize on an enum variant only supports rename",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "Serialize on an enum variant only accepts rename",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 103,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 82
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 103,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 82
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 42,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 17
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "object `Value.Companion` does not implement interface method `ValueEncoder<Value>.encode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 38,
+      "end": 148,
       "kind": "source",
       "path": "main.scoop",
-      "start": 13
+      "start": 110
     },
     "severity": "error"
   }

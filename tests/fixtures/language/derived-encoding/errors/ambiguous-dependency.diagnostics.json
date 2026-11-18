@@ -1,14 +1,54 @@
 [
   {
-    "code": "E1313",
-    "message": "automatic encode has ambiguous primary val dependencies for T: first, second",
+    "code": "GENERATOR_DIAGNOSTIC",
+    "message": "ambiguous encode dependency for T: first, second",
+    "notes": [
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "reported by generator `scoop.codec`",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 82,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 59
+        }
+      },
+      {
+        "code": "N0003",
+        "kind": "note",
+        "message": "implementation requested here",
+        "notes": [],
+        "origin": {
+          "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+          "end": 82,
+          "kind": "source",
+          "path": "main.scoop",
+          "start": 59
+        }
+      }
+    ],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 27,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 15
+    },
+    "severity": "error"
+  },
+  {
+    "code": "E1008",
+    "message": "class `Codec` does not implement interface method `ValueEncoder<Item<T>>.encode`",
     "notes": [],
     "origin": {
       "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
-      "end": 140,
+      "end": 196,
       "kind": "source",
       "path": "main.scoop",
-      "start": 29
+      "start": 85
     },
     "severity": "error"
   }

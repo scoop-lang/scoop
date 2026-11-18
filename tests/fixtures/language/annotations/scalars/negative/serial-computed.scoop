@@ -1,2 +1,4 @@
 class Value { @Serialize(rename = "value") val value: Int get() = 7 }
+@GenerateWith("scoop.codec", ["ValueEncoder<Value>"])
+object Writer : ValueEncoder<Value>
 fun main() {}

@@ -1,12 +1,13 @@
 //! Missing inspect requirements become ordinary, lazy member readers.
 
-use super::coding::{CodingContext, CodingDirection};
+use super::coding::CodingContext;
 use super::interfaces::InterfaceMemberInstance;
 use super::*;
 use crate::CoreLoweringAuthority;
 use ast::Span;
 
 mod classes;
+mod constructors;
 mod declarations;
 mod expressions;
 mod records;
@@ -62,7 +63,7 @@ impl Lowerer {
                 owner: self.function_owner[&function],
                 target: self.signatures[&function].params[0].ty,
                 interface,
-                direction: CodingDirection::Inspect(factory),
+                factory,
             };
             let span = self.functions[function].span;
             let body = self.lower_synthesized_body(function, |state| {

@@ -90,9 +90,10 @@ impl GeneratorPrograms {
 
     pub fn program_for_compiler(&self, name: &str, compiler: &Path) -> Option<PathBuf> {
         self.explicit.get(name).cloned().or_else(|| {
-            (name == "scoop.codec").then(|| {
-                compiler.with_file_name(crate::host_executable_name("scoop-codec-generator"))
-            })
+            let tool = builtin_program(name)?;
+            // scoopc selects its installed siblings from its resolved executable path.
+            let compiler = compiler.canonicalize().ok()?;
+            Some(compiler.with_file_name(crate::host_executable_name(tool)))
         })
     }
 
@@ -101,10 +102,17 @@ impl GeneratorPrograms {
         if let Some(path) = self.explicit.get(name) {
             return Ok(Some(path.clone()));
         }
-        if name == "scoop.codec" {
-            return crate::installed_host_tool("scoop-codec-generator").map(Some);
-        }
-        Ok(None)
+        builtin_program(name)
+            .map(crate::installed_host_tool)
+            .transpose()
+    }
+}
+
+fn builtin_program(name: &str) -> Option<&'static str> {
+    match name {
+        "scoop.codec" => Some("scoop-codec-generator"),
+        "scoop.cli" => Some("scoop-cli-generator"),
+        _ => None,
     }
 }
 

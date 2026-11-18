@@ -4,6 +4,7 @@ import scoop.test.*
 import scoop.json.Json
 
 struct Plain(val id: Long, val name: String?) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Plain>", "ValueDecoder<Plain>"])
     companion object : ValueEncoder<Plain>, ValueDecoder<Plain> {}
 }
 
@@ -15,10 +16,12 @@ struct Flags(
     @Serialize(ignore = true) val ignored: String?,
     @Serialize() val name: String? = None
 ) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<Flags>", "ValueDecoder<Flags>"])
     companion object : ValueEncoder<Flags>, ValueDecoder<Flags> {}
 }
 
 struct EncodeOnly(@Serialize(ignore = true) val action: () -> Unit, val id: Long) {
+    @GenerateWith("scoop.codec", ["ValueEncoder<EncodeOnly>"])
     companion object : ValueEncoder<EncodeOnly> {}
 }
 

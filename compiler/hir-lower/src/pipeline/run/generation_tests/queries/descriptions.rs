@@ -131,8 +131,24 @@ fn type_json_retains_structure_nominal_origins_and_core_member_declarations() {
             let description = describe(text);
             assert_eq!(description["shape"]["kind"], kind);
         }
+        let base = describe("Parent<T>");
+        let child = describe("Child<T>");
+        assert_eq!(base["shape"]["nominalKind"]["modality"], "open");
+        assert!(base["shape"]["nominalKind"]["baseClass"].is_null());
+        assert_eq!(child["shape"]["nominalKind"]["modality"], "final");
+        assert_eq!(child["shape"]["nominalKind"]["baseClass"], base["type"]);
+        assert!(describe("T")["visibleCompanion"].is_null());
         let nominal = describe("Box<T>");
+        assert!(nominal["visibleCompanion"].is_object());
         assert_eq!(nominal["shape"]["nominalKind"]["kind"], "struct");
+        assert_eq!(
+            nominal["shape"]["sourcePath"]
+                .as_array()
+                .unwrap()
+                .last()
+                .unwrap(),
+            "Box"
+        );
         assert_eq!(
             nominal["shape"]["origin"]["source"]["path"],
             "src/types.scoop"
@@ -167,7 +183,7 @@ fn type_json_retains_structure_nominal_origins_and_core_member_declarations() {
     });
     compile_files(
         &[
-            ("src/types.scoop", "struct Box<T>(val value: T)"),
+            ("src/types.scoop", "struct Box<T>(val value: T) { public companion object {} }\nopen class Parent<T>\nclass Child<T> : Parent<T>()"),
             (
                 "src/client.scoop",
                 "annotation class Mark\n@Mark fun <T> inspect(value: T) {}",
