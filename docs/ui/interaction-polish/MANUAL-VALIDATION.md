@@ -18,7 +18,7 @@
 | A6 | 操作 Announce status 两次 | 可听到相应的 Status update 公告，当前操作位置不被公告移走；允许读屏器合并尚未播出的 polite 公告 |
 | A7 | Save 打开 Saved 对话框，导航内容，再用关闭入口或 Escape 关闭 | 能读标题和正文；模态期间不能操作背景字段；关闭后回到可用的原窗口 |
 
-再打开 touch-input 双窗口示例，用读屏器找到一个虚拟列表项目，使用 Move up／Move down 改变位置，滚动后重新定位该项目；检查名称与顺序一致，旧位置没有重复项目。Zoom／Rotate／Reset 按钮应可完成与手势对应的操作。Password 字段只暴露受保护状态，不读出测试正文。
+再打开 touch-input 双窗口示例，用读屏器找到一个虚拟列表项目，使用 Move up／Move down 改变位置，滚动后重新定位该项目；检查名称与顺序一致，旧位置没有重复项目。Zoom／Rotate／Reset 按钮应可完成与手势对应的操作。Password 字段只暴露受保护状态，不读出测试正文。Open modal 打开的弹窗应提供名为 Close 的默认关闭按钮，读屏器可直接找到并操作。
 
 ## T：Linux 触屏
 

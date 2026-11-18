@@ -27,7 +27,8 @@
 @implementation SWAccessibilityCollection
 - (instancetype)init {
   if ((self = [super init]))
-    _items = [NSMapTable strongToWeakObjectsMapTable];
+    // AXUIElement references do not retain the exported Objective-C object.
+    _items = [NSMapTable strongToStrongObjectsMapTable];
   return self;
 }
 - (SWAccessibilityState *)state {
@@ -115,7 +116,7 @@
   return result;
 }
 - (void)refresh {
-  // Only client-held proxies are visited; an ordinary update never scans count.
+  // Only previously exported proxies are visited; updates never scan count.
   for (SWAccessibilityVirtualItem *item in self.items.objectEnumerator
            .allObjects) {
     if ([self query:2 index:0 key:item.key reply:nil] == 2) {

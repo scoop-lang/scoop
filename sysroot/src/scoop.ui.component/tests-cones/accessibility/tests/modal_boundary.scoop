@@ -17,7 +17,7 @@ import scoop.window.native.*
 @Test
 private class ModalSemanticBoundaryTest {
     @Test
-    fun `modal semantics exclude background actions and respect close veto`() {
+    fun `modal semantics name the close button exclude background actions and respect veto`() {
         val probe = ModalSemanticProbe()
         try {
             context(ThemeSource(shadcnTheme())) {
@@ -44,6 +44,7 @@ internal class ModalSemanticProbe: Closeable {
     private var tree: NativeNode? = None
     private var background: NativeNode? = None
     private var modal: NativeNode? = None
+    private var closeButton: NativeNode? = None
     private var calls: NativeCalls? = None
     fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -100,6 +101,11 @@ internal class ModalSemanticProbe: Closeable {
                     modal = Some(tree!!.find("modal") ?: fail(Some("dialog semantics missing")))
                     assertEquals(1L, modal!!.trait(9))
                     assertTrue(modal!!.text(6, Some("AXDialog")))
+                    closeButton =
+                        Some(
+                            namedCloseButton(modal!!) ?:
+                                fail(Some("the default close button has no accessible name"))
+                        )
                     calls!!.post(background!!, 0)
                 }
             } else
@@ -122,7 +128,7 @@ internal class ModalSemanticProbe: Closeable {
                 assertEquals(0, result)
                 assertTrue(open.value)
                 veto = false
-                calls!!.post(modal!!, 2, action = 18)
+                calls!!.post(closeButton!!, 2)
             }
             case 2 -> {
                 assertEquals(1, result)
@@ -145,11 +151,28 @@ internal class ModalSemanticProbe: Closeable {
         calls = None
         modal?.close();
         modal = None
+        closeButton?.close();
+        closeButton = None
         background?.close();
         background = None
         tree?.close();
         tree = None
     }
+}
+
+private fun namedCloseButton(parent: NativeNode): NativeNode? {
+    for (index in 0L ..< parent.count) {
+        val child = parent.child(index)
+        if (child.text(2, Some("AXButton")) && child.text(0, Some("Close")))
+            return Some(child)
+        val found = namedCloseButton(child)
+        child.close()
+        when (found) {
+            case Some(_) -> return found
+            case None -> {}
+        }
+    }
+    return None
 }
 
 private class ModalSemanticRoot(

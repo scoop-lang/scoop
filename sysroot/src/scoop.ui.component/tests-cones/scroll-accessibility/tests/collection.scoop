@@ -11,12 +11,13 @@ import scoop.ui.component.*
 import scoop.ui.style.ThemeSource
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.window.*
+import scoop.window.accessibility.*
 import scoop.window.native.*
 
 @Test
 private class VirtualCollectionTest {
     @Test
-    fun `native list queries preserve logical items across reorder deletion realization and recycling`() {
+    fun `native list and grid queries preserve exported items through recycling and retirement`() {
         val probe = CollectionProbe()
         try {
             context(ThemeSource(shadcnTheme())) {
@@ -41,6 +42,7 @@ internal class CollectionCounts {
 internal class CollectionProbe: Closeable {
     val counts = CollectionCounts()
     val source = state(CollectionItems(counts))
+    val grid = state(0)
     val scroll = ScrollState()
     val handle = VirtualListHandle()
     var finished = false
@@ -100,7 +102,7 @@ internal class CollectionProbe: Closeable {
 
     fun accepted(snapshot: CollectionItems) {
         frames += 1
-        if (snapshot !== source.value || waiting || frames < nextFrame || phase >= 6)
+        if (snapshot !== source.value || waiting || frames < nextFrame || phase >= 9)
             return
         waiting = true
         application!!.proxy().post { _ -> send() }
@@ -116,7 +118,7 @@ internal class CollectionProbe: Closeable {
         assertEquals(0, result, Some(f"native collection phase ${phase}"))
         assertEquals(beforeQuery, counts.builds)
         assertTrue(counts.builds < 120)
-        if (phase == 6) {
+        if (phase == 9) {
             finished = true
             application!!.requestExit()
             return
@@ -133,7 +135,10 @@ internal class CollectionProbe: Closeable {
             case 3 -> source.value = CollectionItems(counts, reverse = true)
             case 4 -> assertTrue(handle.scrollToItem(ViewKey.Number(50000L), ScrollAlignment.Start))
             case 5 -> assertTrue(handle.scrollToItem(ViewKey.Number(99999L), ScrollAlignment.Start))
-            case 6 -> {
+            case 6 -> grid.value = 1
+            case 7 -> grid.value = 2
+            case 8 -> grid.value = 1
+            case 9 -> {
                 ui!!.close()
                 waiting = true
                 send()
@@ -153,6 +158,7 @@ internal class CollectionRoot(private val probe: CollectionProbe, scope: Compone
 ) {
     public override fun render(): View {
         val snapshot = probe.source.value
+        val grid = probe.grid.value
         val probe = this.probe
         val list =
             virtualList(snapshot, ItemExtent.Fixed(24.0)) {
@@ -162,10 +168,33 @@ internal class CollectionRoot(private val probe: CollectionProbe, scope: Compone
                 handle = Some(probe.handle)
                 anchor = VirtualListAnchor.None
                 scrollbars = ScrollbarVisibility.Hidden
-                itemSemantics = Some(ItemSemantics(snapshot, { index -> snapshot.describe(index) }))
+                itemSemantics =
+                    Some(
+                        ItemSemantics(
+                            snapshot,
+                            { index -> snapshot.describe(index) },
+                            grid = collectionGrid(grid)
+                        )
+                    )
             }
         return element(snapshot, { value, mount -> CollectionPanel(probe, value, mount) }, [list])
     }
+}
+
+private fun collectionGrid(mode: Int): SemanticGrid? {
+    if (mode == 0)
+        return None
+    val name = SemanticGridColumn(SemanticItemKey.Text("name"), Some("Name"))
+    val detail = SemanticGridColumn(SemanticItemKey.Text("detail"), Some("Detail"))
+    return Some(
+        SemanticGrid(
+            if (mode == 2)
+                [name]
+            else
+                [name, detail],
+            { _, column -> Some(SemanticItemProperties(name = Some(f"Cell ${column}"))) }
+        )
+    )
 }
 
 private class CollectionPanel(

@@ -246,7 +246,8 @@ internal class ModalContent(private val read: () -> ModalInput, scope: Component
                                 modalCloseIcon(16.0 * density, palette.popover.foreground)
                             ),
                             variant = ButtonVariant.Ghost,
-                            size = ButtonSize.IconSm
+                            size = ButtonSize.IconSm,
+                            semantics = ComponentSemantics(name = Some("Close"))
                         )
                 modalButton(spec, { close() }, options)
             } else

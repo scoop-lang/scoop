@@ -76,6 +76,7 @@ public open class ModalBuilder internal constructor(): PanelBuilder() {
 
 public open class DismissibleModalBuilder internal constructor(): ModalBuilder() {
     public var footer: View? = None
+    /** The built-in icon is named "Close"; custom close content supplies its own semantics. */
     public var showCloseButton: Boolean = true
     public var close: PopupTriggerSpec? = None
     public var dismiss: OverlayDismiss = OverlayDismiss(true, OutsidePress.CloseAndConsume)

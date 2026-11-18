@@ -539,6 +539,7 @@ void scoop_window_accessibility_close(void *pointer) {
   for (SWAccessibilityCollection *collection in tree.collections.allValues)
     [collection retire];
   [tree.collections removeAllObjects];
+  [tree.tableColumns removeAllObjects];
   tree.view.semanticRoot = nil;
   tree.view = nil;
   tree.root.retired = YES;

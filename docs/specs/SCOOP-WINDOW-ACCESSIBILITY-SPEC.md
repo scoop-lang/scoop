@@ -124,9 +124,11 @@ AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible�
 
 快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count 与 properties。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
 
-`AccessibilityNode.collection` 暂存一个可选快照，用于 List 或 Table；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生轻量条目代理，弱缓存代理，不常驻 count 个对象或完整子 ID 数组。发布数据变化时只复核尚被引用的 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
+`AccessibilityNode.collection` 暂存一个可选快照，用于 List 或 Table；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生并缓存轻量条目代理，不预建 count 个对象或完整子 ID 数组。发布数据变化时只复核已经产生的代理 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
 
 AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；行的元数据通过已发布快照的只读 owner 查询获得。普通原生查询在非 owner、重入更新或关闭时返回适用的暂不可用结果；内部发布对保留 key 的复核只读本次候选快照，不进入 UI 更新。描述失败交回现有 owner 错误处理。缺失具体实例时不报告估算坐标和虚假的子控件；已实例化行借用其 Accepted 几何和实际挂载语义子树。查询本身不 build、滚动或聚焦。
+
+跨进程 AX 引用不会替应用保留提供方的 Objective-C 对象。AppKit 按需保留已经导出的行、单元格和列代理，直至对应逻辑实体退休或 provider 关闭，不能在返回属性数组后立即释放。代理对集合、行和树的反向引用不形成所有权环；退休时撤销缓存并发布适用的销毁通知。未查询项目仍不创建代理，显式枚举全部数据可以产生相应数量的轻量代理，但不能构造全部 View。
 
 集合选择由同一发布快照的 `SemanticCollectionSelection(keys, multiple, required)` 描述。keys 只列实际选中且属于该快照的稳定 key；原生查询不为取得选中项扫描整个集合。`setSelected(key, value)` 经原业务选择入口确认采纳结果；没有选择模型时不声明 Selection 能力。
 

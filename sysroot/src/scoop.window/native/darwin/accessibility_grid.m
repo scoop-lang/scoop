@@ -24,7 +24,7 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
 }
 
 @interface SWAccessibilityVirtualCell : NSAccessibilityElement
-@property(nonatomic, strong) SWAccessibilityVirtualItem *row;
+@property(nonatomic, weak) SWAccessibilityVirtualItem *row;
 @property(nonatomic, copy) id key;
 @property(nonatomic) BOOL retired;
 @property(nonatomic) uint64_t revision;
@@ -154,7 +154,7 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
       columnIndex(self.collection.state, key) == NSNotFound)
     return nil;
   if (!self.cells)
-    self.cells = [NSMapTable strongToWeakObjectsMapTable];
+    self.cells = [NSMapTable strongToStrongObjectsMapTable];
   SWAccessibilityVirtualCell *cell = [self.cells objectForKey:key];
   if (!cell || cell.retired) {
     cell = [SWAccessibilityVirtualCell new];
@@ -378,7 +378,7 @@ static id staticCell(SWAccessibilityNode *node, NSInteger column,
     self.tree.tableColumns = [NSMutableDictionary new];
   NSMapTable *cache = self.tree.tableColumns[@(self.number)];
   if (!cache) {
-    cache = [NSMapTable strongToWeakObjectsMapTable];
+    cache = [NSMapTable strongToStrongObjectsMapTable];
     self.tree.tableColumns[@(self.number)] = cache;
   }
   NSMutableArray *result = [NSMutableArray new];

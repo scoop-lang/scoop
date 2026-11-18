@@ -20,4 +20,4 @@ ScrollArea 的默认容器角色、命名覆盖和内容路由也在无 drawable
 
 `AdvancedComponentSemanticsTest` 覆盖 Slider／Progress 的实际范围与拒绝、Tabs／Disclosure／Trace 的选择与展开、OTP 单一文本宿主及保护切换、Calendar 的行与表头、合并单元格、分页动作，以及真实文本编辑和 undo 对保留范围的映射。保留范围检查验证共享文档机制与 UI 宿主接线，不表示新增了 AppKit AXTextMarker 协议。
 
-`ModalSemanticBoundaryTest` 检查 Dialog 打开后背景旧引用不可操作、拒绝关闭时仍保持打开、采纳关闭后原背景身份恢复。两个新场景都使用 `requestActivation = false`，不设置或重试系统前台焦点。GUI 测试类各自在独立进程中执行；构建和运行结果记录在 [实施记录](../../../../../docs/ui/interaction-polish/PROGRESS.md)。
+`ModalSemanticBoundaryTest` 检查 Dialog 打开后背景旧引用不可操作、拒绝关闭时仍保持打开、默认 “Close” 按钮可按语义名称找到并实际关闭，以及关闭后原背景身份恢复。两个新场景都使用 `requestActivation = false`，不设置或重试系统前台焦点。GUI 测试类各自在独立进程中执行；构建和运行结果记录在 [实施记录](../../../../../docs/ui/interaction-polish/PROGRESS.md)。
