@@ -16,7 +16,7 @@ public:
   uint64_t revision = 0;
   DWORD keys = 0, effects = 0;
   POINTL position = {};
-  int choice = 0;
+  int choice = 0, formats = 0;
 
   DropTarget(SWWindow *window, SWDropCallback callback, void *context)
       : owner(window), hwnd(window->hwnd), callback(callback),
@@ -66,7 +66,6 @@ public:
     if (phase != 2 && (!owner || !ScreenToClient(hwnd, &point)))
       return 0;
     in_callback = true;
-    int formats = data ? sw_drag_formats(data) : 0;
     if (offered)
       *offered = formats;
     int local = data && owner ? sw_drag_local(owner, data) : 0;
@@ -106,6 +105,7 @@ public:
     bool notify = inside;
     inside = false;
     choice = 0;
+    formats = 0;
     KillTimer(hwnd, reinterpret_cast<UINT_PTR>(this));
     IDataObject *previous = data;
     data = nullptr;
@@ -132,6 +132,17 @@ public:
     effects = offered;
     keys = state;
     position = point;
+    uint64_t current = revision;
+    // Querying a foreign IDataObject can pump incoming OLE calls. Keep that
+    // work at entry; hover and timer updates only renegotiate local metadata.
+    in_callback = true;
+    int declared = sw_drag_formats(object);
+    in_callback = false;
+    if (!inside || data != object || closed)
+      return S_OK;
+    formats = declared;
+    if (current != revision || !available())
+      return S_OK;
     choice = query();
     *effect = choice & 255;
     timer();

@@ -136,7 +136,7 @@ int sw_drag_formats(IDataObject *data) {
 
 static bool read_wide(HGLOBAL memory, std::wstring &value) {
   SIZE_T size = GlobalSize(memory);
-  if (size < sizeof(WCHAR) || size % sizeof(WCHAR))
+  if (size < sizeof(WCHAR))
     return false;
   const WCHAR *bytes = static_cast<const WCHAR *>(GlobalLock(memory));
   if (!bytes)
@@ -148,11 +148,7 @@ static bool read_wide(HGLOBAL memory, std::wstring &value) {
       ++length;
     if (length < count) {
       valid = true;
-      for (size_t n = length + 1; n < count; ++n)
-        if (bytes[n])
-          valid = false;
-      if (valid)
-        value.assign(bytes, length);
+      value.assign(bytes, length);
     }
   } catch (...) {
     GlobalUnlock(memory);

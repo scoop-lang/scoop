@@ -10,6 +10,10 @@ kind = "library"
 path = "test-darwin"
 when = { os = "darwin" }
 
+[[test.sources]]
+path = "test-windows"
+when = { os = "windows" }
+
 [test-dependencies]
 "scoop:scoop.window" = { version = "0.1.0", path = "../.." }
 "scoop:scoop.std" = "0.1.0"
@@ -17,7 +21,13 @@ when = { os = "darwin" }
 "scoop:scoop.test" = "0.1.0"
 
 [native]
+cxx = true
+cxx_flags = ["-Wmost", "-Wextra", "-Werror"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+
+[[native.sources]]
+path = "native/windows.cpp"
+when = { os = "windows" }
 
 [[native.sources]]
 path = "native/probe.m"

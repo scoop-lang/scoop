@@ -60,6 +60,10 @@ DragSession.effects 可在正常 owner 更新中改变后续协商允许的操�
 
 Windows 的标准表示为 CF_UNICODETEXT、UniformResourceLocatorW 和 CF_HDROP；路径采用目标系统的原生字符串，不经 UTF-8 丢失文件名。GTK 使用 UTF-8 文本和 text/uri-list；URL 接收要求一个绝对 URI，Files 要求完整列表均为本地 file URI，不能只取可转换的部分。GTK 在 Drop 后异步读取完整表示，读取期间保留该次 GdkDrop 和登记代次；完成后在同一 owner 上重新核对目标、格式和操作，再执行一次实际 drop 并向 GDK 报告完成。旧登记、禁用、关闭或取消不得向新目标交付迟到数据。读取失败拒绝，不报告成功，也不建立轮询或嵌套等待。
 
+Windows 的 Unicode 文本和 URL 读取到 HGLOBAL 范围内的首个 UTF-16 终止符；其后的分配填充不属于正文，不要求填充为零或恰好占用完整字符。范围内缺少终止符、正文编码无效或 URL 不合法时仍拒绝。
+
+OLE 在 DragEnter 查询并保留本次 IDataObject 的格式声明，离开或结束时清除；重新进入重新查询。DragOver 和周期更新使用这份声明，按当前坐标、修饰键、允许操作及目标状态重新协商，不对未变化的格式重复调用外部数据对象。格式查询可能发生跨 STA 调用并派发嵌套消息，查询期间保持原生重入隔离，目标被替换、禁用或关闭后不发布旧查询结果。仅 Drop 读取选定内容，读取失败仍拒绝，保留格式声明不代表已经接受数据。
+
 本进程来源关联使用真实 native 对象身份：Windows 比较当前 IDataObject 的 IUnknown 身份；GTK 比较 gdk_drop_get_drag 与当前 GdkDrag。不向外部格式添加进程对象标识。OLE／GTK 的周期目标更新只在已进入的活动拖放及 periodicUpdates=true 时使用 owner 原生定时源，离开、Drop、禁用或关闭立即撤销；不在空闲时轮询。
 
 beginDrag 除鼠标左键之外，也接受后端支持的当前真实 Touch／Pen Began 或 Moved。Linux 保留该输入的 GdkEvent 与设备，使用公开 GDK 拖放接口。Windows 保留真实 contact 身份，触摸或笔的 OLE 会话只从系统为该输入生成的鼠标消息处理栈启动；兼容鼠标不再交付 UI 点击。尚未抵达该入口的请求仍可 cancelPending；接触结束、设备取消或窗口退休后不补发拖动。不得合成鼠标消息、伪造事件或从 WM_POINTER 处理器直接调用 DoDragDrop。原生启动确认前 isStarted 保持 false。

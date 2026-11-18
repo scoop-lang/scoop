@@ -1,0 +1,54 @@
+package scoop.tests.window.drop
+
+import scoop.test.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Extern(name = "scoop_drop_test_windows_metadata")
+private fun nativeMetadata(window: Ptr<Unit>): Int
+
+@Test
+private class WindowsDropMetadataTest {
+    @Test
+    fun `OLE hover retains source formats and drop still validates actual data and lifetime`() {
+        val handler = MetadataHandler()
+        Application().run(handler)
+        assertTrue(handler.finished)
+        assertEquals(0, handler.result, Some(f"native drop assertion at line ${handler.result}"))
+    }
+}
+
+private class MetadataHandler: ApplicationHandler {
+    var finished = false
+    var result = -1
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop OLE metadata regression"
+                            size = LogicalSize(160.0, 120.0)
+                            position = Some(DesktopPosition(-30000.0, -30000.0))
+                            requestActivation = false
+                        }
+                    )
+                @Unsafe
+                {
+                    val lease = window.acquireNativeWindow()
+                    try {
+                        result =
+                            when (lease.handle) {
+                                case Win32(val hwnd, _) -> nativeMetadata(hwnd)
+                            }
+                    } finally {
+                        lease.close()
+                    }
+                }
+                finished = true
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}
