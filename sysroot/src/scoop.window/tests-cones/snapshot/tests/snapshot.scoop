@@ -218,18 +218,100 @@ private class WindowsSnapshotHandler: ApplicationHandler {
     }
 
     private fun native(phase: Int) {
-        @Unsafe
-        {
-            window!!.acquireNativeWindow().use {
-                lease -> @Unsafe
-                {
-                    when (lease.handle) {
-                        case Win32(val hwnd, _) -> assertEquals(
-                            0,
-                            exerciseNativeSnapshot(hwnd, phase),
-                            Some("native TSF snapshot phase " + phase.toString())
+        runNativeSnapshot(window!!, phase)
+    }
+}
+
+@Test
+private class WindowsTextQueriesTest {
+    @Test
+    fun `TSF pages Unicode text and queries insertion without editing the document`() {
+        val handler = WindowsTextQueriesHandler()
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
+            handler
+        )
+        assertTrue(handler.finished)
+        assertEquals(1, handler.edits)
+    }
+}
+
+private class WindowsTextQueriesHandler: ApplicationHandler {
+    var window: Window? = None
+    var connection: TextInputConnection? = None
+    var text = TextInputState(longQueryText(), Utf8Selection(0L, 4L))
+    var finished = false
+    var edits = 0
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                window =
+                    Some(
+                        application.createWindow(
+                            windowAttributes {
+                                this.title = "Windows TSF text queries"
+                                this.visible = false
+                                this.requestActivation = false
+                            }
                         )
-                    }
+                    )
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+                window!!.setImeAllowed(true)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("Windows TSF text query deadline"))
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> {
+                connection = value
+                assertTrue(window!!.publishTextInputState(value!!, text))
+                runNativeSnapshot(window!!, 14)
+                runNativeSnapshot(window!!, 15)
+            }
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(val batch))) -> {
+                edits += 1
+                assertEquals(1, edits)
+                assertEquals(1L, batch.origin!!.sequence)
+                assertEquals(1L, batch.operations.size)
+                val expected =
+                    "换😀" +
+                        text.surroundingText.utf8Slice(
+                            Utf8Range(4L, text.surroundingText.byteLength)
+                        )
+                text = text.apply(batch)
+                assertEquals(expected, text.surroundingText)
+                assertEquals(Utf8Selection(7L, 7L), text.selection)
+                assertTrue(window!!.publishTextInputState(connection!!, text, batch.origin))
+                runNativeSnapshot(window!!, 14)
+                window!!.requestDestroy()
+            }
+            case Window(_, WindowEvent.Destroyed) -> finished = true
+            else -> {}
+        }
+    }
+}
+
+private fun longQueryText(): String {
+    var text = "line😀中"
+    var count = 0
+    while (count < 7) {
+        text += text
+        count += 1
+    }
+    return text
+}
+
+private fun runNativeSnapshot(window: Window, phase: Int) {
+    @Unsafe
+    {
+        window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                when (lease.handle) {
+                    case Win32(val hwnd, _) -> assertEquals(
+                        0,
+                        exerciseNativeSnapshot(hwnd, phase),
+                        Some("native TSF snapshot phase " + phase.toString())
+                    )
                 }
             }
         }

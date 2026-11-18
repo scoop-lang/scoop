@@ -22,6 +22,7 @@ private class SettingsPanel(scope: ComponentScope): Component(scope) {
     private val expanded = state(false)
     private val confirmation = state(false)
     private val message = state("No changes saved")
+    private var announcements = 0
     public override fun render(): View {
         val name = this.name
         val updates = this.updates
@@ -29,6 +30,7 @@ private class SettingsPanel(scope: ComponentScope): Component(scope) {
         val expanded = this.expanded
         val message = this.message
         val confirmation = this.confirmation
+        val panel = this
         val content =
             column {
                 this.input(name) {
@@ -96,6 +98,13 @@ private class SettingsPanel(scope: ComponentScope): Component(scope) {
                             live = SemanticLive.Polite
                         )
                 }
+                this.button(
+                    "Announce status",
+                    {
+                        panel.announcements += 1
+                        message.value = "Status update " + panel.announcements.toString()
+                    }
+                ) { semantics = ComponentSemantics(automationId = Some("announce")) }
                 this.dialog(
                     confirmation.binding(),
                     panelLabel("Your preferences have been saved.")

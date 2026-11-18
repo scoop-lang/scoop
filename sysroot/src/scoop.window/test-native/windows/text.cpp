@@ -1,14 +1,18 @@
 #include "../../native/windows/text_internal.h"
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <string>
 
 namespace {
 struct EditSession : ITfEditSession {
-  explicit EditSession(std::function<HRESULT()> body) : body(std::move(body)) {}
+  explicit EditSession(std::function<HRESULT()> body,
+                       TfEditCookie *cookie = nullptr)
+      : body(std::move(body)), cookie(cookie) {}
   virtual ~EditSession() = default;
   std::function<HRESULT()> body;
+  TfEditCookie *cookie;
   ULONG references = 1;
 
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void **object) override {
@@ -28,7 +32,9 @@ struct EditSession : ITfEditSession {
       delete this;
     return remaining;
   }
-  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie) override {
+  HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie granted) override {
+    if (cookie)
+      *cookie = granted;
     return body();
   }
 };
@@ -38,11 +44,12 @@ SWTextState *text_state(HWND hwnd) {
   return window ? static_cast<SWTextState *>(window->text) : nullptr;
 }
 
-HRESULT edit(HWND hwnd, bool write, const std::function<HRESULT()> &body) {
+HRESULT edit(HWND hwnd, bool write, const std::function<HRESULT()> &body,
+             TfEditCookie *cookie = nullptr) {
   SWTextState *state = text_state(hwnd);
   if (!state || !state->context)
     return E_UNEXPECTED;
-  EditSession *session = new EditSession(body);
+  EditSession *session = new EditSession(body, cookie);
   HRESULT session_result = E_FAIL;
   DWORD flags = (write ? TF_ES_READWRITE : TF_ES_READ) | TF_ES_SYNC;
   HRESULT hr =
@@ -139,6 +146,95 @@ HRESULT unavailable(ITextStoreACP *store) {
   LONG next;
   HRESULT hr = store->GetText(0, 1, value, 4, &count, nullptr, 0, &runs, &next);
   return FAILED(hr) && SUCCEEDED(no_caret(store)) ? S_OK : E_FAIL;
+}
+
+HRESULT text_queries(HWND hwnd, ITextStoreACP *store) {
+  SWTextState *state = text_state(hwnd);
+  const std::wstring expected = state->document.text;
+  LONG length = static_cast<LONG>(expected.size());
+  TfEditCookie cookie = 0;
+  return edit(
+      hwnd, false,
+      [&] {
+        for (ULONG capacity : {1UL, 128UL}) {
+          std::wstring actual;
+          LONG position = 0;
+          while (position < length) {
+            WCHAR buffer[128];
+            TS_RUNINFO run{};
+            ULONG copied = 0, runs = 0;
+            LONG next = -1;
+            HRESULT hr = store->GetText(position, -1, buffer, capacity, &copied,
+                                        &run, 1, &runs, &next);
+            if (FAILED(hr) || !copied || copied > capacity || runs != 1 ||
+                run.type != TS_RT_PLAIN || run.uCount != copied ||
+                next != position + static_cast<LONG>(copied))
+              return E_FAIL;
+            actual.append(buffer, copied);
+            position = next;
+          }
+          if (actual != expected)
+            return E_FAIL;
+        }
+        TS_RUNINFO run{};
+        ULONG copied = 1, runs = 0;
+        LONG next = -1;
+        if (FAILED(store->GetText(0, -1, nullptr, 0, &copied, &run, 1, &runs,
+                                  &next)) ||
+            copied || runs != 1 || run.uCount != expected.size() ||
+            next != length)
+          return E_FAIL;
+        if (FAILED(store->GetText(length, -1, nullptr, 0, &copied, &run, 1,
+                                  &runs, &next)) ||
+            copied || runs || next != length)
+          return E_FAIL;
+        if (FAILED(store->GetText(0, -1, nullptr, 0, &copied, nullptr, 0, &runs,
+                                  &next)) ||
+            copied || runs || next)
+          return E_FAIL;
+        LONG start = -1, end = -1;
+        if (FAILED(store->QueryInsert(length, length, 6000, &start, &end)) ||
+            start != length || end != length ||
+            FAILED(store->QueryInsert(0, length, LONG_MAX, &start, &end)) ||
+            start != 0 || end != length ||
+            SUCCEEDED(
+                store->QueryInsert(length, length, LONG_MAX, &start, &end)))
+          return E_FAIL;
+        if (FAILED(store->InsertTextAtSelection(TS_IAS_QUERYONLY, nullptr, 6000,
+                                                &start, &end, nullptr)) ||
+            start != std::min(state->document.anchor, state->document.cursor) ||
+            end != std::max(state->document.anchor, state->document.cursor) ||
+            sw_text_query(state)->text != expected ||
+            SUCCEEDED(store->InsertTextAtSelection(
+                TS_IAS_QUERYONLY | TS_IAS_NOQUERY, nullptr, 6000, &start, &end,
+                nullptr)))
+          return E_FAIL;
+        HRESULT session = S_OK;
+        if (store->RequestLock(TS_LF_READ | TS_LF_SYNC, &session) != S_OK ||
+            session != TF_E_SYNCHRONOUS)
+          return E_FAIL;
+
+        ITfRange *range = nullptr;
+        HRESULT hr = state->context->GetStart(cookie, &range);
+        if (FAILED(hr))
+          return hr;
+        LONG shifted = 0;
+        hr = range->ShiftEnd(cookie, LONG_MAX, &shifted, nullptr);
+        std::wstring actual;
+        while (SUCCEEDED(hr) && actual.size() < expected.size()) {
+          WCHAR buffer[128];
+          ULONG count = 0;
+          hr = range->GetText(cookie, TF_TF_MOVESTART, buffer, 128, &count);
+          if (FAILED(hr) || !count || count > 128) {
+            hr = E_FAIL;
+            break;
+          }
+          actual.append(buffer, count);
+        }
+        range->Release();
+        return SUCCEEDED(hr) && actual == expected ? S_OK : E_FAIL;
+      },
+      &cookie);
 }
 
 int32_t snapshot(HWND hwnd, int32_t phase) {
@@ -257,6 +353,28 @@ int32_t snapshot(HWND hwnd, int32_t phase) {
       if (SUCCEEDED(store->SetSelection(1, &selection)))
         return E_FAIL;
       return document(store, L"external😀", 10, 8);
+    });
+    break;
+  case 14:
+    hr = text_queries(hwnd, store);
+    break;
+  case 15:
+    hr = edit(hwnd, true, [&] {
+      SWTextState *state = text_state(hwnd);
+      const std::wstring original = state->projection.text;
+      LONG start = -1, end = -1;
+      if (FAILED(store->InsertTextAtSelection(TS_IAS_QUERYONLY, nullptr, 6000,
+                                              &start, &end, nullptr)) ||
+          start != 0 || end != 4 || state->projection.text != original)
+        return E_FAIL;
+      TS_TEXTCHANGE change{};
+      HRESULT result = store->InsertTextAtSelection(TS_IAS_NOQUERY, L"换😀", 3,
+                                                    nullptr, nullptr, &change);
+      return SUCCEEDED(result) && change.acpStart == 0 &&
+                     change.acpOldEnd == 4 && change.acpNewEnd == 3 &&
+                     state->projection.text == L"换😀" + original.substr(4)
+                 ? S_OK
+                 : E_FAIL;
     });
     break;
   default:

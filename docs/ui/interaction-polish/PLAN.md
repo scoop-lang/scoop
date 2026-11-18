@@ -34,8 +34,10 @@ accessibility 本轮实现队列覆盖 S2／S4／S5／S7／S10／S11 的相关�
 
 - [ ] macOS：集中运行与独立 AX 客户端已通过，继续补齐 VoiceOver 及真实设备组合；已有真实捏合／旋转和拖放结果复用。
 - [ ] Windows：MSVC 完整 UI／控件构建、定向交互回归和独立 UIA 客户端已通过，两个 LLVM-MinGW CRT 目标各 33 项原生接口与生命周期检查通过；Narrator、实际拖放、触摸／笔和软键盘保留待验。
-- [ ] Linux：Wayland／X11 的原生生命周期与独立 AT-SPI 客户端已通过；继续补齐 Orca、实际拖放及触摸／笔设备组合，GTK 渲染环境限制见实施记录。
+- [ ] Linux：Wayland／X11 的原生生命周期与独立 AT-SPI 客户端已通过，Orca 的表单、表格、公告与模态整组人工检查已通过；继续补齐虚拟列表／保护文本、实际拖放及触摸／笔设备组合，GTK 渲染环境限制见实施记录。
 - [ ] 按第 6、7 节关闭剩余跨功能、外部客户端和真实设备问题；平台缺陷返回一级修复，再做受影响的定向验证。
+
+已确认可人工操作 macOS VoiceOver、Windows Narrator、Linux Orca 与 Linux 触屏。按[整轮人工验收步骤](MANUAL-VALIDATION.md)集中反馈；Windows 交付 exe 后由用户启动，Linux 使用 `wayland-0`。未确认可用的笔、Windows 触屏及其他设备组合仍保留待验，不重复已确认的 macOS 手势与拖放。
 
 ### 三级待办：配色
 

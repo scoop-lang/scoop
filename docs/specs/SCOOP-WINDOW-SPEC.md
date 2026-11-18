@@ -176,7 +176,7 @@ owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照�
 
 原生 Edit 的可选 origin 为 TextInputOrigin(connection, sequence)，sequence 只表达同一输入连接中已经排队的批次顺序。应用处理完一批后，把它的 origin 随已生效 state 传入 after；已经处理的序号不倒退、不越过该连接实际排队的末项。非原生纯值批次及不参与文档事务的普通 Win32 字符批次为 None。native 只保存最新已发布文档、当前原生事务的临时投影以及已经排队和已经处理的两个序号，不保留文档历史或建立另一套编辑状态。普通 CurrentSelection 批次可连续排队；在较早批次尚未处理完时，无法确定的 surrounding 查询返回 unavailable，不能把预测的未来 revision 当作已应用版本。
 
-NSTextInputClient／ITextStoreACP 的同步查询读取原生不可变文档副本；同一次原生解释或 TSF 编辑事务内允许对其临时副本依次投影本批操作。macOS attributedSubstring 返回已知、完整 UTF-16 标量范围的纯文本 attributed string 及 actualRange；Windows GetText 返回已知 ACP 范围的纯文本。selection／marked 的文档范围保留实际 native 组合信息。未知范围、尚未同步的 surrounding、切断 surrogate 或缺少布局时返回平台 unavailable 结果，不回调 managed handler、不布局、不挂起。
+NSTextInputClient／ITextStoreACP 的同步查询读取原生不可变文档副本；同一次原生解释或 TSF 编辑事务内允许对其临时副本依次投影本批操作。macOS attributedSubstring 返回已知、完整 UTF-16 标量范围的纯文本 attributed string 及 actualRange；Windows GetText 按 UTF-16 单元读取已知 ACP 范围，允许 surrogate 跨缓冲区分段返回，文本、run 长度与下一读取位置必须描述同一已返回区间。selection／marked 的文档范围保留实际 native 组合信息；修改文档或转换为 UTF-8 的范围仍须位于完整字符边界。未知范围、尚未同步的 surrounding、编辑范围切断 surrogate 或缺少布局时返回平台 unavailable 结果，不回调 managed handler、不布局、不挂起。
 
 IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查；公共 clearImeCursorArea 撤销它。候选窗使用原生客户区到屏幕坐标转换后的位置。公共文档接入使用 `publishTextInputCaret(connection, revision, area: LogicalRect?): Boolean`：只有当前连接、所有较早原生编辑已处理且 revision 与已发布文档一致时才接收，None 明确撤销几何。文档改变、待处理原生编辑和连接结束立即使旧几何不可用。macOS firstRect 与 Windows GetTextExt 只报告确知的活动 cursor 位置；macOS characterIndex 与 Windows GetACPFromPoint 只在该有效 caret 矩形内报告其索引，其他范围／位置返回 unavailable，不编造整个文档的布局。
 
@@ -287,7 +287,9 @@ Windows 窗口使用 Unicode HWND，创建前确认 owner 线程使用 Per-Monit
 
 owner 线程持有 ITfThreadMgr 和 TfClientId，每窗口管理 ITfDocumentMgr、context stack 与焦点。应用实现 ITextStoreACP 及必要的 composition／edit sink，系统提供 ITfContext。COM/C++ 对象不跨 Scoop ABI。连接启用、焦点、禁用、restart 与销毁均核对 connection generation；旧连接的迟到回调不能修改新状态。当前文档模型为纯文本、单选区；不为 TSF 富文本属性、embedded object 或多选区增加另一套公共模型，无法由公共批次表达的操作原子拒绝。
 
-ITextStoreACP 的 ACP 范围是 UTF-16 单元范围，在 native 边界转换为 Scoop UTF-8 字节范围，切断 surrogate 或越界时拒绝整个操作。RequestLock 遵守 TSF 同步／异步锁规则；锁内只访问原生快照或临时投影，不调用 managed handler、布局或挂起。每个原子编辑事务按实际顺序投影文本操作，再生成一个带 connection／sequence 的 TextInputBatch；显式范围携带快照 baseRevision，无快照或范围未知时返回 unavailable，不能退回局部猜测。无效事务不部分交付；publishTextInputState(after=origin) 后才推进已处理序号，事务外存在未确认编辑时 surrounding／caret 查询不可用。
+ITextStoreACP 的 ACP 范围是 UTF-16 单元范围；需要转换为 Scoop UTF-8 字节范围的编辑操作在 native 边界检查，切断 surrogate 或越界时拒绝整个操作。RequestLock 遵守 TSF 同步／异步锁规则；锁内只访问原生快照或临时投影，不调用 managed handler、布局或挂起。每个原子编辑事务按实际顺序投影文本操作，再生成一个带 connection／sequence 的 TextInputBatch；显式范围携带快照 baseRevision，无快照或范围未知时返回 unavailable，不能退回局部猜测。无效事务不部分交付；publishTextInputState(after=origin) 后才推进已处理序号，事务外存在未确认编辑时 surrounding／caret 查询不可用。
+
+QueryInsert 返回当前文档内可替换的区间，不把待插入长度加进查询结果；InsertTextAtSelection 的 QUERYONLY 同样只查询当前替换区间，不改变文本、选择、组合或编辑序号，NOQUERY 允许省略区间输出。TSF 自身调用产生的文本／选择修改通过调用结果与同一个编辑批次交付，不在锁内反向发送 OnTextChange／OnSelectionChange；应用主动发布的修改仍按既有发布路径通知。同步锁不能重入时通过 session 结果拒绝；成功的同步锁取代此前待交付的异步请求，但保留该回调中新请求的后续锁。
 
 composition 的开始、范围更新、提交、取消和 unmark 归一到现有 Preedit／Commit／ClearPreedit 操作；取消删除应用正在显示的组合，unmark 保留正文并仅清除组合标记。一个连接只有一个 composition 写入者。候选窗和点命中使用当前 revision 对应的已发布 caret，经客户区／DPI 转换回答 GetTextExt／GetACPFromPoint；文档变化、待确认编辑、连接结束、窗口尺寸或 DPI 变化立即使旧几何失效。
 

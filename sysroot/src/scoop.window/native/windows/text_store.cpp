@@ -117,14 +117,27 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
   HRESULT STDMETHODCALLTYPE RequestLock(DWORD flags,
                                         HRESULT *session) override {
     return guarded([&] {
-      if (!session || !sink || !(flags & (TS_LF_READ | TS_LF_READWRITE)))
+      DWORD requested = flags & TS_LF_READWRITE;
+      if (!session || !sink ||
+          (requested != TS_LF_READ && requested != TS_LF_READWRITE) ||
+          (flags & ~(TS_LF_SYNC | TS_LF_READWRITE)))
         return E_INVALIDARG;
       *session = S_OK;
-      DWORD requested = flags & (TS_LF_READ | TS_LF_READWRITE);
       if (flags & TS_LF_SYNC) {
-        if (lock)
-          return TF_E_SYNCHRONOUS;
+        if (lock) {
+          *session = TF_E_SYNCHRONOUS;
+          return S_OK;
+        }
+        bool previous_pending = pending;
+        DWORD previous_flags = pending_flags;
+        pending = false;
         *session = grant(requested);
+        if (FAILED(*session) && previous_pending) {
+          pending_flags = previous_flags | (pending ? pending_flags : 0);
+          pending = true;
+          if (!PostMessageW(state->window->hwnd, SW_TEXT_LOCK, 0, 0))
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
         return S_OK;
       }
       if (pending)
@@ -159,10 +172,10 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
       if (!document)
         return TF_E_NOOBJECT;
       if (!sw_text_range(document->text, start, end) || count > LONG_MAX ||
-          (int64_t)end + count > LONG_MAX)
+          document->text.size() - (end - start) + count > LONG_MAX)
         return TF_E_INVALIDPOS;
       *result_start = start;
-      *result_end = end + (LONG)count;
+      *result_end = end;
       return S_OK;
     });
   }
@@ -203,13 +216,7 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
       return TF_E_NOLOCK;
     if (count != 1 || !selection)
       return E_NOTIMPL;
-    LONG previous_anchor = state->projection.anchor;
-    LONG previous_cursor = state->projection.cursor;
-    HRESULT hr = sw_text_select(state, selection[0]);
-    if (SUCCEEDED(hr) && (previous_anchor != state->projection.anchor ||
-                          previous_cursor != state->projection.cursor))
-      sw_text_store_notify_selection(state);
-    return hr;
+    return sw_text_select(state, selection[0]);
   }
 
   HRESULT STDMETHODCALLTYPE GetText(LONG start, LONG end, WCHAR *plain,
@@ -224,7 +231,8 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
       *next = start;
     if (!(lock & TS_LF_READ))
       return TF_E_NOLOCK;
-    if ((!plain && plain_required) || (!run_info && run_required) || !next)
+    if ((!plain && plain_required) || (!run_info && run_required) ||
+        !plain_count || !run_count || !next)
       return E_INVALIDARG;
     const SWTextDocument *document = sw_text_query(state);
     if (!document ||
@@ -232,23 +240,24 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
       return TF_E_NOOBJECT;
     if (end == -1)
       end = (LONG)document->text.size();
-    if (!sw_text_range(document->text, start, end))
+    if (start < 0 || end < start || (size_t)end > document->text.size())
       return TF_E_INVALIDPOS;
     ULONG length = (ULONG)(end - start);
     ULONG copied = std::min(length, plain_required);
+    ULONG covered = plain_required ? copied : (run_required ? length : 0);
     if (copied)
       std::copy_n(document->text.data() + start, copied, plain);
     if (plain_count)
       *plain_count = copied;
     ULONG runs = 0;
-    if (run_required && length) {
-      run_info[0].uCount = length;
+    if (run_required && covered) {
+      run_info[0].uCount = covered;
       run_info[0].type = TS_RT_PLAIN;
       runs = 1;
     }
     if (run_count)
       *run_count = runs;
-    *next = start + (LONG)std::max(copied, runs ? length : 0);
+    *next = start + (LONG)covered;
     return S_OK;
   }
 
@@ -258,13 +267,7 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
     return guarded([&] {
       if (!((lock & TS_LF_READWRITE) == TS_LF_READWRITE) || !change)
         return TF_E_NOLOCK;
-      HRESULT hr =
-          sw_text_replace(state, start, end, text, length, true, change);
-      if (SUCCEEDED(hr)) {
-        sw_text_store_notify_change(state, *change);
-        sw_text_store_notify_selection(state);
-      }
-      return hr;
+      return sw_text_replace(state, start, end, text, length, true, change);
     });
   }
 
@@ -296,24 +299,34 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
       DWORD flags, const WCHAR *text, ULONG length, LONG *start, LONG *end,
       TS_TEXTCHANGE *change) override {
     return guarded([&] {
-      if (!((lock & TS_LF_READWRITE) == TS_LF_READWRITE) || !start || !end ||
-          !change)
+      bool query = (flags & TS_IAS_QUERYONLY) != 0;
+      bool no_query = (flags & TS_IAS_NOQUERY) != 0;
+      if ((flags & ~(TS_IAS_QUERYONLY | TS_IAS_NOQUERY)) ||
+          (query && no_query) || (!no_query && (!start || !end)) ||
+          (!query && !change))
+        return E_INVALIDARG;
+      if (query ? !(lock & TS_LF_READ)
+                : (lock & TS_LF_READWRITE) != TS_LF_READWRITE)
         return TF_E_NOLOCK;
-      const SWTextDocument &document = state->projection;
-      LONG first = document.marked_start >= 0
-                       ? document.marked_start
-                       : std::min(document.anchor, document.cursor);
-      LONG last = document.marked_start >= 0
-                      ? document.marked_end
-                      : std::max(document.anchor, document.cursor);
+      const SWTextDocument *document = sw_text_query(state);
+      if (!document)
+        return TF_E_NOOBJECT;
+      LONG first = document->marked_start >= 0
+                       ? document->marked_start
+                       : std::min(document->anchor, document->cursor);
+      LONG last = document->marked_start >= 0
+                      ? document->marked_end
+                      : std::max(document->anchor, document->cursor);
+      if (query)
+        return QueryInsert(first, last, length, start, end);
       HRESULT hr =
           sw_text_replace(state, first, last, text, length, false, change);
       if (FAILED(hr))
         return hr;
-      *start = change->acpStart;
-      *end = change->acpNewEnd;
-      sw_text_store_notify_change(state, *change);
-      sw_text_store_notify_selection(state);
+      if (start)
+        *start = change->acpStart;
+      if (end)
+        *end = change->acpNewEnd;
       return S_OK;
     });
   }
