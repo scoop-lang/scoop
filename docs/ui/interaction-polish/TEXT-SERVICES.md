@@ -21,4 +21,6 @@ GTK 4.18.6 的公开 `gdk_display_get_primary_clipboard` 在 Wayland primary-sel
 
 2026-11-18 的 X11 跨进程检查已通过：公开 Window API 与 `xclip` 双向传输中文／emoji 和换行，外部拥有者接替后旧 claim 失效且关闭不影响新内容，重新认领及释放正常，普通 Clipboard 保持独立。当前用户 GNOME `wayland-0`／GTK 4.22.4 会话的只读查询报告 PRIMARY 可用，实际中键与跨程序收发待人工确认；此前私有 Weston 的无协议结果仅适用于该测试环境。
 
+真实拼写提供者已在 macOS 与 Windows MSVC＋UCRT 参考环境验证：公开 Window API 将 `😀 spleling` 的错词映射到 UTF-8 范围 5～13，并取得有效建议；Windows `en-US` 结果包含 `spelling`。macOS 复用已有肯定断言回归，Windows 独立检查不创建可见窗口。macOS 本轮无窗口后台查询返回 0 个 Services 项，该结果仅说明这次查询没有可执行条目，没有覆盖正常窗口中的服务执行。词典面板、Services 执行、听写和触觉仍按各自实际交互／设备验收。
+
 核查依据为本机 SDK 的 NSSpellChecker.h、NSTextCheckingController.h、NSTextCheckingClient.h、NSView.h、NSApplication.h、NSHapticFeedback.h，Windows 的公开 ISpellChecker／ISpellCheckerFactory 接口，以及 GTK [4.18.6 gdkseat-wayland.c](https://gitlab.gnome.org/GNOME/gtk/-/blob/4.18.6/gdk/wayland/gdkseat-wayland.c) 与 [gdkdisplay.c](https://gitlab.gnome.org/GNOME/gtk/-/blob/4.18.6/gdk/gdkdisplay.c)。原始下载、探针和日志放在仓库外。
