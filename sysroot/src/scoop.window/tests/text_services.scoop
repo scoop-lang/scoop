@@ -10,7 +10,7 @@ private class SystemTextServicesTest {
         Application().run(probe)
         assertTrue(probe.finished)
         assertFailsWith<WindowException> { probe.services!!.checkText("closed") }
-        assertFailsWith<WindowException> { probe.services!!.availableServices() }
+        assertFailsWith<WindowException> { probe.services!!.performService("closed", "text") }
     }
 }
 
@@ -53,9 +53,23 @@ private class TextServicesProbe: ApplicationHandler {
                     assertTrue(checkedWord)
                 if (!capabilities.spelling)
                     assertEquals(0L, findings.size)
-                for (service in source.availableServices()) {
-                    assertTrue(service.name.byteLength > 0L)
-                    assertTrue(service.label.byteLength > 0L)
+                if (!capabilities.services) {
+                    val menu = application.createMenu()
+                    try {
+                        assertEquals(
+                            WindowErrorKind.Unsupported,
+                            assertFailsWith<WindowException> {
+                                menu.insert(
+                                    MenuItemDescription(
+                                        "Services",
+                                        MenuItemKind.TextServices(text, true)
+                                    )
+                                )
+                            }.kind
+                        )
+                    } finally {
+                        menu.close()
+                    }
                 }
                 val window =
                     application.createWindow(

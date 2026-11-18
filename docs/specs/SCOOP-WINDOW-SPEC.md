@@ -66,7 +66,7 @@ ActiveApplication.textServices 返回与活动应用同线程的 SystemTextServi
 
 macOS 使用 NSSpellChecker 的独立检查接口，显式检查支持拼写、语法细节和替换建议；replacements 只启用系统当前允许的拼写更正、引号、破折号和文本替换。Windows 使用 ISpellChecker，对语言实际提供的拼写错误、建议及更正结果逐项转换；未安装语言返回空结果，缺少语法公共提供者不报告 grammar 能力。GTK 不附带跨应用文本检查器，本轮明确报告不可用，应用可沿现有 TextEditPolicy 和范围装饰接入自己的检查器。不建立隐藏 NSTextView、另一份可写文档或另一套撤销历史。
 
-availableServices() 返回平台实际注册的文本 Services 的名称与标签；performService(name, text) 使用独立临时 pasteboard 发送文本，成功后返回其正文，提供者拒绝返回 None；不读写普通 Clipboard／PRIMARY，不隐式写回模型。系统选择的翻译等提供者可经该入口执行，不声明存在独立通用的翻译 API。应用关闭后以上方法报 InvalidState。原生菜单没有已安装、可执行的服务时不得显示占位项。
+文本 Services 的发现与选择使用[原生菜单规范](SCOOP-WINDOW-MENUS-SPEC.md)的 MenuItemKind.TextServices：AppKit 在真实子菜单展示时填充适用服务，不能把展示前的空 itemArray 当作没有提供者，也不提供依赖该数组的名称枚举 API。返回文本经 MenuActivation.textServiceResult 交给调用方。performService(name, text) 仍可按已知服务名称使用独立临时 pasteboard 发送文本，成功后返回其正文，提供者拒绝返回 None；两种入口均不读写普通 Clipboard／PRIMARY、不隐式写回模型。系统选择的翻译等提供者取决于实际安装，不声明存在独立通用的翻译 API。应用关闭后 SystemTextServices 方法报 InvalidState。
 
 Window.showTextDefinition(text, anchor) 使用调用方提供的当前可见内容坐标，在平台词典入口显示只读查询；无入口返回 false。调用方负责受保护文本及 Accepted 几何的资格。听写继续经同一原生文本输入连接产生 Commit／Preedit；不伪造一个未公开的启动听写命令。上述服务的真实提供者及系统 UI 在对应平台另行验收。
 
@@ -329,6 +329,8 @@ Linux 窗口由 GTK 4.18 及以上与 libadwaita 1.4 及以上承载，X11／Way
 GTK 的 GMainContext、eventfd 唤醒、最近 deadline 和借入的 readable fd 共用 owner 上的 poll 等待，不增加轮询线程。GTK signal 只更新原生快照或排队事件；业务 handler 在 GMainContext dispatch 之外执行，剪贴板的同步读取也不递归进入业务 handler。watch 不读取或关闭借入的 descriptor，remove 在活动回调及本轮就绪快照退休后完成。
 
 GTK 在首次内容分配前取得的焦点先保存在原生快照中；首次 GeometryChanged 使窗口进入 Open 后，再交付当前 Focused 状态。Surface 的初始逻辑焦点因此能与 OS 焦点一致，不要求用户先切换到其他窗口再返回。
+
+GTK 原生 popup 的输入转移仍属于同一宿主窗口，按[菜单规范](SCOOP-WINDOW-MENUS-SPEC.md#3-动作与快捷键)结合实际 toplevel 状态与 mapped 子菜单报告 Focused；避免把菜单取得输入误报为文本目标失焦，同时保留真正窗口失活的取消行为。
 
 GTK 的 toplevel `suspended` 状态按窗口 Occluded 报告，恢复时同步清除。compositor 暂停发送帧时，上层由已有的不可绘制处理和有限 deadline 收束动画与交互，不继续等待不会到达的帧。
 

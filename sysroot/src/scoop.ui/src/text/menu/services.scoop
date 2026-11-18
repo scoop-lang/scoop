@@ -8,7 +8,8 @@ import scoop.window.*
 internal class TextMenuServiceAction(
     val label: String,
     val valid: () -> Boolean,
-    val perform: () -> Unit
+    val perform: (String?) -> Unit,
+    val kind: MenuItemKind = MenuItemKind.Action
 )
 
 internal fun editorSystemMenuActions(host: TextEditHost): Array<TextMenuServiceAction> {
@@ -35,6 +36,10 @@ internal fun editorSystemMenuActions(host: TextEditHost): Array<TextMenuServiceA
                 document &&
                 document.revision ==
                 revision &&
+                document.selection ==
+                selection &&
+                host.options.readOnly ==
+                !editable &&
                 host.options.contextMenu ==
                 options &&
                 host.copyAllowed &&
@@ -73,7 +78,7 @@ internal fun editorSystemMenuActions(host: TextEditHost): Array<TextMenuServiceA
                         TextMenuServiceAction(
                             label,
                             { valid() && !host.options.readOnly },
-                            { replace(range, suggestion, TextEditSource.EditCommand) }
+                            { _ -> replace(range, suggestion, TextEditSource.EditCommand) }
                         )
                     )
                 }
@@ -168,7 +173,7 @@ private fun appendReadTextServices(
                 labels.lookUp ?: "Look Up",
                 valid,
                 {
-                    if (valid())
+                    _ -> if (valid())
                         when (val rect = anchor()) {
                             case Some(val value) -> {
                                 scope.nativeWindow.showTextDefinition(text, value);
@@ -181,31 +186,30 @@ private fun appendReadTextServices(
         )
     if (!capabilities.services)
         return
-    try {
-        for (service in services.availableServices())
-            actions.add(
-                TextMenuServiceAction(
-                    (labels.services ?: "Services") + " / " + service.label,
-                    valid,
-                    {
-                        if (valid()) {
-                            val result = services.performService(service.name, text)
-                            if (valid())
-                                when (replace) {
-                                    case Some(val apply) -> when (result) {
-                                        case Some(val value) -> if (value != text)
-                                            apply(value)
-                                        case None -> {}
-                                    }
-                                    case None -> {}
-                                }
+    actions.add(
+        TextMenuServiceAction(
+            labels.services ?: "Services",
+            valid,
+            {
+                result -> if (valid())
+                    when (replace) {
+                        case Some(val apply) -> when (result) {
+                            case Some(val value) -> if (value != text)
+                                apply(value)
+                            case None -> {}
                         }
+                        case None -> {}
                     }
-                )
+            },
+            MenuItemKind.TextServices(
+                text,
+                when (replace) {
+                    case Some(_) -> true
+                    case None -> false
+                }
             )
-    } catch (_: WindowException) {
-        // An unavailable provider must not suppress the standard editing menu.
-    }
+        )
+    )
 }
 
 private fun textServiceAnchor(rect: Rect): LogicalRect =

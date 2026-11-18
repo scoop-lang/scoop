@@ -32,7 +32,9 @@ public enum MenuState {
 
 /** Check state is published by the application and never toggled implicitly. */
 public enum MenuItemKind {
-    Action, Checkbox(Boolean), Radio(Boolean), Submenu, Separator
+    Action, Checkbox(Boolean), Radio(Boolean), Submenu, Separator,
+    /** A system-owned popup submenu for a text snapshot and replacement permission. */
+    TextServices(String, Boolean)
 }
 
 public enum MenuRole {
@@ -70,6 +72,8 @@ public class MenuActivation internal constructor(
     public val menu: MenuId,
     public val item: MenuItemId,
     public val source: MenuSource,
+    /** Returned text, including an empty replacement; None for ordinary actions. */
+    public val textServiceResult: String?,
     internal val use: MenuUse,
     internal val target: WindowId?
 )

@@ -1,4 +1,4 @@
-#include "window.h"
+#include "menu.h"
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
 #include <gdk/wayland/gdkwayland.h>
@@ -111,7 +111,12 @@ void sw_snapshot_update(SWWindow *window) {
     window->snapshot.occluded = occluded;
     sw_emit(window, 5);
   }
-  sw_focus(window, gtk_window_is_active(GTK_WINDOW(window->window)));
+  // A popup owns keyboard input while its toplevel remains active. Reporting
+  // that handoff as focus loss would cancel the editor that opened the menu.
+  bool focused = gtk_window_is_active(GTK_WINDOW(window->window)) ||
+                 ((state & GDK_TOPLEVEL_STATE_FOCUSED) &&
+                  sw_menu_tracking(window->window));
+  sw_focus(window, focused);
   sw_desktop_bounds(window);
   sw_accessibility_geometry(window);
 }

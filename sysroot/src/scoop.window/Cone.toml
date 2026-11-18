@@ -182,6 +182,10 @@ path = "native/darwin/menu_presentation.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/menu_services.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/input/pointer.m"
 when = { os = "darwin" }
 

@@ -137,41 +137,6 @@ void scoop_window_text_service_destroy(void *pointer) {
   (void)(__bridge_transfer NSArray *)pointer;
 }
 
-static void services(NSMenu *menu, NSString *prefix, NSMutableArray *result) {
-  for (NSMenuItem *item in menu.itemArray) {
-    if (item.separatorItem || item.hidden || !item.title.length)
-      continue;
-    NSString *name = prefix.length
-                         ? [prefix stringByAppendingFormat:@"/%@", item.title]
-                         : item.title;
-    if (item.submenu)
-      services(item.submenu, name, result);
-    else if (item.action)
-      [result addObject:row(@"", NSMakeRange(0, 0), 0, name, @[ name ])];
-  }
-}
-
-SWTextServiceResult scoop_window_text_services(void *pointer) {
-  @autoreleasepool {
-    @try {
-      SWApplication *app = (__bridge SWApplication *)pointer;
-      if (!app.textServicesMenu) {
-        app.previousTextServicesMenu = NSApp.servicesMenu;
-        app.textServicesMenu = [[NSMenu alloc] initWithTitle:@"Services"];
-        NSApp.servicesMenu = app.textServicesMenu;
-        [NSApp registerServicesMenuSendTypes:@[ NSPasteboardTypeString ]
-                                 returnTypes:@[ NSPasteboardTypeString ]];
-      }
-      [app.textServicesMenu update];
-      NSMutableArray *result = [NSMutableArray new];
-      services(app.textServicesMenu, @"", result);
-      return (SWTextServiceResult){(__bridge_retained void *)result, 0};
-    } @catch (NSException *exception) {
-      return (SWTextServiceResult){NULL, EIO};
-    }
-  }
-}
-
 SWTextServiceOutput scoop_window_text_service_perform(const uint8_t *name,
                                                       int64_t name_length,
                                                       const uint8_t *bytes,

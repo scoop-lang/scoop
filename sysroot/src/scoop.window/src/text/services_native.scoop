@@ -88,23 +88,6 @@ internal fun platformCheckText(text: String, options: TextCheckingOptions): Arra
     }
 }
 
-internal fun platformTextServices(application: Ptr<Unit>): Array<TextService> {
-    @Unsafe
-    {
-        val owner = created(nativeTextServices(application), "list text services")
-        try {
-            return Array<TextService>(nativeTextServiceCount(owner)) {
-                index -> TextService(
-                    textServiceString(owner, index, 0L),
-                    textServiceString(owner, index, -1L)
-                )
-            }
-        } finally {
-            nativeTextServiceDestroy(owner)
-        }
-    }
-}
-
 private fun textServiceString(owner: Ptr<Unit>, index: Long, suggestion: Long): String {
     @Unsafe
     {
@@ -190,9 +173,6 @@ private fun nativeTextCheck(
     language: Ptr<UInt8>,
     languageLength: Long
 ): NativeCreateResult
-
-@Extern(name = "scoop_window_text_services")
-private fun nativeTextServices(application: Ptr<Unit>): NativeCreateResult
 
 @Extern(name = "scoop_window_text_service_count")
 private fun nativeTextServiceCount(owner: Ptr<Unit>): Long

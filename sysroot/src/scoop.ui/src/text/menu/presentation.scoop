@@ -8,12 +8,7 @@ private enum TextMenuAction {
     Edit(TextEditCommand), Service(TextMenuServiceAction)
 }
 
-private struct TextMenuItem(
-    val id: MenuItemId,
-    val action: TextMenuAction,
-    val label: String,
-    val shortcut: ShortcutChord?
-)
+private struct TextMenuItem(val id: MenuItemId, val action: TextMenuAction)
 
 private class TextMenuSession(
     val menu: Menu,
@@ -81,8 +76,15 @@ internal class TextContextMenu(
             val items = ArrayList<TextMenuItem>()
             val availability = area.scope.textCommandAvailability ?: TextCommandAvailability()
             for (service in services) {
-                val id = menu.insert(MenuItemDescription(service.label, enabled = service.valid()))
-                items.add(TextMenuItem(id, TextMenuAction.Service(service), service.label, None))
+                val id =
+                    menu.insert(
+                        MenuItemDescription(
+                            service.label,
+                            kind = service.kind,
+                            enabled = service.valid()
+                        )
+                    )
+                items.add(TextMenuItem(id, TextMenuAction.Service(service)))
             }
             if (items.size > 0L)
                 menu.insert(MenuItemDescription(kind = MenuItemKind.Separator))
@@ -104,7 +106,7 @@ internal class TextContextMenu(
                                     shortcut = shortcut
                                 )
                             )
-                        items.add(TextMenuItem(id, TextMenuAction.Edit(command), label, shortcut))
+                        items.add(TextMenuItem(id, TextMenuAction.Edit(command)))
                     }
                 }
             val popup = window.showPopup(menu, placement)
@@ -163,7 +165,7 @@ internal class TextContextMenu(
                         case Edit(val command) -> if (textMenuAvailable(available, command))
                             perform(command)
                         case Service(val service) -> if (service.valid())
-                            service.perform()
+                            service.perform(event.textServiceResult)
                     }
                 } finally {
                     if (session.completed)
@@ -188,10 +190,18 @@ internal class TextContextMenu(
                     case Edit(val command) -> textMenuAvailable(available, command)
                     case Service(val service) -> service.valid()
                 }
-            if (session.menu.description(item.id).enabled != enabled)
+            val description = session.menu.description(item.id)
+            if (description.enabled != enabled)
                 session.menu.update(
                     item.id,
-                    MenuItemDescription(item.label, enabled = enabled, shortcut = item.shortcut)
+                    MenuItemDescription(
+                        description.text,
+                        kind = description.kind,
+                        enabled = enabled,
+                        image = description.image,
+                        shortcut = description.shortcut,
+                        command = description.command
+                    )
                 )
         }
     }

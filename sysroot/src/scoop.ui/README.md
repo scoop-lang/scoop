@@ -2,6 +2,8 @@
 
 文本宿主的 `primarySelection = TextPrimarySelectionOptions(publish = true, paste = None)` 控制原生 PRIMARY 与中键粘贴。导出遵守复制／保护规则；中键先读取原 PRIMARY，再按 Accepted 落点执行同一粘贴策略和 undo。`contextMenu { systemServices = false }` 可关闭 PreferSystem 菜单的系统文本服务，标准编辑项不受影响；建议和服务返回均绑定打开时的文档与修订。`TextEditOptions.automaticTextReplacement` 默认 false，显式启用后只处理原生输入完成的提交，并在应用 policy 前合并为一次编辑。`TextTouchOptions.hapticFeedback` 控制长按成功后的单次反馈。平台可用范围见[核查记录](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
 
+macOS 的 Services 子菜单直接由 AppKit 填充，保留系统名称、分组和适用性判断。返回文本通过同一 Paste policy 与撤销事务替换原选区；只读字段只导出，保护、遮蔽或禁止复制的字段不提供服务。打开期间变更正文、选择或读写状态会停止旧服务请求。
+
 独立文本控件可用 `scoop.ui.text.drawTextLayout` 在 SceneContext 绘制自己持有的 TextLayout，复用普通 ParagraphHost 的文字记录和缓存路径；布局所有权仍由调用方管理。
 
 普通 Scoop Cone 实现的声明式自绘框架。Component 是保留身份的 class，以成员 State 保存状态，通过 render 返回不可变 View 描述。Element 使用公开的约束、子项测量／放置、Canvas、InputArea 和 Surface 动画绘制自身。框架不提供 Label、Button、默认样式或容器布局策略。

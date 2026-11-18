@@ -27,8 +27,6 @@ public class TextCheckFinding internal constructor(
     public val suggestions: Array<String>
 )
 
-public struct TextService(val name: String, val label: String)
-
 /** Native text services return values; the caller retains its document and undo ownership. */
 public class SystemTextServices internal constructor(private val owner: ApplicationOwner) {
     public val capabilities: TextServiceCapabilities get() {
@@ -45,10 +43,6 @@ public class SystemTextServices internal constructor(private val owner: Applicat
             case None -> {}
         }
         return platformCheckText(text, options)
-    }
-    public fun availableServices(): Array<TextService> {
-        owner.requireRunning("list text services")
-        return platformTextServices(owner.native!!)
     }
     /** None means unavailable or declined; returned text has not been applied to a document. */
     public fun performService(name: String, text: String): String? {

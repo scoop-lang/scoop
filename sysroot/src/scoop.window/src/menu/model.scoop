@@ -17,6 +17,7 @@ internal fun MenuOwner.insert(
         }
     checkRoot(description.kind, parentNode)
     val prepared = prepareMenuItem(description)
+    checkTextServices(prepared, None)
     checkShortcut(prepared, None)
     val node = MenuNode(application.takeMenuItemId(), parentNode, prepared)
     target.add(position, node)
@@ -34,11 +35,18 @@ internal fun MenuOwner.update(item: MenuItemId, description: MenuItemDescription
     )
     checkRoot(description.kind, node.parent)
     val prepared = prepareMenuItem(description)
+    checkTextServices(prepared, Some(item))
     checkShortcut(prepared, Some(item))
     val previous = node.prepared
     node.prepared = prepared
     if (busy()) {
-        if (previous.description.command != description.command || previous.kind != prepared.kind)
+        if (
+            previous.description.command !=
+                description.command ||
+                previous.kind !=
+                prepared.kind ||
+                (previous.kind == 5 && previous.description.kind != description.kind)
+        )
             deactivate(node)
         else
             publishLive(node)
@@ -127,6 +135,27 @@ private fun MenuOwner.checkShortcut(item: PreparedMenuItem, replacing: MenuItemI
     }
 }
 
+private fun MenuOwner.checkTextServices(item: PreparedMenuItem, replacing: MenuItemId?) {
+    if (item.kind != 5)
+        return
+    when (use) {
+        case Some(MenuUse.Bar(_)) -> throw WindowException(
+            "text services require a window popup",
+            WindowErrorKind.Unsupported
+        )
+        case Some(MenuUse.Native(_)) -> throw WindowException(
+            "text services require a window popup",
+            WindowErrorKind.Unsupported
+        )
+        else -> {}
+    }
+    for (node in nodes)
+        requireWindow(
+            Some(node.id) == replacing || node.prepared.kind != 5,
+            "menu already contains text services"
+        )
+}
+
 internal fun MenuOwner.publish() {
     if (!dirty || phase != MenuState.Open)
         return
@@ -174,6 +203,25 @@ private fun MenuOwner.appendNative(node: MenuNode, parent: Long) {
                     "append menu item"
                 )
             }
+        }
+        when (description.kind) {
+            case TextServices(val text, val acceptReplacement) -> text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    checkNativeStatus(
+                        nativeMenuTextServices(
+                            pointer!!,
+                            node.id.value,
+                            bytes,
+                            length,
+                            flag(acceptReplacement)
+                        ),
+                        "configure text services menu"
+                    )
+                }
+            }
+            else -> {}
         }
         when (description.image) {
             case Some(val image) -> for (representation in image.representations) {

@@ -26,6 +26,15 @@ extern "C" void scoop_window_text_service_destroy(SWTextServiceResults *value) {
   delete value;
 }
 
+extern "C" int64_t scoop_window_menu_text_services(void *, int64_t,
+                                                   const uint8_t *, int64_t,
+                                                   int32_t) {
+  return -1;
+}
+extern "C" SWTextServiceString scoop_window_menu_event_text(void *) {
+  return {reinterpret_cast<const uint8_t *>(""), 0};
+}
+
 #if !defined(__APPLE__) && !defined(_WIN32)
 extern "C" int32_t scoop_window_text_service_flags() { return 0; }
 extern "C" SWTextServiceResult scoop_window_text_check(const uint8_t *, int64_t,
@@ -33,9 +42,6 @@ extern "C" SWTextServiceResult scoop_window_text_check(const uint8_t *, int64_t,
                                                        int64_t) {
   auto *value = new (std::nothrow) SWTextServiceResults;
   return {value, value ? 0 : ENOMEM};
-}
-extern "C" SWTextServiceResult scoop_window_text_services(void *) {
-  return scoop_window_text_check(nullptr, 0, 0, nullptr, 0);
 }
 extern "C" SWTextServiceOutput
 scoop_window_text_service_perform(const uint8_t *, int64_t, const uint8_t *,

@@ -65,6 +65,10 @@ when = { os = "darwin" }
 path = "native/clipboard.m"
 when = { os = "darwin" }
 
+[[native.sources]]
+path = "native/menu_services.m"
+when = { os = "darwin" }
+
 [[native.libraries]]
 name = "AppKit"
 kind = "framework"
@@ -119,6 +123,10 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "linux/input.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "linux/drag.c"
 when = { os = "linux", env = "gnu" }
 
 

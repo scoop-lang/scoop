@@ -6,7 +6,7 @@ internal fun ApplicationOwner.copyNativeEvent(pointer: Ptr<Unit>): ApplicationEv
     {
         val header = nativeEventHeader(pointer)
         if (header.kind == 110)
-            return copyMenuActivation(nativeEventData(pointer))
+            return copyMenuActivation(pointer)
         if (header.kind == 111)
             return copyPopupCompletion(nativeEventData(pointer))
         if (header.kind == 112)

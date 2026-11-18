@@ -6,7 +6,9 @@
 
 ActiveApplication.createMenu() 创建空 Menu。Menu 提供 insert(description, parent = None, index = None)、update(item, description)、move(item, index)、remove(item)、items(parent = None)、description(item)、close() 和 state。parent 为同一 Menu 中的 Submenu；None 表示根，index 是对应父项子列表的 Long 下标，None 表示追加。move 只改变同一父项下的顺序。移除父项递归退休其子项；仍有子项的 Submenu 不能更新为其他类型。
 
-MenuItemDescription 是不可变显示值，包含 text、kind、enabled、image、shortcut 和 command。MenuItemKind 为 Action、Checkbox(checked)、Radio(checked)、Submenu、Separator；MenuCommand 为 Action 或 Role(MenuRole)。角色包括 Quit、Minimize、Zoom、Cut、Copy、Paste、SelectAll、Undo、Redo、DeleteSelection，只适用于可激活项。子菜单与分隔符没有命令、快捷键或选中状态；分隔符没有文字或图像。文字不含 U+0000。checked 由应用发布，原生点击不建立另一份业务状态。
+MenuItemDescription 是不可变显示值，包含 text、kind、enabled、image、shortcut 和 command。MenuItemKind 为 Action、Checkbox(checked)、Radio(checked)、Submenu、Separator、TextServices(text, acceptReplacement)；MenuCommand 为 Action 或 Role(MenuRole)。角色包括 Quit、Minimize、Zoom、Cut、Copy、Paste、SelectAll、Undo、Redo、DeleteSelection，只适用于可激活项。子菜单与分隔符没有命令、快捷键或选中状态；分隔符没有文字或图像。菜单标签不含 U+0000。checked 由应用发布，原生点击不建立另一份业务状态。
+
+TextServices 是系统拥有子项的文本服务子菜单，text 为调用方发布的选区快照，acceptReplacement 表示是否接收纯文本替换。它沿 SystemTextServices.capabilities.services 判断支持；不支持时创建报 Unsupported。当前用于窗口 popup，不用于菜单栏或 native lease；同一 Menu 最多含一个 TextServices，不能向它插入自定义子项、绑定角色或快捷键。服务名称、分组、可用性和系统设置入口由平台菜单决定，不通过预先枚举名称重建。系统生成的“无适用服务”等内容属于原生菜单，库不另造占位服务。
 
 原生条目始终保留显式 kind；只有 Separator 是分隔符，普通条目的空文字也不改变其类型。Win32 创建条目时同时提供文字与类型，后续标签、快捷键更新及菜单栏／popup 转换继续保留这一规则。
 
@@ -20,7 +22,7 @@ DesktopImage 由逻辑尺寸、非空的 DesktopImageRepresentation 数组和 te
 
 ## 2. 能力与原生使用
 
-ActiveApplication.desktopCapabilities().menus 返回 MenuCapabilities，分别描述 applicationMenuBar、windowMenuBar、popup 和 templateImages。AppKit 提供应用菜单栏；Win32 与 GTK4 提供每窗口菜单栏。所有三个后端提供窗口 popup、五种条目、图像和上述角色。特定快捷键能否准确转换通过 Menu 对其实际描述的验证确定，不能用标签冒充绑定。
+ActiveApplication.desktopCapabilities().menus 返回 MenuCapabilities，分别描述 applicationMenuBar、windowMenuBar、popup 和 templateImages。AppKit 提供应用菜单栏；Win32 与 GTK4 提供每窗口菜单栏。所有三个后端提供窗口 popup、五种基础条目、图像和上述角色；TextServices 另按文本服务能力判断。特定快捷键能否准确转换通过 Menu 对其实际描述的验证确定，不能用标签冒充绑定。
 
 ActiveApplication.attachMenuBar(menu) 返回应用级 MenuBarBinding；Window.attachMenuBar(menu) 返回窗口级 MenuBarBinding。不支持的目标抛出 WindowException(Unsupported)。一个目标同一时间只允许一个 binding；同一 Menu 只允许一个 binding、popup 或 native lease，冲突为 ResourceBusy。不同应用的对象不能组合。菜单栏根只含 Submenu，应用明确构造自己的应用／文件／编辑等入口。MenuBarBinding.close() 只解除附着；不关闭 Menu。
 
@@ -35,6 +37,16 @@ Win32 非空菜单栏与 Extended 窗框的组合遵守[窗框规范第 1 节](S
 ## 3. 动作与快捷键
 
 ApplicationEvent.Menu(MenuActivation) 只交付 MenuCommand.Action。MenuActivation 含 MenuId、MenuItemId、MenuSource；来源区分 ApplicationMenuBar(发生时的活动 WindowId?)、WindowMenuBar(WindowId)、Popup(PopupSessionId, WindowId) 和 Native(NativeMenuUseId)。原生事件排队时保存来源，不在稍后回调时按焦点重新选择。业务派发前再次检查仍有效的菜单项和原使用，关闭／退休不交付旧动作。
+
+窗口的原生子菜单接管键盘输入时，仍属于该窗口的交互域，不因内容 surface 暂时收到 focus-out 就取消原文本目标。GTK 同时参考 GdkToplevel 的 FOCUSED 状态和窗口内实际 mapped 的 GtkPopover；仅 GtkWindow.is-active=false 不足以判定菜单期间的窗口失活。真正切换窗口／应用时，toplevel 状态仍会结束原窗口焦点；不请求激活、不延时猜测焦点，也不在菜单关闭后固定保留旧状态。
+
+GTK 的菜单项激活先关闭 GtkPopover，再调用 GAction；closed 信号因此不是动作已经结束的边界。原生 popup 保持资源占用至该 GTK 派发结束后的单次 idle 回调，再按实际 selected 值交付 PopupCompleted，保证 MenuActivation 先入队且会话不会提前解绑。显式取消和关闭目标仍拒绝迟到动作，完成通知只交付一次；不使用定时等待或重复派发动作。
+
+TextServices 的子项由系统执行，动作完成后沿其公共父项的 MenuItemId 交付一次 MenuActivation；textServiceResult 保存返回的纯文本快照，None 表示没有返回正文，Some("") 表示返回空正文，普通菜单动作始终为 None。结果在原生事件释放前复制，不借用已经关闭的菜单或 pasteboard。PopupCompleted 仍只负责结束展示，不再次执行服务或修改文档。
+
+AppKit 使用 NSApplication.servicesMenu 的实际菜单对象与公开 NSServicesMenuRequestor 协议；已有系统对象直接复用，首次没有对象时才注册，不能依赖反复设置 servicesMenu 来替换对象或设为 nil。展示期间临时把该菜单接入 popup；退出后解除此挂接，原挂接项仍存在且未被替换时归还到原位置，否则保持未挂接，同时清除 requestor。
+
+仅在该 popup 的原生展示期间提供当前选区；writeSelectionToPasteboard 写系统指定的服务 pasteboard，readSelectionFromPasteboard 只保存结果。禁用、删除、修改服务快照、取消、目标关闭或阻塞后拒绝旧请求；acceptReplacement=false 时不接受要求返回文本的服务。不创建隐藏文本控件，不读写普通 Clipboard／PRIMARY。应用负责在接收动作时核对自身文档、revision 和选区，再经编辑策略应用结果。
 
 `Window.textCommandAvailability: TextCommandAvailability?` 声明 Scoop 内容区当前编辑目标的原生命令可用性。值包含 cut、copy、paste、selectAll、undo、redo、deleteSelection（均默认 false），与 IME 开关独立；只读选择目标仍可复制。None 表示未提供内容区状态，沿用该窗口已有的 IME 目标判断；Some 全 false 明确禁用全部七个角色。原生文本字段继续由自身 responder／编辑控件验证，不使用后台 Scoop 状态。普通内容区按声明状态和 MenuItemDescription.enabled 共同判断，实际命令仍经 WindowEvent.TextCommand 交付；声明不替代当前输入资格检查。
 

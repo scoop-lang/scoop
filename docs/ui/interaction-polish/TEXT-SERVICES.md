@@ -8,7 +8,7 @@
 | 拼写、语法与建议 | NSSpellChecker 独立检查；语法按细节范围转换 | ISpellChecker；语言须实际安装，无通用语法提供者 | GTK 不附带文本检查器，明确不可用；应用可接入自己的 policy／范围装饰 |
 | 可选自动替换 | 系统允许的拼写更正、引号、破折号、文本替换 | 原生更正／删除建议 | 无统一系统入口 |
 | 词典 | NSView 的公开 definition 接口，使用真实可见锚点 | 无统一普通窗口入口 | 无统一 GTK 入口 |
-| Services／翻译 | 已注册文本服务，经 NSPerformService 和独立临时 pasteboard；翻译取决于安装的提供者 | 无相同统一服务入口 | 无相同统一服务入口 |
+| Services／翻译 | AppKit 实际 Services 子菜单与 NSServicesMenuRequestor；已知名称也可显式 NSPerformService，均使用服务 pasteboard；翻译取决于安装的提供者 | 无相同统一服务入口 | 无相同统一服务入口 |
 | 听写 | 经既有 NSTextInputClient 连接提交，不伪造启动命令 | 经系统文本输入服务提交 | 由已配置输入服务提交 |
 | PRIMARY／中键粘贴 | 不可用 | 不可用 | 原生 GdkClipboard PRIMARY；尊重 gtk-enable-primary-paste，区分 Wayland 无协议的本地占位 |
 | 触觉 | NSHapticFeedbackManager；只能确认请求提交，不能据此判断设备存在 | 没有普通窗口的统一入口 | 没有 GTK 的统一入口 |
@@ -21,6 +21,8 @@ GTK 4.18.6 的公开 `gdk_display_get_primary_clipboard` 在 Wayland primary-sel
 
 2026-11-18 的 X11 跨进程检查已通过：公开 Window API 与 `xclip` 双向传输中文／emoji 和换行，外部拥有者接替后旧 claim 失效且关闭不影响新内容，重新认领及释放正常，普通 Clipboard 保持独立。当前用户 GNOME `wayland-0`／GTK 4.22.4 会话的只读查询报告 PRIMARY 可用，实际中键与跨程序收发待人工确认；此前私有 Weston 的无协议结果仅适用于该测试环境。
 
-真实拼写提供者已在 macOS 与 Windows MSVC＋UCRT 参考环境验证：公开 Window API 将 `😀 spleling` 的错词映射到 UTF-8 范围 5～13，并取得有效建议；Windows `en-US` 结果包含 `spelling`。macOS 复用已有肯定断言回归，Windows 独立检查不创建可见窗口。macOS 本轮无窗口后台查询返回 0 个 Services 项，该结果仅说明这次查询没有可执行条目，没有覆盖正常窗口中的服务执行。词典面板、Services 执行、听写和触觉仍按各自实际交互／设备验收。
+真实拼写提供者已在 macOS 与 Windows MSVC＋UCRT 参考环境验证：公开 Window API 将 `😀 spleling` 的错词映射到 UTF-8 范围 5～13，并取得有效建议；Windows `en-US` 结果包含 `spelling`。macOS 使用肯定断言回归，Windows 独立检查不创建可见窗口。macOS 已在 Scoop 选区实际调用 Look Up 并显示系统词典释义。
+
+Services 的旧名称枚举方式在正常窗口也返回空：标准 AppKit 文本控件在子菜单首次展开前同样为 0，展开后才出现菜单项；TextEdit 的全角转换服务实际可用。因此移除该枚举接口，MenuItemKind.TextServices 直接借用系统子菜单，返回文本沿 MenuActivation.textServiceResult 交付，保留选区快照、只读资格与正常关闭。原生 requestor 的中文／emoji、空替换、只读限制、禁用／修改后迟到回调、取消、菜单归还及 Clipboard 隔离回归已通过。实际 Scoop 示例中已两次打开 Services 并执行“将文本转换为全角文本”：`words` 变为 `ｗｏｒｄｓ`，每次均用一次 Undo 恢复，重新打开后的服务树和回写仍正常。听写与触觉仍按实际交互／设备验收。
 
 核查依据为本机 SDK 的 NSSpellChecker.h、NSTextCheckingController.h、NSTextCheckingClient.h、NSView.h、NSApplication.h、NSHapticFeedback.h，Windows 的公开 ISpellChecker／ISpellCheckerFactory 接口，以及 GTK [4.18.6 gdkseat-wayland.c](https://gitlab.gnome.org/GNOME/gtk/-/blob/4.18.6/gdk/wayland/gdkseat-wayland.c) 与 [gdkdisplay.c](https://gitlab.gnome.org/GNOME/gtk/-/blob/4.18.6/gdk/gdkdisplay.c)。原始下载、探针和日志放在仓库外。

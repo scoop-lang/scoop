@@ -157,10 +157,6 @@ scoop_window_text_check(const uint8_t *bytes, int64_t length, int32_t flags,
   }
 }
 
-extern "C" SWTextServiceResult scoop_window_text_services(void *) {
-  auto *value = new (std::nothrow) SWTextServiceResults;
-  return {value, value ? 0 : ERROR_NOT_ENOUGH_MEMORY};
-}
 extern "C" SWTextServiceOutput
 scoop_window_text_service_perform(const uint8_t *, int64_t, const uint8_t *,
                                   int64_t) {

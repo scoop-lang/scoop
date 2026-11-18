@@ -1,0 +1,10 @@
+package scoop.tests.window
+
+@Extern(name = "scoop_test_menu_services_begin")
+public fun beginNativeMenuServices(menu: Ptr<Unit>, window: Ptr<Unit>): Int
+
+@Extern(name = "scoop_test_menu_services_probe")
+public fun probeNativeMenuServices(menu: Ptr<Unit>, mode: Int): Int
+
+@Extern(name = "scoop_test_menu_services_end")
+public fun endNativeMenuServices(menu: Ptr<Unit>): Int

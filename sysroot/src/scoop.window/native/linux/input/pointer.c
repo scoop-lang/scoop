@@ -174,6 +174,8 @@ static void emit_pointer(SWWindow *window, SWPointerData data,
   SWEvent *event = sw_event(window, SWPointer);
   if (!event)
     return;
+  if (native)
+    event->native_input = gdk_event_ref(native);
   data.x = window->input.pointer_x;
   data.y = window->input.pointer_y;
   data.scale = window->snapshot.scale;
@@ -185,8 +187,6 @@ static void emit_pointer(SWWindow *window, SWPointerData data,
   if (kind == SWPointerLeft)
     window->input.pointer_inside = false;
   if (kind == SWPointerPressed) {
-    if (native)
-      event->native_input = gdk_event_ref(native);
     data.click_count = data.click_count > 0 ? data.click_count : 1;
     if (button >= 0 && button < 32) {
       window->input.pressed_clicks[button] = data.click_count;

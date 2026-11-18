@@ -64,8 +64,7 @@ typedef struct {
 @property(nonatomic, weak) SWDragSource *dragSource;
 @property(nonatomic, strong) NSMutableArray *modalStack;
 @property(nonatomic, strong) NSMutableArray *preferenceObservers;
-@property(nonatomic, strong) NSMenu *textServicesMenu,
-    *previousTextServicesMenu;
+@property(nonatomic, weak) SWMenu *textServicesPopup;
 - (void)enqueue:(SWEvent *)event;
 @end
 

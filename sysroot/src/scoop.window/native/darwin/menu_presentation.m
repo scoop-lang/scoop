@@ -46,7 +46,7 @@ int64_t scoop_window_menu_selection(void *pointer) {
 int64_t scoop_window_menu_bind(void *pointer, int32_t kind, int64_t serial,
                                void *window) {
   SWMenu *owner = (__bridge SWMenu *)pointer;
-  if (kind == 1)
+  if (kind == 1 || (owner.textServices && kind != 2))
     return -1;
   @try {
     owner.binding = kind;
@@ -102,13 +102,16 @@ int64_t scoop_window_menu_popup(void *pointer, void *target, double x, double y,
     owner.selected = 0;
     int64_t status = 0;
     @try {
-      [owner.menu
-          popUpMenuPositioningItem:nil
-                        atLocation:NSMakePoint(x, y + (anchor ? height : 0))
-                            inView:window.view];
+      status = sw_menu_begin_text_services(owner);
+      if (!status)
+        [owner.menu
+            popUpMenuPositioningItem:nil
+                          atLocation:NSMakePoint(x, y + (anchor ? height : 0))
+                              inView:window.view];
     } @catch (NSException *exception) {
       status = 1;
     } @finally {
+      sw_menu_end_text_services(owner);
       owner.presenting = NO;
       owner.tracking = 0;
     }

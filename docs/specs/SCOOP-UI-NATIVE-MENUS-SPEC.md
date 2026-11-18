@@ -76,4 +76,4 @@ TextTouchOptions 的长按使用同一选区与菜单操作，真实来源保留
 
 菜单资源在首次使用时创建；没有请求不分配 OS 菜单。关闭先停止动作及观察，再取消 session／关闭 Menu，原生 tracking 与 Window lease 继续使用既有收尾。菜单创建／显示失败走所属根错误边界。没有后台轮询、额外事件循环或新增编译器机制。实际系统模板复用与回退遵守 Window 菜单规范第 6 节，不能把模板存在当作全部系统文本服务已支持。
 
-PreferSystem 的 systemServices 入口沿[UI 文本服务合同](SCOOP-UI-SPEC.md)附加实际可用的拼写／语法建议、词典及已注册文本 Services；StandardNative 仍只提供标准编辑项。只读菜单仅导出文本，不执行返回的替换；受保护、遮蔽或禁止复制的宿主不调用这些服务。每项服务保存目标、revision／选择与配置，动作执行及原生返回后核对当前资格；显示／完成通知不重复编辑。菜单项仍由原生 Menu 所有，不另造 accessibility 菜单树或隐藏编辑器。
+PreferSystem 的 systemServices 入口沿[UI 文本服务合同](SCOOP-UI-SPEC.md)附加实际可用的拼写／语法建议、词典及文本 Services；StandardNative 仍只提供标准编辑项。Services 使用 MenuItemKind.TextServices，系统在子菜单打开时提供名称和分组，不提前枚举并复制为普通动作。只读菜单仅导出文本，拒绝要求返回替换的服务；受保护、遮蔽或禁止复制的宿主不调用这些服务。每项服务保存目标、revision／选择与配置，状态变化立即更新原生资格，动作执行及原生返回后再次核对；返回正文经 Paste 策略进入一次撤销事务，显示／完成通知不重复编辑。菜单项仍由原生 Menu 所有，不另造 accessibility 菜单树或隐藏编辑器。

@@ -18,6 +18,11 @@ internal fun prepareMenuItem(description: MenuItemDescription): PreparedMenuItem
             case Radio(_) -> 2
             case Submenu -> 3
             case Separator -> 4
+            case TextServices(_, _) -> {
+                if (!platformTextServiceCapabilities().services)
+                    throw WindowException("text services menu", WindowErrorKind.Unsupported)
+                5
+            }
         }
     if (kind >= 3) {
         when (description.shortcut) {

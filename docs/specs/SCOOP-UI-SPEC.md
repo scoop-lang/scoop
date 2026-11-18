@@ -582,7 +582,7 @@ TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=tr
 
 可编辑宿主的中键粘贴在最近 Accepted 几何确定的落点执行，先读取原 PRIMARY 再改变本地选择；否则不能把本次落点变化发布成新 PRIMARY 后再误读自身。实际插入沿 Paste 的导入清洗、Reject／Transform、长度与字符策略，以及原组合、revision、撤销和通知事务；只读或禁用宿主不执行粘贴。它不改普通 Clipboard，不生成鼠标左键或按键，也不和普通左键拖选重复。缺失、过期落点及正文／目标在读取期间改变时拒绝旧请求。
 
-TextContextMenuOptions.systemServices 默认 true；仅在 PreferSystem 下附加平台实际可用的拼写／语法建议、词典与已注册文本 Services。建议与服务绑定原模型、revision、选区、配置和菜单会话；动作发生或异步／原生服务返回时重新核对，换模型、正文／选择改变、禁用、关闭或失去资格后不得作用于新目标。选择文本沿现有复制／plain-text 规则导出，protectedText、遮蔽投影和禁止复制时不交给系统服务；只读宿主仅提供读取操作，丢弃服务返回的替换文本。替换经既有 TextEditPolicy 与单次撤销事务，原生菜单完成通知不再次编辑。
+TextContextMenuOptions.systemServices 默认 true；仅在 PreferSystem 下附加平台实际可用的拼写／语法建议、词典与系统 TextServices 子菜单。建议与服务绑定原模型、revision、选区、配置和菜单会话；状态变化立即更新原生资格，动作发生或异步／原生服务返回时重新核对，换模型、正文／选择改变、禁用、关闭或失去资格后不得作用于新目标。选择文本沿现有复制／plain-text 规则导出，protectedText、遮蔽投影和禁止复制时不交给系统服务；只读宿主仅提供读取操作，不接受要求返回替换的服务。Services 的返回正文经 Paste 策略与单次撤销事务，原生菜单完成通知不再次编辑。
 
 TextEditOptions.automaticTextReplacement 默认 false，Input／Textarea／OTP 及其组合入口透传。显式启用且平台提供更正能力时，只对本次原生输入完成的提交区域及其所在段落请求系统允许的替换；组合未完成、受保护／遮蔽正文、粘贴、拖放和程序替换不触发。替换与原提交合并为同一候选后再调用应用 policy，保留 UTF-8 映射、最终选择和单次撤销；结果过期不应用。连续拼写下划线、系统候选气泡及依赖完整 NSTextCheckingClient 几何的排版服务不由只读检查结果假冒。
 

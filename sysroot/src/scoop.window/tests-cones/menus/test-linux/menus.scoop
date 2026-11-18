@@ -16,7 +16,7 @@ private fun activateShortcut(view: Ptr<Unit>): Int
 private fun openMenuBar(view: Ptr<Unit>): Int
 
 @Extern(name = "scoop_test_gtk_popup")
-private fun activatePopup(view: Ptr<Unit>, item: Long): Int
+private fun activatePopup(view: Ptr<Unit>, activate: Int): Int
 
 @Test
 private class GtkMenuTests {
@@ -51,6 +51,7 @@ private class GtkMenuHandler: ApplicationHandler {
     private var deadline: WindowDeadline? = None
     private var targetClosing = false
     private var shortcutStarted = false
+    private var menuFocus = false
 
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -62,6 +63,8 @@ private class GtkMenuHandler: ApplicationHandler {
             case NewEvents(StartCause.Deadline) -> fail(Some("GTK menu test deadline"))
             case Menu(val activation) -> {
                 assertEquals(action, activation.item)
+                if (menuFocus)
+                    assertTrue(window!!.isFocused)
                 when (activation.source) {
                     case WindowMenuBar(val target) -> {
                         assertEquals(window!!.id, target)
@@ -152,8 +155,11 @@ private class GtkMenuHandler: ApplicationHandler {
         if (shortcutStarted)
             return
         shortcutStarted = true
+        menuFocus = window!!.isFocused
         val timer =
             window!!.createDeadline {
+                if (menuFocus)
+                    assertTrue(window!!.isFocused)
                 assertEquals(
                     RequestStatus.Requested,
                     menu!!.update(
@@ -230,6 +236,7 @@ private class GtkMenuHandler: ApplicationHandler {
     }
 
     private fun showPopup() {
+        menuFocus = window!!.isFocused
         popup =
             Some(
                 window!!.showPopup(
@@ -241,13 +248,15 @@ private class GtkMenuHandler: ApplicationHandler {
             )
         val timer =
             window!!.createDeadline {
+                if (menuFocus)
+                    assertTrue(window!!.isFocused)
                 if (targetClosing) {
                     @Unsafe
                     {
                         val native = window!!.acquireNativeWindow()
                         try {
                             when (native.handle) {
-                                case Gtk(_, val view) -> assertEquals(1, activatePopup(view, 0L))
+                                case Gtk(_, val view) -> assertEquals(1, activatePopup(view, 0))
                             }
                         } finally {
                             native.close()
@@ -265,10 +274,7 @@ private class GtkMenuHandler: ApplicationHandler {
                         val native = window!!.acquireNativeWindow()
                         try {
                             when (native.handle) {
-                                case Gtk(_, val view) -> assertEquals(
-                                    1,
-                                    activatePopup(view, action.value)
-                                )
+                                case Gtk(_, val view) -> assertEquals(1, activatePopup(view, 1))
                             }
                         } finally {
                             native.close()
