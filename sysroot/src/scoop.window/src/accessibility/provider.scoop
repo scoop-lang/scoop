@@ -82,7 +82,10 @@ public class AccessibilityProvider internal constructor(
 
     internal fun checkOpen() {
         checkThread()
-        if (closed || owner.phase != WindowState.Open)
+        if (
+            closed ||
+                (owner.phase != WindowState.Open && owner.phase != WindowState.PendingConfigure)
+        )
             throw IllegalStateException(Some("accessibility provider is closed"))
         if (publishing)
             throw IllegalStateException(Some("accessibility publication is in progress"))
@@ -215,7 +218,11 @@ public class AccessibilityProvider internal constructor(
     }
 
     internal fun collectionSource(number: Long, candidate: Boolean): SemanticCollectionSnapshot? {
-        if (closed || owner.phase != WindowState.Open || owner.application.exiting)
+        if (
+            closed ||
+                (owner.phase != WindowState.Open && owner.phase != WindowState.PendingConfigure) ||
+                owner.application.exiting
+        )
             return None
         val node = nodes[number] ?: return None
         if (!node.active)

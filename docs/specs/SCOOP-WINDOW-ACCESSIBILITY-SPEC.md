@@ -1,6 +1,6 @@
 # Window 无障碍接口规范
 
-状态：S0／S2／S5 实施中。本文规定已有窗口内容的低层语义节点、AppKit 投影、纯文本范围与同步动作边界；UI 资源、内容合并与场景适配见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。内置控件、复杂控件关系、完整文本几何、虚拟集合和 Windows／Linux provider 继续按[完整实施计划](../ui/interaction-polish/PLAN.md)推进，不能以本批接口代替这些完成条件。实际构建／运行结果见[实施记录](../ui/interaction-polish/PROGRESS.md)。
+状态：功能已接通，三平台集中验收中。本文规定窗口内容的低层语义节点、原生投影、文本范围、虚拟集合与同步动作边界；UI 资源、内容合并与场景适配见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。平台构建、原生服务、外部客户端与读屏器分别按[完整实施计划](../ui/interaction-polish/PLAN.md)验收，实际结果见[实施记录](../ui/interaction-polish/PROGRESS.md)。
 
 ## 1. 包、身份与寿命
 
@@ -8,7 +8,7 @@
 
 `SemanticProperties.copy { ... }` 用 SemanticPropertiesBuilder 修改一份完整属性快照，未指定的字段保留原值，返回值仍不可变。复制本身不发布或执行动作；角色及属性组合在节点 update 的同一边界检查。UI 宿主和组合控件用此入口保留应用提供的状态与关系之外的属性，避免只更新文本或可见性时遗漏其他字段。
 
-每个 Window 同时至多有一个内容 provider。createAccessibilityProvider 要求 Open；重复附着报 IllegalStateException。createNode(role, parent = None) 创建节点并返回 AccessibilityNode，parent=None 表示内容根下的直接子项。角色在该节点生命期固定；更换角色需退休并重新创建。节点 id 的窗口所属标识独立于原生地址，序号在窗口生命期递增、不复用；关闭 provider 后重新附着仍延续序号。不同应用运行产生的 WindowId 数字相同也不使旧语义 id 相等。
+每个 Window 同时至多有一个内容 provider。createAccessibilityProvider 接受 PendingConfigure 或 Open；重复附着报 IllegalStateException。首次配置前允许创建、更新和发布语义及读取已发布集合，不要求 drawable、可见窗口或几何；原生动作仍要求 Open。createNode(role, parent = None) 创建节点并返回 AccessibilityNode，parent=None 表示内容根下的直接子项。角色在该节点生命期固定；更换角色需退休并重新创建。节点 id 的窗口所属标识独立于原生地址，序号在窗口生命期递增、不复用；关闭 provider 后重新附着仍延续序号。不同应用运行产生的 WindowId 数字相同也不使旧语义 id 相等。
 
 节点的 parent 与 order 表达语义阅读顺序，同序号按创建次序排列，不依据屏幕坐标排序。reparent(parent, order = 0) 要求父节点在同一活动 provider，拒绝自身或后代为父；失败不改变原关系。close 退休整个节点子树，随后修改节点或读取 geometry 报 IllegalStateException；id、role 和 isClosed 仍可读取，重复 close 无操作。provider.close 退休全部节点；Window 进入 Closing 时立即关闭 provider，不等待 drawable 或业务回调。已退休的原生对象可以由客户端继续持有，但不再读取或保活 Window／UI，不能执行动作。
 

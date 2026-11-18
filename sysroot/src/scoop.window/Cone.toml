@@ -40,6 +40,14 @@ path = "tests/collections.scoop"
 when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
+path = "tests/semantic_publication.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/semantic_publication.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
 path = "tests/monitors.scoop"
 when = { os = "windows" }
 
@@ -68,7 +76,7 @@ cxx = true
 include = [{ sysroot = "include" }, { sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
 c_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
-cxx_flags = ["-std=c++17", "-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
+cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 
 [[native.sources]]
 path = "native/darwin/application.m"

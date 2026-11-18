@@ -8,7 +8,7 @@ kind = "library"
 
 [native]
 cxx = true
-cxx_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 
 [[native.sources]]
 path = "native/text_semantics_source.cpp"
@@ -260,3 +260,79 @@ when = { os = "windows" }
 [[test.sources]]
 path = "tests/text_services.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/accessibility_scroll.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/state_observation.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/swipe.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_context_menu.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_drag_edit.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_drop_edit.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/text_touch.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/touch_scroll.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/native_semantic_text.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/accessibility_scroll.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/state_observation.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/swipe.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_context_menu.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_drag_edit.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_drop_edit.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_touch.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/touch_scroll.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/native_semantic_text.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/overlay_retirement.scoop"
+when = { os = ["linux", "windows"] }

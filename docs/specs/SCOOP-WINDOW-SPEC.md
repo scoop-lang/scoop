@@ -277,9 +277,9 @@ Darwin 使用语言规范 12.2.1、实现规范 2.7 的普通 native Objective-C
 
 ## 10. Win32 后端
 
-Windows 窗口使用 Unicode HWND，创建前确认 Per-Monitor V2；已声明其他 DPI 模式时明确失败，不改变现有 UI 的坐标合同。每次 WM_DPICHANGED 使用建议窗口矩形并重新读取内容像素尺寸，原子发布完整 metrics。内容逻辑坐标以窗口 DPI 换算；DesktopPosition／DesktopRect 使用物理虚拟桌面坐标。最小化提供零 drawable，隐藏／最小化期间保留 dirty；Windows 不提供普通顶层窗口完整遮挡查询，isOccluded 只报告系统可确认的最小化或 DWM cloaked 状态。
+Windows 窗口使用 Unicode HWND，创建前确认 owner 线程使用 Per-Monitor V2。尚未设置进程 DPI 时设置并确认；启动环境或宿主已经使用 Per-Monitor V1 时，沿 Win32 的混合 DPI 能力仅把当前创建线程升级到 V2，不再尝试改写已确定的进程默认值，既有 HWND 保留其创建时的 awareness。System Aware 等会虚拟化坐标的已配置模式仍明确失败，不改变现有 UI 的坐标合同。每次 WM_DPICHANGED 使用建议窗口矩形并重新读取内容像素尺寸，原子发布完整 metrics。内容逻辑坐标以窗口 DPI 换算；DesktopPosition／DesktopRect 使用物理虚拟桌面坐标。最小化提供零 drawable，隐藏／最小化期间保留 dirty；Windows 不提供普通顶层窗口完整遮挡查询，isOccluded 只报告系统可确认的最小化或 DWM cloaked 状态。
 
-通知的启动入口也会在 Application 之前创建 COM／消息窗口，因此与应用创建共用原生 DPI 准备函数，先确定 Per-Monitor V2 再创建任何 HWND。后续应用创建读取同一个线程／进程模式，不以已有隐藏窗口为理由改变 DPI 合同；见[系统通知规范](SCOOP-DESKTOP-NOTIFICATION-SPEC.md)。
+通知的启动入口也会在 Application 之前创建 COM／消息窗口，因此与应用创建共用原生 DPI 准备函数，先确定 owner 使用 Per-Monitor V2 再创建该入口的 HWND。后续应用创建读取同一个线程／进程模式，不以已有隐藏窗口为理由改变 DPI 合同；见[系统通知规范](SCOOP-DESKTOP-NOTIFICATION-SPEC.md)。
 
 窗口属性通过正常 Win32／DWM API 实施，原生返回值在边界保留并转换为 WindowException。native 薄层的创建结果同时返回资源和状态码；setter 以状态码报告失败，不使用另一个错误缓存。Windows 8 起 DwmEnableBlurBehindWindow 不产生模糊效果，setBlur(true) 返回 Unsupported 且无副作用；要求 blur 的创建失败。主题建议使用 DWM 支持的暗色标题栏属性；缺少该属性时返回 Unsupported。透明背景供实际 renderer 使用，不承诺所有渲染设备都有 alpha 支持。内容保护为 WDA_MONITOR 系统提示，仍返回 Requested。
 
@@ -326,7 +326,9 @@ GTK 的 GMainContext、eventfd 唤醒、最近 deadline 和借入的 readable fd
 
 GTK 在首次内容分配前取得的焦点先保存在原生快照中；首次 GeometryChanged 使窗口进入 Open 后，再交付当前 Focused 状态。Surface 的初始逻辑焦点因此能与 OS 焦点一致，不要求用户先切换到其他窗口再返回。
 
-窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
+GTK 的 toplevel `suspended` 状态按窗口 Occluded 报告，恢复时同步清除。compositor 暂停发送帧时，上层由已有的不可绘制处理和有限 deadline 收束动画与交互，不继续等待不会到达的帧。
+
+窗口 metrics 使用 GTK 实际分配的内容尺寸，排除标题栏和阴影；首次分配前为 None。内容尺寸请求按 GTK 的实际测量结果补入标题栏与窗口 CSS 内边距，不把这些装饰扣在应用请求的内容区内；窗口管理器及原生最小尺寸的约束仍由 GeometryChanged 确认。物理尺寸采用内容 widget 的整数 scale factor，与 GtkGLArea framebuffer 相同；分数桌面缩放由 GTK／compositor 合成，不把它再次乘入 framebuffer。显示器信息来自 GdkMonitor，输出移除时身份退休。Wayland 没有全局窗口位置或主显示器约定，相应查询返回 None。
 
 X11 的 outerBounds 查询实际原生顶层外框：沿 X11 窗口树取得 WM frame，读取其当前几何并转换到 GDK 桌面坐标；不能取得时返回 None。位置请求也以外框左上角的桌面坐标表达，在 WM 声明支持时使用 EWMH `_NET_MOVERESIZE_WINDOW` 的 NorthWest gravity，否则沿现有 X11 移动请求交给 WM。请求坐标先转换为 X11 原生单位，成功仍只代表 Requested。托盘定位使用这份实际外框尺寸，不以内容区冒充窗口尺寸。
 

@@ -1,10 +1,10 @@
 # UI 无障碍接口规范
 
-状态：S2／S5 实施中。本文规定公共语义资源、逻辑更新、内容合并、文本宿主和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。基础控件的默认接入见 [Component spec](SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)，复杂控件关系、完整文本与集合、其余控件及其他平台继续按[统一计划](../ui/interaction-polish/PLAN.md)推进，不据本批基础接口声明完整 accessibility 已完成。
+状态：功能已接通，三平台集中验收中。本文规定公共语义资源、逻辑更新、内容合并、文本宿主、虚拟集合和 Accepted 场景的接入；底层值及原生发布见 [Window 无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)。控件的默认接入见 [Component spec](SCOOP-UI-COMPONENT-SPEC.md#11-默认无障碍语义)。平台构建、原生服务、外部客户端与读屏器分别按[统一计划](../ui/interaction-polish/PLAN.md)验收，不以共用模型通过替代平台验证。
 
 ## 1. 资源与父子关系
 
-`ComponentScope.semantics(role, parent = None): SemanticsHandle` 在构造／挂载阶段创建语义资源；首次登记时为当前根创建 Window provider，根关闭时关闭它，保留借用的原生 Window。没有语义声明的根不创建空树。当前工厂按 Window 能力在 Darwin 提供；SemanticsHandle、路由与场景实现不含平台分支。未来平台使用同一声明，不增加并行接口。
+`ComponentScope.semantics(role, parent = None): SemanticsHandle` 在构造／挂载阶段创建语义资源；首次登记时为当前根创建 Window provider，根关闭时关闭它，保留借用的原生 Window。没有语义声明的根不创建空树。Darwin、Windows 和 Linux GNU 使用同一工厂，SemanticsHandle、路由与场景实现不含平台分支。窗口处于 PendingConfigure 时也可登记和发布语义；几何等待实际 Accepted 场景，原生动作仍要求窗口 Open。
 
 `SemanticsHandle` 为 scope 管理的 Closeable，提供只读 id、role、isClosed 和 geometry。id 使用 Window 的 SemanticNodeId，重排及属性更新保持身份。角色固定；替换角色创建新资源并关闭旧资源，不能让旧原生引用指向新角色。调用方可提前 close，卸载仍自动清理，重复 close 无操作。
 
@@ -42,7 +42,7 @@ handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，�
 
 动作、焦点或结构变化使文本不再适合合并时，同一次逻辑发布恢复该节点并保留其真实动作。先撤下已改变的旧内容引用，再安装本次引用，避免合法重排被中间状态的旧关系干扰；实际名称循环仍按 Window 的 publish 合同报告。UI 根通过现有错误边界处理非法声明，不发布半棵原生树。内容名称变化沿 contentRevision 拒绝不匹配的旧场景。
 
-当前 AllInput 模态边界也限制语义阅读：边界外的兄弟内容隐藏，连接模态子树所需的逻辑祖先仅作为忽略包装保留，边界内仍沿原阅读关系。FocusOnly 边界不隐藏背景。边界建立、退出和换绑沿现有 InputBoundary 的 owner／Accepted 时序更新，不能等一次键盘焦点变化才生效。保留但已折叠的内容由其真实容器发布 hidden，不把普通 disabled 控件从阅读树移除。
+当前 AllInput 模态边界也限制语义阅读：边界外的兄弟内容隐藏，连接模态子树所需的逻辑祖先仅作为忽略包装保留，边界内仍沿原阅读关系。FocusOnly 边界不隐藏背景。边界建立、退出和换绑沿现有 InputBoundary 的生命周期更新，不能等一次键盘焦点变化才生效。模态最终移除包括 UI 规范第 7.6.1 节的 Accepted 移除和不可绘制时的逻辑收尾；后者在同一更新中恢复背景阅读及动作资格，不让已经结束的模态留下空语义树。几何仍沿真实 Accepted 帧发布。保留但已折叠的内容由其真实容器发布 hidden，不把普通 disabled 控件从阅读树移除。
 
 ## 4. 场景与几何
 

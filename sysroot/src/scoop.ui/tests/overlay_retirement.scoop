@@ -1,0 +1,205 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.accessibility.*
+
+@Test
+private class OverlayRetirementApplicationTest {
+    @Test
+    fun `hidden modal exits and owner removal restore semantic actions without drawing`() {
+        val probe = OverlayRetirementProbe()
+        UiHost(
+            onRootError = { _, error -> throw error },
+            handler = { host, active, event -> probe.event(host, active, event) }
+        ).use { host -> Application().run(host) }
+        assertTrue(probe.finished)
+        assertEquals(0, probe.frames)
+        assertEquals(4, probe.closes)
+        assertEquals(4, probe.mounts)
+        assertEquals(4, probe.unmounts)
+        assertEquals(2, probe.actions)
+    }
+}
+
+private class OverlayRetirementProbe {
+    val open = state(true)
+    val included = state(true)
+    var background: SemanticsHandle? = None
+    var frames = 0
+    var closes = 0
+    var mounts = 0
+    var unmounts = 0
+    var actions = 0
+    var finished = false
+    private var stage = 0
+    private var application: ActiveApplication? = None
+    private var ui: UiWindow? = None
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application = Some(active)
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                )
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop hidden modal retirement"
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                ui = host.attach(window, { scope -> OverlayRetirementRoot(this, scope) })
+                post {
+                    expectBackground(false)
+                    open.value = false
+                    ui!!.root.surface.dispatch { ui!!.root.flush() }
+                    assertEquals(0, closes)
+                    expectBackground(false)
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertEquals(2, stage)
+                assertEquals(4, closes)
+                assertEquals(0, frames)
+                finished = true
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun post(action: () -> Unit) {
+        assertTrue(application!!.proxy().post { _ -> action() })
+    }
+    fun closed() {
+        closes += 1
+        if (closes != 2 && closes != 4)
+            return
+        post {
+            assertTrue(
+                when (ui!!.root.surface.inputBoundary) {
+                    case None -> true
+                    case Some(_) -> false
+                }
+            )
+            expectBackground(true)
+            assertEquals(0, frames)
+            if (stage == 0) {
+                stage = 1
+                open.value = true
+                post {
+                    expectBackground(false)
+                    included.value = false
+                }
+            } else {
+                stage = 2
+                application!!.setControlFlow(
+                    ControlFlow.WaitUntil(
+                        MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
+                    )
+                )
+            }
+        }
+    }
+    private fun expectBackground(allowed: Boolean) {
+        val handle = background!!
+        assertEquals(!allowed, semanticProperties(handle, handle.properties, false).hidden)
+        assertEquals(
+            if (allowed)
+                SemanticActionResult.Completed
+            else
+                SemanticActionResult.Rejected,
+            handle.controller.perform(handle) {
+                actions += 1
+                SemanticActionResult.Completed
+            }
+        )
+    }
+}
+
+private class OverlayRetirementRoot(
+    private val probe: OverlayRetirementProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        val probe = this.probe
+        val children = ArrayList<View>()
+        children.add(element({ mount -> OverlayRetirementBackground(probe, mount) }))
+        if (probe.included.value)
+            for (index in 0L ..< 2L)
+                children.add(
+                    portal(
+                        probe.open.binding(),
+                        component({ mount -> OverlayRetirementContent(probe, mount) })
+                    ) {
+                        key = ViewKey.Number(index)
+                        mode =
+                            if (index == 0L)
+                                OverlayMode.FocusContained
+                            else
+                                OverlayMode.Modal
+                        transition =
+                            PresenceOptions(
+                                exit = Some(AnimationSpec.Tween(Duration.milliseconds(100L)))
+                            )
+                        onClosed = { _ -> probe.closed() }
+                    }
+                )
+        return element({ mount -> OverlayRetirementLayout(probe, mount) }, children.toArray())
+    }
+}
+
+private class OverlayRetirementContent(
+    private val probe: OverlayRetirementProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
+        probe.mounts += 1
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun render(): View = empty()
+}
+
+private class OverlayRetirementBackground(
+    private val probe: OverlayRetirementProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Button)
+    init {
+        probe.background = Some(semantic)
+        semantic.update(SemanticProperties(name = Some("Background")))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 30.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        probe.frames += 1
+    }
+}
+
+private class OverlayRetirementLayout(
+    private val probe: OverlayRetirementProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints())
+            context.placeChild(index, Point(0.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 200.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        probe.frames += 1
+        context.children()
+    }
+}

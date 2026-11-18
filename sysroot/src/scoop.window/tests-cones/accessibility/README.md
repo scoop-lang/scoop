@@ -2,6 +2,8 @@
 
 `SemanticNativeModelTest` 在三个桌面目标共用生产文本范围与集合实现，覆盖端点编辑映射、原子拒绝、折叠 caret、clone／reset／close、稳定 key 重排与删除重插、静态选择边界和 UTF-8／UTF-16／scalar 换算。它不需要前台窗口。Window 自身的 `SemanticPublicationTest` 另验证实时公告合并、busy 祖先、隐藏／保护／模态阻止及关系退休，窗口不请求激活。
 
+`WindowsAccessibilityProviderTest` 通过实际 UIA COM 接口检查标题级别、Invoke、禁用与关闭、Scroll 的百分比及未提供的轴，以及 UTF-16 文本读取、UTF-8 选区回调、保留范围在编辑／reset／保护／关闭后的行为。它使用进程内生产 provider，不请求窗口激活；三个 Windows 目标分别验证 ABI，独立外部客户端和 Narrator 验收另行记录。
+
 本轮先完成整个领域的实现，再统一编译与运行相关测试；实际结果记录在 [实施记录](../../../../../docs/ui/interaction-polish/PROGRESS.md)。下面的进程内 AppKit 方法、外部客户端和读屏器覆盖分别记录。
 
 本 Cone 在 macOS 使用真实 AppKit 语义对象，验证低层 provider 的属性发布、状态与角色、UTF-8 值写入、实际回调结果、Context、重入、节点／provider／窗口退休和异常。它不绘制 UI 控件，不作为 VoiceOver、Accepted 场景或完整 UI 接入通过的证据。

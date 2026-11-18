@@ -3,6 +3,9 @@
 #include <cmath>
 
 namespace swax::win {
+// UIA specifies -1 for an axis that is absent or should remain unchanged.
+static constexpr double noScroll = -1;
+
 ElementPtr Node::scrollBar(int orientation) {
   if (!tree || element->retired)
     return {};
@@ -31,7 +34,7 @@ static HRESULT scrollMetric(Node &node, int orientation, int field,
                             double *result) {
   if (!result)
     return E_POINTER;
-  *result = field ? 100 : UIA_ScrollPatternNoScroll;
+  *result = field ? 100 : noScroll;
   return guarded([&]() -> HRESULT {
     if (!node.element->state())
       return UIA_E_ELEMENTNOTAVAILABLE;
@@ -68,7 +71,7 @@ HRESULT Node::get_HorizontallyScrollable(BOOL *result) {
     return E_POINTER;
   double percent;
   HRESULT status = get_HorizontalScrollPercent(&percent);
-  *result = SUCCEEDED(status) && percent != UIA_ScrollPatternNoScroll;
+  *result = SUCCEEDED(status) && percent != noScroll;
   return status;
 }
 HRESULT Node::get_VerticallyScrollable(BOOL *result) {
@@ -76,28 +79,25 @@ HRESULT Node::get_VerticallyScrollable(BOOL *result) {
     return E_POINTER;
   double percent;
   HRESULT status = get_VerticalScrollPercent(&percent);
-  *result = SUCCEEDED(status) && percent != UIA_ScrollPatternNoScroll;
+  *result = SUCCEEDED(status) && percent != noScroll;
   return status;
 }
 HRESULT Node::SetScrollPercent(double horizontal, double vertical) {
   return guarded([&]() -> HRESULT {
     if (!std::isfinite(horizontal) || !std::isfinite(vertical) ||
-        (horizontal != UIA_ScrollPatternNoScroll &&
-         (horizontal < 0 || horizontal > 100)) ||
-        (vertical != UIA_ScrollPatternNoScroll &&
-         (vertical < 0 || vertical > 100)))
+        (horizontal != noScroll && (horizontal < 0 || horizontal > 100)) ||
+        (vertical != noScroll && (vertical < 0 || vertical > 100)))
       return E_INVALIDARG;
     auto x = scrollBar(1), y = scrollBar(2);
-    if ((horizontal != UIA_ScrollPatternNoScroll && !x) ||
-        (vertical != UIA_ScrollPatternNoScroll && !y))
+    if ((horizontal != noScroll && !x) || (vertical != noScroll && !y))
       return UIA_E_INVALIDOPERATION;
-    if (horizontal != UIA_ScrollPatternNoScroll) {
+    if (horizontal != noScroll) {
       auto status =
           actionResult(x->perform(8, {}, -1, -1, 0, horizontal / 100));
       if (FAILED(status))
         return status;
     }
-    return vertical == UIA_ScrollPatternNoScroll
+    return vertical == noScroll
                ? S_OK
                : actionResult(y->perform(8, {}, -1, -1, 0, vertical / 100));
   });

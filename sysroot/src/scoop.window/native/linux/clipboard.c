@@ -64,7 +64,8 @@ SWClipboardText sw_read_clipboard(SWApplication *app, GdkClipboard *clipboard,
   SWClipboardText result = {0};
   if (read.error) {
     bool absent =
-        g_error_matches(read.error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED);
+        g_error_matches(read.error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED) ||
+        g_error_matches(read.error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
     result.error = absent ? 0 : EIO;
     g_clear_error(&read.error);
   } else {

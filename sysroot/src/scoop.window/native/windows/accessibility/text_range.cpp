@@ -21,7 +21,7 @@ TextRange::TextRange(ElementPtr value, const TextView &view)
     if (!anchor) {
       auto current = sw_text_document_state(document->pointer);
       if (!current.alive || current.revision != view.state->documentRevision)
-        throw ComFailure{UIA_E_ELEMENTNOTAVAILABLE};
+        throw ComFailure{static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE)};
       throw std::bad_alloc();
     }
   }

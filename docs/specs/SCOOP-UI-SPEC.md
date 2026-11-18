@@ -662,17 +662,17 @@ SelectableTextOptions.touch 提供相同 TextTouchOptions；普通 tap 折叠到
 
 PortalOptions 包含 placement、handle=None、anchorVisibility=Close、mode=NonModal、focus=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、`onCloseRequest(reason): Boolean = { _ -> true }`、`onClosed(reason): Unit = { _ -> Unit }`。配置通过 builder 及 copy 发布，归属在实际绑定时检查。mode 为 NonModal／FocusContained／Modal，是普通可更新配置；同一逻辑父级、key 与 Portal 类别下切换模式保留内容实例、本地状态、编辑模型和焦点会话。OverlayHandle 公开 isAttached、isOpen、lastCloseReason、`requestClose()`；一个 handle 不能同时绑定两个活动挂载，晚到清理不解除其新绑定。OverlayCloseReason 为 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed。
 
-模式更新先验证完整 PortalOptions，再在普通逻辑安全边界整体更新输入屏障、代理的焦点资格、FocusScope 与后代所属模态域。边界保留建立次序，父层切换不能覆盖后来打开的嵌套层；退出中的会话保留实际关闭时的屏障直到 Accepted 移除，新的配置只在真正重开时生效。模式切换不触发 onCloseRequest／onClosed，不运行关闭／重开或重置 Presence。进入约束模式时，如果当前焦点已在面板内则保留；否则等本次配置的 Accepted 场景后取得焦点，更新的显式聚焦意图仍优先。解除约束不主动搬移现有焦点。原打开时保存的恢复目标不被每次模式切换覆盖，实际恢复按当前有效焦点域检查，不能使用已退役的边界快照拒绝仍合法的目标。
+模式更新先验证完整 PortalOptions，再在普通逻辑安全边界整体更新输入屏障、代理的焦点资格、FocusScope 与后代所属模态域。边界保留建立次序，父层切换不能覆盖后来打开的嵌套层；退出中的会话保留实际关闭时的屏障直到第 7.6.1 节的最终移除，新的配置只在真正重开时生效。模式切换不触发 onCloseRequest／onClosed，不运行关闭／重开或重置 Presence。进入约束模式时，如果当前焦点已在面板内则保留；否则等本次配置的 Accepted 场景后取得焦点，更新的显式聚焦意图仍优先。解除约束不主动搬移现有焦点。原打开时保存的恢复目标不被每次模式切换覆盖，实际恢复按当前有效焦点域检查，不能使用已退役的边界快照拒绝仍合法的目标。
 
 Escape、outside press 和 requestClose 先调用当前 onCloseRequest；接受后写 open=false，并读取 setter 实际采纳的值。拒绝或 setter 不采纳时保持打开，但不撤回既有输入消费。外部直接写 false 不经过 veto。关闭／退出中的请求合并；请求开始即保存焦点 revision，回调内的更新请求不能被后续退出过程重新记为恢复基线。回调可以同步替换内容或关闭根，回到框架后须检查当前实例。渲染、测量、scene、draw 期间不允许发出关闭请求或修改 Binding。
 
 #### 7.6.1 呈现与最终关闭
 
-transition 使用第 7.12 节的 Presence。进入／呈现阶段正常布局，退出阶段保留同一内容及绘制资源，立即禁用根输入资格、取消内部按下与 IME／焦点活动。退出不能通过提前 deactivate 子树破坏绘制资源。Presence 变为 Absent 后在逻辑更新中卸载内容；确认移除的 Accepted 帧后才通知 onClosed，至多一次。没有动画时直接走同一最终移除边界。
+transition 使用第 7.12 节的 Presence。进入／呈现阶段正常布局，退出阶段保留同一内容及绘制资源，立即禁用根输入资格、取消内部按下与 IME／焦点活动。退出不能通过提前 deactivate 子树破坏绘制资源。Presence 变为 Absent 后在逻辑更新中卸载内容；窗口可绘制时，确认移除的 Accepted 帧后通知 onClosed，至多一次。没有动画时直接走同一最终移除边界。
 
 退出中 open 再变为 true，从当前进度转向进入；保留子树、key 和编辑模型。已有区域保持禁用，直到新的 Accepted 场景才恢复，并按 §7.6.3 的当前焦点选项重新尝试初始聚焦；重开后的显式焦点请求仍优先。最终移除已确认后再次打开，则创建新的内容及模态会话。普通 Props 更新不能绕过 Binding 另开一份状态。
 
-owner 在窗口仍存活时退休，立即停止动画并收束内容，根保留屏障及完成通知到 Accepted 移除。根关闭先停用输入、停止动画及释放屏障，安全退出当前场景借用并卸载子树后直接通知，不等待未来帧。窗口隐藏／没有 drawable 时复用 Surface 时间轴的 owner deadline 推进，退出可以结束，模态屏障仍等实际画面移除。
+owner 在窗口仍存活时退休，立即停止动画并收束内容；窗口可绘制时，根保留屏障及完成通知到 Accepted 移除。根关闭先停用输入、停止动画及释放屏障，安全退出当前场景借用并卸载子树后直接通知，不等待未来帧。窗口隐藏、被遮挡／系统暂停呈现或没有可绘制尺寸时，有限退出沿 Surface 既有 deadline 完成；Presence 已为 Absent 且内容已经卸载的层在正常逻辑更新中释放屏障、尝试正常焦点恢复并通知 onClosed，不依赖合成器再次发帧。窗口在等待移除期间变为不可绘制，同样触发一次逻辑收尾。此路径不伪造 Accepted、不发布候选几何，不提前完成仍在进行的退出，也不以失去前台焦点作为不可绘制的依据。
 
 #### 7.6.2 定位与锚点
 
@@ -696,7 +696,7 @@ OverlayDismiss 为 escape=false、outsidePress=Ignore、includeAnchor=false；in
 
 OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true、restoreTarget=None，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。NonModal 可显式设置 autoFocus=false，只跳过本次打开的初始聚焦，仍保留同一会话的关闭恢复；悬浮子菜单用它在指针进入后恢复父行，不另存焦点状态。autoFocus=false 不适用于两个约束模式，构造 PortalOptions 时报告参数错误。一次实际打开保存原有效 FocusHandle、前驱焦点会话及焦点意图序号。restoreTarget 可明确指定关闭时优先恢复的 FocusHandle；目标不可用时继续原保存目标及前驱会话的退路，所有候选仍受当前有效焦点域、focusRevision 和已移到外部焦点的条件约束。它不主动切换焦点，也不绕过较新的显式焦点意图；进入退出阶段后恢复选项保持该次关闭快照。Menubar 用当前入口作为恢复目标，处理约束模式下不能提前聚焦其他入口的切换。NonModal 的登记处于禁用状态，允许 Tab 离开；FocusContained 启用 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 启用 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。退出期间重开保留同一内容及焦点会话，重新记录当前焦点意图序号，并在恢复输入的首个 Accepted 使用当前 initialFocus／autoFocus；重开之后的新显式焦点请求仍优先。
 
-退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，为原当前焦点会话或关闭前实际包含焦点的会话尝试一次恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。多个 NonModal 同时打开时，较早的层仍可实际获得焦点，关闭它的恢复资格不能被后来登记但未取得焦点的层覆盖。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
+退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 本身不提前释放。Accepted 移除或第 7.6.1 节的不可绘制收尾时，从内到外释放已退休层，为原当前焦点会话或关闭前实际包含焦点的会话尝试一次恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。多个 NonModal 同时打开时，较早的层仍可实际获得焦点，关闭它的恢复资格不能被后来登记但未取得焦点的层覆盖。FocusContained 同样保留焦点边界到最终移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 
 ### 7.7 滚动状态与视口登记
 

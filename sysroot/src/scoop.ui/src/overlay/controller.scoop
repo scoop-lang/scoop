@@ -14,6 +14,8 @@ internal class OverlayController(private val root: UiRoot): Closeable {
     private val retiring = ArrayList<PortalInstance>()
     private var stopped = false
     private var registration: Closeable? = None
+    private var activity: Closeable? = None
+    private var geometry: Closeable? = None
     var frame = OverlayFrame()
 
     val currentModal: OverlayFocusSession? get() {
@@ -41,6 +43,29 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         root.surface.input.beforePress = { press -> beforePress(press) }
         registration =
             Some(root.surface.input.addDefaultAction { context, event -> dismiss(context, event) })
+        activity = Some(root.window.observeActivity { _ -> scheduleIfUnavailable() })
+        geometry =
+            Some(
+                root.host.nativeEvents.frames.subscribe(root.window.id, false) {
+                    _ -> scheduleIfUnavailable()
+                }
+            )
+    }
+    private val drawable: Boolean get() =
+        root.window.isVisible &&
+            !root.window.isOccluded &&
+            when (val metrics = root.window.metrics) {
+                case Some(val value) -> value.physicalSize.isDrawable
+                case None -> false
+            }
+    private fun scheduleIfUnavailable() {
+        if (root.isOpen && !drawable && (sessions.size > 0L || retiring.size > 0L))
+            root.scheduleUpdate()
+    }
+    /** A compositor may suspend frames indefinitely; completed exits still release their owners. */
+    fun flush() {
+        if (root.isOpen && !drawable)
+            completeRemovals(None)
     }
     fun add(value: PortalInstance) {
         sessions.add(value)
@@ -179,6 +204,14 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                 failure =
                     cleanupUi(failure) { portal.forceClose(OverlayCloseReason.AnchorUnavailable) }
         }
+        failure = cleanupUi(failure) { completeRemovals(Some(completed)) }
+        for (modal in focusSessions.toArray())
+            if (root.isOpen)
+                failure = cleanupUi(failure) { modal.complete(completed) }
+        throwUi(failure)
+    }
+    private fun completeRemovals(completed: OverlayFrame?) {
+        var failure: Throwable? = None
         val previous = currentFocus
         var restore: OverlayFocusSession? = None
         val work = focusSessions.toArray()
@@ -186,7 +219,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         while (index > 0L) {
             index -= 1L
             val modal = work[index]
-            if (modal.isClosing && !modal.wasPresented(completed)) {
+            if (modal.canComplete(completed)) {
                 when (restore) {
                     case None -> if (
                         modal.canRestoreFocus &&
@@ -212,9 +245,6 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             if (portal.hasPendingClose)
                 retiring.add(portal)
         }
-        for (modal in focusSessions.toArray())
-            if (root.isOpen)
-                failure = cleanupUi(failure) { modal.complete(completed) }
         throwUi(failure)
     }
     private fun removeModal(value: OverlayFocusSession) {
@@ -230,6 +260,10 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         stopped = true
         var failure = cleanupUi(None) { registration?.close() }
         registration = None
+        failure = cleanupUi(failure) { activity?.close() }
+        activity = None
+        failure = cleanupUi(failure) { geometry?.close() }
+        geometry = None
         for (portal in sessions.toArray())
             failure = cleanupUi(failure) { portal.forceClose(OverlayCloseReason.OwnerClosed) }
         val work = focusSessions.toArray()

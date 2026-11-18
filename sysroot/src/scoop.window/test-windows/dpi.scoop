@@ -1,0 +1,15 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.tests.window.exercisePerMonitorDpi
+
+@Test
+private class WindowsDpiContextTest {
+    @Test
+    fun `per monitor preparation upgrades the owner and preserves existing HWND awareness`() {
+        @Unsafe
+        {
+            assertEquals(0, exercisePerMonitorDpi())
+        }
+    }
+}

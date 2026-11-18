@@ -35,7 +35,7 @@ AI 接入以标准 OS provider 为基础，不默认启动 MCP／HTTP 服务，�
 
 `scoop.window.accessibility` 是现有 Window Cone 中的包，不新增 Cone。它不依赖 `scoop.ui`、style、控件类型或 Canvas；UI 将语义事实投影到该接口，原生端不检查 Button 等 Scoop 类名。
 
-每个附着的 `UiRoot` 在首次语义登记时为自己的窗口内容视图创建一个 provider 根；没有声明的根不创建空树。窗口、系统菜单和系统对话框继续由原生后端提供其自身语义，UI 根与它们建立正确父子关系。不能同时让原生内容视图与自绘根重复报告同一组内容。
+每个附着的 `UiRoot` 在首次语义登记时为自己的窗口内容视图创建一个 provider 根；没有声明的根不创建空树。窗口尚处于 `PendingConfigure` 时也可以登记和发布语义，几何等待实际 Accepted 场景，原生动作仍要求窗口 Open。窗口、系统菜单和系统对话框继续由原生后端提供其自身语义，UI 根与它们建立正确父子关系。不能同时让原生内容视图与自绘根重复报告同一组内容。
 
 provider 的寿命与 `UiRoot` 附着一致。关闭 `UiWindow` 应退休自绘子树，保留调用方仍持有的原生 Window；重新附着分配新的节点身份。低层 Window 接口同样允许直接使用 Surface 的实际调用方提供语义，不要求实例化 UI 控件库。
 

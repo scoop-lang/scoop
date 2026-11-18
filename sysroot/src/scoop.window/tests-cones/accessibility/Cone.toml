@@ -13,6 +13,10 @@ when = { os = "darwin" }
 [[test.sources]]
 path = "tests"
 
+[[test.sources]]
+path = "test-windows"
+when = { os = "windows" }
+
 [test-dependencies]
 "scoop:scoop.window" = { version = "0.1.0", path = "../.." }
 "scoop:scoop.graphics" = "0.1.0"
@@ -22,7 +26,7 @@ path = "tests"
 
 [native]
 cxx = true
-cxx_flags = ["-std=c++17", "-Wall", "-Wextra", "-Werror"]
+cxx_flags = ["-Wmost", "-Wextra", "-Werror"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 
 [[native.sources]]
@@ -55,6 +59,10 @@ path = "native/text_document.cpp"
 
 [[native.sources]]
 path = "native/projection.cpp"
+
+[[native.sources]]
+path = "native/windows.cpp"
+when = { os = "windows" }
 
 [[native.sources]]
 path = "../../native/accessibility/tree.cpp"

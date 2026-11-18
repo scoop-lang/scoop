@@ -3,7 +3,7 @@ package scoop.ui
 import scoop.graphics.Rect
 import scoop.surface.*
 
-/** Retains the boundary until a frame has removed this layer, even after its node retires. */
+/** Retains the boundary until presentation or a non-drawable logical update removes the layer. */
 internal class OverlayFocusSession(
     private val portal: PortalInstance,
     initial: PortalOptions,
@@ -160,6 +160,12 @@ internal class OverlayFocusSession(
             case Some(val value) -> value === frame
             case None -> false
         }
+    fun canComplete(frame: OverlayFrame?): Boolean =
+        isClosing &&
+            when (frame) {
+                case Some(val value) -> !wasPresented(value)
+                case None -> portal.canCompleteClose
+            }
     val isModal: Boolean get() = mode == OverlayMode.Modal
     val inCurrentDomain: Boolean get() =
         when (boundary) {

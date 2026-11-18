@@ -3,6 +3,7 @@
 #include <cstring>
 #include <new>
 #include <shellapi.h>
+#include <shlobj.h>
 
 namespace {
 class DragSource final : public IDropSource {

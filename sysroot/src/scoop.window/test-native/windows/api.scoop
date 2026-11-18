@@ -26,6 +26,11 @@ public fun completedNativeModes(): Int
 @Extern(name = "scoop_window_test_system_dpi")
 public fun setSystemDpiMode(): Int
 
+/** Verifies owner-thread V2 preparation without changing an existing V1 HWND. */
+@Unsafe
+@Extern(name = "scoop_window_test_per_monitor_dpi")
+public fun exercisePerMonitorDpi(): Int
+
 @Unsafe
 @Extern(name = "scoop_window_test_text")
 public fun exerciseNativeText(window: Ptr<Unit>): Int

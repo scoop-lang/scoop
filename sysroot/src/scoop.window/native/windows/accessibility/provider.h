@@ -3,6 +3,10 @@
 
 #include "../../accessibility/core.h"
 #include "../window.h"
+#include <objbase.h>
+#include <oleauto.h>
+
+// UIAutomation requires COM declarations even with WIN32_LEAN_AND_MEAN.
 #include <UIAutomation.h>
 #include <atomic>
 #include <limits>

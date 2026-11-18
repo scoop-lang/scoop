@@ -126,7 +126,7 @@ internal class UiRoot(
         pending.add(value)
         host.enqueue(this)
     }
-    fun scheduleSemantics() {
+    fun scheduleUpdate() {
         if (acceptsUpdates)
             host.enqueue(this)
     }
@@ -145,6 +145,7 @@ internal class UiRoot(
                 value.mountPending()
             }
         }
+        overlays.flush()
         semantics?.publish()
         drops?.flushLeaves()
         dragSource?.reconcile()

@@ -119,9 +119,20 @@ static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 int64_t scoop_window_windows_prepare_dpi(void) {
   DPI_AWARENESS_CONTEXT required = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
-  if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required)) {
-    if (!SetProcessDpiAwarenessContext(required))
-      return GetLastError();
+  DPI_AWARENESS_CONTEXT current = GetThreadDpiAwarenessContext();
+  if (!AreDpiAwarenessContextsEqual(current, required)) {
+    DPI_AWARENESS awareness = GetAwarenessFromDpiAwarenessContext(current);
+    if (awareness == DPI_AWARENESS_PER_MONITOR_AWARE) {
+      // An inherited V1 default is already fixed for the process. Upgrade only
+      // this owner; existing HWNDs retain their own creation-time awareness.
+      if (!SetThreadDpiAwarenessContext(required))
+        return GetLastError();
+    } else {
+      if (awareness != DPI_AWARENESS_UNAWARE)
+        return ERROR_ACCESS_DENIED;
+      if (!SetProcessDpiAwarenessContext(required))
+        return GetLastError();
+    }
     if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), required))
       return ERROR_INVALID_STATE;
   }

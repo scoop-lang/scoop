@@ -16,7 +16,7 @@ DropRequest 保存 offer、effect 和 content。选定表示只在 Drop 时读�
 
 ## 2. Window 接收资源
 
-三个桌面后端提供 `Window.registerDropTarget(handlers: DropHandlers): DropTarget`。DropHandlers 保存 `offer: (DropOffer) -> DropDecision`、`drop: (DropRequest) -> Boolean` 与 `leave: () -> Unit = {}`。一个窗口同时注册一个接收资源；重复注册报告普通状态错误。它不创建输入区域、焦点或另一棵命中树，UI／其他 renderer 在 offer 中使用自己的已接受场景和逻辑路由。
+三个桌面后端提供 `Window.registerDropTarget(handlers: DropHandlers): DropTarget`，允许在 PendingConfigure 或 Open 时登记和配置资源；实际拖放回调仍要求窗口 Open。DropHandlers 保存 `offer: (DropOffer) -> DropDecision`、`drop: (DropRequest) -> Boolean` 与 `leave: () -> Unit = {}`。一个窗口同时注册一个接收资源；重复注册报告普通状态错误。它不创建输入区域、焦点或另一棵命中树，UI／其他 renderer 在 offer 中使用自己的已接受场景和逻辑路由。
 
 DropTarget 的 handlers 可在正常 owner 更新中替换，enabled 默认 true，close 可重复调用；修改及查询遵守 Window owner。替换或禁用使旧协商失效；原生下一次更新重新询问当前处理器。禁用后通过已有延迟原生操作通路结束尚在本目标内的 offer，清理通知不在 setter 或 render 栈内重入业务。close 立即撤销 native 登记和回调，关闭窗口先关闭该资源；关闭后的旧 native 引用不能调用已释放的 Scoop context。资源关闭不再调用业务 leave，拥有者在自己的收尾中释放高亮等 UI 状态。
 

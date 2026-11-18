@@ -92,8 +92,9 @@ void sw_snapshot_update(SWWindow *window) {
   window->snapshot.visible = gtk_widget_get_visible(window->window);
   window->snapshot.maximized = (state & GDK_TOPLEVEL_STATE_MAXIMIZED) != 0;
   window->snapshot.minimized = (state & GDK_TOPLEVEL_STATE_MINIMIZED) != 0;
-  bool occluded =
-      !gtk_widget_get_mapped(window->window) || window->snapshot.minimized;
+  bool occluded = !gtk_widget_get_mapped(window->window) ||
+                  window->snapshot.minimized ||
+                  (state & GDK_TOPLEVEL_STATE_SUSPENDED) != 0;
   if (window->snapshot.occluded != occluded) {
     window->snapshot.occluded = occluded;
     sw_emit(window, 5);
@@ -286,12 +287,23 @@ int64_t sw_request_size(SWWindow *window, double width, double height) {
   window->requested_width = width;
   window->requested_height = height;
   gtk_widget_queue_resize(window->view);
-  int minimum = 0, natural = 0;
-  gtk_widget_measure(window->toolbar, GTK_ORIENTATION_VERTICAL,
-                     (int)ceil(width), &minimum, &natural, NULL, NULL);
-  int extra = window->frame_mode == 1 ? 0 : MAX(0, natural - (int)ceil(height));
-  gtk_window_set_default_size(GTK_WINDOW(window->window), (int)ceil(width),
-                              (int)ceil(height) + extra);
+  int content_width, minimum_width, native_width, native_height;
+  gtk_widget_measure(window->toolbar, GTK_ORIENTATION_HORIZONTAL, -1, NULL,
+                     &content_width, NULL, NULL);
+  gtk_widget_measure(window->window, GTK_ORIENTATION_HORIZONTAL, -1,
+                     &minimum_width, &native_width, NULL, NULL);
+  // Preserve the requested content width even when the header prefers more.
+  // Measuring the window also includes CSS padding used by uncomposited X11.
+  double outer_width =
+      MAX(minimum_width, ceil(width) + MAX(0, native_width - content_width));
+  if (ceil(outer_width * window->snapshot.scale) > INT_MAX)
+    return EOVERFLOW;
+  gtk_widget_measure(window->window, GTK_ORIENTATION_VERTICAL, (int)outer_width,
+                     NULL, &native_height, NULL, NULL);
+  if (ceil(native_height * window->snapshot.scale) > INT_MAX)
+    return EOVERFLOW;
+  gtk_window_set_default_size(GTK_WINDOW(window->window), (int)outer_width,
+                              native_height);
   return 0;
 }
 int64_t scoop_window_size(SWWindow *window, double width, double height) {

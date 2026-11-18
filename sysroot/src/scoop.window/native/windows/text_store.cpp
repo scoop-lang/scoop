@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+// The SDK declares these GUIDs but its uuid.lib does not define input scope.
+#include <initguid.h>
 #include <inputscope.h>
 #include <utility>
 

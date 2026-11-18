@@ -4,11 +4,9 @@ import scoop.window.*
 import scoop.window.accessibility.native.NativeSemanticHitTest
 import scoop.window.accessibility.native.NativeSemanticTextGeometry
 
-/** Attaches the native content subtree. The window closes it before native destruction. */
+/** Attaches before or after window configuration; closes before native destruction. */
 public fun Window.createAccessibilityProvider(): AccessibilityProvider {
     owner.requireOpen()
-    if (owner.phase != WindowState.Open)
-        throw IllegalStateException(Some("accessibility requires a configured window"))
     when (owner.accessibility) {
         case Some(_) -> throw IllegalStateException(
             Some("window already has an accessibility provider")

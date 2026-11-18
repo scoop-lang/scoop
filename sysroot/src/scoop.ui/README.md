@@ -170,7 +170,7 @@ FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域
 
 相对定位时，在触发元素的 `onMount` 中调用 `scope.layoutAnchor(handle)`，在其 `scene` 中调用 `context.anchor(handle, rect)`，再把同一 LayoutAnchor 交给 `OverlayPlacement.Anchored`。锚点用当前变换和 clip 取得窗口位置，不需要 InputArea。定位先给内容有界约束，再按实际尺寸 flip／shift；`context.overlayLayout` 可读取本帧最终 bounds、available、anchor 和 side 来绘制箭头。Viewport 形状提供窗口内的横纵对齐；AtPoint 使用窗口逻辑坐标和同一定位算法，适用于上下文菜单，无须创建占位锚点。
 
-open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHandle.requestClose 先调用 onCloseRequest；接受后写 false，setter 未采纳时继续打开。外部直接写 false 不经过 veto。transition 使用 PresenceOptions 的有限进入／退出动画；退出保留绘制子树并关闭输入，Absent 后卸载，Accepted 移除后才调用一次 onClosed。退出中重新打开保留同一子树、从当前进度反向，并等待新 Accepted 几何恢复输入。
+open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHandle.requestClose 先调用 onCloseRequest；接受后写 false，setter 未采纳时继续打开。外部直接写 false 不经过 veto。transition 使用 PresenceOptions 的有限进入／退出动画；退出保留绘制子树并关闭输入，Absent 后卸载。可绘制窗口等待 Accepted 移除后调用一次 onClosed；隐藏、遮挡／暂停呈现或没有可绘制尺寸时，已经结束退出并卸载内容的层在逻辑更新中释放模态屏障并通知，不依赖未来帧。退出中重新打开保留同一子树、从当前进度反向，并等待新 Accepted 几何恢复输入。
 
 锚点不可见时默认在成功帧后强制关闭，也可以选择 Hide 保留实例等待恢复，或 KeepVisible 使用有效坐标留在视口内；解绑或 owner 退休会结束从属层。强制关闭不经过 veto；AnchorUnavailable 尝试写 Binding=false，即使未采纳也结束当前呈现，直到绑定实际 false→true 才重开。OverlayHandle 可查询 isOpen／lastCloseReason。
 
@@ -319,7 +319,7 @@ TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`TextEditOpti
 
 窗口错误通过 `UiHost(onRootError = { id, error -> ... })` 接收：失败根完成输入与资源清理后报告一次，处理器正常返回可继续运行其他根，默认处理器重新抛出。`attach` 成功返回 `Some(UiWindow)`，已处理的初次挂载失败返回 `None`。宿主事件、共享渲染器、消息投递和错误处理器自身的失败仍关闭整个宿主。`scope.createDeadline` 使用原生一次性 deadline，随作用域退休关闭，并在所属根的错误边界内交付回调。
 
-同一父级与 key 的 Portal 可更新 NonModal／FocusContained／Modal，不重新挂载内容。约束更新保留原始恢复焦点，新增聚焦等待 Accepted；关闭中的约束保留到移除帧被接受。模式变化本身不产生关闭回调。
+同一父级与 key 的 Portal 可更新 NonModal／FocusContained／Modal，不重新挂载内容。约束更新保留原始恢复焦点，新增聚焦等待 Accepted；关闭中的约束保留到 Accepted 移除或上述不可绘制时的逻辑收尾。模式变化本身不产生关闭回调。
 
 ## Linux GNU
 

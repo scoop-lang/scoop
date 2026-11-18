@@ -2,11 +2,9 @@ package scoop.window
 
 import scoop.platform.fs.Path
 
-/** Registers the window's native destination. Payloads are read only during drop. */
+/** Registers before or after window configuration. Payloads are read only during drop. */
 public fun Window.registerDropTarget(handlers: DropHandlers): DropTarget {
     owner.requireOpen()
-    if (owner.phase != WindowState.Open)
-        throw IllegalStateException(Some("drop target requires a configured window"))
     when (owner.dropTarget) {
         case Some(_) -> throw IllegalStateException(Some("window already has a drop target"))
         case None -> {}

@@ -1,6 +1,7 @@
 #include "drag_data.h"
 #include <cstring>
 #include <new>
+#include <shellapi.h>
 #include <shlobj.h>
 
 CLIPFORMAT sw_drag_url_format() {

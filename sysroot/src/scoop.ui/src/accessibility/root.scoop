@@ -52,7 +52,7 @@ internal class RootSemantics(
     fun changed() {
         dirty = true
         if (!closed && root.isOpen)
-            root.scheduleSemantics()
+            root.scheduleUpdate()
     }
     fun structureChanged() {
         structure = true

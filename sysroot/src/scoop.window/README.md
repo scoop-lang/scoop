@@ -78,7 +78,7 @@ Windows 从 WM_POINTER 和对应查询复制触点，整条消息路径一致交
 
 Windows 查询通过 HWND 内容根与 UIA pattern 暴露；Linux 通过 GTK 公开的 AT-SPI socket 接到原生窗口树，复用原 GMainContext。Wayland 无法提供全局屏幕原点时，该坐标查询返回 NotSupported；D-Bus 不能表达正文中的 NUL，也不会截断后冒充完整文本。完整合同见[窗口无障碍规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，平台验证范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
 
-导入 `scoop.window.accessibility.*`，对 Open 的 Window 调用 `createAccessibilityProvider()`。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions, relations)` 替换事实、真实回调与关系，后两项默认空值；`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。macOS 使用 AppKit，Windows 使用 UIA，Linux GNU 使用 GTK 内容容器内的 AT-SPI 子树；实现与平台验收的状态分别记录。
+导入 `scoop.window.accessibility.*`，对 PendingConfigure 或 Open 的 Window 调用 `createAccessibilityProvider()`。首次配置前即可登记和发布语义，不必先显示窗口或取得 drawable；原生动作仍要求 Open。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions, relations)` 替换事实、真实回调与关系，后两项默认空值；`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。macOS 使用 AppKit，Windows 使用 UIA，Linux GNU 使用 GTK 内容容器内的 AT-SPI 子树；实现与平台验收的状态分别记录。
 
 角色覆盖文本、按钮、选择控件、滚动、图像、Link／Heading、数值、菜单／Tab／Dialog、List／Table／Row／Cell／表头、Disclosure 与 Separator。Image 使用替代名称和实际几何，不隐含点击或焦点动作。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；selected／expanded／checked 只发布实际适用的状态，protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 只公布实际回调；setNumber／increment／decrement、setSelected、setExpanded、dismiss 与文本／滚动动作均进入已有控制器。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
 
@@ -110,7 +110,7 @@ Switch／ToggleButton 在 AppKit 使用 Button 加 Switch／Toggle 子角色，P
 
 `SemanticRole.ScrollBar` 使用 `SemanticProperties.scroll = Some(SemanticScrollRange(orientation, offset, viewport, content))` 描述一个真实轴；方向为 SemanticOrientation.Horizontal／Vertical，尺寸与位置使用逻辑单位。AppKit 读取 Orientation 和 0～1 的 Value／MinValue／MaxValue，父节点的横／纵滚动条属性连接对应子项。setScrollPosition 接收有限的 0～1 比例，scrollBackward／scrollForward 使用实际控件步长；调用方登记请求后，仍从已接受的布局发布新位置。没有范围时不提供能力，视觉隐藏不必退休逻辑轴，缺少场景登记时不提供条的点击几何。
 
-当前 `createAccessibilityProvider` 只在 Darwin 目标公开。UI scope／Accepted 场景、内容合并、精确命中及纯文本选区已通过公共资源接入；内置控件、保留文本范围、激活点、虚拟集合及 Windows／Linux provider 按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)，编辑模型组合见 [UI 文本测试](../scoop.ui/tests-cones/accessibility-text/README.md)。进程内原生方法、外部 AX 客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
+`createAccessibilityProvider` 在 Darwin、Windows 和 Linux GNU 目标公开。UI scope／Accepted 场景、内容合并、精确命中、内置控件、文本范围、激活点和虚拟集合已通过公共资源接入，平台验收按[统一计划](../../../docs/ui/interaction-polish/PLAN.md)继续。正式合同见[无障碍接口规范](../../../docs/specs/SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)，可运行的属性、关系、动作和生命周期用例见 [accessibility 测试 Cone](tests-cones/accessibility/README.md)，编辑模型组合见 [UI 文本测试](../scoop.ui/tests-cones/accessibility-text/README.md)。进程内原生方法、外部客户端和屏幕阅读器结果分别记录在[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，不能互相替代。
 
 逻辑列表使用 `SemanticRole.List` 与 `node.collection = Some(SemanticCollectionSnapshot(source))`。source 提供同一不可变快照的 count、稳定的 `SemanticItemKey`、反向索引和数据描述，查询不构造控件。`itemAt`／`itemForKey`／`find` 明确区分不存在、不支持和数据未知；名称与 automationId 搜索须显式声明能力。AppKit 可以按范围取得 rows；未实现条目没有估算坐标。已挂载行用 List 下的 Group 及 `collectionItem` 关联真实几何与子控件，回收 Group 不退休逻辑条目。移动 Group 到另一个父节点会清除原集合关联。重排保持被持有代理，删除使其永久失效；原生代理只弱缓存，不把普通查询变成长列表的常驻 View。`collectionActions = SemanticCollectionActions(realize, reveal, focus)` 登记明确操作，查询仍只读。AppKit 提供 Realize Item／Scroll to Visible 自定义动作；只有真实能力已准备或 Accepted 场景已显露时才报告完成，等待期间为 Busy。条目聚焦须同时声明 `focusable = true` 并提供真实回调；公开 setter 依据真实焦点执行。其他平台与读屏器验收继续按 S7／S10／S11 记录。
 
@@ -148,7 +148,7 @@ macOS 的 TitlebarOptions 通过 setMacOSTitlebar 设置标题栏透明和隐藏
 
 ## 接收原生拖放
 
-Darwin 的 Open 窗口通过 `window.registerDropTarget(DropHandlers(offer, drop, leave))` 注册一个接收资源；声明从 `scoop.window` 导入。DropOffer 提供格式、操作、接收窗口逻辑位置、修饰键和 local；local 仅表示来源在当前进程。localData 仅在原生来源确为本 Application 当前 DragSession 时保留 beginDrag 提供的同一个进程内值，默认 None，不写入 pasteboard。offer 返回 Reject 或 Accept(format, effect)，只能选择实际可用的 Text／Url／Files 和 Copy／Move／Link；接收方自行命中自己的场景。
+Darwin、Windows 和 Linux GNU 的 PendingConfigure 或 Open 窗口通过 `window.registerDropTarget(DropHandlers(offer, drop, leave))` 注册一个接收资源；声明从 `scoop.window` 导入。首次配置前可以登记和配置，实际拖放回调仍要求 Open。DropOffer 提供格式、操作、接收窗口逻辑位置、修饰键和 local；local 仅表示来源在当前进程。localData 仅在原生来源确为本 Application 当前 DragSession 时保留 beginDrag 提供的同一个进程内值，默认 None，不写入 pasteboard。offer 返回 Reject 或 Accept(format, effect)，只能选择实际可用的 Text／Url／Files 和 Copy／Move／Link；接收方自行命中自己的场景。
 
 Enter／Over 和 prepare 不读正文。真正 Drop 时才复制所选表示为 `DragContent.Text(String)`、`Url(String)` 或 `Files(Array<Path>)`，并调用 `drop(DropRequest): Boolean`。true 表示已实际接受；尚在排队的业务不能返回 true。单项可同时提供文本和 URL；首批不合并多个文本项目。Files 要求完整的本地路径列表，拒绝混合或部分可读项目，不读取文件正文。文本保留原值，编辑目标自己的导入策略负责清洗。
 
@@ -240,7 +240,7 @@ macOS 桌面测试须串行执行。AppKitApplicationTest 等待真实窗口焦�
 
 ## Windows
 
-支持 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 三个 x86_64 target，要求 Windows 10 1703+ 的 Per-Monitor V2。应用可通过标准 RC manifest 声明 DPI awareness；没有声明时窗口库在创建 HWND 前设置。已经启用其他 DPI 模式时明确抛出 WindowException，不继续使用虚拟化坐标。
+支持 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 三个 x86_64 target，要求 Windows 10 1703+ 的 Per-Monitor V2。应用可通过标准 RC manifest 声明 DPI awareness；未配置时窗口库在创建 HWND 前设置。启动环境已经使用 Per-Monitor V1 时仅把创建线程升级到 V2，既有窗口保留原 awareness；System Aware 等虚拟化模式仍明确抛出 WindowException。
 
 Win32 桌面坐标采用物理虚拟桌面单位；内容区按窗口 DPI 转换。遮挡快照报告最小化／DWM cloaked，不判断其他窗口的完全覆盖。主题与激活遵守系统限制；Windows 8+ 的 DwmEnableBlurBehindWindow 已无 blur 效果，因此 `setBlur(true)` 返回 Unsupported，创建时要求 blur 则失败。内容保护只是系统显示提示。
 

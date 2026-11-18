@@ -177,17 +177,25 @@ GVariant *table(Request &request, const char *interface, const char *method,
     ElementPtr header;
     auto owner = element->tree.lock();
     if (!isRow && request.state->count >= 0 &&
-        static_cast<size_t>(index) < request.state->columns.size())
-      header = owner->column(element->reference.node,
-                             request.state->columns[index].key);
-    else {
+        static_cast<size_t>(index) < request.state->columns.size()) {
+      const auto &column = request.state->columns[index];
+      header = column.header
+                   ? owner->actual(column.header)
+                   : owner->column(element->reference.node, column.key);
+    } else {
       auto cell = rows && columns
                       ? element->cellAt(isRow ? index : 0, isRow ? 0 : index)
                       : nullptr;
       if (cell) {
-        auto headers = cell->headers(isRow);
-        if (!headers.empty())
-          header = headers.front();
+        const auto state = cell->state();
+        // A header cell has no relation to itself.
+        if (state && state->data.role == (isRow ? 24 : 25))
+          header = cell;
+        else {
+          auto headers = cell->headers(isRow);
+          if (!headers.empty())
+            header = headers.front();
+        }
       }
     }
     if (!strcmp(method, "GetRowDescription") ||

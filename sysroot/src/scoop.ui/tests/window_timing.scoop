@@ -151,9 +151,9 @@ private class WindowTimingElement(
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
-    > = LayoutResult(LayoutMetrics(Size(300.0, 180.0)), Unit)
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(300.0, 180.0))), Unit)
     public override fun scene(context: SceneContext, measured: Unit) {
-        context.place(area, Rect(0.0, 0.0, 300.0, 180.0))
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted) {

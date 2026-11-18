@@ -314,7 +314,8 @@ HRESULT Node::GetPropertyValue(PROPERTYID property, VARIANT *result) {
       break;
     case UIA_HeadingLevelPropertyId:
       if (data.heading_level > 0 && data.heading_level <= 6)
-        integer(HeadingLevel1 + data.heading_level - 1);
+        // UIA defines HeadingLevel1 as 80051; MinGW omits these identifiers.
+        integer(80050 + data.heading_level);
       break;
     case UIA_AriaPropertiesPropertyId:
       stringValue(result, ariaProperties(*value));

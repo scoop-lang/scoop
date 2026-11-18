@@ -53,6 +53,7 @@ private class PrimarySelectionProbe: ApplicationHandler {
                     next.close()
                     next.close()
                     assertFalse(next.isCurrent)
+                    assertEquals(None, source.readText())
                 }
                 finished = true
                 application.requestExit()

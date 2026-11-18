@@ -26,10 +26,68 @@ private class RecordedProjection: AccessibilityProjection {
 @Test
 private class SemanticPublicationTest {
     @Test
+    fun `a hidden window prepares native accessibility and drops before first configuration`() {
+        val handler = InitialPublicationHandler()
+        Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(handler)
+        assertTrue(handler.finished)
+        assertTrue(handler.provider!!.isClosed)
+        assertTrue(handler.node!!.isClosed)
+        assertTrue(handler.dropTarget!!.isClosed)
+        assertFailsWith<IllegalStateException> {
+            handler.node!!.update(SemanticProperties(name = Some("After close")))
+        }
+    }
+
+    @Test
     fun `announcements coalesce through busy ancestors and discarded targets never speak`() {
         val handler = PublicationHandler()
         Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(handler)
         assertTrue(handler.finished)
+    }
+}
+
+private class InitialPublicationHandler: ApplicationHandler {
+    var provider: AccessibilityProvider? = None
+    var node: AccessibilityNode? = None
+    var dropTarget: DropTarget? = None
+    var finished = false
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            visible = false
+                            requestActivation = false
+                        }
+                    )
+                val current = window.createAccessibilityProvider()
+                provider = Some(current)
+                val text = current.createNode(SemanticRole.Text)
+                node = Some(text)
+                text.update(SemanticProperties(value = Some("Before configuration")))
+                current.publish()
+                text.update(SemanticProperties(value = Some("Updated before configuration")))
+                current.publish()
+                assertFalse(current.isClosed)
+                val drops =
+                    window.registerDropTarget(
+                        DropHandlers({ _ -> DropDecision.Reject }, { _ -> false })
+                    )
+                dropTarget = Some(drops)
+                drops.periodicUpdates = true
+                drops.enabled = false
+                drops.enabled = true
+                assertTrue(drops.periodicUpdates)
+                assertTrue(drops.enabled)
+                window.requestDestroy()
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = true
+                application.requestExit()
+            }
+            else -> {}
+        }
     }
 }
 

@@ -66,7 +66,7 @@ Windows 已有正确安装注册、但从未提交通知的应用可能尚无通
 
 prepare 读取安装注册中的 CustomActivator CLSID，在当前进程注册 COM 类工厂；正常 main 入口在 COM 冷启动时同样执行 prepare。COM 回调先复制参数到线程安全原生队列，用 message-only HWND 唤醒 owner；该窗口不参与业务窗口计数、绘制或任务栏。WinRT Failed／Dismissed 事件使用同一路径。关闭先停用队列、注销类工厂与事件，再在创建线程释放 COM／WinRT 资源；迟到回调不得使用已关闭的 managed callback。
 
-prepare 在创建 COM／消息窗口之前复用 window 后端的 DPI 准备入口，确保进程第一次创建 HWND 时已经使用同一个 Per-Monitor V2 模式；不能在通知创建了 HWND 后才尝试改变进程 DPI 模式。该入口只是两个实际创建路径共享的原生初始化，不增加另一套窗口生命周期。
+prepare 在创建 COM／消息窗口之前复用 window 后端的 DPI 准备入口，确保当前 owner 创建的 HWND 使用 Per-Monitor V2。沿 Window 合同设置尚未配置的进程，或仅升级已有 Per-Monitor V1 创建线程；不会改变既有 HWND 的 awareness，也不能在通知创建了 HWND 后才尝试改变进程 DPI 模式。该入口只是两个实际创建路径共享的原生初始化，不增加另一套窗口生命周期。
 
 NSIS／MSI 安装器按 `bundle.windows.notifications = true` 写入开始菜单快捷方式的 AppUserModelID、ToastActivatorCLSID，以及 AppUserModelId／CLSID LocalServer32 注册。CLSID 按应用 identifier 稳定生成，只是 COM 对象标识。LocalServer32 指向安装后的应用，使用正确的路径引用；卸载移除本安装的条目。运行期发送通知不写注册表或创建快捷方式；缺少注册返回 NotConfigured。
 
