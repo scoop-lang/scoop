@@ -1,6 +1,8 @@
 package dev.m58.profiles.profiles.middle
 
 import dev.m58.profiles.profiles.provider.*
+public import dev.m58.profiles.profiles.provider.afterTwoResumes
+public import dev.m58.profiles.profiles.provider.fromProvider
 
 public suspend fun value(): Int = (Value(discard(suspend {}) - 1) as Reader).read()
 public suspend fun waitFor(registration: SuspendRegistration<Int>): Int = forwarded(registration)

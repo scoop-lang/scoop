@@ -15,26 +15,16 @@ struct Template {
 }
 
 pub(in crate::optimization) fn run(lowerer: &mut Lowerer) {
-    for source in &lowerer.suspend_sources {
-        let function = &mut lowerer.functions[source.function];
-        let mut ancestry =
-            vec![vec![super::Target::Local(source.function)]; function.body.blocks.len()];
-        let moved = exception_edges::separate_entries(function, &mut ancestry);
-        sites::move_pad_calls(
-            lowerer
-                .coroutines
-                .pre_coroutine_call_sites
-                .get_mut(&source.function)
-                .expect("a suspend source has its call order"),
-            &moved,
-        );
-    }
     let templates = lowerer
         .suspend_sources
         .iter()
         .map(|source| {
-            let function = lowerer.functions[source.function].clone();
-            let calls = lowerer.coroutines.pre_coroutine_call_sites[&source.function].clone();
+            let mut function = lowerer.functions[source.function].clone();
+            let mut calls = lowerer.coroutines.pre_coroutine_call_sites[&source.function].clone();
+            let mut ancestry =
+                vec![vec![super::Target::Local(source.function)]; function.body.blocks.len()];
+            let moved = exception_edges::separate_entries(&mut function, &mut ancestry);
+            sites::move_pad_calls(&mut calls, &moved);
             let summary = summary::Summary::from_blocks(
                 &lowerer.structs.defs,
                 &function,
@@ -59,6 +49,9 @@ pub(in crate::optimization) fn run(lowerer: &mut Lowerer) {
     let callers = lowerer
         .suspend_sources
         .iter()
+        // ODR frames and resume helpers can be selected from different Cones.
+        // Their saved locals and suspension sites must agree across profiles.
+        .filter(|source| source.odr_group.is_none())
         .map(|source| (source.function, source.materialization))
         .collect::<Vec<_>>();
     for (id, owner) in callers {
