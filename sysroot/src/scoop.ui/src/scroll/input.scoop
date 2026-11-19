@@ -4,7 +4,7 @@ import scoop.graphics.Point
 import scoop.surface.*
 import scoop.window.ScrollPhase
 
-/** Uses native phases only to release an edge; native momentum is never simulated again. */
+/** Native momentum releases an edge immediately and is never simulated again. */
 public fun ScrollViewport.consumeScroll(
     context: RoutedEventContext,
     lineStep: Double,
@@ -23,6 +23,7 @@ public fun ScrollViewport.consumeScroll(
     val source =
         context.scrollRemaining ?: throw IllegalStateException(Some("event is not a wheel"))
     val continuous = phase != ScrollPhase.None || momentumPhase != ScrollPhase.None
+    val momentum = momentumPhase != ScrollPhase.None
     val elastic =
         continuous &&
             when (source) {
@@ -33,7 +34,8 @@ public fun ScrollViewport.consumeScroll(
         cancelAnimation()
     else {
         cancelPositioning()
-        edge.interruptRelease()
+        if (!momentum && phase != ScrollPhase.Ended)
+            edge.interruptRelease()
     }
     val cancelled = phase == ScrollPhase.Cancelled || momentumPhase == ScrollPhase.Cancelled
     if (cancelled)
@@ -44,10 +46,12 @@ public fun ScrollViewport.consumeScroll(
     val entry = frame.add(this, context.currentTarget, axes)
     context.consumeScroll(
         lineStep,
-        Some { amount -> frame.complete(entry, amount, axes, elastic && !cancelled, released) }
+        Some {
+            amount -> frame.complete(entry, amount, axes, elastic && !cancelled, released, momentum)
+        }
     ) {
         amount -> if (entry.active && !cancelled)
-            consumeScrollAmount(amount, axes, frame, entry)
+            consumeScrollAmount(amount, axes, frame, entry, momentum)
         else
             Point(0.0, 0.0)
     }
@@ -93,10 +97,11 @@ private fun ScrollViewport.consumeScrollAmount(
     amount: Point,
     axes: ScrollAxes,
     frame: ScrollInputFrame,
-    entry: ScrollInputEntry
+    entry: ScrollInputEntry,
+    momentum: Boolean = false
 ): Point {
     val requested = scrollAxisPoint(amount, axes)
-    val restored = frame.restore(entry, requested)
+    val restored = frame.restore(entry, requested, momentum)
     val delta = Point(restored.x - requested.x, restored.y - requested.y)
     if (delta == Point(0.0, 0.0))
         return restored

@@ -12,8 +12,110 @@ internal class ScrollEdge(
 ): Closeable {
     private var pull = Point(0.0, 0.0)
     private var releasing = false
+    private var momentumEdge = Point(0.0, 0.0)
     val moving: Boolean get() = releasing
     val held: Boolean get() = pull != Point(0.0, 0.0)
+    val inputActive: Boolean get() = held || releasing || momentumEdge != Point(0.0, 0.0)
+
+    /** A native momentum tail cannot hold or restart an already reached edge. */
+    fun consumeMomentum(amount: Point): Point {
+        if (held)
+            release()
+        val current =
+            if (releasing)
+                animation.value
+            else
+                Point(0.0, 0.0)
+        val direction =
+            Point(
+                if (momentumEdge.x == 0.0)
+                    current.x
+                else
+                    momentumEdge.x,
+                if (momentumEdge.y == 0.0)
+                    current.y
+                else
+                    momentumEdge.y
+            )
+        val reverseX = scrollOpposesEdge(amount.x, direction.x)
+        val reverseY = scrollOpposesEdge(amount.y, direction.y)
+        val next =
+            Point(
+                if (reverseX)
+                    0.0
+                else
+                    direction.x,
+                if (reverseY)
+                    0.0
+                else
+                    direction.y
+            )
+        if (releasing && (reverseX || reverseY)) {
+            val speed = animation.velocity
+            val start =
+                Point(
+                    if (reverseX)
+                        0.0
+                    else
+                        current.x,
+                    if (reverseY)
+                        0.0
+                    else
+                        current.y
+                )
+            if (start == Point(0.0, 0.0))
+                stop()
+            else
+                beginRelease(
+                    start,
+                    Point(
+                        if (reverseX)
+                            0.0
+                        else
+                            speed.x,
+                        if (reverseY)
+                            0.0
+                        else
+                            speed.y
+                    )
+                )
+        }
+        momentumEdge = next
+        return Point(
+            if (direction.x != 0.0 && !reverseX)
+                amount.x
+            else
+                0.0,
+            if (direction.y != 0.0 && !reverseY)
+                amount.y
+            else
+                0.0
+        )
+    }
+
+    fun absorbMomentum(amount: Point, axes: ScrollAxes): Point {
+        val used = absorb(amount, axes)
+        if (releasing && used != Point(0.0, 0.0))
+            kick(used, Point(0.0, 0.0), used.x != 0.0, used.y != 0.0)
+        else
+            release()
+        momentumEdge =
+            Point(
+                if (used.x != 0.0)
+                    used.x
+                else
+                    momentumEdge.x,
+                if (used.y != 0.0)
+                    used.y
+                else
+                    momentumEdge.y
+            )
+        return used
+    }
+
+    fun endMomentum() {
+        momentumEdge = Point(0.0, 0.0)
+    }
 
     fun restoringFraction(amount: Point): Double =
         max(
@@ -182,6 +284,7 @@ internal class ScrollEdge(
         val changed = moving || pull != Point(0.0, 0.0)
         releasing = false
         pull = Point(0.0, 0.0)
+        momentumEdge = Point(0.0, 0.0)
         if (moving) {
             animation.snapTo(Point(0.0, 0.0))
             viewport.state.changed()
@@ -195,6 +298,9 @@ internal class ScrollEdge(
         animation.close()
     }
 }
+
+private fun scrollOpposesEdge(amount: Double, edge: Double): Boolean =
+    (amount < 0.0 && edge > 0.0) || (amount > 0.0 && edge < 0.0)
 
 private fun edgeValue(
     amount: Double,
