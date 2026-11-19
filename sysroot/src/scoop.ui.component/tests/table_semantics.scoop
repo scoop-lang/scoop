@@ -1,0 +1,128 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.accessibility.SemanticRole
+
+private fun semanticTestCell(
+    key: ViewKey = ViewKey.Position,
+    header: Boolean = true,
+    span: Long = 1L,
+    reference: SemanticsReference? = None
+): TableCellProps =
+    TableCellProps(
+        tableText("Cell"),
+        span = span,
+        header = header,
+        key = key,
+        semantics = ComponentSemantics(reference = reference)
+    )
+
+@Test
+private class TableHeaderSemanticsTest {
+    @Test
+    fun `positional column headers do not replace numeric body row references`() {
+        val bodyReference = SemanticsReference()
+        val header =
+            TableRowProps([semanticTestCell(), semanticTestCell()], section = TableSection.Header)
+        val body =
+            TableRowProps(
+                [
+                    semanticTestCell(header = false, reference = Some(bodyReference)),
+                    semanticTestCell(header = false)
+                ],
+                key = ViewKey.Number(0L)
+            )
+        val semantics = TableHeaderSemantics()
+        semantics.update([header, body])
+        val heading = semantics.cell(header, 0L, 0L)
+        val content = semantics.cell(body, 1L, 0L)
+        assertTrue(heading.reference!! !== bodyReference)
+        assertTrue(content.reference!! === bodyReference)
+        assertEquals(None, semantics.cell(body, 1L, 1L).reference)
+        assertEquals(SemanticRole.ColumnHeader, heading.role)
+        assertEquals(SemanticRole.Cell, content.role)
+        assertEquals(0L, heading.properties.cell!!.row)
+        assertEquals(1L, content.properties.cell!!.row)
+    }
+
+    @Test
+    fun `positional and numeric cells have distinct row header references`() {
+        val header = semanticTestCell()
+        val body = semanticTestCell(ViewKey.Number(0L), header = false)
+        val row = TableRowProps([header, body])
+        val semantics = TableHeaderSemantics()
+        semantics.update([row])
+        val reference = semantics.cell(row, 0L, 0L).reference!!
+        assertEquals(None, semantics.cell(row, 0L, 1L).reference)
+        val twoHeaders = TableRowProps([header, semanticTestCell(ViewKey.Number(0L))])
+        semantics.update([twoHeaders])
+        assertTrue(reference === semantics.cell(twoHeaders, 0L, 0L).reference!!)
+        assertTrue(reference !== semantics.cell(twoHeaders, 0L, 1L).reference!!)
+        assertEquals(SemanticRole.RowHeader, semantics.cell(twoHeaders, 0L, 1L).role)
+    }
+
+    @Test
+    fun `changing between positional and explicit keys replaces header identity`() {
+        val positional = TableRowProps([semanticTestCell()])
+        val numericRow = TableRowProps(positional.cells, key = ViewKey.Number(0L))
+        val numericCell =
+            TableRowProps([semanticTestCell(ViewKey.Number(0L))], key = ViewKey.Number(0L))
+        val semantics = TableHeaderSemantics()
+        semantics.update([positional])
+        var previous = semantics.cell(positional, 0L, 0L).reference!!
+        for (row in [numericRow, numericCell, numericRow, positional]) {
+            semantics.update([row])
+            val next = semantics.cell(row, 0L, 0L).reference!!
+            assertTrue(previous !== next)
+            previous = next
+        }
+    }
+
+    @Test
+    fun `explicit row and cell keys retain references through combined reordering`() {
+        val number = semanticTestCell(ViewKey.Number(0L))
+        val text = semanticTestCell(ViewKey.Text("label"))
+        val first = TableRowProps([number, text], key = ViewKey.Number(0L))
+        val second = TableRowProps([text, number], key = ViewKey.Text("other"))
+        val semantics = TableHeaderSemantics()
+        semantics.update([first, second])
+        val firstNumber = semantics.cell(first, 0L, 0L).reference!!
+        val firstText = semantics.cell(first, 0L, 1L).reference!!
+        val secondText = semantics.cell(second, 1L, 0L).reference!!
+        val secondNumber = semantics.cell(second, 1L, 1L).reference!!
+        val nextFirst = TableRowProps([text, number], key = first.key)
+        val nextSecond = TableRowProps([number, text], key = second.key)
+        semantics.update([nextSecond, nextFirst])
+        assertTrue(firstNumber === semantics.cell(nextFirst, 1L, 1L).reference!!)
+        assertTrue(firstText === semantics.cell(nextFirst, 1L, 0L).reference!!)
+        assertTrue(secondText === semantics.cell(nextSecond, 0L, 1L).reference!!)
+        assertTrue(secondNumber === semantics.cell(nextSecond, 0L, 0L).reference!!)
+        assertTrue(firstNumber !== secondNumber)
+    }
+
+    @Test
+    fun `span changes update column coordinates without changing positional cell identity`() {
+        val row =
+            TableRowProps(
+                [semanticTestCell(span = 2L), semanticTestCell()],
+                section = TableSection.Header
+            )
+        val semantics = TableHeaderSemantics()
+        semantics.update([row])
+        val first = semantics.cell(row, 0L, 0L).reference!!
+        val second = semantics.cell(row, 0L, 1L).reference!!
+        assertEquals(2L, semantics.cell(row, 0L, 1L).properties.cell!!.column)
+        val changed =
+            TableRowProps(
+                [semanticTestCell(), semanticTestCell(span = 2L)],
+                section = TableSection.Header
+            )
+        semantics.update([changed])
+        val cell = semantics.cell(changed, 0L, 1L)
+        assertTrue(first === semantics.cell(changed, 0L, 0L).reference!!)
+        assertTrue(second === cell.reference!!)
+        assertEquals(1L, cell.properties.cell!!.column)
+        assertEquals(2L, cell.properties.cell!!.columnSpan)
+    }
+}

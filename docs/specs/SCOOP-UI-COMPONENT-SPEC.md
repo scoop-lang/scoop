@@ -1186,6 +1186,8 @@ DatePickerHandle 提供 commit／reset／openCalendar／closeCalendar，绑定�
 
 `table { header { row { head(...) } }; body { row(key) { cell(...) } }; footer { row { cell(...) } }; caption(...) }` 是有限呈现入口，部件接受 String／StyledText／View，cell 可指定 span 与逻辑对齐。行内实际列跨度必须与 columns 一致；省略 columns 时按首行推导等比例列。header／body／footer 保持声明顺序和稳定行 key，自动 Position 与显式 key 沿用普通 View 身份规则，caption 位于表格之后。Table 不隐式筛选、排序或虚拟化。默认文字 14、head 高 40／medium、cell 四侧 8 留白、行底部 1 border、hover 为 muted 的 50%、selected 为 muted、footer 使用 medium 与 muted 的 50%，caption 上距 16、muted 前景；长度随密度缩放，普通输入与按钮的实际 focusOutset 可增大 cell 留白。表头、footer 及 Center／End 内容先按自然宽度测量，在共享列内逻辑对齐，过长时受列内可用宽度约束；正文 Start 内容允许填充列宽，保留输入框的正常尺寸。
 
+Table 的表头语义引用同样遵循 [UI 规范第 5 节](SCOOP-UI-SPEC.md#5-创建身份与复用)的身份规则。自动行位置使用完整行序列的索引，自动单元格位置使用该行完整单元格序列的索引；两者分别与显式 Text／Number key 区分，不能把位置转换成用户可指定的数字 key。列坐标与 span 只决定语义位置和表头覆盖关系，不参与单元格身份；前方单元格的 span 改变时，位置未变的单元格保留原表头引用。显式行／单元格 key 的正常重排保留对应引用，合法的 keyed／unkeyed 组合不能使不同单元格绑定同一个内部表头引用。
+
 TableColumnSize 使用 GridTrack.Fixed／Auto／Fraction、minimum=48、maximum=None 和显式文字 samples。Fixed／Auto 在最小最大值间夹取；Fraction 从 minimum 起分配可用剩余宽度，达到 maximum 后将剩余空间分给其他比例列。总最小宽度超出视口时横向滚动，不压成负宽。Auto 只测表头文字与显式 samples，使用真实字体，不扫描数据源或挂载行。Custom 表头没有可自动提取的文字时由 samples 或 minimum 决定宽度。表头、footer 和正文行共用同一不可变列宽结果；测量缓存只依赖列配置、字体、密度和宽度，不保存待发布几何。一次横向 ScrollViewport 移动整个表格；DataTable 的 header 固定在垂直 VirtualList 之外。零尺寸跳过子项，Discarded 不发布交互几何。
 
 `TableSource<Row>` 是不可变行快照，提供 count、keyAt、indexOfKey 和 rowAt；显式 key 不可为 Position，重复显示值合法。`TableRows<Row>` 从有 key 的 TableRecord 数组构造并检查唯一性。任意来源按普通 ItemSource 合同保证映射，控件不为了验证或 Auto 列宽遍历巨大来源。`TableColumn<Row>` 使用稳定 String id、header、类型化 cell `(Row) -> View`、size、alignment、可选 compare／filter、remoteSort、hideable、resizable；compare 为 `(Row, Row) -> Int`，filter 为 `(Row, String) -> Boolean`，无 Any 或字段反射。

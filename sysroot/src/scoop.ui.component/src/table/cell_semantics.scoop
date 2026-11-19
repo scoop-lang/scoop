@@ -35,9 +35,25 @@ internal fun basicCellSemantics(
         }
     )
 
+private enum TableSemanticKey: Equals<TableSemanticKey> {
+    Position(Long), Explicit(ViewKey)
+    public override operator fun equals(other: TableSemanticKey): Boolean =
+        when ((this, other)) {
+            case(Position(val a), Position(val b)) -> a == b
+            case(Explicit(val a), Explicit(val b)) -> a == b
+            else -> false
+        }
+}
+
+private fun tableSemanticKey(key: ViewKey, index: Long): TableSemanticKey =
+    if (key == ViewKey.Position)
+        TableSemanticKey.Position(index)
+    else
+        TableSemanticKey.Explicit(key)
+
 private class TableHeaderTarget(
-    val row: ViewKey,
-    val key: ViewKey,
+    val row: TableSemanticKey,
+    val key: TableSemanticKey,
     val column: Long,
     val span: Long,
     val columnHeader: Boolean,
@@ -51,19 +67,12 @@ internal class TableHeaderSemantics {
         val next = ArrayList<TableHeaderTarget>()
         for (rowIndex in 0L ..< rows.size) {
             val row = rows[rowIndex]
-            val rowKey =
-                if (row.key == ViewKey.Position)
-                    ViewKey.Number(rowIndex)
-                else
-                    row.key
+            val rowKey = tableSemanticKey(row.key, rowIndex)
             var column = 0L
-            for (cell in row.cells) {
+            for (index in 0L ..< row.cells.size) {
+                val cell = row.cells[index]
                 if (cell.header || row.section == TableSection.Header) {
-                    val key =
-                        if (cell.key == ViewKey.Position)
-                            ViewKey.Number(column)
-                        else
-                            cell.key
+                    val key = tableSemanticKey(cell.key, index)
                     var reference = cell.semantics.reference
                     if (!panelPresent(reference))
                         for (old in targets)
@@ -87,19 +96,11 @@ internal class TableHeaderSemantics {
     }
     fun cell(row: TableRowProps, rowIndex: Long, index: Long): TableCellSemantics {
         val cell = row.cells[index]
-        val rowKey =
-            if (row.key == ViewKey.Position)
-                ViewKey.Number(rowIndex)
-            else
-                row.key
+        val rowKey = tableSemanticKey(row.key, rowIndex)
         var column = 0L
         for (at in 0L ..< index)
             column += row.cells[at].span
-        val key =
-            if (cell.key == ViewKey.Position)
-                ViewKey.Number(column)
-            else
-                cell.key
+        val key = tableSemanticKey(cell.key, index)
         var reference = cell.semantics.reference
         val rowHeaders = ArrayList<SemanticNodeId>()
         val columnHeaders = ArrayList<SemanticNodeId>()
