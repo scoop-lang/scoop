@@ -802,6 +802,8 @@ ItemRetention 另提供 KeepAlive(maxOffscreenItems: Long)，上限非负，零�
 
 LazyElement 可通过 `ComponentScope.lazyFocus(viewport, options = LazyFocusOptions())` 登记一个由挂载管理的 LazyFocus。viewport 必须属于同一挂载；普通 Element／Component 或第二个同时活动的登记被拒绝。它使用该 lazy 节点已有的 ItemSource 和真实子树，不为全部数据创建 FocusHandle 或 InputArea。准入沿 routeChildren 后的实际输入作用域判断。
 
+LazyFocus 的 ScrollViewport 可以属于该 LazyElement，或属于它的活动祖先挂载；兄弟节点、其他根和已关闭视口仍拒绝。这允许固定表头与惰性正文共用一个父视口，同时保持各自的正常 Tab 顺序。父容器负责在该视口的实际 present 内容路径中放置正文，并将本轮滚动计划通过测量输入传给正文；待定位条目仍由原 LazyMeasureContext.pinnedItems 暴露。定位、显露与取消继续使用同一个 ScrollState 的请求版本，不创建第二个滚动所有者。
+
 LazyFocus 提供 `requestFocus(key, edge = ItemFocusEdge.First)`、`cancelRequest()`、isPending、isClosed 和 `pendingItem: ViewKey?`。edge 的 First／Last 选择该项按逻辑顺序的首／末个可用 Tab 目标；不会把整个条目伪造成另一个区域焦点。key 必须显式。未活动或输入被禁用／模态阻挡时返回 false；true 表示接收异步请求，未知 key、没有可用目标或不能显露时结束，保留原来有效的焦点。cancelRequest 只取消该登记当前的待处理请求，不清除已持有的区域焦点。
 
 `requestFocus(key, target: () -> FocusHandle?)` 重载用于条目内的具体目标。target 仅在请求项完成 Accepted 布局后、只读 evaluation 内执行一次；调用方应先安排该项所需的内部子项参与布局，再在回调中读取它的实际句柄。回调不得写 State、创建挂载或发起另一焦点请求。返回目标必须活动、可聚焦且属于该 key 的真实子树；None、未挂载、禁用或其他条目的句柄结束请求，保留原有效焦点，不回退首／末项，也不轮询。目标无需成为 Tab 停靠点。该重载不创建条目数或单元格数规模的句柄。

@@ -1,0 +1,120 @@
+package scoop.tests.ui.sharedviewport
+
+import scoop.collections.HashSet
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class SharedItems(private val probe: SharedViewportProbe): ItemSource {
+    public override val count: Long get() = 100000000L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(val index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        probe.built.add(index)
+        return element({ mount -> SharedCell(probe, index, scope = mount) })
+    }
+}
+
+internal class SharedRows(
+    private val probe: SharedViewportProbe,
+    scope: ComponentScope
+): LazyElement<Unit>(scope) {
+    private val semantics = scope.semantics(SemanticRole.List)
+    public override fun onMount() {
+        assertFailsWith<IllegalArgumentException> { scope.lazyFocus(probe.unrelated!!) }
+        probe.focus = Some(scope.lazyFocus(probe.viewport!!))
+        val items =
+            ItemSemantics(
+                probe.items,
+                {
+                    index -> Some(
+                        SemanticItemProperties(name = Some(f"row ${index}"), focusable = true)
+                    )
+                }
+            )
+        assertFailsWith<IllegalArgumentException> {
+            semantics.updateCollection(probe.items, Some(items), probe.unrelated)
+        }
+        semantics.updateCollection(probe.items, Some(items), probe.viewport)
+        scope.routeSemanticsChildren(Some(semantics))
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> {
+        val scroll = context.input<SharedViewportPlan>().scroll.snapshot
+        val first = (scroll.offset.y / 20.0).toLong()
+        val count = ((scroll.viewport.height - 32.0) / 20.0).toLong() + 2L
+        val selected = HashSet<Long>()
+        for (index in first ..< first + count)
+            if (index >= 0L && index < context.itemCount)
+                selected.add(index)
+        for (index in context.pinnedItems)
+            selected.add(index)
+        for (index in selected) {
+            context.measureItem(index, Constraints.tight(Size(scroll.viewport.width, 20.0)))
+            context.placeItem(index, Point(0.0, index.toDouble() * 20.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}
+
+internal class SharedHeader(private val probe: SharedViewportProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val handle = FocusHandle()
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area, FocusOptions(Some(handle)))
+    init {
+        probe.header = Some(handle)
+        probe.unrelated = Some(scope.scrollViewport(ScrollState()))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 32.0))), Unit)
+    public override fun scene(context: SceneContext, value: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+    }
+}
+
+private class SharedCell(
+    private val probe: SharedViewportProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val handle = FocusHandle()
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area, FocusOptions(Some(handle)))
+    private val semantics = scope.semantics(SemanticRole.Row)
+    public override fun onMount() {
+        probe.mounted += 1
+        if (index == 5000L)
+            probe.target = Some(handle)
+        semantics.update(SemanticProperties(name = Some(f"row ${index}")))
+        semantics.bindFocus(Some(focus))
+    }
+    public override fun onUnmount() {
+        probe.mounted -= 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, value: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.semantics(semantics, bounds)
+    }
+}
