@@ -183,5 +183,5 @@ internal fun AreaProbe.barInput(active: ActiveApplication, action: () -> Unit) {
 
 internal fun AreaProbe.barWait(milliseconds: Long) {
     waiting = true
-    behaviorWaiter!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    behaviorWaiter!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
 }

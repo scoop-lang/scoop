@@ -85,7 +85,7 @@ private class AsyncHandler: ApplicationHandler {
         val loop = currentEventLoop()
         assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
         )
         @Unsafe
         {

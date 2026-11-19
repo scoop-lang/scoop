@@ -19,13 +19,19 @@ impl DecodedStrongRegistrationProductionSurface {
         foundation: &crate::ConeLirFoundation,
         identities: &mut scoop_identity::ValidatedIdentityGraph,
     ) -> Result<
-        [Vec<(
-            scoop_identity::ObjectDefinitionPlanId,
-            scoop_identity::PersistentSymbolRequest,
-        )>; 5],
+        (
+            crate::ProgramLinkRegistrationTables,
+            Vec<crate::StrongInitializationUnitSemanticPlanV1>,
+        ),
         crate::LinkDataError,
     > {
-        self.identities.read_link(foundation, identities)
+        let tables = self.identities.read_link(foundation, identities)?;
+        let units = self
+            .initialization_units
+            .into_iter()
+            .map(|registration| registration.semantic.read_link(identities))
+            .collect::<Result<_, _>>()?;
+        Ok((tables, units))
     }
 }
 

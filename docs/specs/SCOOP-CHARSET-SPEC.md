@@ -1,6 +1,6 @@
 # Scoop 字符集库规范
 
-版本：M61（分步迁移）。提供普通 Cone `scoop:scoop.charset:0.1.0`，依赖 core、std、platform。它补齐 HTTP text、字段参数和认证凭据所需的字符集转换与 NFC 规范化，负责字符集识别、内存转换和增量状态；不依赖 URL、IDNA、HTTP、asyncio 或 ICU4C。M54 的原验收范围见 [M54 进度](../milestone54/PROGRESS.md)，迁移状态见 [M61 进度](../milestone61/PROGRESS.md)。
+版本：M61（分步迁移）。提供普通 Cone `scoop:scoop.charset:0.1.0`，依赖 core、std、platform。它补齐 HTTP text、字段参数和认证凭据所需的字符集转换与 NFC 规范化，负责字符集识别、内存转换和增量状态；公共 Cone 依赖为 core、std、platform。M54 的原验收范围见 [M54 进度](../milestone54/PROGRESS.md)，迁移状态见 [M61 进度](../milestone61/PROGRESS.md)。
 
 ## 1. 后端与范围
 
@@ -8,7 +8,7 @@
 
 支持 UTF-8、US-ASCII、ISO-8859-1、Windows-1252、UTF-16LE／BE、UTF-32LE／BE、GB18030、GBK、Big5、Shift_JIS、EUC-JP 和 ISO-2022-JP。遗留编码采用 encoding_rs 的 WHATWG 映射；GB18030 为带网页兼容差异的 2022 变体，不保留 2005／2022 年份别名。GBK 解码兼容四字节 GB18030，但编码限 GBK；Big5 可解码为多个标量；Shift_JIS、EUC-KR 包含厂商扩展；Windows 未定义字节、EUC-JP 反向集合与 CP1258 组合行为均以映射文档为准。严格转换拒绝当前映射中的非法输入／不可表示字符，不额外承诺一一映射或旧 GNU 行为。
 
-NFC 使用 ICU4X `icu_normalizer` 2.3.0，与 IDNA 共享 normalizer 和 Unicode 17.0.0 数据。Readline Unicode 操作见 §2.1，全部使用同一 Rust 静态库。此库不改变 core String 的 UTF-8 表示，也不把 native 依赖加入仅依赖 core 的 `scoop.std`。语言检测、浏览器编码猜测与完整国际化服务不属于本库。
+macOS 的 NFC 使用 Core Foundation，大小写和字符分类使用系统 ICU；其余目标的 NFC 使用 ICU4X `icu_normalizer` 2.3.0 与 Unicode 17.0.0 数据。Readline Unicode 操作见 §2.1，均由目标的文本静态库提供。此库不改变 core String 的 UTF-8 表示，也不把 native 依赖加入仅依赖 core 的 `scoop.std`。语言检测、浏览器编码猜测与完整国际化服务不属于本库。
 
 ## 2. 公共合同
 
@@ -36,24 +36,23 @@ native 引擎保留成熟库的 decoder／encoder 与有限的跨块字节，逐
 
 引擎串行使用，不执行 I/O。HTTP 等流适配逐块调用它即可保持同步／异步流的相同编码语义，不得在上层另写 GBK、UTF-16 等 decoder。只需要现有 UTF-8 能力的库继续使用 core 的公开入口，无须重复引入转换实现。
 
-`normalizeNfc(text: String): String` 对完整 String 执行 Unicode NFC，返回拥有独立生命周期的 String。规范分解、组合顺序、组合排除和 Hangul 组合均使用 ICU4X；不做兼容性折叠、大小写映射、空白删除或 BOM 消费。空字符串、内嵌 NUL 与 U+FEFF 都是普通文本。各次调用没有共享可变状态；Scoop 复制 Rust 结果后在 finally 中经 `scoop_text_free(data, size)` 释放。显式返回的参数、长度及后端故障为 CharsetException.Backend，无后端原码时为 None；上游不可恢复分配失败或内部 panic 按 `panic=abort` 终止进程，不保证转成可捕获异常，也不跨 C ABI 展开。它不对任意流分块分别规范化，因为组合字符可以跨块关联；调用者明确提供完整文本。
+`normalizeNfc(text: String): String` 对完整 String 执行 Unicode NFC，返回拥有独立生命周期的 String。规范分解、组合顺序、组合排除和 Hangul 组合由目标 NFC 后端处理；不做兼容性折叠、大小写映射、空白删除或 BOM 消费。空字符串、内嵌 NUL 与 U+FEFF 都是普通文本。各次调用没有共享可变状态；Scoop 复制结果后在 finally 中经 `scoop_unicode_free(data, size)` 释放。显式返回的参数、长度及后端故障为 CharsetException.Backend，无后端原码时为 None；上游不可恢复分配失败或内部 panic 按 `panic=abort` 终止进程，不保证转成可捕获异常，也不跨 C ABI 展开。它不对任意流分块分别规范化，因为组合字符可以跨块关联；调用者明确提供完整文本。
 
 ### 2.1 Unicode 分段、宽度与大小写
 
-Readline 所需的 Unicode 基础能力使用 ICU4X 2.3.0 的 segmenter、casemap、properties
-及 unicode-width 0.2.2，数据基线均为 Unicode 17.0.0，无 GNU 后备实现。
+macOS 按 Core Foundation 的组合字符范围划分字素，CRLF 为一簇。大小写使用系统 ICU 的 root locale 或默认 full fold，分类采用 UCHAR_POSIX_ALNUM。其余目标使用 ICU4X 2.3.0 的 segmenter、casemap 和 properties。所有目标的列宽均使用 unicode-width 0.2.2。
 `graphemeBoundaries(text)` 返回扩展字素簇边界的 Unicode 标量索引（含 0 和末尾，
 空串返回 [0]），`graphemes(text)` 返回各簇的独立 String 数组；不使用缺少上下文的
-逐字符 break 判断。分段采用 UAX #29 扩展字素簇规则，底层 UTF-8 byte offset 只在
+逐字符 break 判断。扩展字素边界随目标后端的 Unicode 实现和数据版本，底层 UTF-8 byte offset 在
 适配边界转换为标量索引。`unicodeScalarWidth(character)` 使用 unicode-width 的非 CJK
 单标量宽度；控制字符（包括 NUL）返回 -1，组合字符通常为 0，东亚宽字符为 2，
 少数上游定义的宽符号可为 3（例如 U+17D8）；不把返回值限制在 0..2，也不读取进程 locale。
 `isUnicodeAlphanumeric` 明确定义为 ICU 的 Alnum（Alphabetic 或 Decimal_Number），
 包括具有 Alphabetic 属性的组合符号；这取代原 GNU ISO C 分类，非十进制且非 Alphabetic
 的数字符号（例如 ²、½）不属于该集合。
-`unicodeLowercase/unicodeUppercase` 使用完整字符串上下文与 und locale，允许一个标量
+`unicodeLowercase/unicodeUppercase` 使用完整字符串上下文及与用户 locale 无关的根语言规则，允许一个标量
 展开为多个标量，保留希腊词尾 sigma 等上下文规则；`unicodeCasefold` 使用默认的非 Turkic
-完整折叠。空串和内嵌 NUL 是普通数据，拥有的结果经 `scoop_text_free(data, size)` 释放，
+完整折叠。空串和内嵌 NUL 是普通数据，大小写映射结果经 `scoop_unicode_free(data, size)` 释放，
 显式错误及不可恢复 panic／OOM 遵守 NFC 的边界。终端序列与字素簇显示策略属于 readline，
 不改变 core String 的标量索引语义。
 

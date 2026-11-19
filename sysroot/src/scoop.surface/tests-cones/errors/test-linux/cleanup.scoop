@@ -57,9 +57,7 @@ private class LinuxSurfaceErrorTest {
                         assertEquals(1, rejected.closeCalls)
                         assertTrue(rejected.image.isClosed)
                         active.setControlFlow(
-                            ControlFlow.WaitUntil(
-                                MonotonicTimeSource.markNow() + Duration.seconds(5L)
-                            )
+                            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                         )
                     }
                     case NewEvents(StartCause.Deadline) -> fail(

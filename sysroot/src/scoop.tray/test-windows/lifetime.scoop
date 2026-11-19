@@ -28,7 +28,7 @@ private class WindowsTrayHandler: ApplicationHandler {
         when (event) {
             case Resumed -> {
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
                 val menu = application.createMenu()
                 item = menu.insert(MenuItemDescription("Execute"))

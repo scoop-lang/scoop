@@ -36,3 +36,13 @@ path = "native/abi.c"
 
 [[native.sources]]
 path = "native/charset.c"
+
+[[native.libraries]]
+name = "icucore"
+kind = "dynamic"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "CoreFoundation"
+kind = "framework"
+when = { os = "darwin" }

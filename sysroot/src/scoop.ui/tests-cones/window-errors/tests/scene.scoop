@@ -59,7 +59,7 @@ internal class FailingRoot(
             assertTrue(scope.focusTarget(record.area!!).handle.requestFocus())
         if (record.point == FailurePoint.Deadline)
             scope.createDeadline { probe.raise(record) }.schedule(
-                MonotonicTimeSource.markNow() + Duration.milliseconds(10L)
+                MonotonicTimeSource.now() + Duration.milliseconds(10L)
             )
         if (record.point == FailurePoint.Animation)
             scope.animation(0.0).animateTo(

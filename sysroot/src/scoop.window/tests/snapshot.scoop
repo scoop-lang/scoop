@@ -51,7 +51,7 @@ private class SnapshotHandler: ApplicationHandler {
                 created.requestFocus()
                 created.requestRedraw()
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("native snapshot deadline"))
@@ -61,7 +61,9 @@ private class SnapshotHandler: ApplicationHandler {
                 started = true
                 window!!.setImeAllowed(true)
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> opened(value!!)
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> opened(
+                value!!
+            )
             case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(val value))) -> {
                 closes += 1
                 assertEquals(connection, value)

@@ -416,11 +416,11 @@ pub(crate) fn tagged_ty<'ctx>(
                 "invalid tagged enum reference slot [{offset}, {end}) for size {size}"
             )));
         }
-        push_byte_padding(context, &mut fields, offset - cursor)?;
+        push_raw_storage(context, &mut fields, offset - cursor, align)?;
         fields.push(managed_ptr_ty(context, managed_address_space).into());
         cursor = end;
     }
-    push_byte_padding(context, &mut fields, size - cursor)?;
+    push_raw_storage(context, &mut fields, size - cursor, align)?;
     if align > 8 {
         fields.push(alignment_anchor(context, align)?);
     }
@@ -442,18 +442,31 @@ pub(crate) fn flatten_ref_scan(scan: &RefScan, offsets: &mut Vec<u64>) {
     }
 }
 
-pub(crate) fn push_byte_padding<'ctx>(
+fn push_raw_storage<'ctx>(
     context: &'ctx Context,
     fields: &mut Vec<BasicTypeEnum<'ctx>>,
     bytes: u64,
+    align: u64,
 ) -> Result<(), CodegenError> {
-    if bytes == 0 {
-        return Ok(());
-    }
-    let bytes = u32::try_from(bytes).map_err(|cause| {
-        CodegenError::internal_cause("tagged enum padding exceeds u32::MAX".to_string(), cause)
+    let width = align.min(8);
+    let words = u32::try_from(bytes / width).map_err(|cause| {
+        CodegenError::internal_cause("raw storage exceeds u32::MAX cells".into(), cause)
     })?;
-    fields.push(context.i8_type().array_type(bytes).into());
+    if words != 0 {
+        // Integer cells preserve every bit without payload validity assumptions.
+        // Byte arrays otherwise make SROA expose byte assembly to vectorization.
+        let cell = match width {
+            1 => context.i8_type(),
+            2 => context.i16_type(),
+            4 => context.i32_type(),
+            _ => context.i64_type(),
+        };
+        fields.push(cell.array_type(words).into());
+    }
+    let tail = (bytes % width) as u32;
+    if tail != 0 {
+        fields.push(context.i8_type().array_type(tail).into());
+    }
     Ok(())
 }
 

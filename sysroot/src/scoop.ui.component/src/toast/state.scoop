@@ -92,7 +92,7 @@ public class ToastState public constructor() {
         if (entry.closing.value != None)
             return
         entry.closing.value = Some(reason)
-        entry.clock.pause(MonotonicTimeSource.markNow())
+        entry.clock.pause(MonotonicTimeSource.now())
         owner?.refresh()
     }
     internal fun complete(entry: ToastEntry) {
@@ -122,7 +122,7 @@ public class ToastState public constructor() {
         if (current !== value)
             return
         owner = None
-        val now = MonotonicTimeSource.markNow()
+        val now = MonotonicTimeSource.now()
         val records = entries.value
         for (entry in records) {
             entry.clock.pause(now)

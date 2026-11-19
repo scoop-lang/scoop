@@ -3,7 +3,7 @@ package scoop.surface
 import scoop.graphics.Size
 import scoop.graphics.Point
 import scoop.platform.time.MonotonicTimeSource
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.window.*
 
 public enum SurfaceWindowState {
@@ -23,7 +23,7 @@ public class SurfaceWindow internal constructor(
     private var configured: WindowMetrics? = None
     private val scheduler = FrameScheduler()
     private var animationDeadline: WindowDeadline? = None
-    private var scheduledAnimationTime: TimeMark? = None
+    private var scheduledAnimationTime: MonotonicInstant? = None
     public val animations: AnimationTimeline = windowAnimations(nativeWindow)
     private val inputs = windowInputs(nativeWindow)
     private val regions = WindowRegionStore(this, inputs, host.frameCapabilities())
@@ -143,7 +143,7 @@ public class SurfaceWindow internal constructor(
                         nativeWindow.createDeadline {
                             scheduledAnimationTime = None
                             callback {
-                                animations.advanceTo(MonotonicTimeSource.markNow())
+                                animations.advanceTo(MonotonicTimeSource.now())
                                 refresh()
                             }
                         }
@@ -191,7 +191,7 @@ public class SurfaceWindow internal constructor(
                 refresh()
             }
             case Ready(val frame) -> {
-                val time = MonotonicTimeSource.markNow()
+                val time = MonotonicTimeSource.now()
                 val size = Size(metrics.logicalSize.width, metrics.logicalSize.height)
                 val accepted =
                     frame.use {
@@ -331,7 +331,7 @@ public class SurfaceWindow internal constructor(
 }
 
 private fun windowAnimations(window: Window): AnimationTimeline =
-    AnimationTimeline(MonotonicTimeSource) {
+    AnimationTimeline {
         if (window.state == WindowState.Open)
             window.requestRedraw()
     }

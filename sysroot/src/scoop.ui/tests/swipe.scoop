@@ -52,7 +52,7 @@ private class SwipeGestureValueTest {
 }
 
 private fun release(x: Double, y: Double, milliseconds: Long): DragSample {
-    val start = MonotonicTimeSource.markNow()
+    val start = MonotonicTimeSource.now()
     return DragSample(
         Point(10.0, 20.0),
         Point(10.0 + x, 20.0 + y),

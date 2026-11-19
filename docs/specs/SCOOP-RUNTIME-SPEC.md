@@ -466,6 +466,8 @@ managed 函数入口（下述有界叶函数除外）和循环回边，包括 co
 SSA 接口在 safepoint 后由更新的 AS1 object 与原 AS0 metadata 分量重建；内存接口只回写 object。不能把两个分量改成整数后依赖保守扫描。
 
 普通 call/poll 的 relocation root 按 2.8 的实际 stackmap 更新。invoke 的正常与异常出口共用 canonical root storage，并用机器栈映射登记一个 root region table；native transition 使用 caller root frame，二者的 statepoint gc-live 为零。root region table 为 size 16／align 8 的 `{ const ScoopCallerRootEntry *entries @0; u64 count @8; }`；entry 保持 `{base, scan}`，可描述 struct／enum／interface 的完整精确引用布局。table 与 entries 在调用之前初始化，整个被调用期间有效，GC 按实际冻结栈帧发现并扫描，正常或异常返回后重读各自仍活跃的 canonical storage。生成代码不为 invoke 调用 push／pop helper，不建立另一个线程 compiler-root 链；NoGc invoke 和无引用根的 invoke 不物化空表。引用在握手后重新读取，再传给实际 native callee；native 返回的引用在重新允许 GC 前进入有效 root。
+收集器通过根扫描描述更新托管引用槽。返回边从其规范存储恢复这些槽即可，聚合值的非引用字节遵循普通调用及内存访问语义。
+
 
 调用期间保活不要求返回后恢复已死的直接实参。编译器按实现规范 2.4 保留实际 AS1 实参在调用站点的精确 root，仅为后继仍使用的值生成恢复；必要的传参 spill 仍由机器 ABI／stackmap 决定。间接按值 storage、借用、异常出口以及分配后仍用于初始化或复制的输入遵守各自保活与重读规则，不能由源码调用后无使用推导其已死。省略恢复不允许缩短调用期间的对象存活期，也不改变 collector 对实际物理根的更新。
 

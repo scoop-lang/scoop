@@ -124,7 +124,7 @@ internal class DrawerProbe(
     var phase = 0
     var rendered = -1
     var hold = 140L
-    var ready = MonotonicTimeSource.markNow()
+    var ready = MonotonicTimeSource.now()
     val deadline = ready + Duration.seconds(70L)
     var native: Window? = None
     var view: ViewProbe? = None
@@ -242,11 +242,11 @@ internal class DrawerProbe(
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 host.attach(window, { mount -> DrawerScene(this, scope = mount) });
                 window.requestFocus()
-                ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
+                ready = MonotonicTimeSource.now() + Duration.milliseconds(hold)
                 active.setControlFlow(ControlFlow.WaitUntil(ready))
             }
             case NewEvents(StartCause.Deadline) -> {
-                val now = MonotonicTimeSource.markNow()
+                val now = MonotonicTimeSource.now()
                 assertTrue(now < deadline, Some("drawer timeout"))
                 if (
                     now >=
@@ -267,7 +267,7 @@ internal class DrawerProbe(
                         case None -> advanceDrawer(this)
                     }
                     phase += 1
-                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
+                    ready = MonotonicTimeSource.now() + Duration.milliseconds(hold)
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()

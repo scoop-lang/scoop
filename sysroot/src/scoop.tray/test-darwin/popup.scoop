@@ -35,7 +35,7 @@ internal class TrayPopupHandler: ApplicationHandler {
                                 popup = Some(icon.showMenu())
                                 application.setControlFlow(
                                     ControlFlow.WaitUntil(
-                                        MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
+                                        MonotonicTimeSource.now() + Duration.milliseconds(150L)
                                     )
                                 )
                             } else {
@@ -51,14 +51,12 @@ internal class TrayPopupHandler: ApplicationHandler {
                 }
                 popup = Some(icon.showMenu())
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(
-                        MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
-                    )
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
                 )
             }
             case NewEvents(StartCause.Deadline) -> {
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
                 if (completions == 0)
                     popup!!.close()

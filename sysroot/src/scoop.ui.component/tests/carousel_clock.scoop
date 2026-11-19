@@ -1,5 +1,6 @@
 package scoop.ui.component
 
+import scoop.platform.time.MonotonicInstant
 import scoop.test.*
 import scoop.time.*
 
@@ -7,7 +8,7 @@ import scoop.time.*
 private class CarouselClockTest {
     @Test
     fun `interruption restarts a full interval and late delivery advances only once`() {
-        val start = CarouselClockTime().markNow()
+        val start = MonotonicInstant(0L, 0)
         val interval = Some(Duration.seconds(5L))
         val clock = CarouselClock()
         assertTrue(clock.configure(interval, true, start))
@@ -29,7 +30,7 @@ private class CarouselClockTest {
     }
     @Test
     fun `changing the interval restarts the wait while an unchanged refresh preserves it`() {
-        val start = CarouselClockTime().markNow()
+        val start = MonotonicInstant(0L, 0)
         val clock = CarouselClock()
         assertTrue(clock.configure(Some(Duration.seconds(5L)), true, start))
         assertFalse(clock.configure(Some(Duration.seconds(5L)), true, start + Duration.seconds(1L)))
@@ -45,8 +46,4 @@ private class CarouselClockTest {
         clock.cancel()
         assertEquals(None, clock.deadline)
     }
-}
-
-private class CarouselClockTime: TimeSource {
-    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
 }

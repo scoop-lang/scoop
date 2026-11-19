@@ -16,7 +16,7 @@ internal class FocusedMenuHandler: ApplicationHandler {
         when (event) {
             case Resumed -> {
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
                 val target = application.createWindow()
                 target.setImeAllowed(true)

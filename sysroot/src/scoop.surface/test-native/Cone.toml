@@ -68,11 +68,19 @@ name = "dcomp"
 when = { os = "windows" }
 
 [[sources]]
-path = "src/linux"
+path = "src/pixels.scoop"
+when = { os = "darwin" }
+
+[[sources]]
+path = "src/pixels.scoop"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
-path = "native/linux/probe.cpp"
+path = "native/pixels.cpp"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/pixels.cpp"
 when = { os = "linux", env = "gnu" }
 
 [[native.libraries]]

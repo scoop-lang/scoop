@@ -83,8 +83,8 @@ internal class CommandProbe {
     var native: Window? = None
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
-    var ready = MonotonicTimeSource.markNow()
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(60L)
+    var ready = MonotonicTimeSource.now()
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(60L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -137,17 +137,17 @@ internal class CommandProbe {
                 wait(application)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("command timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("command timeout"))
                 if (
                     native!!.isFocused &&
                         rendered >=
                         generation.value &&
-                        MonotonicTimeSource.markNow() >=
+                        MonotonicTimeSource.now() >=
                         ready
                 ) {
                     commandStep(this);
                     phase += 1
-                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(180L)
+                    ready = MonotonicTimeSource.now() + Duration.milliseconds(180L)
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()
@@ -163,7 +163,7 @@ internal class CommandProbe {
     }
     private fun wait(application: ActiveApplication) {
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(30L))
         )
     }
 }

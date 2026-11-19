@@ -64,7 +64,7 @@ private class CaretSession: SurfaceContent {
                 area = Some(attached.createArea(textInput = true) { _, input -> receive(input) })
                 area!!.setCaret(Some(Rect(2.0, 3.0, 1.0, 10.0)), Some(1L))
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
                 )
             }
             case AboutToWait -> advance()

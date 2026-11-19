@@ -113,7 +113,7 @@ internal fun advanceReveal(probe: RevealProbe) {
                     probe.window!!.requestFocus()
                     probe.waiting = false
                 }
-            probe.checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+            probe.checkpoint!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(100L))
         }
         case 13 -> {
             probe.assertFocus(0L)

@@ -31,7 +31,7 @@ private class InitialFocusTest {
                     native.requestFocus()
                     native.createDeadline {
                         fail(Some("initial OS focus did not activate the input area"))
-                    }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                    }.schedule(MonotonicTimeSource.now() + Duration.seconds(5L))
                 }
                 case AboutToWait -> {
                     if (content.painted) {

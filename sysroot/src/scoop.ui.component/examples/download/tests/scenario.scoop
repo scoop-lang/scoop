@@ -171,9 +171,9 @@ internal suspend fun awaitDownload(
     ready: () -> Boolean
 ) {
     probe.phase = phase
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(10L)
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(10L)
     while (!ready()) {
-        if (MonotonicTimeSource.markNow() >= deadline) {
+        if (MonotonicTimeSource.now() >= deadline) {
             for (index in 0L ..< probe.windows.size) {
                 val window = probe.windows[index]
                 val frames = probe.frames[index].snapshot()

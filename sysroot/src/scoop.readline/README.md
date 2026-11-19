@@ -3,10 +3,10 @@
 Line editing ported from [rustyline 19.0.0](https://github.com/kkawakam/rustyline/tree/v19.0.0),
 with Darwin, Linux and Windows console support.
 The MIT license is retained in [LICENSE-rustyline](LICENSE-rustyline).
-The implementation uses Scoop, the existing terminal library, ICU4X and unicode-width
-Unicode operations through scoop.charset, and platform file locks. The fixed Rust
-text archive is prepared with the sysroot; applications consume precompiled
-resources. SQLite history is outside this port.
+Line editing uses the terminal library, platform file locks and Unicode operations
+from scoop.charset. On macOS, Core Foundation and the system ICU provide those
+operations. Other targets use ICU4X. All targets use unicode-width for scalar
+widths. Applications consume the text archive prepared with the sysroot. SQLite history is outside this port.
 
 Windows filename completion preserves drive and UNC path separators and quotes
 names containing spaces. Interactive tests use real ConPTY sessions and check

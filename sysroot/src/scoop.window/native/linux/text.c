@@ -258,9 +258,9 @@ int32_t scoop_window_shortcut_equal(const uint8_t *left, int64_t left_size,
       result = na.size == nb.size &&
                (!na.size || !memcmp(na.data, nb.data, na.size));
   }
-  scoop_text_free(a.data, a.size);
-  scoop_text_free(b.data, b.size);
-  scoop_text_free(na.data, na.size);
-  scoop_text_free(nb.data, nb.size);
+  scoop_unicode_free(a.data, a.size);
+  scoop_unicode_free(b.data, b.size);
+  scoop_unicode_free(na.data, na.size);
+  scoop_unicode_free(nb.data, nb.size);
   return result;
 }

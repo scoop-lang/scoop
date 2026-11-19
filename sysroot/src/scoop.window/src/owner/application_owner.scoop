@@ -2,7 +2,7 @@ package scoop.window
 
 import scoop.platform.concurrent.ThreadId
 import scoop.platform.concurrent.currentThreadId
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.window.native.ApplicationAttachment
 import scoop.window.native.ApplicationHost
 import scoop.window.native.ApplicationWatch
@@ -31,7 +31,7 @@ internal class ApplicationOwner(
     var dragSource: DragSession? = None
     var nativeOperationDepth = 0
     val deadlines = ArrayList<WindowDeadline>()
-    var armedDeadline: TimeMark? = None
+    var armedDeadline: MonotonicInstant? = None
     var monitorRecords: ArrayList<MonitorRecord> = ArrayList<MonitorRecord>()
     var nextMonitor: Long = 1L
     val watches: ArrayList<ApplicationWatch> = ArrayList<ApplicationWatch>()
@@ -274,11 +274,11 @@ internal class ApplicationOwner(
         checkThread()
         if (exiting)
             throw WindowException("set control flow", WindowErrorKind.InvalidState)
-        when (flow) {
-            case WaitUntil(val mark) -> checkDeadlineTime(mark)
-            else -> {}
-        }
-        this.flow = flow
+        this.flow =
+            when (flow) {
+                case WaitUntil(val time) -> ControlFlow.WaitUntil(time.normalized())
+                else -> flow
+            }
         refreshDeadline()
         if (flow == ControlFlow.Poll)
             mailbox.wake()

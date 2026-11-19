@@ -1,5 +1,6 @@
 package scoop.ui
 
+import scoop.platform.time.MonotonicInstant
 import scoop.graphics.*
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
@@ -54,7 +55,7 @@ public class Hover internal constructor(
     private var pending: HoverWait? = None
     private var departure: Point? = None
     private var previous: Point? = None
-    private var transitEnd: TimeMark? = None
+    private var transitEnd: MonotonicInstant? = None
     private val timer = scope.createDeadline { expired() }
     private val triggerEvents = trigger.scope.addEventHandler { _, event -> areaEvent(event) }
     private val triggerFocus = trigger.scope.observeActivity { refresh() }
@@ -270,7 +271,7 @@ public class Hover internal constructor(
             for (area in content) {
                 val bounds = area.visibleBounds ?: continue
                 if (hoverTransit(start!!, prior!!, position!!, bounds, options.corridorPadding)) {
-                    val end = transitEnd ?: (MonotonicTimeSource.markNow() + options.transitDelay)
+                    val end = transitEnd ?: (MonotonicTimeSource.now() + options.transitDelay)
                     transitEnd = Some(end)
                     if (pending != Some(HoverWait.Transit)) {
                         pending = Some(HoverWait.Transit)
@@ -330,7 +331,7 @@ public class Hover internal constructor(
         if (delay == Duration.ZERO)
             expired()
         else {
-            val requested = MonotonicTimeSource.markNow() + delay
+            val requested = MonotonicTimeSource.now() + delay
             val limit = transitEnd
             timer.schedule(
                 if (kind == HoverWait.Close && limit != None && limit!! < requested)

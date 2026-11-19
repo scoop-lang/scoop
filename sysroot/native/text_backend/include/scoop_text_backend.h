@@ -24,11 +24,10 @@ typedef struct {
   int32_t code, backend;
 } scoop_text_result;
 
-/* Input spans are readable for the synchronous call. A zero size permits null.
- * Owned output must be released once with the exact returned pointer and size;
- * empty output is null/zero. Never pass Rust-owned output to C free.
- * Invalid input returns a status; internal panic or allocation failure aborts. */
-void scoop_text_free(uint8_t *data, int64_t size);
+/* Input spans are borrowed for one synchronous call. Empty output is null/zero.
+ * Return the exact pointer and size once, including empty results. */
+void scoop_text_free(uint8_t *data, int64_t size);    /* Punycode and charset names */
+void scoop_unicode_free(uint8_t *data, int64_t size); /* IDNA domain/parse, NFC and case */
 const char *scoop_text_unicode_version(void);
 const char *scoop_idna_version(void);
 const char *scoop_idna_message(int32_t code);

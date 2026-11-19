@@ -1,5 +1,6 @@
 package scoop.window
 
+import scoop.platform.time.MonotonicInstant
 import scoop.test.*
 
 @Test
@@ -21,9 +22,29 @@ private class WindowValueTest {
         assertFailsWith<IllegalArgumentException> { PhysicalSize(-1, 5).toLogical(1.0) }
     }
     @Test
+    fun `pointer events preserve both timestamp origins in GC-free code`() {
+        val instant = MonotonicInstant(7L, 123)
+        val occurred = InputTime.Event(instant)
+        val observed = InputTime.Observed(instant)
+        assertNotEquals(occurred, observed)
+        for (time in [occurred, observed]) {
+            when (cancelPointer(time)) {
+                case Cancelled(_, val captured) -> {
+                    assertEquals(time, captured)
+                    assertEquals(instant, captured.mark())
+                }
+                else -> fail()
+            }
+        }
+    }
+    @Test
     fun `window identities use value equality and hashing`() {
         assertEquals(WindowId(12L), WindowId(12L))
         assertNotEquals(WindowId(12L), WindowId(13L))
         assertEquals(WindowId(12L).hash(), WindowId(12L).hash())
     }
 }
+
+@NoGC
+private fun cancelPointer(time: InputTime): PointerEvent =
+    PointerEvent.Cancelled(PointerCancelReason.FocusLost, time)

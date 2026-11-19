@@ -1,0 +1,36 @@
+package scoop.platform.time
+
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class MonotonicClocksTest {
+    @Test
+    fun `fixed monotonic instants preserve nanoseconds through comparison and arithmetic`() {
+        val first = MonotonicTimeSource.now()
+        val generic = MonotonicTimeSource.markNow()
+        val last = MonotonicTimeSource.now()
+        assertTrue(first <= MonotonicInstant(generic.reading))
+        assertTrue(MonotonicInstant(generic.reading) <= last)
+        assertTrue(first.nanosecondAdjustment >= 0 && first.nanosecondAdjustment < 1000000000)
+        val before = MonotonicInstant(-1L, 999999999)
+        val after = MonotonicInstant(0L, 1)
+        val delta = Duration.nanoseconds(2L)
+        assertTrue(before < after)
+        assertEquals(delta, after - before)
+        assertEquals(after, before + delta)
+        assertEquals(before, after - delta)
+        val equivalent = MonotonicInstant(0L, -1)
+        assertEquals(before, equivalent)
+        assertEquals(before.hash(), equivalent.hash())
+        val lastInstant = MonotonicInstant(9223372036854775807L, 999999999)
+        assertFailsWith<ArithmeticException> { lastInstant + Duration.nanoseconds(1L) }
+        assertFailsWith<ArithmeticException> { lastInstant - before }
+        val firstInstant = MonotonicInstant((-9223372036854775807L - 1L), 0)
+        assertFailsWith<ArithmeticException> { firstInstant - Duration.nanoseconds(1L) }
+        assertEquals(before, firstInstant + Duration.seconds(9223372036854775807L, 999999999L))
+        assertFailsWith<ArithmeticException> {
+            MonotonicInstant(9223372036854775807L, 1000000000) > after
+        }
+    }
+}

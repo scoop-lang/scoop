@@ -98,7 +98,7 @@ private class DesktopProbe: ApplicationHandler {
         when (event) {
             case Resumed -> {
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(8L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(8L))
                 )
                 assertEquals(Some("dev.scoop.desktop.tests"), active.applicationId)
                 desktop = Some(active.openDesktop())
@@ -285,7 +285,7 @@ private class DesktopProbe: ApplicationHandler {
                 )
                 menu!!.close()
             }
-        closeMenu.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(80L))
+        closeMenu.schedule(MonotonicTimeSource.now() + Duration.milliseconds(80L))
         @Unsafe
         {
             val resource = active.registerNativeResource { popupResource?.close() }
@@ -300,7 +300,7 @@ private class DesktopProbe: ApplicationHandler {
                     assertEquals(None, desktop!!.menuUseId)
                     stage = 2
                     target.requestDestroy()
-                }.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(80L))
+                }.schedule(MonotonicTimeSource.now() + Duration.milliseconds(80L))
             }
         }
     }

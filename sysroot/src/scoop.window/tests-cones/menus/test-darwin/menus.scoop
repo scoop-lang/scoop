@@ -107,7 +107,7 @@ private class MenuHandler: ApplicationHandler {
     private fun start(application: ActiveApplication) {
         checkTextMenuTemplates(application)
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
         )
         val target =
             application.createWindow(
@@ -293,7 +293,7 @@ private class MenuHandler: ApplicationHandler {
             )
             updatedDuringTracking = true
             assertTrue(popupAction("Choose"))
-        }.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+        }.schedule(MonotonicTimeSource.now() + Duration.milliseconds(100L))
     }
 
     private fun closeTarget() {
@@ -302,7 +302,7 @@ private class MenuHandler: ApplicationHandler {
                 window!!.showPopup(popupMenu!!, PopupPlacement.Pointer(LogicalPosition(12.0, 12.0)))
             )
         window!!.createDeadline { window!!.requestDestroy() }
-        .schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+        .schedule(MonotonicTimeSource.now() + Duration.milliseconds(100L))
     }
 }
 

@@ -82,7 +82,7 @@ private class ErrorProbe {
                 assertEquals(1, rejected.closeCalls)
                 assertTrue(rejected.image.isClosed)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                 )
             }
             case Window(_, WindowEvent.Destroyed) -> destroyed += 1

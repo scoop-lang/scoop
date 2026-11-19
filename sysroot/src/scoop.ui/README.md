@@ -243,6 +243,8 @@ LazyElement 的生命周期及 scene 与 Element 相同，measure 接收 LazyMea
 
 LazyElement 可用 `scope.lazyFocus(viewport)` 登记按 key 聚焦，viewport 必须属于同一挂载。`requestFocus(key, ItemFocusEdge.First)` 或 Last 请求该项首／末个可用 Tab 目标；待实现项的索引会加入 pinnedItems，外层缓存条目也会因这个请求重新参与布局。容器读取 `pendingItem`，按自己的 extent 配合 ScrollAdjustment 初次定位；选择具体目标后该属性变为 None，后续显露交给框架。isPending 查询整个请求，cancelRequest 只取消等待。数据删除、新焦点／位置意图、换绑和关闭取消旧请求，不预建全量 FocusHandle。
 
+若需条目内某一列，可使用 `requestFocus(key) { Some(cellHandle) }`。先让该行需要的列参与正常布局；回调在 Accepted 后以只读方式读取真实句柄，仅调用一次。返回 None、未挂载／禁用或其他条目的句柄会结束请求且保留原焦点，不能在回调中写 State 或请求另一次焦点。允许选择非 Tab 停靠点，后续显露沿同一个请求完成。
+
 登记可另传 `LazyFocusOptions(navigation, layout, order)` 并整体更新 options。ItemNavigation.None 保留普通已挂载目标的行为；Sequential 按数据顺序访问行内 Tab 目标；`Roving(direction, loop)` 使条目集合占一个 Tab 停靠点，方向键与 Home／End 请求实际条目。layout 使用 Horizontal／Vertical。嵌套列表和行内 FocusScope 通过同一成功帧遍历续行，空／禁用项按需跳过；roving 的返回 key 来自真实焦点活动，实例卸载后仍可重新定位该 key。
 
 `ScrollViewport.present` 的 contentOrigin 默认是零。超长内容可先在 Double 中减去附近原点，再用这个原点呈现；框架一次平移 contentOrigin − offset，使绘制和输入几何保留局部精度，完整滚动范围与显露坐标不变。

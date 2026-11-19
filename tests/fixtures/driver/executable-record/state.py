@@ -6,7 +6,7 @@ from pathlib import Path
 
 mode, root, output, argument = sys.argv[1:]
 cache = Path(root)
-namespaces = sorted(cache.glob("toolchains/*/final-products-v2"))
+namespaces = sorted(cache.glob("toolchains/*/final-products-v*"))
 programs = sorted(path for namespace in namespaces for path in namespace.glob("program-*/program"))
 output = Path(output)
 debug_file = Path(str(output) + (".dSYM" if sys.platform == "darwin" else ".debug"))

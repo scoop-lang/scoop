@@ -110,7 +110,7 @@ private class MeasureReuseProbe {
                         children.add(sample.view())
                     }
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
                 )
                 val view =
                     element(
@@ -151,13 +151,13 @@ private class MeasureReuseRoot(
             val sample = probe.samples[index]
             for (counter in sample.counters)
                 counter.reset()
-            val start = MonotonicTimeSource.markNow()
+            val start = MonotonicTimeSource.now()
             val measured =
                 context.measureChild(
                     index,
                     Constraints(maxWidth = Some(128.0), maxHeight = Some(64.0))
                 )
-            sample.elapsed = MonotonicTimeSource.markNow() - start
+            sample.elapsed = MonotonicTimeSource.now() - start
             assertEquals(Size(24.0, 16.0), measured.size)
             if (!sample.useGrid)
                 assertEquals(Some(12.0), measured.alphabeticBaseline)

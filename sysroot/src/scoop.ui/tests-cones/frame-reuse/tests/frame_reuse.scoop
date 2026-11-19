@@ -4,6 +4,8 @@ import scoop.ui.*
 
 import scoop.graphics.*
 import scoop.graphics.text.*
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
 import scoop.test.*
@@ -68,12 +70,15 @@ internal class FrameReuseProbe(val fonts: FontCollection) {
         when (event) {
             case Resumed -> {
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
                 )
                 host.attach(
                     active.createWindow(
                         windowAttributes {
                             title = "Scoop frame invalidation"
+                            // AppKit pauses frame delivery while another window covers the test surface.
+                            if (operatingSystem == OperatingSystem.Darwin)
+                                this.level = WindowLevel.AlwaysOnTop
                             size = LogicalSize(240.0, 220.0)
                         }
                     ),

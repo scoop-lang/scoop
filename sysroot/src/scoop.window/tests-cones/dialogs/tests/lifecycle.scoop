@@ -101,7 +101,7 @@ private class DialogProbe(val directory: Path): ApplicationHandler {
             when (event) {
                 case Resumed -> {
                     application.setControlFlow(
-                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(50L))
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(50L))
                     )
                     val scope = currentApplicationScope()
                     scope.launch { this @DialogProbe.scenario(application, this) }

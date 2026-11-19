@@ -106,8 +106,8 @@ internal class MenuProbe(val touch: MenuTouchScenario? = None) {
     var native: Window? = None
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
-    var ready = MonotonicTimeSource.markNow()
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    var ready = MonotonicTimeSource.now()
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(90L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -147,12 +147,12 @@ internal class MenuProbe(val touch: MenuTouchScenario? = None) {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("menu timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("menu timeout"))
                 if (
                     native!!.isFocused &&
                         rendered >=
                         generation.value &&
-                        MonotonicTimeSource.markNow() >=
+                        MonotonicTimeSource.now() >=
                         ready &&
                         (touch?.ready ?: true)
                 ) {
@@ -161,7 +161,7 @@ internal class MenuProbe(val touch: MenuTouchScenario? = None) {
                         case None -> menuStep(this)
                     }
                     phase += 1
-                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                    ready = MonotonicTimeSource.now() + Duration.milliseconds(220L)
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()
@@ -177,7 +177,7 @@ internal class MenuProbe(val touch: MenuTouchScenario? = None) {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(30L))
         )
     }
 }

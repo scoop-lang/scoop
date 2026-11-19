@@ -1,5 +1,6 @@
 package scoop.examples.ui.download
 
+import scoop.platform.time.MonotonicInstant
 import scoop.time.*
 import scoop.ui.*
 
@@ -39,9 +40,9 @@ internal class DownloadModel {
 
 /** Only real callbacks advance the display cadence; terminal states bypass this helper. */
 internal class ProgressCadence {
-    private var last: TimeMark? = None
+    private var last: MonotonicInstant? = None
     private var displayed: DownloadProgress? = None
-    fun accept(value: DownloadProgress, now: TimeMark): Boolean {
+    fun accept(value: DownloadProgress, now: MonotonicInstant): Boolean {
         when (displayed) {
             case Some(val previous) -> {
                 if (previous.bytes == value.bytes && previous.total == value.total)

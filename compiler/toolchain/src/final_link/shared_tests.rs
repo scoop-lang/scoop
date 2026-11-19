@@ -28,6 +28,32 @@ fn system_libraries(profile: &ValidatedFinalLinkProfile, command: &mut Command, 
     }
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn arm64_got_load_preserves_intervening_register_use() {
+    let target = ResolvedTargetProfile::resolve("aarch64-apple-darwin").unwrap();
+    let link = target
+        .final_link_with(&FinalLinkOptions::default())
+        .unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("register.s");
+    let object = directory.path().join("register.o");
+    let program = directory.path().join("register");
+    std::fs::write(&source, include_str!("shared/arm64_got_load.s")).unwrap();
+    run(target
+        .c_bridge_toolchain()
+        .driver_command()
+        .arg("-c")
+        .arg(source)
+        .arg("-o")
+        .arg(&object));
+    let mut command = link.command(directory.path(), &program).unwrap();
+    command.arg("-dead_strip").arg(object);
+    system_libraries(&link, &mut command, directory.path());
+    run(&mut command);
+    run(&mut Command::new(program));
+}
+
 #[test]
 fn shared_libraries_load_with_hidden_callbacks_and_existing_thread_tls() {
     #[cfg(target_os = "macos")]

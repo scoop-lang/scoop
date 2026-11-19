@@ -1,5 +1,6 @@
 package scoop.surface
 
+import scoop.platform.time.MonotonicInstant
 import scoop.time.*
 
 public enum AnimationState {
@@ -7,7 +8,7 @@ public enum AnimationState {
 }
 
 private enum AnimationPlayback {
-    Idle, Running(AnimationSegment), Paused(AnimationSegment, TimeMark),
+    Idle, Running(AnimationSegment), Paused(AnimationSegment, MonotonicInstant),
     Finished(MotionRun), Cancelled, Closed
 }
 
@@ -39,7 +40,7 @@ public class Animatable<T> internal constructor(
         timeline.changed(requestsFrames)
     }
     internal val requestsFrames: Boolean get() = frameEnabled && (group?.isFrameEnabled ?: true)
-    internal val deadline: TimeMark? get() =
+    internal val deadline: MonotonicInstant? get() =
         when (playback) {
             case Running(val segment) -> segment.deadline
             else -> None
@@ -182,7 +183,7 @@ public class Animatable<T> internal constructor(
             }
         animateTo(converter.fromVector(run.origin), run.spec, run.repeat, onFinished = callback)
     }
-    internal fun sample(time: TimeMark) {
+    internal fun sample(time: MonotonicInstant) {
         when (playback) {
             case Running(val segment) -> {
                 val run = segment.run

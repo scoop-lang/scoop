@@ -60,7 +60,7 @@ private class SplitMountProbe(val proxy: ApplicationProxy) {
                                 native.isOccluded.toString()
                         )
                     )
-                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                }.schedule(MonotonicTimeSource.now() + Duration.seconds(20L))
             }
             case Window(_, WindowEvent.Destroyed) -> active.requestExit()
             else -> Unit

@@ -88,7 +88,7 @@ internal class CollectionActionProbe: Closeable {
                         ) { tag, result -> completed(tag, result) }
                     )
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(25L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(25L))
                 )
             }
             case NewEvents(StartCause.Deadline) -> fail(

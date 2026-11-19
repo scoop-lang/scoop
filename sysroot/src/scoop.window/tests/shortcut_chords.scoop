@@ -127,5 +127,5 @@ private fun chordKey(
         false,
         modifiers,
         synthetic,
-        InputTime.Observed(MonotonicTimeSource.markNow())
+        InputTime.Observed(MonotonicTimeSource.now())
     )

@@ -74,11 +74,11 @@ public object Punycode {
     /**
      * Encodes Unicode text as a Punycode payload without adding the `xn--` label prefix.
      */
-    public fun encode(text: String): String = convertIdna(text, 4, "Punycode encode")
+    public fun encode(text: String): String = convertPunycode(text, false, "Punycode encode")
     /**
      * Decodes a Punycode payload without a label prefix. Invalid payloads throw [IdnaException].
      */
-    public fun decode(text: String): String = convertIdna(text, 5, "Punycode decode")
+    public fun decode(text: String): String = convertPunycode(text, true, "Punycode decode")
 }
 
 private fun tryIdna(text: String, mode: Int, operation: String): String? {

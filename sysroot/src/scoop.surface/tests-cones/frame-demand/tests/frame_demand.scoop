@@ -41,7 +41,7 @@ private class FrameDemandProbe: SurfaceContent {
         when (event) {
             case Resumed -> {
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                 )
                 val native =
                     application.createWindow(
@@ -98,7 +98,7 @@ private class FrameDemandProbe: SurfaceContent {
     }
 
     private fun schedule() {
-        deadline!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(40L))
+        deadline!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(40L))
     }
 
     public override fun close() {

@@ -117,7 +117,7 @@ internal class ToastProbe {
     var frames: FrameProbe? = None
     var quiet: FrameSnapshot? = None
     var waitAfter = Duration.milliseconds(150L)
-    var next = MonotonicTimeSource.markNow()
+    var next = MonotonicTimeSource.now()
     val timeout = next + Duration.seconds(60L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
@@ -140,11 +140,11 @@ internal class ToastProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 host.attach(window, { mount -> ToastScene(this, mount) }, fonts = Some(fonts));
                 window.requestFocus()
-                next = MonotonicTimeSource.markNow() + waitAfter
+                next = MonotonicTimeSource.now() + waitAfter
                 active.setControlFlow(ControlFlow.WaitUntil(next))
             }
             case NewEvents(StartCause.Deadline) -> {
-                val now = MonotonicTimeSource.markNow()
+                val now = MonotonicTimeSource.now()
                 assertTrue(now < timeout, Some("toast timeout"))
                 if (
                     now >=
@@ -165,7 +165,7 @@ internal class ToastProbe {
                     waitAfter = Duration.milliseconds(150L)
                     advanceToast(this);
                     phase += 1
-                    next = MonotonicTimeSource.markNow() + waitAfter
+                    next = MonotonicTimeSource.now() + waitAfter
                 } else
                     if (!hidden && !native!!.isFocused)
                         native!!.requestFocus()

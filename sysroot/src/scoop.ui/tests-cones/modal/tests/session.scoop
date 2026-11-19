@@ -204,7 +204,7 @@ internal class ModalProbe {
     }
     fun waitFor(active: ActiveApplication, millis: Long) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(millis))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(millis))
         )
     }
 }

@@ -1,5 +1,6 @@
 package scoop.ui.component
 
+import scoop.platform.time.MonotonicInstant
 import scoop.graphics.*
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
@@ -40,7 +41,7 @@ internal class ScrollbarFeedback(
     private var focused = false
     private val keys = ArrayList<NamedKey>()
     private var repeating: ScrollbarRepetition? = None
-    private var scheduled: TimeMark? = None
+    private var scheduled: MonotonicInstant? = None
     private var windowActivity = scope.nativeWindow.activity
 
     init {
@@ -268,7 +269,7 @@ internal class ScrollbarFeedback(
         if (closed || !allowed())
             return
         configure()
-        idle.wake(MonotonicTimeSource.markNow())
+        idle.wake(MonotonicTimeSource.now())
         refresh()
     }
     private fun configure() {
@@ -277,14 +278,14 @@ internal class ScrollbarFeedback(
             options.autoHide,
             options.input.idleDelay,
             busy(),
-            MonotonicTimeSource.markNow()
+            MonotonicTimeSource.now()
         )
     }
     private fun refresh() {
         if (closed || !scope.isMounted)
             return
         configure()
-        idle.expire(MonotonicTimeSource.markNow())
+        idle.expire(MonotonicTimeSource.now())
         val target =
             if (idle.visible)
                 1.0
@@ -316,7 +317,7 @@ internal class ScrollbarFeedback(
             Some(
                 ScrollbarRepetition(
                     orientation,
-                    MonotonicTimeSource.markNow() +
+                    MonotonicTimeSource.now() +
                         if (resume)
                             options.input.repeatInterval
                         else
@@ -349,7 +350,7 @@ internal class ScrollbarFeedback(
     }
     private fun tick() {
         scheduled = None
-        val now = MonotonicTimeSource.markNow()
+        val now = MonotonicTimeSource.now()
         val repeat = repeating
         when (repeat) {
             case Some(val value) -> if (value.next <= now) {
@@ -397,7 +398,7 @@ internal class ScrollbarFeedback(
 
 private class ScrollbarRepetition(
     val orientation: Orientation,
-    var next: TimeMark,
+    var next: MonotonicInstant,
     val step: () -> Boolean
 )
 

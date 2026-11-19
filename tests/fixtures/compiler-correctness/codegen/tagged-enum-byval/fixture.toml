@@ -1,0 +1,39 @@
+schema = 1
+name = "tagged-enum-byval"
+root = "consumer"
+inputs = ["provider", "consumer"]
+tools = ["scoop", "scoopc"]
+tags = ["codegen", "abi", "gc", "compiler-correctness"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "--enable-gc-stress", "build", {each = "${link_args}"}, "${root}", "--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--lockfile", "${work}/Cone.lock", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "empty"
+argv = ["${build.result.output}"]
+env = {SCOOP_GC_STRESS_MOVE = "1"}
+exit = 0
+stdout = "empty\n"
+stderr = ""
+
+[[steps]]
+name = "reference"
+argv = ["${build.result.output}", "a"]
+env = {SCOOP_GC_STRESS_MOVE = "1"}
+exit = 0
+stdout = "1\n"
+stderr = ""
+
+[[steps]]
+name = "wide"
+argv = ["${build.result.output}", "a", "b"]
+env = {SCOOP_GC_STRESS_MOVE = "1"}
+exit = 0
+stdout = "wide\n"
+stderr = ""

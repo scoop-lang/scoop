@@ -56,5 +56,5 @@ private fun linuxChordEvent(flags: Long): KeyEvent =
         false,
         platformModifiers(flags),
         false,
-        InputTime.Observed(MonotonicTimeSource.markNow())
+        InputTime.Observed(MonotonicTimeSource.now())
     )

@@ -109,7 +109,7 @@ internal class SplitProbe(val contactInput: Boolean = false) {
     var frames: FrameProbe? = None
     var view: ViewProbe? = None
     var quiet: FrameSnapshot? = None
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(70L)
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(70L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -133,7 +133,7 @@ internal class SplitProbe(val contactInput: Boolean = false) {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("resizable timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("resizable timeout"))
                 if (settled()) {
                     splitAdvance(this)
                     if (phase < 53)
@@ -236,7 +236,7 @@ internal class SplitProbe(val contactInput: Boolean = false) {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
         )
     }
 }

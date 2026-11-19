@@ -134,6 +134,10 @@ fn link_inputs(
     let candidate_pdb = (options.emit_debug_file
         && matches!(profile, ValidatedFinalLinkProfile::Windows(_)))
     .then(|| scoop_toolchain::DebugFileKind::Pdb.output_path(&candidate));
+    let retain_symbols = options.keep_symbols || options.emit_debug_file;
+    let dead_strip = profile
+        .output_kind()
+        .dead_strip(profile.target().id(), retain_symbols);
     let mut link_input_paths = Vec::new();
     match profile {
         ValidatedFinalLinkProfile::Darwin(_) => darwin::link(
@@ -142,7 +146,8 @@ fn link_inputs(
             directory.path(),
             &archives,
             &candidate,
-            options.keep_symbols || options.emit_debug_file,
+            retain_symbols,
+            dead_strip,
         )?,
         ValidatedFinalLinkProfile::Linux(linux) => elf::link(
             linux,
@@ -150,7 +155,7 @@ fn link_inputs(
             directory.path(),
             &archives,
             &candidate,
-            options.keep_symbols || options.emit_debug_file,
+            retain_symbols,
         )?,
         ValidatedFinalLinkProfile::Windows(windows) => {
             link_input_paths = pe::link(
@@ -173,7 +178,7 @@ fn link_inputs(
         .map_err(|cause| error(cause.code(), cause))?;
     let fingerprint = ResolvedLinkPlanFingerprint(
         domain_separated_cbor_hash(
-            "scoop-resolved-link-plan-v10",
+            "scoop-resolved-link-plan-v11",
             &Plan {
                 closure,
                 runtime,
@@ -181,6 +186,7 @@ fn link_inputs(
                 startup: &startup,
                 profile: profile_fingerprint,
                 keep_symbols: options.keep_symbols,
+                dead_strip,
                 debug_basename: (options.emit_debug_file
                     || profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary)
                     .then_some(basename),
@@ -259,11 +265,12 @@ struct Plan<'a> {
     startup: &'a StartupObject,
     profile: Digest256,
     keep_symbols: bool,
+    dead_strip: bool,
     debug_basename: Option<&'a std::ffi::OsStr>,
 }
 impl WireEncode for Plan<'_> {
     fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.map(12)?;
+        e.map(13)?;
         e.field(1)?;
         self.closure.root().encode(e)?;
         e.field(2)?;
@@ -305,6 +312,8 @@ impl WireEncode for Plan<'_> {
         }
         e.field(12)?;
         self.inputs.windows_subsystem.encode(e)?;
+        e.field(13)?;
+        e.unsigned(u64::from(self.dead_strip))?;
         Ok(())
     }
 }

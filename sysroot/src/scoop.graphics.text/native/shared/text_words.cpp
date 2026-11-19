@@ -6,7 +6,7 @@ void STTextData::find_words() {
   auto iterator = unicode->makeBreakIterator(
       locale.empty() ? nullptr : locale.c_str(), SkUnicode::BreakType::kWords);
   if (!iterator || !iterator->setText(text.data(), (int)text.size()))
-    throw std::runtime_error("ICU word analysis failed");
+    throw std::runtime_error("SkUnicode word analysis failed");
   std::vector<int64_t> boundaries = {0, (int64_t)text.size()};
   for (int offset = iterator->first(); !iterator->isDone();
        offset = iterator->next()) {

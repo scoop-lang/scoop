@@ -92,7 +92,7 @@ public class Typeahead internal constructor(
             if (!repeated)
                 single = ""
         buffer.value = query
-        timer.schedule(MonotonicTimeSource.markNow() + options.timeout)
+        timer.schedule(MonotonicTimeSource.now() + options.timeout)
         when (observation) {
             case None -> observation =
                 Some(

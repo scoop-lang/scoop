@@ -20,13 +20,17 @@ pub struct ProgramLinkSafepoint {
     pub id: scoop_identity::SafepointId,
 }
 
+pub type ProgramLinkRegistrationTables =
+    [Vec<(ObjectDefinitionPlanId, PersistentSymbolRequest)>; 5];
+
 pub struct ProgramLinkProduction {
     pub definitions: BTreeMap<ObjectDefinitionPlanId, ProgramLinkDefinition>,
     pub safepoints: BTreeMap<scoop_identity::PersistentCallableBodyId, Vec<ProgramLinkSafepoint>>,
     pub image_symbol: PersistentSymbolRequest,
     pub trap_symbols: [PersistentSymbolRequest; 2],
     pub entry_symbol: Option<PersistentSymbolRequest>,
-    pub registrations: [Vec<(ObjectDefinitionPlanId, PersistentSymbolRequest)>; 5],
+    pub initializations: Vec<crate::StrongInitializationUnitSemanticPlanV1>,
+    pub registrations: ProgramLinkRegistrationTables,
 }
 
 impl DecodedConeProductionSectionV2 {
@@ -37,15 +41,17 @@ impl DecodedConeProductionSectionV2 {
     ) -> Result<ProgramLinkProduction, LinkDataError> {
         let (image_symbol, trap_atoms) = self.image_plan.link_symbols(identities)?;
         let trap_symbols = foundation.link_trap_symbols(trap_atoms)?;
+        let (registrations, initializations) = self
+            .registration_production
+            .link_registrations(foundation, identities)?;
         Ok(ProgramLinkProduction {
             definitions: foundation.link_definitions()?,
             safepoints: foundation.link_safepoints()?,
             image_symbol,
             trap_symbols,
             entry_symbol: self.entry_plan.link_symbol(identities)?,
-            registrations: self
-                .registration_production
-                .link_registrations(foundation, identities)?,
+            registrations,
+            initializations,
         })
     }
 }

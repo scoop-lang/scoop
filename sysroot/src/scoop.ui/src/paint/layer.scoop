@@ -2,7 +2,7 @@ package scoop.ui
 
 import scoop.collections.HashMap
 import scoop.graphics.*
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 internal class PaintTile(val image: Image, val source: Rect, val destination: Rect)
 
@@ -19,7 +19,7 @@ internal class CachedPaintLayer(
 
     fun compatible(canvas: Canvas): Boolean = !drawing.isClosed && canvas.isCompatible(drawing)
 
-    fun current(time: TimeMark?): Boolean =
+    fun current(time: MonotonicInstant?): Boolean =
         when (time) {
             case Some(val mark) -> !inputs.changed(mark)
             case None -> !inputs.dynamic && inputs.fonts.size == 0L

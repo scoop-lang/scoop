@@ -159,7 +159,7 @@ private class ModalProbe: ApplicationHandler {
     }
 
     private fun schedule() {
-        deadline!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(50L))
+        deadline!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(50L))
     }
     private fun shown(session: ModalSession): Boolean =
         session.state == ModalState.Showing && session.window.isVisible

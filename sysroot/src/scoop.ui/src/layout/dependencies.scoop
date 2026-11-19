@@ -3,7 +3,7 @@ package scoop.ui
 import scoop.graphics.text.FontCollection
 import scoop.surface.AnimationReadObserver
 import scoop.surface.AnimationSource
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 internal class AnimationRead(val source: AnimationSource, val revision: Long)
 
@@ -17,7 +17,7 @@ internal class FontRead(val watch: FontWatch, val revision: Long)
 internal class FrameInputs(
     val animations: Array<AnimationRead> = [],
     val fonts: Array<FontRead> = [],
-    val time: TimeMark? = None,
+    val time: MonotonicInstant? = None,
     val scrolls: Array<ScrollViewport> = [],
     val defaults: Array<DefaultFontRead> = [],
     val preferences: Array<PreferenceRead> = []
@@ -25,7 +25,7 @@ internal class FrameInputs(
     val dynamic: Boolean get() =
         animations.size > 0L || time != None || defaults.size > 0L || preferences.size > 0L
     val perFrame: Boolean get() = animations.size > 0L || time != None
-    fun changed(mark: TimeMark): Boolean {
+    fun changed(mark: MonotonicInstant): Boolean {
         if (frameChanged(mark))
             return true
         for (read in fonts)
@@ -33,7 +33,7 @@ internal class FrameInputs(
                 return true
         return false
     }
-    fun frameChanged(mark: TimeMark): Boolean {
+    fun frameChanged(mark: MonotonicInstant): Boolean {
         if (time != None && time != Some(mark))
             return true
         for (read in animations)
@@ -57,7 +57,7 @@ internal class FrameInputs(
 
 internal class FrameReads(
     private val node: MountedNode,
-    private val mark: TimeMark
+    private val mark: MonotonicInstant
 ): AnimationReadObserver {
     private val animations = ArrayList<AnimationRead>()
     private val fonts = ArrayList<FontRead>()
@@ -241,7 +241,7 @@ internal class NodeFrameInputs(val node: MountedNode) {
                 return
         fonts.add(watch.bind(this, affectsLayout))
     }
-    fun check(time: TimeMark, batch: FrameInvalidationBatch) {
+    fun check(time: MonotonicInstant, batch: FrameInvalidationBatch) {
         if (!node.active)
             return
         if (layout.frameChanged(time))
@@ -288,7 +288,7 @@ internal class FrameDependencies {
                 value.dynamicIndex = -1L
             }
     }
-    fun check(time: TimeMark) {
+    fun check(time: MonotonicInstant) {
         val retained = ArrayList<FontWatch>()
         for (watch in collections) {
             if (watch.readers.size > 0L) {

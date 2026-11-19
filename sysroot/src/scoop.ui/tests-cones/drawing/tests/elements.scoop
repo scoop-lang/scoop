@@ -5,7 +5,7 @@ import scoop.graphics.path as makePath
 import scoop.graphics.native.captureGeometry
 import scoop.surface.*
 import scoop.test.*
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.window.*
@@ -196,7 +196,7 @@ internal class DrawingLeaf(
     private val props: Props<LeafInput>,
     private val probe: DrawingProbe,
     scope: ComponentScope
-): Element<TimeMark>(scope) {
+): Element<MonotonicInstant>(scope) {
     var path: Path? = None
     var area: InputArea? = None
     var width: Animatable<Double>? = None
@@ -272,7 +272,7 @@ internal class DrawingLeaf(
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        TimeMark
+        MonotonicInstant
     > {
         val measuredTime = context.time
         assertFailsWith<IllegalStateException> { probe.count.value += 1 }
@@ -281,7 +281,7 @@ internal class DrawingLeaf(
             measuredTime
         )
     }
-    public override fun scene(context: SceneContext, measuredTime: TimeMark) {
+    public override fun scene(context: SceneContext, measuredTime: MonotonicInstant) {
         assertEquals(measuredTime, context.time)
         assertFailsWith<IllegalStateException> { probe.count.value += 1 }
         paints += 1

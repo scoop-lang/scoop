@@ -66,7 +66,7 @@ internal fun ApplicationOwner.pump(stage: Int) {
         var timed: Array<DeadlineDelivery> = []
         when (armedDeadline) {
             case Some(val time) -> {
-                val now = MonotonicTimeSource.markNow()
+                val now = MonotonicTimeSource.now()
                 if (time <= now) {
                     flowDeadline = consumeFlowDeadline(now)
                     timed = takeDeadlines(now)

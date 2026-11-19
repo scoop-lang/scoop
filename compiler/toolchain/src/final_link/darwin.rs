@@ -88,9 +88,11 @@ impl DarwinFinalLinkProfile {
         &self.data.linker
     }
     pub fn linker_args(&self) -> Vec<&'static str> {
-        let architecture = match self.target().architecture() {
-            scoop_lir::TargetArchitecture::Aarch64 => "arm64",
-            scoop_lir::TargetArchitecture::X86_64 => "x86_64",
+        // LLD 22.1 can move the destination write of AdrpLdrGot ahead of an
+        // intervening use of the old register value.
+        let (architecture, hint_option) = match self.target().architecture() {
+            scoop_lir::TargetArchitecture::Aarch64 => ("arm64", Some("-ignore_optimization_hints")),
+            scoop_lir::TargetArchitecture::X86_64 => ("x86_64", None),
         };
         let output_options: &[&str] = match self.data.output.kind() {
             FinalOutputKind::Executable => &[
@@ -105,6 +107,7 @@ impl DarwinFinalLinkProfile {
         };
         ["-flavor", "darwin", "-arch", architecture]
             .into_iter()
+            .chain(hint_option)
             .chain(output_options.iter().copied())
             .chain(OPTIONS.iter().copied())
             .collect()

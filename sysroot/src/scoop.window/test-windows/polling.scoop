@@ -34,7 +34,7 @@ private class WindowsPollingProbe: ApplicationHandler {
                         }
                     )
                 window.createDeadline { fail(Some("native timer starved by application polling")) }
-                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                .schedule(MonotonicTimeSource.now() + Duration.seconds(5L))
                 @Unsafe
                 {
                     val lease = window.acquireNativeWindow()

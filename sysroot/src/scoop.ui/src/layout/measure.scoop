@@ -2,7 +2,7 @@ package scoop.ui
 
 import scoop.graphics.Point
 import scoop.graphics.Size
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 private class ChildMeasure(val node: MountedNode) {
     var measuring = false
@@ -16,7 +16,7 @@ private class ChildMeasure(val node: MountedNode) {
 public class MeasureContext internal constructor(
     private val node: MountedNode,
     children: Array<MountedNode>,
-    private val mark: TimeMark
+    private val mark: MonotonicInstant
 ) {
     private val root = node.root
     public val layoutDirection: LayoutDirection get() {
@@ -26,7 +26,7 @@ public class MeasureContext internal constructor(
     private var active = true
     private val entries =
         Array<ChildMeasure>(children.size) { index -> ChildMeasure(children[index]) }
-    public val time: TimeMark get() {
+    public val time: MonotonicInstant get() {
         checkActive();
         observeFrameTime()
         return mark
@@ -110,7 +110,7 @@ public class MeasureContext internal constructor(
     }
 }
 
-internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): NodeLayout {
+internal fun MountedNode.measure(constraints: Constraints, time: MonotonicInstant): NodeLayout {
     if (!root.isOpen)
         throw UiLayoutEnded()
     constraints.check()
@@ -169,7 +169,10 @@ private fun MountedNode.layoutResult(
         inputs
     )
 
-private fun MountedNode.transparentLayout(constraints: Constraints, time: TimeMark): NodeLayout {
+private fun MountedNode.transparentLayout(
+    constraints: Constraints,
+    time: MonotonicInstant
+): NodeLayout {
     val child = children[0L]
     val result = child.measure(constraints, time)
     return layoutResult(
@@ -183,7 +186,7 @@ private fun MountedNode.transparentLayout(constraints: Constraints, time: TimeMa
 private fun MountedNode.measureElement(
     instance: ElementInstance,
     constraints: Constraints,
-    time: TimeMark
+    time: MonotonicInstant
 ): NodeLayout {
     val context = MeasureContext(this, children, time)
     val reads = FrameReads(this, time)
@@ -213,7 +216,7 @@ private fun MountedNode.measureLazy(
     instance: LazyInstance,
     items: LazyChildren,
     constraints: Constraints,
-    time: TimeMark
+    time: MonotonicInstant
 ): NodeLayout {
     val context = LazyMeasureContext(this, items, time)
     val reads = FrameReads(this, time)

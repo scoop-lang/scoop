@@ -124,7 +124,7 @@ internal class CacheProbe(val fonts: FontCollection) {
                 native.requestFocus()
                 ui = host.attach(native, { mount -> CacheScene(this, scope = mount) })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> if (step < 12) {
@@ -183,7 +183,7 @@ internal class CacheProbe(val fonts: FontCollection) {
     }
     fun startQuiet() {
         quietPasses = passes
-        quiet!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(120L))
+        quiet!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(120L))
     }
     fun accepted(value: Int) {
         committed = value

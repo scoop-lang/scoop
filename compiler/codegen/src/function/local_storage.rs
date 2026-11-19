@@ -106,6 +106,22 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         Ok(())
     }
 
+    /// A stack address holding the current operand. Borrow it only during
+    /// this instruction; safepoints can relocate the managed fields.
+    pub(super) fn operand_stack_slot(
+        &self,
+        operand: Value,
+    ) -> Result<Option<PointerValue<'ctx>>, CodegenError> {
+        use scoop_lir::CallerRootSource;
+        let source = match operand {
+            Value::Local(id) => return self.local_pointer(id).map(Some),
+            Value::Param(index) if self.debug.is_none() => CallerRootSource::Param(index),
+            Value::Temp(id) if self.debug.is_none() => CallerRootSource::Temp(id),
+            _ => return Ok(None),
+        };
+        Ok(self.root_storage.get(&source).map(|slot| slot.pointer))
+    }
+
     pub(super) fn local_pointer(
         &self,
         local: scoop_lir::LocalId,

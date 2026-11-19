@@ -1,5 +1,6 @@
 package scoop.ui.component
 
+import scoop.platform.time.MonotonicInstant
 import scoop.graphics.*
 import scoop.test.*
 import scoop.time.*
@@ -9,7 +10,7 @@ import scoop.ui.*
 private class ToastModelTest {
     @Test
     fun `paused time resumes the unused duration and replacement restarts it`() {
-        val start = ToastTestTime().markNow()
+        val start = MonotonicInstant(0L, 0)
         val clock = ToastClock(Some(Duration.seconds(5L)))
         assertEquals(None, clock.deadline)
         clock.resume(start)
@@ -92,8 +93,4 @@ private class ToastModelTest {
         assertTrue(toastReleased(right, 60.0, 600.0, 1.0))
         assertFalse(toastReleased(right, -200.0, -300.0, 1.0))
     }
-}
-
-private class ToastTestTime: TimeSource {
-    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
 }

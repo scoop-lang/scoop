@@ -43,7 +43,7 @@ private class CommandsHandler: ApplicationHandler {
                 created.requestFocus()
                 created.requestRedraw()
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("native command test deadline"))

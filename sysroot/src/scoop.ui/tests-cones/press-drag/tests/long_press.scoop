@@ -84,7 +84,7 @@ internal class LongPressScenario {
     private fun pause(probe: GestureProbe, milliseconds: Long = 140L, action: () -> Unit = {}) {
         probe.waiting = true
         later = action
-        clock!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        clock!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
 
     fun advance(probe: GestureProbe, active: ActiveApplication) {

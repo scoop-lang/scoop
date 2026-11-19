@@ -1,5 +1,6 @@
 package scoop.tests.ui.componentframereuse
 
+import scoop.platform.time.MonotonicInstant
 import scoop.ui.component.*
 
 import scoop.graphics.*
@@ -46,14 +47,14 @@ private class ComponentFrameProbe {
     var pixelBaseline: Array<Long> = []
     val pixelsChanged = MutableArray<Boolean>(5L) { _ -> false }
     var frames = 0
-    var started: TimeMark? = None
+    var started: MonotonicInstant? = None
     var finished = false
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
                 )
                 val window =
                     active.createWindow(
@@ -90,7 +91,7 @@ private class ComponentFrameProbe {
             baseline = Array<Int>(measures.size) { index -> measures[index] }
             editorBaseline = editorMeasures
             pixelBaseline = pixels
-            started = Some(MonotonicTimeSource.markNow())
+            started = Some(MonotonicTimeSource.now())
             checked.value = true
             scroll.scrollTo(Point(0.0, 60.0))
         }
@@ -98,9 +99,7 @@ private class ComponentFrameProbe {
             for (index in 0L ..< pixels.size)
                 if (pixels[index] != pixelBaseline[index])
                     pixelsChanged[index] = true
-        if (
-            frames >= 15 && MonotonicTimeSource.markNow() - started!! >= Duration.milliseconds(160L)
-        ) {
+        if (frames >= 15 && MonotonicTimeSource.now() - started!! >= Duration.milliseconds(160L)) {
             for (index in 0L ..< measures.size)
                 assertEquals(
                     baseline[index],

@@ -18,7 +18,9 @@ Cone 名称为 `scoop:scoop.graphics.text`，公共 package 为 `scoop.graphics.
 
 绘制扩展定义在 graphics.text，因此依赖保持 `scoop.graphics.text → scoop.graphics`；graphics 不引用 TextLayout。`scoop.ui.text` 不另建 Cone，也不提供现成控件。UI 框架使用 graphics.text 的地方声明直接依赖；独立绘图程序无需引入 UI 或 Application。
 
-文本算法继续采用当前固定版本的 SkParagraph、HarfBuzz 与 SkUnicode／ICU，系统字体发现继续复用 CoreText／DirectWrite／Fontconfig。拆分不要求新的文本引擎、语言语法、编译器处理、runtime ABI 或插件协议。
+文本算法继续采用当前固定版本的 SkParagraph、HarfBuzz 与 SkUnicode，系统字体发现继续复用 CoreText／DirectWrite／Fontconfig。拆分不要求新的文本引擎、语言语法、编译器处理、runtime ABI 或插件协议。
+
+macOS 使用 Skia Apple Unicode，以 Core Foundation 的分词、断行和字素行为为准，允许随系统更新；双向算法使用 Skia 配套的 ICU Bidi 子集。其他当前目标沿用 ICU 后端。公开文本偏移在各平台都以 UTF-8 字节计。
 
 当前实施批次先以 macOS aarch64 的 CoreText 与真实离屏／Metal 绘图为验收目标，本期功能完成后统一补验 x86_64。拆分时一起移动已有的 DirectWrite 工厂及目标选择，避免保留两套文本所有权；Windows 的新增接入和运行验收留待后续。共享文本模型仍按本规范实现，目标平台的可用性以已交付的 Cone 源码和验证记录为准。
 
@@ -202,17 +204,17 @@ TextLayout 提供以下纯查询；它们使用同一不可变布局和所属线
 
 | 查询 | 行为 |
 | --- | --- |
-| `wordRange(position: TextPosition): TextRange` | 返回 ICU 分词段，位置恰在边界时按 affinity 选择前／后段；空文本返回空范围 |
-| `moveWord(byteOffset: Long, forward: Boolean): Long` | 从当前位置向指定逻辑方向移动到词段末／首，跳过途中纯空白段；标点和 emoji 继续使用 ICU 的实际分段 |
+| `wordRange(position: TextPosition): TextRange` | 返回 Unicode 分词段，位置恰在边界时按 affinity 选择前／后段；空文本返回空范围 |
+| `moveWord(byteOffset: Long, forward: Boolean): Long` | 从当前位置向指定逻辑方向移动到词段末／首，跳过途中纯空白段；标点和 emoji 继续使用 平台后端的实际分段 |
 | `moveGrapheme(byteOffset: Long, forward: Boolean): Long` | 返回指定逻辑方向上的相邻 grapheme 边界；标量位于 grapheme 内时移到该 grapheme 的对应边界，文档端点收敛 |
 | `moveCaret(position, movement, preferredX = None): CaretMove?` | 按实际视觉位置或行／文档边界返回新位置；CaretMove 同时返回 position 与供后续上下移动复用的 preferredX |
 | `logicalLineRange(position: TextPosition): TextRange?` | 返回显式换行分隔的整条逻辑行，合并其软换行片段并包含末尾换行；不可见位置返回 None |
 
-分词采用现有 SkUnicode／ICU 的 word iterator 和段落基础 TextStyle.locale，行内对象仍单独成段；不能以空格或 ASCII 分类近似。wordRange、moveWord 和 moveGrapheme 的输入必须是文档内的 UTF-8 标量边界，返回范围／偏移处于 grapheme 边界。moveWord 不把一次删除拆成每个码点的循环。
+分词采用当前目标 SkUnicode 后端的 word iterator 和段落基础 TextStyle.locale，行内对象仍单独成段；不能以空格或 ASCII 分类近似。wordRange、moveWord 和 moveGrapheme 的输入必须是文档内的 UTF-8 标量边界，返回范围／偏移处于 grapheme 边界。moveWord 不把一次删除拆成每个码点的循环。
 
 CaretMovement 包含 Left、Right、WordLeft、WordRight、Up、Down、LineStart、LineEnd、LineLeft、LineRight、DocumentStart、DocumentEnd。moveCaret 的输入必须是 grapheme 边界；LineStart／LineEnd 指当前视觉行的逻辑起止，保留行尾空白并排除显式换行；LineLeft／LineRight 指该视觉行物理上的最左／最右字形边缘。Left／Right 沿实际字形边缘移动，使用排版引擎的方向与 caret 几何，不按 UTF-8 大小排序视觉顺序。重合位置的别名不会使按键停顿；到达同一视觉位置时采用所跨字形相应边缘的 byteOffset 和 affinity。跨行的继续方向依段落基础方向，软换行前／后的同一 byteOffset 保留不同 affinity。
 
-WordLeft／WordRight 沿同一物理方向的字形边缘移动，跳过开始处的 Unicode 空白，并到达沿途第一个非空白 ICU 词段在该方向的边缘；词中开始时完成当前词段。软换行不把一个词拆成多个移动单元，跨行本身不算经过新字形。混合 bidi 的每个词段使用其实际字形方向和到达侧 affinity，不能把逻辑 moveWord 的 forward 当作物理方向。词段、行边缘与普通字符移动共用已缓存的布局结果。
+WordLeft／WordRight 沿同一物理方向的字形边缘移动，跳过开始处的 Unicode 空白，并到达沿途第一个非空白 Unicode 词段在该方向的边缘；词中开始时完成当前词段。软换行不把一个词拆成多个移动单元，跨行本身不算经过新字形。混合 bidi 的每个词段使用其实际字形方向和到达侧 affinity，不能把逻辑 moveWord 的 forward 当作物理方向。词段、行边缘与普通字符移动共用已缓存的布局结果。
 
 Up／Down 使用 preferredX 或原 caret 的 x，在相邻视觉行选最近的合法 caret，返回同一 preferredX，经过短行后仍可回到原列。其他移动返回新 caret 的 x。达到边界时返回收敛后的合法位置；源位置或目标文档端点被截断时返回 None，不把 ellipsis 冒充文档末尾。空行和行内对象仍遵守同一规则。非法偏移、非有限 preferredX 报参数错误，关闭／跨线程查询沿 TextLayout 原有状态错误规则处理。
 
@@ -224,11 +226,11 @@ Up／Down 使用 preferredX 或原 caret 的 x，在相邻视觉行选最近的�
 
 原生 accessibility 等消费者通过 `@Unsafe TextLayout.withNativeLayout(block)` 借用 `scoop.graphics.text.native.NativeTextLayout`。该 CLayout 值保存 opaque context、配套 retain／release，以及 hit、caret、boxes、range、lineRange、lineIndex 函数指针；函数及返回值不含 Scoop 对象。入口在 TextLayout 所属线程使用，查询复用已经排好的同一个结果，不重新 shaping、不保存 UI、编辑器、正文版本或选择状态。
 
-block 正常返回或抛错均释放本次借用。需要在 block 外保存的消费者先 retain，每份拥有的引用最后 release 一次；普通 struct 复制不增加引用。保留引用独立于公开 TextLayout、Paragraph 和字体来源的寿命，可以由 native 线程查询及释放。并发只读查询和原有绘制／查询共用文本数据上的串行访问边界，保护 SkParagraph 与 ICU 的派生缓存；普通 Scoop 资源仍遵守原有 owner 线程规则。native 调用及 boxes visitor 不进入 Scoop、布局、run loop 或业务回调，不抛出跨 ABI 异常。
+block 正常返回或抛错均释放本次借用。需要在 block 外保存的消费者先 retain，每份拥有的引用最后 release 一次；普通 struct 复制不增加引用。保留引用独立于公开 TextLayout、Paragraph 和字体来源的寿命，可以由 native 线程查询及释放。并发只读查询和原有绘制／查询共用文本数据上的串行访问边界，保护 SkParagraph 与 SkUnicode 的派生缓存；普通 Scoop 资源仍遵守原有 owner 线程规则。native 调用及 boxes visitor 不进入 Scoop、布局、run loop 或业务回调，不抛出跨 ABI 异常。
 
 所有偏移为原布局正文的 UTF-8 字节，坐标为段落局部逻辑坐标；文本投影、替代文字、屏幕变换、clip、内容版本与 Accepted 发布由实际宿主负责。affinity 的原生值为 0（Upstream）和 1（Downstream）。hit 返回 NativeTextPosition；caret 返回 NativeTextRect。boxes 对同一 selection 查询的每个实际矩形调用 native visitor(context, Rect, direction)，direction 为 0（Rtl）或 1（Ltr），不合并 bidi 的独立矩形；空范围可以成功且没有矩形。visitor 的 context 仅在此次同步调用期间借用。
 
-range 的 unit 为 0（grapheme）、1（ICU word）、2（视觉行）、3（逻辑行），沿既有边界和 affinity 选择单位。文档末端的 Downstream grapheme 是空范围，Upstream 选择前一 grapheme；空正文两者均为空。lineRange 按零起始视觉行号返回包含行尾换行的范围，lineIndex 返回位置所属视觉行号；软换行处按 affinity 选择前／后行，末尾空行保留自己的行号。grapheme／word 不要求已显示该位置，视觉行／逻辑行遵守现有截断可用性；caret 仍要求 grapheme 边界。
+range 的 unit 为 0（grapheme）、1（Unicode word）、2（视觉行）、3（逻辑行），沿既有边界和 affinity 选择单位。文档末端的 Downstream grapheme 是空范围，Upstream 选择前一 grapheme；空正文两者均为空。lineRange 按零起始视觉行号返回包含行尾换行的范围，lineIndex 返回位置所属视觉行号；软换行处按 affinity 选择前／后行，末尾空行保留自己的行号。grapheme／word 不要求已显示该位置，视觉行／逻辑行遵守现有截断可用性；caret 仍要求 grapheme 边界。
 
 NativeTextPosition、NativeTextRect、NativeTextRange 的 status 以及 boxes 的返回值统一为 1（成功）、0（该布局中不可用）、-1（参数无效）、-2（原生查询失败）；仅成功结果中的数据有效。lineIndex 成功返回非负行号，-1 表示不可用、-2 表示参数无效、-3 表示原生失败。非法偏移、切断 UTF-8、非法 affinity／unit、非有限坐标或负 caret 宽度不得进入引擎；失败不改变布局或发布部分业务状态。
 

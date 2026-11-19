@@ -1,14 +1,14 @@
 package scoop.surface
 
 import scoop.graphics.*
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 /** One owner-thread frame; its Canvas is valid only while the painter runs. */
 public class FrameContext internal constructor(
     public val window: SurfaceWindow,
     public val canvas: Canvas,
     public val size: Size,
-    public val time: TimeMark,
+    public val time: MonotonicInstant,
     private val input: InputFrame,
     private val regions: WindowRegionFrame
 ) {

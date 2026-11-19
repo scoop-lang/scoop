@@ -68,7 +68,7 @@ private class LinuxShowcaseProbe(val fonts: FontCollection) {
                     )
                 window = Some(native)
                 native.createDeadline { fail(Some(f"Linux showcase timeout at phase ${phase}")) }
-                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(60L))
+                .schedule(MonotonicTimeSource.now() + Duration.seconds(60L))
                 ui =
                     host.attach(
                         native,
@@ -140,7 +140,7 @@ private class LinuxShowcaseProbe(val fonts: FontCollection) {
         timer?.close()
         val next = window!!.createDeadline(action)
         timer = Some(next)
-        next.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        next.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
 }
 

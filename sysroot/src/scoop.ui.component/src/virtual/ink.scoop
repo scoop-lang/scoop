@@ -28,6 +28,12 @@ internal class VirtualListInk(
         pending = None
         return focus!!.requestFocus(key, edge)
     }
+    fun focusItem(key: ViewKey, target: () -> FocusHandle?): Boolean {
+        if (!active)
+            return false
+        pending = None
+        return focus!!.requestFocus(key, target)
+    }
     fun requestItem(
         key: ViewKey,
         alignment: ScrollAlignment,

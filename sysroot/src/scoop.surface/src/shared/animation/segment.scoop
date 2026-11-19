@@ -1,11 +1,12 @@
 package scoop.surface
 
+import scoop.platform.time.MonotonicInstant
 import scoop.math.ceil
 import scoop.time.*
 
 /** A fixed origin and optional finite end; hiding never changes either. */
-internal class AnimationSegment(val run: MotionRun, val start: TimeMark) {
-    val deadline: TimeMark? =
+internal class AnimationSegment(val run: MotionRun, val start: MonotonicInstant) {
+    val deadline: MonotonicInstant? =
         when (run.duration) {
             case Some(val seconds) -> Some(start + animationDuration(seconds))
             case None -> None

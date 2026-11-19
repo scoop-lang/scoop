@@ -4,15 +4,13 @@
 
 ## 1. 实现选择
 
-使用内部 Rust 静态库 `scoop_text_backend`：`idna` 1.1.0 提供 UTS #46 与原始 Punycode，`idna_adapter` 1.2.2 使用 ICU4X 2.3.0 的 normalizer 和 properties；完整依赖由独立 Cargo.lock 固定。普通文本 NFC 复用同一 normalizer，不引入 ICU4C、C++ 或第二份 Unicode 规范化实现。
+macOS 的 `scoop_text_backend` 调用系统 ICU 的 UIDNA UTS #46 接口，启用 STD3、Bidi、ContextJ 及双向 non-transitional 选项。域名显示和传输共用有效性判定。系统 Unicode 数据允许随 macOS 更新，`Idna.unicodeVersion` 报告运行时的 `u_getUnicodeVersion`，`backendVersion` 标明 Apple ICU。其余目标继续使用 `idna` 1.1.0、`idna_adapter` 1.2.2 和 ICU4X 2.3.0，Unicode 数据为 17.0.0。
 
-包装及其运行时依赖使用 `no_std + alloc`；idna 关闭默认 features，保留 `alloc` 和 `compiled_data`，ICU4X／encoding_rs／unicode-width 沿用已有算法和数据。Unicode 标量操作来自 Rust core，String／Box／VecDeque 等来自 alloc，不需要 Rust std 的 I/O、线程或 panic 展开。proc macro 是构建宿主工具，不进入目标程序。
-
-固定的 normalizer／properties 数据来自 ICU release-78.1rc，Unicode 版本为 17.0.0。ICU4X 的包版本与 Unicode 数据版本分别记录。数据升级属于本库的正常更新，不在 URL 或 client 中追加另一套字符例外表。
+各平台的原始 Punycode 均使用锁定的 idna 1.1.0 中的 RFC 3492 模块。macOS 直接从随仓库分发的源码包编译此模块及其 smallvec 依赖。Rust 入口使用 `no_std + alloc`。macOS 的域名结果由 C 包装分配，调用方复制成功或抛错都交回相应的释放入口。原始 Punycode 结果由 Rust 分配和释放。
 
 ## 2. 转换合同
 
-采用 UTS #46 non-transitional，显式选择 `AsciiDenyList::STD3`、`Hyphens::Check` 及允许末尾根点的 DNS 长度规则。执行大小写与兼容映射、NFC、Punycode、A-label 有效性、Bidi、ContextJ 和连字符检查。ASCII 与已有 `xn--` 输入使用相同验证入口。
+采用 UTS #46 non-transitional，启用 STD3 与连字符检查 及允许末尾根点的 DNS 长度规则。执行大小写与兼容映射、NFC、Punycode、A-label 有效性、Bidi、ContextJ 和连字符检查。ASCII 与已有 `xn--` 输入使用相同验证入口。
 
 与 M54 的严格 IDNA2008 profile 不同，本版接受上游 UTS #46 允许的符号名称（如 `☃.example`），不另行执行 ContextO（如 `a·b.cat` 可接受），也不按旧表的 NV8／XV8 标记额外拒绝字符。这项变更不放宽 STD3、Bidi、ContextJ、连字符或 DNS 结构规则。
 
@@ -26,7 +24,7 @@
 
 | API | 结果 |
 | --- | --- |
-| `Idna.parse(domain): IdnaName` | 一次验证同时取得规范 `ascii` 和 `unicode`，供传输与展示复用 |
+| `Idna.parse(domain): IdnaName` | 验证后返回规范 `ascii` 和 `unicode`，供传输与展示复用 |
 | `Idna.toAscii(domain: String): String` | 验证后返回小写 ASCII／A-label，保留可选末尾根点 |
 | `Idna.toAsciiOrNone(domain): String?` | 仅对无效域名返回 None |
 | `Idna.toUnicode(domain: String): String` | 验证后返回规范 U-label；不把带错误标记的结果作为成功文本 |
@@ -34,17 +32,17 @@
 | `Idna.labelToAscii(label)`／`labelToUnicode(label)` | 单标签版本，拒绝分隔符，使用相同 profile |
 | `Punycode.encode(text)`／`decode(text)` | RFC 3492 原始 codec，与域名验证分离 |
 
-`parse` 使用 `Uts46::process` 的两个输出 sink，并对本次 ASCII 结果检查 DNS 长度；不能串联两次处理或为细分错误逐标签重跑。`IdnaName` 的构造归本库，两个字符串都是独立 Scoop 快照，不持有 native 状态。单一表示入口复用同一处理逻辑。
+`parse` 对 ASCII 结果检查 DNS 长度。macOS 以同一 UIDNA 配置对原始输入分别取得 ASCII 和 Unicode，并检查两次返回的错误标志。其他目标用 `Uts46::process` 的两个输出 sink 同时取得两种表示。`IdnaName` 的构造归本库，两个字符串都是独立 Scoop 快照，不持有 native 状态。单一表示入口复用同一处理逻辑。
 
-`IdnaException` 保存 operation、kind、可选 code、detail 和可选 labelIndex。无法细分的上游有效性错误为 InvalidLabel，不提供虚构的后端数值或标签索引。包装层直接掌握的结构、ASCII 字符或长度错误可以分别报告 InvalidLabel、Disallowed、NameTooLong 及已知标签索引。原有 InvalidAlabel、Context、Bidi 类别保留，但不承诺新后端逐项区分它们。参数及后端运行故障为 Backend，不被 OrNone 吞掉。`backendVersion` 标明包装层、idna 与 ICU4X 版本；`unicodeVersion` 标明实际数据版本。
+`IdnaException` 保存 operation、kind、可选 code、detail 和可选 labelIndex。无法细分的上游有效性错误为 InvalidLabel，不提供虚构的后端数值或标签索引。包装层直接掌握的结构、ASCII 字符或长度错误可以分别报告 InvalidLabel、Disallowed、NameTooLong 及已知标签索引。原有 InvalidAlabel、Context、Bidi 类别保留，但不承诺新后端逐项区分它们。参数及后端运行故障为 Backend，不被 OrNone 吞掉。`backendVersion` 标明包装层及所用后端，macOS 为 Apple ICU，其他目标列出 idna 与 ICU4X 的版本。`unicodeVersion` 标明实际数据版本。
 
 原始 Punycode 直接复用 `idna::punycode`，不执行 IDNA 校验、映射、大小写折叠、标签拆分或 DNS 长度限制。空串往返，纯 ASCII 编码保留末尾分隔符；内嵌 NUL 和标点属于数据。非法整数序列、溢出和非 Unicode 标量报格式错误。
 
-输入借用只在同步 FFI 调用内有效。Rust 分配的输出通过同一库的 `scoop_text_free(data, size)` 释放，不能交给 C free；Scoop 在 finally 中释放复制前的 native 结果。零长度允许 null。库不保存 managed 指针，不创建线程或执行 I/O；不因 Rust 实现而增加 GCLeaf 标注。
+输入借用只在同步 FFI 调用内有效。Scoop 在 finally 中归还后端分配的输出。域名转换和 parse 的两个缓冲分别经 `scoop_unicode_free(data, size)` 释放，原始 Punycode 输出经 `scoop_text_free(data, size)` 释放。零长度允许 null。库不保存 managed 指针，不创建线程或执行 I/O；不因 Rust 实现而增加 GCLeaf 标注。
 
 格式失败使用返回状态。能显式返回的参数、长度或后端故障映射为 Backend；上游 Rust 的不可恢复分配失败及内部 panic 按 `panic=abort` 终止进程，不保证转成 Scoop 异常，也不跨 C ABI 展开。此边界不把普通无效域名变成 fatal 错误，不引入通用分配预算或 panic 捕获代理。
 
-内部 GlobalAlloc 是系统分配器的薄适配：Unix 使用 posix_memalign／free，普通对齐的增长可使用 realloc；Windows 使用所选 CRT 的 aligned allocation。保留 Rust Layout 的对齐、重新分配和清零合同。panic handler 直接调用同一系统运行库的 abort，分配失败保持同样的终止语义；结果仍只通过 scoop_text_free 归还，调用方不承担 allocator 选择。
+内部 GlobalAlloc 是系统分配器的薄适配：Unix 使用 posix_memalign／free，普通对齐的增长可使用 realloc；Windows 使用所选 CRT 的 aligned allocation。保留 Rust Layout 的对齐、重新分配和清零合同。panic handler 直接调用同一系统运行库的 abort，分配失败保持同样的终止语义。
 
 ## 4. DNS、URL 与 TLS 的使用
 
@@ -60,7 +58,7 @@ release 保持 panic=abort 与 LTO。验收查看实际消费者所需的归档�
 
 `idna` 使用 MIT／Apache-2.0，ICU4X 与 Unicode 数据使用 Unicode-3.0。普通应用只消费 `.slib` 和静态归档，不执行 Cargo 或探测 Rust 工具链。共同归档复用现有 native library 闭包去重与目标链接规则，见实现规范 §2.8。
 
-测试验证 Scoop 自有的 profile 参数适配、根点与单标签边界、异常映射及结果所有权。Unicode 算法和数据由固定的成熟 Rust 依赖提供，不引入官方一致性数据，也不新增针对上游 Unicode 兼容性或完备性的正例、负例。
+测试验证 Scoop 自有的 profile 参数适配、根点与单标签边界、异常映射及结果所有权。Unicode 算法和数据由对应目标的系统库或锁定的 Rust 依赖提供，不引入官方一致性数据，也不新增针对上游 Unicode 兼容性或完备性的正例、负例。
 
 各目标运行真实 C ABI 调用及 Scoop 消费，检查长度、状态和释放责任。公开行为在 scoop.test 中验证，不增加 fixture；已有直接消费者结果按实际变更范围复用，不因数据更新扩展到无关消费者。
 

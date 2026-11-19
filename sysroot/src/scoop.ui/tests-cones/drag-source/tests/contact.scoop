@@ -105,7 +105,7 @@ internal class ContactSourceProbe {
                 ui = host.attach(window, { scope -> ContactSourceRoot(this, scope) })
                 window.setVisible(true)
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1

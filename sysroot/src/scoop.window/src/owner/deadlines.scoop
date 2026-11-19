@@ -2,26 +2,19 @@ package scoop.window
 
 import scoop.collections.sortedBy
 import scoop.platform.time.MonotonicTimeSource
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 internal class DeadlineDelivery(
     val deadline: WindowDeadline,
     val revision: ULong,
-    val time: TimeMark
+    val time: MonotonicInstant
 ) {
     fun deliver() {
         deadline.deliver(revision)
     }
 }
 
-internal fun checkDeadlineTime(time: TimeMark) {
-    requireWindow(
-        time.source === MonotonicTimeSource,
-        "window deadline requires MonotonicTimeSource"
-    )
-}
-
-internal fun ApplicationOwner.takeDeadlines(now: TimeMark): Array<DeadlineDelivery> {
+internal fun ApplicationOwner.takeDeadlines(now: MonotonicInstant): Array<DeadlineDelivery> {
     val ready = ArrayList<DeadlineDelivery>()
     for (deadline in deadlines) {
         when (deadline.scheduled) {
@@ -32,10 +25,10 @@ internal fun ApplicationOwner.takeDeadlines(now: TimeMark): Array<DeadlineDelive
             case None -> {}
         }
     }
-    return ready.sortedBy<DeadlineDelivery, TimeMark> { item -> item.time }.toArray()
+    return ready.sortedBy<DeadlineDelivery, MonotonicInstant> { item -> item.time }.toArray()
 }
 
-internal fun ApplicationOwner.consumeFlowDeadline(now: TimeMark): Boolean =
+internal fun ApplicationOwner.consumeFlowDeadline(now: MonotonicInstant): Boolean =
     when (flow) {
         case WaitUntil(val time) -> if (time <= now) {
             flow = ControlFlow.Wait
@@ -47,7 +40,7 @@ internal fun ApplicationOwner.consumeFlowDeadline(now: TimeMark): Boolean =
 
 internal fun ApplicationOwner.refreshDeadline(force: Boolean = false) {
     val pointer = native ?: return
-    var next: TimeMark? = None
+    var next: MonotonicInstant? = None
     if (!exiting) {
         when (flow) {
             case WaitUntil(val time) -> next = Some(time)
@@ -63,20 +56,22 @@ internal fun ApplicationOwner.refreshDeadline(force: Boolean = false) {
     }
     if (!force && next == armedDeadline)
         return
-    armedDeadline = next
     val seconds =
         when (next) {
             case None -> -1.0
             case Some(val time) -> {
-                val remaining = time - MonotonicTimeSource.markNow()
-                if (remaining.floorSeconds < 0L)
+                val now = MonotonicTimeSource.now()
+                if (time <= now)
                     0.0
-                else
+                else {
+                    val remaining = time - now
                     remaining.floorSeconds.toDouble() +
                         remaining.nanosecondsOfSecond.toDouble() /
                         1000000000.0
+                }
             }
         }
+    armedDeadline = next
     @Unsafe
     {
         nativeApplicationDeadline(pointer, seconds)

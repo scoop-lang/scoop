@@ -1,0 +1,22 @@
+package size.storage
+public class Cell public constructor(public val code: Long)
+public struct W0(val a: Long, val b: Long)
+public struct W1(val a: W0, val b: W0)
+public struct W2(val a: W1, val b: W1)
+public struct W3(val a: W2, val b: W2)
+public struct W4(val a: W3, val b: W3)
+public struct W5(val a: W4, val b: W4)
+public enum Mixed { None, Wide(W5, Cell, W5), Single(Cell) }
+public fun make(code: Long, cell: Cell): Mixed {
+    val w0 = W0(code, code + 1L)
+    val w1 = W1(w0, w0)
+    val w2 = W2(w1, w1)
+    val w3 = W3(w2, w2)
+    val w4 = W4(w3, w3)
+    val w5 = W5(w4, w4)
+    return when (code) {
+        case 0L -> Mixed.None
+        case 1L -> Mixed.Single(cell)
+        else -> Mixed.Wide(w5, cell, w5)
+    }
+}

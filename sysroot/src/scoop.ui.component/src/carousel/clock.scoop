@@ -1,14 +1,15 @@
 package scoop.ui.component
 
+import scoop.platform.time.MonotonicInstant
 import scoop.time.*
 
 /** One full wait per eligible autoplay step; interrupted time is never replayed. */
 internal class CarouselClock {
     private var interval: Duration? = None
-    private var next: TimeMark? = None
-    val deadline: TimeMark? get() = next
+    private var next: MonotonicInstant? = None
+    val deadline: MonotonicInstant? get() = next
 
-    fun configure(interval: Duration?, available: Boolean, now: TimeMark): Boolean {
+    fun configure(interval: Duration?, available: Boolean, now: MonotonicInstant): Boolean {
         val before = next
         if (!available || interval == None)
             cancel()
@@ -19,7 +20,7 @@ internal class CarouselClock {
             }
         return before != next
     }
-    fun take(now: TimeMark): Boolean {
+    fun take(now: MonotonicInstant): Boolean {
         val due = next ?: return false
         if (now < due)
             return false

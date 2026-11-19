@@ -159,7 +159,7 @@ internal class PanProbe(private val boundaries: Boolean = false, private val phy
                 ui = host.attach(native, { mount -> PanScene(this, scope = mount) })
                 native.requestFocus()
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(40L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1

@@ -89,7 +89,7 @@ internal class FieldProbe {
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
     var quiet: FrameSnapshot? = None
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(50L)
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(50L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -114,7 +114,7 @@ internal class FieldProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("field timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("field timeout"))
                 if (
                     native!!.isFocused &&
                         rendered >=
@@ -173,7 +173,7 @@ internal class FieldProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
         )
     }
 }

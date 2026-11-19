@@ -44,7 +44,39 @@ impl DecodedStrongInitializationUnitRegistrationPlanV1 {
     ) -> Result<CompileInitializationUnit, LinkDataError> {
         let data = self.semantic;
         let unit = identities.resolve(data.unit).map_err(link_error)?;
-        let schedule = match data.semantic_schedule {
+        let dependencies = definitions
+            .resolve(unit, &data.dependencies)
+            .map_err(link_error)?
+            .into_references();
+        let semantic = data.resolve(identities, unit, dependencies)?;
+        Ok(CompileInitializationUnit {
+            semantic,
+            definition,
+        })
+    }
+}
+
+impl DecodedStrongInitializationUnitSemanticProjectionV1 {
+    pub(in crate::production::registration_production) fn read_link(
+        self,
+        identities: &mut ValidatedIdentityGraph,
+    ) -> Result<StrongInitializationUnitSemanticPlanV1, LinkDataError> {
+        let unit = identities.resolve(self.unit).map_err(link_error)?;
+        let dependencies = self
+            .dependencies
+            .iter()
+            .map(|id| identities.resolve(*id).map_err(link_error))
+            .collect::<Result<_, _>>()?;
+        self.resolve(identities, unit, dependencies)
+    }
+
+    fn resolve<D>(
+        self,
+        identities: &mut ValidatedIdentityGraph,
+        unit: PersistentInitializationUnitId,
+        dependencies: Vec<D>,
+    ) -> Result<StrongInitializationUnitSemanticPlan<D>, LinkDataError> {
+        let schedule = match self.semantic_schedule {
             DecodedStrongInitializationSchedulePlanV1::LazyAccess => {
                 StrongInitializationSchedulePlanV1::LazyAccess
             }
@@ -54,26 +86,19 @@ impl DecodedStrongInitializationUnitRegistrationPlanV1 {
                 }
             }
         };
-        let semantic = StrongInitializationUnitSemanticPlanV2::from_artifact(
+        Ok(StrongInitializationUnitSemanticPlan::from_artifact(
             unit,
-            data.diagnostic_path,
+            self.diagnostic_path,
             schedule,
-            identities.resolve(data.storage_id).map_err(link_error)?,
+            identities.resolve(self.storage_id).map_err(link_error)?,
             identities
-                .resolve(data.failure_root_id)
+                .resolve(self.failure_root_id)
                 .map_err(link_error)?,
             identities
-                .resolve(data.initializer_id)
+                .resolve(self.initializer_id)
                 .map_err(link_error)?,
-            identities.resolve(data.ensure_id).map_err(link_error)?,
-            definitions
-                .resolve(unit, &data.dependencies)
-                .map_err(link_error)?
-                .into_references(),
-        );
-        Ok(CompileInitializationUnit {
-            semantic,
-            definition,
-        })
+            identities.resolve(self.ensure_id).map_err(link_error)?,
+            dependencies,
+        ))
     }
 }

@@ -81,7 +81,7 @@ internal class FieldLabelProbe {
     private var started = false
     private var destroyed = 0
     private var quiet: FrameSnapshot? = None
-    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(30L)
+    private val deadline = MonotonicTimeSource.now() + Duration.seconds(30L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -135,7 +135,7 @@ internal class FieldLabelProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("field label timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("field label timeout"))
                 if (native!!.isFocused && foreignReady && rendered >= generation.value) {
                     started = true
                     advance()
@@ -318,7 +318,7 @@ internal class FieldLabelProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(100L))
         )
     }
 }

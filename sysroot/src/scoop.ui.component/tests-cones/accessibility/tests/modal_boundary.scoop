@@ -51,7 +51,7 @@ internal class ModalSemanticProbe: Closeable {
             case Resumed -> {
                 active = Some(application)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
                 )
                 val window =
                     application.createWindow(

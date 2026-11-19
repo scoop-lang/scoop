@@ -431,7 +431,7 @@ Darwin 的 scope.dragSource 和 scope.dropTarget 借用本节同一挂载的 Inp
 
 Element 在构造中通过 `scope.createArea(focusable, textInput, parent, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
 
-`ComponentScope.createDeadline(action: () -> Unit): WindowDeadline` 使用所属原生窗口的一次性 deadline，随作用域退休而关闭；不增加时间源或第二套调度器。回调仅在挂载仍有效时执行，并通过 SurfaceWindow.dispatch 进入该根的错误和安全退休边界。Hover、Typeahead、编辑光标／拖动、Select 滚动及 Carousel 自动播放采用此入口。直接使用借用 nativeWindow 创建的应用任务仍遵守 Window 自身的回调错误合同，不被隐式归到某个 UI 根。
+`ComponentScope.createDeadline(action: () -> Unit): WindowDeadline` 使用所属原生窗口的一次性 deadline，接收与输入和帧相同的 MonotonicInstant，随作用域退休而关闭；不增加时间源或第二套调度器。回调仅在挂载仍有效时执行，并通过 SurfaceWindow.dispatch 进入该根的错误和安全退休边界。Hover、Typeahead、编辑光标／拖动、Select 滚动及 Carousel 自动播放采用此入口。直接使用借用 nativeWindow 创建的应用任务仍遵守 Window 自身的回调错误合同，不被隐式归到某个 UI 根。
 
 `ComponentScope.observeWindowActivity(action: (WindowActivity) -> Unit): Closeable` 管理所属 Window 的活动状态观察，沿用 Window.observeActivity 的快照、变化通知和取消规则。回调只在挂载有效时通过同一根错误边界执行；作用域退休自动撤销登记，不创建轮询、帧请求或独立状态源。Toast 用它在窗口失活、隐藏或遮蔽时准确暂停剩余时长。
 
@@ -795,6 +795,8 @@ ItemRetention 另提供 KeepAlive(maxOffscreenItems: Long)，上限非负，零�
 LazyElement 可通过 `ComponentScope.lazyFocus(viewport, options = LazyFocusOptions())` 登记一个由挂载管理的 LazyFocus。viewport 必须属于同一挂载；普通 Element／Component 或第二个同时活动的登记被拒绝。它使用该 lazy 节点已有的 ItemSource 和真实子树，不为全部数据创建 FocusHandle 或 InputArea。准入沿 routeChildren 后的实际输入作用域判断。
 
 LazyFocus 提供 `requestFocus(key, edge = ItemFocusEdge.First)`、`cancelRequest()`、isPending、isClosed 和 `pendingItem: ViewKey?`。edge 的 First／Last 选择该项按逻辑顺序的首／末个可用 Tab 目标；不会把整个条目伪造成另一个区域焦点。key 必须显式。未活动或输入被禁用／模态阻挡时返回 false；true 表示接收异步请求，未知 key、没有可用目标或不能显露时结束，保留原来有效的焦点。cancelRequest 只取消该登记当前的待处理请求，不清除已持有的区域焦点。
+
+`requestFocus(key, target: () -> FocusHandle?)` 重载用于条目内的具体目标。target 仅在请求项完成 Accepted 布局后、只读 evaluation 内执行一次；调用方应先安排该项所需的内部子项参与布局，再在回调中读取它的实际句柄。回调不得写 State、创建挂载或发起另一焦点请求。返回目标必须活动、可聚焦且属于该 key 的真实子树；None、未挂载、禁用或其他条目的句柄结束请求，保留原有效焦点，不回退首／末项，也不轮询。目标无需成为 Tab 停靠点。该重载不创建条目数或单元格数规模的句柄。
 
 请求与普通 FocusHandle 共用 UiRoot 的唯一 pending 及 Surface.focusRevision，并通过该 viewport 的 ScrollState 登记一次新位置意图，取消旧动画。pendingItem 仅在尚需实现／初次定位条目时返回 key；容器据此使用自身 extent 和 ScrollAdjustment 显露整项。选出具体 FocusTarget 后 pendingItem 变为 None，isPending 可以继续为 true，后续目标显露复用第 7.7 节，避免整项定位反复覆盖行内目标的精确显露。
 
