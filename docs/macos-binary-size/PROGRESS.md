@@ -45,3 +45,7 @@ Hello 的运行时启动统计显示，初始化登记从 33 减至 0，callable
 macOS 在 SkParagraph 中选择 SkUnicode 的 Apple 实现，使用 Core Foundation 处理文本边界，保留 HarfBuzz 和 Skia 的 ICU Bidi 子集。使用同一份 Scoop 编译器与初始化 DCE 设置，真实段落样例从 15,599,840 降到 3,889,328 字节，减少 11,710,512 字节（75.1%）。两种配置都得到 2 行、15 个边界、0 个缺失字形。最终链接 map 中，原来存活的 ICU 整包数据 `_icudt78_dat` 消失。自绘 Counter 两次均为 11,007,536 字节，其输入早已在 Mach-O 裁剪时去掉该数据。
 
 Darwin 的 Skia 静态归档从 67,608,608 降到 31,748,456 字节。正式资源准备脚本完成归档。macOS release 的 66 个 graphics.text 用例和 14 个 graphics.svg 用例通过，覆盖混合方向文字、字素与分词、绘制与资源寿命。
+
+## Darwin ARM64 链接优化提示
+
+readline 的 `HistoryTest.concurrentAppend` 在启用 dead strip 的 release 布局中稳定崩溃。对照输入对象与最终指令发现，LLD 22.1 把非相邻 `AdrpLdrGot` 的取地址合并到第一条指令，提前覆盖了中间指令要保存的寄存器。Darwin ARM64 最终链接加入 `-ignore_optimization_hints`，普通 release 继续启用 `-dead_strip`。同一个算术回归对象在旧设置下结果错误，新设置下返回预期值。正式 readline 测试 40 项通过，另外 6 项为由 PTY 集成测试启动的子用例。Hello、自绘 Counter 和真实段落分别为 256,464、11,007,536 和 3,889,328 字节，此项修正对三个样例的磁盘尺寸均无影响。
