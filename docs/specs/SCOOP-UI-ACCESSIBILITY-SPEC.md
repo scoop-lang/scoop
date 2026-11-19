@@ -98,7 +98,7 @@ grapheme 范围使用语义正文的原边界；词、视觉行和逻辑行从�
 
 ### 6.1 Lazy 集合的数据描述
 
-`ItemSemantics(source, describe, search)` 把同一 ItemSource 快照与数据级描述函数、明确支持的名称／automationId 查找结合。`SemanticsHandle.updateCollection(source, items, viewport)` 用于 LazyElement 自身的 List 节点；items 的 source 必须是相同对象。可选 viewport 指定该 Lazy 挂载实际拥有的活动 ScrollViewport，用于远处条目的显露；不从估算位置创建另一条滚动路径。没有描述源时仍提供真实 count、稳定 key、位置与集合身份，名称未知，不宣称支持属性搜索。
+`ItemSemantics(source, describe, search)` 把同一 ItemSource 快照与数据级描述函数、明确支持的名称／automationId 查找结合。`SemanticsHandle.updateCollection(source, items, viewport)` 用于 LazyElement 自身的 List 节点；items 的 source 必须是相同对象。可选 viewport 指定该 Lazy 挂载或同根祖先实际拥有的活动 ScrollViewport，用于远处条目的显露；兄弟和其他根的视口拒绝。Realize／Reveal／Focus 继续使用实际挂载和 Accepted 的祖先滚动路径，不从估算位置创建另一条滚动路径。没有描述源时仍提供真实 count、稳定 key、位置与集合身份，名称未知，不宣称支持属性搜索。
 
 查询通过只读 UI evaluation 执行 count／keyAt／indexOfKey／describe，不收集依赖，不调用 build；State、滚动、焦点和语义写入遵守现有 evaluation 禁止修改的合同。正常数据更新同时替换集合快照，不等下一次滚动。元数据与具体 View 寿命分离：仅已实现行有 Group 资源和真实子节点，回收时退休它们；逻辑条目代理由 Window 的集合投影持有。该 Group 的 Accepted 几何使用真实行布局及同一裁剪／滚动变换，未呈现行没有可点击坐标。
 

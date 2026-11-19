@@ -98,8 +98,8 @@ public fun SemanticsHandle.updateCollection(
     requireUi(lazy.uses(source), "semantic collection source differs from the lazy source")
     when (viewport) {
         case Some(val value) -> requireUi(
-            value.active && value.node === owner,
-            "semantic collection viewport belongs to another lazy mount"
+            value.contains(owner),
+            "semantic collection viewport must belong to this mount or an ancestor"
         )
         case None -> {}
     }

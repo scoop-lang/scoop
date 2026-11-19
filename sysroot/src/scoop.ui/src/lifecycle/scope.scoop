@@ -421,7 +421,10 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     ): LazyFocus {
         checkMounted()
         checkFocusMutation()
-        requireUi(viewport.belongsTo(node), "item focus viewport must belong to this mount")
+        requireUi(
+            viewport.contains(node),
+            "item focus viewport must belong to this mount or an ancestor"
+        )
         when (node.lazyFocus) {
             case Some(_) -> throw IllegalStateException(Some("mount already has item focus"))
             case None -> {}
