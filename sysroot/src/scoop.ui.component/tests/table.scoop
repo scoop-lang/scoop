@@ -186,6 +186,9 @@ private class TableModelTest {
     }
     @Test
     fun `fixed auto fraction tracks share immutable widths across overflow and capped distribution`() {
+        assertFailsWith<IllegalArgumentException> { TableTracks([TableColumnSize()], []) }
+        assertFailsWith<IllegalArgumentException> { TableTracks([], [], 0.0) }
+        assertFailsWith<IllegalArgumentException> { TableTracks([TableColumnSize()], [Double.NaN]) }
         val tracks =
             TableTracks(
                 [

@@ -58,6 +58,19 @@ public class LazyMeasureContext internal constructor(
         if (!node.root.isOpen)
             throw UiLayoutEnded()
     }
+    public fun <T> input(): T {
+        checkActive()
+        return readLayoutInput<T>(node)
+    }
+    public fun <T> measureItem(
+        index: Long,
+        constraints: Constraints,
+        input: LayoutInput<T>
+    ): LayoutMetrics {
+        checkActive()
+        checkLayoutInputAccess(node)
+        return withLayoutInput<T, LayoutMetrics>(input) { measureItem(index, constraints) }
+    }
     public fun measureItem(index: Long, constraints: Constraints): LayoutMetrics {
         checkActive()
         requireUi(index >= 0L && index < items.count, "item index is out of range")
@@ -69,7 +82,8 @@ public class LazyMeasureContext internal constructor(
                 entry.constraints ==
                     Some(constraints) &&
                     result.version ==
-                    result.node.layoutVersion
+                    result.node.layoutVersion &&
+                    sameLayoutEnvironment(result.environment, currentLayoutEnvironment())
             )
                 return result.metrics
             case None -> {}

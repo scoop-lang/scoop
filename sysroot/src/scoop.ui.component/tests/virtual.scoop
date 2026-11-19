@@ -8,6 +8,18 @@ import scoop.ui.style.Orientation
 @Test
 private class VirtualLayoutTest {
     @Test
+    fun `public sparse extents reject overflowing updates without corrupting prior measurements`() {
+        val extents = ItemExtentIndex(2L, ItemExtent.Variable(10.0))
+        extents.record(0L, 1.0e308)
+        val total = extents.total
+        assertFailsWith<IllegalArgumentException> { extents.record(1L, 1.0e308) }
+        assertEquals(10.0, extents.extent(1L))
+        assertEquals(total, extents.total)
+        assertEquals(1.0e308, extents.prefix(1L))
+        assertFailsWith<IllegalArgumentException> { extents.record(-1L, 5.0) }
+        assertFailsWith<IllegalArgumentException> { extents.record(1L, -1.0) }
+    }
+    @Test
     fun `fixed extents select half open visible ranges and clamp symmetric overscan`() {
         val size = Size(180.0, 60.0)
         val exact =
