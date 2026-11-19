@@ -280,9 +280,10 @@ internal class FocusController(private val root: UiRoot): Closeable {
     }
     private fun beginSearch(
         search: FocusSearch,
-        origin: FocusOrigin = FocusOrigin.Programmatic
+        origin: FocusOrigin = FocusOrigin.Programmatic,
+        continueParents: Boolean = false
     ): Boolean =
-        when (search.next(false)) {
+        when (search.next(continueParents)) {
             case Target(val target) -> begin(FocusDestination.Search(search), Some(target), origin)
             case Item(val visit) -> {
                 val reveal = RevealAttempt()
@@ -478,7 +479,8 @@ internal class FocusController(private val root: UiRoot): Closeable {
                 clearPending()
                 return beginSearch(
                     FocusSearch.tab(node, reverse, atRoot || (group?.options?.loop ?: false)),
-                    FocusOrigin.Keyboard
+                    FocusOrigin.Keyboard,
+                    continueParents = true
                 )
             }
             cursor = node.parent
