@@ -895,6 +895,12 @@ iOS、Android、HarmonyOS 及 Scoop native-app 的 framework/JNI/Node-API 输出
 - [复杂模型](ui/shadcn/MODELS.md)规定选择／菜单、日期、表格本地／外部结果、六类图表、Toast、回合阅读及问卷校验。业务 IO、路由、解析与持久化仍由应用或所属库负责。
 - 按主题纵向样例、八组控件和最终组合验收推进；各批先更新所属 spec，再实施与定向验证，实际进度见[实施记录](ui/shadcn/PROGRESS.md)。先验 macOS aarch64，最后补 x86_64 Rosetta；其他平台后端和 OS accessibility 单独推进，不把文档中的拟议 API 记为已交付。
 
+### 原生 DataGrid（设计完成，独立库实施中）
+
+- [设计](ui/data-grid/DESIGN.md)以 AG Grid 36.3.0 为功能参考，复用现有 Table／DataTable、LazyElement、编辑、主题与原生语义，在相邻独立仓库 `scoop-grid` 中实现 DataGrid，复用现有 UI 库的公开接口。包含双向虚拟化、列分组／重排／冻结、单格编辑、行与单矩形选择、复制／单格粘贴、CSV、状态恢复及外部分页／区间加载。
+- 分组、树数据、聚合、透视与主从详情属于本阶段，按 D0～D8 分批实施；D0 先验证二维离屏焦点、冻结区和中文 IME 所需的公共接口，再逐批更新 spec、实现、示例与验收。
+- 本阶段明确排除高频增量更新，多区域／填充柄／整行与批量编辑／跨单元格撤销，行拖动／跨行合并，Sparkline／选区图表，Excel／PDF 导出与打印，以及公式／用户自定义计算列。多单元格粘贴归入批量编辑排除，编辑器内部文本操作保留。
+
 ### UI 交互细节打磨与 accessibility（实施中）
 
 - [交互打磨设计](ui/interaction-polish/DESIGN.md)（2026-11-16）覆盖平台滚动条及独立行为选项、文本原生菜单、多击选择的平台修复、窗口内／同程序跨窗口／跨程序数据拖放、文本拖放、触摸／手势和滚动回弹。源码核查区分已有双击／三击编辑逻辑与 Windows 点击计数、Linux 系统阈值缺口；不重复建设已有能力。
