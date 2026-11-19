@@ -599,7 +599,7 @@ fn scoop_extern_aggregate_abi_keeps_typed_storage_rooted_across_native_transitio
     );
     assert!(
         ir[pop..].contains(
-            "store volatile { ptr addrspace(1), i64, i64 } %published_root_reload, ptr %native_argument"
+            "store volatile ptr addrspace(1) %published_root_reload, ptr %native_argument"
         ),
         "the post-handshake caller root must be restored only after roots pop:\n{ir}"
     );

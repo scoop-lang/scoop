@@ -241,7 +241,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         roots: &[scoop_lir::CallerRoot],
     ) -> Result<(), CodegenError> {
         self.leave_native_transition(&native, kind)?;
-        let reloaded = self.reload_published_roots(roots.iter().map(|root| root.source))?;
+        let reloaded = self.reload_published_roots(roots.iter())?;
         self.pop_native_roots(native)?;
         self.restore_reloaded_roots(reloaded)
     }

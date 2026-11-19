@@ -523,63 +523,55 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         Ok(Some(CompilerRootTable { pointer: table }))
     }
 
-    pub(super) fn validate_compiler_root_sources(
+    /// Preserve the collector-updated pointers across the roots-pop handshake.
+    /// The scan describes exactly the fields the collector can change.
+    pub(super) fn reload_published_roots<'r>(
         &self,
-        sources: impl IntoIterator<Item = scoop_lir::CallerRootSource>,
-    ) -> Result<(), CodegenError> {
-        for source in sources {
-            if matches!(source, scoop_lir::CallerRootSource::Local(_)) {
-                continue;
-            }
-            if !self.root_storage.contains_key(&source) {
-                return Err(CodegenError::internal(
-                    "compiler-root edge names a source without canonical storage".to_string(),
-                )
-                .with_code(scoop_source::DiagnosticCode::ICE1101));
-            }
-        }
-        Ok(())
-    }
-
-    /// Establish post-call values from the collector-updated canonical storage.
-    /// Volatile loads and stores keep continuation values independent of any
-    /// pre-call SSA copy on both normal and exceptional edges.
-    pub(super) fn reload_published_roots(
-        &self,
-        sources: impl IntoIterator<Item = scoop_lir::CallerRootSource>,
-    ) -> Result<Vec<ReloadedRoot<'ctx>>, CodegenError> {
+        roots: impl IntoIterator<Item = &'r scoop_lir::CallerRoot>,
+    ) -> Result<Vec<ReloadedRootLeaf<'ctx>>, CodegenError> {
         let mut reloaded = Vec::new();
-        for source in sources {
-            let storage = self.root_source_storage(source)?;
-            let value = self
-                .builder
-                .build_load(storage.ty, storage.pointer, "published_root_reload")
-                .map_err(|error| {
-                    CodegenError::backend(format!("reload published root: {error}"), error)
-                })?;
-            value
-                .as_instruction_value()
-                .expect("a root reload is an instruction")
-                .set_volatile(true)
-                .map_err(|error| {
-                    CodegenError::backend(
-                        format!("make published root reload volatile: {error}"),
-                        error,
-                    )
-                })?;
-            reloaded.push(ReloadedRoot { storage, value });
+        let mut offsets = Vec::new();
+        let managed = managed_ptr_ty(self.context, self.managed_address_space);
+        for root in roots {
+            let base = self.root_source_storage(root.source)?.pointer;
+            flatten_ref_scan(root.scan.as_ref_scan(), &mut offsets);
+            for offset in offsets.drain(..) {
+                let storage = if offset == 0 {
+                    base
+                } else {
+                    self.byte_gep(base, offset, "published_root_leaf")?
+                };
+                let value = self
+                    .builder
+                    .build_load(managed, storage, "published_root_reload")
+                    .map_err(|error| {
+                        CodegenError::backend(format!("reload published root: {error}"), error)
+                    })?
+                    .into_pointer_value();
+                value
+                    .as_instruction_value()
+                    .expect("a root reload is an instruction")
+                    .set_volatile(true)
+                    .map_err(|error| {
+                        CodegenError::backend(
+                            format!("make published root reload volatile: {error}"),
+                            error,
+                        )
+                    })?;
+                reloaded.push(ReloadedRootLeaf { storage, value });
+            }
         }
         Ok(reloaded)
     }
 
     pub(super) fn restore_reloaded_roots(
         &self,
-        roots: Vec<ReloadedRoot<'ctx>>,
+        roots: Vec<ReloadedRootLeaf<'ctx>>,
     ) -> Result<(), CodegenError> {
         for root in roots {
             let store = self
                 .builder
-                .build_store(root.storage.pointer, root.value)
+                .build_store(root.storage, root.value)
                 .map_err(|error| {
                     CodegenError::backend(format!("restore reloaded root: {error}"), error)
                 })?;
@@ -599,7 +591,6 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             .get(&self.current_block)
             .cloned()
             .unwrap_or_default();
-        self.validate_compiler_root_sources(sources.iter().copied())?;
         let reloaded = self.reload_published_roots(sources.iter().copied())?;
         self.restore_reloaded_roots(reloaded)?;
         if let Some(debug) = &self.debug {
@@ -609,7 +600,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     .expect("unwind continuation"),
             );
             for source in sources {
-                self.observe_debug_root(source)?;
+                self.observe_debug_root(source.source)?;
             }
         }
         Ok(())

@@ -459,6 +459,9 @@ release 默认启用 MIR 优化，debug 保留未优化的完整 MIR；两种模
 
 Tagged enum 的 LIR 布局决定 tag、payload 字段偏移、大小、对齐和固定 GC 槽。物理调用的 carrier、byval 和 sret 由 ABI 计划决定，非引用区间的 LLVM 元素类型由后端选择。
 
+从已有栈存储读取 tagged enum 字段时可直接使用该字段的地址。转发按值实参仍保有独立副本；两个规范栈槽之间可以沿用局部聚合值的拷贝。调用发布的根按该来源已有的扫描描述恢复：在正常返回和异常出口只重新读取及写回托管引用位置。NativeSafe 返回先完成握手，在弹出 caller roots 之前读取这些槽，弹出后再恢复；实际的函数结果仍按完整结果类型读取。
+
+
 LIR 以完整操作表达托管分配、字段／数组写入、值复制、原子引用访问、`ManagedPoll` 与 `PublishReleaseReady`，携带实际类型、布局、GC effect 和 live set。Immix 普通对象上限、TLAB 资格及 card/page-map 算法属于 codegen 的 GC 实现，不作为通用 LIR 策略常量；实际 runtime 符号、共享布局和兼容性摘要仍由现有 ABI 数据目录保存。
 
 codegen 的 release 小型常量分配按运行时规范 3.1 直接完成 TLAB 登记，使用统一的四指针 context 前缀与四项 atomic u64 计数视图：依次为 nursery 对象数、nursery 字节数、直接旧代对象数、直接旧代字节数。内联成功分配只更新前两项，runtime 在读取时合成总量；不对同一次分配同时维护子集与总量。成功 bump 后，在对象 GC 字写入已对齐的精确大小，再按原规则发布 starts；不再生成大小数组的地址计算或 u16 登记。GC 字大小／pin 位域保持；context 是当前线程稳定 mutator 的 32-byte 前缀，计数器直接从该地址的 offset 128 寻址，不逐次加载计数器指针。完整线程状态仍为 256 bytes，计数原子操作和 nursery／direct 域含义保持；此布局由 runtime contract 26 规定，所有 profile、目标和预编译机器正文必须配套重建；不改变 16-byte 对象头、scan 或通用 LIR 操作。复用输入的完整本地 TD／typed array layout，跨物理对象分区保留已确定的 alignment 与 release-policy；外部 TD 缺少事实时保留原加载与完成入口，不扩充跨 Cone 格式。内联只在大小合格、布局已知、确定无 release hook 的成功分配分支内发射，不增加 LIR 操作、持久证明、managed 引用或根。不再生成 line 位图的地址计算、读写或跨字分支；line 占用由 collector 的完整标记／复制与收尾产生。分配结果按实际快路径出口与原慢路径出口构造 phi，慢路径 safepoint／relocation 保持。debug 与未命中的分配使用相同 ABI 下的既有完成入口。

@@ -3,6 +3,24 @@ use super::*;
 mod integral;
 
 impl<'ctx> FnEmitter<'_, 'ctx> {
+    fn tagged_operand_slot(
+        &self,
+        operand: Value,
+        name: &str,
+    ) -> Result<PointerValue<'ctx>, CodegenError> {
+        if self.debug.is_none()
+            && let Some(slot) = self.operand_stack_slot(operand)?
+        {
+            return Ok(slot);
+        }
+        let value = self.value(operand)?;
+        let slot = self.entry_alloca(value.get_type(), name)?;
+        self.builder
+            .build_store(slot, value)
+            .map_err(|error| CodegenError::backend(format!("spill {name}: {error}"), error))?;
+        Ok(slot)
+    }
+
     pub(super) fn emit_enum_instruction(
         &mut self,
         instruction: &Instruction,
@@ -260,39 +278,18 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         expected_ty.dump()
                     )));
                 }
-                let operand = self.value(*operand)?;
                 let name = format!("t{}", out.into_raw().into_u32());
                 let result: BasicValueEnum = match &def.repr {
                     // Niche: the payload is the pointer itself; lir-lower
                     // only emits this on paths where the tag is known.
-                    EnumRepr::Niche { .. } => operand,
+                    EnumRepr::Niche { .. } => self.value(*operand)?,
                     EnumRepr::Integral { .. } => {
                         return Err(CodegenError::internal(
                             "integral enum variants have no payload".into(),
                         ));
                     }
-                    EnumRepr::Tagged {
-                        variants,
-                        size,
-                        align,
-                    } => {
-                        // Reverse of EnumWrap: spill the aggregate into an
-                        // entry-block alloca, then load the field out of
-                        // the payload area.
-                        let ty = tagged_ty(
-                            context,
-                            self.managed_address_space,
-                            *size,
-                            *align,
-                            &def.scan,
-                        )?;
-                        let slot = self.entry_alloca(ty.into(), "enum_field")?;
-                        builder.build_store(slot, operand).map_err(|e| {
-                            CodegenError::backend(
-                                format!("enum_field @{symbol}: {e}", symbol = function.symbol()),
-                                e,
-                            )
-                        })?;
+                    EnumRepr::Tagged { variants, .. } => {
+                        let slot = self.tagged_operand_slot(*operand, "enum_field")?;
                         let variant_repr = &variants[*variant as usize];
                         let field = &variant_repr.fields[*index as usize];
                         let field_ptr = self.enum_field_ptr(slot, field.offset, "field_ptr")?;
@@ -475,40 +472,19 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 }
 
                 let def = &self.enums[enum_id];
-                let operand = self.value(*operand)?;
                 let name = format!("t{}", out.into_raw().into_u32());
                 let result: BasicValueEnum = match &def.repr {
                     // A niche payload is the provenance-preserving carrier
                     // itself. `variant_field_type` above proves that this is
                     // exactly field zero of the payload variant.
-                    EnumRepr::Niche { .. } => operand,
+                    EnumRepr::Niche { .. } => self.value(*operand)?,
                     EnumRepr::Integral { .. } => {
                         return Err(CodegenError::internal(
                             "integral enum variants have no payload".into(),
                         ));
                     }
-                    EnumRepr::Tagged {
-                        variants,
-                        size,
-                        align,
-                    } => {
-                        let ty = tagged_ty(
-                            context,
-                            self.managed_address_space,
-                            *size,
-                            *align,
-                            &def.scan,
-                        )?;
-                        let slot = self.entry_alloca(ty.into(), "variant_payload_project")?;
-                        builder.build_store(slot, operand).map_err(|error| {
-                            CodegenError::backend(
-                                format!(
-                                    "variant_payload_project spill @{symbol}: {error}",
-                                    symbol = function.symbol()
-                                ),
-                                error,
-                            )
-                        })?;
+                    EnumRepr::Tagged { variants, .. } => {
+                        let slot = self.tagged_operand_slot(*operand, "variant_payload_project")?;
                         let field =
                             &variants[variant.index() as usize].fields[field.index() as usize];
                         let field_ptr =

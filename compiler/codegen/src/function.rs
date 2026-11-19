@@ -73,7 +73,7 @@ struct FnEmitter<'a, 'ctx> {
     interface_values: interface_values::StoredInterfaces<'ctx>,
     /// Sources used by each unwind successor, transposed from the complete
     /// per-invoke edge flags before LLVM block emission.
-    unwind_root_sources: HashMap<scoop_lir::BlockId, Vec<scoop_lir::CallerRootSource>>,
+    unwind_root_sources: HashMap<scoop_lir::BlockId, Vec<&'a scoop_lir::CallerRoot>>,
     /// Landingpads reload the canonical storage selected by their invoke edges.
     compiler_unwind_blocks: HashSet<scoop_lir::BlockId>,
     compiler_invoke_index: u32,
@@ -104,9 +104,9 @@ struct RootStorage<'ctx> {
     ty: BasicTypeEnum<'ctx>,
 }
 
-struct ReloadedRoot<'ctx> {
-    storage: RootStorage<'ctx>,
-    value: BasicValueEnum<'ctx>,
+struct ReloadedRootLeaf<'ctx> {
+    storage: PointerValue<'ctx>,
+    value: PointerValue<'ctx>,
 }
 
 impl FnEmitter<'_, '_> {
