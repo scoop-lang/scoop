@@ -1405,7 +1405,7 @@ native 对象按普通目标工具链输入处理，不按段名、load command 
 
 Darwin 支持 `.o`、`.a`、dylib/framework 与所选 SDK 的系统 providers。普通 load/re-export、真实 install name、target/deployment、symbol kind 和绑定关系参与解析；显式库不能被另一库的同名 export 替代。多个已引入 framework 经 re-export 到达同一最终 provider 和同一原始符号时，默认 namespace 将它们视为一个定义，保留实际选中的装载路径；不同最终定义仍按强弱规则诊断歧义。显式 library 仍只能沿该库自己的导出链绑定。动态库内部的 undefined symbol、two-level／flat namespace 和 weak binding 由实际 loader 按库自身的装载信息处理；reader 不扫描内部导入的 C++ ABI 前缀或 ordinal 来拒绝输入。Scoop 所选 export 的种类、实际 re-export ordinal 和显式库归属仍按本次解析需要处理。`@rpath` 从明确目录解析，实际 LC_RPATH 进入输出和 link plan；依赖中的 `@loader_path` 相对 provider。需要部署布局才能解释的直接 `@loader_path`、`@executable_path` 或未知形式拒绝。
 
-Darwin 由 2.8 选中的 LLD 直接链接，使用所选 SDK/deployment 与显式 libSystem stub，Level I unwind 经系统正常导出解析；C++ 模式同时使用配套 libc++ 与 C++ ABI 运行库。final-link 不使用 dead_strip、不同 body 的 function ICF、LTO 或 raw 用户 linker options。callable GC 表及其引用位于普通只读 metadata 段，采用传统 rebase/bind（no_fixup_chains）格式；普通绑定与随后执行的 weak coalescing 分别解释，允许同一指针对相同符号和 addend 具有这两阶段记录。实际需要的 ad-hoc signing 属于平台装载格式。
+Darwin 由 2.8 选中的 LLD 直接链接，使用所选 SDK/deployment 与显式 libSystem stub，Level I unwind 经系统正常导出解析；C++ 模式同时使用配套 libc++ 与 C++ ABI 运行库。普通 Mach-O executable 在无需保留符号或独立调试文件时使用 `-dead_strip`，从入口、登记表、原生初始化与可寻址回调沿重定位保留实际引用。共享库和保留调试符号的链接维持其符号集合。不同 body 的 function ICF、LTO 与 raw 用户 linker options 不属于此策略。callable GC 表及其引用位于普通只读 metadata 段，采用传统 rebase/bind（no_fixup_chains）格式；普通绑定与随后执行的 weak coalescing 分别解释，允许同一指针对相同符号和 addend 具有这两阶段记录。实际需要的 ad-hoc signing 属于平台装载格式。
 
 Darwin 链接归档中的成员移除空代码段中未被重定位或间接符号表引用的局部标签。LLVM 为纯数据对象生成的空 `__text` 标签不能作为函数进入 LLD 的展开索引，否则它可能与随后真实函数共享地址并覆盖其展开信息。保留外部符号、被引用的局部标签、非空代码、段内容和段编号；符号删除只重排对应表项及其索引。实际选中的 Scoop 与 native 对象在分批归档写入前处理，不修改原 `.slib` 或输入文件；其归档缓存键采用 `scoop-darwin-link-archives-v1` 处理版本，命中先于对象读取和处理。runtime 在生产归档时完成同一清理，索引保存清理后成员的摘要与符号信息，消费时仍直接链接完整归档。最终链接计划包含输入内容和已切换到 LLD 的 Darwin profile。
 
@@ -1426,7 +1426,7 @@ DSO 依赖查找使用显式 roots、provider 目录、实际 RPATH/RUNPATH 与�
 native-app 最终链接由 root `.slib` 的完整 entry 分支选择 shared-library profile，生成唯一公开 `scoop_app_init`，内部调用 `scoop_rt_init_native_app(images, image_count, native_app_entry, host_api, out_app_api, out_error, enable_stack_trace)`。默认输出为 Darwin `lib<name>.dylib`、ELF `lib<name>.so`、Windows `<name>.dll`；显式输出名原样保留。`build` 和 artifact-only `link` 共用此路径，`run` 报告需要 native host。`--install-name`／`--soname` 只适用于对应平台的 shared-library profile。Windows import library 和所需调试文件随最终产物一起发布，并作为缓存命中所需输出；新链接的 PE 必须在发布前检查实际 export 恰为 scoop_app_init。更新记录包含输出种类、实际 loader name 与 bootstrap 配置；未变化且输出齐备时直接复用，不读取命中动态库或 import library。
 
 
-ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v10`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。动态依赖保存普通 load、weak-load、re-export 的种类及实际 provider 或缺席的 weak-load；物化与输出 locator 不进入内容身份，实际 install name/runpath 与普通符号保留策略必须进入。
+ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v11`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。动态依赖保存普通 load、weak-load、re-export 的种类及实际 provider 或缺席的 weak-load；物化与输出 locator 不进入内容身份，实际 install name/runpath、普通符号保留与最终 dead strip 策略必须进入。源码构建的最终产物复用键同样包含生效的裁剪策略。
 
 面向用户的 native 缺失符号诊断显示声明请求的库名；Mach-O 动态 provider 的文本计划按实际 install name 排序，再以 provider identity 区分同名记录。对象内容变化不能仅因内容摘要的排序改变这部分报告顺序；真实链接顺序、绑定、依赖边和 canonical 内容编码保持原合同。
 

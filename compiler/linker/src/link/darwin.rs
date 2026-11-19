@@ -7,6 +7,7 @@ pub(super) fn link(
     archives: &[PathBuf],
     candidate: &Path,
     keep_symbols: bool,
+    dead_strip: bool,
 ) -> Result<(), LinkError> {
     let namespace = inputs.namespace.darwin()?;
     let sdk = directory.join("sdk");
@@ -33,6 +34,10 @@ pub(super) fn link(
     if !keep_symbols {
         darwin.linker_argument(&mut command, "-x");
         darwin.linker_argument(&mut command, "-S");
+    }
+
+    if dead_strip {
+        darwin.linker_argument(&mut command, "-dead_strip");
     }
 
     for archive in archives {

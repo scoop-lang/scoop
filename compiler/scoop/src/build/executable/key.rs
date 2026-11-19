@@ -43,7 +43,13 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
         encode(&request.target.lir_target().wire_id())
             .map_err(|error| failure(scoop_source::DiagnosticCode::ICE2201, error))?,
         request.profile.as_str(),
-        request.keep_symbols(),
+        (
+            request.keep_symbols(),
+            options.output_kind.dead_strip(
+                request.target.id(),
+                request.keep_symbols() || request.emit_debug_file(),
+            ),
+        ),
         request.enable_stack_trace(),
         (
             request.emit_debug_file(),
