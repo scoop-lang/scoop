@@ -135,8 +135,9 @@ private fun finiteTable(p: TableProbe): View =
         }
         this.body {
             this.row(ViewKey.Number(0L)) {
-                this.cell(observedTableCell(p, 100L, 0, label("INV001")));
+                this.head(observedTableCell(p, 100L, 0, label("INV001")));
                 this.cell(observedTableCell(p, 100L, 1, label("25"))) {
+                    this.key = ViewKey.Number(0L)
                     this.alignment = AxisAlignment.End
                 }
             }
