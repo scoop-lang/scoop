@@ -91,7 +91,8 @@ internal fun replaceStateDependencies(
 internal class UiEvaluation(
     val collector: DependencyCollector? = None,
     val preparing: Boolean = false,
-    val frameReads: FrameReads? = None
+    val frameReads: FrameReads? = None,
+    val measurement: MountedNode? = None
 )
 
 internal fun currentEvaluation(): UiEvaluation? {
@@ -105,9 +106,10 @@ internal fun currentEvaluation(): UiEvaluation? {
 internal fun <T> evaluateUi(
     collector: DependencyCollector?,
     frameReads: FrameReads? = None,
+    measurement: MountedNode? = None,
     block: () -> T
 ): T {
-    val evaluation = UiEvaluation(collector, frameReads = frameReads)
+    val evaluation = UiEvaluation(collector, frameReads = frameReads, measurement = measurement)
     val observer: AnimationReadObserver = frameReads ?: IgnoreAnimationReads
     context(evaluation) {
         context(observer) {

@@ -1,0 +1,63 @@
+package scoop.ui
+
+/** An immutable input snapshot supplied only while a child subtree is measured. */
+public class LayoutInput<T> public constructor(internal val value: T) {
+    private var environment: LayoutEnvironment? = None
+
+    internal fun environmentFor(parent: LayoutEnvironment?): LayoutEnvironment {
+        when (environment) {
+            case Some(val previous) -> if (sameLayoutEnvironment(previous.parent, parent))
+                return previous
+            case None -> {}
+        }
+        val next = LayoutEnvironment(parent)
+        environment = Some(next)
+        return next
+    }
+}
+
+/** Identity includes the enclosing input, without retaining a history of combinations. */
+internal class LayoutEnvironment(val parent: LayoutEnvironment?)
+
+internal fun currentLayoutEnvironment(): LayoutEnvironment? = contextOrNone<LayoutEnvironment>()
+
+internal fun sameLayoutEnvironment(left: LayoutEnvironment?, right: LayoutEnvironment?): Boolean =
+    when (left) {
+        case Some(val value) -> when (right) {
+            case Some(val other) -> value === other
+            case None -> false
+        }
+        case None -> when (right) {
+            case Some(_) -> false
+            case None -> true
+        }
+    }
+
+internal fun checkLayoutInputAccess(node: MountedNode) {
+    val evaluation =
+        currentEvaluation() ?:
+            throw IllegalStateException(Some("layout input requires the current measure context"))
+    when (evaluation.measurement) {
+        case Some(val current) -> if (current === node)
+            return
+        case None -> {}
+    }
+    throw IllegalStateException(Some("layout input requires the current measure context"))
+}
+
+internal fun <T> readLayoutInput(node: MountedNode): T {
+    checkLayoutInputAccess(node)
+    val input =
+        contextOrNone<LayoutInput<T>>() ?:
+            throw IllegalStateException(Some("layout input was not provided"))
+    return input.value
+}
+
+internal fun <T, R> withLayoutInput(input: LayoutInput<T>, block: () -> R): R {
+    val environment = input.environmentFor(currentLayoutEnvironment())
+    context(environment) {
+        context(input) {
+            return block()
+        }
+    }
+}

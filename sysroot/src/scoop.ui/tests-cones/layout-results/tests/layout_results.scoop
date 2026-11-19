@@ -14,12 +14,18 @@ import scoop.window.*
 @Test
 private class UiLayoutResultTest {
     @Test
-    fun `A B A restores complete shared layouts and only the selected lazy items`() {
+    fun `A B A restores complete layouts for constraints and typed inputs with selected lazy items`() {
         val probe = LayoutResultProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {
             host -> Application().run(host)
         }
         assertTrue(probe.finished)
+        assertEquals(2, probe.inputs.phase)
+        assertEquals(1, probe.inputs.aCalls)
+        assertEquals(2, probe.inputs.bCalls)
+        for (record in probe.inputs.records)
+            assertEquals(1, record.closes)
+        assertFailsWith<IllegalStateException> { probe.inputs.rootInput!!() }
         for (round in probe.rounds) {
             for (record in round.records)
                 assertEquals(1, record.closes)
@@ -64,6 +70,7 @@ internal class LayoutItemRecord(val index: Long) {
 }
 
 internal class LayoutResultProbe {
+    val inputs = LayoutInputProbe()
     val rounds = ArrayList<LayoutAudit>()
     val items = ArrayList<LayoutItemRecord>()
     var current: LayoutAudit? = None
@@ -85,6 +92,10 @@ internal class LayoutResultProbe {
                     ),
                     { mount -> LayoutResultScene(this, active, scope = mount) }
                 )
+                inputs.attach(host, active) {
+                    if (finished)
+                        active.requestExit()
+                }
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("layout result test timed out"))
             else -> {}
@@ -180,7 +191,8 @@ private class LayoutResultRoot(
                         row.closes
                     )
                 probe.finished = true
-                active.requestExit()
+                if (probe.inputs.phase == 2)
+                    active.requestExit()
             }
         }
     }

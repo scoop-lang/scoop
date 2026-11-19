@@ -40,6 +40,19 @@ public class MeasureContext internal constructor(
         if (!active)
             throw IllegalStateException(Some("measure context has ended"))
     }
+    public fun <T> input(): T {
+        checkActive()
+        return readLayoutInput<T>(node)
+    }
+    public fun <T> measureChild(
+        index: Long,
+        constraints: Constraints,
+        input: LayoutInput<T>
+    ): LayoutMetrics {
+        checkActive()
+        checkLayoutInputAccess(node)
+        return withLayoutInput<T, LayoutMetrics>(input) { measureChild(index, constraints) }
+    }
     public fun measureChild(index: Long, constraints: Constraints): LayoutMetrics {
         checkActive()
         val entry = entries[index]
@@ -51,7 +64,11 @@ public class MeasureContext internal constructor(
             throw IllegalStateException(Some("child measurement is reentrant"))
         when (entry.result) {
             case Some(val result) -> if (
-                entry.constraints == Some(constraints) && result.version == entry.node.layoutVersion
+                entry.constraints ==
+                    Some(constraints) &&
+                    result.version ==
+                    entry.node.layoutVersion &&
+                    sameLayoutEnvironment(result.environment, currentLayoutEnvironment())
             )
                 return result.metrics
             case None -> {}
@@ -115,6 +132,7 @@ internal fun MountedNode.measure(constraints: Constraints, time: MonotonicInstan
         throw UiLayoutEnded()
     constraints.check()
     val store = root.layouts
+    val environment = currentLayoutEnvironment()
     if (!sameLayoutRound(layoutRound, store.round))
         store.touch(this)
     for (previous in layoutRequests)
@@ -124,7 +142,8 @@ internal fun MountedNode.measure(constraints: Constraints, time: MonotonicInstan
                 previous.direction ==
                 layoutDirection &&
                 previous.constraints ==
-                constraints
+                constraints &&
+                sameLayoutEnvironment(previous.environment, environment)
         )
             return previous
     val result =
@@ -162,6 +181,7 @@ private fun MountedNode.layoutResult(
         constraints,
         layoutVersion,
         layoutDirection,
+        currentLayoutEnvironment(),
         root.layouts.round,
         metrics,
         children,
@@ -193,7 +213,9 @@ private fun MountedNode.measureElement(
     var result: ElementLayout? = None
     try {
         val measured =
-            evaluateUi<ElementLayout>(None, Some(reads)) { instance.measure(context, constraints) }
+            evaluateUi<ElementLayout>(None, Some(reads), Some(this)) {
+                instance.measure(context, constraints)
+            }
         result = Some(measured)
         checkLayoutMetrics(measured.metrics, constraints)
         return layoutResult(
@@ -223,7 +245,9 @@ private fun MountedNode.measureLazy(
     var result: ElementLayout? = None
     try {
         val measured =
-            evaluateUi<ElementLayout>(None, Some(reads)) { instance.measure(context, constraints) }
+            evaluateUi<ElementLayout>(None, Some(reads), Some(this)) {
+                instance.measure(context, constraints)
+            }
         result = Some(measured)
         checkLayoutMetrics(measured.metrics, constraints)
         val selected = context.finish()
