@@ -1,0 +1,217 @@
+package scoop.json.tests.consumer.derived_simple_defaults
+
+import scoop.test.*
+import scoop.json.Json
+
+private typealias Switch = Boolean
+
+private typealias Files<T> = Array<T>
+
+private object Trace {
+    var events: String = ""
+}
+
+private fun derivedValue(port: Int, enabled: Boolean, files: Array<String>): Int {
+    Trace.events += "D"
+    return port +
+        files.size.toInt() +
+        if (enabled)
+            1
+        else
+            0
+}
+
+private fun ignoredValue(value: Int): Int {
+    Trace.events += "I"
+    return value + 1
+}
+
+private class Defaults(
+    val enabled: Boolean = false,
+    val color: Boolean = true,
+    val verbose: Boolean = (false),
+    val quiet: Switch = false,
+    val trace: Boolean = false,
+    val files: Files<String> = [],
+    val numbers: Array<Int> = [],
+    val mutable: MutableArray<Int> = [],
+    val output: String? = Option.None,
+    val nested: String?? = (None),
+    val port: Int = 123,
+    val derived: Int = derivedValue(port, enabled, files),
+    @Serialize(ignore = true) val ignored: Int = ignoredValue(derived)
+) {
+    init {
+        Trace.events += "C"
+    }
+    @GenerateWith("scoop.codec", ["ValueDecoder<Defaults>"])
+    companion object: ValueDecoder<Defaults>
+}
+
+private fun falseDefault(): Boolean {
+    Trace.events += "B";
+    return false
+}
+
+private fun arrayDefault(): Array<String> {
+    Trace.events += "A";
+    return []
+}
+
+private fun noneDefault(): String? {
+    Trace.events += "N";
+    return None
+}
+
+private struct ComputedDefaults(
+    val flag: Boolean = falseDefault(),
+    val files: Array<String> = arrayDefault(),
+    val output: String? = noneDefault()
+) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<ComputedDefaults>"])
+    companion object: ValueDecoder<ComputedDefaults>
+}
+
+private struct GenericDefaults<T>(val files: Array<T> = [], val value: T? = None)
+
+@GenerateWith("scoop.codec", ["ValueDecoder<GenericDefaults<T>>"])
+private class GenericDecoder<T>(val decoder: ValueDecoder<T>): ValueDecoder<GenericDefaults<T>>
+
+private enum Message {
+    Data(val enabled: Boolean = false, val files: Array<String> = [], val value: String? = None),
+    Empty
+
+    @GenerateWith("scoop.codec", ["ValueDecoder<Message>"])
+    companion object: ValueDecoder<Message>
+}
+
+private struct RequiredDefaults(
+    @Serialize(required = true) val flag: Boolean = false,
+    @Serialize(required = true) val files: Array<String> = []
+) {
+    @GenerateWith("scoop.codec", ["ValueDecoder<RequiredDefaults>"])
+    companion object: ValueDecoder<RequiredDefaults>
+}
+
+@Test
+private class DefaultTests {
+    @Test
+    fun manySimpleDefaultsAndDependentValues() {
+        Trace.events = ""
+        val empty = Json.decodeFromString("{}", Defaults.Companion)
+        assertTrue(!empty.enabled && empty.color && !empty.verbose && !empty.quiet && !empty.trace)
+        assertTrue(empty.files.size == 0L && empty.numbers.size == 0L && empty.mutable.size == 0L)
+        assertTrue(empty.output == None && empty.nested == None)
+        assertTrue(empty.port == 123 && empty.derived == 123 && empty.ignored == 124)
+        assertEquals("DIC", Trace.events)
+        val another = Json.decodeFromString("{}", Defaults.Companion)
+        assertNotSame(empty.files, another.files)
+        assertNotSame(empty.mutable, another.mutable)
+
+        Trace.events = ""
+        val supplied =
+            Json.decodeFromString(
+                """{"enabled":true,"color":false,"verbose":true,"quiet":true,"trace":true,"files":["a","b"],"numbers":[7],"mutable":[9],"output":"","nested":"inner","port":10}""",
+                Defaults.Companion
+            )
+        assertTrue(
+            supplied.enabled &&
+                !supplied.color &&
+                supplied.verbose &&
+                supplied.quiet &&
+                supplied.trace
+        )
+        assertTrue(
+            supplied.files.size == 2L && supplied.files[0L] == "a" && supplied.files[1L] == "b"
+        )
+        assertTrue(supplied.numbers[0L] == 7 && supplied.mutable[0L] == 9)
+        assertTrue(supplied.output == Some("") && supplied.nested == Some(Some("inner")))
+        assertTrue(supplied.derived == 13 && supplied.ignored == 14)
+        assertEquals("DIC", Trace.events)
+
+        Trace.events = ""
+        val explicitNull =
+            Json.decodeFromString(
+                """{"output":null,"nested":null,"derived":20}""",
+                Defaults.Companion
+            )
+        assertTrue(
+            explicitNull.output == None && explicitNull.nested == None && explicitNull.ignored == 21
+        )
+        assertEquals("IC", Trace.events)
+        Trace.events = ""
+        assertFailsWith<DecodingException> {
+            Json.decodeFromString("""{"files":null}""", Defaults.Companion)
+        }
+        assertFailsWith<DecodingException> {
+            Json.decodeFromString("""{"numbers":["bad"]}""", Defaults.Companion)
+        }
+        assertEquals("", Trace.events)
+    }
+
+    @Test
+    fun computedDefaultsRemainLazy() {
+        Trace.events = ""
+        val empty = Json.decodeFromString("{}", ComputedDefaults.Companion)
+        assertTrue(!empty.flag && empty.files.size == 0L && empty.output == None)
+        assertEquals("BAN", Trace.events)
+        Trace.events = ""
+        val partial = Json.decodeFromString("""{"files":["x"]}""", ComputedDefaults.Companion)
+        assertEquals("x", partial.files[0L])
+        assertEquals("BN", Trace.events)
+        Trace.events = ""
+        val supplied =
+            Json.decodeFromString(
+                """{"flag":true,"files":["y"],"output":null}""",
+                ComputedDefaults.Companion
+            )
+        assertTrue(supplied.flag && supplied.files[0L] == "y" && supplied.output == None)
+        assertEquals("", Trace.events)
+    }
+
+    @Test
+    fun genericEnumAndRequiredDefaults() {
+        val decoder = GenericDecoder<String>(String.Companion)
+        val empty = Json.decodeFromString("{}", decoder)
+        assertTrue(empty.files.size == 0L && empty.value == None)
+        val supplied = Json.decodeFromString("""{"files":["a","b"],"value":null}""", decoder)
+        assertTrue(supplied.files.size == 2L && supplied.files[1L] == "b" && supplied.value == None)
+
+        val message = Json.decodeFromString("""{"Data":{}}""", Message.Companion)
+        assertTrue(
+            when (message) {
+                case Message.Data(val enabled, val files, val value) -> !enabled &&
+                    files.size ==
+                    0L &&
+                    value ==
+                    None
+                else -> false
+            }
+        )
+        val provided =
+            Json.decodeFromString(
+                """{"Data":{"enabled":true,"files":["x"],"value":"y"}}""",
+                Message.Companion
+            )
+        assertTrue(
+            when (provided) {
+                case Message.Data(val enabled, val files, val value) -> enabled &&
+                    files[0L] ==
+                    "x" &&
+                    value ==
+                    Some("y")
+                else -> false
+            }
+        )
+
+        assertFailsWith<DecodingException> {
+            Json.decodeFromString("{}", RequiredDefaults.Companion)
+        }
+        assertFailsWith<DecodingException> {
+            Json.decodeFromString("""{"flag":false}""", RequiredDefaults.Companion)
+        }
+        val required =
+            Json.decodeFromString("""{"flag":false,"files":[]}""", RequiredDefaults.Companion)
+        assertTrue(!required.flag && required.files.size == 0L)
+    }
+}

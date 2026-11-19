@@ -38,6 +38,7 @@ fn stores_requested_dumps_and_finds_only_missing_stages() {
     assert_eq!(
         missing.iter().collect::<Vec<_>>(),
         vec![
+            StageDumpKindV1::Generated,
             StageDumpKindV1::Hir,
             StageDumpKindV1::Mir,
             StageDumpKindV1::Optimizations,

@@ -116,7 +116,7 @@ impl Codec<'_, '_> {
                     let value = body.name();
                     if slot.default.is_some() {
                         body.line(format!("val {value}: {option}<{field_type}> = when ({container}.optional({})) {{\ncase {option}.Some(val {child}) -> {{ {binding}\n{option}.Some({strategy}.decode({child})) }}\ncase {option}.None -> {option}.None\n}}",literal(key)));
-                        Argument::Optional(value)
+                        Argument::optional(self.ctx, slot, value, field_type, &self.option)?
                     } else {
                         body.line(format!("val {value}: {field_type} = when ({container}.optional({})) {{\ncase {option}.Some(val {child}) -> {{ {binding}\n{strategy}.decode({child}) }}\ncase {option}.None -> {option}.None\n}}",literal(key)));
                         Argument::Supplied(value)

@@ -154,6 +154,8 @@ type-definition、implementation、references 提供进一步导航。workspace-
 
 验证可执行程序自己的标准流时，可以先用 `scoop build . --release -o ./app` 明确输出位置，再直接运行 `./app` 并分别收集 stdout、stderr 和退出码。Windows 使用 `app.exe`。输出路径由公开的 `-o` 选项确定，无需读取 `.scoop-output-*.record` 等内部构建记录。
 
-需要排查具体编译转换或性能问题时，`scoop build . --release --emit optimizations --dump-dir observations` 可观察优化决策；`--emit` 还支持 ast/hir/mir/lir/symbols/all。只选所需阶段，普通程序开发不依赖完整 IR 快照。已有产物链接用 `scoop link --help`；`scoopc` 和 `scoop-link` 是低层入口，应用通常使用 umbrella `scoop` 完成编排。
+需要排查具体编译转换或性能问题时，`scoop build . --release --emit optimizations --dump-dir observations` 可观察优化决策；`--emit` 还支持 ast/generated/hir/mir/lir/symbols/all。只选所需阶段，普通程序开发不依赖完整 IR 快照。已有产物链接用 `scoop link --help`；`scoopc` 和 `scoop-link` 是低层入口，应用通常使用 umbrella `scoop` 完成编排。
+
+查看 CLI、codec 或其他 generator 生成的源码，使用 `scoop build . --release --emit generated --dump-dir observations`，结果位于 `observations/<ConeIdentity>/generated.scoop`。文件按虚拟源码路径分段保留 generator 返回的方法体原文；它不含声明签名，供阅读，不是独立可编译的源码。`--emit all` 将该文件与 ast.txt、hir.txt、mir.txt 等观察放在同一目录；`--dump-scope sources` 同时导出源码依赖 Cone，预编译依赖不会重新生成。缓存中已有观察时直接复制，缺少时只补充所需编译阶段。生成或检查失败仍以诊断展示片段，不发布成功导出。直接使用 `scoopc build main.scoop --out-slib main.slib --emit generated --dump-dir observations` 时，文件位于 `observations/generated.scoop`；省略 `--dump-dir` 则输出到 stdout。
 
 `scoop clean` 会删除所选 target 目录及其中全部 profile／构建缓存；只在确实要清理输出时使用，不作为类型或库查找错误的常规修复。系统库准备与发行脚本属于工具链维护流程。

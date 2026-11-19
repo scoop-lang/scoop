@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 mod check;
 mod child_protocol;
+mod dumps;
 
 // Only Rust allocations use this allocator; LLVM owns its native allocations.
 #[cfg(windows)]
@@ -78,9 +79,12 @@ struct BuildArgs {
     /// Register a host source generator; may be repeated.
     #[arg(long = "generator", value_name = "NAME=PATH")]
     generators: Vec<std::ffi::OsString>,
-    /// Print pipeline stage dumps from this compilation to stdout.
+    /// Emit compiler observations, including generated source.
     #[arg(long, value_enum)]
     emit: Option<Emit>,
+    /// Save observations in this directory instead of printing them to stdout.
+    #[arg(long, requires = "emit")]
+    dump_dir: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -101,6 +105,7 @@ impl Profile {
 #[derive(Clone, Copy, ValueEnum)]
 enum Emit {
     Ast,
+    Generated,
     Hir,
     Mir,
     Optimizations,
@@ -126,50 +131,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     let result = match cli.command {
-        Command::Build(args) => {
-            let BuildArgs {
-                input,
-                direct_slibs,
-                support_slibs,
-                out_slib,
-                emit,
-                target,
-                sysroot,
-                cc,
-                cxx,
-                native_sysroot,
-                generators,
-                profile,
-                debug_info,
-                jobs,
-            } = *args;
-            build(
-                input,
-                direct_slibs,
-                support_slibs,
-                out_slib,
-                emit,
-                scoopc::DirectBuildOptions {
-                    optimization: profile.optimization(),
-                    debug_info: debug_info.unwrap_or(match profile {
-                        Profile::Debug => scoop_lir::DebugInfoLevel::Full,
-                        Profile::Release => scoop_lir::DebugInfoLevel::None,
-                    }),
-                    target,
-                    sysroot: sysroot.clone(),
-                    generators,
-                    c_toolchain: scoop_toolchain::CToolchainOptions {
-                        sysroot,
-                        compiler: cc,
-                        cxx_compiler: cxx,
-                        native_sysroot,
-                    },
-                },
-                jobs.unwrap_or_else(|| {
-                    std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)
-                }),
-            )
-        }
+        Command::Build(args) => build(*args),
         Command::Check(args) => check::run(args),
         Command::MachineCapability => write_machine_capability(),
         Command::ChildProtocol { version, jobs } => child_protocol::run(version, jobs),
@@ -201,19 +163,48 @@ fn write_machine_capability() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn build(
-    input: PathBuf,
-    direct_slibs: Vec<PathBuf>,
-    support_slibs: Vec<PathBuf>,
-    out_slib: PathBuf,
-    emit: Option<Emit>,
-    options: scoopc::DirectBuildOptions,
-    jobs: std::num::NonZeroUsize,
-) -> ExitCode {
+fn build(args: BuildArgs) -> ExitCode {
+    let BuildArgs {
+        input,
+        direct_slibs,
+        support_slibs,
+        out_slib,
+        emit,
+        dump_dir,
+        target,
+        sysroot,
+        cc,
+        cxx,
+        native_sysroot,
+        generators,
+        profile,
+        debug_info,
+        jobs,
+    } = args;
+    let options = scoopc::DirectBuildOptions {
+        optimization: profile.optimization(),
+        debug_info: debug_info.unwrap_or(match profile {
+            Profile::Debug => scoop_lir::DebugInfoLevel::Full,
+            Profile::Release => scoop_lir::DebugInfoLevel::None,
+        }),
+        target,
+        sysroot: sysroot.clone(),
+        generators,
+        c_toolchain: scoop_toolchain::CToolchainOptions {
+            sysroot,
+            compiler: cc,
+            cxx_compiler: cxx,
+            native_sysroot,
+        },
+    };
+    let jobs = jobs.unwrap_or_else(|| {
+        std::thread::available_parallelism().unwrap_or(std::num::NonZeroUsize::MIN)
+    });
     let emit = match emit {
         None => scoopc::StageDumpPolicy::None,
         Some(emit) => scoopc::StageDumpPolicy::Stages(match emit {
             Emit::Ast => scoop_protocol::StageDumpSet::one(scoopc::StageDumpKind::Ast),
+            Emit::Generated => scoop_protocol::StageDumpSet::one(scoopc::StageDumpKind::Generated),
             Emit::Hir => scoop_protocol::StageDumpSet::one(scoopc::StageDumpKind::Hir),
             Emit::Mir => scoop_protocol::StageDumpSet::one(scoopc::StageDumpKind::Mir),
             Emit::Optimizations => {
@@ -245,8 +236,18 @@ fn build(
             if !success.warnings().is_empty() {
                 eprintln!("{}", success.warnings().render_human());
             }
-            for dump in success.emitted_dumps() {
-                println!("{}", dump.text());
+            if let Some(directory) = dump_dir {
+                if let Err(error) = dumps::write_files(&directory, success.emitted_dumps()) {
+                    eprintln!(
+                        "error[E2204]: cannot write compiler observations to {}: {error}",
+                        directory.display()
+                    );
+                    return ExitCode::FAILURE;
+                }
+            } else {
+                for dump in success.emitted_dumps() {
+                    println!("{}", dump.text());
+                }
             }
             ExitCode::SUCCESS
         }
@@ -282,6 +283,44 @@ fn print_notes(notes: &[scoop_source::SourceDiagnosticNote]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generated_observations_can_be_printed_or_saved() {
+        for directory in [false, true] {
+            let mut args = vec![
+                "scoopc",
+                "build",
+                "main.scoop",
+                "--out-slib",
+                "main.slib",
+                "--emit",
+                "generated",
+            ];
+            if directory {
+                args.extend(["--dump-dir", "observations"]);
+            }
+            let Command::Build(args) = Cli::try_parse_from(args).unwrap().command else {
+                panic!("expected build command");
+            };
+            assert!(matches!(args.emit, Some(Emit::Generated)));
+            assert_eq!(
+                args.dump_dir,
+                directory.then(|| PathBuf::from("observations"))
+            );
+        }
+        assert!(
+            Cli::try_parse_from([
+                "scoopc",
+                "build",
+                "main.scoop",
+                "--out-slib",
+                "main.slib",
+                "--dump-dir",
+                "observations",
+            ])
+            .is_err()
+        );
+    }
 
     #[test]
     fn formal_build_arguments_are_accepted() {

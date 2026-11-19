@@ -15,10 +15,22 @@ files = [
 
 [[steps]]
 name = "compile"
-argv = ["${scoopc}", "build", "${root}", "--profile", "release", {each = "${compile_args}"}, "--sysroot", "${sysroot}", "--direct-slib", "${sysroot}/lib/${target}/scoop.std.slib", "--generator", "test.peer=generator", "--out-slib", "${work}/program.slib"]
+argv = ["${scoopc}", "build", "${root}", "--profile", "release", {each = "${compile_args}"}, "--sysroot", "${sysroot}", "--direct-slib", "${sysroot}/lib/${target}/scoop.std.slib", "--generator", "test.peer=generator", "--out-slib", "${work}/program.slib", "--emit", "all", "--dump-dir", "${work}/dumps"]
 exit = 0
 stdout = ""
 stderr = "generator: 1 request, 2 owners, 3 methods, queries completed\n"
+checks = [
+  {file = "${work}/dumps/ast.txt", exists = true},
+  {file = "${work}/dumps/hir.txt", exists = true},
+  {file = "${work}/dumps/mir.txt", exists = true},
+  {file = "${work}/dumps/optimizations.json", exists = true},
+  {file = "${work}/dumps/lir.txt", exists = true},
+  {file = "${work}/dumps/symbols.json", exists = true},
+  {file = "${work}/dumps/generated.scoop", contains = "// Source: generated/function/"},
+  {file = "${work}/dumps/generated.scoop", contains = "{\n    val result = left + right\n    return result\n}"},
+  {file = "${work}/dumps/generated.scoop", contains = "// 中文前缀\n{ return \"中文\\n\\\"quoted\\\"\" } /* suffix */"},
+  {file = "${work}/dumps/generated.scoop", contains = "val decoder: ValueDecoder<T> = T.Companion\n val result: () -> T = { value }\n return result() }"},
+]
 
 [[steps]]
 name = "link"

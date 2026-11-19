@@ -45,3 +45,31 @@ pub(super) fn ast_dumps(
             .collect()
     })
 }
+
+pub(super) fn generated_dumps(
+    sources: &[scoop_hir::GeneratedMethodSource],
+    emit: StageDumpPolicy,
+) -> Vec<EmittedStageDump> {
+    capture_stage_dump(emit, StageDumpKind::Generated, || {
+        use std::fmt::Write;
+
+        let mut output = String::new();
+        for source in sources {
+            writeln!(
+                output,
+                "// Source: {}",
+                source.identity.logical_path().as_str()
+            )
+            .unwrap();
+            output.push_str(source.text.as_str());
+            if !output.ends_with('\n') {
+                output.push('\n');
+            }
+            output.push('\n');
+        }
+        output
+    })
+}
+
+#[cfg(test)]
+mod tests;

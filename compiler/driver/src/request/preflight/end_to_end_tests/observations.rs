@@ -31,6 +31,9 @@ fn observations_stop_at_requested_stage_without_publishing_artifacts() {
         assert!(matches!(result, SingleConeCompilation::Observed(_)));
         assert_eq!(result.emitted_dumps().len(), 1);
         assert_eq!(result.emitted_dumps()[0].kind(), stage);
+        if stage == StageDumpKind::Generated {
+            assert!(result.emitted_dumps()[0].text().is_empty());
+        }
         if stage == StageDumpKind::Optimizations {
             let report: serde_json::Value =
                 serde_json::from_str(result.emitted_dumps()[0].text()).unwrap();

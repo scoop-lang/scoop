@@ -87,7 +87,11 @@ fn documentation_requires_production_manifest_and_a_real_frontend_result() {
             .unwrap_err(),
         ProtocolValidationError::DocumentationObservation
     );
-    for stage in [StageDumpKindV1::Ast, StageDumpKindV1::Hir] {
+    for stage in [
+        StageDumpKindV1::Ast,
+        StageDumpKindV1::Generated,
+        StageDumpKindV1::Hir,
+    ] {
         assert!(build(documentation(), manifest(), dumps(stage)).is_ok());
     }
     for stage in [

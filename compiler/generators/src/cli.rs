@@ -173,7 +173,7 @@ fn generate(ctx: &mut Context<'_>) -> Result<Option<String>> {
                 let field = body.name();
                 if has_default {
                     body.line(format!("val {value}: {option}<{field_type}> = when ({values}.optional({key})) {{\ncase {option}.Some(val {field}) -> {{ {binding_source}\n{option}.Some({receiver}.parseValue({field})) }}\ncase {option}.None -> {option}.None\n}}"));
-                    Argument::Optional(value)
+                    Argument::optional(cli.ctx, &slot, value, field_type, &cli.option)?
                 } else {
                     body.line(format!("val {value}: {field_type} = when ({values}.optional({key})) {{\ncase {option}.Some(val {field}) -> {{ {binding_source}\n{receiver}.parseValue({field}) }}\ncase {option}.None -> {option}.None\n}}"));
                     Argument::Supplied(value)
