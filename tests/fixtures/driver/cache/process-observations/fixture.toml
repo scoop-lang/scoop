@@ -114,7 +114,7 @@ checks = [
 
 [[steps]]
 name = "observe_sources"
-argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${work}/root", {"each" = "${options}"}, "--runtime-root", "${runtime}", "-o", "${work}/library.slib", "--emit", "hir", "--dump-dir", "${work}/dump-sources", "--dump-scope", "sources"]
+argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${work}/root", {"each" = "${options}"}, "--runtime-root", "${runtime}", "-o", "${work}/library.slib", "--emit", "generated", "--dump-dir", "${work}/dump-sources", "--dump-scope", "sources"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -122,8 +122,8 @@ json = "stderr"
 diagnostics = []
 checks = [
   {actual = "${observe_sources.result.observations.child_invocations}", equals = ["${cold.result.dependencies.1.identity}"]},
-  {file = "${work}/dump-sources/${cold.result.dependencies.1.identity}/hir.txt", exists = true},
-  {file = "${work}/dump-sources/${cold.result.root.identity}/hir.txt", same_as = "${work}/dump/${cold.result.root.identity}/hir.txt"},
+  {file = "${work}/dump-sources/${cold.result.dependencies.1.identity}/generated.scoop", exists = true},
+  {file = "${work}/dump-sources/${cold.result.root.identity}/generated.scoop", same_as = "${work}/dump/${cold.result.root.identity}/generated.scoop"},
 ]
 
 [[steps]]

@@ -38,7 +38,7 @@ fn empty_repeated_and_reordered_stage_sets_are_rejected() {
             Err(ProtocolValidationError::InvalidDumpStages)
         );
     }
-    for stages in [vec![], vec![1, 1], vec![4, 2], vec![7]] {
+    for stages in [vec![], vec![1, 1], vec![4, 2], vec![8]] {
         let raw = DecodedStageDumpPolicyV1::Files {
             stages,
             directory: decode_canonical::<DecodedHostPathCarrier>(&encode(&directory()).unwrap())
@@ -66,12 +66,14 @@ fn extra_observations_keep_existing_tags_and_pipeline_order() {
     assert_eq!(encode(&Lir).unwrap(), [4]);
     assert_eq!(encode(&Optimizations).unwrap(), [5]);
     assert_eq!(encode(&Symbols).unwrap(), [6]);
+    assert_eq!(encode(&Generated).unwrap(), [7]);
     assert_eq!(
-        StageDumpSet::new(&[Mir, Optimizations, Lir, Symbols])
+        StageDumpSet::new(&[Ast, Generated, Hir, Mir, Optimizations, Lir, Symbols])
             .unwrap()
             .iter()
             .collect::<Vec<_>>(),
-        [Mir, Optimizations, Lir, Symbols]
+        [Ast, Generated, Hir, Mir, Optimizations, Lir, Symbols]
     );
     assert!(StageDumpSet::new(&[Mir, Lir, Optimizations]).is_err());
+    assert!(StageDumpSet::new(&[Hir, Generated]).is_err());
 }

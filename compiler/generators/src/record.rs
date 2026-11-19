@@ -1,4 +1,4 @@
-use crate::client::{Error, Result};
+use crate::client::{Context, Error, Result};
 use crate::model::{
     Annotation, Constructor, ConstructorKind, Field, Members, Parameter, Property, Storage, Target,
     TypeUse,
@@ -6,6 +6,12 @@ use crate::model::{
 use crate::source::{Body, ident};
 use scoop_generator_protocol::SourceLocation;
 use serde_json::Value;
+
+mod defaults;
+use defaults::SimpleDefault;
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone)]
 pub struct Slot {
@@ -164,7 +170,31 @@ impl Members {
 pub enum Argument {
     Supplied(String),
     Optional(String),
+    Defaulted {
+        presence: String,
+        value_type: String,
+        default: SimpleDefault,
+    },
     Omitted,
+}
+
+impl Argument {
+    pub fn optional(
+        ctx: &mut Context<'_>,
+        slot: &Slot,
+        presence: String,
+        value_type: String,
+        option: &Value,
+    ) -> Result<Self> {
+        Ok(match defaults::read(ctx, slot, option)? {
+            Some(default) => Self::Defaulted {
+                presence,
+                value_type,
+                default,
+            },
+            None => Self::Optional(presence),
+        })
+    }
 }
 
 pub fn construct(
@@ -191,6 +221,19 @@ pub fn construct(
             match arg {
                 Argument::Supplied(value) => actual.push(format!("{prefix}{value}")),
                 Argument::Omitted => {}
+                Argument::Defaulted {
+                    presence,
+                    value_type,
+                    default,
+                } => {
+                    let value = body.name();
+                    let provided = body.name();
+                    let fallback = default.source(option);
+                    body.line(format!(
+                        "val {value}: {value_type} = when ({presence}) {{\ncase {option}.Some(val {provided}) -> {provided}\ncase {option}.None -> {fallback}\n}}"
+                    ));
+                    actual.push(format!("{prefix}{value}"));
+                }
                 Argument::Optional(presence) => {
                     let value = body.name();
                     body.line(format!(

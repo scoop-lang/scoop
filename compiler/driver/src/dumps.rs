@@ -1,5 +1,6 @@
 use std::fs;
 use std::io;
+use std::path::Path;
 
 use scoop_protocol::{
     EmittedDumpDescriptorV1, EmittedDumpDestinationV1, HostPathCarrier, StageDumpPolicyV1,
@@ -23,12 +24,11 @@ pub(super) fn write_dumps(
         ));
     }
     let directory = directory.to_path_buf().map_err(io::Error::other)?;
-    fs::create_dir_all(&directory)?;
+    write_files(&directory, dumps)?;
     dumps
         .iter()
         .map(|dump| {
             let path = directory.join(dump.kind().file_name());
-            fs::write(&path, dump.text().as_bytes())?;
             Ok(EmittedDumpDescriptorV1::new(
                 dump.kind(),
                 EmittedDumpDestinationV1::File(
@@ -37,4 +37,12 @@ pub(super) fn write_dumps(
             ))
         })
         .collect()
+}
+
+pub(super) fn write_files(directory: &Path, dumps: &[scoopc::EmittedStageDump]) -> io::Result<()> {
+    fs::create_dir_all(directory)?;
+    for dump in dumps {
+        fs::write(directory.join(dump.kind().file_name()), dump.text())?;
+    }
+    Ok(())
 }

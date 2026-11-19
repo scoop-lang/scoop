@@ -1,0 +1,198 @@
+package scoop.cli.tests.cli.defaults
+
+import scoop.test.*
+import scoop.cli.*
+
+private typealias Switch = Boolean
+
+private typealias Files<T> = Array<T>
+
+private object Trace {
+    var events: String = ""
+}
+
+private fun derivedValue(port: Int, enabled: Boolean, files: Array<String>): Int {
+    Trace.events += "D"
+    return port +
+        files.size.toInt() +
+        if (enabled)
+            1
+        else
+            0
+}
+
+private fun ignoredValue(value: Int): Int {
+    Trace.events += "I"
+    return value + 1
+}
+
+private class Defaults(
+    val enabled: Boolean = false,
+    @CliFlag(negativeNames = ["--no-color"]) val color: Boolean = true,
+    val verbose: Boolean = (false),
+    val quiet: Switch = false,
+    val trace: Boolean = false,
+    val files: Files<String> = [],
+    val numbers: Array<Int> = [],
+    val mutable: MutableArray<Int> = [],
+    val output: String? = Option.None,
+    val nested: String?? = (None),
+    val port: Int = 123,
+    val derived: Int = derivedValue(port, enabled, files),
+    @CliIgnore val ignored: Int = ignoredValue(derived)
+) {
+    init {
+        Trace.events += "C"
+    }
+    @GenerateWith("scoop.cli", ["CliArguments<Defaults>"])
+    companion object: CliArguments<Defaults>
+}
+
+private fun falseDefault(): Boolean {
+    Trace.events += "B";
+    return false
+}
+
+private fun arrayDefault(): Array<String> {
+    Trace.events += "A";
+    return []
+}
+
+private fun noneDefault(): String? {
+    Trace.events += "N";
+    return None
+}
+
+private struct ComputedDefaults(
+    val flag: Boolean = falseDefault(),
+    val files: Array<String> = arrayDefault(),
+    val output: String? = noneDefault()
+) {
+    @GenerateWith("scoop.cli", ["CliArguments<ComputedDefaults>"])
+    companion object: CliArguments<ComputedDefaults>
+}
+
+private struct GenericDefaults<T>(val files: Array<T> = [], val value: T? = None)
+
+@GenerateWith("scoop.cli", ["CliArguments<GenericDefaults<T>>"])
+private class GenericArguments<T>(val parser: CliValueParser<T>): CliArguments<GenericDefaults<T>>
+
+private struct RequiredDefaults(
+    @CliOption(required = true) val enabled: Boolean = false,
+    @CliOption(required = true) val files: Array<String> = []
+) {
+    @GenerateWith("scoop.cli", ["CliArguments<RequiredDefaults>"])
+    companion object: CliArguments<RequiredDefaults>
+}
+
+private fun <T> parsed(result: CliResult<T>): T =
+    when (result) {
+        case CliResult.Parsed(val value) -> value
+        case CliResult.HelpRequested -> throw IllegalStateException()
+    }
+
+@Test
+private class DefaultTests {
+    @Test
+    fun manySimpleDefaultsAndDependentValues() {
+        Trace.events = ""
+        val parser = CliParser(CliConfig("defaults"), Defaults.Companion)
+        assertEquals("", Trace.events)
+        val empty = parsed(parser.parse([]))
+        assertTrue(!empty.enabled && empty.color && !empty.verbose && !empty.quiet && !empty.trace)
+        assertTrue(empty.files.size == 0L && empty.numbers.size == 0L && empty.mutable.size == 0L)
+        assertTrue(empty.output == None && empty.nested == None)
+        assertTrue(empty.port == 123 && empty.derived == 123 && empty.ignored == 124)
+        assertEquals("DIC", Trace.events)
+        for (entry in parser.entries) {
+            assertTrue(entry.hasDefault && !entry.required)
+        }
+        val another = parsed(parser.parse([]))
+        assertNotSame(empty.files, another.files)
+        assertNotSame(empty.mutable, another.mutable)
+
+        Trace.events = ""
+        val provided =
+            parsed(
+                parser.parse(
+                    [
+                        "--enabled",
+                        "--no-color",
+                        "--verbose",
+                        "--quiet",
+                        "--trace",
+                        "--files=a",
+                        "--files=b",
+                        "--numbers=7",
+                        "--mutable=9",
+                        "--output=",
+                        "--nested=inner",
+                        "--port=10"
+                    ]
+                )
+            )
+        assertTrue(
+            provided.enabled &&
+                !provided.color &&
+                provided.verbose &&
+                provided.quiet &&
+                provided.trace
+        )
+        assertTrue(
+            provided.files.size == 2L && provided.files[0L] == "a" && provided.files[1L] == "b"
+        )
+        assertTrue(provided.numbers[0L] == 7 && provided.mutable[0L] == 9)
+        assertTrue(provided.output == Some("") && provided.nested == Some(Some("inner")))
+        assertTrue(provided.derived == 13 && provided.ignored == 14)
+        assertEquals("DIC", Trace.events)
+
+        Trace.events = ""
+        assertEquals(21, parsed(parser.parse(["--derived=20"])).ignored)
+        assertEquals("IC", Trace.events)
+        Trace.events = ""
+        assertTrue(
+            when (parser.parse(["--help"])) {
+                case CliResult.HelpRequested -> true
+                else -> false
+            }
+        )
+        assertEquals("", Trace.events)
+        assertFailsWith<CliParseException> { parser.parse(["--numbers=bad"]) }
+        assertEquals("", Trace.events)
+    }
+
+    @Test
+    fun computedDefaultsRemainLazy() {
+        Trace.events = ""
+        val parser = CliParser(CliConfig("computed"), ComputedDefaults.Companion)
+        val empty = parsed(parser.parse([]))
+        assertTrue(!empty.flag && empty.files.size == 0L && empty.output == None)
+        assertEquals("BAN", Trace.events)
+        Trace.events = ""
+        val partial = parsed(parser.parse(["--files=x"]))
+        assertEquals("x", partial.files[0L])
+        assertEquals("BN", Trace.events)
+        Trace.events = ""
+        val supplied = parsed(parser.parse(["--flag", "--files=y", "--output=z"]))
+        assertTrue(supplied.flag && supplied.files[0L] == "y" && supplied.output == Some("z"))
+        assertEquals("", Trace.events)
+    }
+
+    @Test
+    fun genericAndRequiredDefaults() {
+        val parser =
+            CliParser(CliConfig("generic"), GenericArguments<String>(CliParsers.stringValue))
+        val empty = parsed(parser.parse([]))
+        assertTrue(empty.files.size == 0L && empty.value == None)
+        val supplied = parsed(parser.parse(["--files=a", "--files=b", "--value=c"]))
+        assertTrue(
+            supplied.files.size == 2L && supplied.files[1L] == "b" && supplied.value == Some("c")
+        )
+
+        val required = CliParser(CliConfig("required"), RequiredDefaults.Companion)
+        assertFailsWith<CliParseException> { required.parse([]) }
+        assertFailsWith<CliParseException> { required.parse(["--enabled=true"]) }
+        val values = parsed(required.parse(["--enabled=false", "--files=x"]))
+        assertTrue(!values.enabled && values.files[0L] == "x")
+    }
+}

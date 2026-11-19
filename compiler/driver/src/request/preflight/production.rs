@@ -122,6 +122,13 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
                 },
             ));
         }
+        dump.extend(observation::generated_dumps(&hir.generated_sources, emit));
+        if stop_after == Some(StageDumpKind::Generated) {
+            return Ok(SingleConeCompilation::Observed(StageObservation {
+                warnings,
+                dumps: dump,
+            }));
+        }
         let mut hir = match current_hir::CurrentConeHirArtifacts::from_hir(hir, &world) {
             Ok(hir) => hir,
             Err(error) => {

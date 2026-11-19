@@ -6,6 +6,7 @@ use crate::{HostPathCarrier, ProtocolValidationError};
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum StageDumpKindV1 {
     Ast,
+    Generated,
     Hir,
     Mir,
     Optimizations,
@@ -14,8 +15,9 @@ pub enum StageDumpKindV1 {
 }
 
 impl StageDumpKindV1 {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Ast,
+        Self::Generated,
         Self::Hir,
         Self::Mir,
         Self::Optimizations,
@@ -26,6 +28,7 @@ impl StageDumpKindV1 {
     pub const fn file_name(self) -> &'static str {
         match self {
             Self::Ast => "ast.txt",
+            Self::Generated => "generated.scoop",
             Self::Hir => "hir.txt",
             Self::Mir => "mir.txt",
             Self::Optimizations => "optimizations.json",
@@ -42,6 +45,7 @@ impl StageDumpKindV1 {
             Self::Lir => 4,
             Self::Optimizations => 5,
             Self::Symbols => 6,
+            Self::Generated => 7,
         }
     }
 
@@ -53,6 +57,7 @@ impl StageDumpKindV1 {
             4 => Ok(Self::Lir),
             5 => Ok(Self::Optimizations),
             6 => Ok(Self::Symbols),
+            7 => Ok(Self::Generated),
             _ => Err(ProtocolValidationError::UnknownEnumTag {
                 kind: "stage dump",
                 tag,

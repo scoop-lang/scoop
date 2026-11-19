@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn generated_observations_require_a_directory_and_accept_source_scope() {
+    for emit in ["generated", "all"] {
+        let cli = Cli::try_parse_from([
+            "scoop",
+            "build",
+            "--emit",
+            emit,
+            "--dump-dir",
+            "observations",
+            "--dump-scope",
+            "sources",
+        ])
+        .unwrap();
+        let Command::Build(args) = cli.command else {
+            panic!("expected build command");
+        };
+        assert!(
+            args.emit
+                .unwrap()
+                .stages()
+                .contains(scoop_protocol::StageDumpKindV1::Generated)
+        );
+        assert_eq!(args.dump_dir, Some(PathBuf::from("observations")));
+        assert!(matches!(args.dump_scope, Some(DumpScope::Sources)));
+    }
+    assert!(Cli::try_parse_from(["scoop", "build", "--emit", "generated"]).is_err());
+    assert!(Cli::try_parse_from(["scoop", "build", "--dump-dir", "observations"]).is_err());
+}
+
+#[test]
 fn stack_trace_is_an_optional_boolean_final_link_setting() {
     for command in ["build", "run", "test", "link"] {
         for option in [

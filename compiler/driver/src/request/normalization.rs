@@ -196,6 +196,7 @@ mod tests {
         );
         for (wire, expected) in [
             (StageDumpKind::Ast, StageDumpKind::Ast),
+            (StageDumpKind::Generated, StageDumpKind::Generated),
             (StageDumpKind::Hir, StageDumpKind::Hir),
             (StageDumpKind::Mir, StageDumpKind::Mir),
             (StageDumpKind::Optimizations, StageDumpKind::Optimizations),

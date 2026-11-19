@@ -34,6 +34,23 @@ checks = [
 ]
 
 [[steps]]
+name = "generated"
+argv = ["${scoop}", "build", "${work}/provider", {each = "${link_args}"}, {each = "${options}"}, "--generator", "test.peer=generator", "--emit", "generated", "--dump-dir", "${work}/first-dumps", "-o", "${work}/provider.slib"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+  {actual = "${generated.result.observations.child_invocations.length}", equals = 1},
+  {actual = "${generated.result.root.path}", equals = "${cold.result.root.path}"},
+  {file = "${work}/generator.calls", equals = "called\ncalled\n"},
+  {file = "${work}/first-dumps/${cold.result.root.identity}/generated.scoop", contains = "// Source: generated/function/"},
+  {file = "${work}/first-dumps/${cold.result.root.identity}/generated.scoop", contains = "{ return 42 }"},
+  {file = "${work}/first-dumps/${cold.result.root.identity}/generated.scoop", contains = "{ return value }"},
+]
+
+[[steps]]
 name = "unused_change"
 files = [
   {replace = {path = "${work}/unused", old = 'return "{ return 42 }"', new = 'return "{ return 100 }"'}},
@@ -42,7 +59,7 @@ files = [
 
 [[steps]]
 name = "warm"
-argv = ["${scoop}", "build", "${work}/provider", {each = "${link_args}"}, {each = "${options}"}, "--generator", "test.peer=generator", "--generator", "unused=unused-other", "--emit", "hir", "--dump-dir", "${work}/warm-dumps", "-o", "${work}/provider.slib"]
+argv = ["${scoop}", "build", "${work}/provider", {each = "${link_args}"}, {each = "${options}"}, "--generator", "test.peer=generator", "--generator", "unused=unused-other", "--emit", "generated", "--dump-dir", "${work}/warm-dumps", "-o", "${work}/provider.slib"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -51,9 +68,9 @@ diagnostics = []
 checks = [
   {actual = "${warm.result.observations.child_invocations.length}", equals = 0},
   {actual = "${warm.result.root.path}", equals = "${cold.result.root.path}"},
-  {file = "${work}/generator.calls", equals = "called\n"},
+  {file = "${work}/generator.calls", equals = "called\ncalled\n"},
   {file = "${work}/unused-other.calls", exists = false},
-  {file = "${work}/warm-dumps/${warm.result.root.identity}/hir.txt", same_as = "${work}/first-dumps/${cold.result.root.identity}/hir.txt"},
+  {file = "${work}/warm-dumps/${warm.result.root.identity}/generated.scoop", same_as = "${work}/first-dumps/${cold.result.root.identity}/generated.scoop"},
 ]
 
 [[steps]]
@@ -66,7 +83,7 @@ json = "stderr"
 diagnostics = []
 checks = [
   {actual = "${consumer.result.observations.child_invocations.length}", equals = 1},
-  {file = "${work}/generator.calls", equals = "called\n"},
+  {file = "${work}/generator.calls", equals = "called\ncalled\n"},
 ]
 
 [[steps]]
@@ -75,7 +92,7 @@ files = [{replace = {path = "${work}/generator", old = 'return "{ return 42 }"',
 
 [[steps]]
 name = "changed"
-argv = ["${scoop}", "build", "${work}/provider", {each = "${link_args}"}, {each = "${options}"}, "--generator", "test.peer=generator", "--emit", "hir", "--dump-dir", "${work}/changed-dumps", "-o", "${work}/provider.slib"]
+argv = ["${scoop}", "build", "${work}/provider", {each = "${link_args}"}, {each = "${options}"}, "--generator", "test.peer=generator", "--emit", "generated", "--dump-dir", "${work}/changed-dumps", "-o", "${work}/provider.slib"]
 exit = 0
 stdout = ""
 stderr = ""
@@ -85,8 +102,8 @@ checks = [
   {actual = "${changed.result.observations.child_invocations.length}", equals = 1},
   {actual = "${changed.result.root.path}", not_equals = "${cold.result.root.path}"},
   {file = "${cold.result.root.path}", exists = true},
-  {file = "${work}/generator.calls", equals = "called\ncalled\n"},
-  {file = "${work}/changed-dumps/${changed.result.root.identity}/hir.txt", different_from = "${work}/first-dumps/${cold.result.root.identity}/hir.txt"},
+  {file = "${work}/generator.calls", equals = "called\ncalled\ncalled\n"},
+  {file = "${work}/changed-dumps/${changed.result.root.identity}/generated.scoop", different_from = "${work}/first-dumps/${cold.result.root.identity}/generated.scoop"},
 ]
 
 [[steps]]
@@ -99,7 +116,7 @@ json = "stderr"
 diagnostics = []
 checks = [
   {actual = "${consumer_changed.result.observations.child_invocations.length}", equals = 1},
-  {file = "${work}/generator.calls", equals = "called\ncalled\n"},
+  {file = "${work}/generator.calls", equals = "called\ncalled\ncalled\n"},
 ]
 
 [[steps]]
@@ -124,16 +141,19 @@ checks = [
   {actual = "${rebound.result.root.path}", not_equals = "${changed.result.root.path}"},
   {file = "${changed.result.root.path}", exists = true},
   {file = "${work}/alternate.calls", equals = "called\n"},
-  {file = "${work}/generator.calls", equals = "called\ncalled\n"},
+  {file = "${work}/generator.calls", equals = "called\ncalled\ncalled\n"},
 ]
 
 [[steps]]
 name = "failed"
-argv = ["${scoop}", "build", "${work}/provider", {each = "${link_args}"}, "--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--generator", "test.peer=failing", "-o", "${work}/failed.slib"]
+argv = ["${scoop}", "build", "${work}/provider", {each = "${link_args}"}, "--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--generator", "test.peer=failing", "--emit", "generated", "--dump-dir", "${work}/failed-dumps", "-o", "${work}/failed.slib"]
 exit = 1
 stdout = ""
 stderr = {regex = "   Compiling test:generated-provider:1\\.0\\.0\n      Failed test:generated-provider:1\\.0\\.0 in [0-9]+[.][0-9]{2}s\nerror\\[E2203\\]: generator `test\\.peer` failed: process exited with exit status: 7\n --> ${work}/provider/src/api\\.scoop:5:29\n  \\|\n5 \\| @GenerateWith\\(\"test\\.peer\", \\[\"Value\"\\]\\)\n  \\|                             \\^\\^\\^\\^\\^\\^\\^\nerror\\[E1008\\]: class `GeneratedValue` does not implement interface method `Value\\.value`\n --> ${work}/provider/src/api\\.scoop:6:1\n  \\|\n6 \\| public class GeneratedValue public constructor\\(\\) : Value\n  \\| \\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\nerror\\[E1008\\]: class `Generic` does not implement interface method `Echo<T>\\.echo`\n  --> ${work}/provider/src/api\\.scoop:11:1\n   \\|\n11 \\| public class Generic<T> public constructor\\(\\) : Echo<T>\n   \\| \\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\\^\n"}
-checks = [{file = "${work}/failed.slib", exists = false}]
+checks = [
+  {file = "${work}/failed.slib", exists = false},
+  {file = "${work}/failed-dumps/${cold.result.root.identity}/generated.scoop", exists = false},
+]
 
 [[steps]]
 name = "retained"

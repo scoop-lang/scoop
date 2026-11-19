@@ -84,8 +84,11 @@ files = [
 
 [[steps]]
 name = "compile"
-argv = ["${scoopc}", "build", "${root}", "--profile", "release", {each = "${compile_args}"}, "--sysroot", "${sysroot}", "--direct-slib", "${sysroot}/lib/${target}/scoop.std.slib", "--generator", "test.peer=generator", "--out-slib", "${work}/failed.slib"]
+argv = ["${scoopc}", "build", "${root}", "--profile", "release", {each = "${compile_args}"}, "--sysroot", "${sysroot}", "--direct-slib", "${sysroot}/lib/${target}/scoop.std.slib", "--generator", "test.peer=generator", "--out-slib", "${work}/failed.slib", "--emit", "generated", "--dump-dir", "${work}/dumps"]
 exit = 1
 stdout = ""
 stderr = "${expected}"
-checks = [{file = "${work}/failed.slib", exists = false}]
+checks = [
+  {file = "${work}/failed.slib", exists = false},
+  {file = "${work}/dumps/generated.scoop", exists = false},
+]

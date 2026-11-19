@@ -129,10 +129,13 @@ pub(super) struct BuildArgs {
     /// Compile the root test artifact; requires --emit-slib.
     #[arg(long, requires = "emit_slib")]
     pub tests: bool,
+    /// Save compiler observations, including generated source, to --dump-dir.
     #[arg(long, requires = "dump_dir")]
     pub emit: Option<Emit>,
+    /// Observation output directory, grouped by Cone identity.
     #[arg(long, requires = "emit")]
     pub dump_dir: Option<PathBuf>,
+    /// Observe the root Cone or all source Cones.
     #[arg(long, requires = "emit")]
     pub dump_scope: Option<DumpScope>,
 }
@@ -140,6 +143,7 @@ pub(super) struct BuildArgs {
 #[derive(Clone, Copy, ValueEnum)]
 pub(super) enum Emit {
     Ast,
+    Generated,
     Hir,
     Mir,
     Optimizations,
@@ -152,6 +156,7 @@ impl Emit {
         use scoop_protocol::{StageDumpKindV1 as Stage, StageDumpSet as Set};
         match self {
             Self::Ast => Set::one(Stage::Ast),
+            Self::Generated => Set::one(Stage::Generated),
             Self::Hir => Set::one(Stage::Hir),
             Self::Mir => Set::one(Stage::Mir),
             Self::Optimizations => Set::one(Stage::Optimizations),

@@ -1,5 +1,3 @@
-mod dumps;
-
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::process::ExitCode;
@@ -146,7 +144,7 @@ fn success_response(
     success: &scoopc::SingleConeCompilation,
     policy: &StageDumpPolicyV1,
 ) -> Result<ScoopcResponseEnvelopeV1, ChildProtocolError> {
-    let dumps = dumps::write_dumps(policy, success.emitted_dumps())
+    let dumps = crate::dumps::write_dumps(policy, success.emitted_dumps())
         .map_err(ChildProtocolError::DumpOutput)?;
     let warnings = success
         .warnings()

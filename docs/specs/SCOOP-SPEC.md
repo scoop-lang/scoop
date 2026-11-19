@@ -2588,7 +2588,7 @@ List/MutableList没有唯一默认解码结果。核心库提供普通
 Any、函数、Ptr及两种原生函数指针没有默认codec。用户可手写`ValueEncoder<List<T>>`、
 `ValueDecoder<List<T>>`、`ValueEncoder<Any>`或`ValueDecoder<Any>`等实现；不从运行期类型名推断具体codec。
 
-用于自动解码的 record 须从生成方法的访问域只见一个构造器，且为主构造器。其他构造入口使用 companion 上的具名工厂。生成正文通过普通具名调用省略缺失且有默认值的形参。编译器按 8.5 绑定和实例化默认值。只生成编码或手写解码的类型可按普通规则定义构造器。
+用于自动解码的 record 须从生成方法的访问域只见一个构造器，且为主构造器。其他构造入口使用 companion 上的具名工厂。生成正文通过普通具名调用构造；11.13.3 的简单默认值可直接补值，其余缺失且有默认值的形参省略，由编译器按 8.5 绑定和实例化默认值。只生成编码或手写解码的类型可按普通规则定义构造器。
 
 #### 11.13.2 容器协议与库边界
 
@@ -2688,6 +2688,8 @@ rename 适用于 record 存储字段／property、enum variant；其余三项仅
 合成解码先排除 ignore，再按 required、原声明类型和 default 决定字段存在性。required 为 true 始终调用 required(name)；其他字段有 default 或原声明外层为核心 Option 时调用 optional(name)，否则必须存在。存在的 child 始终交给按 11.13.4 选定的完整字段 codec；缺失时显式 default 优先，没有 default 的声明处 Option 补 None。ignore 的构造参数也必须有 default 或上述 None 补值，其他 class 状态按正常初始化；无补值方式的非 Option 参数仅在请求 decode 合成时报错。源码调用省略构造实参仍需声明 default，不因本规则改变。
 
 解码先按构造参数顺序读取全部已提供字段，再完成 container 检查，随后按参数顺序为缺失项执行定义处已绑定的 default，最后调用正常构造器。default 可引用前面参数，每次构造至多执行一次；直接补 None 不执行用户代码。显式 null 不触发 default，是否接受由字段 codec 决定；required 只要求 key 存在。缺失字段、ignore 字段及未选 variant 不求值字段 codec。
+
+自动解码与 12.7 的 CLI 绑定对简单默认值共用直接补值规则：默认值的已绑定正文没有前置语句，且结果直接为 Boolean 字面量、核心 Option 的 None 或空数组字面量时，在输入检查完成后为缺失项生成同类型的值并显式传参，不为这些字段组合展开构造调用。空数组在每次实际缺失时独立创建。括号、限定名和透明 alias 不改变已绑定结果；不对变量读取、函数调用、非空数组或其他表达式推断等价性。其他默认值继续通过省略具名实参处理，保留定义处绑定、前参引用及用户代码的求值顺序；ignore 参数仍按原规则固定省略。
 
 编码按字段声明序，每个参与字段只读取一次，先决定是否省略，再创建 child、求值已选 codec 并调用。ignore 不读取、不创建 child、不求值 codec。None 仅在原声明外层是实际核心 Option、required／emitNull 均为 false，且没有 default 或 default 是直接绑定到核心 None variant 的表达式时省略。括号、限定名和透明 alias 不改变该直接表达式；变量读取、函数调用及其他表达式不推断等价性。其他字段总是写出，不执行 default、比较任意值或调用 equals。因此 default 为 Some("guest") 或函数调用的 Option 字段，其 None 仍须交给 codec，避免省略后解码恢复为不同值。显式注入的完整 Option codec 继续优先；emitNull 的含义是保留字段并交给该 codec，实际 wire 值由其决定。
 
@@ -3319,7 +3321,7 @@ M63包管理允许显式Git/registry来源及根覆盖，但core仍固定为上�
 
 CliEntry 含 sourceName、role、valueShape、names、negativeNames、help、valueName、defaultText、required 和 hasDefault。shape 表示 Text、Flag、Choice 或 Repeated。Choice 保存允许的文本拼写。Repeated 的元素是文本或 choice。生成器在定义处诊断能静态确定的注解、alias、位置及形状错误，手写 entries 和自定义 shape 在 parser 建立时做相同布局检查。
 
-自动模型为 struct 或无 class 基类的 final class，参数映射到真实主构造器成员。computed property 跳过。额外存储、委托、自定义存储 accessor 或未映射的构造状态可由手写接口处理。生成 bind 要求从该方法可见的唯一构造器是主构造器。业务上的其他构造入口可写成 companion 具名工厂。生成器用普通具名实参调用，缺失有默认值的形参省略，由语言按 8.5 求值。没有显式默认值的原声明 Option 缺失时补 None。原声明 T 的实际参数取 Option 不改变必填性。`@CliIgnore` 将字段排除，参数必须有默认值或可按声明补 None。role 的 required 可显式要求出现。defaultText 仅用于 help。
+自动模型为 struct 或无 class 基类的 final class，参数映射到真实主构造器成员。computed property 跳过。额外存储、委托、自定义存储 accessor 或未映射的构造状态可由手写接口处理。生成 bind 要求从该方法可见的唯一构造器是主构造器。业务上的其他构造入口可写成 companion 具名工厂。生成器用普通具名实参调用；缺失项中的简单默认值按 11.13.3 直接补值，其余有默认值的形参省略，由语言按 8.5 求值。没有显式默认值的原声明 Option 缺失时补 None。原声明 T 的实际参数取 Option 不改变必填性。`@CliIgnore` 将字段排除，参数必须有默认值或可按声明补 None。role 的 required 可显式要求出现。defaultText 仅用于 help。
 
 内置值转换支持 String、Char、定宽整数、Float、Double、Boolean 和纯 unit enum。enum 按源码 variant 名接受拼写。Option 透明展开，支持一层 Array、MutableArray 或 ArrayList，包括 Option<Array<S>> 与 Array<Option<S>>。已提供的 "null" 是文本，空字符串是实际值。CliValues 按 sourceName 提供 required 与 optional 查询。CliFieldValues 可重复读取，保留各次出现的原始 token、下标及文本或布尔值。重复项按序转换，错误保留元素位置。
 
