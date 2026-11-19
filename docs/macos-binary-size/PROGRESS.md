@@ -38,6 +38,8 @@
 | Hello | 20,059 | 24,258 | 1,773 | 42 | 17.0 ms | 0.024 ms |
 | 自绘 Counter | 134,806 | 205,372 | 10,553 | 15,886 | 160 ms | 17.4 ms |
 
+Counter 的建索引与遍历合计约占一次完整重链接的 3.7%。图以物理成员为节点，每个可达成员只展开一次，动态分派通过表中的目标保留。原生归档候选成员中对 Scoop 的引用仍保守入根，因此这里的“可达”也包含静态分析无法排除的回调。
+
 Hello 的运行时启动统计显示，初始化登记从 33 减至 0，callable 登记从 425 减至 12，静态根从 67 减至 1。这些计数来自单独开启启动统计的可执行文件。普通 release 二进制用于表中的尺寸与计时。类型化 LIR、链接器和物理分组共 417 项 Rust 测试通过。12 个正式 runtime image fixture 验证了跨库 lazy 的真实裁剪、失败重抛、循环与 eager 副作用。
 
 ## macOS 段落排版使用 Skia Apple Unicode
@@ -66,3 +68,9 @@ macOS 域名转换使用系统 ICU 的 UIDNA，NFC 和字素边界使用 Core Fo
 | 自绘 Counter | 11,007,536 B | 11,007,536 B | 0 B |
 
 macOS release 验证通过 IDNA 11 项、charset 18 项、URL 22 项、C ABI 3 项和 readline 40 项。readline 的 6 个 PTY 子用例由集成测试直接启动。检查覆盖 DNS 边界、错误标签、上下文规则、原始 Punycode、CRLF、组合字素、BOM、内嵌 NUL、根语言大小写、字节索引与分配结果的释放。Rust release lint 和分配器单测通过。
+
+## 共用改动的其他目标验证
+
+在 Linux x86-64 GNU 上重建工具链、受影响的系统库和原有 ICU4X 文本后端。跨 Cone 的两个 release 程序分别登记 0 个和 1 个初始化单元，实际访问失败对象的程序只初始化一次，两次读取取得相同的异常载荷。跨库大枚举、嵌套枚举返回、移动 GC、保留和裁剪 lazy 通过 5 个 fixture、7 种配置。IDNA、charset、C ABI、固定单调时钟和无 GC 的指针事件共 34 项测试通过。
+
+Windows x86-64 MSVC/UCRT 使用相同源码重建工具链和原有 ICU4X 文本后端。相同的两个跨库程序得到 0 和 1 个初始化单元，输出及失败重抛与 Linux 一致。跨库大枚举 fixture 在开启移动 GC 的发布构建中通过，IDNA、charset、C ABI、系统时钟和指针事件共 34 项测试通过。重新编译 graphics 和 surface 后，独立离屏程序在时间 0 启动一秒的补间动画，推进到一秒时得到预期终值。

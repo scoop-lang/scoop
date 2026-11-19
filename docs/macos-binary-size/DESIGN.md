@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | 1 | 对普通发布的 Mach-O executable 开启原生 dead strip | 复现 Hello 的 6.87%、Counter 的 46.69% 降幅，实际入口、GC、异常与原生初始化可运行 |
 | 2 | 用整字表示 tagged enum 的非引用区间 | `SurfaceHost.onEvent` 从 1,251,924 降至 102,096 字节。在第一步之上，部分库重编已使 Counter 再小 3,830,784 字节 |
-| 3 | 按实际访问保留 lazy 初始化单元 | 用 Hello 和带副作用的跨库程序验证活单元和真实 binary 的变化，现阶段收益待测 |
-| 4 | macOS 图形文本使用 Skia Apple Unicode | 同一个实际排版程序在 DCE 后从 16,218,272 降至 4,524,272 字节，现有 66 个 Cone 测试已双边通过 |
-| 5 | IDNA 和常用 Unicode 操作使用 macOS 系统接口 | Scoop 域名桥接探针在 DCE 后省 181,504 字节。以完整 IDNA、charset、URL 和 readline 消费路径确定最终收益 |
+| 3 | 按实际访问保留 lazy 初始化单元 | 固定输入对照中，Hello 从 760,512 降至 256,464 字节。Counter 建索引 160 ms，遍历 17.4 ms。跨库访问保留目标对象的一次初始化与失败重抛 |
+| 4 | macOS 图形文本使用 Skia Apple Unicode | 在前置优化相同的正式构建中，实际段落程序从 15,599,840 降至 3,889,328 字节。66 个 graphics.text 测试通过 |
+| 5 | IDNA 和常用 Unicode 操作使用 macOS 系统接口 | 正式域名样例减少 181,584 字节，Unicode 样例减少 81,952 字节。IDNA、charset、URL、readline 与 C ABI 验证通过 |
 
 ## 1. 在原生最终链接中开启 DCE
 
