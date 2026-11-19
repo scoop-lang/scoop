@@ -70,7 +70,7 @@ private class FeedbackProbe {
     private var pulseLow = 255
     private var pulseHigh = 0
     private var quiet: FrameSnapshot? = None
-    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(45L)
+    private val timeout = MonotonicTimeSource.now() + Duration.seconds(45L)
     fun pointer(event: PointerObservation) {
         val prefix = f"phase ${phase}: "
         when (event) {
@@ -113,7 +113,7 @@ private class FeedbackProbe {
                 wait(active, 100L)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < timeout, Some("visual feedback timeout"))
+                assertTrue(MonotonicTimeSource.now() < timeout, Some("visual feedback timeout"))
                 if (native!!.isFocused && pixels[0L] >= 0L)
                     advance(active)
                 else
@@ -287,9 +287,7 @@ private class FeedbackProbe {
     }
     private fun wait(active: ActiveApplication, milliseconds: Long) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(
-                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
-            )
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
         )
     }
 }

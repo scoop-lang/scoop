@@ -1,11 +1,15 @@
 package scoop.surface
 
 import scoop.graphics.Size
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 public enum FrameSubmission {
     Accepted, Discarded
 }
 
 /** Submission and geometry publication have finished; this does not wait for the GPU. */
-public struct FrameCompletion(val time: TimeMark, val size: Size, val submission: FrameSubmission)
+public struct FrameCompletion(
+    val time: MonotonicInstant,
+    val size: Size,
+    val submission: FrameSubmission
+)

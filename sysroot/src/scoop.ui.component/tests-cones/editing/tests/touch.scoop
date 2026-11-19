@@ -97,7 +97,7 @@ internal class FieldTouchProbe {
                 host.attach(native, { scope -> FieldTouchScene(this, scope = scope) })
                 native.requestFocus()
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1
@@ -155,7 +155,7 @@ internal class FieldTouchProbe {
     }
     private fun pause() {
         waiting = true
-        waiter!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+        waiter!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(150L))
     }
     private fun tapAll() {
         for (index in 0L ..< models.size) {

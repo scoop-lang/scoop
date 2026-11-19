@@ -151,7 +151,7 @@ private class ContentProbe {
         assertFalse(content.image.isClosed)
         phase = ContentPhase.First
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
         )
     }
 

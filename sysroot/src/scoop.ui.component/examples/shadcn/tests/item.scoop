@@ -96,7 +96,7 @@ internal class ItemProbe {
     var frames: FrameProbe? = None
     private var afterPaint = 0
     private var quiet: FrameSnapshot? = None
-    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(30L)
+    private val deadline = MonotonicTimeSource.now() + Duration.seconds(30L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -126,7 +126,7 @@ internal class ItemProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("item timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("item timeout"))
                 if (native!!.isFocused && (paints > afterPaint || phase == 22))
                     advance()
                 if (phase < 23)
@@ -281,7 +281,7 @@ internal class ItemProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(70L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(70L))
         )
     }
 }

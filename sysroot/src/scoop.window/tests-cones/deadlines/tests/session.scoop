@@ -1,5 +1,6 @@
 package scoop.tests.window.deadlines
 
+import scoop.platform.time.MonotonicInstant
 import scoop.platform.concurrent.Thread
 import scoop.platform.concurrent.currentThreadId
 import scoop.platform.time.MonotonicTimeSource
@@ -58,7 +59,7 @@ internal class DeadlineProbe: ApplicationHandler {
     var signal: WindowDeadline? = None
     var finish: WindowDeadline? = None
     var application: ActiveApplication? = None
-    var userTime: TimeMark? = None
+    var userTime: MonotonicInstant? = None
     var depth = 0
     var batches = 0
     var firstBatch = 0
@@ -88,12 +89,10 @@ internal class DeadlineProbe: ApplicationHandler {
                                     Some("internal timer consumed the application deadline")
                                 )
                         assertEquals(0, userDeadlines)
-                        assertTrue(MonotonicTimeSource.markNow() >= expected)
+                        assertTrue(MonotonicTimeSource.now() >= expected)
                         userDeadlines += 1
                         application.setControlFlow(
-                            ControlFlow.WaitUntil(
-                                MonotonicTimeSource.markNow() + Duration.seconds(5L)
-                            )
+                            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                         )
                         closeAfterBoth(this)
                     }
@@ -124,14 +123,8 @@ internal class DeadlineProbe: ApplicationHandler {
     fun checkOwner(deadline: WindowDeadline) {
         Thread.start {
             assertFailsWith<IllegalStateException> { deadline.isScheduled }
-            assertFailsWith<IllegalStateException> {
-                deadline.schedule(MonotonicTimeSource.markNow())
-            }
+            assertFailsWith<IllegalStateException> { deadline.schedule(MonotonicTimeSource.now()) }
             assertFailsWith<IllegalStateException> { deadline.close() }
         }.use { thread -> thread.join() }
     }
-}
-
-internal object OtherClock: TimeSource {
-    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
 }

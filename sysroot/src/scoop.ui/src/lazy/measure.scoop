@@ -3,7 +3,7 @@ package scoop.ui
 import scoop.collections.HashMap
 import scoop.collections.sortedBy
 import scoop.graphics.Point
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 internal class LazyItemMeasure {
     var constraints: Constraints? = None
@@ -25,7 +25,7 @@ internal class LazyLayoutItem(
 public class LazyMeasureContext internal constructor(
     private val node: MountedNode,
     private val items: LazyChildren,
-    private val mark: TimeMark
+    private val mark: MonotonicInstant
 ) {
     public val layoutDirection: LayoutDirection get() {
         checkActive();
@@ -34,7 +34,7 @@ public class LazyMeasureContext internal constructor(
     private var active = true
     private var borrowed = false
     private val measured = HashMap<Long, LazyItemMeasure>()
-    public val time: TimeMark get() {
+    public val time: MonotonicInstant get() {
         checkActive()
         observeFrameTime()
         return mark

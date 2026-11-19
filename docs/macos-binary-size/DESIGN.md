@@ -1,6 +1,6 @@
 # macOS 可执行文件瘦身设计
 
-状态为待实施，首期目标为 `aarch64-apple-darwin` 的普通 release 可执行文件。先交付链接 DCE 和 tagged enum 机器码优化，然后收紧初始化根、替换 macOS 文本后端。优化对象是用户拿到的 Mach-O 文件。代表程序、逐项对照和工具版本见[调研结果](FINDINGS.md)，原始问题和测量口径见[调研方案](RESEARCH-PLAN.md)。
+各阶段的测量与落地情况见[实施记录](PROGRESS.md)。首期目标为 `aarch64-apple-darwin` 的普通 release 可执行文件。先交付链接 DCE 和 tagged enum 机器码优化，然后收紧初始化根、替换 macOS 文本后端。优化对象是用户拿到的 Mach-O 文件。代表程序、逐项对照和工具版本见[调研结果](FINDINGS.md)，原始问题和测量口径见[调研方案](RESEARCH-PLAN.md)。
 
 | 顺序 | 改动 | 用于决定是否交付的证据 |
 | --- | --- | --- |
@@ -29,6 +29,18 @@
 **再看剩余复制。** 以按字表示后的 `onEvent` 为样本，跟踪剩余 24,785 条 `ldr/str` 到具体的按值实参和返回临时量。优先消除 caller 与 callee 间相邻的重复物化。确实需要复制的大型连续无引用区间才试按已知对齐使用 LLVM `memcpy`，可能重叠的区间采用相应的重叠安全语义。含引用的值按上述槽位和非引用区间分开处理。若使用临时裸地址，拷贝前后须满足现有 safepoint 和屏障规则。此步单独比较单函数指令、整个 Counter、事件分发耗时，收益按新增实验计算。
 
 **验收。** 首批复用嵌套枚举返回、定向移动 GC 和 `SurfaceHostTest`。增加一项跨 Cone 用例覆盖「大非引用区间／引用槽／大非引用区间」，跨调用与回收后读取值和对象身份。用 `llvm-objdump` 抽查热点，再用最终 Mach-O 和 `__text` 计量。微型程序可能因链接对齐或内联得到相同大小，避免用固定汇编快照约束所有程序。[枚举返回 fixture](../../tests/fixtures/compiler-correctness/codegen/nested-enum-return/fixture.toml) · [真实事件回路](../../sysroot/src/scoop.surface/tests/host.scoop)
+
+### UI 使用固定单调时钟
+
+窗口输入、帧采样、动画、手势和 UI 控件定时器都使用进程现有的 `MonotonicTimeSource`。这个决定同时适用于离屏渲染。每帧采样一次，帧内动画和完成回调共用该时刻。平台输入保留原生发生时间 `Event` 与接收时间 `Observed` 的区别，原生回调采到的读数随事件传递。macOS 两个入口都已读取 `CLOCK_MONOTONIC`。[窗口事件时间](../../sysroot/src/scoop.window/native/darwin/window.m) · [平台时钟](../../sysroot/src/scoop.platform/native/time.c)
+
+在 `scoop.platform.time` 提供明确属于这个时钟的值类型 `MonotonicInstant`。系统读数保存整秒 `Long` 和秒内纳秒 `Int`。显式调用可传有符号纳秒调整量，比较、哈希和排期使用规范化读数。在此类型上比较时刻、求时间差和加减 `Duration`。窗口原生入口收到整数后直接构造时刻，应用主动取时由同一个 `MonotonicTimeSource` 读取。只在通用计时 API 的实际边界转换，避免在普通事件转发时构造 `Duration` 或保存 `TimeSource` 接口引用。
+
+- `InputTime` 的 `Event` 和 `Observed` 各携带一个 `MonotonicInstant`，`mark()` 直接返回这个值。保留 `PointerState`、键盘、指针、手势和触点事件的值语义，继续用原有变体分派。调用方可继续匹配 `case Observed(val t)`，其中 `t` 具有固定时钟类型。系统偏好等低频快照按变更后的真实布局单独判断是否适合使用 class。
+- 窗口的 `WaitUntil`、`WindowDeadline.schedule`，Surface 的帧时刻、动画起点与截止时刻，以及 UI、组件的输入速度、长按、滚动、轮播、Toast 等消费者，统一传递同一类型。窗口 deadline 的来源由参数类型确定。日历选择器的“今天”继续使用民用日期接口。
+- `AnimationTimeline` 只接收失效回调。正常绘制从全局源取时，离屏和测试使用 `advanceTo(time) { ... }` 在显式时刻启动或改目标。启动或改目标需要精确对齐的测试在指定帧内执行，验证完成回调、延期、相同时刻和逆序采样。各个 timeline 只保存自己的帧状态。[窗口 deadline](../../sysroot/src/scoop.window/src/owner/deadlines.scoop) · [动画帧作用域](../../sysroot/src/scoop.surface/src/shared/animation/timeline.scoop)
+
+实施时先更新 platform、window、surface 的相应规范和面向调用者的示例，再重编 UI 依赖。验收使用真实 AppKit 输入、窗口 deadline／动画完成用例、固定读数的离屏推进、跨秒算术和 release Counter。分别记录类型 `sizeOf`、GC 槽、`onEvent` 机器指令和最终 Mach-O 字节数。[实测结果](FINDINGS.md#ui-事件的固定单调时钟)
 
 ## 3. 从 Scoop 的根集合裁掉不可达 lazy 单元
 

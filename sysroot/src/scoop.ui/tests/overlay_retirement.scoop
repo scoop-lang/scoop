@@ -45,7 +45,7 @@ private class OverlayRetirementProbe {
             case Resumed -> {
                 application = Some(active)
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
                 val window =
                     active.createWindow(
@@ -100,9 +100,7 @@ private class OverlayRetirementProbe {
             } else {
                 stage = 2
                 application!!.setControlFlow(
-                    ControlFlow.WaitUntil(
-                        MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
-                    )
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
                 )
             }
         }

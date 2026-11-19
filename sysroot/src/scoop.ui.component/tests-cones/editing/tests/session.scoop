@@ -202,7 +202,7 @@ internal class FieldProbe {
                     )
                 ui = host.attach(window, { mount -> FieldScene(this, scope = mount) })
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(50L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(50L))
                 )
             }
             case AboutToWait -> {
@@ -296,7 +296,7 @@ internal class FieldProbe {
                 block();
                 waiting = false
             }
-        checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(140L))
+        checkpoint!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(140L))
     }
     fun click(point: Point) {
         editorPointer(native!!, point, true)

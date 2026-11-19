@@ -186,7 +186,7 @@ private class InputHandler: ApplicationHandler {
             sendMessage(hwnd, 265u, 122uL, 0L)
         }
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
         )
     }
 }

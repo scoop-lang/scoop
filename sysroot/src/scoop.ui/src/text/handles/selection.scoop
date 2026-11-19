@@ -225,7 +225,7 @@ internal class TextSelectionHandles(
             return
         val clock = timer ?: scope.createDeadline { tick() }
         timer = Some(clock)
-        clock.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(16L))
+        clock.schedule(MonotonicTimeSource.now() + Duration.milliseconds(16L))
     }
 
     private fun tick() {

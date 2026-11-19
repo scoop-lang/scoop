@@ -342,4 +342,4 @@ internal class InputRouter(
     }
 }
 
-internal fun inputObservation(): InputTime = InputTime.Observed(MonotonicTimeSource.markNow())
+internal fun inputObservation(): InputTime = InputTime.Observed(MonotonicTimeSource.now())

@@ -37,7 +37,7 @@ private class NoWindowHandler: ApplicationHandler {
                 val loop = currentEventLoop()
                 assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
                 scope.launch {
                     loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync {

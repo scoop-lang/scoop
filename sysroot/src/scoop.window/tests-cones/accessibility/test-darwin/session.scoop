@@ -93,7 +93,7 @@ private class AccessibilityHandler: ApplicationHandler {
                 }
                 initial()
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(12L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(12L))
                 )
                 scroll = Some(AccessibilityScrollProbe(provider!!, currentView()))
                 scroll!!.post(0, callback!!)

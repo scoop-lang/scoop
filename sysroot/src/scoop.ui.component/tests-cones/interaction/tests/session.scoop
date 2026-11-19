@@ -521,9 +521,7 @@ internal class ControlProbe {
     }
     private fun waitFor(active: ActiveApplication, milliseconds: Long) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(
-                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
-            )
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
         )
     }
 }

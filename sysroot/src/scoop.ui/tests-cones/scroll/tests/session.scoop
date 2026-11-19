@@ -96,7 +96,7 @@ internal class ScrollProbe {
                 frames = Some(observeFrames(native))
                 ui = host.attach(native, { mount -> ScrollScene(this, scope = mount) })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> {

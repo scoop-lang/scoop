@@ -63,7 +63,7 @@ private class FontWakeProbe(val fonts: Array<FontCollection>) {
             case Resumed -> {
                 active = Some(application)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(45L))
                 )
                 for (index in 0L ..< 2L) {
                     val window =
@@ -91,7 +91,7 @@ private class FontWakeProbe(val fonts: Array<FontCollection>) {
         }
     }
     private fun later() {
-        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(300L))
+        timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(300L))
     }
     fun accepted(index: Long) {
         ready[index] = true

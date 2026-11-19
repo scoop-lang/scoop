@@ -69,8 +69,8 @@ internal class ApplicationProbe {
     var finished = false
     var native: Window? = None
     var frames: FrameProbe? = None
-    private var next = MonotonicTimeSource.markNow()
-    private var timeout = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    private var next = MonotonicTimeSource.now()
+    private var timeout = MonotonicTimeSource.now() + Duration.seconds(90L)
     init {
         model.reduced.value = true
         model.refreshTheme()
@@ -156,7 +156,7 @@ internal class ApplicationProbe {
         rendered = -1
         draws = 0
         generation.value = 0
-        timeout = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+        timeout = MonotonicTimeSource.now() + Duration.seconds(90L)
 
         val window =
             active.createWindow(
@@ -170,7 +170,7 @@ internal class ApplicationProbe {
         window.setWindowLevel(WindowLevel.AlwaysOnTop)
         host.attach(window, { scope -> ApplicationTestScene(this, scope) }, fonts = Some(fonts))
         window.requestFocus()
-        next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+        next = MonotonicTimeSource.now() + Duration.milliseconds(250L)
         active.setControlFlow(ControlFlow.WaitUntil(next))
         allFrames.add(frames!!)
     }
@@ -178,7 +178,7 @@ internal class ApplicationProbe {
         when (event) {
             case Resumed -> openWindow(host, active)
             case NewEvents(StartCause.Deadline) -> {
-                val now = MonotonicTimeSource.markNow()
+                val now = MonotonicTimeSource.now()
                 assertTrue(
                     now < timeout,
                     Some(
@@ -199,7 +199,7 @@ internal class ApplicationProbe {
                 ) {
                     advance()
                     phase += 1
-                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                    next = MonotonicTimeSource.now() + Duration.milliseconds(220L)
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()

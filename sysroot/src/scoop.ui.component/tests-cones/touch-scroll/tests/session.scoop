@@ -147,7 +147,7 @@ internal class TouchProbe(
                     )
                 native.requestFocus()
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(40L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1
@@ -201,7 +201,7 @@ internal class TouchProbe(
     }
     fun pause(milliseconds: Long) {
         waiting = true
-        waiter!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        waiter!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
     fun row(index: Long): TouchRowRecord? {
         for (value in rows)

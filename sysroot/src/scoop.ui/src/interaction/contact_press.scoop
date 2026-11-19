@@ -167,7 +167,7 @@ internal class ContactPress(
                     case Some(val duration) -> {
                         val clock = timer ?: scope.createDeadline { expired() }
                         timer = Some(clock)
-                        clock.schedule(MonotonicTimeSource.markNow() + duration)
+                        clock.schedule(MonotonicTimeSource.now() + duration)
                     }
                     case None -> {}
                 }

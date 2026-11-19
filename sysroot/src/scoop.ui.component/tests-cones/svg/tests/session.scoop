@@ -89,7 +89,7 @@ internal class SvgUiProbe {
                     window = Some(native)
                     host.attach(native, { mount -> SvgUiRoot(this, mount) })
                     active.setControlFlow(
-                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                     )
                     active.proxy().post { _ -> native.setVisible(true) }
                 }

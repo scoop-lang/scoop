@@ -51,7 +51,7 @@ private class KeyboardViewportProbe {
                 host.attach(window, { mount -> KeyboardViewportRoot(this, mount) })
                 window.setVisible(true)
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
             }
             case AboutToWait -> if (ready && !queued && stage < 5) {
@@ -122,7 +122,7 @@ private class KeyboardViewportProbe {
                     idleFrames = frames
                     active.setControlFlow(
                         ControlFlow.WaitUntil(
-                            MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
+                            MonotonicTimeSource.now() + Duration.milliseconds(150L)
                         )
                     )
                 }

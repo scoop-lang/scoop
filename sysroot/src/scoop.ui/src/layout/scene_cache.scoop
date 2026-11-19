@@ -2,7 +2,7 @@ package scoop.ui
 
 import scoop.graphics.*
 import scoop.surface.InputArea
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 /** An explicit revision of a cache boundary, without a global identity table. */
 internal class SceneEpoch
@@ -52,7 +52,7 @@ internal class CachedScene(
         node: MountedNode,
         current: Array<SceneEpoch>,
         canvas: Canvas,
-        time: TimeMark
+        time: MonotonicInstant
     ): Boolean {
         if (version != node.sceneVersion || epochs.size != current.size)
             return false

@@ -1,12 +1,12 @@
 package scoop.window
 
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.window.native.ApplicationAttachment
 import scoop.window.native.ApplicationHost
 
-/** Explicit waiting policy; a deadline must belong to MonotonicTimeSource. */
+/** Controls when the native loop wakes. WaitUntil uses the system monotonic clock. */
 public enum ControlFlow {
-    Wait, Poll, WaitUntil(TimeMark)
+    Wait, Poll, WaitUntil(MonotonicInstant)
 }
 
 /** Why a new external event batch started. */

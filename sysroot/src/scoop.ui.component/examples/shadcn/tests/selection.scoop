@@ -80,7 +80,7 @@ internal class SelectionProbe {
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
     private var quiet: FrameSnapshot? = None
-    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(30L)
+    private val deadline = MonotonicTimeSource.now() + Duration.seconds(30L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -115,7 +115,7 @@ internal class SelectionProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("selection timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("selection timeout"))
                 if (native!!.isFocused && rendered >= generation.value)
                     advance()
                 else
@@ -318,7 +318,7 @@ internal class SelectionProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(100L))
         )
     }
 }

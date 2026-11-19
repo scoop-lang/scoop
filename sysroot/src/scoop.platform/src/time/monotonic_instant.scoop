@@ -1,0 +1,50 @@
+package scoop.platform.time
+
+import scoop.time.Duration
+
+/**
+ * A point on the system monotonic clock, expressed as seconds plus a signed nanosecond adjustment.
+ * Clock reads use a fraction in 0..999999999. Arithmetic and comparison normalize other
+ * adjustments and throw ArithmeticException if the resulting seconds are outside Long range.
+ */
+public struct MonotonicInstant(val seconds: Long, val nanosecondAdjustment: Int)
+: Equals<MonotonicInstant>, Compare<MonotonicInstant>, Hash,
+Add<Duration, MonotonicInstant>, Sub<Duration, MonotonicInstant> {
+    /** Creates a timestamp from a normalized reading in the system monotonic clock domain. */
+    public constructor(reading: Duration): this(
+        reading.floorSeconds,
+        reading.nanosecondsOfSecond
+    ) {}
+
+    public override operator fun equals(other: MonotonicInstant): Boolean = compareTo(other) == 0L
+
+    public override operator fun compareTo(other: MonotonicInstant): Long {
+        val left = normalized()
+        val right = other.normalized()
+        if (left.seconds != right.seconds)
+            return left.seconds.compareTo(right.seconds)
+        return left.nanosecondAdjustment.compareTo(right.nanosecondAdjustment)
+    }
+
+    public override fun hash(): Long {
+        val value = normalized()
+        return value.seconds.hash() * 31L + value.nanosecondAdjustment.hash()
+    }
+
+    public override operator fun plus(other: Duration): MonotonicInstant =
+        MonotonicInstant(reading() + other)
+
+    public override operator fun minus(other: Duration): MonotonicInstant =
+        MonotonicInstant(reading() - other)
+
+    public operator fun minus(other: MonotonicInstant): Duration = reading() - other.reading()
+
+    internal fun reading(): Duration = Duration.seconds(seconds, nanosecondAdjustment.toLong())
+
+    /** Returns the same instant with a fractional adjustment in 0..999999999. */
+    public fun normalized(): MonotonicInstant =
+        if (nanosecondAdjustment >= 0 && nanosecondAdjustment < 1000000000)
+            this
+        else
+            MonotonicInstant(reading())
+}

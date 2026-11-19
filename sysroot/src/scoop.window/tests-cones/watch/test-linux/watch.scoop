@@ -102,7 +102,7 @@ private class LinuxWatchHandler(val descriptor: Int): ApplicationHandler {
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> application.setControlFlow(
-                ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+                ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(30L))
             )
             case NewEvents(StartCause.Deadline) -> {
                 application.setControlFlow(ControlFlow.Wait)

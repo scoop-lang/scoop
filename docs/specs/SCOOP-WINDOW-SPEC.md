@@ -24,7 +24,7 @@ Application 构造接收 ApplicationOptions 并取得独立快照，run 接收 A
 
 ApplicationProxy 提供跨线程 post 与 requestExit；post 为 `(ActiveApplication) -> Unit`，返回 Boolean，异步排队。false 表示拒绝且不保留闭包；true 不保证之后关闭时仍执行。关闭停止业务投递，清理通知继续处理。所有原生窗口操作只在 owner 线程；WindowId／DeviceId／MonitorId 和不可变快照可跨线程保存。
 
-ControlFlow 为 Wait／Poll／WaitUntil(TimeMark)，默认 Wait；TimeMark 必须来自 MonotonicTimeSource。每轮消费有限快照，新增事件进入后续轮；锁内不执行用户代码，不递归调用 handler。OS 必须立即得到的普通查询使用已发布 native 状态，不等待可挂起的用户处理。accessibility 同步动作的有限 owner 入口是明确例外，遵守[无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)；不得据此重入业务、布局或事件循环。
+ControlFlow 为 Wait／Poll／WaitUntil(MonotonicInstant)，默认 Wait。截止时间取自 MonotonicTimeSource.now() 所在的系统单调时钟域。每轮消费有限快照，新增事件进入后续轮；锁内不执行用户代码，不递归调用 handler。OS 必须立即得到的普通查询使用已发布 native 状态，不等待可挂起的用户处理。accessibility 同步动作的有限 owner 入口是明确例外，遵守[无障碍接口规范](SCOOP-WINDOW-ACCESSIBILITY-SPEC.md)；不得据此重入业务、布局或事件循环。
 
 有限业务批次也必须给原生输入、绘制和定时消息留出处理机会。Win32 的普通 PeekMessage 优先返回 posted 消息，持续的应用唤醒不能据此饿死鼠标／触摸、窗框操作、WM_PAINT 或 WM_TIMER；每轮分别处理有限原生类别与普通队列，再进入等待。原生输入与 TranslateMessage 生成的字符保留正常队列次序，不能因只取硬件输入而让后续按键越过尚未交付的字符。
 
@@ -32,7 +32,7 @@ run Context 在业务回调中恢复，外线程 post 不替换该 Context。用
 
 ### 2.1 窗口所属的一次性定时回调
 
-`Window.createDeadline(callback: () -> Unit)` 创建尚未排期的 WindowDeadline，提供 schedule(TimeMark)、cancel()、close()、isScheduled 和 isClosed。创建、查询、排期与取消使用窗口 owner 线程，时间必须来自 MonotonicTimeSource；非法时间不改变原排期。schedule 替换之前的排期，已到期的时间也异步进入后续批次，不内联 callback。cancel 与 close 幂等，close 后不能再次 schedule。
+`Window.createDeadline(callback: () -> Unit)` 创建尚未排期的 WindowDeadline，提供 schedule(MonotonicInstant)、cancel()、close()、isScheduled 和 isClosed。创建、查询、排期与取消使用窗口 owner 线程。WaitUntil 和 schedule 在替换原排期前规范化时间，越界时保留原排期。schedule 替换之前的排期，已到期的时间也异步进入后续批次，不内联 callback。cancel 与 close 幂等，close 后不能再次 schedule。
 
 每个排期至多调用一次。进入到期批次时先清除本次排期，再按到期时间、同时间按登记顺序交付；callback 可以重新排期自己、取消别的登记或关闭窗口。已经进入当前快照但尚未调用的旧回调，在 cancel、重新 schedule 或 close 后跳过，不重放错过的次数。隐藏、遮挡或零 drawable 不阻止业务回调；回调本身不自动请求重绘。
 
@@ -311,11 +311,11 @@ AppKit 至少覆盖窗口／应用失焦；对系统可观察的原生跟踪中�
 
 ### 11.2 输入单调时间
 
-新增 InputTime，区分 `Event(TimeMark)` 与 `Observed(TimeMark)`：前者是可靠映射到 MonotonicTimeSource 的原生事件时间，后者是原生接收边界采样的同源时间。两者均可与该单调源的 TimeMark 比较，但调用方可以识别其来源；Event 不等于保证硬件采样精度。
+InputTime 的两个变体分别为 `Event(MonotonicInstant)` 和 `Observed(MonotonicInstant)`。前者保存已可靠映射到系统单调时钟的原生发生时间，后者保存原生接收边界的采样时间。`mark()` 取出内联的时间点，可以直接与帧时间、窗口 deadline 或 MonotonicTimeSource.now() 比较。Event 描述时间来源，精度取决于平台。
 
 PointerState 与 KeyEvent 均携带 InputTime，取消事件独立携带；平台缺少时间信息、无法可靠归一或生成 synthetic 事件时使用 Observed。不能用晚到业务 handler 的处理时刻替代原生接收时间，不用墙上时钟，也不把预测呈现时间当作输入时间。
 
-原生秒／纳秒读数通过既有 Duration、TimeMark 与 MonotonicTimeSource 构造，不新增 runtime 时钟或窗口专用 TimeSource。NSEvent.timestamp、Windows 消息时间等只有完成来源与原点转换后才能成为 Event；不能把外观相似的计数直接互减，不能假定系统睡眠前后仍使用同一未经验证的偏移。首批后端明确交付 Observed 也符合合同。
+原生捕获的秒／纳秒读数直接构造 MonotonicInstant。NSEvent.timestamp、Windows 消息时间等只有完成来源与原点转换后才能成为 Event；不能把外观相似的计数直接互减，不能假定系统睡眠前后仍使用同一未经验证的偏移。首批后端明确交付 Observed 也符合合同。
 
 输入时间随原始 payload 保存；合并连续移动时保留最终被交付样本的位置、scale 与时间，不跨按钮／焦点／取消等顺序边界合并。相关验证覆盖来源标记、同源运算和排队延迟，不以精确计时断言替代事件顺序验收。
 

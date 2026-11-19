@@ -77,8 +77,8 @@ internal class QuestionnaireProbe {
     var changedAnswers = 0
     var native: Window? = None
     var frames: FrameProbe? = None
-    private var next = MonotonicTimeSource.markNow()
-    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    private var next = MonotonicTimeSource.now()
+    private val timeout = MonotonicTimeSource.now() + Duration.seconds(90L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -152,11 +152,11 @@ internal class QuestionnaireProbe {
                     fonts = Some(fonts)
                 )
                 window.requestFocus()
-                next = MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                next = MonotonicTimeSource.now() + Duration.milliseconds(250L)
                 active.setControlFlow(ControlFlow.WaitUntil(next))
             }
             case NewEvents(StartCause.Deadline) -> {
-                val now = MonotonicTimeSource.markNow()
+                val now = MonotonicTimeSource.now()
                 assertTrue(
                     now < timeout,
                     Some(
@@ -175,7 +175,7 @@ internal class QuestionnaireProbe {
                 ) {
                     advanceQuestionnaire(this)
                     phase += 1
-                    next = MonotonicTimeSource.markNow() + Duration.milliseconds(220L)
+                    next = MonotonicTimeSource.now() + Duration.milliseconds(220L)
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()

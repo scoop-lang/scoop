@@ -76,3 +76,26 @@ Scoop 层已经跟踪选中成员的物理引用，并用保留的定义重建�
 - 链接复测用 `scoop build <输入> --release --sysroot <发行根> --linker <LLD 包装器> -o <目录>/program`。包装器将原参数原样交给配套 LLD 生成 map，再以相同 basename 追加 `-dead_strip -o <另一目录>/program -map <另一张 map>`。用 `stat -f %z` 取字节数，以 map 的 live／dead 区分符号归属。样本入口见 [Hello](../../sysroot/share/scoop/examples/programs/start/hello)、[file-report](../../sysroot/share/scoop/examples/programs/apps/file-report)、[Counter](../../sysroot/src/scoop.ui/examples/custom)、[IDNA](../../sysroot/src/scoop.idna/examples/domain_names.scoop)和[charset](../../sysroot/src/scoop.charset/examples)。
 - 段落样本以 `FontCollection(true)`、字号 18 和宽 96 对 `abc אבג 中文 e\u{301} 👩‍💻` 做 `Paragraph.layout`。机器码复测用同一源树重建两个 `scoopc`，分别 `scoop build <scoop.surface> --emit-slib --scoopc <编译器> --release`，再让 Counter 消费该库。按链接 map 和符号输出找到 callable 的唯一定义对象，用 `llvm-objdump -d` 统计其代码段，排除别名和 GC 数据。
 - 发行包 44 个 release `.slib` 共 548,121,728 字节，压缩的 HIR／MIR／LIR 合计 382,528,914 字节。离线用目录成员序号替代已有成员 ID 引用，同压缩级别下这组帧降至 369,565,826 字节。该估算仅含帧，正式 reader 和构建成本尚未验证。此项留给后续的库分发优化。
+
+## UI 事件的固定单调时钟
+
+在 macOS arm64 上，以 `6bfbafa10` 的相同 release 编译器、链接选项和 Counter 源码，仅迁移 UI 时钟并重编其依赖。Counter 从 **12,550,608** 降到 **11,592,848 字节**，减少 **957,760 字节（7.63%）**。其 Mach-O 的 `__TEXT,__text` 从 7,339,016 降到 6,495,560 字节。[Counter 样本](../../sysroot/src/scoop.ui/examples/custom)
+
+下表中的大小来自可执行程序实际运行 `sizeOf<T>()`。GC 槽数取自同批发布的 `.slib` 中各值的扫描偏移。扫描槽数包含所有可能的变体。
+
+| 值类型 | 原字节数 | 固定时钟后字节数 | 原 GC 槽 | 固定时钟后 GC 槽 |
+| --- | ---: | ---: | ---: | ---: |
+| InputTime | 56 | 24 | 4 | 0 |
+| PointerState | 296 | 264 | 4 | 0 |
+| KeyEvent | 360 | 328 | 7 | 3 |
+| PointerEvent | 1,624 | 312 | 24 | 0 |
+| ContactEvent | 1,064 | 304 | 16 | 0 |
+| GestureEvent | 944 | 288 | 12 | 0 |
+| WindowEvent | 4,224 | 688 | 60 | 4 |
+| ApplicationEvent | 4,448 | 912 | 65 | 9 |
+
+此前 `PointerState` 的四个 GC 槽全部来自 `InputTime`。两个变体各自保存一个 `TimeMark`，其中含时间源和 Duration 的托管引用。含引用的变体各占一整个独立 payload，全体无引用变体共用一块、大小取最大值。这条规则在每层嵌套生效。旧 `WindowEvent` 的布局为 8 字节 tag、184 字节共享区、1,064 字节 Contact、360 字节 Keyboard、1,624 字节 Pointer、944 字节 Gesture 和 40 字节 TextInput，合计 4,224 字节。[枚举布局实现](../../compiler/lir-lower/src/metadata/representation.rs) · [窗口事件变体](../../sysroot/src/scoop.window/src/application.scoop)
+
+新时间点为 16 字节。指针、触点和手势都成为纯值后，三者在 `WindowEvent` 中共用 312 字节。加上 8 字节 tag、328 字节 Keyboard 和 40 字节 TextInput，得到 688 字节。高频输入保留按值传递。此轮收益全部来自去掉时钟引用及其嵌套影响。[指针输入](../../sysroot/src/scoop.window/src/input/pointer.scoop) · [输入时间](../../sysroot/src/scoop.window/src/input/time.scoop)
+
+从两版 `scoop.surface.slib` 提取 `SurfaceHost.onEvent` 的唯一定义对象，`llvm-objdump -d` 得到 21,680 → 5,940 字节，5,420 → 1,485 条 ARM64 指令，其中 `ldr` 与 `str` 合计 4,707 → 886 条。归档本身的大小也有变化：`scoop.window.slib` 减少 129,164 字节，`scoop.surface.slib` 减少 331,152 字节，`scoop.ui.slib` 减少 794,947 字节，新增公共值类型的 `scoop.platform.slib` 增加 136,483 字节。这些是单独分发的压缩库文件，最终 binary 使用前述直接测量值。[事件转发](../../sysroot/src/scoop.surface/src/shared/host/host.scoop)

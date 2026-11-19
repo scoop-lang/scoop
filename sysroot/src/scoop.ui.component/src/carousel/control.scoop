@@ -426,7 +426,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
                 !(options!!.pauseOnHover && read().owner.group!!.scope.isHovered) &&
                 carouselAdjacent(geometry!!.track, current(), true) !=
                 None
-        if (clock.configure(options?.interval, allowed, MonotonicTimeSource.markNow()))
+        if (clock.configure(options?.interval, allowed, MonotonicTimeSource.now()))
             when (clock.deadline) {
                 case Some(val due) -> timer.schedule(due)
                 case None -> timer.cancel()
@@ -436,7 +436,7 @@ internal class CarouselControl(val scope: ComponentScope, val read: () -> Carous
         if (!active)
             return
         refreshAutoplay()
-        if (!clock.take(MonotonicTimeSource.markNow()))
+        if (!clock.take(MonotonicTimeSource.now()))
             return
         timer.cancel();
         step(true, true);

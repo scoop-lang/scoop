@@ -4,7 +4,7 @@ import scoop.collections.HashMap
 import scoop.collections.HashSet
 import scoop.collections.contains
 import scoop.collections.sortedBy
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.surface.FrameSubmission
 
 private class LazyItemInput(val source: ItemSource, val index: Long)
@@ -20,7 +20,7 @@ internal class LazyItemEntry(
     val key: ViewKey,
     var index: Long,
     val node: MountedNode,
-    var lastUsed: TimeMark
+    var lastUsed: MonotonicInstant
 ) {
     var selected = true
     var semanticPins = 0
@@ -124,7 +124,7 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
             entry.node.rebuild(turn)
         }
     }
-    fun prepare(node: MountedNode, index: Long, time: TimeMark): LazyItemEntry {
+    fun prepare(node: MountedNode, index: Long, time: MonotonicInstant): LazyItemEntry {
         val key = checkedItemKey(source, total, index)
         when (keyed[key]) {
             case Some(val entry) -> {
@@ -222,7 +222,8 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
                 keep.add(entry)
         } else
             if (capacity > 0L) {
-                val ordered = idle.sortedBy<LazyItemEntry, TimeMark> { entry -> entry.lastUsed }
+                val ordered =
+                    idle.sortedBy<LazyItemEntry, MonotonicInstant> { entry -> entry.lastUsed }
                 for (index in ordered.size - capacity ..< ordered.size)
                     keep.add(ordered[index])
             }

@@ -18,10 +18,10 @@ private class HoverProfile {
     var step = 0
     var firstFrame = 0L
     var settledFrame = 0L
-    var start = MonotonicTimeSource.markNow()
+    var start = MonotonicTimeSource.now()
     fun wait(active: ActiveApplication, ms: Long) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(ms))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(ms))
         )
     }
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
@@ -49,7 +49,7 @@ private class HoverProfile {
                     {
                         beginGpu()
                     }
-                    start = MonotonicTimeSource.markNow()
+                    start = MonotonicTimeSource.now()
                     phase = 1
                 }
                 if (phase == 1) {
@@ -75,7 +75,7 @@ private class HoverProfile {
                         settledFrame = snapshot.presentations
                         println(
                             f"motion_frames=${settledFrame - firstFrame} elapsed=${
-                                MonotonicTimeSource.markNow() - start
+                                MonotonicTimeSource.now() - start
                             } required=${snapshot.required} paused=${snapshot.paused}"
                         )
                         @Unsafe

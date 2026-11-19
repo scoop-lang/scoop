@@ -105,9 +105,7 @@ private class CompositionProbe {
 
     private fun waitFor(application: ActiveApplication, milliseconds: Long) {
         application.setControlFlow(
-            ControlFlow.WaitUntil(
-                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
-            )
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
         )
     }
 }

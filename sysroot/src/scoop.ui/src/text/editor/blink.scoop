@@ -42,7 +42,7 @@ internal fun editorScheduleBlink(host: TextEditHost) {
         return
     }
     if (!host.blink.isScheduled)
-        host.blink.schedule(MonotonicTimeSource.markNow() + editorBlinkInterval(host))
+        host.blink.schedule(MonotonicTimeSource.now() + editorBlinkInterval(host))
 }
 
 internal fun editorBlink(host: TextEditHost) {

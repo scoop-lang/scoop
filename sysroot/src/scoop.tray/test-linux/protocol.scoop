@@ -163,7 +163,7 @@ private class StatusNotifierHandler: ApplicationHandler {
 
     private fun schedule(application: ActiveApplication) {
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(50L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(50L))
         )
     }
 

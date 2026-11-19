@@ -97,7 +97,7 @@ internal class SwipeScenario {
     }
     private fun pause(probe: GestureProbe, milliseconds: Long = 140L) {
         probe.waiting = true
-        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
     private fun native(probe: GestureProbe, x: Double = 1.0, y: Double = 0.0) {
         probe.gesturesQueued += 1

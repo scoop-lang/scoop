@@ -1,12 +1,13 @@
 package scoop.ui.component
 
+import scoop.platform.time.MonotonicInstant
 import scoop.time.*
 
 /** A paused clock retains the unused portion, independent of host mounting. */
 internal class ToastClock(duration: Duration?) {
     var remaining: Duration? = duration
-    private var started: TimeMark? = None
-    val deadline: TimeMark? get() =
+    private var started: MonotonicInstant? = None
+    val deadline: MonotonicInstant? get() =
         when ((started, remaining)) {
             case(Some(val time), Some(val value)) -> Some(time + value)
             else -> None
@@ -15,7 +16,7 @@ internal class ToastClock(duration: Duration?) {
         remaining = duration;
         started = None
     }
-    fun pause(now: TimeMark) {
+    fun pause(now: MonotonicInstant) {
         when (deadline) {
             case Some(val end) -> remaining =
                 Some(
@@ -28,7 +29,7 @@ internal class ToastClock(duration: Duration?) {
         }
         started = None
     }
-    fun resume(now: TimeMark) {
+    fun resume(now: MonotonicInstant) {
         if (started == None && panelPresent(remaining))
             started = Some(now)
     }

@@ -39,7 +39,7 @@ private class MovingUiProbe {
                         }
                     )
                 window.createDeadline { fail(Some("UI frame replacement timeout")) }
-                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                .schedule(MonotonicTimeSource.now() + Duration.seconds(10L))
                 host.attach(window, { scope -> MovingUiContent(this, scope) })
             }
             case AboutToWait -> {

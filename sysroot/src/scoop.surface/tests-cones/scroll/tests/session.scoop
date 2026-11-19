@@ -108,7 +108,9 @@ internal class NativeScrollSession {
                     {
                         context,
                         event -> when (event) {
-                            case Pointer(InputPointerEvent.Wheel(_, val delta, val contact, val momentum)) -> {
+                            case Pointer(
+                                InputPointerEvent.Wheel(_, val delta, val contact, val momentum)
+                            ) -> {
                                 assertTrue(context.target === child.scope)
                                 innerEvents += 1
                                 contacts.add(contact)
@@ -191,9 +193,7 @@ internal class NativeScrollSession {
     }
     private fun waitFor(active: ActiveApplication, milliseconds: Long) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(
-                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
-            )
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
         )
     }
 }

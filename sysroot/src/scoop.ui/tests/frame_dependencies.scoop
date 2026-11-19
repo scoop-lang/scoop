@@ -27,7 +27,7 @@ internal fun verifyFrameDependencies(owner: UiHost, active: ActiveApplication) {
     common.add(branch)
     val leaves = branch.children
     assertEquals(64L, leaves.size)
-    val mark = MonotonicTimeSource.markNow()
+    val mark = MonotonicTimeSource.now()
     val scene = Array<Long>(common.size) { index -> common[index].sceneVersion }
     val layout = Array<Long>(common.size) { index -> common[index].layoutVersion }
     val leafScene = Array<Long>(leaves.size) { index -> leaves[index].sceneVersion }

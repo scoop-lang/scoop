@@ -25,3 +25,7 @@
 ## 交付
 
 根据结果给出实施顺序、对应规范和代码入口、可独立验证的改动以及 macOS 定向验收。系统行为可作为 Unicode／IDNA 的参考基线，需标明具体 API、系统版本、实测差异和上层可观察结果。尚待验证的收益保留为估算。库分发尺寸另行记录，本期决策以最终 binary 为先。
+
+## UI 输入值的嵌套布局
+
+从 release `.slib` 追踪 PointerState.time 到 WindowEvent、ApplicationEvent 的 GC 槽。用同一版编译器重编依赖，对照固定单调时钟前后的 `sizeOf`、SurfaceHost.onEvent 机器码及最终 Counter 文件大小。用真实 macOS 输入、窗口 deadline 和离屏帧回归确认时间语义。

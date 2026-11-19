@@ -79,8 +79,8 @@ internal class TabsProbe {
     var phase = 0
     var finished = false
     var delay = 160L
-    var ready = MonotonicTimeSource.markNow()
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(70L)
+    var ready = MonotonicTimeSource.now()
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(70L)
     var native: Window? = None
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
@@ -109,11 +109,11 @@ internal class TabsProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("tabs timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("tabs timeout"))
                 val visible = native!!.isVisible
                 if (
                     (!visible || (native!!.isFocused && rendered >= generation.value)) &&
-                        MonotonicTimeSource.markNow() >=
+                        MonotonicTimeSource.now() >=
                         ready
                 ) {
                     delay = 160L
@@ -126,7 +126,7 @@ internal class TabsProbe {
                         else -> fail(Some("unexpected tabs phase"))
                     }
                     phase += 1
-                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(delay)
+                    ready = MonotonicTimeSource.now() + Duration.milliseconds(delay)
                 } else
                     if (visible && !native!!.isFocused)
                         native!!.requestFocus()
@@ -148,7 +148,7 @@ internal class TabsProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(30L))
         )
     }
 }

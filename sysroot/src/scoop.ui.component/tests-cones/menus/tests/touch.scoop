@@ -187,11 +187,11 @@ internal class MenuTouchScenario(private val native: Boolean) {
                             assertEquals(version, renderedVersion)
                             finishNative()
                         }
-                    clock!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(160L))
+                    clock!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(160L))
                 } else
                     finishNative()
             }
-        clock!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(160L))
+        clock!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(160L))
     }
     private fun finishNative() {
         @Unsafe

@@ -97,7 +97,7 @@ private class InputSession: Closeable {
                     onFinished = Some { _ -> animationFinished = true }
                 )
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> {
@@ -105,7 +105,7 @@ private class InputSession: Closeable {
                     assertTrue(motion!!.value > 0.0)
                     phase = InputPhase.FirstEnabled
                     application.setControlFlow(
-                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                     )
                     assertTrue(first!!.requestFocus())
                     assertTrue(view!!.button(10.0, 10.0, true))

@@ -70,7 +70,7 @@ internal class DownloadController(
                                             if (
                                                 attempt.cadence.accept(
                                                     progress,
-                                                    MonotonicTimeSource.markNow()
+                                                    MonotonicTimeSource.now()
                                                 )
                                             )
                                                 controller.model.snapshot.value =
@@ -101,7 +101,7 @@ internal class DownloadController(
                                                 if (
                                                     attempt.cadence.accept(
                                                         progress,
-                                                        MonotonicTimeSource.markNow()
+                                                        MonotonicTimeSource.now()
                                                     )
                                                 )
                                                     controller.model.snapshot.value =

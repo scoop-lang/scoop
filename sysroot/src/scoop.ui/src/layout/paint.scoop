@@ -2,14 +2,14 @@ package scoop.ui
 
 import scoop.graphics.Canvas
 import scoop.graphics.Size
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 /** A pure drawing borrow. Input and child placement belong to SceneContext. */
 public class PaintContext internal constructor(
     private val root: UiRoot,
     private val target: Canvas,
     private val extent: Size,
-    private val sample: TimeMark
+    private val sample: MonotonicInstant
 ) {
     private var active = true
     private var borrowed = false
@@ -21,7 +21,7 @@ public class PaintContext internal constructor(
         checkActive()
         return extent
     }
-    public val time: TimeMark get() {
+    public val time: MonotonicInstant get() {
         checkActive()
         observeFrameTime()
         return sample

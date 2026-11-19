@@ -123,7 +123,7 @@ internal class RevealProbe(
             case Resumed -> {
                 active = Some(application)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
                 val activate = requireFocus
                 val native =

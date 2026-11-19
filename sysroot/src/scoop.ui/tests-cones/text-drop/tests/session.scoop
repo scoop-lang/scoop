@@ -165,7 +165,7 @@ internal class TextDropProbe(fonts: FontCollection) {
                 }
                 ui = host.attach(window, { scope -> TextDropRoot(this, scope) })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
                 window.setVisible(true)
                 window.requestFocus()
@@ -332,7 +332,7 @@ internal class TextDropProbe(fonts: FontCollection) {
                 probe.leave()
                 stoppedOffset = field!!.scroll.offset
                 settled = false
-                settle!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(50L))
+                settle!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(50L))
             }
             case 11 -> {
                 assertEquals(stoppedOffset, field!!.scroll.offset)

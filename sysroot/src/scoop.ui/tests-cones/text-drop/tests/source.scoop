@@ -157,7 +157,7 @@ internal class TextSourceProbe(val fonts: FontCollection) {
                 native = Some(nativeTextDrop(window))
                 host.attach(window, { scope -> TextSourceRoot(this, scope) })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
                 window.setVisible(true)
             }

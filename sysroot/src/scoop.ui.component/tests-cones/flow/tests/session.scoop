@@ -70,7 +70,7 @@ internal class FlowProbe {
                 window = Some(native)
                 host.attach(native, { mount -> FlowRoot(this, scope = mount) })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
                 active.proxy().post {
                     _ ->

@@ -142,7 +142,7 @@ internal class SelectionAppearanceProbe(val fonts: FontCollection) {
                 }
                 timer = Some(windows[0L].createDeadline { allow = true })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(300L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(300L))
                 )
             }
             case AboutToWait -> if (!pending && allow && settled()) {
@@ -275,12 +275,12 @@ internal class SelectionAppearanceProbe(val fonts: FontCollection) {
                 colors(0L, 255L, 255L, 16777215L)
                 colors(1L, 255L, 255L, 16777215L)
                 allow = false
-                timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+                timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(180L))
             }
             10 -> {
                 before = Array<Int>(2L) { index -> counts[index] }
                 allow = false
-                timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+                timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(180L))
             }
             11 -> {
                 for (index in 0L ..< 2L)
@@ -292,12 +292,12 @@ internal class SelectionAppearanceProbe(val fonts: FontCollection) {
                 assertTrue(editor!!.isClosed)
                 assertTrue(display!!.isClosed)
                 allow = false
-                timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+                timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(180L))
             }
             13 -> {
                 before = Array<Int>(2L) { index -> counts[index] }
                 allow = false
-                timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+                timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(180L))
             }
             14 -> {
                 for (index in 0L ..< 2L)

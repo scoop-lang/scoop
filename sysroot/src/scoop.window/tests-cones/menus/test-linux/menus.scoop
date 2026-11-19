@@ -113,7 +113,7 @@ private class GtkMenuHandler: ApplicationHandler {
 
     private fun start(application: ActiveApplication) {
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
         )
         assertTrue(application.desktopCapabilities().menus.windowMenuBar)
         assertFalse(application.desktopCapabilities().menus.applicationMenuBar)
@@ -195,7 +195,7 @@ private class GtkMenuHandler: ApplicationHandler {
                 native.close()
             }
         }
-        timer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+        timer.schedule(MonotonicTimeSource.now() + Duration.milliseconds(100L))
     }
 
     private fun borrow(application: ActiveApplication) {
@@ -284,6 +284,6 @@ private class GtkMenuHandler: ApplicationHandler {
                 deadline!!.close()
             }
         deadline = Some(timer)
-        timer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+        timer.schedule(MonotonicTimeSource.now() + Duration.milliseconds(100L))
     }
 }

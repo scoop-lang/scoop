@@ -109,7 +109,7 @@ internal class ItemNavigationProbe {
                 native.requestFocus()
                 ui = host.attach(native, { mount -> ItemNavigationScene(this, scope = mount) })
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> {
