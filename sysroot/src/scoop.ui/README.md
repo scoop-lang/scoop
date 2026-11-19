@@ -332,3 +332,5 @@ TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`TextEditOpti
 支持 Wayland 与 X11，共用公共实现、Skia Ganesh GLES 和 Fontconfig／FreeType。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.ui --release --sysroot ~/.scoop`；图形应用通过 `SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 选择显示协议。文本编辑与快捷键使用 Ctrl 作为 Primary；Home／End 移至行边界，Ctrl+Home／End 移至文档边界，Textarea 使用 Ctrl+Enter 提交。依赖、测试范围及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
 
 UiHost 每次实际绘制先清空窗口内容，移动或移除元素不会保留旧像素。独立 `tests-cones/frames` Cone 用真实窗口的连续帧读回验证这一行为，可在 macOS 或 Linux 上运行；Linux 验收覆盖 X11、Wayland 和 Wayland 2 倍缩放。
+
+固定表头与虚拟正文可以共用父 Element 的 ScrollViewport。正文的 `scope.lazyFocus(viewport)` 和 `semantics.updateCollection(source, items, viewport)` 接受当前挂载或活动祖先拥有的视口，拒绝兄弟／其他根的视口；父布局通过 LayoutInput 传入本次滚动计划，并在 viewport.present 的内容路径中呈现正文。焦点、集合显露与用户滚动共享原请求版本和取消规则。

@@ -1,0 +1,160 @@
+package scoop.tests.ui.sharedviewport
+
+import scoop.collections.HashSet
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class SharedViewportTest {
+    @Test
+    fun `lazy focus and collection metadata share an ancestor viewport with a fixed sibling header`() {
+        val probe = SharedViewportProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertEquals(3, probe.phase)
+        assertEquals(1, probe.selections)
+        assertFalse(probe.built.contains(7000L))
+        assertTrue(probe.built.size < 100L)
+        assertEquals(0, probe.mounted)
+    }
+}
+
+internal class SharedViewportProbe {
+    val scroll = ScrollState()
+    val items = SharedItems(this)
+    val built = HashSet<Long>()
+    var viewport: ScrollViewport? = None
+    var unrelated: ScrollViewport? = None
+    var focus: LazyFocus? = None
+    var header: FocusHandle? = None
+    var target: FocusHandle? = None
+    var phase = 0
+    var selections = 0
+    var mounted = 0
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
+                )
+                host.attach(
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop shared scroll viewport"
+                            size = LogicalSize(240.0, 160.0)
+                        }
+                    ),
+                    { mount -> SharedViewportScene(this, active, scope = mount) }
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"shared viewport timeout phase=${phase}")
+            )
+            else -> {}
+        }
+    }
+    fun advance(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                assertTrue(
+                    focus!!.requestFocus(ViewKey.Number(5000L)) {
+                        selections += 1
+                        target
+                    }
+                )
+                assertEquals(0.0, scroll.offset.y)
+                phase = 1
+            }
+            case 1 -> {
+                if (target?.hasFocus ?: false) {
+                    assertEquals(1, selections)
+                    assertEquals(100000.0, scroll.offset.y)
+                    assertTrue(
+                        focus!!.requestFocus(ViewKey.Number(7000L)) {
+                            selections += 1
+                            target
+                        }
+                    )
+                    assertTrue(header!!.requestFocus())
+                    phase = 2
+                }
+            }
+            case 2 -> {
+                if (header!!.hasFocus) {
+                    assertFalse(focus!!.isPending)
+                    assertEquals(1, selections)
+                    phase = 3
+                    active.requestExit()
+                }
+            }
+            else -> {}
+        }
+    }
+}
+
+private class SharedViewportScene(
+    private val probe: SharedViewportProbe,
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View =
+        element(
+            { mount -> SharedViewportRoot(probe, active, scope = mount) },
+            [
+                element({ mount -> SharedHeader(probe, scope = mount) }),
+                lazyElement(probe.items, { mount -> SharedRows(probe, scope = mount) })
+            ]
+        )
+}
+
+internal class SharedViewportPlan(val scroll: ScrollLayout)
+
+private class SharedViewportRoot(
+    private val probe: SharedViewportProbe,
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<ScrollLayout>(scope) {
+    private val viewport = scope.scrollViewport(probe.scroll)
+    init {
+        probe.viewport = Some(viewport)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
+        val size = constraints.constrain(Size(240.0, 160.0))
+        val content = Size(size.width, 32.0 + probe.items.count.toDouble() * 20.0)
+        val adjustment =
+            when (probe.focus!!.pendingItem) {
+                case Some(Number(val index)) -> Some(
+                    ScrollAdjustment(
+                        probe.scroll.requestRevision,
+                        Point(0.0, index.toDouble() * 20.0)
+                    )
+                )
+                else -> None
+            }
+        val scroll = viewport.layout(size, content, adjustment)
+        context.measureChild(0L, Constraints.tight(Size(size.width, 32.0)))
+        context.placeChild(0L, Point(0.0, scroll.presentationOffset.y))
+        context.measureChild(
+            1L,
+            Constraints.tight(Size(size.width, content.height - 32.0)),
+            LayoutInput(SharedViewportPlan(scroll))
+        )
+        context.placeChild(1L, Point(0.0, 32.0))
+        return LayoutResult(LayoutMetrics(size), scroll)
+    }
+    public override fun scene(context: SceneContext, scroll: ScrollLayout) {
+        viewport.present(context, scroll, Some { content -> content.children([1L, 0L]) })
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.advance(active)
+        }
+    }
+}
