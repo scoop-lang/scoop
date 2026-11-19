@@ -796,6 +796,8 @@ LazyElement 可通过 `ComponentScope.lazyFocus(viewport, options = LazyFocusOpt
 
 LazyFocus 提供 `requestFocus(key, edge = ItemFocusEdge.First)`、`cancelRequest()`、isPending、isClosed 和 `pendingItem: ViewKey?`。edge 的 First／Last 选择该项按逻辑顺序的首／末个可用 Tab 目标；不会把整个条目伪造成另一个区域焦点。key 必须显式。未活动或输入被禁用／模态阻挡时返回 false；true 表示接收异步请求，未知 key、没有可用目标或不能显露时结束，保留原来有效的焦点。cancelRequest 只取消该登记当前的待处理请求，不清除已持有的区域焦点。
 
+`requestFocus(key, target: () -> FocusHandle?)` 重载用于条目内的具体目标。target 仅在请求项完成 Accepted 布局后、只读 evaluation 内执行一次；调用方应先安排该项所需的内部子项参与布局，再在回调中读取它的实际句柄。回调不得写 State、创建挂载或发起另一焦点请求。返回目标必须活动、可聚焦且属于该 key 的真实子树；None、未挂载、禁用或其他条目的句柄结束请求，保留原有效焦点，不回退首／末项，也不轮询。目标无需成为 Tab 停靠点。该重载不创建条目数或单元格数规模的句柄。
+
 请求与普通 FocusHandle 共用 UiRoot 的唯一 pending 及 Surface.focusRevision，并通过该 viewport 的 ScrollState 登记一次新位置意图，取消旧动画。pendingItem 仅在尚需实现／初次定位条目时返回 key；容器据此使用自身 extent 和 ScrollAdjustment 显露整项。选出具体 FocusTarget 后 pendingItem 变为 None，isPending 可以继续为 true，后续目标显露复用第 7.7 节，避免整项定位反复覆盖行内目标的精确显露。
 
 LazyMeasureContext.pinnedItems 此时也包含这个尚未实现的目标索引；容器同样须测量并放置，取得普通挂载子树。只解析本次请求的 key，不预建全部条目。登记本身位于外层 lazy 条目中时，该外层条目也因待聚焦归属而固定，恢复内层布局；不会固定同列表中其他无关条目。已经选择具体目标后，由原有待聚焦归属继续固定其所属项。待聚焦开始、目标切换、完成或取消会使所涉 Lazy 容器及其布局依赖路径失效，使跨帧复用仍能准备或淘汰对应保留项；普通非惰性焦点变化只请求场景。条目目标只在 Accepted 的实际几何与滚动路径发布后选择并聚焦。Discarded 不兑现请求。

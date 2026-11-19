@@ -408,6 +408,8 @@ VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAt
 
 handle 另提供 `focusItem(key, edge = ItemFocusEdge.First)`，通过 UI 的 LazyFocus 按需实现并定位 key，再聚焦行内首／末个可用 Tab 目标。isPending 包括当前滚动定位或聚焦请求。它先停止旧动画与定位，后续具体目标的显露继续复用同一 ScrollState；新 focusItem、普通 FocusHandle 请求、显式滚动、handle／state 替换、禁用及卸载使旧请求失效。未知 key 或没有可用目标结束请求，真实删除在隐藏状态下也取消；已有有效区域焦点不因取消而主动清除。此接口不要求提前取得未挂载项的 FocusHandle。
 
+`focusItem(key, target: () -> FocusHandle?)` 可以选择行内具体目标。回调只在该行的 Accepted 布局后执行一次，并处于只读阶段；返回当前行子树中实际挂载的句柄。None、未挂载、禁用或其他行的目标结束等待，不回退首／末项。它复用 LazyFocus 的唯一 pending 和实际目标显露，不提前创建离屏句柄。
+
 `VirtualListHandle.reading: VirtualReadingSnapshot?` 返回最近 Accepted 的可观察值，首帧之前及解绑后为 None。`VirtualReadingSnapshot(visible: VirtualRange, anchor: VirtualReadingAnchor?, atEnd: Boolean)` 的 visible 为排除 overscan 的逻辑索引半开区间 `VirtualRange(start, end)`；anchor 为首个实际阅读项的 `VirtualReadingAnchor(key, offset)`，offset 从该项的逻辑起点计量。空数据、零视口或没有实际可见长度时 anchor 为 None，visible 为空。快照不持有 MountedNode、排版或 Canvas；较新请求尚未呈现时仍保留最后画面位置，Discarded 不更新。
 
 `handle.restore(anchor): Boolean` 按稳定 key 和项内偏移恢复阅读位置。key 须显式，offset 须有限且非负；未挂载或当前数据源不存在该 key 时返回 false，不用旧索引替代，也不发起定位。有效请求登记 Programmatic 意图，以 extent 估计定位、按需测量目标及视口、按实际尺寸收敛项内偏移；Accepted 后结束。更新的请求、handle／state 替换、源对象替换或卸载取消旧恢复。已有 KeepVisible 在删除锚点后的相邻项回退只服务自动保持位置，不用于显式 restore。

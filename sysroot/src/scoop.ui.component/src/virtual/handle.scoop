@@ -57,9 +57,15 @@ public class VirtualListHandle public constructor() {
         return target?.requestItem(key, alignment, margin, previousItemPeek) ?: false
     }
     public fun focusItem(key: ViewKey, edge: ItemFocusEdge = ItemFocusEdge.First): Boolean {
-        checkThread()
+        snapshot.checkMutation()
         requireComponent(key != ViewKey.Position, "virtual item focus requires an explicit key")
         return target?.focusItem(key, edge) ?: false
+    }
+    /** Reads an actual row descendant after its accepted layout; None ends the request. */
+    public fun focusItem(key: ViewKey, target: () -> FocusHandle?): Boolean {
+        snapshot.checkMutation()
+        requireComponent(key != ViewKey.Position, "virtual item focus requires an explicit key")
+        return this.target?.focusItem(key, target) ?: false
     }
     internal fun bind(value: VirtualListInk) {
         checkThread()
