@@ -46,9 +46,12 @@ internal class ScrollViewportInput(
                 case Pointer(InputPointerEvent.Wheel(_, _, val phase, val momentum)) -> {
                     if (phase == ScrollPhase.Cancelled || momentum == ScrollPhase.Cancelled)
                         viewport.cancelAnimation()
-                    else
+                    else {
                         if (phase == ScrollPhase.Ended || momentum == ScrollPhase.Ended)
                             viewport.edge.release()
+                        if (momentum == ScrollPhase.Ended)
+                            viewport.edge.endMomentum()
+                    }
                 }
                 else -> {}
             }

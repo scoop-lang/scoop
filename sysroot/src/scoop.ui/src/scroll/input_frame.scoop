@@ -35,8 +35,8 @@ internal class ScrollInputFrame(private val root: UiRoot) {
         return entry
     }
 
-    fun restore(entry: ScrollInputEntry, amount: Point): Point {
-        if (restored)
+    fun restore(entry: ScrollInputEntry, amount: Point, momentum: Boolean): Point {
+        if (restored && !momentum)
             return Point(0.0, 0.0)
         prune()
         for (held in root.scrollEdges) {
@@ -47,6 +47,20 @@ internal class ScrollInputFrame(private val root: UiRoot) {
             val localStart = inputLocalPoint(held.scope, start) ?: return Point(0.0, 0.0)
             val localEnd = inputLocalPoint(held.scope, end) ?: return Point(0.0, 0.0)
             val delta = Point(localEnd.x - localStart.x, localEnd.y - localStart.y)
+            if (momentum) {
+                val used = held.viewport.edge.consumeMomentum(delta)
+                if (used != Point(0.0, 0.0)) {
+                    val windowEnd =
+                        inputWindowPoint(
+                            held.scope,
+                            Point(localStart.x + used.x, localStart.y + used.y)
+                        ) ?:
+                            return Point(0.0, 0.0)
+                    val local = inputLocalPoint(entry.scope, windowEnd) ?: return Point(0.0, 0.0)
+                    restored = true
+                    return local
+                }
+            }
             val fraction = held.viewport.edge.restoringFraction(delta)
             if (fraction > 0.0) {
                 restored = true
@@ -61,7 +75,7 @@ internal class ScrollInputFrame(private val root: UiRoot) {
         var index = 0L
         while (index < root.scrollEdges.size) {
             val entry = root.scrollEdges[index]
-            if (!entry.active || !entry.viewport.edge.held)
+            if (!entry.active || !entry.viewport.edge.inputActive)
                 root.scrollEdges.removeAt(index)
             else
                 index += 1L
@@ -73,7 +87,8 @@ internal class ScrollInputFrame(private val root: UiRoot) {
         amount: Point,
         axes: ScrollAxes,
         elastic: Boolean,
-        release: Boolean
+        release: Boolean,
+        momentum: Boolean = false
     ): Point {
         if (finished)
             return Point(0.0, 0.0)
@@ -86,7 +101,10 @@ internal class ScrollInputFrame(private val root: UiRoot) {
             return Point(0.0, 0.0)
         val used =
             if (elastic)
-                final.viewport.edge.absorb(amount, axes)
+                if (momentum)
+                    final.viewport.edge.absorbMomentum(amount, axes)
+                else
+                    final.viewport.edge.absorb(amount, axes)
             else
                 Point(0.0, 0.0)
         val stretched = final.viewport.edge.held
@@ -105,7 +123,7 @@ internal class ScrollInputFrame(private val root: UiRoot) {
         for (entry in root.scrollEdges)
             if (entry.viewport === final.viewport)
                 registered = true
-        if (!registered && final.viewport.edge.held)
+        if (!registered && final.viewport.edge.inputActive)
             root.scrollEdges.add(final)
         return used
     }

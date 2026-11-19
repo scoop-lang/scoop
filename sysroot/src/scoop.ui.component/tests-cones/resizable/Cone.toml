@@ -9,6 +9,14 @@ kind = "library"
 path = "tests"
 when = { os = "darwin" }
 
+[[test.sources]]
+path = "tests-common"
+when = { os = ["darwin", "windows"] }
+
+[[test.sources]]
+path = "tests-common"
+when = { os = "linux", env = "gnu" }
+
 [test-dependencies]
 "scoop:scoop.ui.component" = { version = "0.1.0", path = "../.." }
 "scoop:scoop.ui" = "0.1.0"

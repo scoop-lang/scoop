@@ -65,11 +65,14 @@ public class Resizable public constructor(
                             [panel.content],
                             key = ViewKey.Text("content")
                         ),
-                        element(
-                            part,
-                            { current, mount -> ResizableHandle(current, scope = mount) },
-                            key = ViewKey.Text("handle")
-                        )
+                        if (part.hasHandle)
+                            element(
+                                part,
+                                { current, mount -> ResizableHandle(current, scope = mount) },
+                                key = ViewKey.Text("handle")
+                            )
+                        else
+                            empty()
                     ],
                     key = panel.key
                 )

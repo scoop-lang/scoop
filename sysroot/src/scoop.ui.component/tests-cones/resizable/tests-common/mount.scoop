@@ -1,0 +1,126 @@
+package scoop.tests.ui.resizable
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class ResizableMountWindowTest {
+    @Test
+    fun singleAndMultiplePanelsMountWithoutTrailingSplitters() {
+        val app = Application()
+        val probe = SplitMountProbe(app.proxy())
+        context(ThemeSource(shadcnTheme())) {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> app.run(host)
+            }
+        }
+        assertTrue(probe.finished)
+        for (handle in probe.handles)
+            assertFalse(handle.isAttached)
+    }
+}
+
+private class SplitMountProbe(val proxy: ApplicationProxy) {
+    val counts = [1L, 2L, 3L, 1L, 0L, 2L]
+    val phase = state(0L)
+    val sizes = state<Array<ResizableSize>>([])
+    val handles = [FocusHandle(), FocusHandle()]
+    var window: Window? = None
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop resizable mount verification"
+                            size = LogicalSize(320.0, 120.0)
+                        }
+                    )
+                window = Some(native)
+                host.attach(native, { scope -> SplitMountScene(this, scope) })
+                native.requestFocus()
+                native.createDeadline {
+                    fail(
+                        Some(
+                            "Resizable mount timeout at " +
+                                phase.value.toString() +
+                                ", focused=" +
+                                native.isFocused.toString() +
+                                ", occluded=" +
+                                native.isOccluded.toString()
+                        )
+                    )
+                }.schedule(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+            }
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> Unit
+        }
+    }
+
+    fun accepted(step: Long) {
+        proxy.post {
+            _ -> if (!finished && phase.value == step) {
+                for (index in 0L ..< handles.size)
+                    assertEquals(index + 1L < counts[step], handles[index].isAttached)
+                if (step + 1L == counts.size) {
+                    finished = true
+                    window!!.requestDestroy()
+                } else
+                    phase.value += 1L
+            }
+        }
+    }
+}
+
+private class SplitMountScene(val probe: SplitMountProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val owner = probe
+        val step = owner.phase.value
+        val count = owner.counts[step]
+        val content =
+            resizable(owner.sizes.binding()) {
+                for (index in 0L ..< count) {
+                    panel(ViewKey.Number(index), empty())
+                    if (index + 1L < count)
+                        handle(ViewKey.Number(index)) {
+                            focus = FocusOptions(Some(owner.handles[index]))
+                        }
+                }
+            }
+        return element(step, { props, scope -> SplitMountFrame(probe, props, scope) }, [content])
+    }
+}
+
+private class SplitMountFrame(
+    val probe: SplitMountProbe,
+    val phase: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints.constrain(Size(320.0, 120.0))
+        val child = context.measureChild(0L, Constraints.tight(size))
+        assertEquals(size, child.size)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+        val step = phase.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                probe.accepted(step)
+        }
+    }
+}
