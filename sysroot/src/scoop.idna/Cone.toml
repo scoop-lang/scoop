@@ -17,3 +17,8 @@ include = [
 [[native.libraries]]
 name = "scoop_text_backend"
 kind = "static"
+
+[[native.libraries]]
+name = "icucore"
+kind = "dynamic"
+when = { os = "darwin" }

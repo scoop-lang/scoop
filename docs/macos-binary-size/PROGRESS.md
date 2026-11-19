@@ -49,3 +49,20 @@ Darwin 的 Skia 静态归档从 67,608,608 降到 31,748,456 字节。正式资�
 ## Darwin ARM64 链接优化提示
 
 readline 的 `HistoryTest.concurrentAppend` 在启用 dead strip 的 release 布局中稳定崩溃。对照输入对象与最终指令发现，LLD 22.1 把非相邻 `AdrpLdrGot` 的取地址合并到第一条指令，提前覆盖了中间指令要保存的寄存器。Darwin ARM64 最终链接加入 `-ignore_optimization_hints`，普通 release 继续启用 `-dead_strip`。同一个算术回归对象在旧设置下结果错误，新设置下返回预期值。正式 readline 测试 40 项通过，另外 6 项为由 PTY 集成测试启动的子用例。Hello、自绘 Counter 和真实段落分别为 256,464、11,007,536 和 3,889,328 字节，此项修正对三个样例的磁盘尺寸均无影响。
+
+## macOS 域名与 Unicode
+
+macOS 域名转换使用系统 ICU 的 UIDNA，NFC 和字素边界使用 Core Foundation，完整大小写与字符属性使用系统 ICU。原始 RFC 3492 Punycode、字符集编解码和标量列宽继续使用锁定的 Rust 实现。macOS 普通依赖树中不再有 ICU4X 数据。macOS 27.2.1 的域名后端报告 Apple ICU 和 Unicode 17.0.0。
+
+以下为同一套 ARM64 release 工具链、相同 dead strip 设置下的最终 Mach-O 字节数。域名样例实际消费 A-label 和 Unicode 输出，Unicode 样例消费分段、大小写和 NFC。只用原始 Punycode 的程序仍有 Cone 显式声明的 icucore 动态库加载项，其链接 map 已裁掉域名转换代码。
+
+| 程序 | 原文本后端 | 系统文本后端 | 减少 |
+| --- | ---: | ---: | ---: |
+| 域名示例 | 624,192 B | 442,608 B | 181,584 B |
+| Unicode 示例 | 626,576 B | 544,624 B | 81,952 B |
+| Punycode 示例（末尾另验证非法域名） | 607,664 B | 459,264 B | 148,400 B |
+| 只用原始 Punycode | 590,992 B | 425,680 B | 165,312 B |
+| 字符集编解码示例 | 826,176 B | 826,176 B | 0 B |
+| 自绘 Counter | 11,007,536 B | 11,007,536 B | 0 B |
+
+macOS release 验证通过 IDNA 11 项、charset 18 项、URL 22 项、C ABI 3 项和 readline 40 项。readline 的 6 个 PTY 子用例由集成测试直接启动。检查覆盖 DNS 边界、错误标签、上下文规则、原始 Punycode、CRLF、组合字素、BOM、内嵌 NUL、根语言大小写、字节索引与分配结果的释放。Rust release lint 和分配器单测通过。

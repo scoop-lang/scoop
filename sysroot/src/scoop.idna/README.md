@@ -1,6 +1,6 @@
 # scoop.idna
 
-独立 IDNA／Punycode Cone，依赖 core、std。执行 UTS #46 non-transitional、STD3、连字符、Bidi、ContextJ 与 DNS 长度检查；同步内存计算，没有 DNS、文件、线程或 suspend 入口。使用固定 Rust idna 1.1.0 和 ICU4X 2.3.0 后端，Unicode 数据为 17.0.0；不依赖 ICU4C 或 C++。
+独立 IDNA／Punycode Cone，依赖 core、std。执行 UTS #46 non-transitional、STD3、连字符、Bidi、ContextJ 与 DNS 长度检查；同步内存计算，没有 DNS、文件、线程或 suspend 入口。macOS 域名转换使用系统 ICU，Unicode 数据随系统版本更新。其他目标使用 idna 1.1.0、ICU4X 2.3.0 和 Unicode 17.0.0 数据。所有目标的原始 Punycode 都使用 idna 1.1.0 的 RFC 3492 实现。
 
 ```scoop
 import scoop.idna.*

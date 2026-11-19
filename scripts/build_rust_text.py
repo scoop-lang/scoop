@@ -35,6 +35,7 @@ def prepare_locked(args, source, archive, build):
             metadata(path)
             for path in (
                 source / "Cargo.toml",
+                source / "build.rs",
                 source / "Cargo.lock",
                 archive,
                 Path(__file__),
@@ -55,6 +56,8 @@ def prepare_locked(args, source, archive, build):
                 "RUSTFLAGS",
                 "CARGO_ENCODED_RUSTFLAGS",
                 "MACOSX_DEPLOYMENT_TARGET",
+                "SDKROOT",
+                "DEVELOPER_DIR",
             )
         },
     }
@@ -115,6 +118,17 @@ def prepare_locked(args, source, archive, build):
         CARGO_TARGET_DIR=str(build / "target"),
     )
     if TARGETS[args.target]["os"] == "darwin":
+        cc = shutil.which(args.cc or "/usr/bin/clang")
+        if not cc:
+            raise ValueError("preparing the macOS text backend requires Apple Clang")
+        sdk = (
+            os.environ.get("SDKROOT")
+            or subprocess.check_output(
+                ["/usr/bin/xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True
+            ).strip()
+        )
+        environment.update(CC=cc, SDKROOT=sdk)
+        tools.extend([Path(cc), Path("/usr/bin/libtool"), Path(sdk) / "SDKSettings.json"])
         environment["MACOSX_DEPLOYMENT_TARGET"] = (
             inputs["environment"]["MACOSX_DEPLOYMENT_TARGET"] or release["minimum_os"]
         )

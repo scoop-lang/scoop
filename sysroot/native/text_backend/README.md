@@ -1,13 +1,13 @@
 # Scoop text backend
 
-内部 Rust 静态库，通过普通 C ABI 承接字符集转换、IDNA、Punycode、NFC、字素分段、属性与大小写。公开 API 仍属于
+目标文本静态库，通过普通 C ABI 承接字符集转换、IDNA、Punycode、NFC、字素分段、属性与大小写。公开 API 仍属于
 `scoop.idna` 和 `scoop.charset`，此目录不是公开 Cone 或编译器 stage。
 
 维护者通过 `scripts/build_text_backends.py` 准备同目标资源。固定依赖及其源码、许可见
 `sysroot/vendor/text_backend`；头文件为 `include/scoop_text_backend.h`。
 
-目标包装使用 `no_std + alloc`；固定的 encoding_rs、idna、ICU4X 和 unicode-width 均支持这条路径，
-idna 关闭默认 std feature，保留 alloc／compiled_data。系统分配器薄适配提供堆内存，panic handler 直接 abort。
+macOS 域名、字素、NFC、属性和大小写由 C 适配层调用系统 ICU 与 Core Foundation。Rust 部分编入 encoding_rs、unicode-width 与 idna 的原始 Punycode 模块。其他目标编入完整的 idna 与 ICU4X。
+Rust 包装使用 `no_std + alloc`。系统分配器薄适配提供堆内存，panic handler 直接 abort。
 这移除了完整 UI／HTTP 消费者实际使用的 Rust unwind personality，不影响 Scoop、C++ 或 Objective-C 的异常机制。
 macOS 两架构的运行及最终链接验证见 [UI 实施记录](../../../docs/ui/PROGRESS.md)；x86_64 使用 Rosetta，Windows 新资源后续验收。
 
@@ -16,7 +16,7 @@ macOS 两架构的运行及最终链接验证见 [UI 实施记录](../../../docs
 ```sh
 export CARGO_TARGET_DIR="$PWD/../scoop-work/m61/rust-target"
 cargo fmt --manifest-path sysroot/native/text_backend/Cargo.toml
-cargo clippy --manifest-path sysroot/native/text_backend/Cargo.toml --locked --all-targets -- -D warnings
+cargo clippy --manifest-path sysroot/native/text_backend/Cargo.toml --locked --release --all-targets -- -D warnings
 SCOOP_SYSROOT="$PWD/sysroot" target/release/scoop test sysroot/native/text_backend/tests --release
 ```
 
