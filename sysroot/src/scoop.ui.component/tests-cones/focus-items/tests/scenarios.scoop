@@ -16,13 +16,24 @@ internal fun advanceItemFocus(probe: ItemFocusProbe) {
             val built = probe.builds
             probe.next {
                 probe.discardNext = true
-                assertTrue(probe.first.focusItem(ViewKey.Number(400L)))
+                assertTrue(
+                    probe.first.focusItem(ViewKey.Number(400L)) {
+                        probe.selectorCalls += 1
+                        assertFailsWith<IllegalStateException> { probe.enabled.value = false }
+                        assertFailsWith<IllegalStateException> { probe.lead.requestFocus() }
+                        assertFailsWith<IllegalStateException> {
+                            probe.first.focusItem(ViewKey.Number(1L))
+                        }
+                        Some(probe.row(400L).handles[1L])
+                    }
+                )
                 assertTrue(probe.first.isPending)
                 assertEquals(built, probe.builds)
             }
         }
         case 1 -> {
-            probe.assertFocused(400L, 0L)
+            probe.assertFocused(400L, 1L)
+            assertEquals(1, probe.selectorCalls)
             assertEquals(1, probe.discarded)
             assertTrue(probe.builds < 20)
             probe.next {
@@ -78,6 +89,47 @@ internal fun advanceItemFocus(probe: ItemFocusProbe) {
         }
         case 10 -> {
             assertTrue(probe.lead.hasFocus)
+            probe.next {
+                assertTrue(probe.first.focusItem(ViewKey.Number(401L)) { Some(probe.lead) })
+            }
+        }
+        case 11 -> {
+            assertTrue(probe.lead.hasFocus)
+            probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(401L)) { None }) }
+        }
+        case 12 -> {
+            assertTrue(probe.lead.hasFocus)
+            probe.next {
+                assertTrue(probe.first.focusItem(ViewKey.Number(401L)) { Some(FocusHandle()) })
+            }
+        }
+        case 13 -> {
+            assertTrue(probe.lead.hasFocus)
+            probe.next {
+                assertTrue(
+                    probe.first.focusItem(ViewKey.Number(402L)) {
+                        probe.selectorCalls += 1
+                        Some(probe.row(402L).handles[1L])
+                    }
+                )
+                assertTrue(probe.lead.requestFocus())
+            }
+        }
+        case 14 -> {
+            assertTrue(probe.lead.hasFocus)
+            assertEquals(1, probe.selectorCalls)
+            probe.next {
+                assertTrue(
+                    probe.first.focusItem(ViewKey.Number(6L)) { Some(probe.row(6L).handles[1L]) }
+                )
+            }
+        }
+        case 15 -> {
+            assertTrue(probe.lead.hasFocus)
+            probe.next { probe.scope!!.requestFrame() }
+        }
+        case 16 -> {
+            assertTrue(probe.lead.hasFocus)
             probe.phase += 1
             probe.waiting = true
             probe.window!!.setVisible(false)
@@ -100,12 +152,12 @@ internal fun advanceItemFocus(probe: ItemFocusProbe) {
                 }
             probe.checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
         }
-        case 11 -> {
+        case 17 -> {
             probe.assertFocused(2L, 0L)
             assertEquals(2L, probe.row(2L).index)
             probe.next { probe.enabled.value = false }
         }
-        case 12 -> {
+        case 18 -> {
             assertFalse(probe.first.focusItem(ViewKey.Number(1L)))
             assertFalse(probe.first.isPending)
             probe.next {
@@ -115,12 +167,12 @@ internal fun advanceItemFocus(probe: ItemFocusProbe) {
                 probe.data!!.value = FocusSource(probe, Some([5L, 7L, 9L, 10L]), true)
             }
         }
-        case 13 -> probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(7L))) }
-        case 14 -> {
+        case 19 -> probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(7L))) }
+        case 20 -> {
             assertTrue(probe.lead.hasFocus)
             probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(9L), ItemFocusEdge.Last)) }
         }
-        case 15 -> {
+        case 21 -> {
             probe.assertFocused(9L, 1L)
             assertEquals(Point(0.0, 46.0), probe.scroll.offset)
             probe.next {
@@ -128,7 +180,7 @@ internal fun advanceItemFocus(probe: ItemFocusProbe) {
                 probe.replacement.value = true
             }
         }
-        case 16 -> {
+        case 22 -> {
             probe.assertFocused(9L, 1L)
             assertFalse(probe.first.isAttached)
             assertFalse(probe.first.isPending)
@@ -138,7 +190,7 @@ internal fun advanceItemFocus(probe: ItemFocusProbe) {
                 probe.show.value = false
             }
         }
-        case 17 -> {
+        case 23 -> {
             assertFalse(probe.second.isAttached)
             assertFalse(probe.second.isPending)
             for (row in probe.rows)

@@ -70,6 +70,7 @@ internal class ItemFocusProbe {
     var checkpoint: WindowDeadline? = None
     var checkpointAction: () -> Unit = {}
     var builds = 0
+    var selectorCalls = 0
     var accepted = 0
     var passes = 0
     var phase = 0
@@ -114,7 +115,7 @@ internal class ItemFocusProbe {
                     retryFocus = true
                     window!!.requestFocus()
                 }
-                if (phase < 18 && !waiting && settled()) {
+                if (phase < 24 && !waiting && settled()) {
                     waiting = true
                     assertTrue(
                         application.proxy().post {
@@ -127,7 +128,7 @@ internal class ItemFocusProbe {
                 }
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 18
+                finished = phase == 24
                 application.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(

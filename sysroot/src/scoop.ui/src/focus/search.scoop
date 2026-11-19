@@ -1,7 +1,10 @@
 package scoop.ui
 
 /** Traverses mounted stops and lazy data through the same accepted-frame focus request. */
-internal class FocusSearch(private val reverse: Boolean) {
+internal class FocusSearch(
+    private val reverse: Boolean,
+    private val itemTarget: (() -> FocusHandle?)? = None
+) {
     private val cursors = ArrayList<FocusCursor>()
     private var boundary: MountedNode? = None
     private var group: FocusScope? = None
@@ -10,6 +13,7 @@ internal class FocusSearch(private val reverse: Boolean) {
     private var skip: FocusTarget? = None
     private var waiting: FocusItemVisit? = None
     private var excluded: MountedNode? = None
+    private var selectedItemTarget: FocusTarget? = None
 
     companion object {
         fun tab(node: MountedNode, reverse: Boolean, loop: Boolean): FocusSearch {
@@ -29,8 +33,13 @@ internal class FocusSearch(private val reverse: Boolean) {
             result.cursors.add(FocusCursor.Nodes(NodeFocusCursor(node, false, false)))
             return result
         }
-        fun item(owner: LazyFocus, key: ViewKey, edge: ItemFocusEdge): FocusSearch {
-            val result = FocusSearch(edge == ItemFocusEdge.Last)
+        fun item(
+            owner: LazyFocus,
+            key: ViewKey,
+            edge: ItemFocusEdge,
+            target: (() -> FocusHandle?)?
+        ): FocusSearch {
+            val result = FocusSearch(edge == ItemFocusEdge.Last, target)
             result.cursors.add(
                 FocusCursor.Items(ItemFocusCursor(owner, false, 0L, 1L, false, edge, Some(key)))
             )
@@ -210,6 +219,22 @@ internal class FocusSearch(private val reverse: Boolean) {
         if (!visit.owner.available)
             return
         val entry = visit.owner.entry(visit.key) ?: return
+        when (itemTarget) {
+            case Some(val resolve) -> {
+                selectedItemTarget =
+                    evaluateUi<FocusTarget?>(None) {
+                        val handle = resolve() ?: return@evaluateUi None
+                        handle.checkThread()
+                        val target = handle.target ?: return@evaluateUi None
+                        if (withinFocusScope(target.node, entry.node) && target.reachable)
+                            Some(target)
+                        else
+                            None
+                    }
+                return
+            }
+            case None -> {}
+        }
         cursors.add(
             FocusCursor.Nodes(
                 NodeFocusCursor(entry.node, visit.edge == ItemFocusEdge.Last, false, excluded)
@@ -217,6 +242,13 @@ internal class FocusSearch(private val reverse: Boolean) {
         )
     }
     fun next(continueParents: Boolean = true): FocusSearchStep {
+        when (selectedItemTarget) {
+            case Some(val target) -> {
+                selectedItemTarget = None
+                return FocusSearchStep.Target(target)
+            }
+            case None -> {}
+        }
         when (group) {
             case Some(val scope) -> {
                 if (!scope.available)

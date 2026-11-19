@@ -75,6 +75,13 @@ public class LazyFocus internal constructor(
         requireUi(key != ViewKey.Position, "item focus requires an explicit key")
         return node.root.focus.request(this, key, edge)
     }
+    /** Selects a real descendant after the requested item has an accepted layout. */
+    public fun requestFocus(key: ViewKey, target: () -> FocusHandle?): Boolean {
+        node.root.checkThread()
+        checkFocusMutation()
+        requireUi(key != ViewKey.Position, "item focus requires an explicit key")
+        return node.root.focus.request(this, key, ItemFocusEdge.First, Some(target))
+    }
     public fun cancelRequest() {
         node.root.checkThread()
         checkFocusMutation()

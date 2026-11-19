@@ -234,6 +234,8 @@ KeepVisible 与 FollowEnd 在惯性和回弹期间仍生效。prepend、已实�
 
 `handle.focusItem(key, ItemFocusEdge.First)` 按需实现并定位条目，再聚焦行内首个可用 Tab 目标；Last 选择末个目标。isPending 也包含这个聚焦过程。未知 key、没有可用目标、真实删除、禁用或更新的焦点／滚动请求会结束旧等待；外层缓存的列表可以因待聚焦归属恢复布局。`tests-cones/focus-items` 检查真实按 key 聚焦与实例数量。
 
+`focusItem(key, target: () -> FocusHandle?)` 可以选择行内具体目标。回调只在该行的 Accepted 布局后执行一次，并处于只读阶段；返回当前行子树中实际挂载的句柄。None、未挂载、禁用或其他行的目标结束等待，不回退首／末项。它复用 LazyFocus 的唯一 pending 和实际目标显露，不提前创建离屏句柄。
+
 `navigation = ItemNavigation.Sequential` 启用逐行 Tab 访问；`ItemNavigation.Roving(direction = LayoutDirection.Ltr, loop = false)` 让列表占一个 Tab 停靠点，并用方向键和 Home／End 导航。轴沿 orientation，入口顺序沿 focus.order；启用时视口自身不再额外占一个 Tab 停靠点，None 默认模式保持普通滚动视口行为。选择／激活由上层组件决定。`tests-cones/navigation-items` 覆盖真实键盘、嵌套列表与焦点作用域、禁用／空项、实例卸载后的返回、RTL、循环和默认动作优先级。
 
 
