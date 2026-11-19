@@ -25,11 +25,14 @@ internal fun itemEstimate(mode: ItemExtent): Double {
 }
 
 /** Sparse Fenwick deltas from a constant estimate, with no allocation proportional to count. */
-internal class ItemExtentIndex(val count: Long, val mode: ItemExtent) {
+public class ItemExtentIndex public constructor(
+    public val count: Long,
+    public val mode: ItemExtent
+) {
     private val estimate = itemEstimate(mode)
     private val values = HashMap<Long, Double>()
     private val sums = HashMap<Long, Double>()
-    val variable: Boolean =
+    public val variable: Boolean =
         when (mode) {
             case Variable(_) -> true
             case Fixed(_) -> false
@@ -38,12 +41,12 @@ internal class ItemExtentIndex(val count: Long, val mode: ItemExtent) {
         requireComponent(count >= 0L, "negative item count")
         nonnegative(count.toDouble() * estimate, "virtual content extent overflow")
     }
-    val total: Double get() = prefix(count)
-    fun extent(index: Long): Double {
+    public val total: Double get() = prefix(count)
+    public fun extent(index: Long): Double {
         checkIndex(index)
         return values[index] ?: estimate
     }
-    fun record(index: Long, value: Double) {
+    public fun record(index: Long, value: Double) {
         checkIndex(index)
         nonnegative(value, "invalid measured item extent")
         if (!variable)
@@ -51,21 +54,24 @@ internal class ItemExtentIndex(val count: Long, val mode: ItemExtent) {
         val previous = values[index] ?: estimate
         if (previous == value)
             return
-        values.put(index, value)
         val change = value - previous
+        requireComponent((total + change).isFinite(), "virtual content extent overflow")
+        val updates = ArrayList<ExtentDelta>()
         var at = index + 1L
         while (at <= count) {
             val sum = (sums[at] ?: 0.0) + change
             requireComponent(sum.isFinite(), "virtual extent sum overflow")
-            sums.put(at, sum)
+            updates.add(ExtentDelta(at, sum))
             val step = at and -at
             if (step > count - at)
                 break
             at += step
         }
-        total
+        values.put(index, value)
+        for (update in updates)
+            sums.put(update.index, update.value)
     }
-    fun prefix(end: Long): Double {
+    public fun prefix(end: Long): Double {
         requireComponent(end >= 0L && end <= count, "virtual prefix index is out of range")
         var result = end.toDouble() * estimate
         if (!variable)
@@ -80,7 +86,7 @@ internal class ItemExtentIndex(val count: Long, val mode: ItemExtent) {
         return lowerBound(result, 0.0)
     }
     /** First item whose end is strictly after position; known zero-size items are skipped. */
-    fun indexAt(position: Double): Long {
+    public fun indexAt(position: Double): Long {
         nonnegative(position, "invalid virtual position")
         if (position >= total)
             return count
@@ -98,7 +104,7 @@ internal class ItemExtentIndex(val count: Long, val mode: ItemExtent) {
         return low
     }
     /** Exclusive end of the items starting before position. */
-    fun endBefore(position: Double): Long {
+    public fun endBefore(position: Double): Long {
         nonnegative(position, "invalid virtual position")
         if (!variable) {
             var end = boundIndex((position / estimate).toLong())
@@ -126,3 +132,5 @@ internal class ItemExtentIndex(val count: Long, val mode: ItemExtent) {
         requireComponent(index >= 0L && index < count, "virtual item index is out of range")
     }
 }
+
+private class ExtentDelta(val index: Long, val value: Double)

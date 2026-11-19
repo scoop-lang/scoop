@@ -50,6 +50,7 @@ internal class NodeLayout(
     val constraints: Constraints,
     val version: Long,
     val direction: LayoutDirection,
+    val environment: LayoutEnvironment?,
     val round: LayoutRound,
     val metrics: LayoutMetrics,
     val children: Array<ChildLayout>,

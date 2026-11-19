@@ -392,6 +392,8 @@ VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollSta
 
 retention 使用 UI 的 ItemRetention，缺省 Dispose，KeepAlive(maxOffscreenItems) 保留有限的离屏原实例；可见／overscan 选择与活动交互项不计入上限。它直接传给 lazyElement，不在控件中维护另一份挂载或回收池。绘制缓存独立，保留实例并不自动缓存像素。
 
+`ItemExtentIndex(count, mode)` 是可公开复用的稀疏尺寸索引，提供 count、mode、variable、total、`extent(index)`、`prefix(end)`、`indexAt(position)`、`endBefore(position)` 和 `record(index, value)`。prefix 使用排除末端的索引；indexAt 返回结束位置严格大于 position 的首项，endBefore 返回起点小于 position 的排除末端索引，零高项按此规则跳过。Variable 只为测过的项保存尺寸差量，Fixed 忽略合法 record；非法索引、非有限／负尺寸及累计溢出在修改前报告。它是容器拥有的测量缓存，不是帧几何快照；调用方须将选择的尺寸和位置保存到 LayoutResult，不能在 scene 读取后来试测改过的索引。
+
 ItemExtent.Fixed(value) 要求有限正值，按 count × value 计算总长，沿主轴和交叉轴使用 tight 约束。ItemExtent.Variable(estimate) 同样要求有限正估计值，沿主轴使用无界约束，交叉轴 tight；实际主轴尺寸可为零，每步仍推进索引。以稀疏的已测量尺寸和前缀和索引定位范围，不为首屏遍历全部 source 或分配 count 个槽。总长与坐标必须有限；尚未测量的尺寸是估计，因此 ScrollState.content／maximum 会随新测量变化。
 
 列表根据 offset／viewport／overscan 准备覆盖范围，每项每帧至多测量一次；视口主轴长度为零时不因 overscan 新建项。extent 配置、方向或交叉轴约束改变会清除旧尺寸索引；source 替换按已知稳定 key 重定位既有尺寸，作为新输入的初始估计，实际进入范围时重新测量。条目自身 State 或主题改变时，本帧所需项沿正常布局重新测量；未实现项没有 View 构建、Component、InputArea 或挂载资源。
@@ -1191,6 +1193,8 @@ DatePickerHandle 提供 commit／reset／openCalendar／closeCalendar，绑定�
 Table 的表头语义引用同样遵循 [UI 规范第 5 节](SCOOP-UI-SPEC.md#5-创建身份与复用)的身份规则。自动行位置使用完整行序列的索引，自动单元格位置使用该行完整单元格序列的索引；两者分别与显式 Text／Number key 区分，不能把位置转换成用户可指定的数字 key。列坐标与 span 只决定语义位置和表头覆盖关系，不参与单元格身份；前方单元格的 span 改变时，位置未变的单元格保留原表头引用。显式行／单元格 key 的正常重排保留对应引用，合法的 keyed／unkeyed 组合不能使不同单元格绑定同一个内部表头引用。
 
 TableColumnSize 使用 GridTrack.Fixed／Auto／Fraction、minimum=48、maximum=None 和显式文字 samples。Fixed／Auto 在最小最大值间夹取；Fraction 从 minimum 起分配可用剩余宽度，达到 maximum 后将剩余空间分给其他比例列。总最小宽度超出视口时横向滚动，不压成负宽。Auto 只测表头文字与显式 samples，使用真实字体，不扫描数据源或挂载行。Custom 表头没有可自动提取的文字时由 samples 或 minimum 决定宽度。表头、footer 和正文行共用同一不可变列宽结果；测量缓存只依赖列配置、字体、密度和宽度，不保存待发布几何。一次横向 ScrollViewport 移动整个表格；DataTable 的 header 固定在垂直 VirtualList 之外。零尺寸跳过子项，Discarded 不发布交互几何。
+
+`TableTracks(columns, natural, density = 1.0)` 公开复用上述列宽分配器；natural 与 columns 等长，保存已经测量的逻辑自然宽度，各项有限非负，density 有限且为正。`resolve(width): TableWidths` 接受有限非负视口宽度，返回不可变 values 和 total，均为施加密度后的逻辑布局尺寸；它不测量字体、不读数据源、不创建 View。相同宽度或已解析的溢出总宽度复用原结果，结果不携带待发布几何。总宽度溢出按参数错误报告。
 
 `TableSource<Row>` 是不可变行快照，提供 count、keyAt、indexOfKey 和 rowAt；显式 key 不可为 Position，重复显示值合法。`TableRows<Row>` 从有 key 的 TableRecord 数组构造并检查唯一性。任意来源按普通 ItemSource 合同保证映射，控件不为了验证或 Auto 列宽遍历巨大来源。`TableColumn<Row>` 使用稳定 String id、header、类型化 cell `(Row) -> View`、size、alignment、可选 compare／filter、remoteSort、hideable、resizable；compare 为 `(Row, Row) -> Int`，filter 为 `(Row, String) -> Boolean`，无 Any 或字段反射。
 

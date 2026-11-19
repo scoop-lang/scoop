@@ -1,16 +1,25 @@
 package scoop.ui.component
 
-internal class TableWidths(val values: Array<Double>, val total: Double)
+public class TableWidths internal constructor(
+    public val values: Array<Double>,
+    public val total: Double
+)
 
 /** Pure memoized sizing; an overflow total resolves to the same immutable track array. */
-internal class TableTracks(
-    val columns: Array<TableColumnSize>,
+public class TableTracks public constructor(
+    public val columns: Array<TableColumnSize>,
     private val natural: Array<Double>,
-    val density: Double
+    public val density: Double = 1.0
 ) {
+    init {
+        requireComponent(columns.size == natural.size, "table natural widths must match columns")
+        requireComponent(density.isFinite() && density > 0.0, "invalid table density")
+        for (width in natural)
+            nonnegative(width, "invalid table natural width")
+    }
     private var cached: TableWidths? = None
     private var available = -1.0
-    fun resolve(width: Double): TableWidths {
+    public fun resolve(width: Double): TableWidths {
         nonnegative(width, "invalid table available width")
         when (cached) {
             case Some(val value) -> if (width == available || width == value.total)

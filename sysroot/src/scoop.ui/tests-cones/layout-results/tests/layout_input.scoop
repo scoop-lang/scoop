@@ -1,0 +1,101 @@
+package scoop.tests.ui.layoutresults
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class InputPlan(val first: Long)
+
+internal class InputRecord(val plan: InputPlan, val row: Long) {
+    var closes = 0
+    fun close() {
+        closes += 1
+        assertEquals(1, closes)
+    }
+}
+
+internal class LayoutInputProbe {
+    val a = LayoutInput(InputPlan(0L))
+    val b = LayoutInput(InputPlan(1L))
+    val failed = LayoutInput(InputPlan(2L))
+    val records = ArrayList<InputRecord>()
+    var aCalls = 0
+    var bCalls = 0
+    var phase = 0
+    var rootInput: (() -> InputPlan)? = None
+    fun attach(host: UiHost, active: ActiveApplication, finished: () -> Unit) {
+        host.attach(
+            active.createWindow(
+                windowAttributes {
+                    title = "Scoop typed layout input"
+                    size = LogicalSize(240.0, 160.0)
+                }
+            ),
+            { mount -> LayoutInputScene(this, finished, scope = mount) }
+        )
+    }
+}
+
+private class LayoutInputScene(
+    private val probe: LayoutInputProbe,
+    private val finished: () -> Unit,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View =
+        element(
+            { mount -> LayoutInputRoot(probe, finished, scope = mount) },
+            [component({ mount -> InputTransparent(probe, scope = mount) })]
+        )
+}
+
+private class LayoutInputRoot(
+    private val probe: LayoutInputProbe,
+    private val finished: () -> Unit,
+    scope: ComponentScope
+): Element<Int>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Int
+    > {
+        probe.rootInput = Some { context.input<InputPlan>() }
+        val size = Constraints.tight(Size(160.0, 60.0))
+        assertFailsWith<IllegalStateException> { context.input<InputPlan>() }
+        if (probe.phase == 0) {
+            val first = context.measureChild(0L, size, probe.a)
+            context.measureChild(0L, size, probe.b)
+            assertEquals(first, context.measureChild(0L, size, probe.a))
+            assertEquals(1, probe.aCalls)
+            assertEquals(1, probe.bCalls)
+            assertFailsWith<IllegalArgumentException> {
+                context.measureChild(0L, size, probe.failed)
+            }
+            assertFailsWith<IllegalStateException> { context.measureChild(0L, size) }
+            assertEquals(first, context.measureChild(0L, size, probe.a))
+        } else {
+            context.measureChild(0L, size, probe.b)
+        }
+        assertFailsWith<IllegalStateException> { context.input<InputPlan>() }
+        context.placeChild(0L, Point(10.0, 10.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 160.0))), probe.phase)
+    }
+    public override fun scene(context: SceneContext, phase: Int) {
+        context.children()
+        context.onFrameComplete {
+            completion -> if (
+                completion.submission ==
+                    FrameSubmission.Accepted &&
+                    probe.phase ==
+                    phase &&
+                    probe.phase <
+                    2
+            ) {
+                probe.phase += 1
+                if (probe.phase == 2)
+                    finished()
+                else
+                    scope.requestLayout()
+            }
+        }
+    }
+}

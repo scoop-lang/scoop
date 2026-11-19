@@ -1,0 +1,117 @@
+package scoop.tests.ui.layoutresults
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+
+internal class InputTransparent(
+    private val probe: LayoutInputProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View =
+        lazyElement(InputSource(probe), { mount -> InputRows(probe, scope = mount) })
+}
+
+private class InputSource(private val probe: LayoutInputProbe): ItemSource {
+    public override val count: Long get() = 100000000L
+    public override fun keyAt(index: Long): ViewKey {
+        assertTrue(index >= 0L && index < 3L)
+        return ViewKey.Number(index)
+    }
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(val index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View =
+        component({ mount -> InputRow(probe, index, scope = mount) })
+}
+
+private class InputRows(private val probe: LayoutInputProbe, scope: ComponentScope): LazyElement<
+    InputPlan
+>(scope) {
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<InputPlan> {
+        val plan = context.input<InputPlan>()
+        if (plan.first == 2L)
+            throw IllegalArgumentException(Some("test rejected input"))
+        if (plan.first == 0L)
+            probe.aCalls += 1
+        else
+            probe.bCalls += 1
+        assertFailsWith<IllegalStateException> { probe.rootInput!!() }
+        for (index in plan.first ..< plan.first + 2L) {
+            val size = Constraints.tight(Size(80.0, 20.0))
+            context.measureItem(index, size, LayoutInput(index * 10L))
+            context.placeItem(
+                index,
+                Point(plan.first.toDouble() * 3.0, (index - plan.first).toDouble() * 20.0)
+            )
+            assertTrue(plan === context.input<InputPlan>())
+            assertFailsWith<IllegalStateException> { context.input<Long>() }
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 60.0))), plan)
+    }
+    public override fun scene(context: SceneContext, plan: InputPlan) {
+        assertEquals(
+            if (probe.phase == 0)
+                0L
+            else
+                1L,
+            plan.first
+        )
+        context.children()
+    }
+}
+
+private class InputRow(
+    private val probe: LayoutInputProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun render(): View {
+        assertFailsWith<IllegalStateException> { probe.rootInput!!() }
+        return element({ mount -> InputLeaf(probe, index, scope = mount) })
+    }
+}
+
+private class InputLeaf(
+    private val probe: LayoutInputProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<InputRecord>(scope) {
+    private var inputRead: (() -> InputPlan)? = None
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        InputRecord
+    > {
+        val plan = context.input<InputPlan>()
+        assertEquals(index * 10L, context.input<Long>())
+        assertTrue(index >= plan.first && index < plan.first + 2L)
+        assertFailsWith<IllegalStateException> { probe.rootInput!!() }
+        inputRead = Some { context.input<InputPlan>() }
+        val record = InputRecord(plan, index)
+        probe.records.add(record)
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(80.0, 20.0))),
+            record,
+            { record.close() }
+        )
+    }
+    public override fun scene(context: SceneContext, record: InputRecord) {
+        assertEquals(
+            if (probe.phase == 0)
+                0L
+            else
+                1L,
+            record.plan.first
+        )
+        assertEquals(index, record.row)
+        assertEquals(0, record.closes)
+        assertFailsWith<IllegalStateException> { inputRead!!() }
+    }
+}
