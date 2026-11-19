@@ -86,7 +86,7 @@ fn static_enum_constants_encode_niche_tagged_and_inactive_reference_slots() {
         ],
     );
     assert!(
-        tagged.contains("i64 2") && tagged.contains("@text") && tagged.contains('*'),
+        tagged.contains("i64 2") && tagged.contains("@text") && tagged.contains("i64 42"),
         "{tagged}"
     );
     let pure = render(

@@ -457,6 +457,8 @@ release 默认启用 MIR 优化，debug 保留未优化的完整 MIR；两种模
 
 ### 2.4 LIR
 
+Tagged enum 的 LIR 布局决定 tag、payload 字段偏移、大小、对齐和固定 GC 槽。物理调用的 carrier、byval 和 sret 由 ABI 计划决定，非引用区间的 LLVM 元素类型由后端选择。
+
 LIR 以完整操作表达托管分配、字段／数组写入、值复制、原子引用访问、`ManagedPoll` 与 `PublishReleaseReady`，携带实际类型、布局、GC effect 和 live set。Immix 普通对象上限、TLAB 资格及 card/page-map 算法属于 codegen 的 GC 实现，不作为通用 LIR 策略常量；实际 runtime 符号、共享布局和兼容性摘要仍由现有 ABI 数据目录保存。
 
 codegen 的 release 小型常量分配按运行时规范 3.1 直接完成 TLAB 登记，使用统一的四指针 context 前缀与四项 atomic u64 计数视图：依次为 nursery 对象数、nursery 字节数、直接旧代对象数、直接旧代字节数。内联成功分配只更新前两项，runtime 在读取时合成总量；不对同一次分配同时维护子集与总量。成功 bump 后，在对象 GC 字写入已对齐的精确大小，再按原规则发布 starts；不再生成大小数组的地址计算或 u16 登记。GC 字大小／pin 位域保持；context 是当前线程稳定 mutator 的 32-byte 前缀，计数器直接从该地址的 offset 128 寻址，不逐次加载计数器指针。完整线程状态仍为 256 bytes，计数原子操作和 nursery／direct 域含义保持；此布局由 runtime contract 26 规定，所有 profile、目标和预编译机器正文必须配套重建；不改变 16-byte 对象头、scan 或通用 LIR 操作。复用输入的完整本地 TD／typed array layout，跨物理对象分区保留已确定的 alignment 与 release-policy；外部 TD 缺少事实时保留原加载与完成入口，不扩充跨 Cone 格式。内联只在大小合格、布局已知、确定无 release hook 的成功分配分支内发射，不增加 LIR 操作、持久证明、managed 引用或根。不再生成 line 位图的地址计算、读写或跨字分支；line 占用由 collector 的完整标记／复制与收尾产生。分配结果按实际快路径出口与原慢路径出口构造 phi，慢路径 safepoint／relocation 保持。debug 与未命中的分配使用相同 ABI 下的既有完成入口。
@@ -570,6 +572,8 @@ LIR metadata 保存完整 value/instance/element layout、Scoop/C ABI、scan、T
 整型枚举的 MIR/LIR 保留 exact enum 身份并直接使用底层整数标量布局；variant 构造产生其已检查常量，匹配按该表示区分 variant。参数、结果、字段、数组及 C ABI 使用同一整数的 size、alignment、signedness 与目标分类，不添加 tag、payload 区域或值域检查。boxed enum 的父 TD 指向 boxed integer，父整数解箱与函数值适配遵守运行时规范 2.3。Option 的现有 niche 范围不变，源码 enum 身份不能因机器签名相同而合并。
 
 ### 2.5 Codegen 与对象合同
+
+Tagged enum 的 LLVM 存储保留 i64 tag 和单独的 AS1 引用槽。按实际对齐用整数单元表示连续非引用空间，与 MaybeUninit 共用原始存储表示。静态初值按同一布局编码整数和引用重定位，未激活的槽与 padding 保持零。
 
 GC 代码生成模块集中实现分配、完整托管写操作、发布与 poll 的快／慢路径。字段与数组 store、含引用聚合复制、数组构造／拼接、clone 及原子引用写入必须把实际写入和对应屏障放在同一操作中；通用发射器交付实际地址、值、类型／scan、内存序和必要的 safepoint 数据，不单独拼接写后屏障。后续 LLVM 优化可按 2.19 合并完整有界内层中的等价 card store，仍须在下一次可能 GC 或发布前完成。批量构造／复制保留整段范围屏障，失败 CAS 不标脏，GC-free 写入不增加屏障。runtime 执行的 clone／boxing 等完整操作沿既有入口调用，内部写入遵守运行时规范 3.6。
 
