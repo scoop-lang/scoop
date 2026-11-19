@@ -1,5 +1,6 @@
 package scoop.surface
 
+import scoop.platform.time.MonotonicInstant
 import scoop.graphics.Color
 import scoop.graphics.Point
 import scoop.graphics.Size
@@ -9,26 +10,25 @@ import scoop.time.*
 
 internal class AnimationEntry(
     val owner: Closeable,
-    val sample: (TimeMark) -> Unit,
+    val sample: (MonotonicInstant) -> Unit,
     val frameEnabled: () -> Boolean,
-    val deadline: () -> TimeMark?
+    val deadline: () -> MonotonicInstant?
 )
 
 private class AnimationCompletion(
-    val time: TimeMark,
+    val time: MonotonicInstant,
     val frameEnabled: () -> Boolean,
     val callback: () -> Unit
 )
 
 /** Shared owner-thread animation clock, driven by Surface frames or explicit offline sampling. */
 public class AnimationTimeline public constructor(
-    private val source: TimeSource = MonotonicTimeSource,
     private val invalidate: () -> Unit = {}
 ): Closeable {
     private val thread = currentThreadId()
     private var closed = false
-    private var frame: TimeMark? = None
-    private var previous: TimeMark? = None
+    private var frame: MonotonicInstant? = None
+    private var previous: MonotonicInstant? = None
     private val owned = ArrayList<AnimationEntry>()
     private val active = ArrayList<AnimationEntry>()
     private val groups = ArrayList<AnimationGroup>()
@@ -85,24 +85,24 @@ public class AnimationTimeline public constructor(
         group?.add(entry)
         return result
     }
-    /** Advances all values once; completions run after the sampling pass. */
-    public fun advanceTo(time: TimeMark) {
+    /** Samples all values, delivers completions, then runs the block at the same frame time. */
+    public fun advanceTo(time: MonotonicInstant, block: () -> Unit = {}) {
         val repaint = hasFrameWork
-        withFrame(time) {}
+        withFrame(time, block)
         if (!closed && repaint)
             invalidate()
     }
-    internal fun <T> withFrame(time: TimeMark, block: () -> T): T {
+    internal fun <T> withFrame(time: MonotonicInstant, block: () -> T): T {
         checkOpen()
         if (frame != None)
             throw IllegalStateException(Some("animation sampling is not reentrant"))
-        checkTime(time)
-        frame = Some(time)
+        val instant = checkTime(time)
+        frame = Some(instant)
         try {
             for (animation in active.toArray()) {
                 if (closed)
                     break
-                animation.sample(time)
+                animation.sample(instant)
             }
             val callbacks = completions.toArray()
             completions.clear()
@@ -118,9 +118,9 @@ public class AnimationTimeline public constructor(
                 scheduleChanged()
         }
     }
-    internal fun nextDeadline(includeFrameWork: Boolean): TimeMark? {
+    internal fun nextDeadline(includeFrameWork: Boolean): MonotonicInstant? {
         checkThread()
-        var next: TimeMark? = None
+        var next: MonotonicInstant? = None
         for (completion in completions)
             if (next == None || completion.time < next!!)
                 next = Some(completion.time)
@@ -135,23 +135,25 @@ public class AnimationTimeline public constructor(
         }
         return next
     }
-    internal fun now(): TimeMark {
+    internal fun now(): MonotonicInstant {
         checkOpen()
         when (frame) {
             case Some(val value) -> return value;
             case None -> {}
         }
-        val result = source.markNow()
-        checkTime(result)
-        return result
+        return checkTime(MonotonicTimeSource.now())
     }
-    private fun checkTime(time: TimeMark) {
-        requireAnimation(time.source === source, "animation clock source mismatch")
+    private fun checkTime(time: MonotonicInstant): MonotonicInstant {
+        val instant = time.normalized()
         when (previous) {
-            case Some(val value) -> requireAnimation(time >= value, "animation time moved backwards");
+            case Some(val value) -> requireAnimation(
+                instant >= value,
+                "animation time moved backwards"
+            );
             case None -> {}
         }
-        previous = Some(time)
+        previous = Some(instant)
+        return instant
     }
     internal fun changed(frameEnabled: Boolean) {
         if (!closed) {
@@ -188,7 +190,11 @@ public class AnimationTimeline public constructor(
             }
         }
     }
-    internal fun finished(time: TimeMark, frameEnabled: () -> Boolean, callback: () -> Unit) {
+    internal fun finished(
+        time: MonotonicInstant,
+        frameEnabled: () -> Boolean,
+        callback: () -> Unit
+    ) {
         if (!closed)
             completions.add(AnimationCompletion(time, frameEnabled, callback))
     }

@@ -125,7 +125,7 @@ private class LinuxHandler: ApplicationHandler {
                                             application.requestExit()
                                         }
                                     timer.schedule(
-                                        MonotonicTimeSource.markNow() + Duration.milliseconds(50L)
+                                        MonotonicTimeSource.now() + Duration.milliseconds(50L)
                                     )
                                 }
                     }
@@ -330,7 +330,7 @@ private class LinuxHandler: ApplicationHandler {
                 }
             )
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
         )
     }
 

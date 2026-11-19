@@ -21,12 +21,17 @@ public object SystemClock: Clock {
  * A monotonic source for elapsed-time measurement, independent of wall-clock adjustments.
  */
 public object MonotonicTimeSource: TimeSource {
+    /** Captures the fixed system clock as a reference-free timestamp. */
+    public fun now(): MonotonicInstant {
+        val value = readClock(true)
+        return MonotonicInstant(value.seconds, value.nanoseconds.toInt())
+    }
+
     /**
      * Captures a monotonic time mark.
      */
     public override fun markNow(): TimeMark {
-        val value = readClock(true)
-        return TimeMark(this, Duration.seconds(value.seconds, value.nanoseconds))
+        return TimeMark(this, now().reading())
     }
 }
 

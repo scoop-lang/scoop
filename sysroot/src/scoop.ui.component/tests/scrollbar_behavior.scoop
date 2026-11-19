@@ -1,5 +1,6 @@
 package scoop.ui.component
 
+import scoop.platform.time.MonotonicInstant
 import scoop.graphics.*
 import scoop.test.*
 import scoop.time.*
@@ -89,7 +90,7 @@ private class ScrollbarBehaviorTest {
 
     @Test
     fun `idle hiding pauses during interaction and becomes quiescent after expiry`() {
-        val start = ScrollbarTestTime().markNow()
+        val start = MonotonicInstant(0L, 0)
         val clock = ScrollbarIdle()
         val delay = Duration.seconds(1L)
         clock.configure(true, true, delay, false, start)
@@ -116,7 +117,7 @@ private class ScrollbarBehaviorTest {
 
     @Test
     fun `preference and availability changes do not leave an old hide deadline`() {
-        val start = ScrollbarTestTime().markNow()
+        val start = MonotonicInstant(0L, 0)
         val clock = ScrollbarIdle()
         clock.configure(true, false, Duration.seconds(2L), false, start)
         assertTrue(clock.visible)
@@ -265,10 +266,6 @@ private class ScrollbarBehaviorTest {
             scrollbarBehavior { repeatDelay = Some(Duration.milliseconds(-1L)) }
         }
     }
-}
-
-private class ScrollbarTestTime: TimeSource {
-    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
 }
 
 private fun paintScrollbar(theme: Theme, track: Boolean, opacity: Double): Array<Byte> =

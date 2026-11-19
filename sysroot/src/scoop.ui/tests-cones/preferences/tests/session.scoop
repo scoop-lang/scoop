@@ -95,7 +95,7 @@ internal class PreferenceProbe(val original: Boolean) {
             case Resumed -> {
                 active = Some(application)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
                 models[0L].replace(Utf8Range(0L, 5L), "ALPHA")
                 models[0L].setSelection(Utf8Selection(5L, 0L))
@@ -208,7 +208,7 @@ internal class PreferenceProbe(val original: Boolean) {
     }
 
     private fun later() {
-        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(120L))
+        timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(120L))
     }
 
     fun accepted(index: Long) {

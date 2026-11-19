@@ -431,7 +431,7 @@ Darwin 的 scope.dragSource 和 scope.dropTarget 借用本节同一挂载的 Inp
 
 Element 在构造中通过 `scope.createArea(focusable, textInput, parent, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
 
-`ComponentScope.createDeadline(action: () -> Unit): WindowDeadline` 使用所属原生窗口的一次性 deadline，随作用域退休而关闭；不增加时间源或第二套调度器。回调仅在挂载仍有效时执行，并通过 SurfaceWindow.dispatch 进入该根的错误和安全退休边界。Hover、Typeahead、编辑光标／拖动、Select 滚动及 Carousel 自动播放采用此入口。直接使用借用 nativeWindow 创建的应用任务仍遵守 Window 自身的回调错误合同，不被隐式归到某个 UI 根。
+`ComponentScope.createDeadline(action: () -> Unit): WindowDeadline` 使用所属原生窗口的一次性 deadline，接收与输入和帧相同的 MonotonicInstant，随作用域退休而关闭；不增加时间源或第二套调度器。回调仅在挂载仍有效时执行，并通过 SurfaceWindow.dispatch 进入该根的错误和安全退休边界。Hover、Typeahead、编辑光标／拖动、Select 滚动及 Carousel 自动播放采用此入口。直接使用借用 nativeWindow 创建的应用任务仍遵守 Window 自身的回调错误合同，不被隐式归到某个 UI 根。
 
 `ComponentScope.observeWindowActivity(action: (WindowActivity) -> Unit): Closeable` 管理所属 Window 的活动状态观察，沿用 Window.observeActivity 的快照、变化通知和取消规则。回调只在挂载有效时通过同一根错误边界执行；作用域退休自动撤销登记，不创建轮询、帧请求或独立状态源。Toast 用它在窗口失活、隐藏或遮蔽时准确暂停剩余时长。
 

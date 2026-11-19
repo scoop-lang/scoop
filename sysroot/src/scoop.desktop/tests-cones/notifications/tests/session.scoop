@@ -44,7 +44,7 @@ private class NotificationProbe(val launch: NotificationLaunch): ApplicationHand
         when (event) {
             case Resumed -> {
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(8L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(8L))
                 )
                 val desktop = active.openDesktop()
                 val center = desktop.openNotifications(launch)

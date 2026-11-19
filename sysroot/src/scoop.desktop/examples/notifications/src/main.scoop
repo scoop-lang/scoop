@@ -85,7 +85,7 @@ private class NotificationDemo(
                 record("launch")
                 if (has(arguments, "--bounded"))
                     active.setControlFlow(
-                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(45L))
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(45L))
                     )
                 desktop = Some(active.openDesktop())
                 center = Some(desktop!!.openNotifications(launch))

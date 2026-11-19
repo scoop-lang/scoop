@@ -102,7 +102,7 @@ private class SourceResourceComponent(
 }
 
 private fun sourcePointer(x: Double, y: Double, scale: Double): InputPointer {
-    val time = InputTime.Event(MonotonicTimeSource.markNow())
+    val time = InputTime.Event(MonotonicTimeSource.now())
     return InputPointer(
         PointerState(
             LogicalPosition(x, y),

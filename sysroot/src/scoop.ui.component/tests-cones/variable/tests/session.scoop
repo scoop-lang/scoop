@@ -137,7 +137,7 @@ internal class VariableProbe(val motion: Boolean = false) {
                     native.requestFocus()
                 }
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1

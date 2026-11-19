@@ -552,11 +552,11 @@ fn emits_m4_enums() {
     let module = enum_module();
     let ir = ir_of(&module);
     assert!(
-        ir.contains("store { i64, [16 x i8], ptr addrspace(1) } zeroinitializer"),
+        ir.contains("store { i64, [2 x i64], ptr addrspace(1) } zeroinitializer"),
         "tagged enum construction must zero every inactive ref slot:\n{ir}"
     );
     assert!(
-        ir.contains("{ i64, [16 x i8], ptr addrspace(1) }"),
+        ir.contains("{ i64, [2 x i64], ptr addrspace(1) }"),
         "tagged enum GC slots must remain typed AS1 fields through SROA:\n{ir}"
     );
     assert!(

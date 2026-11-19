@@ -5,7 +5,7 @@ import scoop.tests.window.cancelNativeGestures
 import scoop.tests.window.sendNativeGesture
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.Duration
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.window.native.*
 
 @Test
@@ -64,8 +64,8 @@ private fun gestureDelta(event: GestureEvent): Double =
 
 private class NativeGestureProbe: ApplicationHandler {
     val events = ArrayList<GestureEvent>()
-    var after: TimeMark? = None
-    var before: TimeMark? = None
+    var after: MonotonicInstant? = None
+    var before: MonotonicInstant? = None
     var finished = false
     private var started = false
     private var window: Window? = None
@@ -82,7 +82,7 @@ private class NativeGestureProbe: ApplicationHandler {
                 window = Some(created)
                 created.requestRedraw()
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                 )
             }
             case Window(_, WindowEvent.RedrawRequested) -> if (!started) {
@@ -111,7 +111,7 @@ private class NativeGestureProbe: ApplicationHandler {
     }
     @Unsafe
     private fun send(view: Ptr<Unit>) {
-        after = Some(MonotonicTimeSource.markNow())
+        after = Some(MonotonicTimeSource.now())
         sendNativeGesture(view, 0, 1, 24.0, 36.0, 0.1, 0.0)
         sendNativeGesture(view, 1, 1, 24.0, 36.0, 90.0, 0.0)
         sendNativeGesture(view, 0, 2, 24.0, 36.0, 0.25, 0.0)
@@ -128,6 +128,6 @@ private class NativeGestureProbe: ApplicationHandler {
         sendNativeGesture(view, 0, 0, 24.0, 36.0, 0.5, 0.0)
         sendNativeGesture(view, 1, 1, 24.0, 36.0, 0.0, 0.0)
         sendNativeGesture(view, 1, 4, 24.0, 36.0, 0.0, 0.0)
-        before = Some(MonotonicTimeSource.markNow())
+        before = Some(MonotonicTimeSource.now())
     }
 }

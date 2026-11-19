@@ -82,6 +82,8 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
+  {file = "${work}/program", contains = "object-private:dev.example:lazy-failure-provider:0.1.0/src/main.scoop:Broken"},
+  {file = "${work}/program", not_contains = "object-private:dev.example:lazy-failure-provider:0.1.0/src/main.scoop:Unused"},
   {"actual" = "${link.result.dependencies.length}", "equals" = 2},
   {"actual" = "${link.result.link_plan_fingerprint}", "equals" = "${program.result.link_plan_fingerprint}"},
   {actual = "${link.result.link_plan}", contains = "program-link v3\n"},

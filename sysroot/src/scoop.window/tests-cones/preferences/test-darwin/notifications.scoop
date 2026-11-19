@@ -181,7 +181,7 @@ private class PreferencesProbe: ApplicationHandler {
             }
         }.use { thread -> thread.join() }
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
         )
         @Unsafe
         {

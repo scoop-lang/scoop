@@ -100,7 +100,7 @@ internal class RevealProbe {
                 native.requestFocus()
                 ui = host.attach(native, { mount -> RevealScene(this, scope = mount) })
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> {

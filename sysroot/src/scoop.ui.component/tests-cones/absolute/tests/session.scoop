@@ -73,7 +73,7 @@ internal class AbsoluteProbe {
                 native.requestFocus()
                 ui = host.attach(native, { mount -> AbsoluteScene(this, scope = mount) })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> {

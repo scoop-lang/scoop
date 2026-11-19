@@ -137,7 +137,7 @@ internal class FailureProbe {
                         { scope -> HealthyRoot(this, scope) }
                     )
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> {

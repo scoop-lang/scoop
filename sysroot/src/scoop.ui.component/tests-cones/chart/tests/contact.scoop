@@ -90,7 +90,7 @@ internal class ChartContactProbe {
                 host.attach(window, { scope -> ChartContactRoot(this, scope) })
                 window.setVisible(true)
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1

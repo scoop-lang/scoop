@@ -234,7 +234,7 @@ internal class TextTouchProbe(
                 ui = host.attach(native, { scope -> TextTouchScene(this, scope = scope) })
                 native.requestFocus()
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(40L))
                 )
             }
             case Window(_, WindowEvent.Contact(_)) -> received += 1
@@ -280,7 +280,7 @@ internal class TextTouchProbe(
     fun pause(milliseconds: Long, action: () -> Unit = {}) {
         waiting = true
         later = action
-        clock!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        clock!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
     fun point(byte: Long, readonly: Boolean = false): Point {
         val area =

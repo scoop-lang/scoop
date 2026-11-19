@@ -110,9 +110,7 @@ private class LifecycleHandler(val proxy: ApplicationProxy): ApplicationHandler 
                         return
                     if (redraws == 0)
                         application.setControlFlow(
-                            ControlFlow.WaitUntil(
-                                MonotonicTimeSource.markNow() + Duration.seconds(5L)
-                            )
+                            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                         )
                     redraws += 1
                     assertTrue(window!!.metrics!!.physicalSize.isDrawable)
@@ -280,7 +278,7 @@ private class LifecycleHandler(val proxy: ApplicationProxy): ApplicationHandler 
                 }
             )
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
         )
     }
 }

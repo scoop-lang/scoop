@@ -127,8 +127,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 })?;
         }
         self.leave_native_transition(&native.transition, native.kind)?;
-        let reloaded_roots =
-            self.reload_published_roots(native.roots.iter().map(|root| root.source))?;
+        let reloaded_roots = self.reload_published_roots(native.roots.iter())?;
         let result = native
             .result
             .map(|storage| {

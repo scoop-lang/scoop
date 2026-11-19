@@ -185,9 +185,7 @@ internal class AttachmentGroupInk(
                             else
                                 -amount.x
                         )
-                        deadline.schedule(
-                            MonotonicTimeSource.markNow() + Duration.milliseconds(120L)
-                        )
+                        deadline.schedule(MonotonicTimeSource.now() + Duration.milliseconds(120L))
                     }
                     Point(amount.x, 0.0)
                 }

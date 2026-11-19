@@ -11,7 +11,7 @@ public enum CaretMovement {
 /** The preferred column survives vertical movement through shorter lines. */
 public struct CaretMove(val position: TextPosition, val preferredX: Double)
 
-/** ICU segment containing a scalar position; affinity resolves an exact boundary. */
+/** Unicode word segment containing a scalar position; affinity resolves an exact boundary. */
 public fun TextLayout.wordRange(position: TextPosition): TextRange {
     @Unsafe
     {

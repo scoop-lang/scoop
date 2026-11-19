@@ -32,27 +32,3 @@ pub(super) fn storage_type<'ctx>(
     push_raw_storage(context, &mut fields, size - cursor, align)?;
     Ok(context.struct_type(&fields, false))
 }
-
-fn push_raw_storage<'ctx>(
-    context: &'ctx Context,
-    fields: &mut Vec<BasicTypeEnum<'ctx>>,
-    bytes: u64,
-    align: u64,
-) -> Result<(), CodegenError> {
-    let width = align.min(8);
-    let words = u32::try_from(bytes / width).map_err(|cause| {
-        CodegenError::internal_cause("MaybeUninit storage exceeds u32::MAX cells".into(), cause)
-    })?;
-    if words != 0 {
-        // Integer cells preserve every bit without payload validity assumptions.
-        // Byte arrays otherwise make SROA expose byte assembly to vectorization.
-        let cell = match width {
-            1 => context.i8_type(),
-            2 => context.i16_type(),
-            4 => context.i32_type(),
-            _ => context.i64_type(),
-        };
-        fields.push(cell.array_type(words).into());
-    }
-    push_byte_padding(context, fields, bytes % width)
-}

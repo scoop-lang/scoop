@@ -1,11 +1,12 @@
 package scoop.ui
 
+import scoop.platform.time.MonotonicInstant
 import scoop.graphics.Point
 import scoop.time.*
 import scoop.window.InputTime
 import scoop.window.mark
 
-private class ScrollVelocitySample(val point: Point, val time: TimeMark)
+private class ScrollVelocitySample(val point: Point, val time: MonotonicInstant)
 
 /** Recent occurrence/receipt samples from one real contact, without a separate clock. */
 internal class ScrollVelocity {

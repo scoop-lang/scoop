@@ -89,7 +89,7 @@ private class DropHandler: ApplicationHandler {
                         )
                 }
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
                 post(0)
             }

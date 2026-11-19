@@ -1,58 +1,50 @@
 package scoop.surface
 
 import scoop.platform.concurrent.Thread
+import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
 import scoop.time.*
-
-private class GroupClock: TimeSource {
-    var reading = Duration.ZERO
-    var calls = 0
-    public override fun markNow(): TimeMark {
-        calls += 1
-        return TimeMark(this, reading)
-    }
-}
 
 @Test
 private class AnimationGroupTest {
     @Test
     fun `group visibility preserves local frame choices and closes only its own values`() {
-        val clock = GroupClock()
         val completions = ArrayList<Double>()
-        AnimationTimeline(clock).use {
+        AnimationTimeline().use {
             timeline ->
             val group = timeline.group(false)
             val visible = group.value(0.0)
             val muted = group.value(0.0)
             val outside = timeline.value(0.0)
-            muted.isFrameEnabled = false
-            visible.animateTo(
-                100.0,
-                AnimationSpec.Tween(Duration.seconds(1L)),
-                onFinished = Some { result -> completions.add(result) }
-            )
-            muted.animateTo(100.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+            timeline.advanceTo(animationTime(0L)) {
+                muted.isFrameEnabled = false
+                visible.animateTo(
+                    100.0,
+                    AnimationSpec.Tween(Duration.seconds(1L)),
+                    onFinished = Some { result -> completions.add(result) }
+                )
+                muted.animateTo(100.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+            }
             assertFalse(timeline.hasFrameWork)
-            clock.reading = Duration.milliseconds(250L)
-            val before = clock.calls
-            group.isFrameEnabled = true
-            assertEquals(before + 1, clock.calls)
-            assertEquals(25.0, visible.value)
-            assertEquals(25.0, muted.value)
-            assertFalse(muted.isFrameEnabled)
-            assertTrue(timeline.hasFrameWork)
-            group.isFrameEnabled = false
-            clock.reading = Duration.seconds(1L)
-            timeline.advanceTo(clock.markNow())
+            timeline.advanceTo(animationTime(250L)) {
+                group.isFrameEnabled = true
+                assertEquals(25.0, visible.value)
+                assertEquals(25.0, muted.value)
+                assertFalse(muted.isFrameEnabled)
+                assertTrue(timeline.hasFrameWork)
+                group.isFrameEnabled = false
+            }
+            timeline.advanceTo(animationTime(1000L))
             assertEquals(1L, completions.size)
             assertEquals(100.0, completions[0L])
             assertFalse(timeline.hasFrameWork)
-            clock.reading = Duration.milliseconds(1250L)
-            group.isFrameEnabled = true
-            assertEquals(25.0, muted.value)
-            assertFalse(muted.isFrameEnabled)
-            assertFalse(timeline.hasFrameWork)
-            outside.animateTo(1.0)
+            timeline.advanceTo(animationTime(1250L)) {
+                group.isFrameEnabled = true
+                assertEquals(25.0, muted.value)
+                assertFalse(muted.isFrameEnabled)
+                assertFalse(timeline.hasFrameWork)
+                outside.animateTo(1.0)
+            }
             Thread.start {
                 assertFailsWith<IllegalStateException> { group.isFrameEnabled }
                 assertFailsWith<IllegalStateException> { group.close() }
@@ -73,9 +65,29 @@ private class AnimationGroupTest {
     }
 
     @Test
+    fun `enabling a group between frames catches its members up to one system clock reading`() {
+        AnimationTimeline().use {
+            timeline ->
+            val group = timeline.group(false)
+            val first = group.value(0.0)
+            val second = group.value(0.0)
+            val start = MonotonicTimeSource.now() - Duration.seconds(1L)
+            val motion = AnimationSpec.Tween(Duration.seconds(4L))
+            timeline.advanceTo(start) {
+                first.animateTo(4.0, motion)
+                second.animateTo(4.0, motion)
+            }
+            assertEquals(0.0, first.value)
+            assertEquals(0.0, second.value)
+            group.isFrameEnabled = true
+            assertTrue(first.value >= 1.0)
+            assertEquals(first.value, second.value)
+        }
+    }
+
+    @Test
     fun `group cleanup closes every member even when scheduling notification fails`() {
-        val clock = GroupClock()
-        AnimationTimeline(clock).use {
+        AnimationTimeline().use {
             timeline ->
             val group = timeline.group()
             val first = group.value(0.0)

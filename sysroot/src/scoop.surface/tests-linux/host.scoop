@@ -62,7 +62,7 @@ private class LinuxSurfaceProbe {
                 a.createDeadline {
                     fail(Some("Linux Surface timed out at phase " + phase.toString()))
                 }
-                .schedule(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                .schedule(MonotonicTimeSource.now() + Duration.seconds(10L))
                 attached =
                     Some(
                         host.attach(
@@ -191,7 +191,7 @@ private class LinuxSurfaceProbe {
         timer?.close()
         val next = first!!.createDeadline(block)
         timer = Some(next)
-        next.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        next.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
 }
 

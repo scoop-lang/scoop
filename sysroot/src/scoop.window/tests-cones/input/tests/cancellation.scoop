@@ -3,7 +3,7 @@ package scoop.tests.window.input
 import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
 import scoop.tests.window.nativePointerCancellation
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.window.*
 import scoop.window.native.*
 
@@ -11,11 +11,11 @@ import scoop.window.native.*
 internal class PointerCancellationProbe {
     var started = false
     var sequence = ""
-    var before: TimeMark? = None
-    var after: TimeMark? = None
+    var before: MonotonicInstant? = None
+    var after: MonotonicInstant? = None
 
     fun start(lease: NativeWindowLease) {
-        before = Some(MonotonicTimeSource.markNow())
+        before = Some(MonotonicTimeSource.now())
         started = true
         @Unsafe
         {
@@ -23,7 +23,7 @@ internal class PointerCancellationProbe {
                 case Win32(val hwnd, _) -> nativePointerCancellation(hwnd)
             }
         }
-        after = Some(MonotonicTimeSource.markNow())
+        after = Some(MonotonicTimeSource.now())
     }
 
     fun pointer(event: PointerEvent) {
@@ -61,7 +61,6 @@ internal class PointerCancellationProbe {
     }
 
     private fun observe(time: InputTime) {
-        assertTrue(time.mark().source === MonotonicTimeSource)
         assertTrue(time.mark() >= before!!)
         assertTrue(time.mark() <= after!!)
     }

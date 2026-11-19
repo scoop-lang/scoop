@@ -65,7 +65,7 @@ private class WindowsSessionHandler: ApplicationHandler {
             }
         }
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
         )
         val scope = currentApplicationScope()
         val loop = currentEventLoop()

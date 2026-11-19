@@ -27,7 +27,7 @@ private class GtkDragInputHandler: ApplicationHandler {
         when (event) {
             case Resumed -> {
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
                 window =
                     Some(

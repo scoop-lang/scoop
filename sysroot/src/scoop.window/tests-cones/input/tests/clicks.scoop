@@ -44,7 +44,7 @@ private class ClickHandler: ApplicationHandler {
                 }
                 window!!.requestFocus()
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
             }
             case AboutToWait -> {

@@ -136,7 +136,8 @@ fn final_link_strips_internal_names_and_keeps_runtime_data() {
         crate::ProgramLinkOptions {
             native_outputs: &[],
             keep_symbols: false,
-            emit_debug_file: false,
+            // Keep the linked Darwin sections identical for this strip-only comparison.
+            emit_debug_file: cfg!(target_os = "macos"),
             enable_stack_trace: false,
         },
         &fixture.library_paths,

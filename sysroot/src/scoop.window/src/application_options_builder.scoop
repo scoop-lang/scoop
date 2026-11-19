@@ -1,6 +1,5 @@
 package scoop.window
 
-import scoop.time.TimeMark
 import scoop.window.native.ApplicationAttachment
 import scoop.window.native.ApplicationHost
 

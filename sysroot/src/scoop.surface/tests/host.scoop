@@ -6,7 +6,7 @@ import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.time.Duration
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.window.*
 
 @Test
@@ -268,9 +268,7 @@ private class HostProbe {
     }
     private fun waitFor(application: ActiveApplication, milliseconds: Long) {
         application.setControlFlow(
-            ControlFlow.WaitUntil(
-                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
-            )
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
         )
     }
     fun release() {
@@ -284,7 +282,7 @@ private class ObservedFrameContent(
     private val completed: (FrameCompletion) -> Unit
 ): SurfaceContent {
     private var insidePaint = false
-    private var time: TimeMark? = None
+    private var time: MonotonicInstant? = None
     private var size = Size(0.0, 0.0)
     private var canvas: Canvas? = None
     public override fun paint(frame: FrameContext) {

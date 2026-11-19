@@ -101,7 +101,7 @@ internal class GroupProbe {
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
     var quiet: FrameSnapshot? = None
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(50L)
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(50L)
     val model: TextEditorState get() =
         if (rebound)
             replacement
@@ -131,7 +131,7 @@ internal class GroupProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("input group timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("input group timeout"))
                 if (
                     native!!.isFocused &&
                         rendered >=
@@ -193,7 +193,7 @@ internal class GroupProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
         )
     }
 }

@@ -96,7 +96,7 @@ internal class SourceSessionProbe {
                 view = Some(observeWindow(native))
                 ui = host.attach(native, { scope -> SourceSessionRoot(this, scope) })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
                 native.setVisible(true)
             }

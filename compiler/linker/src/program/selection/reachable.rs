@@ -6,6 +6,9 @@ use scoop_slib::ProgramLinkMember;
 
 type Member = (ConeIdentity, SlibMemberId);
 
+mod initialization;
+use initialization::InitializationMembers;
+
 impl SelectedMembers {
     pub(super) fn retain_reachable<'a>(
         &mut self,
@@ -17,6 +20,7 @@ impl SelectedMembers {
         let mut registered_definitions = Vec::new();
         let mut registrations = BTreeMap::<StrongDefinitionEntity, Member>::new();
         let mut pending = Vec::new();
+        let mut initializations = InitializationMembers::new(closure);
         for (artifact, symbols) in closure.artifacts() {
             let cone = artifact.identity();
             let plans = &artifact.production().definitions;
@@ -26,8 +30,12 @@ impl SelectedMembers {
                 }
                 let root = match member {
                     ProgramLinkMember::Scoop { definitions, .. } => {
+                        let mut root = false;
                         for id in definitions {
                             let plan = &plans[id];
+                            let owned =
+                                initializations.record(plan.entity, (cone, member.member()));
+                            root |= is_root(plan.role) && !owned;
                             match plan.role {
                                 StrongDefinitionRole::TypeDescriptor
                                 | StrongDefinitionRole::ImmortalObject => {
@@ -44,7 +52,7 @@ impl SelectedMembers {
                                 _ => {}
                             }
                         }
-                        definitions.iter().any(|id| is_root(plans[id].role))
+                        root
                     }
                     ProgramLinkMember::Generated { .. } => true,
                 };
@@ -101,6 +109,7 @@ impl SelectedMembers {
                 companions.entry(member).or_default().push(*registration);
             }
         }
+        initializations.connect(closure, &mut companions, &mut pending)?;
         pending
             .extend(native_references.filter_map(|symbol| owners.get(symbol.as_bytes()).copied()));
         let mut reached = BTreeSet::new();

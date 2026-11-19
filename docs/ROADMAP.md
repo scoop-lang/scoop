@@ -1,5 +1,7 @@
 # Scoop 实现路线图
 
+macOS 可执行文件体积专题已完成调研和设计（2026-11-20）。优先项是最终链接 DCE 与大枚举机器码，另已验证 Skia Apple Unicode 后端对段落排版程序的收益。[设计](macos-binary-size/DESIGN.md) · [实测结果](macos-binary-size/FINDINGS.md)
+
 [Windows 编译性能任务单](compiler-performance/WINDOWS-TASKS.md)实施中（2026-11-10，见[实施记录](compiler-performance/WINDOWS-PROGRESS.md)）：检查成功缓存已删除并完成本地定向验证；接续逐 Cone 编译进度、工具/SDK 巡检清理、Windows 分配器与小文件优化，完成后集中进行跨平台复验和三平台发行打包。
 
 [静态常量与图标资源按需裁剪](program-performance/IMMORTAL-PRUNING.md)已完成实现与七目标定向验收（2026-11-09）：Strong immortal 对象／登记独立合组，ODR 选择后关联实际登记，沿既有符号引用闭包保留。六个 GUI 目标的真实 Lucide 零／单／全引用只保留 0／1／31 份 SVG，扩库不增加未用资源；Darwin 双架构（x86_64 经 Rosetta）、Linux GNU／musl、Windows 三环境的跨 Cone、静态对象图与定向 GC 通过。静态存储和初始化规则保持，构建成本已记录；发行打包按用户要求取消。

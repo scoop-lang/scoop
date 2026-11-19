@@ -53,7 +53,7 @@ private class MetalWindowHandler(val closeAfterFrame: Boolean): ApplicationHandl
                 value.requestRedraw()
                 if (closeAfterFrame)
                     application.setControlFlow(
-                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                     )
             }
             case NewEvents(StartCause.Deadline) -> throw IllegalStateException(

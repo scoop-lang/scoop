@@ -113,7 +113,7 @@ internal fun inputPointer(x: Double, y: Double, scale: Double = 1.0): PointerSta
         PhysicalPosition(x * scale, y * scale),
         scale,
         inputModifiers(),
-        InputTime.Observed(MonotonicTimeSource.markNow())
+        InputTime.Observed(MonotonicTimeSource.now())
     )
 
 internal fun inputKey(synthetic: Boolean = false): KeyEvent =

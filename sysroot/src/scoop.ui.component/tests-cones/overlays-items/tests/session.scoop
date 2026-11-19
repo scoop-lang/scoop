@@ -1,5 +1,6 @@
 package scoop.tests.ui.overlaysitems
 
+import scoop.platform.time.MonotonicInstant
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.platform.time.MonotonicTimeSource
@@ -152,7 +153,7 @@ internal class InteractionProbe {
     var finished = false
     var closeDuringDraw = false
     var closedDuringDraw = false
-    private var watchdog: TimeMark? = None
+    private var watchdog: MonotonicInstant? = None
     var quietFrames = 0
     var didFocus = false
 
@@ -182,7 +183,7 @@ internal class InteractionProbe {
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
                 ui = host.attach(native, { mount -> InteractionRoot(this, scope = mount) })
-                val deadline = MonotonicTimeSource.markNow() + Duration.seconds(25L)
+                val deadline = MonotonicTimeSource.now() + Duration.seconds(25L)
                 watchdog = Some(deadline)
                 active.setControlFlow(ControlFlow.WaitUntil(deadline))
             }
@@ -197,7 +198,7 @@ internal class InteractionProbe {
                     advance(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                if (!finished && watchdog != None && MonotonicTimeSource.markNow() >= watchdog!!)
+                if (!finished && watchdog != None && MonotonicTimeSource.now() >= watchdog!!)
                     fail(Some(f"I2 timeout at ${this @InteractionProbe.phase}"))
             }
             else -> {}
@@ -206,7 +207,7 @@ internal class InteractionProbe {
     fun pause(milliseconds: Long, next: Int) {
         phase = next
         waiting = true
-        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
     fun move(active: ActiveApplication, x: Double, y: Double, next: Int) {
         waiting = true
@@ -240,7 +241,7 @@ internal class InteractionProbe {
                     ModifierSides(None, None),
                     ModifierSides(None, None)
                 ),
-                InputTime.Observed(MonotonicTimeSource.markNow())
+                InputTime.Observed(MonotonicTimeSource.now())
             )
         runtime!!.onEvent(
             active,

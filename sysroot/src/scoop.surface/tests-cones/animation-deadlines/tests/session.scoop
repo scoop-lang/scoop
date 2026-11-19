@@ -63,7 +63,7 @@ internal class DeadlineProbe {
     }
     private fun start(host: SurfaceHost, application: ActiveApplication) {
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
         )
         val native =
             application.createWindow(
@@ -103,7 +103,7 @@ internal class DeadlineProbe {
         )
     }
     fun waitFor(milliseconds: Long) {
-        checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        checkpoint!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
     fun complete(completion: FrameCompletion) {
         if (completion.submission != FrameSubmission.Accepted)

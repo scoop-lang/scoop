@@ -3,21 +3,12 @@ package scoop.surface
 import scoop.graphics.*
 import scoop.math.abs
 import scoop.platform.concurrent.Thread
+import scoop.platform.time.MonotonicInstant
 import scoop.test.*
 import scoop.time.*
 
-private class AnimationClock: TimeSource {
-    var reading = Duration.ZERO
-    var calls = 0
-    public override fun markNow(): TimeMark {
-        calls += 1
-        return TimeMark(this, reading)
-    }
-    fun at(milliseconds: Long): TimeMark {
-        reading = Duration.milliseconds(milliseconds)
-        return TimeMark(this, reading)
-    }
-}
+internal fun animationTime(milliseconds: Long): MonotonicInstant =
+    MonotonicInstant(Duration.milliseconds(milliseconds))
 
 private fun animationNear(expected: Double, actual: Double, tolerance: Double = 0.0000001) {
     assertTrue(abs(expected - actual) <= tolerance, Some("unexpected animation value"))
@@ -27,42 +18,44 @@ private fun animationNear(expected: Double, actual: Double, tolerance: Double = 
 private class AnimationTest {
     @Test
     fun `external spring velocity starts at the resting target and can be explicitly reset`() {
-        val clock = AnimationClock()
-        AnimationTimeline(clock).use {
+        AnimationTimeline().use {
             timeline ->
             val value = timeline.value(Point(0.0, 0.0))
             val completed = ArrayList<Point>()
-            value.animateTo(
-                Point(0.0, 0.0),
-                AnimationSpec.Spring(200.0, 1.0),
-                initialVelocity = Some(AnimationVector(120.0, -60.0)),
-                onFinished = Some { result -> completed.add(result) }
-            )
-            assertEquals(AnimationVector(120.0, -60.0), value.velocity)
-            timeline.advanceTo(clock.at(50L))
-            assertTrue(value.value.x > 0.0)
-            assertTrue(value.value.y < 0.0)
-            val position = value.value
-            assertFailsWith<IllegalArgumentException> {
-                value.animateTo(Point(1.0, 1.0), initialVelocity = Some(AnimationVector()))
-            }
-            assertFailsWith<IllegalArgumentException> {
+            timeline.advanceTo(animationTime(0L)) {
                 value.animateTo(
-                    Point(1.0, 1.0),
-                    AnimationSpec.Spring(),
-                    initialVelocity = Some(AnimationVector(0.0 / 0.0))
+                    Point(0.0, 0.0),
+                    AnimationSpec.Spring(200.0, 1.0),
+                    initialVelocity = Some(AnimationVector(120.0, -60.0)),
+                    onFinished = Some { result -> completed.add(result) }
                 )
             }
-            assertEquals(position, value.value)
-            assertEquals(AnimationState.Running, value.state)
-            value.animateTo(
-                Point(0.0, 0.0),
-                AnimationSpec.Spring(200.0, 1.0),
-                initialVelocity = Some(AnimationVector()),
-                onFinished = Some { result -> completed.add(result) }
-            )
+            assertEquals(AnimationVector(120.0, -60.0), value.velocity)
+            timeline.advanceTo(animationTime(50L)) {
+                assertTrue(value.value.x > 0.0)
+                assertTrue(value.value.y < 0.0)
+                val position = value.value
+                assertFailsWith<IllegalArgumentException> {
+                    value.animateTo(Point(1.0, 1.0), initialVelocity = Some(AnimationVector()))
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    value.animateTo(
+                        Point(1.0, 1.0),
+                        AnimationSpec.Spring(),
+                        initialVelocity = Some(AnimationVector(0.0 / 0.0))
+                    )
+                }
+                assertEquals(position, value.value)
+                assertEquals(AnimationState.Running, value.state)
+                value.animateTo(
+                    Point(0.0, 0.0),
+                    AnimationSpec.Spring(200.0, 1.0),
+                    initialVelocity = Some(AnimationVector()),
+                    onFinished = Some { result -> completed.add(result) }
+                )
+            }
             assertEquals(AnimationVector(), value.velocity)
-            timeline.advanceTo(clock.at(5000L))
+            timeline.advanceTo(animationTime(5000L))
             assertEquals(Point(0.0, 0.0), value.value)
             assertEquals(AnimationState.Finished, value.state)
             assertEquals(1L, completed.size)
@@ -72,41 +65,41 @@ private class AnimationTest {
 
     @Test
     fun `tween values share the frame time and skip directly to completion`() {
-        val clock = AnimationClock()
         val invalidations = ArrayList<Int>()
-        AnimationTimeline(clock, { invalidations.add(1) }).use {
+        AnimationTimeline({ invalidations.add(1) }).use {
             timeline ->
             val x = timeline.value(0.0)
             val point = timeline.value(Point(10.0, 20.0))
             val completed = ArrayList<Double>()
-            x.animateTo(
-                100.0,
-                AnimationSpec.Tween(Duration.seconds(1L)),
-                onFinished =
-                    Some {
-                        value ->
-                        completed.add(value)
-                        assertEquals(Point(30.0, 60.0), point.value)
-                        val calls = clock.calls
-                        point.animateTo(Point(40.0, 80.0))
-                        assertEquals(calls, clock.calls)
-                        assertFailsWith<IllegalStateException> {
-                            timeline.advanceTo(clock.at(1000L))
+            timeline.advanceTo(animationTime(0L)) {
+                x.animateTo(
+                    100.0,
+                    AnimationSpec.Tween(Duration.seconds(1L)),
+                    onFinished =
+                        Some {
+                            value ->
+                            completed.add(value)
+                            assertEquals(Point(30.0, 60.0), point.value)
+                            point.animateTo(Point(40.0, 80.0))
+                            assertEquals(animationTime(1000L), timeline.now())
+                            assertFailsWith<IllegalStateException> {
+                                timeline.advanceTo(animationTime(1000L))
+                            }
                         }
-                    }
-            )
-            point.animateTo(Point(30.0, 60.0), AnimationSpec.Tween(Duration.seconds(1L)))
-            timeline.advanceTo(clock.at(250L))
+                )
+                point.animateTo(Point(30.0, 60.0), AnimationSpec.Tween(Duration.seconds(1L)))
+            }
+            timeline.advanceTo(animationTime(250L))
             animationNear(25.0, x.value)
             assertEquals(Point(15.0, 30.0), point.value)
             assertEquals(0L, completed.size)
-            timeline.advanceTo(clock.at(1000L))
+            timeline.advanceTo(animationTime(1000L))
             assertEquals(100.0, x.value)
             assertEquals(AnimationState.Finished, x.state)
             assertEquals(1L, completed.size)
             assertEquals(AnimationState.Running, point.state)
             assertEquals(Point(30.0, 60.0), point.value)
-            timeline.advanceTo(clock.at(1300L))
+            timeline.advanceTo(animationTime(1300L))
             assertEquals(Point(40.0, 80.0), point.value)
             assertFalse(timeline.hasWork)
             assertTrue(invalidations.size >= 3L)
@@ -115,29 +108,32 @@ private class AnimationTest {
 
     @Test
     fun `pause resume reverse and cancellation preserve their explicit boundaries`() {
-        val clock = AnimationClock()
-        AnimationTimeline(clock).use {
+        AnimationTimeline().use {
             timeline ->
             val value = timeline.value(0.0)
             val finished = ArrayList<Double>()
-            value.animateTo(
-                100.0,
-                AnimationSpec.Tween(Duration.seconds(1L)),
-                onFinished = Some { result -> finished.add(result) }
-            )
-            timeline.advanceTo(clock.at(250L))
-            value.pause()
+            timeline.advanceTo(animationTime(0L)) {
+                value.animateTo(
+                    100.0,
+                    AnimationSpec.Tween(Duration.seconds(1L)),
+                    onFinished = Some { result -> finished.add(result) }
+                )
+            }
+            timeline.advanceTo(animationTime(250L)) { value.pause() }
             assertFalse(timeline.hasWork)
-            timeline.advanceTo(clock.at(1250L))
-            assertEquals(25.0, value.value)
-            value.resume()
-            timeline.advanceTo(clock.at(1500L))
-            assertEquals(50.0, value.value)
-            value.reverse()
-            timeline.advanceTo(clock.at(2000L))
-            assertEquals(25.0, value.value)
-            value.cancel()
-            timeline.advanceTo(clock.at(4000L))
+            timeline.advanceTo(animationTime(1250L)) {
+                assertEquals(25.0, value.value)
+                value.resume()
+            }
+            timeline.advanceTo(animationTime(1500L)) {
+                assertEquals(50.0, value.value)
+                value.reverse()
+            }
+            timeline.advanceTo(animationTime(2000L)) {
+                assertEquals(25.0, value.value)
+                value.cancel()
+            }
+            timeline.advanceTo(animationTime(4000L))
             assertEquals(25.0, value.value)
             assertEquals(AnimationState.Cancelled, value.state)
             assertEquals(0L, finished.size)
@@ -150,27 +146,30 @@ private class AnimationTest {
 
     @Test
     fun `finite and infinite repeats jump over missed cycles`() {
-        val clock = AnimationClock()
-        AnimationTimeline(clock).use {
+        AnimationTimeline().use {
             timeline ->
             val value = timeline.value(0.0)
-            value.animateTo(
-                100.0,
-                AnimationSpec.Tween(Duration.seconds(1L)),
-                Some(Repeat(Some(2L), RepeatMode.Reverse))
-            )
-            timeline.advanceTo(clock.at(1250L))
+            timeline.advanceTo(animationTime(0L)) {
+                value.animateTo(
+                    100.0,
+                    AnimationSpec.Tween(Duration.seconds(1L)),
+                    Some(Repeat(Some(2L), RepeatMode.Reverse))
+                )
+            }
+            timeline.advanceTo(animationTime(1250L))
             assertEquals(75.0, value.value)
             assertEquals(0.0, value.target)
             animationNear(-100.0, value.velocity.x)
-            timeline.advanceTo(clock.at(5000L))
-            assertEquals(0.0, value.value)
-            assertEquals(AnimationState.Finished, value.state)
-            value.animateTo(100.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
-            timeline.advanceTo(clock.at(1000005250L))
-            animationNear(25.0, value.value)
-            assertEquals(AnimationState.Running, value.state)
-            value.cancel()
+            timeline.advanceTo(animationTime(5000L)) {
+                assertEquals(0.0, value.value)
+                assertEquals(AnimationState.Finished, value.state)
+                value.animateTo(100.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+            }
+            timeline.advanceTo(animationTime(1000005250L)) {
+                animationNear(25.0, value.value)
+                assertEquals(AnimationState.Running, value.state)
+                value.cancel()
+            }
             assertFalse(timeline.hasWork)
         }
     }
@@ -180,38 +179,36 @@ private class AnimationTest {
         val regimes: Array<Double> = [0.5, 1.0, 2.0]
         val expected: Array<Double> = [1.074590566595033, 0.9595723180054871, 0.7178288260248462]
         for (index in 0L ..< regimes.size) {
-            val clock = AnimationClock()
-            AnimationTimeline(clock).use {
+            AnimationTimeline().use {
                 timeline ->
                 val value = timeline.value(0.0)
                 val spec = AnimationSpec.Spring(100.0, regimes[index])
-                value.animateTo(1.0, spec)
-                timeline.advanceTo(clock.at(500L))
-                animationNear(expected[index], value.value)
-                val before = value.value
-                val velocity = value.velocity.x
-                value.animateTo(2.0, spec)
-                animationNear(before, value.value)
-                animationNear(velocity, value.velocity.x)
-                timeline.advanceTo(clock.at(20000L))
+                timeline.advanceTo(animationTime(0L)) { value.animateTo(1.0, spec) }
+                timeline.advanceTo(animationTime(500L)) {
+                    animationNear(expected[index], value.value)
+                    val before = value.value
+                    val velocity = value.velocity.x
+                    value.animateTo(2.0, spec)
+                    animationNear(before, value.value)
+                    animationNear(velocity, value.velocity.x)
+                }
+                timeline.advanceTo(animationTime(20000L))
                 assertEquals(2.0, value.value)
                 assertEquals(0.0, value.velocity.x)
                 assertEquals(AnimationState.Finished, value.state)
             }
         }
-        val firstClock = AnimationClock()
-        val secondClock = AnimationClock()
-        AnimationTimeline(firstClock).use {
-            first -> AnimationTimeline(secondClock).use {
+        AnimationTimeline().use {
+            first -> AnimationTimeline().use {
                 second ->
                 val a = first.value(0.0)
                 val b = second.value(0.0)
-                a.animateTo(10.0, AnimationSpec.Spring())
-                b.animateTo(10.0, AnimationSpec.Spring())
+                first.advanceTo(animationTime(0L)) { a.animateTo(10.0, AnimationSpec.Spring()) }
+                second.advanceTo(animationTime(0L)) { b.animateTo(10.0, AnimationSpec.Spring()) }
                 for (time in 1L ..< 80L)
-                    first.advanceTo(firstClock.at(time * 10L))
-                first.advanceTo(firstClock.at(800L))
-                second.advanceTo(secondClock.at(800L))
+                    first.advanceTo(animationTime(time * 10L))
+                first.advanceTo(animationTime(800L))
+                second.advanceTo(animationTime(800L))
                 assertEquals(a.value, b.value)
                 assertEquals(a.velocity.x, b.velocity.x)
             }
@@ -226,16 +223,17 @@ private class AnimationTest {
         assertEquals(0.0, Easing.Linear.transform(-1.0))
         assertEquals(1.0, Easing.Linear.transform(2.0))
         assertFailsWith<IllegalArgumentException> { Easing.cubicBezier(-1.0, 0.0, 1.0, 1.0) }
-        val clock = AnimationClock()
-        AnimationTimeline(clock).use {
+        AnimationTimeline().use {
             timeline ->
             val color = timeline.value(Color.Black)
             val size = timeline.value(Size(10.0, 20.0))
             val overshoot =
                 AnimationSpec.Tween(Duration.seconds(1L), Easing.cubicBezier(0.0, 2.0, 1.0, 2.0))
-            color.animateTo(Color.White, overshoot)
-            size.animateTo(Size(0.0, 0.0), overshoot)
-            timeline.advanceTo(clock.at(500L))
+            timeline.advanceTo(animationTime(0L)) {
+                color.animateTo(Color.White, overshoot)
+                size.animateTo(Size(0.0, 0.0), overshoot)
+            }
+            timeline.advanceTo(animationTime(500L))
             assertEquals(Color.White, color.value)
             assertEquals(Size(0.0, 0.0), size.value)
         }
@@ -243,33 +241,36 @@ private class AnimationTest {
 
     @Test
     fun `zero duration callbacks wait for a sampling boundary and close suppresses them`() {
-        val clock = AnimationClock()
         val results = ArrayList<Double>()
-        val timeline = AnimationTimeline(clock)
+        val timeline = AnimationTimeline()
         val value = timeline.value(0.0)
-        value.animateTo(
-            1.0,
-            AnimationSpec.Tween(Duration.ZERO),
-            onFinished = Some { result -> results.add(result) }
-        )
+        timeline.advanceTo(animationTime(0L)) {
+            value.animateTo(
+                1.0,
+                AnimationSpec.Tween(Duration.ZERO),
+                onFinished = Some { result -> results.add(result) }
+            )
+        }
         assertEquals(1.0, value.value)
         assertEquals(0L, results.size)
         assertTrue(timeline.hasWork)
-        timeline.advanceTo(clock.at(0L))
-        assertEquals(1L, results.size)
-        value.animateTo(
-            2.0,
-            AnimationSpec.Tween(Duration.ZERO),
-            onFinished = Some { result -> results.add(result) }
-        )
-        value.cancel()
-        timeline.advanceTo(clock.at(1L))
-        assertEquals(1L, results.size)
-        value.animateTo(
-            3.0,
-            AnimationSpec.Tween(Duration.ZERO),
-            onFinished = Some { result -> results.add(result) }
-        )
+        timeline.advanceTo(animationTime(0L)) {
+            assertEquals(1L, results.size)
+            value.animateTo(
+                2.0,
+                AnimationSpec.Tween(Duration.ZERO),
+                onFinished = Some { result -> results.add(result) }
+            )
+            value.cancel()
+        }
+        timeline.advanceTo(animationTime(1L)) {
+            assertEquals(1L, results.size)
+            value.animateTo(
+                3.0,
+                AnimationSpec.Tween(Duration.ZERO),
+                onFinished = Some { result -> results.add(result) }
+            )
+        }
         timeline.close()
         assertEquals(AnimationState.Closed, value.state)
         assertFalse(timeline.hasWork)
@@ -278,28 +279,26 @@ private class AnimationTest {
     }
 
     @Test
-    fun `invalid parameters and foreign time or thread are rejected`() {
-        val clock = AnimationClock()
-        AnimationTimeline(clock).use {
+    fun `invalid parameters backwards frames and foreign threads are rejected`() {
+        AnimationTimeline().use {
             timeline ->
             val value = timeline.value(0.0)
-            assertFailsWith<IllegalArgumentException> {
-                value.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(-1L)))
+            timeline.advanceTo(animationTime(0L)) {
+                assertFailsWith<IllegalArgumentException> {
+                    value.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(-1L)))
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    value.animateTo(1.0, AnimationSpec.Spring(dampingRatio = 0.0))
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    value.animateTo(1.0, AnimationSpec.Tween(Duration.ZERO), Some(Repeat()))
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    value.animateTo(1.0, repeat = Some(Repeat(Some(0L))))
+                }
             }
-            assertFailsWith<IllegalArgumentException> {
-                value.animateTo(1.0, AnimationSpec.Spring(dampingRatio = 0.0))
-            }
-            assertFailsWith<IllegalArgumentException> {
-                value.animateTo(1.0, AnimationSpec.Tween(Duration.ZERO), Some(Repeat()))
-            }
-            assertFailsWith<IllegalArgumentException> {
-                value.animateTo(1.0, repeat = Some(Repeat(Some(0L))))
-            }
-            assertFailsWith<IllegalArgumentException> {
-                timeline.advanceTo(TimeMark(AnimationClock(), Duration.ZERO))
-            }
-            timeline.advanceTo(clock.at(100L))
-            assertFailsWith<IllegalArgumentException> { timeline.advanceTo(clock.at(99L)) }
+            timeline.advanceTo(animationTime(100L))
+            assertFailsWith<IllegalArgumentException> { timeline.advanceTo(animationTime(99L)) }
             Thread.start {
                 assertFailsWith<IllegalStateException> { value.snapTo(2.0) }
                 assertFailsWith<IllegalStateException> { value.isFrameEnabled }

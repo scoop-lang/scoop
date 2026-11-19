@@ -114,7 +114,7 @@ private class TextLayoutTest {
     }
 
     @Test
-    fun `ICU graphemes preserve combining sequences emoji and CRLF`() {
+    fun `graphemes preserve combining sequences emoji and CRLF`() {
         testFonts(true).use {
             fonts ->
             val text = "Aé👨‍👩‍👧‍👦\r\n是"

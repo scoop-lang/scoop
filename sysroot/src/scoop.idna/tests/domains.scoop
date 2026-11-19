@@ -1,6 +1,8 @@
 package scoop.idna
 
 import scoop.test.*
+import scoop.text.contains
+import scoop.platform.system.*
 
 @Test
 private class IdnaDomainTests {
@@ -15,7 +17,12 @@ private class IdnaDomainTests {
         checkName("XN--BCHER-KVA.example", "xn--bcher-kva.example", "bücher.example")
         assertEquals("xn--fa-hia", Idna.labelToAscii("faß"))
         assertEquals("faß", Idna.labelToUnicode("xn--fa-hia"))
-        assertEquals("17.0.0", Idna.unicodeVersion)
+        if (operatingSystem == OperatingSystem.Darwin) {
+            assertTrue(Idna.backendVersion.contains("Apple ICU"))
+            assertTrue(Idna.unicodeVersion.charLength > 0L)
+        } else {
+            assertEquals("17.0.0", Idna.unicodeVersion)
+        }
     }
 
     @Test

@@ -81,5 +81,5 @@ private fun contextKey(
             altGraph = altGraph
         ),
         synthetic,
-        InputTime.Observed(MonotonicTimeSource.markNow())
+        InputTime.Observed(MonotonicTimeSource.now())
     )

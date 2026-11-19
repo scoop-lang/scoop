@@ -78,7 +78,7 @@ private class DragSourceProbe: ApplicationHandler {
                     first!!.beginDrag(DragContent.Text("outside input"))
                 }
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
                 post(firstLease!!, 0)
             }

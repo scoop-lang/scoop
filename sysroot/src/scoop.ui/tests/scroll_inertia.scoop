@@ -1,5 +1,6 @@
 package scoop.ui
 
+import scoop.platform.time.MonotonicInstant
 import scoop.graphics.Point
 import scoop.math.abs
 import scoop.platform.time.MonotonicTimeSource
@@ -8,7 +9,7 @@ import scoop.time.*
 import scoop.window.InputTime
 
 private fun contactTime(milliseconds: Long): InputTime =
-    InputTime.Event(TimeMark(MonotonicTimeSource, Duration.milliseconds(milliseconds)))
+    InputTime.Event(MonotonicInstant(MonotonicTimeSource, Duration.milliseconds(milliseconds)))
 
 @Test
 private class ScrollInertiaTest {

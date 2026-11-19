@@ -1,13 +1,13 @@
 package scoop.window
 
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 
 /** A reschedulable one-shot callback, independent of redraws and application waiting policy. */
 public class WindowDeadline internal constructor(
     internal val window: WindowOwner,
     callback: () -> Unit
 ): Closeable {
-    internal var scheduled: TimeMark? = None
+    internal var scheduled: MonotonicInstant? = None
     internal var revision = 0UL
     private var closed = false
     private var handler: (() -> Unit)? = Some(callback)
@@ -20,13 +20,13 @@ public class WindowDeadline internal constructor(
         window.application.checkThread()
         return scheduled != None
     }
-    public fun schedule(time: TimeMark) {
+    public fun schedule(time: MonotonicInstant) {
         window.requireOpen()
         if (closed)
             throw WindowException("schedule deadline", WindowErrorKind.InvalidState)
-        checkDeadlineTime(time)
+        val normalized = time.normalized()
         revision += 1UL
-        scheduled = Some(time)
+        scheduled = Some(normalized)
         window.application.refreshDeadline()
     }
     public fun cancel() {

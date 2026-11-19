@@ -101,12 +101,21 @@ pub(super) fn enum_constant<'ctx>(
                     }
                     BasicTypeEnum::ArrayType(ty) if ty.is_empty() => ty.const_zero().into(),
                     BasicTypeEnum::ArrayType(ty) => {
-                        let end = offset
-                            .checked_add(ty.len() as usize)
+                        // The tag and all GC slots bound naturally aligned 64-bit runs.
+                        let size = (ty.len() as usize)
+                            .checked_mul(8)
                             .ok_or_else(bounds_error)?;
+                        let end = offset.checked_add(size).ok_or_else(bounds_error)?;
                         let bytes = encoder.bytes.get(offset..end).ok_or_else(bounds_error)?;
+                        let word = context.i64_type();
+                        let words = bytes
+                            .as_chunks::<8>()
+                            .0
+                            .iter()
+                            .map(|bytes| word.const_int(u64::from_le_bytes(*bytes), false))
+                            .collect::<Vec<_>>();
                         offset = end;
-                        context.const_string(bytes, false).into()
+                        word.const_array(&words).into()
                     }
                     _ => {
                         return Err(CodegenError::internal(

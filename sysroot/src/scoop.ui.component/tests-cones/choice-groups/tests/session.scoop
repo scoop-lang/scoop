@@ -82,7 +82,7 @@ internal class ChoiceProbe {
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
     var quiet: FrameSnapshot? = None
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(75L)
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(75L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -131,7 +131,7 @@ internal class ChoiceProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("choice groups timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("choice groups timeout"))
                 if (settled())
                     advance()
                 else
@@ -195,7 +195,7 @@ internal class ChoiceProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
         )
     }
 }

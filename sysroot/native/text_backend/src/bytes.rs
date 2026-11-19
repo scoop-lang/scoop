@@ -1,12 +1,20 @@
 use alloc::{boxed::Box, string::String};
-use core::{ffi::c_char, ptr, slice, str};
+#[cfg(not(target_os = "macos"))]
+use core::ffi::c_char;
+use core::{ptr, slice, str};
 
+#[cfg(not(target_os = "macos"))]
 pub const EMPTY: i32 = -1000;
+#[cfg(not(target_os = "macos"))]
 pub const LABEL: i32 = -1001;
+#[cfg(not(target_os = "macos"))]
 pub const BACKEND: i32 = -1002;
+#[cfg(not(target_os = "macos"))]
 pub const DISALLOWED: i32 = -1003;
+#[cfg(not(target_os = "macos"))]
 pub const LENGTH: i32 = -1004;
 pub const PUNYCODE: i32 = -1005;
+#[cfg(not(target_os = "macos"))]
 pub const INVALID: i32 = -1006;
 pub const ARGUMENT: i32 = -1007;
 
@@ -21,6 +29,7 @@ impl Failure {
         Self { code, label: -1 }
     }
 
+    #[cfg(not(target_os = "macos"))]
     pub const fn at(code: i32, label: usize) -> Self {
         Self {
             code,
@@ -129,6 +138,7 @@ unsafe extern "C" fn scoop_text_free(data: *mut u8, size: i64) {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 #[unsafe(no_mangle)]
 extern "C" fn scoop_idna_message(code: i32) -> *const c_char {
     match code {
@@ -144,13 +154,22 @@ extern "C" fn scoop_idna_message(code: i32) -> *const c_char {
     .as_ptr()
 }
 
+#[cfg(not(target_os = "macos"))]
 #[unsafe(no_mangle)]
 extern "C" fn scoop_idna_version() -> *const c_char {
     c"scoop_text_backend 0.1.0; idna 1.1.0; ICU4X 2.3.0".as_ptr()
 }
 
+#[cfg(not(target_os = "macos"))]
 #[unsafe(no_mangle)]
 extern "C" fn scoop_text_unicode_version() -> *const c_char {
     // icu_{normalizer,properties}_data 2.3.0 use ICU release-78.1rc data.
     c"17.0.0".as_ptr()
+}
+
+#[cfg(not(target_os = "macos"))]
+#[unsafe(no_mangle)]
+unsafe extern "C" fn scoop_unicode_free(data: *mut u8, size: i64) {
+    // These targets produce domain and Unicode results with the Rust allocator.
+    unsafe { scoop_text_free(data, size) }
 }

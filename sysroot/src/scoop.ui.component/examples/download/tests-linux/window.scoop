@@ -75,7 +75,7 @@ private class LinuxDownloadProbe {
         when (event) {
             case Resumed -> {
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
                 currentApplicationScope().launch {
                     val probe = this @LinuxDownloadProbe
@@ -206,9 +206,9 @@ private class LinuxDownloadProbe {
 
     private suspend fun await(label: String, ready: () -> Boolean) {
         phase = label
-        val deadline = MonotonicTimeSource.markNow() + Duration.seconds(10L)
+        val deadline = MonotonicTimeSource.now() + Duration.seconds(10L)
         while (!ready()) {
-            if (MonotonicTimeSource.markNow() >= deadline)
+            if (MonotonicTimeSource.now() >= deadline)
                 fail(Some("Linux download wait: " + label))
             currentEventLoop().sleep(Duration.milliseconds(5L))
         }

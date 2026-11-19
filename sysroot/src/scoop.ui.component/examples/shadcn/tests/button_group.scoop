@@ -74,7 +74,7 @@ internal class ButtonGroupProbe {
     var frames: FrameProbe? = None
     private var afterPaint = 0
     private var quiet: FrameSnapshot? = None
-    private val deadline = MonotonicTimeSource.markNow() + Duration.seconds(30L)
+    private val deadline = MonotonicTimeSource.now() + Duration.seconds(30L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -99,7 +99,7 @@ internal class ButtonGroupProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("button group timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("button group timeout"))
                 if (native!!.isFocused && (paints > afterPaint || phase == 16))
                     advance()
                 if (phase < 17)
@@ -231,7 +231,7 @@ internal class ButtonGroupProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(70L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(70L))
         )
     }
 }

@@ -86,7 +86,7 @@ private fun performSemanticItem(
                 val index = items.indexOf(actual) ?: return@perform SemanticActionResult.Unavailable
                 val entry =
                     prepareUi<LazyItemEntry> {
-                        items.prepare(handle.owner, index, MonotonicTimeSource.markNow())
+                        items.prepare(handle.owner, index, MonotonicTimeSource.now())
                     }
                 if (!handle.active || !entry.node.active)
                     return@perform SemanticActionResult.Unavailable

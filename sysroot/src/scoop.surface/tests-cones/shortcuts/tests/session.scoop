@@ -74,14 +74,14 @@ private class NativeShortcutSession: Closeable {
                         )
                     )
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> {
                 if (phase == 0 && frames > 0 && window!!.isFocused) {
                     phase = 1
                     active.setControlFlow(
-                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(5L))
                     )
                     assertTrue(sendSurfaceKey(window!!, 1, true, command = true, shift = true))
                     assertTrue(sendSurfaceKey(window!!, 1, false, command = true, shift = true))

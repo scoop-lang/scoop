@@ -252,7 +252,7 @@ internal class DatePickerControl(val props: Props<DatePickerProps>, val scope: C
             when (props.value.draft) {
                 case Some(val draft) -> {
                     pendingBlur = Some(DatePickerBlur(draft, draft.editor.revision))
-                    blurTimer.schedule(MonotonicTimeSource.markNow())
+                    blurTimer.schedule(MonotonicTimeSource.now())
                 }
                 case None -> {}
             }

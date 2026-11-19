@@ -69,7 +69,7 @@ internal class ThemePreferenceProbe {
             case Resumed -> {
                 active = Some(application)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
                 )
                 model.replace(Utf8Range(0L, 5L), "ALPHA")
                 model.setSelection(Utf8Selection(5L, 0L))
@@ -143,7 +143,7 @@ internal class ThemePreferenceProbe {
     }
 
     private fun later() {
-        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(180L))
+        timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(180L))
     }
 
     private fun capture() {

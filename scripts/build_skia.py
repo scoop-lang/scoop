@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare the fixed Skia, HarfBuzz and ICU libraries for a supported GUI target."""
+"""Prepare the fixed Skia and text libraries for a supported GUI target."""
 
 import argparse
 import json
@@ -60,16 +60,6 @@ PACKAGES = (
         "third_party/externals/libjpeg-turbo",
     ),
 )
-GN_TARGETS = (
-    "skia",
-    "skparagraph",
-    "skshaper",
-    "skunicode_core",
-    "skunicode_icu",
-    "svg",
-    "skresources",
-)
-ARCHIVES = (*GN_TARGETS, "harfbuzz", "icu", "expat", "png", "jpeg", "jpeg12", "jpeg16", "skcms")
 HEADERS = (
     "include",
     "src/core/SkUTF.h",
@@ -180,6 +170,27 @@ def prepare(args):
         vendor / "patches/text-baselines.patch",
         vendor / "patches/graphics-pathops.patch",
     ]
+    apple = target_configuration["os"] == "darwin"
+    gn_targets = (
+        "skia",
+        "skparagraph",
+        "skshaper",
+        "skunicode_core",
+        "skunicode_apple" if apple else "skunicode_icu",
+        "svg",
+        "skresources",
+    )
+    libraries = (
+        *gn_targets,
+        "harfbuzz",
+        "icu_bidi" if apple else "icu",
+        "expat",
+        "png",
+        "jpeg",
+        "jpeg12",
+        "jpeg16",
+        "skcms",
+    )
     packages = (*PACKAGES, *build_skia_windows.PACKAGES) if windows else PACKAGES
     archives = [vendor / f"{name}.tar.xz" for name, _, _ in packages]
     sources = [metadata(path) for path in (*archives, *patches)]
@@ -269,11 +280,11 @@ def prepare(args):
         cwd=source,
         check=True,
     )
-    subprocess.run([ninja, "-C", str(objects), "-j", str(args.jobs), *GN_TARGETS], check=True)
+    subprocess.run([ninja, "-C", str(objects), "-j", str(args.jobs), *gn_targets], check=True)
     staged = args.build_dir / LIBRARY
     if windows:
         build_skia_windows.combine(
-            args, objects, staged, (*ARCHIVES, *build_skia_windows.ARCHIVES), platform_tools[-1]
+            args, objects, staged, (*libraries, *build_skia_windows.ARCHIVES), platform_tools[-1]
         )
     elif linux:
         staged.unlink(missing_ok=True)
@@ -282,7 +293,7 @@ def prepare(args):
                 platform_tools[-1],
                 "qcL",
                 str(staged),
-                *(str(objects / f"lib{name}.a") for name in ARCHIVES),
+                *(str(objects / f"lib{name}.a") for name in libraries),
             ],
             check=True,
         )
@@ -294,7 +305,7 @@ def prepare(args):
                 "-static",
                 "-o",
                 str(staged),
-                *(str(objects / f"lib{name}.a") for name in ARCHIVES),
+                *(str(objects / f"lib{name}.a") for name in libraries),
             ],
             check=True,
         )
@@ -361,6 +372,8 @@ def darwin_configuration(args, release):
     flags = ["-target", triple, "-isysroot", sdk]
     return {
         "target_cpu": gn_cpu(architecture),
+        "skia_use_icu": False,
+        "skia_use_apple_unicode": True,
         "cc": cc,
         "cxx": cxx,
         "mac_min_target": deployment,

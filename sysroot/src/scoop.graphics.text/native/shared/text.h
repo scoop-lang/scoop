@@ -6,7 +6,7 @@
 #include "include/core/SkTypeface.h"
 #include "modules/skparagraph/include/ParagraphBuilder.h"
 #include "modules/skparagraph/include/TypefaceFontProvider.h"
-#include "modules/skunicode/include/SkUnicode_icu.h"
+#include "modules/skunicode/include/SkUnicode.h"
 #include "src/core/SkUTF.h"
 #include <algorithm>
 #include <atomic>

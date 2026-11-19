@@ -1,0 +1,76 @@
+# macOS 可执行文件体积实施记录
+
+## Mach-O 最终链接
+
+普通发布 executable 已启用 LLD dead strip。以同一份发行 sysroot 和相同输入验证，Hello 为 760,448 字节，file-report 为 1,013,424 字节，自绘 Counter 为 17,685,856 字节，真实段落为 16,218,272 字节。Counter 的 ICU 数据进入 dead 列表，段落程序的 ICU 数据仍被引用。文件读取成功和失败、Objective-C、C++ 静态构造、移动 GC、异常栈、native-app 动态库和独立调试文件均经正式入口验证。[基线](FINDINGS.md)
+
+## Tagged enum 的整字存储
+
+以相同机器布局发射非引用区间和静态枚举常量。重编 Counter 的全部传递依赖后，最终 Mach-O 从 17,685,856 降至 13,062,480 字节。`SurfaceHost.onEvent` 为 102,096 字节、25,524 条 ARM64 指令。七项定向 codegen 单测通过，跨 Cone 大枚举、嵌套枚举返回和移动 GC 共三个 fixture、五种配置通过。真实 `SurfaceHostTest` 通过了帧回调、输入视图与退出检查。
+
+## 按值传递与 GC 返回路径
+
+从已有栈槽直接读取枚举字段并复用栈聚合复制后，`onEvent` 的 `__text` 从 102,096 降至 100,000 字节。另有 12 对 volatile load/store 在正常或异常返回后重写整个事件。沿已发布的扫描描述只重载托管引用槽后，正式构建得到 21,680 字节、5,420 条指令，其中 `ldr/str` 合计 4,707 条。重编 Counter 的传递依赖后，Mach-O 从 13,062,480 降至 12,550,608 字节。
+
+使用真实 `SurfaceHost.onEvent` 向同一 handler 转发 `Window(Focused(true))`，在无窗口绘制的事件循环中每组计时 20,000 次。两个版本交错运行，各排除预热、取 10 组中位数，每事件从 703 降至 413 纳秒。397 项 codegen 测试通过；大枚举、嵌套返回、移动 GC 与抛错栈四项正式 fixture 共十种配置及真实 `SurfaceHostTest` 通过。
+
+## UI 固定单调时钟
+
+窗口输入、帧、动画和 deadline 共用系统单调时钟。事件携带无托管引用的 MonotonicInstant，离屏动画通过 `advanceTo(time) { ... }` 在给定帧内启动或改目标。PointerState 的四个 GC 槽全部消失。WindowEvent 从 4,224 降至 688 字节，ApplicationEvent 从 4,448 降至 912 字节。高频事件保留值语义。[各层布局](FINDINGS.md#ui-事件的固定单调时钟)
+
+以 `6bfbafa10` 的编译器在 macOS arm64 上重编依赖，自绘 Counter 从 12,550,608 降至 11,592,848 字节。SurfaceHost.onEvent 从 21,680 降至 5,940 字节。沿用上一节的事件派发样本，两版交错运行各取十组中位数，单次从 420 降至 86 纳秒。macOS release 的 49 个定向用例通过，覆盖 AppKit 实际输入和手势、窗口及隐藏窗口动画 deadline、手动推进的动画、组在两帧之间重新启用、滚动条、轮播、Toast 和下载进度。平台用例验证跨秒算术，窗口用例验证超范围排期保留原值。用 NoGC 函数构造 PointerEvent 的回归在编译期检查其完整表示。逐帧像素与布局复用测试在 macOS 将测试窗口置顶，避免遮挡暂停显示链。像素测试通过已有的 Skia readPixels 探针读取实际 Metal 画布。
+
+## 从程序入口追踪初始化单元
+
+最终链接沿已有机器符号引用和初始化语义依赖追踪存活成员。eager 初始化仍从启动入口保留，lazy 单元的结果、失败根、ensure 和登记随首次可达引用保留。新编译的库分别打包每份普通静态存储及其 GC 登记、每个初始化 cell 及其登记。在同一库中仅读取计数器时，两个未用 lazy 对象都从最终 binary 消失。跨库读取会失败的那个对象时，只保留对应对象，重读仍抛出原来的失败。既有库按已保存的物理分组工作。
+
+在 macOS arm64 上重编样例依赖，两版 release 链接器使用相同的输入 `.slib`、runtime、LLD 和输出文件名。复用已准备的输入归档，强制执行最终链接。先预热，再交错运行，每版计时四次，表中为中位数。
+
+| 程序 | 原链接器 | 收紧根后 | 原重链接耗时 | 收紧根后耗时 |
+| --- | ---: | ---: | ---: | ---: |
+| Hello | 760,512 B | 256,464 B | 402 ms | 378 ms |
+| 自绘 Counter | 11,592,992 B | 11,007,536 B | 4.766 s | 4.737 s |
+
+在临时 release 链接器中为建索引和工作队列分别计时，预热后各运行五次。建索引包含符号所有者、引用、登记配对、初始化依赖和根收集。队列时间包含遍历可达成员，完整重链接还包含读产物、ODR 选择、重建 image、LLD 等工作。最终结果缓存命中直接复用。
+
+| 程序 | 候选物理成员 | 机器符号引用 | 登记及初始化关联边 | 可达成员 | 建索引中位数 | 遍历中位数 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Hello | 20,059 | 24,258 | 1,773 | 42 | 17.0 ms | 0.024 ms |
+| 自绘 Counter | 134,806 | 205,372 | 10,553 | 15,886 | 160 ms | 17.4 ms |
+
+Counter 的建索引与遍历合计约占一次完整重链接的 3.7%。图以物理成员为节点，每个可达成员只展开一次，动态分派通过表中的目标保留。原生归档候选成员中对 Scoop 的引用仍保守入根，因此这里的“可达”也包含静态分析无法排除的回调。
+
+Hello 的运行时启动统计显示，初始化登记从 33 减至 0，callable 登记从 425 减至 12，静态根从 67 减至 1。这些计数来自单独开启启动统计的可执行文件。普通 release 二进制用于表中的尺寸与计时。类型化 LIR、链接器和物理分组共 417 项 Rust 测试通过。12 个正式 runtime image fixture 验证了跨库 lazy 的真实裁剪、失败重抛、循环与 eager 副作用。
+
+## macOS 段落排版使用 Skia Apple Unicode
+
+macOS 在 SkParagraph 中选择 SkUnicode 的 Apple 实现，使用 Core Foundation 处理文本边界，保留 HarfBuzz 和 Skia 的 ICU Bidi 子集。使用同一份 Scoop 编译器与初始化 DCE 设置，真实段落样例从 15,599,840 降到 3,889,328 字节，减少 11,710,512 字节（75.1%）。两种配置都得到 2 行、15 个边界、0 个缺失字形。最终链接 map 中，原来存活的 ICU 整包数据 `_icudt78_dat` 消失。自绘 Counter 两次均为 11,007,536 字节，其输入早已在 Mach-O 裁剪时去掉该数据。
+
+Darwin 的 Skia 静态归档从 67,608,608 降到 31,748,456 字节。正式资源准备脚本完成归档。macOS release 的 66 个 graphics.text 用例和 14 个 graphics.svg 用例通过，覆盖混合方向文字、字素与分词、绘制与资源寿命。
+
+## Darwin ARM64 链接优化提示
+
+readline 的 `HistoryTest.concurrentAppend` 在启用 dead strip 的 release 布局中稳定崩溃。对照输入对象与最终指令发现，LLD 22.1 把非相邻 `AdrpLdrGot` 的取地址合并到第一条指令，提前覆盖了中间指令要保存的寄存器。Darwin ARM64 最终链接加入 `-ignore_optimization_hints`，普通 release 继续启用 `-dead_strip`。同一个算术回归对象在旧设置下结果错误，新设置下返回预期值。正式 readline 测试 40 项通过，另外 6 项为由 PTY 集成测试启动的子用例。Hello、自绘 Counter 和真实段落分别为 256,464、11,007,536 和 3,889,328 字节，此项修正对三个样例的磁盘尺寸均无影响。
+
+## macOS 域名与 Unicode
+
+macOS 域名转换使用系统 ICU 的 UIDNA，NFC 和字素边界使用 Core Foundation，完整大小写与字符属性使用系统 ICU。原始 RFC 3492 Punycode、字符集编解码和标量列宽继续使用锁定的 Rust 实现。macOS 普通依赖树中不再有 ICU4X 数据。macOS 27.2.1 的域名后端报告 Apple ICU 和 Unicode 17.0.0。
+
+以下为同一套 ARM64 release 工具链、相同 dead strip 设置下的最终 Mach-O 字节数。域名样例实际消费 A-label 和 Unicode 输出，Unicode 样例消费分段、大小写和 NFC。只用原始 Punycode 的程序仍有 Cone 显式声明的 icucore 动态库加载项，其链接 map 已裁掉域名转换代码。
+
+| 程序 | 原文本后端 | 系统文本后端 | 减少 |
+| --- | ---: | ---: | ---: |
+| 域名示例 | 624,192 B | 442,608 B | 181,584 B |
+| Unicode 示例 | 626,576 B | 544,624 B | 81,952 B |
+| Punycode 示例（末尾另验证非法域名） | 607,664 B | 459,264 B | 148,400 B |
+| 只用原始 Punycode | 590,992 B | 425,680 B | 165,312 B |
+| 字符集编解码示例 | 826,176 B | 826,176 B | 0 B |
+| 自绘 Counter | 11,007,536 B | 11,007,536 B | 0 B |
+
+macOS release 验证通过 IDNA 11 项、charset 18 项、URL 22 项、C ABI 3 项和 readline 40 项。readline 的 6 个 PTY 子用例由集成测试直接启动。检查覆盖 DNS 边界、错误标签、上下文规则、原始 Punycode、CRLF、组合字素、BOM、内嵌 NUL、根语言大小写、字节索引与分配结果的释放。Rust release lint 和分配器单测通过。
+
+## 共用改动的其他目标验证
+
+在 Linux x86-64 GNU 上重建工具链、受影响的系统库和原有 ICU4X 文本后端。跨 Cone 的两个 release 程序分别登记 0 个和 1 个初始化单元，实际访问失败对象的程序只初始化一次，两次读取取得相同的异常载荷。跨库大枚举、嵌套枚举返回、移动 GC、保留和裁剪 lazy 通过 5 个 fixture、7 种配置。IDNA、charset、C ABI、固定单调时钟和无 GC 的指针事件共 34 项测试通过。
+
+Windows x86-64 MSVC/UCRT 使用相同源码重建工具链和原有 ICU4X 文本后端。相同的两个跨库程序得到 0 和 1 个初始化单元，输出及失败重抛与 Linux 一致。跨库大枚举 fixture 在开启移动 GC 的发布构建中通过，IDNA、charset、C ABI、系统时钟和指针事件共 34 项测试通过。重新编译 graphics 和 surface 后，独立离屏程序在时间 0 启动一秒的补间动画，推进到一秒时得到预期终值。

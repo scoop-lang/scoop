@@ -82,7 +82,7 @@ internal class OtpProbe {
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
     var quiet: FrameSnapshot? = None
-    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(40L)
+    val deadline = MonotonicTimeSource.now() + Duration.seconds(40L)
     init {
         for (family in theme.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -107,7 +107,7 @@ internal class OtpProbe {
                 wait(active)
             }
             case NewEvents(StartCause.Deadline) -> {
-                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("OTP timeout"))
+                assertTrue(MonotonicTimeSource.now() < deadline, Some("OTP timeout"))
                 if (
                     native!!.isFocused &&
                         rendered >=
@@ -368,7 +368,7 @@ internal class OtpProbe {
     }
     private fun wait(active: ActiveApplication) {
         active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
         )
     }
 }

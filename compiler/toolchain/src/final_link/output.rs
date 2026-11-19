@@ -10,6 +10,16 @@ pub enum FinalOutputKind {
     SharedLibrary,
 }
 
+impl FinalOutputKind {
+    pub fn dead_strip(self, target: TargetProfileId, retain_symbols: bool) -> bool {
+        self == Self::Executable
+            && !retain_symbols
+            && scoop_target_data::definition(target).is_some_and(|target| {
+                target.final_link == scoop_target_data::FinalLinkProfile::Darwin
+            })
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(super) enum OutputConfiguration {
     Executable,
@@ -113,6 +123,22 @@ impl WireEncode for OutputConfiguration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dead_strip_is_limited_to_stripped_darwin_executables() {
+        let target = scoop_target_data::DARWIN_AARCH64.id();
+        assert!(FinalOutputKind::Executable.dead_strip(target, false));
+        assert!(!FinalOutputKind::Executable.dead_strip(target, true));
+        assert!(!FinalOutputKind::SharedLibrary.dead_strip(target, false));
+        assert!(
+            !FinalOutputKind::Executable
+                .dead_strip(scoop_target_data::LINUX_X86_64_GNU.id(), false)
+        );
+        assert!(
+            !FinalOutputKind::Executable
+                .dead_strip(scoop_target_data::WINDOWS_X86_64_MSVC_UCRT.id(), false)
+        );
+    }
 
     #[test]
     fn loader_names_require_the_matching_shared_library_platform() {

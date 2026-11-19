@@ -193,10 +193,10 @@ pub(crate) fn instruction_temp_defs(instruction: &Instruction) -> [Option<TempId
 pub(crate) fn compiler_unwind_plan(
     function: &Function,
 ) -> (
-    HashMap<scoop_lir::BlockId, Vec<scoop_lir::CallerRootSource>>,
+    HashMap<scoop_lir::BlockId, Vec<&scoop_lir::CallerRoot>>,
     HashSet<scoop_lir::BlockId>,
 ) {
-    let mut sources = HashMap::<_, HashSet<_>>::new();
+    let mut sources = HashMap::<_, HashMap<_, _>>::new();
     let mut blocks = HashSet::new();
     for (_, block) in function.blocks.iter() {
         {
@@ -211,7 +211,7 @@ pub(crate) fn compiler_unwind_plan(
                         .as_slice()
                         .iter()
                         .filter(|root| root.unwind_live)
-                        .map(|root| root.root.source),
+                        .map(|root| (root.root.source, &root.root)),
                 );
             }
         }
@@ -219,8 +219,8 @@ pub(crate) fn compiler_unwind_plan(
     let sources = sources
         .into_iter()
         .map(|(block, set)| {
-            let mut set = set.into_iter().collect::<Vec<_>>();
-            set.sort_by_key(|source| compiler_root_source_key(*source));
+            let mut set = set.into_values().collect::<Vec<_>>();
+            set.sort_by_key(|root| compiler_root_source_key(root.source));
             (block, set)
         })
         .collect();

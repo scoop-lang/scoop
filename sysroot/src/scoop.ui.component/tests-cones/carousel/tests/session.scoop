@@ -108,7 +108,7 @@ internal class CarouselProbe(
     var hidden = false
     var finished = false
     var waitAfter = Duration.milliseconds(150L)
-    var next = MonotonicTimeSource.markNow()
+    var next = MonotonicTimeSource.now()
     val deadline = next + Duration.seconds(70L)
     var native: Window? = None
     var view: ViewProbe? = None
@@ -134,11 +134,11 @@ internal class CarouselProbe(
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 host.attach(window, { mount -> CarouselScene(this, scope = mount) });
                 window.requestFocus()
-                next = MonotonicTimeSource.markNow() + waitAfter
+                next = MonotonicTimeSource.now() + waitAfter
                 active.setControlFlow(ControlFlow.WaitUntil(next))
             }
             case NewEvents(StartCause.Deadline) -> {
-                val now = MonotonicTimeSource.markNow()
+                val now = MonotonicTimeSource.now()
                 assertTrue(now < deadline, Some("carousel timeout"))
                 if (now >= next && settled()) {
                     waitAfter = Duration.milliseconds(150L)
@@ -147,7 +147,7 @@ internal class CarouselProbe(
                         case None -> advanceCarousel(this)
                     }
                     phase += 1
-                    next = MonotonicTimeSource.markNow() + waitAfter
+                    next = MonotonicTimeSource.now() + waitAfter
                 } else
                     if (!hidden && !native!!.isFocused)
                         native!!.requestFocus()

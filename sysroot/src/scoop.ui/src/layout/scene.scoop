@@ -7,7 +7,7 @@ import scoop.surface.FrameCompletion
 import scoop.surface.FrameSubmission
 import scoop.surface.InputArea
 import scoop.surface.WindowRegionHandle
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.ui.text.NativeTextSource
 
 internal class ScenePass {
@@ -41,7 +41,7 @@ public class SceneContext internal constructor(
         checkActive()
         return extent
     }
-    public val time: TimeMark get() {
+    public val time: MonotonicInstant get() {
         checkActive()
         observeFrameTime()
         return frame.time

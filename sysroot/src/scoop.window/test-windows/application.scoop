@@ -254,7 +254,7 @@ private class WindowsHandler: ApplicationHandler {
                 }
             )
         application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
         )
     }
 }

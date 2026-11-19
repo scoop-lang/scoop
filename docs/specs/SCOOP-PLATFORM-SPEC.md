@@ -252,9 +252,9 @@ Windows 的 systemVersion 使用 [RtlGetVersion](https://learn.microsoft.com/en-
 
 ## 8. 时钟与阻塞 sleep
 
-`scoop.platform.time.SystemClock` 实现 scoop.time.Clock，now 返回实时钟的 Instant；`MonotonicTimeSource` 实现 TimeSource，markNow 返回以自身为 source、以 CLOCK_MONOTONIC 读数构造 Duration 的 TimeMark。实时钟可以回拨，monotonic 不与 epoch 混用，同源比较仍由 std 检查。native 读取失败抛 PlatformException，不伪造零读数；转换遵守 std 的范围规则。
+`scoop.platform.time.SystemClock` 实现 scoop.time.Clock，now 返回实时钟的 Instant。`MonotonicTimeSource.now()` 读取系统单调时钟，返回值类型 `MonotonicInstant`。输入、帧、动画和窗口 deadline 共用这一时钟域。时间点按值保存秒及纳秒分量，无托管引用。系统读数的秒内纳秒范围为 0 到 999,999,999。显式构造可传有符号纳秒调整量，normalized() 将其折入整秒。比较、哈希、时间点加减 Duration 和两时间点之差均使用规范化的值，超出 Long 秒表示范围时抛 ArithmeticException。一般用途的 `MonotonicTimeSource.markNow()` 仍返回以自身为 source 的 TimeMark。实时钟可以回拨，monotonic 不与 epoch 混用，同源比较仍由 std 检查。native 读取失败抛 PlatformException，不伪造零读数；转换遵守 std 的范围规则。
 
-native 时钟读取是短同步 `GCLeaf` 调用，只读取 OS 时钟并返回整数结果与错误，不分配 managed 对象、等待或回调；返回后的 Instant／TimeMark 构造仍遵守普通 managed 分配与 safepoint 规则。阻塞 sleep 保持 NativeSafe。
+native 时钟读取是短同步 `GCLeaf` 调用，只读取 OS 时钟并返回整数结果与错误，不分配 managed 对象、等待或回调；返回后的实时钟 Instant 或通用 TimeMark 构造仍遵守普通 managed 分配与 safepoint 规则。阻塞 sleep 保持 NativeSafe。
 
 Windows 实时钟使用 GetSystemTimePreciseAsFileTime，将 1601 epoch 的 100 ns tick 转为 Unix epoch 的规范化秒／纳秒；monotonic 使用 QueryPerformanceCounter／QueryPerformanceFrequency，整数缩放不溢出或丢失整秒精度。native 时钟结果同时保存本次错误码，Windows 使用 Win32，POSIX 使用原 errno。
 

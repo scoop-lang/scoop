@@ -4,7 +4,7 @@ import scoop.test.*
 import scoop.window.native.*
 import scoop.tests.window.exerciseNativeInput
 import scoop.platform.time.MonotonicTimeSource
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.collections.listOf
 
 @Test
@@ -43,21 +43,21 @@ internal class InputProbe {
     var momentum = false
     var phaseIndex = 0L
     var pointerSequence = ""
-    var receivedAfter: TimeMark? = None
-    var receivedBefore: TimeMark? = None
+    var receivedAfter: MonotonicInstant? = None
+    var receivedBefore: MonotonicInstant? = None
 
     fun start(window: Window, lease: NativeWindowLease) {
         window.setCursorIcon(CursorIcon.Text)
         window.setCursorVisible(false)
         started = true
-        receivedAfter = Some(MonotonicTimeSource.markNow())
+        receivedAfter = Some(MonotonicTimeSource.now())
         @Unsafe
         {
             when (lease.handle) {
                 case AppKit(_, val view) -> assertEquals(0, exerciseNativeInput(view))
             }
         }
-        receivedBefore = Some(MonotonicTimeSource.markNow())
+        receivedBefore = Some(MonotonicTimeSource.now())
         window.setCursorVisible(true)
         window.setCursorIcon(CursorIcon.Default)
         gcCollect()
@@ -71,7 +71,6 @@ internal class InputProbe {
     private fun observe(time: InputTime) {
         when (time) {
             case Observed(val value) -> {
-                assertTrue(value.source === MonotonicTimeSource)
                 assertTrue(value >= receivedAfter!!)
                 assertTrue(value <= receivedBefore!!)
                 assertEquals(value, time.mark())

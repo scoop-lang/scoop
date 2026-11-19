@@ -2,7 +2,6 @@ use icu_casemap::CaseMapper;
 use icu_locale_core::LanguageIdentifier;
 use icu_properties::{CodePointSetData, props::Alnum};
 use icu_segmenter::GraphemeClusterSegmenter;
-use unicode_width::UnicodeWidthChar;
 
 use crate::bytes::{self, TextResult};
 
@@ -31,16 +30,6 @@ unsafe extern "C" fn scoop_charset_grapheme_breaks(
         }
     }
     0
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn scoop_charset_scalar_width(scalar: u32) -> i32 {
-    if scalar == 0 {
-        return -1;
-    }
-    char::from_u32(scalar)
-        .and_then(UnicodeWidthChar::width)
-        .map_or(-1, |width| width as i32)
 }
 
 #[unsafe(no_mangle)]

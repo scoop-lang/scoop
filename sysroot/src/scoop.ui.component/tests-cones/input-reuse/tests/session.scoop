@@ -49,7 +49,7 @@ internal class ButtonInputProbe {
         when (event) {
             case Resumed -> {
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
                 )
                 val native =
                     active.createWindow(
@@ -78,7 +78,7 @@ internal class ButtonInputProbe {
                     phase = 7
                     active.setControlFlow(
                         ControlFlow.WaitUntil(
-                            MonotonicTimeSource.markNow() + Duration.milliseconds(250L)
+                            MonotonicTimeSource.now() + Duration.milliseconds(250L)
                         )
                     )
                 }
@@ -143,7 +143,7 @@ internal class ButtonInputProbe {
                     phase = 6
                     active.setControlFlow(
                         ControlFlow.WaitUntil(
-                            MonotonicTimeSource.markNow() + Duration.milliseconds(400L)
+                            MonotonicTimeSource.now() + Duration.milliseconds(400L)
                         )
                     )
                 }

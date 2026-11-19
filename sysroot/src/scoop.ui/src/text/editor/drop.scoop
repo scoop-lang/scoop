@@ -169,7 +169,7 @@ internal class EditorDropTarget(
             return
         }
         if (!timer.isScheduled)
-            timer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(16L))
+            timer.schedule(MonotonicTimeSource.now() + Duration.milliseconds(16L))
     }
 
     private fun tick() {

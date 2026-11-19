@@ -2,7 +2,7 @@ package scoop.ui.component
 
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.observePointer
-import scoop.time.TimeMark
+import scoop.platform.time.MonotonicInstant
 import scoop.ui.*
 import scoop.window.WindowState
 
@@ -14,7 +14,7 @@ internal class ToasterControl(val scope: ComponentScope, val read: () -> Toaster
     private val timer = scope.createDeadline { expired() }
     private var bound = read().state
     private var windowActivity = scope.nativeWindow.activity
-    private var scheduled: TimeMark? = None
+    private var scheduled: MonotonicInstant? = None
     private var sequence = 0L
     private var refreshing = false
     private var again = false
@@ -148,7 +148,7 @@ internal class ToasterControl(val scope: ComponentScope, val read: () -> Toaster
             }
         }
         val wanted = chosen.toArray()
-        val now = MonotonicTimeSource.markNow()
+        val now = MonotonicTimeSource.now()
         for (entry in previous)
             if (!toastIncludes(wanted, entry)) {
                 entry.clock.pause(now)
@@ -211,10 +211,10 @@ internal class ToasterControl(val scope: ComponentScope, val read: () -> Toaster
             interacting.value = next
     }
     private fun deadlines() {
-        val now = MonotonicTimeSource.markNow()
+        val now = MonotonicTimeSource.now()
         val windowReady =
             windowActivity.focused && windowActivity.visible && !windowActivity.occluded
-        var first: TimeMark? = None
+        var first: MonotonicInstant? = None
         for (entry in visible.value) {
             val card = entry.card
             val allowed =
@@ -248,7 +248,7 @@ internal class ToasterControl(val scope: ComponentScope, val read: () -> Toaster
             return
         scheduled = None
         refresh()
-        val now = MonotonicTimeSource.markNow()
+        val now = MonotonicTimeSource.now()
         for (entry in visible.value)
             when (entry.clock.deadline) {
                 case Some(val end) -> if (end <= now)

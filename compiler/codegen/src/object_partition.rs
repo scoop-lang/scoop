@@ -60,6 +60,7 @@ impl ScoopLirObjectPartitionV1 {
             .map_err(ScoopLirObjectPartitionError::ProducerUnits)?;
         let mut non_callable = Vec::new();
         let mut independent = BTreeMap::<ObjectDefinitionPlanId, Vec<_>>::new();
+        let mut storage_and_unit_records = BTreeMap::<_, Vec<_>>::new();
         let table_storage = input
             .module()
             .meta
@@ -122,6 +123,19 @@ impl ScoopLirObjectPartitionV1 {
                         .push(*definition);
                 }
                 _ if matches!(
+                    plan.owner().kind(),
+                    StrongDefinitionEntityKind::StaticStorage(_)
+                        | StrongDefinitionEntityKind::InitializationUnit(_)
+                ) && plan.primary_symbol().linkage() != scoop_lir::LinkageClass::OdrWeak =>
+                {
+                    // Pair each storage or cell with its registration. Unrelated
+                    // lazy units in this Cone must remain independently removable.
+                    storage_and_unit_records
+                        .entry(plan.owner())
+                        .or_default()
+                        .push(*definition);
+                }
+                _ if matches!(
                     plan.definition_role(),
                     StrongDefinitionRole::ImageDescriptor
                         | StrongDefinitionRole::TypeDescriptor
@@ -171,7 +185,9 @@ impl ScoopLirObjectPartitionV1 {
                 _ => non_callable.push(*definition),
             }
         }
-        let mut objects = Vec::with_capacity(1 + independent.len() + callables.len());
+        let mut objects = Vec::with_capacity(
+            1 + independent.len() + storage_and_unit_records.len() + callables.len(),
+        );
         if !non_callable.is_empty() {
             objects.push(ScoopLirObjectUnitSetV1 {
                 kind: ScoopLirObjectKindV1::NonCallable,
@@ -181,6 +197,7 @@ impl ScoopLirObjectPartitionV1 {
         objects.extend(
             independent
                 .into_values()
+                .chain(storage_and_unit_records.into_values())
                 .map(|definition_plans| ScoopLirObjectUnitSetV1 {
                     kind: ScoopLirObjectKindV1::NonCallable,
                     definition_plans,

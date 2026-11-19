@@ -35,7 +35,7 @@ private class ResourceWindow(private val message: String): ApplicationHandler {
                 window.requestRedraw()
                 print(message)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(2L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(2L))
                 )
             }
             case NewEvents(StartCause.Deadline) -> application.requestExit()

@@ -74,7 +74,7 @@ internal class SelectScrollButton(
     private fun refresh() {
         if (allowed() && area.scope.isHovered) {
             if (!timer.isScheduled)
-                timer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(60L))
+                timer.schedule(MonotonicTimeSource.now() + Duration.milliseconds(60L))
         } else
             timer.cancel()
     }

@@ -50,7 +50,7 @@ private class WindowTimingProbe {
                 host.attach(created, { mount -> WindowTimingRoot(this, mount) })
                 created.setVisible(true)
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
             }
             case AboutToWait -> if (ready && !queued && stage < 3) {
@@ -109,9 +109,7 @@ private class WindowTimingProbe {
                 stage = 3
                 idleFrames = frames
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(
-                        MonotonicTimeSource.markNow() + Duration.milliseconds(150L)
-                    )
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
                 )
             }
     }

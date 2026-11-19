@@ -123,13 +123,11 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             _ => unreachable!("protocol was checked above"),
         };
 
-        let normal_sources = roots
+        let normal_roots = roots
             .iter()
             .filter(|root| root.normal_live)
-            .map(|root| root.root.source)
-            .collect::<Vec<_>>();
-        self.validate_compiler_root_sources(normal_sources.iter().copied())?;
-        let reloaded_roots = self.reload_published_roots(normal_sources)?;
+            .map(|root| &root.root);
+        let reloaded_roots = self.reload_published_roots(normal_roots)?;
         self.restore_reloaded_roots(reloaded_roots)?;
         match result {
             TypedCallResult::ElidedZst { out, value } => {

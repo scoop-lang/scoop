@@ -50,7 +50,7 @@ private class WindowsSnapshotHandler: ApplicationHandler {
                 window = Some(created)
                 created.setImeAllowed(true)
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("Windows TSF snapshot deadline"))
@@ -256,7 +256,7 @@ private class WindowsTextQueriesHandler: ApplicationHandler {
                         )
                     )
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
                 window!!.setImeAllowed(true)
             }

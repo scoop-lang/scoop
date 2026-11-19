@@ -46,7 +46,7 @@ private class TrayLifecycleHandler: ApplicationHandler {
         when (event) {
             case Resumed -> {
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
                 val icon =
                     TrayIcon.create(application, TrayOptions(trayTestImage(), Some("Status item")))

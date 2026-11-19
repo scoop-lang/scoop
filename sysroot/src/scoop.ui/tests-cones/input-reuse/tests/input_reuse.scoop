@@ -70,7 +70,7 @@ internal class InputProbe {
         when (event) {
             case Resumed -> {
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(15L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
                 val native =
                     active.createWindow(

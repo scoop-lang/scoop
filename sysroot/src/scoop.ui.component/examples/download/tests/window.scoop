@@ -138,7 +138,7 @@ internal class DownloadWindowProbe {
         when (event) {
             case Resumed -> {
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
                 currentApplicationScope().launch {
                     coroutineScope {

@@ -97,7 +97,7 @@ internal class RetentionProbe {
                 native.requestFocus()
                 ui = host.attach(native, { mount -> RetentionScene(this, scope = mount) })
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
             }
             case AboutToWait -> {
@@ -170,6 +170,6 @@ internal class RetentionProbe {
     fun after(milliseconds: Long, action: () -> Unit) {
         waiting = true
         checkpointAction = action
-        checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+        checkpoint!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
     }
 }

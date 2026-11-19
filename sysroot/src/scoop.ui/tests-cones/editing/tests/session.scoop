@@ -225,7 +225,7 @@ internal class EditProbe(val fonts: FontCollection) {
                     )
                 ui = host.attach(native, { mount -> EditScene(this, scope = mount) })
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(40L))
                 )
             }
             case AboutToWait -> {
@@ -294,7 +294,7 @@ internal class EditProbe(val fonts: FontCollection) {
                 block()
                 waiting = false
             }
-        checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(140L))
+        checkpoint!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(140L))
     }
     fun point(index: Long, byte: Long): Point {
         val host = field(index)

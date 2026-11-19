@@ -283,14 +283,14 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 if function.locals[*local].storage().is_zst() {
                     return Ok(());
                 }
-                if let Value::Local(source) = v
-                    && matches!(
-                        value_ty,
-                        LirType::Struct(_) | LirType::Aggregate(_) | LirType::Enum(_)
-                    )
-                    && !(self.interface_values.enabled() && self.is_interface_storage(&value_ty))
+                if matches!(
+                    value_ty,
+                    LirType::Struct(_) | LirType::Aggregate(_) | LirType::Enum(_)
+                ) && !(self.interface_values.enabled() && self.is_interface_storage(&value_ty))
+                    && let Some(source) = self.operand_stack_slot(*v)?
                 {
-                    if source != local {
+                    let destination = self.local_pointer(*local)?;
+                    if source != destination {
                         let scoop_lir::LocalStorage::NonZero(value) =
                             function.locals[*local].storage()
                         else {
@@ -298,9 +298,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                         };
                         builder
                             .build_memcpy(
-                                self.local_pointer(*local)?,
+                                destination,
                                 value.layout().alignment().get() as u32,
-                                self.local_pointer(*source)?,
+                                source,
                                 value.layout().alignment().get() as u32,
                                 context
                                     .i64_type()

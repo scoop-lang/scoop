@@ -44,11 +44,11 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 `Window` 操作和原生句柄查询都要求 owner 线程。`RequestStatus.Requested` 表示已向系统提交请求，实际结果由事件或快照确认；例如焦点请求不保证系统一定授予焦点。
 
-`window.createDeadline { ... }` 返回可反复 `schedule(time)`、`cancel()` 的 `WindowDeadline`，time 使用 MonotonicTimeSource。已经到期的时间也在后续主循环批次交付；重排、取消或关闭使旧的排队回调失效。回调在窗口隐藏时仍能执行，但不会隐式请求重绘。内部定时与应用的 WaitUntil 独立，只有后者实际到期才发出 StartCause.Deadline；不需要为每个组件另建线程或改写应用的控制流。
+`window.createDeadline { ... }` 返回可反复 `schedule(time)`、`cancel()` 的 `WindowDeadline`，time 是 MonotonicInstant，例如 `MonotonicTimeSource.now() + Duration.seconds(1L)`。已经到期的时间也在后续主循环批次交付；重排、取消或关闭使旧的排队回调失效。回调在窗口隐藏时仍能执行，但不会隐式请求重绘。内部定时与应用的 WaitUntil 独立，只有后者实际到期才发出 StartCause.Deadline；不需要为每个组件另建线程或改写应用的控制流。
 
 内容区坐标以左上为原点。`LogicalPosition`／`LogicalSize` 使用窗口逻辑单位，`PhysicalPosition`／`PhysicalSize` 使用像素。使用同一次 `WindowMetrics` 或输入事件的 scale 换算；桌面坐标不能乘某个窗口的 scale。未知的原生信息保留为 `None`。
 
-`PointerState.time`、`KeyEvent.time` 和 `PointerEvent.Cancelled` 携带 `InputTime`，其 `mark()` 与 `MonotonicTimeSource` 同源。当前后端使用原生接收边界的 `Observed`；它区别于可可靠映射的原生发生时间 `Event`，不在业务派发时重新采样。失焦或原生捕获／跟踪中断仅取消仍活动的鼠标序列；正常离开内容区继续拖动，取消后的迟到 Up 被忽略。
+`PointerState.time`、`KeyEvent.time` 和 `PointerEvent.Cancelled` 携带 `InputTime`，其 `mark()` 直接返回与帧和窗口 deadline 共用的 MonotonicInstant。当前后端使用原生接收边界的 `Observed`；它区别于可可靠映射的原生发生时间 `Event`，不在业务派发时重新采样。失焦或原生捕获／跟踪中断仅取消仍活动的鼠标序列；正常离开内容区继续拖动，取消后的迟到 Up 被忽略。
 
 `PointerEvent.Button` 的最后一项是至少为 1 的连续点击次数，释放沿用对应按下的次数。AppKit／GTK 使用原生 count；Windows 按系统的时间、双击矩形和拖动容差补齐三击及更多次点击，正常释放鼠标捕获不打断序列。失焦、取消、按钮变化、超时、点击越界或实际拖动结束旧计数；不要在每个编辑控件再用固定时间／距离重算。底层计数定向测试位于 `tests-cones/clicks`，实际 Win32 和 GTK X11 输入用例分别位于 `tests-cones/input`、`test-linux`；平台通过范围见 [UI 实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
 

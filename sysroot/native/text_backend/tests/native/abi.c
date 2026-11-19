@@ -1,6 +1,10 @@
 #include "scoop_text_backend.h"
 #include <stddef.h>
 #include <string.h>
+#if defined(__APPLE__)
+#include <stdio.h>
+#include <unicode/uchar.h>
+#endif
 
 _Static_assert(sizeof(scoop_idna_result) == 32, "IDNA result layout");
 _Static_assert(offsetof(scoop_idna_result, label) == 24, "IDNA label offset");
@@ -11,6 +15,13 @@ _Static_assert(sizeof(scoop_text_result) == 24, "NFC result layout");
 #define CHECK(condition) do { if (!(condition)) return __LINE__; } while (0)
 
 int32_t scoop_test_text_abi(void) {
+#if defined(__APPLE__)
+  UVersionInfo v;
+  char expected[U_MAX_VERSION_STRING_LENGTH];
+  u_getUnicodeVersion(v);
+  snprintf(expected, sizeof(expected), "%u.%u.%u", v[0], v[1], v[2]);
+  CHECK(!strcmp(expected, scoop_text_unicode_version()));
+#endif
   scoop_idna_result empty = scoop_idna_punycode(NULL, 0, false);
   CHECK(!empty.code && !empty.data && !empty.size);
   scoop_text_free(empty.data, empty.size);
@@ -21,14 +32,17 @@ int32_t scoop_test_text_abi(void) {
   CHECK(scoop_charset_normalize_nfc(NULL, 1).code == 9);
   const uint8_t malformed[] = {0xff};
   CHECK(scoop_idna_punycode(malformed, 1, false).code == -1007);
+  const uint8_t invalid_utf8[] = {0, 0xff};
+  scoop_idna_result invalid = scoop_idna_domain(invalid_utf8, sizeof(invalid_utf8), 0);
+  CHECK(invalid.code == -1007 && invalid.label == -1 && !invalid.data);
 
   const uint8_t domain[] = "EXAMPLE.COM.";
   scoop_idna_name name = scoop_idna_parse(domain, sizeof(domain) - 1);
   CHECK(!name.code && name.ascii_size == 12 && name.unicode_size == 12);
   CHECK(!memcmp(name.ascii, "example.com.", (size_t)name.ascii_size));
   CHECK(!memcmp(name.unicode, "example.com.", (size_t)name.unicode_size));
-  scoop_text_free(name.ascii, name.ascii_size);
-  scoop_text_free(name.unicode, name.unicode_size);
+  scoop_unicode_free(name.ascii, name.ascii_size);
+  scoop_unicode_free(name.unicode, name.unicode_size);
 
   const uint8_t raw[] = {'a', 0, '.', 'b'};
   scoop_idna_result encoded = scoop_idna_punycode(raw, sizeof(raw), false);
@@ -42,10 +56,10 @@ int32_t scoop_test_text_abi(void) {
   scoop_text_result normalized = scoop_charset_normalize_nfc(raw, sizeof(raw));
   CHECK(!normalized.code && normalized.size == sizeof(raw));
   CHECK(!memcmp(normalized.data, raw, sizeof(raw)));
-  scoop_text_free(normalized.data, normalized.size);
+  scoop_unicode_free(normalized.data, normalized.size);
   normalized = scoop_charset_normalize_nfc(NULL, 0);
   CHECK(!normalized.code && !normalized.size && !normalized.data);
-  scoop_text_free(normalized.data, normalized.size);
+  scoop_unicode_free(normalized.data, normalized.size);
   return 0;
 }
 
@@ -68,11 +82,11 @@ int32_t scoop_test_unicode_abi(void) {
   for (int32_t mode = 0; mode < 3; mode++) {
     scoop_text_result empty = scoop_charset_case(NULL, 0, mode);
     CHECK(!empty.code && !empty.data && !empty.size);
-    scoop_text_free(empty.data, empty.size);
+    scoop_unicode_free(empty.data, empty.size);
   }
   const uint8_t mixed[] = {0, 'a', 'b'};
   scoop_text_result upper = scoop_charset_case(mixed, sizeof(mixed), 1);
   CHECK(!upper.code && upper.size == 3 && !memcmp(upper.data, "\0AB", 3));
-  scoop_text_free(upper.data, upper.size);
+  scoop_unicode_free(upper.data, upper.size);
   return 0;
 }

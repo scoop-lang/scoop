@@ -142,7 +142,7 @@ internal class GestureProbe(
                 view = Some(observeWindow(native))
                 host.attach(native, { mount -> GestureRoot(this, scope = mount) })
                 active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
                 )
                 active.proxy().post {
                     _ ->
@@ -242,7 +242,7 @@ internal class GestureProbe(
                 WindowEvent.Pointer(
                     PointerEvent.Cancelled(
                         PointerCancelReason.CaptureLost,
-                        InputTime.Event(MonotonicTimeSource.markNow())
+                        InputTime.Event(MonotonicTimeSource.now())
                     )
                 )
             )
@@ -250,7 +250,7 @@ internal class GestureProbe(
     }
 
     private fun repeatedClockMoves(active: ActiveApplication) {
-        val mark = MonotonicTimeSource.markNow()
+        val mark = MonotonicTimeSource.now()
         routedMove(active, 60.0, InputTime.Event(mark))
         routedMove(active, 70.0, InputTime.Event(mark))
         assertEquals(0.0, last!!.velocity)

@@ -1,0 +1,22 @@
+package size.check
+import size.storage.*
+@Unsafe fun main(args: Array<String>) {
+    val code = args.size - 1L
+    val expected = Cell(code)
+    val value = make(code, expected)
+    gcCollect()
+    when (value) {
+        case Mixed.None -> println("empty")
+        case Mixed.Single(val cell) -> {
+            if (cell !== expected) throw IllegalStateException()
+            println(cell.code)
+        }
+        case Mixed.Wide(val left, val cell, val right) -> {
+            if (cell !== expected || cell.code != code ||
+                left.a.a.a.a.a.a != code || right.b.b.b.b.b.b != code + 1L) {
+                throw IllegalStateException()
+            }
+            println("wide")
+        }
+    }
+}

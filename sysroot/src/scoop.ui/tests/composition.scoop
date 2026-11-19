@@ -61,7 +61,7 @@ internal class CompositionProbe(val store: CompositionStore) {
         when (event) {
             case Resumed -> {
                 application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(10L))
                 )
                 first =
                     host.attach(
