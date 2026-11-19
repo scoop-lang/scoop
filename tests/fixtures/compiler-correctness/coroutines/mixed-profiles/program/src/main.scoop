@@ -55,5 +55,16 @@ fun main() {
         rejected = true
     }
     check(rejected && failed.calls == 1)
+
+    // The provider and the executable both materialize afterTwoResumes<Int>.
+    val sharedGate = Gate()
+    val shared = Done()
+    startCoroutine(suspend { fromProvider(sharedGate) + afterTwoResumes(sharedGate, 2) }, shared)
+    sharedGate.waiter!!.resume(1)
+    sharedGate.waiter!!.resume(2)
+    sharedGate.waiter!!.resume(1)
+    check(shared.calls == 0)
+    sharedGate.waiter!!.resume(2)
+    check(shared.calls == 1 && shared.result == 42)
     println("mixed profiles preserve boxed and suspended calls")
 }

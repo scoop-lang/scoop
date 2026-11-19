@@ -8,3 +8,18 @@ public suspend fun increment(value: Int): Int { gcCollect(); return value + 1 }
 public suspend fun discard(block: suspend () -> Unit): Int = increment(41)
 public suspend fun delayed(registration: SuspendRegistration<Int>): Int = suspendCoroutine(registration)
 public suspend fun forwarded(registration: SuspendRegistration<Int>): Int = delayed(registration)
+
+private suspend fun <T> afterFirstResume(gate: SuspendRegistration<Int>, value: T): T {
+    if (suspendCoroutine(gate) != 1)
+        throw IllegalStateException()
+    return value
+}
+
+public suspend fun <T> afterTwoResumes(gate: SuspendRegistration<Int>, value: T): T {
+    val saved = afterFirstResume(gate, value)
+    if (suspendCoroutine(gate) != 2)
+        throw IllegalStateException()
+    return saved
+}
+
+public suspend fun fromProvider(gate: SuspendRegistration<Int>): Int = afterTwoResumes(gate, 40)

@@ -397,6 +397,8 @@ CFG 的私有协程工作记录保留挂起操作的语义顺序、块内位置�
 
 release 在 suspend ABI 转换前，对本 Cone 已物化、直接可见的 suspend 正文进行源级调用合并；callee 可以真正挂起，包含原语注册、yield、异常处理及 pending cleanup。动态／外部 suspend 边留在合并后的 CFG 中，保留原调用选择及挂起性。递归依赖不展开，仍受稳定模板、累计 caller／loop 增长与六层展开深度限制；真实挂起边界的合并以避免独立 frame／adapter 为目的，不要求 callee 是同步函数，也不把它改为 NoGC 或纯操作。该局部阶段不导入普通外部正文。
 
+源级挂起调用合并只改写 Strong caller。ODR caller 的 frame、driver 和各挂起点的 adapter 可由不同 Cone 分别提供，必须按同一份合并前的 CFG 确定保存字段、状态编号与恢复入口。ODR 正文仍可作为 callee 展开到 Strong caller 中。整函数尾挂起转交可以省去完整状态机。
+
 克隆复用普通内联的参数求值、local／异常状态身份和 CFG 重映射，同时移动私有 call-site 的块、语句位置、语义顺序、注册 receiver／destination 和 pending cleanup。callee 的异常出口组合到 caller 的实际 handler；原生 landing-pad entry 与普通转交入口分开，并同步更新其内部 call-site 位置。克隆挂起点先保留 caller 的 pending 链，再接上重映射的 callee 链；callee 的 return cleanup 改为到调用后续块的 fallthrough，返回 payload 按真实 CFG 的局部使用保活；break／continue／throw 的实际目标和异常引用随克隆更新。共享插入位置的待生成注册仍保持源语义顺序，yield 仍强制退出驱动并重新排队。
 
 合并完成后才转换 hidden completion／step ABI，并只生成一次正式状态机。全部 suspend site 已实际消除的函数沿既有 Immediate 路径；其余调用仍参与尾转交或状态机生成。同步 Completed、早到 completion 仲裁、取消、Context 与清理出口使用同一既有协议，不增加第二套 continuation ABI。
