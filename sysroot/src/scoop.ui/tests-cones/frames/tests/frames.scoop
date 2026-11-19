@@ -1,6 +1,8 @@
 package scoop.tests.ui.frames
 
 import scoop.graphics.*
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.FrameSubmission
 import scoop.test.*
@@ -34,6 +36,9 @@ private class MovingUiProbe {
                     active.createWindow(
                         windowAttributes {
                             title = "Scoop frame replacement"
+                            // AppKit pauses frame delivery while another window covers the test surface.
+                            if (operatingSystem == OperatingSystem.Darwin)
+                                this.level = WindowLevel.AlwaysOnTop
                             size = LogicalSize(160.0, 80.0)
                             transparent = true
                         }

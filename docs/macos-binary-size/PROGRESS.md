@@ -18,4 +18,4 @@
 
 窗口输入、帧、动画和 deadline 共用系统单调时钟。事件携带无托管引用的 MonotonicInstant，离屏动画通过 `advanceTo(time) { ... }` 在给定帧内启动或改目标。PointerState 的四个 GC 槽全部消失。WindowEvent 从 4,224 降至 688 字节，ApplicationEvent 从 4,448 降至 912 字节。高频事件保留值语义。[各层布局](FINDINGS.md#ui-事件的固定单调时钟)
 
-以 `6bfbafa10` 的编译器在 macOS arm64 上重编依赖，自绘 Counter 从 12,550,608 降至 11,592,848 字节。SurfaceHost.onEvent 从 21,680 降至 5,940 字节。沿用上一节的事件派发样本，两版交错运行各取十组中位数，单次从 420 降至 86 纳秒。macOS release 的 47 个定向用例通过，覆盖 AppKit 实际输入和手势、窗口及隐藏窗口动画 deadline、手动推进的动画、组在两帧之间重新启用、滚动条、轮播、Toast 和下载进度。平台用例验证跨秒算术，窗口用例验证超范围排期保留原值。用 NoGC 函数构造 PointerEvent 的回归在编译期检查其完整表示。
+以 `6bfbafa10` 的编译器在 macOS arm64 上重编依赖，自绘 Counter 从 12,550,608 降至 11,592,848 字节。SurfaceHost.onEvent 从 21,680 降至 5,940 字节。沿用上一节的事件派发样本，两版交错运行各取十组中位数，单次从 420 降至 86 纳秒。macOS release 的 49 个定向用例通过，覆盖 AppKit 实际输入和手势、窗口及隐藏窗口动画 deadline、手动推进的动画、组在两帧之间重新启用、滚动条、轮播、Toast 和下载进度。平台用例验证跨秒算术，窗口用例验证超范围排期保留原值。用 NoGC 函数构造 PointerEvent 的回归在编译期检查其完整表示。逐帧像素与布局复用测试在 macOS 将测试窗口置顶，避免遮挡暂停显示链。像素测试通过已有的 Skia readPixels 探针读取实际 Metal 画布。
