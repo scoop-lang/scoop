@@ -50,6 +50,10 @@
 - 归属某个 lazy 单元的 cell、登记、结果存储、失败根及其 GC 登记改为随单元存活。来自存活 Scoop／原生代码的 ensure、描述符或存储引用，以及存活单元的语义依赖，均能使该单元和注册它所需的成员存活。成员共享时，任何一个存活所有者都能保留它。未从根可达的相互引用无需单独检测环。
 - 用现有工作队列传播并重建五张 image 表，维持实际存活的静态根在 managed 初始化前注册、失败对象可再次抛出、类型与 immortal 登记等关系。首批维持 generated bridge 和现有 ODR bundle 的保留粒度。独立比较这一层与只有原生 DCE 的结果。[引用传播](../../compiler/linker/src/program/selection/reachable.rs) · [image 登记表](../../compiler/linker/src/program/image.rs)
 
+macOS 实测发现，旧产物将同一 Cone 的两个独立 lazy cell、结果与失败根，以及 `count()` 要读的静态变量放在同一个机器对象。以物理 member 为节点的遍历会从这个变量到达整组。生产端分别打包普通 Strong 的「存储与根登记」和「单元 cell 与初始化登记」，让两个 lazy 单元能独立裁剪。旧库按已有边界参与链接，新库重编后即可获得更细的粒度。
+
+从程序入口做整程序追踪时，工作队列沿跨 Cone 的机器符号引用和上述运行时语义边传播。每个可达成员只展开一次，接口表中的函数地址也随表进入队列。当前实现保守保留已声明原生归档中所有候选对象引用的 Scoop 符号。若继续收紧这部分，可将实际抽取的 archive 对象与 Scoop 引用放进同一工作队列，保留启动、导出与原生回调入口。最终产物缓存命中直接复用。
+
 **验收。** 先同步实现规范 §2.8、§2.14 对保留成员与 image 的描述。以未使用的 lazy、跨库读取的 lazy、跨库依赖、eager 副作用、eager 失败和 lazy 重入／失败为对照。检查正式链接 map、程序输出和回收后的失败对象。报告 Hello 实际删除的单元、登记数和整文件字节数，避免把全部 33 个候选当成可删除项。[runtime image fixtures](../../tests/fixtures/compiler-correctness/runtime-images)
 
 ## 4. 图形段落采用 Skia 的 Apple 后端

@@ -50,7 +50,7 @@ pub(super) struct Executable {
 
 pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     let key = key::of(&request)?;
-    let namespace = request.cache.join("final-products-v6");
+    let namespace = request.cache.join("final-products-v7");
     let entry = namespace.join(format!("{key}.json"));
     if let Some(mut executable) = record::load(&entry)? {
         refresh_outputs(&mut executable, request.native_outputs);
