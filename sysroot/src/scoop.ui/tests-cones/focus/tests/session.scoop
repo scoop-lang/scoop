@@ -138,6 +138,25 @@ internal class FocusProbe {
         phase += 1
         revision.value += 1
     }
+    private fun checkProgrammaticNavigation() {
+        group!!.options = FocusScopeOptions(loop = false)
+        assertTrue(handles[3L].requestFocus())
+        assertFalse(scopes[0L]!!.moveFocus())
+        assertTrue(panelScope!!.moveFocus())
+        assertFocus(1L)
+        assertEquals(FocusOrigin.Keyboard, areas[1L]!!.focusOrigin)
+        assertTrue(handles[2L].requestFocus())
+        assertTrue(panelScope!!.moveFocus(reverse = true))
+        assertFocus(0L)
+        assertEquals(FocusOrigin.Keyboard, areas[0L]!!.focusOrigin)
+
+        group!!.options = FocusScopeOptions(loop = true)
+        assertTrue(handles[3L].requestFocus())
+        assertTrue(panelScope!!.moveFocus())
+        assertFocus(2L)
+        assertTrue(panelScope!!.moveFocus(reverse = true))
+        assertFocus(3L)
+    }
     private fun advance(active: ActiveApplication) {
         when (phase) {
             case 0 -> {
@@ -207,6 +226,7 @@ internal class FocusProbe {
             }
             case 16 -> next(active, 3L, repeat = true)
             case 17 -> {
+                checkProgrammaticNavigation()
                 InputBoundary(scopes[2L]!!.input).use {
                     boundary ->
                     assertTrue(boundary.isCurrent)
@@ -216,6 +236,10 @@ internal class FocusProbe {
                     assertFalse(rootScope!!.requestFocus())
                     assertFalse(group!!.requestFocus())
                     assertTrue(handles[2L].requestFocus())
+                    assertFocus(2L)
+                    panelScope!!.moveFocus()
+                    assertFocus(2L)
+                    panelScope!!.moveFocus(reverse = true)
                     assertFocus(2L)
                 }
                 assertFalse(handles[4L].requestFocus())

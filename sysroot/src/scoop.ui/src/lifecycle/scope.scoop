@@ -242,7 +242,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         root.checkThread()
         return active && root.isOpen && root.surface.state == SurfaceWindowState.Open
     }
-    /** Continues ordinary Tab navigation from the current focus within this owner. */
+    /** Continues ordinary Tab navigation through parent groups from the current focus within this owner. */
     public fun moveFocus(reverse: Boolean = false): Boolean {
         checkMounted()
         checkFocusMutation()
