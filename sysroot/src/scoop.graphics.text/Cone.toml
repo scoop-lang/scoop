@@ -57,7 +57,7 @@ when = { os = "darwin" }
 [native]
 cxx = true
 include = [{ sysroot = "include/skia" }]
-cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELEASE", "-DSK_GANESH", "-DSK_SHAPER_HARFBUZZ_AVAILABLE", "-DSK_UNICODE_ICU_IMPLEMENTATION"]
+cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELEASE", "-DSK_GANESH", "-DSK_SHAPER_HARFBUZZ_AVAILABLE"]
 
 [[native.sources]]
 path = "native/shared/fonts.cpp"

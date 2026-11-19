@@ -1,12 +1,20 @@
 #include "text.h"
 
+#if defined(__APPLE__)
+#include "modules/skunicode/include/SkUnicode_apple.h"
+namespace PlatformUnicode = SkUnicodes::Apple;
+#else
+#include "modules/skunicode/include/SkUnicode_icu.h"
+namespace PlatformUnicode = SkUnicodes::ICU;
+#endif
+
 STTextData::STTextData(std::string value, std::vector<STRange> objects,
                        std::string language)
-    : text(std::move(value)), unicode(SkUnicodes::ICU::Make()),
+    : text(std::move(value)), unicode(PlatformUnicode::Make()),
       to16(text.size() + 1, std::numeric_limits<size_t>::max()),
       inlines(std::move(objects)), locale(std::move(language)) {
   if (!unicode)
-    throw std::runtime_error("ICU initialization failed");
+    throw std::runtime_error("SkUnicode initialization failed");
   const char *cursor = text.data(), *end = cursor + text.size();
   while (cursor < end) {
     size_t start = cursor - text.data();
@@ -22,7 +30,7 @@ STTextData::STTextData(std::string value, std::vector<STRange> objects,
   to8.push_back(text.size());
   auto breaks = unicode->makeBreakIterator(SkUnicode::BreakType::kGraphemes);
   if (!breaks || !breaks->setText(text.data(), (int)text.size()))
-    throw std::runtime_error("ICU grapheme analysis failed");
+    throw std::runtime_error("SkUnicode grapheme analysis failed");
   for (int position = breaks->first(); !breaks->isDone();
        position = breaks->next())
     graphemes.push_back(position);

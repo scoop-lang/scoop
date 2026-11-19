@@ -90,7 +90,7 @@ when = { os = "windows" }
 [native]
 cxx = true
 include = [{ sysroot = "include/skia" }, { sysroot = "include/gtk", when = { os = "linux", env = "gnu" } }]
-cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELEASE", "-DSK_GANESH", "-DSK_SHAPER_HARFBUZZ_AVAILABLE", "-DSK_UNICODE_ICU_IMPLEMENTATION"]
+cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELEASE", "-DSK_GANESH", "-DSK_SHAPER_HARFBUZZ_AVAILABLE"]
 objc_flags = ["-Wall", "-Wextra", "-Werror"]
 
 [[native.sources]]

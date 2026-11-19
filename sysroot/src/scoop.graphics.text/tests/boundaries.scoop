@@ -5,7 +5,7 @@ import scoop.test.*
 @Test
 private class TextNavigationBoundaryTest {
     @Test
-    fun `ICU words preserve apostrophes CJK combining text and emoji`() {
+    fun `word boundaries preserve apostrophes CJK combining text and emoji`() {
         testFonts(true).use {
             fonts ->
             val accentStart = "can't 你好 世界! ".byteLength

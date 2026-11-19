@@ -1,6 +1,6 @@
 # scoop.graphics.text
 
-独立的字体与段落排版 Cone，依赖 graphics 的几何、颜色与画布，不需要 window、surface 或 UI。字体来自显式数据和系统 fallback；shaping／排版复用 SkParagraph、HarfBuzz 与 SkUnicode／ICU。
+独立的字体与段落排版 Cone，依赖 graphics 的几何、颜色与画布，不需要 window、surface 或 UI。字体来自显式数据和系统 fallback；shaping／排版复用 SkParagraph、HarfBuzz 与 SkUnicode（macOS 使用 Apple 后端）。
 
 ```toml
 [dependencies]
@@ -58,7 +58,7 @@ Canvas.drawText 只绘制文字；调用方按 box 绘制 Image 或放置自绘�
 
 TextRange 和 TextPosition 使用 **UTF-8 字节偏移**，与 String 的标量索引不同。selection 的端点必须是标量边界，caret 的端点必须是 `graphemeBoundaries` 中的位置。hitTest 返回可见内容的 grapheme 边界；affinity 区分软换行和双向 run 的两侧。被截断的位置没有 caret；selection 可以返回多个带方向的矩形。各行保存 range、contentRange、visibleRange、baseline 与尺寸，查询结果相对布局原点。
 
-公共编辑查询同样使用这份布局：`wordRange` 取得 ICU 分词段，`moveWord` 按逻辑方向跳过沿途纯空白段，`moveGrapheme` 返回相邻 grapheme 边界。`moveCaret(position, CaretMovement, preferredX)` 支持视觉字符／词移动、上下、逻辑／物理行边界及文档起止，返回新 TextPosition 与可传给下一次上下移动的 preferredX；经过短行时不会丢失原列。WordLeft／WordRight 依实际字形方向遍历 ICU 词段；LineLeft／LineRight 使用物理左右边缘，与 LineStart／LineEnd 的逻辑起止分开。`logicalLineRange` 合并软换行片段并包含末尾显式换行，供整行选择使用。查询保留混合 bidi 与软换行 affinity，不建立选择状态或编辑历史；完整规则见[导航规范](../../../docs/specs/SCOOP-GRAPHICS-TEXT-SPEC.md#61-公共编辑导航)。
+公共编辑查询同样使用这份布局：`wordRange` 取得 平台 Unicode 分词段，`moveWord` 按逻辑方向跳过沿途纯空白段，`moveGrapheme` 返回相邻 grapheme 边界。`moveCaret(position, CaretMovement, preferredX)` 支持视觉字符／词移动、上下、逻辑／物理行边界及文档起止，返回新 TextPosition 与可传给下一次上下移动的 preferredX；经过短行时不会丢失原列。WordLeft／WordRight 依实际字形方向遍历 Unicode 词段；LineLeft／LineRight 使用物理左右边缘，与 LineStart／LineEnd 的逻辑起止分开。`logicalLineRange` 合并软换行片段并包含末尾显式换行，供整行选择使用。查询保留混合 bidi 与软换行 affinity，不建立选择状态或编辑历史；完整规则见[导航规范](../../../docs/specs/SCOOP-GRAPHICS-TEXT-SPEC.md#61-公共编辑导航)。
 
 原生宿主可导入 `scoop.graphics.text.native.*`，在布局的 owner 线程调用 `@Unsafe layout.withNativeLayout { native -> ... }`，借出包含 context、retain／release、hit、caret、boxes、range、lineRange／lineIndex 的 CLayout 值。它读取同一份已排版结果；需要跨借用保存时先 retain，每份拥有的引用最后 release，普通值复制不增加引用。保留引用在原 TextLayout／Paragraph／字体来源关闭后仍有效，native 线程可以并发查询；boxes 使用同步的纯 native visitor，不回调 Scoop。偏移仍为原布局 UTF-8 字节，转换为编辑文档、替代文字及屏幕坐标由宿主负责。状态码、单位和寿命见[原生查询规范](../../../docs/specs/SCOOP-GRAPHICS-TEXT-SPEC.md#62-原生只读查询)。
 
@@ -68,4 +68,4 @@ TextRange 和 TextPosition 使用 **UTF-8 字节偏移**，与 String 的标量�
 
 ## Linux GNU
 
-系统字体使用 Fontconfig／FreeType，共享 SkParagraph、HarfBuzz 与 ICU 排版实现，可绘制到 RasterSurface 或 Skia Ganesh GLES 目标；文本库本身不依赖显示服务器。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.graphics.text --release --sysroot ~/.scoop`。依赖、测试范围及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
+系统字体使用 Fontconfig／FreeType，共享 SkParagraph、HarfBuzz 与 SkUnicode 排版实现，可绘制到 RasterSurface 或 Skia Ganesh GLES 目标；文本库本身不依赖显示服务器。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.graphics.text --release --sysroot ~/.scoop`。依赖、测试范围及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

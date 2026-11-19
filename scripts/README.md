@@ -98,7 +98,7 @@ Windows 文本后端使用 `release.toml` 固定的 Rust 1.99.1，先用 `rustup
 
 `build_pcre2.py` 从固定 PCRE2 10.49 源码准备 `libpcre2-8.a` 和 `include/pcre2.h`，启用 Unicode 与 JIT，只构建 8-bit 静态引擎；不构建 POSIX wrapper、工具、上游测试或 benchmark。必须显式指定仓库外 `--build-dir`，目标和 C 编译器参数同上。输入未变化且输出存在时直接复用；PCRE2 和 SLJIT 许可随现有 vendor／发行流程收集。该 C 库独立于 Rust 文本后端。
 
-`build_skia.py` 为两个 Darwin 目标准备 `libscoop_skia.a` 和 `include/skia`，使用固定 Skia 及配套 HarfBuzz、ICU、PNG／JPEG 依赖。需要 GN、Ninja、Xcode 和 Apple Clang；`--gn` 选择已有 GN，`--sdk` 可指定 Xcode SDK 名称，默认 macosx。CPU 与最低部署系统来自发行配置；工作目录和目标资源按其他 native 准备脚本的方式显式选择。当前开发验证使用 Xcode macOS 27.2 SDK、最低部署 27.0.1。源码、选项及必要部署补丁见 [vendor 说明](../sysroot/vendor/skia/README.md)。普通应用只消费预编译 Cone 和资源；完整 Darwin 发行准备同样接受 `package_toolchain.py --gn ...`，发行包含所需静态库及许可，头文件保留在维护 sysroot。
+`build_skia.py` 为两个 Darwin 目标准备 `libscoop_skia.a` 和 `include/skia`，使用固定 Skia 及配套 HarfBuzz、Apple Unicode 后端、ICU Bidi 子集与 PNG／JPEG 依赖。需要 GN、Ninja、Xcode 和 Apple Clang；`--gn` 选择已有 GN，`--sdk` 可指定 Xcode SDK 名称，默认 macosx。CPU 与最低部署系统来自发行配置；工作目录和目标资源按其他 native 准备脚本的方式显式选择。当前开发验证使用 Xcode macOS 27.2 SDK、最低部署 27.0.1。源码、选项及必要部署补丁见 [vendor 说明](../sysroot/vendor/skia/README.md)。普通应用只消费预编译 Cone 和资源；完整 Darwin 发行准备同样接受 `package_toolchain.py --gn ...`，发行包含所需静态库及许可，头文件保留在维护 sysroot。
 
 PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microsoft 环境以 `--cc` 选择 clang-cl 或 cl，并在所选 x64 SDK／MSVC 开发环境运行，使用 `/MD`。两个 MinGW target 分别传入对应 CRT 的 LLVM-MinGW `bin/clang.exe`，不能共用另一 CRT 的 prefix。构建目录可放到其他盘，例如 `--build-dir E:/scoop-work/pcre2-msvc`。PCRE2 的生成头和静态 archive 发布到完整 target 的 sysroot 目录，普通 Cone 不执行准备脚本。Windows 构建与脚本测试使用支持 UTF-8 build file 的 Ninja；可用 `ninja -t wincodepage` 确认。
 

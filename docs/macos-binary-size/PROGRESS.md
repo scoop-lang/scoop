@@ -39,3 +39,9 @@
 | 自绘 Counter | 134,806 | 205,372 | 10,553 | 15,886 | 160 ms | 17.4 ms |
 
 Hello 的运行时启动统计显示，初始化登记从 33 减至 0，callable 登记从 425 减至 12，静态根从 67 减至 1。这些计数来自单独开启启动统计的可执行文件。普通 release 二进制用于表中的尺寸与计时。类型化 LIR、链接器和物理分组共 417 项 Rust 测试通过。12 个正式 runtime image fixture 验证了跨库 lazy 的真实裁剪、失败重抛、循环与 eager 副作用。
+
+## macOS 段落排版使用 Skia Apple Unicode
+
+macOS 在 SkParagraph 中选择 SkUnicode 的 Apple 实现，使用 Core Foundation 处理文本边界，保留 HarfBuzz 和 Skia 的 ICU Bidi 子集。使用同一份 Scoop 编译器与初始化 DCE 设置，真实段落样例从 15,599,840 降到 3,889,328 字节，减少 11,710,512 字节（75.1%）。两种配置都得到 2 行、15 个边界、0 个缺失字形。最终链接 map 中，原来存活的 ICU 整包数据 `_icudt78_dat` 消失。自绘 Counter 两次均为 11,007,536 字节，其输入早已在 Mach-O 裁剪时去掉该数据。
+
+Darwin 的 Skia 静态归档从 67,608,608 降到 31,748,456 字节。正式资源准备脚本完成归档。macOS release 的 66 个 graphics.text 用例和 14 个 graphics.svg 用例通过，覆盖混合方向文字、字素与分词、绘制与资源寿命。
