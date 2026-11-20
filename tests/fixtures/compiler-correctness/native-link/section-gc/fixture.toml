@@ -1,0 +1,31 @@
+schema = 1
+name = "native-link-section-gc"
+inputs = ["cone"]
+tools = ["scoop", "scoopc"]
+when = { os = ["linux", "windows"] }
+tags = ["native-link", "compiler-correctness"]
+
+[[steps]]
+name = "prepare"
+files = [{copy = {from = "${fixture}/cone", to = "${work}/cone"}}]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/cone", "--scoopc", "${scoopc}", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+  {file = "${build.result.output}", contains = "scoop-live-native-section"},
+  {file = "${build.result.output}", not_contains = "scoop-unused-native-table"},
+  {file = "${build.result.output}", not_contains = "scoop-data-for-unused-function"},
+]
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "42\n"
+stderr = ""

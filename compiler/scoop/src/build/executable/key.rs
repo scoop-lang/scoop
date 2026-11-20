@@ -46,7 +46,7 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
         (
             request.keep_symbols(),
             options.output_kind.dead_strip(
-                request.target.id(),
+                request.target.lir_target(),
                 request.keep_symbols() || request.emit_debug_file(),
             ),
         ),

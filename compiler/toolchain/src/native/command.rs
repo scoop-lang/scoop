@@ -234,6 +234,13 @@ pub(super) fn compile(
     let language = input.language();
     let mut command = base(compiler, language, optimization, true)?;
     let kind = compiler.kind(language);
+    if super::split_sections(compiler.c().target(), optimization) {
+        command.args(if kind.microsoft() {
+            ["/Gy", "/Gw"]
+        } else {
+            ["-ffunction-sections", "-fdata-sections"]
+        });
+    }
     for flag in config.flags(language) {
         if let NativeCompileFlag::Argument(argument) = flag
             && !argument.starts_with("-D")

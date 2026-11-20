@@ -74,3 +74,22 @@ macOS release 验证通过 IDNA 11 项、charset 18 项、URL 22 项、C ABI 3 �
 在 Linux x86-64 GNU 上重建工具链、受影响的系统库和原有 ICU4X 文本后端。跨 Cone 的两个 release 程序分别登记 0 个和 1 个初始化单元，实际访问失败对象的程序只初始化一次，两次读取取得相同的异常载荷。跨库大枚举、嵌套枚举返回、移动 GC、保留和裁剪 lazy 通过 5 个 fixture、7 种配置。IDNA、charset、C ABI、固定单调时钟和无 GC 的指针事件共 34 项测试通过。
 
 Windows x86-64 MSVC/UCRT 使用相同源码重建工具链和原有 ICU4X 文本后端。相同的两个跨库程序得到 0 和 1 个初始化单元，输出及失败重抛与 Linux 一致。跨库大枚举 fixture 在开启移动 GC 的发布构建中通过，IDNA、charset、C ABI、系统时钟和指针事件共 34 项测试通过。重新编译 graphics 和 surface 后，独立离屏程序在时间 0 启动一秒的补间动画，推进到一秒时得到预期终值。
+
+## Linux 和 Windows 的原生节裁剪
+
+在 x86-64 Linux 和 Windows 实机上分别用基线 `24d92a639` 和本次工具链构建相同的 release 源码。每个目标的两次构建使用相同的 sysroot、runtime 和原生工具。表中为最终可执行文件的磁盘字节数。测试 Cone 把入口调用的函数、回调、未使用的 64 KiB 可写表，以及只由未调用函数读取的数据放在同一个 C 文件中。[测试源码](../../tests/fixtures/compiler-correctness/native-link/section-gc/cone/sections.c)
+
+| 目标与链接模式 | Hello 基线 | Hello 本次 | 测试 Cone 基线 | 测试 Cone 本次 |
+| --- | ---: | ---: | ---: | ---: |
+| Linux glibc 动态 PIE | 344,000 | 253,832 | 409,648 | 286,712 |
+| Linux musl 静态 | 413,232 | 314,896 | 478,864 | 347,728 |
+| Linux musl 动态 PIE | 347,832 | 257,680 | 417,544 | 286,424 |
+| Windows MSVC/UCRT | 156,672 | 156,672 | 229,376 | 163,840 |
+| Windows MinGW/MSVCRT | 184,832 | 184,832 | 257,536 | 192,000 |
+| Windows MinGW/UCRT | 184,320 | 184,320 | 257,024 | 191,488 |
+
+Linux 普通发布链接新增 `--gc-sections`，Hello 缩小 23.80% 至 26.21%。Windows 先前已启用 REF 裁剪，本次让 Cone 的 release C/C++ 源码按函数和数据分节，三个 Windows 目标的测试程序各缩小 65,536 字节。六种配置都保留了回调及其读取的数据，未使用的大表和死函数专用数据从最终文件中消失，两个程序的运行输出均符合预期。预编译原生对象的可裁剪粒度由生产该对象时的分节决定。[链接合同](../specs/SCOOP-IMPL-SPEC.md#28-程序链接与最终结果复用)
+
+从上述 Cone 的同一份 root `.slib` 单独调用 `scoop-link`，Linux 在 `--keep-symbols` 和 `--emit-debug-file` 下都保留了两个对照数据。Windows 在这两种模式下都裁掉了对应数据，PDB 正常生成。MSVC/UCRT 目标分别用 lld-link 和 Microsoft link.exe 运行了这一对照。
+
+Windows MSVC/UCRT 的 `exception-thread-roots` 用例在异常展开中触发 GC 时报告找不到托管返回地址的精确栈映射。用基线和本次编译器从源码分别重建，两份 PE 逐字节相同（925,696 字节，SHA-256 前缀 `a06dc19862a96e49`）。两版在普通、移动和 minor GC 三种运行方式下均复现此既有失败。

@@ -1172,9 +1172,11 @@ run 直接执行本次成功构建确定的文件；同一请求构建失败时�
 
 Windows native C/C++ driver 单独选择：Microsoft 默认使用宿主 LLVM 的 clang-cl，也接受显式 cl；MinGW 使用 Clang／Clang++ 与所选 prefix 的 libc++。`--cc` 选择用户 native C driver，`--cxx` 可选择相容 C++ driver；Microsoft 未显式选择 C++ 时沿用选中 C driver，MinGW 沿配套位置选 Clang++。generated-C 优先使用安装根 libexec/llvm/bin 的 Clang；直接运行开发输出时允许从 PATH 定位宿主 Clang，不将其 builtin 交给 cl。用户 native C/C++ 的 header/object 配置查询检查 Win64、LLP64、CRT、MSVC STL 或 libc++，无须执行程序；C++ 查询包含 RTTI、标准库和内部异常。generated-C 的宏身份查询沿前述 stdin 预处理规则，不生成探测对象。路径只进入宿主调用及普通更新记录，未使用的 C++ 配置不探测。交叉宿主的源码、对象与库路径必须作为文件参数传递，不能让 clang-cl 将 `/Users/...` 等 POSIX 路径解释为 Microsoft 编译选项。
 
+Linux 和 Windows 的 Cone 原生 C/C++ 源码在 release 优化下按函数和数据分别生成可独立裁剪的节。GNU 接口使用 `-ffunction-sections -fdata-sections`，Microsoft 接口使用 `/Gy /Gw`。该编译设置参与原生对象和源构建产物的复用判断。
+
 Windows 最终链接的 `--linker` 选择实际 linker：Microsoft 环境默认宿主配套 lld-link，也可显式选择 link.exe；MinGW 使用配套 GNU 接口的 LLD。Microsoft 经 clang-cl driver 传递已选 SDK／toolset 的库目录与正常 CRT defaults，native 对象可来自 cl 或 clang-cl，C++ producer 的选择不改变此链接调用。MinGW 经目标 prefix 的 Clang driver 选择 startup、compiler-rt 与 libc++。三个环境均使用 Unicode wmain startup，动态依赖其已选 CRT；辅助 C++／Scoop unwind archive 可静态加入，不能借此切换 CRT。`--link-mode static` 不适用于首期 Windows `/MD` 资源；默认或 dynamic 使用同一配套。Scoop 的 LLVM unwind archive 始终取已选 `<unwind-prefix>/lib/libunwind.a`，C++ 模式也不替换为另一套 `_Unwind_*` 实现。
 
-Windows final-link 直接准备所选目标、CRT、SEH 与 C++ 运行库的实际链接调用，不先编译或链接探测程序。工具与 SDK 状态不进入更新记录；实际 native 依赖、runtime 和链接参数沿普通更新规则处理。PE、CRT、展开与 C++ 行为由真实产物的编译、链接和运行测试覆盖。最终 PE 使用 ASLR、NX、REF 裁剪和禁止 ICF；COMDAT 关联保留被选代码的 GC／EH metadata。请求调试信息／调试文件时输出相邻 `<output>.pdb`，沿用已替换文本 map 的统一伴随文件接口；PDB 使用相邻文件名定位，随 executable 一起纳入结果存在性与发布，不把临时目录写入其部署合同。
+Windows final-link 直接准备所选目标、CRT、SEH 与 C++ 运行库的实际链接调用，不先编译或链接探测程序。工具与 SDK 状态不进入更新记录；实际 native 依赖、runtime 和链接参数沿普通更新规则处理。PE、CRT、展开与 C++ 行为由真实产物的编译、链接和运行测试覆盖。最终 PE 使用 ASLR 和 NX。Microsoft 链接器接口使用 `/OPT:REF,NOICF`，MinGW 使用 `--gc-sections --icf=none`。此设置也适用于 DLL、保留符号和生成 PDB 的链接。COMDAT 关联保留被选代码的 GC／EH metadata。请求调试信息／调试文件时输出相邻 `<output>.pdb`，沿用已替换文本 map 的统一伴随文件接口；PDB 使用相邻文件名定位，随 executable 一起纳入结果存在性与发布，不把临时目录写入其部署合同。
 
 Windows generated-C bridge 的主定义拥有 `WindowsUnwindTable`／`WindowsUnwindInfo` 关联 atom，对应 `.pdata`／`.xdata`，不投影 Unix `EhFrame`。桥编译保留包含叶函数的 frame pointer，使独立桥单元始终有完整的 SEH 表与稳定边界；这些表与桥正文按 COMDAT 关联一起选择和裁剪。该要求独立于优化及调试级别。
 
@@ -1425,6 +1427,8 @@ Darwin 链接归档中的成员移除空代码段中未被重定位或间接符�
 Linux 接受 `.o`、`.a`，动态模式另接受 ELF `.so`；framework 与静态程序的动态库需求为错误。用户 `.so` 必须是 DSO，不是 PIE executable 或 linker script。未版本化的源码 extern 只匹配默认导出版本，DT_NEEDED 不等于显式库 re-export；TLS、IFUNC、版本化导入按实际 kind/version 检查。
 
 Linux gnu 默认 dynamic PIE，musl 默认 static ET_EXEC；musl 可显式 dynamic PIE，不支持 glibc static。非 C++ 链接明确选择 CRT、LLVM unwind、libc、libm/线程及算术 builtins；GNU C++ 链接使用配套 libstdc++／C++ ABI 运行库，并统一由配套 libgcc_s 提供 Scoop Level I 与 C++ 所需的 unwind，不再额外链接另一套 LLVM unwind provider。musl 不支持 C++ 模式。Linux profile 负责上述 libc／CRT／unwind／系统库、驱动探测及静态／动态缺省策略；选定的输出形态和链接模式再交给不读取 OS、target 或 native environment 的 GNU ELF plan，后者只负责 GNU ELF linker flags、shared／PIE／ET_EXEC 形态、SONAME 以及 metadata section script。动态 metadata 满足实际 RELRO，静态 musl 的不可变记录位于只读 PT_LOAD；最终文件不得有 text relocation。共享该 ELF plan 不表示共享 Linux 的 loader、CRT、系统库或工具发现。
+
+Linux 的普通 release executable 在无需保留符号或独立调试文件时使用 `--gc-sections`，适用于 GNU 和 musl 的可用链接模式。ELF 入口、原生初始化数组与 Scoop 登记数据作为根，其引用的代码与数据沿重定位保留。共享库、保留符号或生成独立调试文件的 ELF 链接保留已选对象的节。
 
 最终链接按既有选择顺序将对象路径写入临时 response file，正确引用路径中的空白、引号和反斜杠。Linux 由实际 GNU linker 展开对象列表，不能由 C／C++ driver 先展开成再次受系统 argv 长度限制的命令。response file 与链接工作目录只承担工具参数传递，不改变对象选择、输入检查、顺序或 ResolvedLinkPlan 身份，也不开放用户 linker 参数。
 

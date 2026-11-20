@@ -39,7 +39,7 @@ pub(super) fn configuration(
         .includes(target.id())
         .filter(|_| !sources.is_empty())
         .collect();
-    fingerprint(&(
+    let configuration = (
         HostPathCarrier::from_path(manifest.real_root())
             .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         &sources,
@@ -56,5 +56,10 @@ pub(super) fn configuration(
             .transpose()
             .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
         target.contract().canonical_triple(),
-    ))
+    );
+    if !sources.is_empty() && split_sections(target, optimization) {
+        fingerprint(&(configuration, "function-and-data-sections"))
+    } else {
+        fingerprint(&configuration)
+    }
 }
