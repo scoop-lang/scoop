@@ -105,9 +105,9 @@ private fun calendarPageButton(
                         name =
                             Some(
                                 if (forward)
-                                    "Next month"
+                                    input.options.locale.nextMonth
                                 else
-                                    "Previous month"
+                                    input.options.locale.previousMonth
                             )
                     )
             ),

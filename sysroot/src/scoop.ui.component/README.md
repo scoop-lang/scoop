@@ -55,6 +55,8 @@ Switch／Toggle 读取实际布尔绑定；RadioGroup 通过原选择入口选�
 
 `calendar(selected.binding(), initialPage)`、`calendarMultiple` 和 `calendarRange` 提供日期单选、多选和完整范围。CalendarOptions 配置多月、完整周、outside days、ISO／locale 周号、月／年下拉、日期规则及自定义 CalendarPageSource；日期运算采用 LocalDate，范围长度按夜数计算。方向键、周边界和翻页复用日期焦点，布局为实际主题焦点环留白。CalendarHandle 可定位／聚焦日期或取消暂定范围。
 
+`locale = CalendarLocale(previousMonth = "上个月", nextMonth = "下个月")` 可配置翻月按钮的无障碍名称，月份、星期和日期格式仍由同一 locale 提供。运行中替换文案保留按钮身份、当前页面和日期选择；DatePicker 使用 `calendar = calendarOptions { locale = ... }` 传入该配置。
+
 `datePicker(value.binding(), initialPage) { draft = Some(dateDraft) }` 与 `dateRangePicker` 组合日历弹层和日期输入。DatePickerDraft 保存唯一 TextEditorState；Enter 提交严格 ISO 日期，范围格式为 `start .. end`，解析失败保留原文。commitOnBlur 可选，外部更新保留正在编辑／组合输入的草稿；DatePickerHandle.reset 显式接受当前选中值。presets、显式 parser／referenceDate、生日年份选择和独立 LocalTime 输入是普通组合；`tests-cones/calendar` 覆盖实际键盘、中文文本宿主、范围取消与弹层焦点。
 
 `tooltip(button("Save", save), "Save the current document")` 保留原按钮动作和焦点，提示正文不参与输入；`hoverCard(trigger, content)` 提供可选择文字和可操作正文的预览。两者支持延迟、可选受控 open、Escape 后保持关闭、定位与 Reduced Motion，复用既有 Hover／Portal。Tooltip 默认显示箭头，HoverCard／Popover 可通过 `arrow = Some(PopupArrow())` 开启；箭头跟随实际翻转后的边。定向窗口回归位于 `tests-cones/hover-popup`。
