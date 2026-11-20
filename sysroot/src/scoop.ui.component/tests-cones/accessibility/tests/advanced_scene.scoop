@@ -104,6 +104,8 @@ internal class AdvancedRoot(private val p: AdvancedProbe, scope: ComponentScope)
                         LocalDate(2026, 11, 1)
                     ) {
                         semantics = advancedSemantics("calendar", "Appointment")
+                        handle = Some(p.calendar)
+                        locale = p.calendarLocale.value
                         weekNumbers = CalendarWeekNumbers.Iso
                         daySemantics =
                             {

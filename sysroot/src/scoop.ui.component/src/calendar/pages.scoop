@@ -32,7 +32,11 @@ public class CalendarLocale public constructor(
     public val weekStartsOn: DayOfWeek = DayOfWeek.Sunday,
     public val firstWeekContainsDate: Int = 1,
     public val number: (Int) -> String = { value -> value.toString() },
-    public val date: (LocalDate) -> String = { value -> value.toString() }
+    public val date: (LocalDate) -> String = { value -> value.toString() },
+    /** Accessible name for the existing previous-page action. */
+    public val previousMonth: String = "Previous month",
+    /** Accessible name for the existing next-page action. */
+    public val nextMonth: String = "Next month"
 ) {
     init {
         requireComponent(

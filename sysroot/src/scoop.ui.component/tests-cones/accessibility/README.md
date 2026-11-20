@@ -20,6 +20,10 @@ ScrollArea 的默认容器角色、命名覆盖和内容路由也在无 drawable
 
 `AdvancedComponentSemanticsTest` 覆盖 Slider／Progress 的实际范围与拒绝、Tabs／Disclosure／Trace 的选择与展开、OTP 单一文本宿主及保护切换、Calendar 的行与表头、合并单元格、分页动作，以及真实文本编辑和 undo 对保留范围的映射。保留范围检查验证共享文档机制与 UI 宿主接线，不表示新增了 AppKit AXTextMarker 协议。
 
+Calendar 回归还在保留原生按钮和已选日期引用时切换翻月文案，检查当前页面和选择不变，并通过同一按钮向后、向前翻页，最后恢复默认名称。该检查读取真实 NSAccessibility 名称和动作，不依赖系统前台焦点。
+
+翻月文案批次在本机 macOS aarch64 完成组件库 check／release 构建、测试 Cone 的 check／release 构建及 `AdvancedComponentSemanticsTest` 原生运行；约 1 秒完成，failures 为空且正常退出。生成的公开 API 文档可查询两个新字段。
+
 Select 的 8 个值检查阶段覆盖独立的显式名称、Field 标签与无标签目标的名称回退、外部改选、禁用选项、空标签、未知值、None、动态标签和整体禁用。自定义显示不替代 Choice 的实际语义值，读取不构造 View，外部更新不伪造用户选择通知，始终检查原来的原生节点。
 
 该 Select 回归及相邻 `select` Cone 的 41 阶段真实交互在本机 macOS aarch64 的 release 配置下通过。两套测试消费当前工具链中已准备的组件产物；交互回归覆盖键盘、定位、滚动、拒绝更新、关闭和生命周期。

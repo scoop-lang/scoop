@@ -6,6 +6,8 @@ import scoop.test.*
 import scoop.tests.ui.accessibility.native.*
 import scoop.time.Duration
 import scoop.ui.*
+import scoop.ui.component.CalendarHandle
+import scoop.ui.component.CalendarLocale
 import scoop.ui.style.ThemeSource
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.*
@@ -39,6 +41,8 @@ internal class AdvancedProbe: Closeable {
     val tab = state<String?>(Some("a"))
     val page = state(1L)
     val date = state<LocalDate?>(Some(LocalDate(2026, 11, 18)))
+    val calendar = CalendarHandle()
+    val calendarLocale = state(CalendarLocale())
     val protectedText = state(false)
     val otp = TextEditorState("1234")
     val document = TextEditorState("A😀BC")
@@ -50,6 +54,8 @@ internal class AdvancedProbe: Closeable {
     private var tree: NativeNode? = None
     private var calls: NativeCalls? = None
     private var anchor: NativeTextAnchor? = None
+    private var previousMonth: NativeNode? = None
+    private var nextMonth: NativeNode? = None
     private val retained = ArrayList<NativeNode>()
     fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -108,6 +114,8 @@ internal class AdvancedProbe: Closeable {
         assertTrue(find("avatar").text(2, Some("AXImage")))
         assertEquals(1L, find("calendar").roleCount("AXTable"))
         assertEquals(1L, find("2026-11-18").trait(0))
+        previousMonth = Some(named(tree!!, "Previous month")!!)
+        nextMonth = Some(named(tree!!, "Next month")!!)
         assertEquals(2L, find("table").trait(5))
         assertEquals(2L, find("table").trait(6))
         assertEquals(2L, find("table").trait(7))
@@ -180,8 +188,41 @@ internal class AdvancedProbe: Closeable {
             }
             case 7 -> {
                 assertEquals(Some(LocalDate(2026, 11, 19)), date.value)
+                val selectedDay = find("2026-11-19")
+                assertEquals(1L, selectedDay.trait(0))
+                calendarLocale.value = CalendarLocale(previousMonth = "上个月", nextMonth = "下个月")
+                later {
+                    assertEquals(Some(LocalDate(2026, 11, 1)), calendar.page)
+                    assertEquals(Some(LocalDate(2026, 11, 19)), date.value)
+                    assertTrue(selectedDay.same(find("2026-11-19")))
+                    assertTrue(previousMonth!!.text(0, Some("上个月")))
+                    assertTrue(nextMonth!!.text(0, Some("下个月")))
+                    assertTrue(previousMonth!!.same(named(tree!!, "上个月")!!))
+                    assertTrue(nextMonth!!.same(named(tree!!, "下个月")!!))
+                    calls!!.post(nextMonth!!, 10)
+                }
+            }
+            case 10 -> {
+                assertEquals(Some(LocalDate(2026, 12, 1)), calendar.page)
+                assertEquals(Some(LocalDate(2026, 11, 19)), date.value)
+                calendarLocale.value =
+                    CalendarLocale(previousMonth = "Earlier", nextMonth = "Later")
+                later {
+                    assertTrue(previousMonth!!.text(0, Some("Earlier")))
+                    assertTrue(nextMonth!!.text(0, Some("Later")))
+                    calls!!.post(previousMonth!!, 11)
+                }
+            }
+            case 11 -> {
+                assertEquals(Some(LocalDate(2026, 11, 1)), calendar.page)
+                assertEquals(Some(LocalDate(2026, 11, 19)), date.value)
                 assertEquals(1L, find("2026-11-19").trait(0))
-                calls!!.post(find("page-2"), 8)
+                calendarLocale.value = CalendarLocale()
+                later {
+                    assertTrue(previousMonth!!.text(0, Some("Previous month")))
+                    assertTrue(nextMonth!!.text(0, Some("Next month")))
+                    calls!!.post(find("page-2"), 8)
+                }
             }
             case 8 -> {
                 assertEquals(2L, page.value)
@@ -203,6 +244,19 @@ internal class AdvancedProbe: Closeable {
             }
             else -> fail(Some("unexpected compound accessibility phase"))
         }
+    }
+    private fun named(node: NativeNode, name: String): NativeNode? {
+        if (node.text(0, Some(name)))
+            return Some(node)
+        for (index in 0L ..< node.count) {
+            val child = node.child(index)
+            retained.add(child)
+            when (val found = named(child, name)) {
+                case Some(_) -> return found
+                case None -> {}
+            }
+        }
+        return None
     }
     private fun find(id: String): NativeNode {
         val node = tree!!.find(id) ?: fail(Some(f"missing semantic node: ${id}"))
