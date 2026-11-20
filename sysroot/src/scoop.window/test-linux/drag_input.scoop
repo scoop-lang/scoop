@@ -58,7 +58,29 @@ private class GtkDragInputHandler: ApplicationHandler {
                 stage = 3
                 try {
                     val session =
-                        window!!.beginDrag(DragContent.Text("drag 😀")) {
+                        window!!.beginDrag(
+                            DragContent.Text("drag 😀"),
+                            preview =
+                                Some(
+                                    DragPreview(
+                                        DesktopImage(
+                                            LogicalSize(24.0, 12.0),
+                                            [
+                                                DesktopImageRepresentation(
+                                                    PhysicalSize(48, 24),
+                                                    Array<UInt8>(4608L) {
+                                                        index -> if (index % 4L == 3L)
+                                                            128.toUByte()
+                                                        else
+                                                            240.toUByte()
+                                                    }
+                                                )
+                                            ]
+                                        ),
+                                        LogicalPosition(5.0, 7.0)
+                                    )
+                                )
+                        ) {
                             result ->
                             when (result) {
                                 case NotDropped -> {}

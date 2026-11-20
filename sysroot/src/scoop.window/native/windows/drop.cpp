@@ -1,5 +1,6 @@
 #include "drag_data.h"
 #include <new>
+#include <shlobj.h>
 
 namespace {
 class DropTarget final : public IDropTarget {
@@ -11,6 +12,8 @@ public:
   SWDropCallback callback;
   void *context;
   IDataObject *data = nullptr;
+  IDropTargetHelper *image = nullptr;
+  bool image_inside = false;
   bool enabled = true, closed = false, periodic = false, in_callback = false;
   bool receiving = false, registered = false, inside = false;
   uint64_t revision = 0;
@@ -20,8 +23,13 @@ public:
 
   DropTarget(SWWindow *window, SWDropCallback callback, void *context)
       : owner(window), hwnd(window->hwnd), callback(callback),
-        context(context) {}
+        context(context) {
+    CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER,
+                     IID_PPV_ARGS(&image));
+  }
   ~DropTarget() {
+    if (image)
+      image->Release();
     if (data)
       data->Release();
   }
@@ -101,6 +109,13 @@ public:
                ? sw_drop_choice(value, offered, static_cast<int>(effects & 7))
                : 0;
   }
+  void drop_image(IDataObject *object, POINTL point, DWORD effect) {
+    if (image_inside) {
+      image_inside = false;
+      POINT screen = {point.x, point.y};
+      image->Drop(object, &screen, effect);
+    }
+  }
   void finish() {
     bool notify = inside;
     inside = false;
@@ -109,6 +124,10 @@ public:
     KillTimer(hwnd, reinterpret_cast<UINT_PTR>(this));
     IDataObject *previous = data;
     data = nullptr;
+    if (image_inside) {
+      image_inside = false;
+      image->DragLeave();
+    }
     if (notify)
       call(2, 0, nullptr);
     if (previous)
@@ -145,6 +164,11 @@ public:
       return S_OK;
     choice = query();
     *effect = choice & 255;
+    if (image && inside && data == object && available()) {
+      POINT screen = {point.x, point.y};
+      image_inside = true;
+      image->DragEnter(hwnd, object, &screen, *effect);
+    }
     timer();
     return S_OK;
   }
@@ -159,6 +183,10 @@ public:
     position = point;
     choice = query();
     *effect = choice & 255;
+    if (image_inside) {
+      POINT screen = {point.x, point.y};
+      image->DragOver(&screen, *effect);
+    }
     return S_OK;
   }
   HRESULT STDMETHODCALLTYPE DragLeave() override {
@@ -180,6 +208,7 @@ public:
     position = point;
     int selected = query();
     if (!selected) {
+      drop_image(object, point, *effect);
       finish();
       return S_OK;
     }
@@ -193,6 +222,7 @@ public:
     if (read && current == revision && inside && available() &&
         call(1, selected, &payload))
       *effect = selected & 255;
+    drop_image(object, point, *effect);
     receiving = false;
     finish();
     return S_OK;

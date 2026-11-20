@@ -153,7 +153,25 @@ private class DragSourceProbe: ApplicationHandler {
         assertFailsWith<IllegalArgumentException> { window.beginDrag(DragContent.Url("relative")) }
         assertFailsWith<WindowException> { second!!.beginDrag(DragContent.Text("other window")) }
         val session =
-            window.beginDrag(DragContent.Text("source 🫖"), DragEffects(true, true, true)) {
+            window.beginDrag(
+                DragContent.Text("source 🫖"),
+                DragEffects(true, true, true),
+                preview =
+                    Some(
+                        DragPreview(
+                            DesktopImage(
+                                LogicalSize(1.0, 1.0),
+                                [
+                                    DesktopImageRepresentation(
+                                        PhysicalSize(1, 1),
+                                        [255.toUByte(), 0.toUByte(), 0.toUByte(), 128.toUByte()]
+                                    )
+                                ]
+                            ),
+                            LogicalPosition(0.25, 0.75)
+                        )
+                    )
+            ) {
                 result ->
                 assertNotDropped(result)
                 assertTrue(pending!!.isClosed)

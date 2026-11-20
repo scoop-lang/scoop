@@ -1,4 +1,6 @@
 #include "drag_data.h"
+#include <climits>
+#include <cmath>
 #include <cstring>
 #include <new>
 #include <shellapi.h>
@@ -23,101 +25,80 @@ bool sw_drag_absolute_url(const std::wstring &value) {
   return true;
 }
 
-HRESULT SWDragData::QueryInterface(REFIID iid, void **result) {
-  if (!result)
-    return E_POINTER;
-  *result = nullptr;
-  if (IsEqualIID(iid, IID_IUnknown) || IsEqualIID(iid, IID_IDataObject)) {
-    *result = static_cast<IDataObject *>(this);
-    AddRef();
-    return S_OK;
-  }
-  return E_NOINTERFACE;
-}
-ULONG SWDragData::AddRef() { return ++references; }
-ULONG SWDragData::Release() {
-  ULONG left = --references;
-  if (!left)
-    delete this;
-  return left;
-}
-HRESULT SWDragData::QueryGetData(FORMATETC *format) {
-  if (!format)
-    return E_POINTER;
-  if (format->dwAspect != DVASPECT_CONTENT)
-    return DV_E_DVASPECT;
-  if (format->lindex != -1)
-    return DV_E_LINDEX;
-  if (!(format->tymed & TYMED_HGLOBAL))
-    return DV_E_TYMED;
-  for (const auto &value : formats)
-    if (value.format == format->cfFormat)
-      return S_OK;
-  return DV_E_FORMATETC;
-}
-HRESULT SWDragData::GetData(FORMATETC *format, STGMEDIUM *medium) {
-  if (!medium)
-    return E_POINTER;
-  *medium = {};
-  HRESULT status = QueryGetData(format);
-  if (FAILED(status))
-    return status;
-  for (const auto &value : formats) {
-    if (value.format != format->cfFormat)
-      continue;
-    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, value.bytes.size());
-    if (!memory)
-      return E_OUTOFMEMORY;
-    void *bytes = GlobalLock(memory);
-    if (!bytes) {
-      GlobalFree(memory);
-      return E_OUTOFMEMORY;
-    }
-    memcpy(bytes, value.bytes.data(), value.bytes.size());
-    GlobalUnlock(memory);
-    medium->tymed = TYMED_HGLOBAL;
-    medium->hGlobal = memory;
-    return S_OK;
-  }
-  return DV_E_FORMATETC;
-}
-HRESULT SWDragData::GetDataHere(FORMATETC *, STGMEDIUM *) {
-  return DATA_E_FORMATETC;
-}
-HRESULT SWDragData::GetCanonicalFormatEtc(FORMATETC *, FORMATETC *output) {
-  if (!output)
-    return E_POINTER;
-  output->ptd = nullptr;
-  return E_NOTIMPL;
-}
-HRESULT SWDragData::SetData(FORMATETC *, STGMEDIUM *, BOOL) {
-  return E_NOTIMPL;
-}
-HRESULT SWDragData::EnumFormatEtc(DWORD direction, IEnumFORMATETC **result) {
-  if (!result)
-    return E_POINTER;
-  *result = nullptr;
-  if (direction != DATADIR_GET)
-    return E_NOTIMPL;
-  try {
-    std::vector<FORMATETC> values;
-    for (const auto &entry : formats)
-      values.push_back(
-          {entry.format, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL});
-    return SHCreateStdEnumFmtEtc(static_cast<UINT>(values.size()),
-                                 values.data(), result);
-  } catch (const std::bad_alloc &) {
+HRESULT sw_drag_set_bytes(IDataObject *data, CLIPFORMAT format,
+                          const uint8_t *bytes, size_t length) {
+  STGMEDIUM medium = {};
+  medium.tymed = TYMED_HGLOBAL;
+  medium.hGlobal = GlobalAlloc(GMEM_MOVEABLE, length);
+  if (!medium.hGlobal)
+    return E_OUTOFMEMORY;
+  void *mapped = GlobalLock(medium.hGlobal);
+  if (!mapped) {
+    GlobalFree(medium.hGlobal);
     return E_OUTOFMEMORY;
   }
+  memcpy(mapped, bytes, length);
+  GlobalUnlock(medium.hGlobal);
+  FORMATETC type = {format, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
+  HRESULT status = data->SetData(&type, &medium, TRUE);
+  if (FAILED(status))
+    ReleaseStgMedium(&medium);
+  return status;
 }
-HRESULT SWDragData::DAdvise(FORMATETC *, DWORD, IAdviseSink *, DWORD *) {
-  return OLE_E_ADVISENOTSUPPORTED;
-}
-HRESULT SWDragData::DUnadvise(DWORD) { return OLE_E_ADVISENOTSUPPORTED; }
-HRESULT SWDragData::EnumDAdvise(IEnumSTATDATA **result) {
-  if (result)
-    *result = nullptr;
-  return OLE_E_ADVISENOTSUPPORTED;
+
+int64_t sw_drag_set_preview(IDataObject *data, UINT dpi, int32_t width,
+                            int32_t height, const uint8_t *rgba,
+                            double logical_width, double logical_height,
+                            double hot_x, double hot_y) {
+  double scale = dpi / 96.0;
+  double w = std::ceil(logical_width * scale),
+         h = std::ceil(logical_height * scale);
+  double x = std::round(hot_x * scale), y = std::round(hot_y * scale);
+  if (w < 1 || h < 1 || w > INT_MAX || h > INT_MAX || x < INT_MIN ||
+      x > INT_MAX || y < INT_MIN || y > INT_MAX)
+    return -8;
+  IDragSourceHelper *helper = nullptr;
+  HRESULT status =
+      CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER,
+                       IID_PPV_ARGS(&helper));
+  if (FAILED(status))
+    return static_cast<uint32_t>(status);
+  SHDRAGIMAGE image = {};
+  image.sizeDragImage = {static_cast<LONG>(w), static_cast<LONG>(h)};
+  image.ptOffset = {static_cast<LONG>(x), static_cast<LONG>(y)};
+  image.crColorKey = 0xffffffffU;
+  BITMAPINFO info = {};
+  info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  info.bmiHeader.biWidth = image.sizeDragImage.cx;
+  info.bmiHeader.biHeight = -image.sizeDragImage.cy;
+  info.bmiHeader.biPlanes = 1;
+  info.bmiHeader.biBitCount = 32;
+  void *bits = nullptr;
+  image.hbmpDragImage =
+      CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+  if (!image.hbmpDragImage) {
+    helper->Release();
+    return ERROR_NOT_ENOUGH_MEMORY;
+  }
+  // InitializeFromBitmap wants straight BGRA, including for partially
+  // transparent glyphs.
+  auto *dest = static_cast<uint8_t *>(bits);
+  for (int row = 0; row < image.sizeDragImage.cy; ++row) {
+    size_t sy = static_cast<int64_t>(row) * height / image.sizeDragImage.cy;
+    for (int col = 0; col < image.sizeDragImage.cx; ++col) {
+      size_t sx = static_cast<int64_t>(col) * width / image.sizeDragImage.cx;
+      const uint8_t *p = rgba + (sy * width + sx) * 4;
+      *dest++ = p[2];
+      *dest++ = p[1];
+      *dest++ = p[0];
+      *dest++ = p[3];
+    }
+  }
+  status = helper->InitializeFromBitmap(&image, data);
+  if (FAILED(status))
+    DeleteObject(image.hbmpDragImage);
+  helper->Release();
+  return static_cast<uint32_t>(status);
 }
 
 int sw_drag_formats(IDataObject *data) {

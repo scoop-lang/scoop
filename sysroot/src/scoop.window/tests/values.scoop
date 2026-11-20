@@ -6,6 +6,21 @@ import scoop.test.*
 @Test
 private class WindowValueTest {
     @Test
+    fun `drag previews select the closest backing size and retain signed logical hotspots`() {
+        val small = DesktopImageRepresentation(PhysicalSize(2, 1), Array<UInt8>(8L) { 0.toUByte() })
+        val large =
+            DesktopImageRepresentation(PhysicalSize(4, 2), Array<UInt8>(32L) { 0.toUByte() })
+        val image = DesktopImage(LogicalSize(2.0, 1.0), [small, large])
+        val preview = DragPreview(image, LogicalPosition(-2.5, 0.5))
+        assertTrue(preview.representation(1.0) === small)
+        assertTrue(preview.representation(2.0) === large)
+        assertEquals(LogicalPosition(-2.5, 0.5), preview.hotSpot)
+        assertFailsWith<IllegalArgumentException> {
+            DragPreview(image, LogicalPosition(Double.NaN, 0.0))
+        }
+    }
+
+    @Test
     fun `fractional scale rounds drawable allocations upward`() {
         assertEquals(PhysicalSize(127, 64), LogicalSize(101.1, 50.5).toPhysical(1.25))
         assertEquals(PhysicalSize(0, 0), LogicalSize(0.0, 0.0).toPhysical(2.0))

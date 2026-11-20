@@ -45,6 +45,14 @@ int32_t scoop_window_test_drag_data(void) {
                                         withIntermediateDirectories:NO
                                                          attributes:nil
                                                               error:nil]);
+      uint8_t pixels[4 * 6 * 4] = {17, 29, 189, 127};
+      NSSize size = NSMakeSize(2, 3);
+      NSBitmapImageRep *rep = sw_rgba_bitmap(4, 6, pixels, size);
+      memset(pixels, 0, sizeof pixels);
+      DRAG_CHECK(rep.bitmapData[0] == 17 && rep.bitmapData[3] == 127);
+      NSImage *preview = [[NSImage alloc] initWithSize:size];
+      [preview addRepresentation:rep];
+      NSMutableArray<NSDraggingItem *> *items = [NSMutableArray new];
       NSMutableArray *writers = [NSMutableArray new];
       for (NSString *name in @[ @"café 空白.txt", @"second.txt" ]) {
         NSURL *file = [directory URLByAppendingPathComponent:name];
@@ -53,8 +61,15 @@ int32_t scoop_window_test_drag_data(void) {
         item = sw_drag_item(3, (const uint8_t *)path, (int64_t)strlen(path));
         DRAG_CHECK(item);
         [writers addObject:item.item];
+        [items addObject:item];
       }
       [board clearContents];
+      sw_drag_item_images(items, preview, NSMakePoint(0.5, 2),
+                          NSMakePoint(50, 20));
+      DRAG_CHECK(
+          NSEqualRects(items[0].draggingFrame, NSMakeRect(49.5, 18, 2, 3)));
+      DRAG_CHECK(NSEqualSizes(items[1].draggingFrame.size, NSMakeSize(1, 1)));
+      DRAG_CHECK(items[0].imageComponents.firstObject.contents == preview);
       DRAG_CHECK([board writeObjects:writers]);
       NSArray<NSURL *> *paths =
           [board readObjectsForClasses:@[ NSURL.class ]
