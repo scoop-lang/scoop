@@ -181,6 +181,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             val child = portal.node.children[0L]
             val result = child.measure(plan.constraints, context.time)
             result.finishMeasurement()
+            root.semantics?.publish()
             val metrics = result.metrics
             val layout = plan.layout(metrics.size, portal.snapshot, metrics.overlayAnchor)
             portal.focusSession?.place(context)

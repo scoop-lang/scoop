@@ -170,6 +170,7 @@ internal class UiRoot(
         try {
             val result = current.measure(Constraints.tight(frame.size), frame.time)
             result.finishMeasurement()
+            semantics?.publish()
             result.scene(frame, Point(0.0, 0.0))
             overlays.paint(frame)
             success = true

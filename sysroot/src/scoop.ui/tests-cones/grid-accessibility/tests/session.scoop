@@ -19,6 +19,7 @@ private class GridAccessibilityTest {
                 host -> Application().run(host)
             }
             assertTrue(probe.finished)
+            assertTrue(probe.overlayPresented)
             assertEquals(0, probe.mounted)
             assertTrue(probe.rowBuilds < 300)
             assertTrue(probe.cellBuilds < 2000)
@@ -34,6 +35,8 @@ internal class AxGridProbe: Closeable {
     val outside = FocusHandle()
     val rows = state(AxRows(this))
     val queryGuard = state(0)
+    val overlayOpen = state(true)
+    var overlayPresented = false
     var viewport: ScrollViewport? = None
     var frame: ComponentScope? = None
     var endedScene: SceneContext? = None
@@ -211,6 +214,14 @@ internal class AxGridProbe: Closeable {
                     assertTrue(otherCell!!.flag(4))
                     assertEquals(Point(20624.0, 1439844.0), scroll.offset)
                     assertTrue(otherCell!!.frame(nativeView!!, 176.0, 156.0, 80.0, 24.0))
+                    val adjacent = at(60000L, 0L)
+                    assertTrue(
+                        adjacent.flag(2),
+                        Some(
+                            "a newly mounted sibling with a merged caption has no accepted geometry"
+                        )
+                    )
+                    assertTrue(adjacent.frame(nativeView!!, 24.0, 156.0, 80.0, 24.0))
                     assertFalse(cell!!.flag(4))
                     assertFalse(outside.hasFocus)
                 }
