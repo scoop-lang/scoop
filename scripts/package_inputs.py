@@ -14,10 +14,7 @@ from download_support import download_directory, obtain
 
 def python_license(directory, version):
     return obtain(
-        directory,
-        "cpython",
-        version,
-        "LICENSE",
+        directory / f"cpython-{version}-LICENSE",
         f"https://raw.githubusercontent.com/python/cpython/v{version}/LICENSE",
     )
 
@@ -26,10 +23,7 @@ def prepare_mingw(directory, work, crt):
     version = tomllib.loads(RELEASE_CONFIG.read_text())["llvm_mingw"]
     name = f"llvm-mingw-{version}-{crt}-x86_64"
     archive = obtain(
-        directory,
-        "llvm-mingw",
-        version,
-        name + ".zip",
+        directory / (name + ".zip"),
         f"https://github.com/mstorsjo/llvm-mingw/releases/download/{version}/{name}.zip",
     )
     work.mkdir(parents=True, exist_ok=True)
