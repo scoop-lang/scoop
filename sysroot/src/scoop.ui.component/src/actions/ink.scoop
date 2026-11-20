@@ -24,7 +24,8 @@ internal class ActionInkProps(
     val semanticToggle: (() -> SemanticActionResult)? = None,
     val semanticState: SemanticProperties? = None,
     val semanticActions: SemanticActions? = None,
-    val prepareSemantics: (() -> SemanticsHandle?)? = None
+    val prepareSemantics: (() -> SemanticsHandle?)? = None,
+    val semanticFallbackName: String? = None
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
@@ -104,12 +105,17 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
         if (handle.isClosed)
             return
         handle.bindReference(value.semanticOptions.reference)
+        val relations =
+            field?.relations(handle, value.semanticOptions.relations) ?:
+                value.semanticOptions.relations
         when (value.behavior) {
             case Press(_, val action, _) -> handle.update(
                 value.semanticState?.copy {
                     required =
                         value.semanticState!!.required ||
                             (this @ActionInk.field?.isRequired(handle) ?: false)
+                    if (name == None && relations.labelledBy.size == 0L)
+                        name = value.semanticFallbackName
                 } ?:
                     value.semanticOptions.properties(
                         enabled = value.visual.interaction.enabled && value.actionable,
@@ -140,8 +146,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
                                     }
                             )
                         },
-                field?.relations(handle, value.semanticOptions.relations) ?:
-                    value.semanticOptions.relations
+                relations
             )
             case Passive -> handle.update(
                 value.semanticState ?:

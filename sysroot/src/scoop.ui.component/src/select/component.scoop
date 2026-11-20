@@ -160,6 +160,13 @@ public class Select<T: Equals<T>> public constructor(
     }
     public override fun render(): View {
         val input = props.value
+        val selectedText =
+            when (input.value.value) {
+                case None -> None
+                case Some(_) -> Some(
+                    selectedChoice(input.content, input.value.value)?.label ?: input.unavailableText
+                )
+            }
         val theme = themes.read(input.theme)
         val content = menu()
         candidates.resolve(content)
@@ -199,16 +206,12 @@ public class Select<T: Equals<T>> public constructor(
                                             this @Select.popupReference
                                     ).id
                                 )
-                            if (name == None && relations.labelledBy.size == 0L)
-                                name =
-                                    Some(
-                                        selectedChoice(input.content, input.value.value)?.label ?:
-                                            input.placeholder
-                                    )
                         }
                 ),
                 open.value,
-                { value -> semanticOpen(value) }
+                { value -> semanticOpen(value) },
+                value = selectedText,
+                fallbackName = Some(selectedText ?: input.placeholder)
             )
         val focus =
             OverlayFocusOptions(

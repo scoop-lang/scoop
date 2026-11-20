@@ -32,6 +32,7 @@ private class AdvancedComponentSemanticsTest {
 }
 
 internal class AdvancedProbe: Closeable {
+    val selects = SelectValueSemanticsProbe()
     val values = state<Array<Double>>([25.0])
     val open = state(false)
     val traceOpen = state(false)
@@ -88,6 +89,9 @@ internal class AdvancedProbe: Closeable {
         }
     }
     private fun initial() {
+        selects.run({ id -> find(id) }, { action -> later(action) }, { initialControls() })
+    }
+    private fun initialControls() {
         val range = find("range")
         assertTrue(range.text(2, Some("AXSlider")))
         assertEquals(25L, range.numericValue)

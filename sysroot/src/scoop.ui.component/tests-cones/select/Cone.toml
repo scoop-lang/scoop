@@ -10,7 +10,7 @@ path = "tests"
 when = { os = "darwin" }
 
 [test-dependencies]
-"scoop:scoop.ui.component" = { version = "0.1.0", path = "../.." }
+"scoop:scoop.ui.component" = "0.1.0"
 "scoop:scoop.ui" = "0.1.0"
 "scoop:scoop.ui.style" = "0.1.0"
 "scoop:scoop.ui.style.shadcn" = "0.1.0"

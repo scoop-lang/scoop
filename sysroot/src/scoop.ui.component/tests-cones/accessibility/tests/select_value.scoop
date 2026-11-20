@@ -1,0 +1,120 @@
+package scoop.tests.ui.component.accessibility
+
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.NativeNode
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as selectColumn
+import scoop.ui.component.label as selectLabel
+import scoop.ui.component.select as valueSelect
+
+internal class SelectValueSemanticsProbe {
+    private val selection = state<String?>(Some("a"))
+    private val caption = state("Alpha")
+    private val enabled = state(true)
+    private val target = FieldTarget()
+    private val unlabelledTarget = FieldTarget()
+    private var customBuilds = 0
+    private var changes = 0
+    private var named: NativeNode? = None
+    private var labelled: NativeNode? = None
+    private var fallback: NativeNode? = None
+
+    fun view(): View {
+        val probe = this
+        val selected = selection
+        val labelTarget = target
+        val fallbackTarget = unlabelledTarget
+        val active = enabled.value
+        val choices =
+            [
+                Choice(ViewKey.Text("a"), "a", caption.value),
+                Choice(ViewKey.Text("b"), "b", "Beta", enabled = false),
+                Choice(ViewKey.Text("empty"), "empty", "")
+            ]
+        return selectColumn {
+            this.select(selected.binding(), choices) {
+                enabled = active
+                unavailableText = "Unavailable choice"
+                semantics = advancedSemantics("value-select", "Currency")
+                valueContent =
+                    Some {
+                        _ ->
+                        probe.customBuilds += 1
+                        selectLabel("Custom value display")
+                    }
+                onValueChange = { _ -> probe.changes += 1 }
+            }
+            this.field(
+                valueSelect(selected.binding(), choices) {
+                    enabled = active
+                    unavailableText = "Unavailable choice"
+                    this.labelTarget = Some(labelTarget)
+                    semantics = ComponentSemantics(automationId = Some("labelled-value-select"))
+                    onValueChange = { _ -> probe.changes += 1 }
+                }
+            ) {
+                target = Some(labelTarget)
+                label("Related currency", labelTarget)
+            }
+            this.select(selected.binding(), choices) {
+                enabled = active
+                unavailableText = "Unavailable choice"
+                placeholder = "Choose currency"
+                this.labelTarget = Some(fallbackTarget)
+                semantics = ComponentSemantics(automationId = Some("fallback-value-select"))
+                valueContent = Some { _ -> selectLabel("Custom fallback display") }
+                onValueChange = { _ -> probe.changes += 1 }
+            }
+        }
+    }
+
+    fun run(find: (String) -> NativeNode, schedule: (() -> Unit) -> Unit, completed: () -> Unit) {
+        named = Some(find("value-select"))
+        labelled = Some(find("labelled-value-select"))
+        fallback = Some(find("fallback-value-select"))
+        advance(0, schedule, completed)
+    }
+
+    private fun advance(step: Int, schedule: (() -> Unit) -> Unit, completed: () -> Unit) {
+        val before = customBuilds
+        assertTrue(named!!.text(0, Some("Currency")))
+        assertTrue(labelled!!.text(0, Some("Related currency")))
+        val text =
+            when (step) {
+                case 0 -> Some("Alpha")
+                case 1 -> Some("Beta")
+                case 2 -> Some("")
+                case 3 -> Some("Unavailable choice")
+                case 4 -> None
+                else -> Some("Renamed")
+            }
+        assertTrue(named!!.text(1, text), Some(f"named Select value at ${step}"))
+        assertTrue(labelled!!.text(1, text), Some(f"labelled Select value at ${step}"))
+        assertTrue(fallback!!.text(1, text), Some(f"fallback Select value at ${step}"))
+        assertTrue(fallback!!.text(0, Some(text ?: "Choose currency")))
+        assertEquals(before, customBuilds)
+        assertEquals(0, changes)
+        assertEquals(step != 6, named!!.flag(1))
+        assertEquals(step != 6, labelled!!.flag(1))
+        assertEquals(step != 6, fallback!!.flag(1))
+        when (step) {
+            case 0 -> selection.value = Some("b")
+            case 1 -> selection.value = Some("empty")
+            case 2 -> selection.value = Some("unknown")
+            case 3 -> selection.value = None
+            case 4 -> {
+                selection.value = Some("a");
+                caption.value = "Renamed"
+            }
+            case 5 -> enabled.value = false
+            case 6 -> enabled.value = true
+            case 7 -> {
+                completed();
+                return
+            }
+            else -> fail(Some("unexpected Select value phase"))
+        }
+        schedule { advance(step + 1, schedule, completed) }
+    }
+}

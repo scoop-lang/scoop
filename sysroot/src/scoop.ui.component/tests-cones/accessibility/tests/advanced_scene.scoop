@@ -96,6 +96,7 @@ internal class AdvancedRoot(private val p: AdvancedProbe, scope: ComponentScope)
                     this.alignment = CrossAlignment.Stretch
                 }
             )
+            this.add(p.selects.view())
             this.add(
                 semanticColumn {
                     this.calendar(

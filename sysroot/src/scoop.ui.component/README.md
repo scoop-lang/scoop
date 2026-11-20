@@ -27,7 +27,7 @@ Button 默认从自己可合并的静态 Label 取得名称，独立交互后代
 
 `ComponentSemantics.reference = Some(SemanticsReference())` 可给关系的目标提供稳定引用；其 id 在真实挂载后可用，卸载时清空。Field、弹层触发器、Tab、候选项、表头等内置连接自行维护引用，通常无需手动管理。Dialog／Sheet／Drawer 的语义遵守同一模态输入边界，背景旧引用不能执行动作，dismiss 仍经过关闭 veto；默认 X 按钮以 “Close” 命名，自定义 close 内容可沿 PopupTriggerSpec 的 semantics.name 本地化。
 
-Slider 发布真实数值范围、步长与调整动作；Progress 的未知值不伪装成零。Select／Combobox／NavigationMenu 和 DatePicker 发布实际 expanded 与 controls；Tabs、Calendar、Pagination 发布真实选择状态。OTP 只有一个 TextField，视觉槽位不拆成多个输入。Calendar 的 daySemantics 可本地化完整日期名称；静态 Table 发布行、列、跨度与表头关系。DataTable 的 semanticText／条目描述读取数据，不调用 cell View 构造函数；Command、Combobox、VirtualList 和 MessageScroller 使用同源集合快照。
+Slider 发布真实数值范围、步长与调整动作；Progress 的未知值不伪装成零。Select／Combobox／NavigationMenu 和 DatePicker 发布实际 expanded 与 controls；Tabs、Calendar、Pagination 发布真实选择状态。Select 还独立发布所选 Choice.label 作为 value，显式名称和 Field 标签优先于选项文字的名称回退；自定义 valueContent 不替代该值，None 不发布选择值。OTP 只有一个 TextField，视觉槽位不拆成多个输入。Calendar 的 daySemantics 可本地化完整日期名称；静态 Table 发布行、列、跨度与表头关系。DataTable 的 semanticText／条目描述读取数据，不调用 cell View 构造函数；Command、Combobox、VirtualList 和 MessageScroller 使用同源集合快照。
 
 Toast 默认 live=Polite，首次实际显示后公告一次；Loading 暂缓，关闭、遮挡于模态背景或退休后不发迟到公告。普通 Label 等控件的 live 默认为 Off，应用可为实际状态消息明确启用。ImageView／PathView／Spinner／Separator 默认装饰，只有显式提供 semantics 才导出；Avatar 默认保留图像替代名称。可点击 Badge、Item、Bubble、Attachment、Trace 和问卷选项复用原操作与受控绑定，不通过模拟鼠标触发。
 

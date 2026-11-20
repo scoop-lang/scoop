@@ -42,7 +42,8 @@ internal class ButtonControl(
     private val scope: ComponentScope,
     role: SemanticRole = SemanticRole.Button,
     private val semanticState: () -> SemanticProperties? = { None },
-    private val semanticActions: () -> SemanticActions? = { None }
+    private val semanticActions: () -> SemanticActions? = { None },
+    private val semanticFallbackName: () -> String? = { None }
 ) {
     private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
@@ -90,7 +91,8 @@ internal class ButtonControl(
                 semantics = semantics,
                 semanticOptions = input.semantics,
                 semanticState = semanticState(),
-                semanticActions = semanticActions()
+                semanticActions = semanticActions(),
+                semanticFallbackName = semanticFallbackName()
             ),
             { current, mount -> ActionInk(current, scope = mount) },
             [

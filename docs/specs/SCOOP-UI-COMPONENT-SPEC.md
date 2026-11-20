@@ -1031,6 +1031,8 @@ ContextMenuProps 与 ContextMenuBuilder 的 longPress 默认为 LongPressOptions
 
 唯一的 Button trigger 支持 Default／Sm（32／28 高）、width、invalid、enabled、ButtonStyle、ThemeSource、fonts、FocusOptions、labelTarget、group 与自定义 valueContent／icon。默认最小自然宽 144、1 input 边框、8 圆角（Sm 为 10）、单行省略、14 正文、16 chevron；逻辑起／止 padding 为 10／8。Dark 底色与 hover 分别使用 input 原 alpha 的 30%／50%，局部 surface 与状态覆盖仍优先。焦点环、校验、禁用及父级连接表面沿已有 Button 合同。FieldTarget 标签只聚焦当前 trigger。
 
+触发器的语义 value 独立于名称，来自当前 Choice.label；设置显式 name 或 Field 标签后仍可读取所选值。已知但禁用的选择保留真实标签，未知外部值使用 unavailableText，None 不发布选择值，空标签保留为空字符串。自定义 valueContent 不改变该值，也不因语义查询而构造 View；外部选择及标签更新同步到同一节点，不伪造选择通知。名称依次采用显式 name、实际 labelledBy（包括 FieldTarget 连接的标签）、当前选择文字；无选择且没有标签时才使用 placeholder。仅绑定 FieldTarget 而没有实际标签，不阻止选择文字回退。
+
 默认 SelectPosition.ItemAligned 通过 UI ContentAligned 和 popup 根 LayoutMetrics.overlayAnchor 对齐打开时的可用选中行；无可用选择时退回 Anchored。SelectPosition.Popup 总是侧边定位。两者使用同一个 ScrollViewport、最终绘制及命中几何，不访问内部节点。面板匹配 trigger 宽度，受 maxHeight（默认 320）及视口限制，4 padding、8 圆角、popover 配色、1 ring 和浮层阴影。候选默认 28 高、14 字、6 圆角、逻辑末端 16 勾选标记；分组标签和分隔线沿菜单部件。打开时显露选中行，退出期间重开也按当次选择重新对齐；本次打开首次 Accepted 的局部滚动参考用于后续对齐；用户滚动不使面板跟随上下移动。长列表使用有限候选的普通滚动；溢出时默认显示上下 24 高的滚动按钮，点击或悬停按行滚动，窗口失焦／隐藏／禁用／到达边界／卸载停止计时。
 
 Enter／Space／ArrowDown 打开并聚焦可用选择，否则首项；ArrowUp 在没有可用选择时进入末项。打开后复用 roving 真实焦点及 typeahead，Up／Down／Home／End 跳过禁用项和装饰项，Enter／Space 提交。关闭时字符 typeahead 直接选择匹配项。提交读取最新 Props 和 Binding，通知实际被采纳的变化；setter 拒绝时保持打开，选择成功再请求关闭，关闭 veto 可保留当前面板。Escape／外部按下按 Portal 合同关闭和恢复，Tab／Shift+Tab 在实际 onClosed 后沿原方向继续；退出期间重开清除旧续行。可配置 mode、loop、typeahead、popupFocus、handle、onValueChange／onOpenChange／onCloseRequest／onClosed；外部赋值不伪造用户通知。ItemAligned 缺省无过渡，Popup 缺省 100ms 淡入缩放，显式 transition 与主题减少动画策略继续生效。
