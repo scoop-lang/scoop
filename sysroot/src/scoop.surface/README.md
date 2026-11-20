@@ -92,6 +92,8 @@ macOS／Linux 可用 `ShortcutScope(input, bindings)` 在作用域内登记快�
 
 [组合示例](examples/basics/README.md)演示旋转 Path、hover、拖动 spring、文本布局及 IME 接收。它是普通 executable Cone，编辑状态由示例管理，未依赖 component。
 
+同一文本从浏览区域移交给新编辑区域时，可显式调用 `target.continueTextInputFrom(source)`。来源须是同窗口当前已开启连接的活动文本区域；返回 true 只登记交接，不移动焦点。下一次普通聚焦到目标时，目标先收到同一连接的 Enabled，来源再收到 Disabled，原生连接与组合继续有效。双方须共享文档及 revision，Surface 不复制正文。其他焦点去向、失焦、禁用、注销和 restartTextInput 取消旧登记；普通无关联编辑器仍先关闭旧连接。UI 的 TextInputStarter 封装了文档与宿主交接，本机使用见 [text-start](../scoop.ui/tests-cones/text-start/README.md)。
+
 `InputArea.focusRevision` 返回该区域最近一次成功聚焦的窗口序号；未曾聚焦或关闭后为 None。它与 SurfaceWindow.focusRevision 共用顺序，鼠标、重复成功请求及直接程序请求一致，失败和 OS 激活变化不重写成功历史，供上层导航恢复最近使用的成员。
 
 滚轮默认行为可读取 `context.scrollRemaining`，并调用 `context.consumeScroll(lineStep) { localDelta -> ... }`，返回该容器实际消费的局部位移。lineStep 由容器提供；Surface 按本次事件固定的区域几何换算，消费后将残量还原到 Lines／Pixels，父容器再使用自己的步长和变换。Pixels 已完成一次 DPI 归一。原事件始终保留完整 delta，stopPropagation 不取消默认滚动；Contain 可在处理本层后调用 preventDefault。

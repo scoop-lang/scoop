@@ -1,0 +1,285 @@
+package scoop.ui.text
+
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+/** Policy for native text received before the actual editor takes focus. */
+public class TextInputStartOptions public constructor(
+    public val policy: TextEditPolicy = textEditPolicy(),
+    public val multiline: Boolean = false
+)
+
+/** Starts a normal editor from a browsing area's first native commit or composition. */
+public class TextInputStarter internal constructor(
+    private val scope: ComponentScope,
+    private val area: InputArea,
+    enabled: Boolean,
+    onStart: (TextEditorState) -> TextInputStartOptions?
+): Closeable {
+    private val window = scope.nativeWindow
+    private val pending = state<TextEditorState?>(None)
+    private var enabled = enabled
+    private var receive = onStart
+    private var closed = false
+    private var document: TextEditorState? = None
+    private var configuration: TextInputStartOptions? = None
+    private var target: TextEditHost? = None
+    private var connection: TextInputConnection? = None
+    private var sessionEnabled = false
+    private var retiring = false
+    private var performing = false
+    private val events =
+        area.scope.addEventHandler {
+            context,
+            event -> if (!closed && context.phase == RoutedPhase.Notification) {
+                when (event) {
+                    case TextInput(val input) -> native(input)
+                    case FocusChanged(false) -> reset(false, true)
+                    else -> {}
+                }
+            }
+        }
+
+    init {
+        area.textInput = enabled
+    }
+
+    /** The shared state while the real editor is still waiting to take focus. */
+    public val pendingState: TextEditorState? get() = pending.value
+
+    public fun update(enabled: Boolean, onStart: (TextEditorState) -> TextInputStartOptions?) {
+        pending.checkMutation()
+        requireUi(!closed && !area.isClosed, "text input starter is closed")
+        receive = onStart
+        this.enabled = enabled
+        if (!enabled)
+            cancel()
+        area.textInput = enabled
+    }
+
+    public fun cancel() {
+        pending.checkMutation()
+        when (pending.value) {
+            case Some(_) -> reset(true, true)
+            case None -> {}
+        }
+    }
+
+    private fun owns(value: TextEditorState): Boolean =
+        when (pending.value) {
+            case Some(val current) -> current === value
+            case None -> false
+        }
+
+    internal fun bind(host: TextEditHost) {
+        if (closed || !owns(host.current))
+            return
+        when (target) {
+            case Some(val previous) -> requireUi(
+                previous === host || previous.closed,
+                "text start already has an editor"
+            )
+            case None -> {}
+        }
+        if (
+            !host.options.enabled || host.options.readOnly || !host.area.continueTextInputFrom(area)
+        ) {
+            cancel()
+            return
+        }
+        target = Some(host)
+    }
+
+    internal fun detach(host: TextEditHost) {
+        when (target) {
+            case Some(val current) -> if (current === host)
+                cancel()
+            case None -> {}
+        }
+    }
+
+    internal fun take(host: TextEditHost, value: TextInputConnection?) {
+        when (target) {
+            case Some(val current) -> if (
+                current === host && value != None && value == connection && host.area.isFocusActive
+            )
+                reset(false, false)
+            case None -> {}
+        }
+    }
+
+    internal fun modelChanged() {
+        if (!performing)
+            cancel()
+    }
+
+    private fun reset(restart: Boolean, cancelComposition: Boolean) {
+        val previous = document
+        document = None
+        configuration = None
+        target = None
+        pending.value = None
+        when (previous) {
+            case Some(val value) -> when (value.inputStarter) {
+                case Some(val owner) -> if (owner === this) {
+                    value.inputStarter = None
+                    if (cancelComposition)
+                        value.cancelComposition()
+                }
+                case None -> {}
+            }
+            case None -> {}
+        }
+        if (restart && !area.isClosed)
+            retiring = area.restartTextInput()
+    }
+
+    private fun native(event: TextInputEvent) {
+        when (event) {
+            case Enabled(val value) -> {
+                connection = value
+                sessionEnabled = true
+                retiring = false
+                document = Some(TextEditorState())
+                publish()
+            }
+            case Disabled(val value) -> {
+                if (connection != None && connection != value)
+                    return
+                connection = None
+                sessionEnabled = false
+                retiring = false
+                reset(false, true)
+            }
+            case Edit(val batch) -> input(batch)
+        }
+    }
+
+    private fun publish(after: TextInputOrigin? = None) {
+        if (closed || retiring || !sessionEnabled || !area.isFocusActive)
+            return
+        val value = document ?: return
+        when (connection) {
+            case Some(val native) -> {
+                window.publishTextInputState(native, value.inputState, after);
+                Unit
+            }
+            case None -> {}
+        }
+    }
+
+    private fun input(batch: TextInputBatch) {
+        if (
+            !enabled ||
+                !sessionEnabled ||
+                retiring ||
+                !area.isFocusActive ||
+                !area.scope.isInputAllowed
+        )
+            return
+        when (batch.origin) {
+            case Some(val origin) -> if (connection != Some(origin.connection))
+                return
+            case None -> {}
+        }
+        val value = document ?: return
+        var invalid = false
+        val prepared =
+            try {
+                prepareEditorInput(value, batch)
+            } catch (error: IllegalArgumentException) {
+                invalid = true;
+                None
+            } catch (error: IllegalStateException) {
+                invalid = true;
+                None
+            }
+        if (invalid) {
+            reset(true, true)
+            return
+        }
+        val raw = prepared ?: return
+        val started =
+            when (configuration) {
+                case Some(_) -> true
+                case None -> false
+            }
+        if (!started && startsText(batch)) {
+            pending.value = Some(value)
+            value.inputStarter = Some(this)
+            val before = value.inputState
+            val next =
+                try {
+                    receive(value)
+                } catch (error: Throwable) {
+                    reset(true, true)
+                    throw error
+                }
+            if (closed || !owns(value))
+                return
+            requireUi(value.inputState == before, "text start callback changed the native document")
+            when (next) {
+                case Some(val options) -> configuration = Some(options)
+                case None -> {
+                    reset(true, true);
+                    return
+                }
+            }
+        }
+        val options = configuration ?: TextInputStartOptions()
+        performing = true
+        try {
+            finishEditorInput(
+                raw,
+                options.policy,
+                TextEditSource.NativeInput,
+                !options.multiline
+            ).publish(value, true)
+        } finally {
+            performing = false
+        }
+        area.setCaret(None, Some(value.revision))
+        publish(batch.origin)
+    }
+
+    public override fun close() {
+        pending.checkMutation()
+        if (closed)
+            return
+        closed = true
+        var failure = cleanupUi(None) { reset(false, true) }
+        failure = cleanupUi(failure) { events.close() }
+        if (!area.isClosed)
+            failure = cleanupUi(failure) { area.textInput = false }
+        throwUi(failure)
+    }
+}
+
+private fun startsText(batch: TextInputBatch): Boolean {
+    for (operation in batch.operations) {
+        when (operation) {
+            case Commit(val text, _) -> {
+                if (text != "")
+                    return true
+            }
+            case Preedit(val text, _, _) -> {
+                if (text != "")
+                    return true
+            }
+            else -> {}
+        }
+    }
+    return false
+}
+
+/** Borrows this mount's browsing area; the supplied state must be adopted by a normal editor. */
+public fun ComponentScope.textInputStarter(
+    area: InputArea,
+    enabled: Boolean = true,
+    onStart: (TextEditorState) -> TextInputStartOptions?
+): TextInputStarter {
+    requireBehaviorArea(area)
+    requireUi(area.focusable && !area.textInput, "text starter requires an unmanaged browsing area")
+    return resource { TextInputStarter(this, area, enabled, onStart) }
+}

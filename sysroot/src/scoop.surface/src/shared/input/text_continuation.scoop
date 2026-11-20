@@ -1,0 +1,83 @@
+package scoop.surface
+
+import scoop.window.*
+
+/** A pending receiver change for the same native text document. */
+internal class InputTextContinuation(
+    val source: InputArea,
+    val target: InputArea,
+    val connection: TextInputConnection,
+    val revision: ULong
+)
+
+internal fun InputRouter.continueTextInput(source: InputArea, target: InputArea): Boolean {
+    checkOpen()
+    requireInput(
+        source.owner === this && target.owner === this,
+        "text areas belong to different windows"
+    )
+    if (source === target || !source.hasFocus || !source.isFocusActive)
+        return false
+    val connection = imeConnection ?: return false
+    val value = InputTextContinuation(source, target, connection, source.textInputRevision)
+    if (!acceptsTextContinuation(value))
+        return false
+    textContinuation = Some(value)
+    return true
+}
+
+private fun InputRouter.acceptsTextContinuation(value: InputTextContinuation): Boolean =
+    osFocused &&
+        !value.source.closed &&
+        !value.target.closed &&
+        value.source.textInput &&
+        value.target.textInput &&
+        allowsFocus(value.source.scope) &&
+        allowsFocus(value.target.scope) &&
+        value.source.textInputRevision ==
+        value.revision &&
+        imeRequest ==
+        value.revision &&
+        imeConnection ==
+        Some(value.connection) &&
+        when (ime) {
+            case On(val area) -> area === value.source
+            else -> false
+        }
+
+internal fun InputRouter.validateTextContinuation() {
+    when (textContinuation) {
+        case Some(val value) -> if (!acceptsTextContinuation(value))
+            textContinuation = None
+        case None -> {}
+    }
+}
+
+internal fun InputRouter.completeTextContinuation(previous: InputArea?, next: InputArea?) {
+    val value = textContinuation ?: return
+    textContinuation = None
+    if (!sameArea(previous, Some(value.source)) || !sameArea(next, Some(value.target)))
+        return
+    if (!acceptsTextContinuation(value))
+        return
+    ime = ImeSession.On(value.target)
+    imeRequest = value.target.textInputRevision
+    imeCaret = None
+    // The receiving editor adopts the shared document before the source retires it.
+    var failure =
+        cleanupFailure(None) {
+            notify(
+                value.target.scope,
+                InputEvent.TextInput(TextInputEvent.Enabled(Some(value.connection)))
+            )
+        }
+    failure =
+        cleanupFailure(failure) {
+            notify(
+                value.source.scope,
+                InputEvent.TextInput(TextInputEvent.Disabled(Some(value.connection))),
+                inactive = true
+            )
+        }
+    throwFailure(failure)
+}

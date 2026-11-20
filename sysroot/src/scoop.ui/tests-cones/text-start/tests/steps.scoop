@@ -1,0 +1,233 @@
+package scoop.tests.ui.textstart
+
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.ui.text.*
+import scoop.window.TextEditCommand
+
+internal fun StartProbe.advance() {
+    when (phase) {
+        case 0 -> next { assertTrue(browse.requestFocus()) }
+        case 1 -> if (sourceReady()) {
+            retainedConnection = connection
+            next { nativeText("é🙂é") }
+        }
+        case 2 -> if (editorReady() && value.text == "é🙂é") {
+            assertEquals(1, starts)
+            assertEquals(1, nativeStarts)
+            assertEquals(0, nativeStops)
+            sameConnection()
+            assertTrue(field!!.execute(TextEditCommand.Undo))
+            assertEquals("", value.text)
+            assertTrue(field!!.execute(TextEditCommand.Redo))
+            assertEquals("é🙂é", value.text)
+            next { nativeText("Z") }
+        }
+        case 3 -> if (value.text == "é🙂éZ") {
+            sameConnection()
+            assertTrue(edits >= 3)
+            next { discard() }
+        }
+        case 4 -> if (sourceReady()) {
+            previousStarts = starts
+            next { nativeText("") }
+        }
+        case 5 -> {
+            assertEquals(previousStarts, starts)
+            accept = false
+            next { nativeText("blocked") }
+        }
+        case 6 -> if (sourceReady()) {
+            assertEquals(previousStarts + 1, starts)
+            when (current.value) {
+                case Some(_) -> fail(Some("refused input mounted an editor"))
+                case None -> {}
+            }
+            accept = true
+            mountEditor.value = false
+            policy = textEditPolicy { maxLength = Some(1L) }
+            next { nativeText("ni", 1) }
+        }
+        case 7 -> if (hasDocument && value.isComposing) {
+            assertTrue(browse.isFocusActive)
+            assertTrue(starter!!.pendingState!! === value)
+            assertTrue(nativeDocument(value))
+            retainedConnection = connection
+            previousStarts = starts
+            next { nativeText("nihao", 1) }
+        }
+        case 8 -> if (value.text == "nihao") {
+            assertEquals(previousStarts, starts)
+            assertTrue(value.isComposing)
+            assertTrue(nativeDocument(value))
+            next { mountEditor.value = true }
+        }
+        case 9 -> if (editorReady()) {
+            assertEquals("nihao", value.text)
+            assertTrue(value.isComposing)
+            sameConnection()
+            next { nativeText("你好") }
+        }
+        case 10 -> if (!value.isComposing) {
+            assertEquals("你", value.text)
+            sameConnection()
+            assertTrue(field!!.execute(TextEditCommand.Undo))
+            assertEquals("", value.text)
+            assertTrue(field!!.execute(TextEditCommand.Redo))
+            assertEquals("你", value.text)
+            policy = textEditPolicy()
+            next { discard() }
+        }
+        case 11 -> if (sourceReady()) {
+            @Unsafe
+            {
+                inputSource =
+                    Some(saveNativeInputSource() ?: fail(Some("cannot save input source")))
+            }
+            next {
+                assertEquals(
+                    0,
+                    native {
+                        view -> @Unsafe
+                        {
+                            return@native selectNativePinyin(view)
+                        }
+                    }
+                )
+            }
+        }
+        case 12 -> {
+            assertTrue(
+                native {
+                    view -> @Unsafe
+                    {
+                        return@native nativePinyinSelected(view)
+                    }
+                }
+            )
+            next { beginPinyin() }
+        }
+        case 13 -> if (editorReady() && value.isComposing) {
+            sameConnection()
+            if (continuePinyin())
+                return
+            next { imeKey(53) }
+        }
+        case 14 -> if (!value.isComposing) {
+            assertEquals("", value.text)
+            assertTrue(nativeDocument(value))
+            next { discard() }
+        }
+        case 15 -> if (sourceReady())
+            next { beginPinyin() }
+        case 16 -> if (editorReady() && value.isComposing) {
+            sameConnection()
+            if (continuePinyin())
+                return
+            next { imeKey(49) }
+        }
+        case 17 -> if (!value.isComposing) {
+            var cjk = false
+            for (character in value.text)
+                if (character.code >= 13312 && character.code <= 40959)
+                    cjk = true
+            assertTrue(cjk)
+            sameConnection()
+            restoreSource()
+            next { discard() }
+        }
+        case 18 -> if (sourceReady()) {
+            mountEditor.value = false
+            next { nativeText("cancel", 1) }
+        }
+        case 19 -> if (hasDocument && value.isComposing) {
+            retained = Some(value)
+            next {
+                starter!!.cancel();
+                current.value = None
+            }
+        }
+        case 20 -> if (sourceReady()) {
+            assertFalse(retained!!.isComposing)
+            assertEquals("", retained!!.text)
+            when (starter!!.pendingState) {
+                case Some(_) -> fail(Some("cancelled start remained pending"))
+                case None -> {}
+            }
+            next { nativeText("external", 1) }
+        }
+        case 21 -> if (hasDocument && value.isComposing)
+            next {
+                value.replaceAll("external");
+                Unit
+            }
+        case 22 -> if (sourceReady()) {
+            when (starter!!.pendingState) {
+                case Some(_) -> fail(Some("external replacement retained native input"))
+                case None -> {}
+            }
+            next { mountEditor.value = true }
+        }
+        case 23 -> if (editorReady()) {
+            assertEquals("external", value.text)
+            assertTrue(nativeDocument(value))
+            next { discard() }
+        }
+        case 24 -> if (sourceReady()) {
+            requestEditor = false
+            next { nativeText("pending", 1) }
+        }
+        case 25 -> if (hasField && value.isComposing) {
+            assertTrue(browse.isFocusActive)
+            assertTrue(starter!!.pendingState!! === value)
+            next { mountEditor.value = false }
+        }
+        case 26 -> if (sourceReady()) {
+            assertFalse(value.isComposing)
+            current.value = None
+            requestEditor = true
+            next { nativeText("blur", 1) }
+        }
+        case 27 -> if (hasDocument && value.isComposing)
+            next { assertTrue(outside.requestFocus()) }
+        case 28 -> if (outside.isFocusActive) {
+            assertFalse(value.isComposing)
+            assertEquals("", value.text)
+            current.value = None
+            next { assertTrue(browse.requestFocus()) }
+        }
+        case 29 -> if (sourceReady())
+            next { nativeText("disable", 1) }
+        case 30 -> if (hasDocument && value.isComposing)
+            next { enabled.value = false }
+        case 31 -> {
+            assertFalse(browse.isFocusActive)
+            assertFalse(value.isComposing)
+            current.value = None
+            next { enabled.value = true }
+        }
+        case 32 -> next { assertTrue(browse.requestFocus()) }
+        case 33 -> if (sourceReady()) {
+            policy = textEditPolicy { maxLength = Some(2L) }
+            next { nativeText("late") }
+        }
+        case 34 -> {
+            if (hasDocument && value.text == "la") {
+                retained = Some(value)
+                assertTrue(starter!!.pendingState!! === value)
+                ui!!.close()
+                assertFalse(browse.isAttached)
+                assertEquals(mounts, unmounts)
+                when (starter!!.pendingState) {
+                    case Some(_) -> fail(Some("closed root retained a text start"))
+                    case None -> {}
+                }
+                assertEquals("la", retained!!.text)
+                phase += 1
+                finished = true
+                active!!.requestExit()
+            }
+        }
+        else -> fail(Some("unknown text start phase"))
+    }
+}

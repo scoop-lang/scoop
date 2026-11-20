@@ -263,6 +263,10 @@ ParagraphHost 只拥有 Paragraph／TextLayout，不拥有字体或子组件。�
 
 行内出现的 key 与 View 自己的 key 分别参与普通匹配。插字、RTL 顺序或换行不丢失子组件状态；截断项保留挂载，成功帧后退出命中和焦点，恢复后继续使用原实例。宿主不隐式裁剪，调用方可用SceneContext 的 clip 包住整段文字及子项。
 
+浏览区域需要“键入即编辑”时，从 `scoop.ui.text` 导入 `scope.textInputStarter(area, enabled, onStart)`。它借用当前挂载的普通可聚焦 InputArea，在首个真正的非空原生 Commit／Preedit 时把空的 `TextEditorState` 交给 `onStart`；采用这个状态显示正常 Input／Textarea／TextEditHost，并返回 `Some(TextInputStartOptions(policy, multiline))`。返回 None 拒绝这次开始。不要从 KeyEvent 插入首字符，也不要把原显示文字写回这份待接管状态。
+
+状态及其原生 revision 在挂载前持续接收批次。新 TextEditHost 按普通焦点入口取得焦点时，自动接管同一原生连接，系统拼音的组合、候选和选择继续有效；caret 使用新宿主的 Accepted 布局。`pendingState` 表示尚待接管的状态，`update(enabled, onStart)` 更新配置，业务取消或替换编辑时调用 `cancel()`。失焦、禁用、外部状态改写、目标关闭及卸载清理等待；关闭 starter 不关闭借用区域。完整本机消费者和验证见[原生直接输入测试](tests-cones/text-start/README.md)。
+
 ## 示例与定向测试
 
 `SceneContext.children(order)` 可按完整子项索引排列呈现场景，例如 Absolute 的同层 zIndex；排列先检查完整性、重复和边界，再呈现已放置项。它与无参 children 共用一次呈现和借用规则，逻辑挂载、路由及 Tab 顺序保持不变。

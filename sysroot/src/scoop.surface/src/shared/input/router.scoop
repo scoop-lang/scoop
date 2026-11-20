@@ -49,6 +49,7 @@ internal class InputRouter(
     internal var imeCaret: ImeCaret? = None
     internal var imeConnection: TextInputConnection? = None
     internal var imeRequest = 0UL
+    internal var textContinuation: InputTextContinuation? = None
     internal var caretFrameValid = false
     internal val activityObservers = ArrayList<InputActivityObserver>()
     internal val pointerObservers = ArrayList<WindowPointerObserver>()
@@ -143,6 +144,13 @@ internal class InputRouter(
         changed()
     }
     fun detached(scope: InputScope) {
+        when (textContinuation) {
+            case Some(val value) -> if (
+                value.source.scope === scope || value.target.scope === scope
+            )
+                textContinuation = None
+            case None -> {}
+        }
         retiredScopes.add(scope)
         var index = 0L
         while (index < owned.size) {
@@ -289,6 +297,7 @@ internal class InputRouter(
         ime = ImeSession.Off
         imeCaret = None
         imeConnection = None
+        textContinuation = None
         caretFrameValid = false
         when (session) {
             case Off -> {};

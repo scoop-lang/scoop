@@ -1,0 +1,202 @@
+package scoop.tests.ui.textstart
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class TextStartWindowTest {
+    @Test
+    fun `native first input and system Pinyin continue into one real editor`() {
+        val probe = StartProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(probe.mounts, probe.unmounts)
+            assertFalse(probe.browse.isAttached)
+            assertFalse(probe.editor.isAttached)
+        } catch (error: Throwable) {
+            println(
+                f"text start phase=${probe.phase}, starts=${probe.starts}, native=${
+                    probe.nativeStarts
+                }/${probe.nativeStops}, mounts=${probe.mounts}/${probe.unmounts}"
+            )
+            throw error
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class StartProbe: Closeable {
+    val current = state<TextEditorState?>(None)
+    val mountEditor = state(true)
+    val enabled = state(true)
+    val browse = FocusHandle()
+    val editor = FocusHandle()
+    val outside = FocusHandle()
+    val fonts = FontCollection()
+    val appearance = TextEditAppearance(fonts, textStyle { fontSize = 20.0 })
+    var accept = true
+    var requestEditor = true
+    var policy = textEditPolicy()
+    var starts = 0
+    var mounts = 0
+    var unmounts = 0
+    var edits = 0
+    var nativeStarts = 0
+    var nativeStops = 0
+    var connection: TextInputConnection? = None
+    var sourceConnection: TextInputConnection? = None
+    var retainedConnection: TextInputConnection? = None
+    var retained: TextEditorState? = None
+    var previousStarts = 0
+    var inputSource: Ptr<Unit>? = None
+    var pinyinIndex = 0L
+    var starter: TextInputStarter? = None
+    var field: TextEditHost? = None
+    var scope: ComponentScope? = None
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var active: ActiveApplication? = None
+    var phase = 0
+    var waiting = false
+    var finished = false
+    val value: TextEditorState get() = current.value ?: fail(Some("no started document"))
+    val hasField: Boolean get() =
+        when (field) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    val hasDocument: Boolean get() =
+        when (current.value) {
+            case Some(_) -> true;
+            case None -> false
+        }
+
+    fun start(value: TextEditorState): TextInputStartOptions? {
+        starts += 1
+        assertEquals("", value.text)
+        if (!accept)
+            return None
+        current.value = Some(value)
+        return Some(TextInputStartOptions(policy))
+    }
+
+    fun discard() {
+        starter!!.cancel()
+        current.value = None
+        assertTrue(browse.requestFocus())
+    }
+
+    fun sourceReady(): Boolean =
+        browse.isFocusActive &&
+            sourceConnection !=
+            None &&
+            connection ==
+            sourceConnection &&
+            nativeDocument(TextEditorState())
+
+    fun editorReady(): Boolean =
+        editor.isFocusActive &&
+            when (field) {
+                case Some(val host) -> connection !=
+                    None &&
+                    nativeDocument(value) &&
+                    host.area.visibleCaretBounds !=
+                    None
+                case None -> false
+            }
+
+    fun sameConnection() {
+        assertEquals(retainedConnection, connection)
+        assertTrue(nativeDocument(value))
+        nativeCaret()
+        when (starter!!.pendingState) {
+            case Some(_) -> fail(Some("editor did not take the pending document"))
+            case None -> {}
+        }
+    }
+
+    fun next(action: () -> Unit = {}) {
+        phase += 1;
+        action()
+    }
+
+    fun accepted() {
+        if (finished || waiting || !(window?.isFocused ?: false))
+            return
+        waiting = true
+        assertTrue(
+            active!!.proxy().post {
+                _ ->
+                waiting = false
+                advance()
+                if (!finished)
+                    scope!!.requestFrame()
+            }
+        )
+    }
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(40L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop native text start"
+                            size = LogicalSize(520.0, 200.0)
+                        }
+                    )
+                window = Some(native)
+                ui = host.attach(native, { scope -> StartScene(this, scope) })
+                native.requestFocus()
+            }
+            case Window(_, WindowEvent.Focused(true)) -> scope?.requestFrame()
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(val value))) -> {
+                connection = value;
+                nativeStarts += 1
+            }
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(_))) -> {
+                connection = None;
+                nativeStops += 1
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"text start timeout at ${phase}"))
+            else -> {}
+        }
+    }
+
+    fun restoreSource() {
+        when (inputSource) {
+            case Some(val value) -> {
+                inputSource = None
+                @Unsafe
+                {
+                    assertEquals(0, restoreNativeInputSource(value))
+                }
+            }
+            case None -> {}
+        }
+    }
+
+    public override fun close() {
+        try {
+            restoreSource()
+        } finally {
+            ui?.close();
+            fonts.close()
+        }
+    }
+}

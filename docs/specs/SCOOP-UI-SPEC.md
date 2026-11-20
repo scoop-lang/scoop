@@ -618,6 +618,16 @@ TextEditHost.measure 的 scrollPadding 回调在本次正文排版后接收实�
 
 caretBlink 缺省跟随根的系统偏好；显式 Some(duration) 为非负时长，零表示保持可见。只在活动焦点、折叠选区、非组合、窗口可见且实际 caret 可见时预约下一次闪烁；输入重置可见阶段，失焦／隐藏／不可见／关闭停止预约。拖选出视口时才预约边缘滚动，按实际可滚范围推进，每次滚动等 Accepted 后再继续；被阻止的释放也通过 onEventFinished 结束拖选。普通滚轮复用残量消费和祖先链，宿主没有永久轮询或第二个场景坐标系统。
 
+#### 7.5.2.1 从浏览区域直接开始输入
+
+`scoop.ui.text` 的 `scope.textInputStarter(area, enabled = true, onStart)` 借用本挂载已有的可聚焦区域，登记随 scope 关闭的 TextInputStarter。它让浏览状态接受真正的原生文本输入，首个非空 Commit 或 Preedit 才调用 `onStart: (TextEditorState) -> TextInputStartOptions?`；方向键、应用快捷键和普通文本命令不伪造成正文。TextInputStartOptions 只配置 policy（缺省普通 textEditPolicy）和 multiline（缺省 false），None 拒绝这次开始并重建空的输入连接。
+
+传给 onStart 的状态是与当前原生文档一致的空状态，保留实际 revision。调用方采用这一状态创建或显示正常 Input／Textarea／TextEditHost，并按普通 FocusHandle 请求聚焦；不能先写入旧显示值或重新用 KeyEvent 拼接首字符。返回的策略处理首批及编辑器挂载前的后续批次，真实 preedit、选区、Unicode、提交和撤销记录均复用 TextEditorState 的同一事务。临时 preedit 不先经过已提交文本过滤。首批结果通过这个状态观察，不回放尚未挂载宿主的 onEdited。
+
+TextEditHost 绑定同一状态时登记 Surface 的显式连接交接；只有真实焦点转到该宿主后才接管文档及原生连接。开始到接管之间，原区域继续确认收到的批次；接管后沿真实编辑宿主发布 caret、语义文档和后续通知，不维持第二个编辑器或隐藏 View。交接保留系统输入法的实际组合与候选，不先结束组合再重新输入。
+
+TextInputStarter.update(enabled, onStart) 更新后续开始资格和回调，pendingState 只返回等待接管的状态；cancel 结束本次等待及组合但保留该区域下一次开始资格。调用方取消或替换业务编辑时用 cancel 清理对应等待。失焦、禁用、区域注销、显式取消、外部改写状态和目标宿主关闭均使未接管的等待失效；重新挂载不能取走旧输入。关闭登记注销事件处理器并撤下它管理的 textInput 资格，不关闭借用区域。普通已活动 TextEditHost 的状态所有权、原生输入、撤销和失焦合同保持不变。
+
 #### 7.5.3 编辑显示投影
 
 `textProjection(callback)` 构造不可变 TextProjection，回调收到包含 text、anchor、cursor 和 markedRange 的 TextEditSnapshot，返回原文上有序、不重叠的 TextEditReplacement。缺省回调返回空数组，即恒等投影；可以在空范围插入显示分隔符或将原文范围替换为不同长度的显示单元。复用第 7.5.1 节区间验证与单调映射，禁止原文重排。回调在现有纯求值边界运行，异常或非法范围不发布新的布局／映射组合。

@@ -1,0 +1,126 @@
+package scoop.tests.ui.textstart
+
+import scoop.test.*
+import scoop.tests.surface.surfaceDocumentCaret
+import scoop.tests.window.*
+import scoop.ui.text.TextEditorState
+import scoop.window.native.*
+import scoop.window.*
+
+internal fun <R> StartProbe.native(action: (Ptr<Unit>) -> R): R {
+    @Unsafe
+    {
+        return window!!.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, val view) -> action(view)
+                }
+            }
+        }
+    }
+}
+
+internal fun StartProbe.nativeText(text: String, kind: Int = 0) {
+    val result =
+        native {
+            view -> @Unsafe
+            {
+                return@native text.withUtf8Bytes {
+                    bytes,
+                    length -> @Unsafe
+                    {
+                        return@withUtf8Bytes nativeEditorText(
+                            view,
+                            kind,
+                            bytes,
+                            length,
+                            if (kind == 1)
+                                text.byteLength
+                            else
+                                0L,
+                            0L,
+                            -1L,
+                            0L
+                        )
+                    }
+                }
+            }
+        }
+    assertEquals(0, result)
+}
+
+internal fun StartProbe.nativeDocument(state: TextEditorState): Boolean {
+    val input = state.inputState
+    return native {
+        view -> @Unsafe
+        {
+            return@native input.surroundingText.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeEditorDocument(
+                        view,
+                        bytes,
+                        length,
+                        input.selection.range.start,
+                        input.selection.range.end,
+                        input.markedRange?.start ?: -1L,
+                        input.markedRange?.end ?: -1L
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun StartProbe.imeKey(code: Int) {
+    assertEquals(
+        0,
+        native {
+            view -> @Unsafe
+            {
+                return@native nativeImeKey(view, code)
+            }
+        }
+    )
+}
+
+internal fun StartProbe.nativeCaret() {
+    val bounds = field!!.area.visibleCaretBounds ?: fail(Some("new editor caret is unavailable"))
+    assertTrue(bounds.y > 70.0)
+    var cursor = 0L
+    for (character in value.text.utf8Slice(Utf8Range(0L, value.selection.cursor)))
+        cursor += if (character.code > 65535)
+            2L
+        else
+            1L
+    assertTrue(
+        surfaceDocumentCaret(
+            window!!,
+            Some(
+                LogicalRect(
+                    LogicalPosition(bounds.x, bounds.y),
+                    LogicalSize(bounds.width, bounds.height)
+                )
+            ),
+            cursor
+        )
+    )
+}
+
+internal fun StartProbe.beginPinyin() {
+    retainedConnection = connection
+    pinyinIndex = 1L
+    imeKey(45)
+}
+
+internal fun StartProbe.continuePinyin(): Boolean {
+    if (pinyinIndex >= 5L)
+        return false
+    val codes = [45, 34, 4, 0, 31]
+    val code = codes[pinyinIndex]
+    pinyinIndex += 1L
+    imeKey(code)
+    return true
+}
