@@ -134,7 +134,7 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 `hover: DropHover?` 提供当前接收格式、操作与局部位置，可以在 render 或 scene 读取来绘制反馈。目标变化和正常结束清除旧值并通知仍存活目标；禁用后的 leave 在正常 UI 收尾时执行。UI 使用 AppKit 的活动拖放更新重新查询几何；无活动会话时不为拖放建立 timer 或持续请求帧。
 
-`scope.dragSource(area, DragSourceOptions(threshold = 4.0)) { start -> ... }` 为本挂载登记来源。窗口逻辑距离达到阈值后调用 prepare，返回 `Some(DragSourceData(content, effects, localData = None, onCompleted = ...))` 才接管原按下路径；None 保留普通点击并允许祖先继续尝试。localData 沿 Window 的真实来源关联供本进程接收者使用。仅处理非上下文菜单的左键单击，局部位置来自 Accepted 几何，原始及当前 PointerState 保留修饰键和窗口坐标。不要在每次移动时读取全文或文件。需要自定义预览时，在 prepare 中用 `start.renderPreview(bounds) { canvas -> ... }` 绘制一次，再传 `preview = Some(image)`。文本宿主用 `start.renderSelectionPreview(rectangles, area, draw)` 从当前排版绘制透明的可见选区。
+`scope.dragSource(area, DragSourceOptions(threshold = 4.0)) { start -> ... }` 为本挂载登记来源。窗口逻辑距离达到阈值后调用 prepare，返回 `Some(DragSourceData(content, effects, localData = None, onCompleted = ...))` 才接管原按下路径；None 保留普通点击并允许祖先继续尝试。localData 沿 Window 的真实来源关联供本进程接收者使用。仅处理非上下文菜单的左键单击，局部位置来自 Accepted 几何，原始及当前 PointerState 保留修饰键和窗口坐标。不要在每次移动时读取全文或文件。需要自定义预览时，在 prepare 中用 `start.renderPreview(bounds) { canvas -> ... }` 绘制一次，再传 `preview = Some(image)`。文本宿主用 `start.renderSelectionPreview(rectangles, area, draw)` 从当前排版绘制透明的可见选区。选区超出视口或预览尺寸时，被裁切的边缘会逐渐淡出。
 
 DragSource.update 替换下一次准备的配置／函数；每份数据的 onCompleted 保留自己的来源，先清除 isDragging 再回到本根业务派发。默认只提供 Copy；需要 Move 时在准备中捕获原模型及修订，收到 Dropped(Move) 后核对原内容仍可删除。库不替业务删除数据。isDragging 包含尚未启动的准备状态，cancelPending 只撤销候选或未启动请求；关闭行为撤销完成回调，AppKit 活动会话的数据按系统生命周期保留。
 
