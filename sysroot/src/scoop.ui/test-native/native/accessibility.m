@@ -1,4 +1,5 @@
 #import <AppKit/AppKit.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>
 
@@ -157,14 +158,39 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
 
 void *scoop_ui_ax_cell(void *pointer, int64_t row, int64_t column) {
   id node = (__bridge id)pointer;
-  return (__bridge_retained void *)[node accessibilityCellForColumn:column row:row];
+  return (__bridge_retained void *)[node accessibilityCellForColumn:column
+                                                                row:row];
+}
+
+void *scoop_ui_ax_column_header(void *pointer, int64_t index) {
+  NSArray *headers = [(__bridge id)pointer accessibilityColumnHeaderUIElements];
+  return index >= 0 && (uint64_t)index < headers.count
+             ? (__bridge_retained void *)headers[(NSUInteger)index]
+             : NULL;
+}
+
+int32_t scoop_ui_ax_cell_span(void *pointer, int64_t row, int64_t column,
+                              int64_t rows, int64_t columns) {
+  id node = (__bridge id)pointer;
+  return NSEqualRanges([node accessibilityRowIndexRange],
+                       NSMakeRange(row, rows)) &&
+         NSEqualRanges([node accessibilityColumnIndexRange],
+                       NSMakeRange(column, columns));
 }
 
 int32_t scoop_ui_ax_frame(void *pointer, void *view, double x, double y,
                           double width, double height) {
   NSRect expected = NSAccessibilityFrameInView((__bridge NSView *)view,
                                                NSMakeRect(x, y, width, height));
-  return NSEqualRects([(__bridge id)pointer accessibilityFrame], expected);
+  NSRect actual = [(__bridge id)pointer accessibilityFrame];
+  BOOL equal = NSEqualRects(actual, expected);
+  if (!equal)
+    fprintf(stderr, "AX frame %s: expected %s, actual %s\n",
+            [([(__bridge id)pointer accessibilityIdentifier]
+                  ?: @"unnamed") UTF8String],
+            NSStringFromRect(expected).UTF8String,
+            NSStringFromRect(actual).UTF8String);
+  return equal;
 }
 
 int32_t scoop_ui_ax_hit(void *pointer, void *viewPointer, double x, double y,

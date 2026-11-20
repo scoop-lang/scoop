@@ -94,7 +94,8 @@ internal class AxRows(
                         Array(columnCount) {
                             index -> SemanticGridColumn(
                                 SemanticItemKey.Number(columnAt(index)),
-                                Some("Column")
+                                Some("Column"),
+                                probe.leafHeader?.id
                             )
                         }
                     ) {
@@ -141,12 +142,18 @@ internal class AxTable(private val props: Props<AxRows>, scope: ComponentScope):
     scope
 ) {
     private val semantics = scope.semantics(SemanticRole.Table)
+    private val groupHeader = scope.semantics(SemanticRole.ColumnHeader)
+    private val leafHeader = scope.semantics(SemanticRole.ColumnHeader)
     init {
         props.value.probe.table = Some(semantics)
+        props.value.probe.groupHeader = Some(groupHeader)
+        props.value.probe.leafHeader = Some(leafHeader)
         scope.routeSemanticsChildren(Some(semantics))
     }
     public override fun update(): UiInvalidation {
         val rows = props.value
+        groupHeader.update(SemanticProperties(name = Some("Metrics")))
+        leafHeader.update(SemanticProperties(name = Some("Column")))
         semantics.update(
             SemanticProperties(
                 automationId = Some("grid"),
@@ -176,6 +183,8 @@ internal class AxTable(private val props: Props<AxRows>, scope: ComponentScope):
     }
     public override fun scene(context: SceneContext, value: Unit) {
         context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.semantics(groupHeader, Rect(24.0, 24.0, 232.0, 12.0))
+        context.semantics(leafHeader, Rect(24.0, 36.0, 232.0, 12.0))
         context.children()
     }
 }
@@ -268,7 +277,15 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
                             columnKey = Some(SemanticItemKey.Number(input.column))
                         )
                     )
-            )
+            ),
+            relations =
+                SemanticRelations(
+                    columnHeaders =
+                        [
+                            input.source.rows.probe.groupHeader!!.id,
+                            input.source.rows.probe.leafHeader!!.id
+                        ]
+                )
         )
         return UiInvalidation.Layout
     }

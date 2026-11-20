@@ -109,6 +109,9 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
   NSInteger index = self.columnIndex;
   if (!self.isAccessibilityElement || index == NSNotFound)
     return @[];
+  NSArray *mounted = self.mounted.accessibilityColumnHeaderUIElements;
+  if (mounted.count)
+    return mounted;
   int64_t header =
       self.row.collection.state.gridColumns[(NSUInteger)index].header;
   SWAccessibilityNode *node = [self.row.collection.tree element:header];
