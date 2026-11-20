@@ -112,13 +112,11 @@ def prepare(work_dir, source, archive, download_dir=None):
     inputs.mkdir(parents=True, exist_ok=True)
     default_archive = archive is None
     if default_archive:
+        filename = f"{name}.tar.xz"
         archive = obtain(
-            download_directory(download_dir),
-            "llvm-project",
-            VERSION,
-            f"{name}.tar.xz",
-            f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{VERSION}/{name}.tar.xz",
-            local=vendor / f"{name}.tar.xz",
+            download_directory(download_dir) / filename,
+            f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{VERSION}/{filename}",
+            local=vendor / filename,
         )
     archive = archive.resolve(strict=True)
     if source is None:

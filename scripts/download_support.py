@@ -14,14 +14,14 @@ def download_directory(explicit=None):
     ).resolve()
 
 
-def obtain(directory, dependency, version, filename, url, *, local=None, sha256=None):
+def obtain(destination, url, *, local=None, sha256=None):
     """Return a complete input, downloading only when no local input exists."""
-    destination = directory / dependency / version / filename
     if destination.is_file():
         return destination
     if local is not None and local.is_file():
         return local.resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
+    filename = destination.name
     with build_lock(destination.with_name(filename + ".lock")):
         if destination.is_file():
             return destination
