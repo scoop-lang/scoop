@@ -270,6 +270,8 @@ Empty、Direction 和 Portal 保持独立描述类别；Direction 的方向值�
 
 Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 open Binding、options 和唯一子描述；子内容按受控打开状态及 Presence 阶段匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。相同 key 在退出中重开时保留子树；最终移除后的再次打开创建新的内容挂载。
 
+Portal 内容的默认语义父级从当前窗口 provider 根开始，避免触发器所在的虚拟集合或文本容器吞掉弹层；层内路由、显式 parent 及原模态阅读规则见[UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md#1-资源与父子关系)。
+
 工厂的静态返回类型 C／E 须保留具体 class 类型及其完整泛型实参，这是 API 使用约定。库不通过运行时反射诊断接口、object 或值类型等违反此约定的调用，也不承诺此类调用会抛出特定参数错误。Component／Element／LazyElement 是公开抽象基类，子类把工厂收到的当前 scope 传给基类；不继承 MountedNode 等内部节点。相同静态类型下改变工厂闭包或返回子类，并不改变已挂载实例；工厂只负责新挂载的创建。需要选择不同实现的调用方应保留不同的具体类型，或显式更换 key。
 
 同一个 Component、Element 或 LazyElement 实例只服务一次挂载。基类在实际实例内保存私有挂载归属，工厂返回时验证它来自本次 scope 且未被使用；返回其他挂载的实例、重复实例或已卸载实例均报告状态错误。检查为常数时间，不维护全局活动实例表或历史表。可以重复使用 View 描述；共享业务状态通过普通模型／Props／Binding 表达。

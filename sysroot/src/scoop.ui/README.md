@@ -67,6 +67,8 @@ LazyElement 可为自己的 List 节点调用 `updateCollection(source, items, v
 
 `ComponentScope.semantics` 在构造／挂载时登记 `SemanticsHandle`；角色、属性与动作从 `scoop.window.accessibility` 导入，三个桌面平台使用同一声明。一个挂载可以有多个节点，普通布局默认透明，`routeSemanticsChildren` 指定子挂载的语义父级。下面的包装不改变子项布局，也不为语义登记创建 InputArea：
 
+Portal 内容默认从窗口语义根独立发布，不继承触发器所在的行、单元格或文本容器路由。虚拟网格单元格旁声明的菜单因此可以由原生客户端读取和执行。层内普通路由、显式 parent、模态输入限制与焦点恢复仍沿原合同；这不改变逻辑挂载或生命周期。
+
 ```scoop
 import scoop.graphics.*
 import scoop.ui.*

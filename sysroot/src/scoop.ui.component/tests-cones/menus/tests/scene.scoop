@@ -18,6 +18,30 @@ internal class MenuScene(private val p: MenuProbe, scope: ComponentScope): Compo
         val menu = MenuBuilderForTest(p, version)
         return menu.content()
     }
+    private fun contextTrigger(): View {
+        val p = this.p
+        val content =
+            button("Context", { p.contextClicks += 1 }) {
+                fonts = Some(p.fonts)
+                focus = FocusOptions(Some(p.contextFocus))
+            }
+        if (!p.nestedContext)
+            return content
+        return contextMenu(
+            content,
+            menu {
+                item(
+                    ViewKey.Text("inner-context"),
+                    "Inner action",
+                    { p.innerContextActions += 1 }
+                ) { focus = FocusOptions(Some(p.innerContextItem)) }
+            }
+        ) {
+            open = Some(p.innerContextOpen.binding())
+            fonts = Some(p.fonts)
+            enabled = p.innerContextEnabled
+        }
+    }
     public override fun render(): View {
         val p = this.p
         return direction(
@@ -66,10 +90,7 @@ internal class MenuScene(private val p: MenuProbe, scope: ComponentScope): Compo
                     },
                     p.touch?.content(p) ?:
                         contextMenu(
-                            button("Context", { p.contextClicks += 1 }) {
-                                fonts = Some(p.fonts);
-                                focus = FocusOptions(Some(p.contextFocus))
-                            },
+                            contextTrigger(),
                             menu {
                                 item(
                                     ViewKey.Text("context"),

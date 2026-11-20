@@ -37,6 +37,8 @@ internal class AxGridProbe: Closeable {
     val rows = state(AxRows(this))
     val queryGuard = state(0)
     val overlayOpen = state(true)
+    val cellOverlayOpen = state(false)
+    var cellOverlayClicks = 0
     var overlayPresented = false
     var viewport: ScrollViewport? = None
     var frame: ComponentScope? = None
@@ -73,6 +75,7 @@ internal class AxGridProbe: Closeable {
     private var spanCell: NativeNode? = None
     private var coveredCell: NativeNode? = None
     private var distantCell: NativeNode? = None
+    private var rowPopup: NativeNode? = None
     private var beforeX = 0.0
     private var beforeSpanOffset = Point(0.0, 0.0)
     private var calls: NativeCalls? = None
@@ -171,6 +174,7 @@ internal class AxGridProbe: Closeable {
             case 34 -> calls!!.post(spanCell!!, phase, 2)
             case 38 -> calls!!.post(spanCell!!, phase, 19)
             case 43 -> calls!!.post(distantCell!!, phase, 19, selectionStart = 1L)
+            case 46 -> calls!!.post(rowPopup!!, phase)
             else -> calls!!.post(root!!, phase, 20)
         }
     }
@@ -443,6 +447,45 @@ internal class AxGridProbe: Closeable {
                 }
             }
             case 45 -> {
+                val found = findRowPopup()
+                when (found) {
+                    case Some(val node) -> {
+                        rowPopup = Some(keep(node))
+                        assertTrue(node.flag(1))
+                        assertTrue(node.flag(2))
+                    }
+                    case None -> retry = true
+                }
+            }
+            case 46 -> {}
+            case 47 -> {
+                assertEquals(1, cellOverlayClicks)
+                assertFalse(cellOverlayOpen.value)
+                retry = rowPopup!!.flag(0)
+            }
+            case 48 -> {
+                val found = findRowPopup()
+                when (found) {
+                    case Some(val node) -> {
+                        assertFalse(rowPopup!!.flag(0))
+                        rowPopup = Some(keep(node))
+                        assertTrue(node.flag(1))
+                    }
+                    case None -> retry = true
+                }
+            }
+            case 49 -> {
+                retry = rowPopup!!.flag(0)
+                if (!retry)
+                    when (val found = findRowPopup()) {
+                        case Some(val node) -> {
+                            node.close()
+                            fail(Some("a popup survived its row owner"))
+                        }
+                        case None -> {}
+                    }
+            }
+            case 50 -> {
                 assertFalse(nativeTable!!.flag(0))
                 assertFalse(replacement!!.flag(0))
                 assertFalse(otherCell!!.flag(0))
@@ -452,6 +495,16 @@ internal class AxGridProbe: Closeable {
             }
             else -> fail(Some("unknown AX phase"))
         }
+    }
+    private fun findRowPopup(): NativeNode? {
+        // Query only the window's direct children, never enumerate virtual grid rows.
+        for (index in 0L ..< root!!.count) {
+            val child = root!!.child(index)
+            if (child.text(0, Some("Row popup action")))
+                return Some(child)
+            child.close()
+        }
+        return None
     }
     private fun checkHeaders(node: NativeNode, names: Array<String>) {
         for (index in 0L ..< names.size) {
@@ -487,7 +540,7 @@ internal class AxGridProbe: Closeable {
             frame!!.requestFrame()
             return
         }
-        if (phase == 45) {
+        if (phase == 50) {
             finished = true
             active!!.requestExit()
             return
@@ -538,7 +591,11 @@ internal class AxGridProbe: Closeable {
                 rows.value = AxRows(this)
             }
             case 44 -> frame!!.requestFrame()
-            case 45 -> {
+            case 45 -> cellOverlayOpen.value = true
+            case 47 -> frame!!.requestFrame()
+            case 48 -> cellOverlayOpen.value = true
+            case 49 -> scroll.scrollTo(Point(0.0, 0.0))
+            case 50 -> {
                 ui!!.close();
                 send()
             }
