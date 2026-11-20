@@ -182,9 +182,8 @@ int64_t scoop_window_drag_preview(SWDragSource *source, int32_t width,
   g_bytes_unref(bytes);
   // A texture's intrinsic size is in pixels; the icon uses logical units.
   GtkSnapshot *snapshot = gtk_snapshot_new();
-  graphene_rect_t bounds;
-  graphene_rect_init(&bounds, 0, 0, (float)logical_width,
-                     (float)logical_height);
+  graphene_rect_t bounds =
+      GRAPHENE_RECT_INIT(0, 0, (float)logical_width, (float)logical_height);
   gtk_snapshot_append_texture(snapshot, texture, &bounds);
   g_object_unref(texture);
   source->preview = gtk_snapshot_free_to_paintable(snapshot, &bounds.size);

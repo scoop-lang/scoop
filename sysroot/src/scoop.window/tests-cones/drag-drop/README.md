@@ -12,3 +12,5 @@ scoop test sysroot/src/scoop.window/tests-cones/drag-drop --release
 ```
 
 开发时另传配套的 `--sysroot` 和 `--cone-path`。进程内协议方法测试不等于真实 dragging session；source、同窗／跨窗路由、跨程序双向拖放、文本事务、窗口 DPI、触摸来源与其他平台仍按[统一计划 S6](../../../../../docs/ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)验收。
+
+Linux 的 `LinuxDragInputTest` 使用独立 X11 显示器送入真实协议按压、移动与释放。它先取消待启动请求，再读取活动 GTK 拖放图标的像素、逻辑尺寸及指针相对位置。可用 `xvfb-run -a env GDK_BACKEND=x11 scoop test sysroot/src/scoop.window --release --filter LinuxDragInputTest --ignored` 运行；设置 `GDK_SCALE=2` 可验证双倍缩放。
