@@ -28,7 +28,7 @@ ComponentScope.dragSource(area, options = DragSourceOptions(), prepare): DragSou
 
 prepare: (DragSourceStart) -> DragSourceData? 只在达到阈值且默认动作仍有资格时调用一次。DragSourceStart 保存当前 Accepted 几何下的区域局部 start／position、原始 press 和当前 pointer 两个 PointerState，以及真实来源 input: DragInput。正文准备可据此核对原按下位置、时间、修饰键和当前业务状态。按下时只记录候选，不读取数据或消费点击。prepare 返回 None 时放弃该候选，不接管普通点击，祖先默认动作仍可继续；下一次按下可重新尝试。准备回调中更新、禁用或关闭该行为，会撤销本次准备。
 
-DragSourceData(content: DragContent, effects = DragEffects(true, false, false), localData: Any? = None, onCompleted: (DragResult) -> Unit = {}) 描述本次具体数据和结果处理。localData 沿 Window 的真实来源关联传给同程序接收端，不写入原生数据表示。普通属性更新为下一次准备替换闭包；已准备数据的 onCompleted 始终与该次来源配对，不被下一行、下一文档或下一次 render 的处理器替换。需要 Move 的消费者在准备时捕获来源及修订，并在 Dropped(Move) 后核对来源仍可删除，再提交一次删除；库不自动删除业务数据。
+DragSourceData(content: DragContent, effects = DragEffects(true, false, false), localData: Any? = None, preview: DragPreview? = None, onCompleted: (DragResult) -> Unit = {}) 描述本次具体数据和结果处理。localData 沿 Window 的真实来源关联传给同程序接收端，不写入原生数据表示。普通属性更新为下一次准备替换闭包；已准备数据的 onCompleted 始终与该次来源配对，不被下一行、下一文档或下一次 render 的处理器替换。需要 Move 的消费者在准备时捕获来源及修订，并在 Dropped(Move) 后核对来源仍可删除，再提交一次删除；库不自动删除业务数据。
 
 有数据后沿 Surface.claimPointer 接管原按下路径，再由当前 Window.beginDrag 复制表示并延后启动系统会话。子项先获得默认动作；事件被阻止或已被其他作用域接管时，来源不另建竞争会话。准备异常或 Window 启动入口异常沿正常 UI 错误边界处理，已经取得的普通 claim 会收尾。窗口系统操作发出的 Pointer.Cancelled 只结束普通点击／拖动候选，不撤销已准备的数据会话；窗口失焦、capture 结束也不能被解释成系统 Drop 失败。
 
@@ -39,6 +39,10 @@ isDragging 是可追踪的 UI 状态，表示该行为当前持有准备中或�
 创建、更新、显式取消与关闭遵守 UI owner 和评估阶段限制，不在 render／measure／scene／draw 内修改。正常完成先清除来源登记及 isDragging，再在本根普通派发边界中调用该次 onCompleted；根错误收尾复用 SurfaceWindow，不建立额外事件循环。
 
 拖动不自动产生另一棵语义树。消费者仍应提供同一业务模型的复制／粘贴、菜单或键盘入口，并以已有 semantics 发布这些入口。拖放成功不能替代非拖动入口及辅助技术操作的验收。
+
+拖出区域可在准备时用 `preview = Some(DragPreview(image, hotSpot))` 指定本次预览。需要绘制卡片或文字时，`DragSourceStart.renderPreview(bounds, draw)` 将区域局部逻辑坐标下的内容按指针所在屏幕的像素密度绘制一次，透明底，原按下点相对 bounds 的位置作为热点。交给平台的图像脱离挂载后仍有效。未指定预览时使用后端默认反馈。
+
+文本编辑与可选择文字默认用当前 Accepted 排版绘制选中的可见字形。多行、双向文字及滚动使用真实选区矩形裁剪，透明处不带上相邻正文或编辑光标。过大的选区取抓取点附近的局部，保留字号与热点。可在自绘文本宿主中使用同一 `DragSourceStart.renderSelectionPreview(regions, viewport, draw)`；没有可见区域时返回 None。复制策略、选区导出和完成事务沿用原合同。
 
 ### 3.1 Touch／Pen 来源
 

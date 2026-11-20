@@ -38,11 +38,11 @@ prepareForDragOperation 只复核元数据和已协商选择；performDragOperat
 
 ## 4. Window 拖出源
 
-三个桌面后端提供 `Window.beginDrag(content: DragContent, effects: DragEffects = DragEffects(true, false, false), localData: Any? = None, onCompleted: (DragResult) -> Unit = {}): DragSession`。只允许在该窗口当前真实左键或受支持的直接接触输入的 owner 派发中调用，平台来源限制见第 5 节；上层负责实际拖动阈值。无对应输入、窗口不可交互或已有活动源／窗口系统操作时报告状态错误。一个 Application 同时只有一个源请求；不同目标根仍各自协商接收。
+三个桌面后端提供 `Window.beginDrag(content: DragContent, effects: DragEffects = DragEffects(true, false, false), localData: Any? = None, preview: DragPreview? = None, onCompleted: (DragResult) -> Unit = {}): DragSession`。只允许在该窗口当前真实左键或受支持的直接接触输入的 owner 派发中调用，平台来源限制见第 5 节；上层负责实际拖动阈值。无对应输入、窗口不可交互或已有活动源／窗口系统操作时报告状态错误。一个 Application 同时只有一个源请求；不同目标根仍各自协商接收。
 
 数据在返回前复制给 native。Text 发布一个原值文本项；Url 要求绝对 URL，在同一项发布 URL 与其文本表示；Files 要求非空绝对本地路径列表，每个路径发布一个 FileURL 项，不读取文件内容、检查来源或创建文件承诺。格式无法表示、空操作集及无效数据为参数错误，失败不接管普通按下序列，也不留下半份来源。源不改系统普通剪贴板，拖放 pasteboard 归系统会话。
 
-准备成功后沿已有 SystemOperation 取消通知结束普通鼠标与接触路由，再在 owner 的原生操作边界启动；Darwin 调用 beginDraggingSessionWithItems。左键拖动保留对应 NSEvent，使阈值后的接管不用伪造按下；系统移动／调整窗口的事件限制不随此扩展改变。准备到实际启动之间的取消、模态、关窗或退出不启动会话。原生预览使用系统图标及实际项目数，光标和修饰键操作选择交给 AppKit。
+准备成功后沿已有 SystemOperation 取消通知结束普通鼠标与接触路由，再在 owner 的原生操作边界启动；Darwin 调用 beginDraggingSessionWithItems。左键拖动保留对应 NSEvent，使阈值后的接管不用伪造按下；系统移动／调整窗口的事件限制不随此扩展改变。准备到实际启动之间的取消、模态、关窗或退出不启动会话。未提供预览时沿用各后端的默认拖放反馈。
 
 GTK 的左键按下与按住左键的移动事件都必须将真实 GdkEvent 附件保留到 owner 派发结束；不能只保留按下而丢弃达到上层拖动阈值的移动。没有按住左键的移动、释放和取消不取得拖出输入资格，不用伪造旧按下弥补丢失的附件。
 
@@ -53,6 +53,12 @@ DragSession.effects 可在正常 owner 更新中改变后续协商允许的操�
 `cancelPending(): Boolean` 只取消尚未启动的请求，成功后产生 NotDropped；已启动、已有终态或已关闭返回 false。`close()` 幂等，撤销后续业务回调，关窗自动执行；尚未启动时撤销请求。AppKit 的公开 NSDraggingSession 没有强制取消方法，因此关闭已启动资源不宣称系统会话已取消，也不合成 Escape 或调用私有接口：native 保留系统仍在使用的数据与源对象直到真实 ended 回调，只清除 Scoop context。此时尚无实际终态的 result 保持 None；后续没有来源删除回调。已经保存的终态在关闭后保留。
 
 原生 sourceOperationMask 查询只读取复制后的允许操作，不进入 Scoop。系统实际结束才报告 Dropped／NotDropped；窗口失活或普通鼠标 capture 结束本身不结束跨程序会话。关闭期间的 native 引用不能保留业务 closure，待系统结束后释放剩余原生数据。实际会话、关闭中继续拖放、同程序接收与外部 Move 均须独立桌面验收，不能用协议方法测试替代。
+
+### 4.1 自定义预览
+
+`DragPreview(image: DesktopImage, hotSpot: LogicalPosition)` 指定整次拖动的一张透明彩图。热点以图像左上角为原点，用逻辑单位表示鼠标抓住的位置，可以在图像之外。Window 按源窗口缩放选择像素表征，保持逻辑尺寸；原生层在准备期间取得自有像素，输入离开窗口后继续随系统会话显示。多文件仍逐项传递，整组只显示一张自定义预览。图片保持原色和 alpha，外观与 Text／Url／Files、localData 及 Copy／Move／Link 协商相互独立。
+
+AppKit 使用 dragging item 的图像与 frame，GTK 4 使用定尺寸 paintable 与热点，Windows 使用 Shell drag image 和 OLE 源／目标辅助接口。目标窗口可按平台惯例调整反馈；外部 Windows 目标对 Shell 拖放图像的支持由目标决定。
 
 ## 5. Windows／GTK 与直接接触
 
