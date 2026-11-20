@@ -265,7 +265,7 @@ ParagraphHost 只拥有 Paragraph／TextLayout，不拥有字体或子组件。�
 
 浏览区域需要“键入即编辑”时，从 `scoop.ui.text` 导入 `scope.textInputStarter(area, enabled, onStart)`。它借用当前挂载的普通可聚焦 InputArea，在首个真正的非空原生 Commit／Preedit 时把空的 `TextEditorState` 交给 `onStart`；采用这个状态显示正常 Input／Textarea／TextEditHost，并返回 `Some(TextInputStartOptions(policy, multiline))`。返回 None 拒绝这次开始。不要从 KeyEvent 插入首字符，也不要把原显示文字写回这份待接管状态。
 
-状态及其原生 revision 在挂载前持续接收批次。新 TextEditHost 按普通焦点入口取得焦点时，自动接管同一原生连接，系统拼音的组合、候选和选择继续有效；caret 使用新宿主的 Accepted 布局。`pendingState` 表示尚待接管的状态，`update(enabled, onStart)` 更新配置，业务取消或替换编辑时调用 `cancel()`。失焦、禁用、外部状态改写、目标关闭及卸载清理等待；关闭 starter 不关闭借用区域。完整本机消费者和验证见[原生直接输入测试](tests-cones/text-start/README.md)。
+状态及其原生 revision 在挂载前持续接收批次。新 TextEditHost 按普通焦点入口取得焦点时，自动接管同一原生连接，系统拼音的组合、候选和选择继续有效；caret 使用新宿主的 Accepted 布局。`pendingState` 表示尚待接管的状态，`update(enabled, onStart)` 更新配置，业务取消或替换编辑时调用 `cancel()`。浏览区域消费了可能产生文本的快捷键时，也调用 `cancel()`：即使首字尚未触发 `onStart`，已打开连接中排队的文本也不会再开始编辑，后续输入使用重建的空连接；重复取消不重复重启。失焦、禁用、外部状态改写、目标关闭及卸载清理等待；关闭 starter 不关闭借用区域。完整本机消费者和验证见[原生直接输入测试](tests-cones/text-start/README.md)。
 
 ## 示例与定向测试
 

@@ -52,6 +52,7 @@ internal class StartProbe: Closeable {
     var mounts = 0
     var unmounts = 0
     var edits = 0
+    var shortcuts = 0
     var nativeStarts = 0
     var nativeStops = 0
     var connection: TextInputConnection? = None
@@ -59,6 +60,8 @@ internal class StartProbe: Closeable {
     var retainedConnection: TextInputConnection? = None
     var retained: TextEditorState? = None
     var previousStarts = 0
+    var previousNativeStarts = 0
+    var previousNativeStops = 0
     var inputSource: Ptr<Unit>? = None
     var pinyinIndex = 0L
     var starter: TextInputStarter? = None
