@@ -7,6 +7,8 @@ import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.textfonts.testSansBytes
+import scoop.tests.ui.accessibility.native.*
+import scoop.tests.ui.accessibility.native.nativeRoot as tableAccessibilityRoot
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
@@ -14,6 +16,7 @@ import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.TextEditorState
 import scoop.window.*
+import scoop.window.native.*
 
 @Test
 private class TableWindowTest {
@@ -37,6 +40,9 @@ private class TableWindowTest {
             tableNativeFailure(error)
             throw error
         } finally {
+            p.calls?.close();
+            p.resizeNode?.close();
+            p.nativeRoot?.close();
             host.close();
             p.view?.close();
             p.frames?.close();
@@ -62,6 +68,8 @@ internal class TableProbe {
     val fieldFocus = FocusHandle()
     val filterFocus = FocusHandle()
     val outsideFocus = FocusHandle()
+    val resizeFocus = FocusHandle()
+    val resizeWidth = state<Double?>(None)
     val horizontal = ScrollState()
     val vertical = ScrollState()
     val handle = VirtualListHandle()
@@ -87,6 +95,19 @@ internal class TableProbe {
     var disabled = false
     var selection = true
     var finite = false
+    var standaloneResize = false
+    var resizeAllowed = true
+    var resizeAccept = true
+    var resizeCustom = false
+    var resizeStarts = 0
+    var resizeEnds = 0
+    var resizeCancels = 0
+    var resizeHandler = 1
+    var resizeFinishedHandler = 0
+    var resizeWaiting = false
+    var calls: NativeCalls? = None
+    var nativeRoot: NativeNode? = None
+    var resizeNode: NativeNode? = None
     var shown = true
     var phase = 0
     var rendered = -1
@@ -171,6 +192,33 @@ internal class TableProbe {
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 host.attach(window, { scope -> TableScene(this, scope) }, fonts = Some(fonts))
+                @Unsafe
+                {
+                    window.acquireNativeWindow().use {
+                        lease -> @Unsafe
+                        {
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> nativeRoot =
+                                    Some(NativeNode(tableAccessibilityRoot(pointer)!!))
+                            }
+                        }
+                    }
+                }
+                calls =
+                    Some(
+                        NativeCalls(active.proxy(), { tag -> inspectResizeSemantics(this, tag) }) {
+                            tag, result ->
+                            assertEquals(
+                                if (tag == 77 || tag == 79)
+                                    0
+                                else
+                                    1,
+                                result,
+                                Some(f"resize AX action ${tag}")
+                            )
+                            resizeWaiting = false
+                        }
+                    )
                 window.requestFocus()
                 next = MonotonicTimeSource.now() + Duration.milliseconds(250L)
                 active.setControlFlow(ControlFlow.WaitUntil(next))
@@ -186,6 +234,7 @@ internal class TableProbe {
                         generation.value &&
                         !fieldFocus.isPending &&
                         !handle.isPending &&
+                        !resizeWaiting &&
                         !frames!!.snapshot().required
                 ) {
                     advanceTable(this)
@@ -194,7 +243,7 @@ internal class TableProbe {
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()
-                if (phase < 44)
+                if (phase < 86)
                     active.setControlFlow(
                         ControlFlow.WaitUntil(
                             if (next > now)
@@ -205,7 +254,7 @@ internal class TableProbe {
                     )
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 44;
+                finished = phase == 86;
                 active.requestExit()
             }
             else -> {}

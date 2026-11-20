@@ -4,22 +4,30 @@ import scoop.graphics.*
 import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
+import scoop.ui.style.Theme
 import scoop.window.*
 import scoop.window.accessibility.*
 
 internal class TableResizeInput(
     val width: Binding<Double?>,
     val size: TableColumnSize,
-    val appearance: TableAppearance,
+    val theme: Theme,
     val enabled: Boolean,
-    val name: String
-)
+    val semantics: ComponentSemantics,
+    val focus: FocusOptions = FocusOptions(),
+    val onResizeStart: () -> Boolean = { true },
+    val onResizeEnd: ((TableColumnResizeEnd) -> Unit)? = None
+) {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+}
 
 private class TableResizeGesture(
     val width: Double,
     val initial: Double?,
     val density: Double,
-    val direction: LayoutDirection
+    val direction: LayoutDirection,
+    val binding: Binding<Double?>,
+    val onEnd: ((TableColumnResizeEnd) -> Unit)?
 ) {
     var expected = initial
 }
@@ -45,7 +53,7 @@ internal class TableResizeHeader(
                 }
             }
         }
-    private val focus = scope.focusTarget(area)
+    private val focus = scope.focusTarget(area, props.value.focus)
     private val semantics = createComponentSemantics(scope, SemanticRole.Separator)
     private val drag =
         scope.drag(
@@ -145,11 +153,10 @@ internal class TableResizeHeader(
                 case Some(val width) -> Some(input.size.constrain(input.width.value ?: width))
                 case None -> None
             }
+        semantics?.bindReference(input.semantics.reference)
         semantics?.update(
-            SemanticProperties(
-                name = Some(input.name),
+            input.semantics.properties(
                 enabled = input.enabled,
-                orientation = Some(SemanticOrientation.Vertical),
                 range =
                     when (current) {
                         case Some(val width) -> Some(
@@ -162,7 +169,7 @@ internal class TableResizeHeader(
                         )
                         case None -> None
                     }
-            ),
+            ).copy { orientation = Some(SemanticOrientation.Vertical) },
             if (current != None)
                 SemanticActions(
                     setNumber = Some { value -> setNumber(value) },
@@ -170,28 +177,41 @@ internal class TableResizeHeader(
                     decrement = Some { stepNumber(-10.0) }
                 )
             else
-                SemanticActions()
+                SemanticActions(),
+            input.semantics.relations
         )
     }
     private fun receive(event: DragEvent) {
         when (event) {
             case Started(val sample) -> {
                 val width = accepted ?: return
+                val start = props.value
+                if (!start.onResizeStart() || !scope.isMounted || !props.value.enabled) {
+                    drag.cancel()
+                    return
+                }
                 gesture =
                     Some(
                         TableResizeGesture(
                             width,
                             props.value.width.value,
-                            props.value.appearance.density,
-                            scope.layoutDirection
+                            props.value.density,
+                            scope.layoutDirection,
+                            props.value.width,
+                            start.onResizeEnd
                         )
                     )
                 move(sample.displacement)
             }
             case Moved(val sample) -> move(sample.displacement)
             case Ended(val sample) -> {
-                move(sample.displacement);
+                move(sample.displacement)
+                val previous = gesture
                 gesture = None
+                when (previous) {
+                    case Some(val active) -> active.onEnd?.invoke(TableColumnResizeEnd.Completed)
+                    case None -> {}
+                }
             }
             case Cancelled(_, _) -> cancel()
         }
@@ -215,13 +235,18 @@ internal class TableResizeHeader(
             props.value.size.constrain(lowerBound(active.width + logical / active.density, 0.0))
         active.expected = Some(next)
         props.value.width.value = Some(next)
+        if (scope.isMounted && props.value.width.value != active.expected)
+            cancel()
     }
     private fun cancel() {
         val active = gesture ?: return
         gesture = None
-        if (props.value.width.value == active.expected)
-            props.value.width.value = active.initial
         drag.cancel()
+        when (active.onEnd) {
+            case Some(val finish) -> finish(TableColumnResizeEnd.Cancelled(active.initial))
+            case None -> if (active.binding.value == active.expected)
+                active.binding.value = active.initial
+        }
     }
     private fun updateCursor() {
         val next = props.value.enabled && (area.scope.isHovered || drag.isDragging)
@@ -240,7 +265,7 @@ internal class TableResizeHeader(
                 props.value.width.value !=
                     value.expected ||
                     value.density !=
-                    props.value.appearance.density ||
+                    props.value.density ||
                     value.direction !=
                     scope.layoutDirection
             )
@@ -253,6 +278,7 @@ internal class TableResizeHeader(
             { event -> receive(event) }
         )
         area.scope.enabled = props.value.enabled
+        focus.options = props.value.focus
         updateSemantics()
         updateCursor()
         return UiInvalidation.Layout
@@ -266,7 +292,7 @@ internal class TableResizeHeader(
     }
     public override fun scene(context: SceneContext, value: Unit) {
         val input = props.value
-        val density = input.appearance.density
+        val density = input.density
         val size = context.size
         val width = size.width / density
         context.onFrameComplete {
@@ -304,9 +330,9 @@ internal class TableResizeHeader(
                 paint ->
                 val color =
                     if (area.isFocusVisible)
-                        input.appearance.theme.tokens.palette.ring
+                        input.theme.tokens.palette.ring
                     else
-                        input.appearance.theme.tokens.palette.border
+                        input.theme.tokens.palette.border
                 paint.canvas.drawRect(
                     Rect(
                         bounds.x + bounds.width / 2.0 - density,

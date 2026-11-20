@@ -100,9 +100,9 @@ internal fun <Row> dataTableHeader(input: DataTableProps<Row>, plan: DataTablePl
                             }
                         ),
                         column.size,
-                        plan.appearance,
+                        plan.appearance.theme,
                         input.enabled,
-                        "Resize " + column.header
+                        ComponentSemantics(name = Some("Resize " + column.header))
                     ),
                     { props, scope -> TableResizeHeader(props, scope) },
                     [content],

@@ -1,0 +1,84 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** A custom end handler owns cancellation restoration instead of the default binding write. */
+public enum TableColumnResizeEnd {
+    Completed, Cancelled(Double?)
+}
+
+public class TableColumnResizeProps public constructor(
+    public val content: View,
+    public val width: Binding<Double?>,
+    public val size: TableColumnSize = TableColumnSize(),
+    public val enabled: Boolean = true,
+    public val theme: ThemeSource? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val onResizeStart: () -> Boolean = { true },
+    public val onResizeEnd: ((TableColumnResizeEnd) -> Unit)? = None
+)
+
+/** Adds the shared column resize handle without measuring or constructing any data rows. */
+public class TableColumnResize public constructor(
+    private val props: Props<TableColumnResizeProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val themes = ThemeAccess(scope)
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        return element(
+            TableResizeInput(
+                input.width,
+                input.size,
+                themes.read(input.theme),
+                input.enabled,
+                input.semantics,
+                input.focus,
+                input.onResizeStart,
+                input.onResizeEnd
+            ),
+            { current, mount -> TableResizeHeader(current, mount) },
+            [input.content]
+        )
+    }
+}
+
+public class TableColumnResizeBuilder internal constructor() {
+    public var size: TableColumnSize = TableColumnSize()
+    public var enabled: Boolean = true
+    public var theme: ThemeSource? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var semantics: ComponentSemantics = ComponentSemantics()
+    public var key: ViewKey = ViewKey.Position
+    public var onResizeStart: () -> Boolean = { true }
+    public var onResizeEnd: ((TableColumnResizeEnd) -> Unit)? = None
+}
+
+public fun tableColumnResize(
+    content: View,
+    width: Binding<Double?>,
+    configure: TableColumnResizeBuilder.() -> Unit = {}
+): View {
+    val builder = TableColumnResizeBuilder()
+    builder.configure()
+    return component(
+        TableColumnResizeProps(
+            content,
+            width,
+            builder.size,
+            builder.enabled,
+            builder.theme,
+            builder.focus,
+            builder.semantics,
+            builder.onResizeStart,
+            builder.onResizeEnd
+        ),
+        { current, mount -> TableColumnResize(current, mount) },
+        builder.key
+    )
+}
