@@ -2,6 +2,7 @@ package scoop.tests.ui.textstart
 
 import scoop.test.*
 import scoop.tests.window.*
+import scoop.tests.surface.sendSurfaceKey
 import scoop.ui.text.*
 import scoop.window.TextEditCommand
 
@@ -208,10 +209,51 @@ internal fun StartProbe.advance() {
         }
         case 32 -> next { assertTrue(browse.requestFocus()) }
         case 33 -> if (sourceReady()) {
+            previousStarts = starts
+            previousNativeStarts = nativeStarts
+            previousNativeStops = nativeStops
+            retainedConnection = connection
+            next {
+                assertTrue(sendSurfaceKey(window!!, 49, true, shift = true))
+                assertTrue(sendSurfaceKey(window!!, 49, true, repeat = true, shift = true))
+                assertTrue(sendSurfaceKey(window!!, 49, false, shift = true))
+            }
+        }
+        case 34 -> if (sourceReady() && connection != retainedConnection) {
+            assertEquals(2, shortcuts)
+            assertEquals(previousNativeStarts + 1, nativeStarts)
+            assertEquals(previousNativeStops + 1, nativeStops)
+            assertEquals(previousStarts, starts)
+            assertFalse(hasDocument)
+            mountEditor.value = true
+            next { nativeText("after") }
+        }
+        case 35 -> if (editorReady()) {
+            assertEquals("after", value.text)
+            assertEquals(previousStarts + 1, starts)
+            next { discard() }
+        }
+        case 36 -> if (sourceReady()) {
+            previousStarts = starts
+            previousNativeStarts = nativeStarts
+            previousNativeStops = nativeStops
+            retainedConnection = connection
+            next {
+                nativeText("queued")
+                starter!!.cancel()
+                starter!!.cancel()
+            }
+        }
+        case 37 -> if (sourceReady() && connection != retainedConnection) {
+            assertEquals(previousStarts, starts)
+            assertEquals(previousNativeStarts + 1, nativeStarts)
+            assertEquals(previousNativeStops + 1, nativeStops)
+            assertFalse(hasDocument)
+            mountEditor.value = false
             policy = textEditPolicy { maxLength = Some(2L) }
             next { nativeText("late") }
         }
-        case 34 -> {
+        case 38 -> {
             if (hasDocument && value.text == "la") {
                 retained = Some(value)
                 assertTrue(starter!!.pendingState!! === value)

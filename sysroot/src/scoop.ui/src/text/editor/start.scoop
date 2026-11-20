@@ -58,12 +58,12 @@ public class TextInputStarter internal constructor(
         area.textInput = enabled
     }
 
+    /** Retires the browsing connection, including a queued first batch with no pending state. */
     public fun cancel() {
         pending.checkMutation()
-        when (pending.value) {
-            case Some(_) -> reset(true, true)
-            case None -> {}
-        }
+        if (closed || retiring || !sessionEnabled)
+            return
+        reset(true, true)
     }
 
     private fun owns(value: TextEditorState): Boolean =

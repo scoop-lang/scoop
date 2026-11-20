@@ -6,6 +6,9 @@ import scoop.test.*
 import scoop.ui.*
 import scoop.ui.text.*
 import scoop.window.TextInputEvent
+import scoop.window.ElementState
+import scoop.window.LogicalKey
+import scoop.window.NamedKey
 import scoop.window.accessibility.*
 
 internal class StartScene(private val probe: StartProbe, scope: ComponentScope): Component(scope) {
@@ -76,6 +79,27 @@ private class StartArea(
                     case TextInput(TextInputEvent.Enabled(val value)) -> probe.sourceConnection =
                         value
                     case TextInput(TextInputEvent.Disabled(_)) -> probe.sourceConnection = None
+                    else -> {}
+                }
+            }
+        }
+        scope.resource {
+            area.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Keyboard(val key) -> {
+                        if (
+                            key.state ==
+                                ElementState.Pressed &&
+                                key.logicalKey ==
+                                LogicalKey.Named(NamedKey.Space) &&
+                                key.modifiers.shift
+                        ) {
+                            probe.shortcuts += 1
+                            starter.cancel()
+                            context.consume()
+                        }
+                    }
                     else -> {}
                 }
             }
