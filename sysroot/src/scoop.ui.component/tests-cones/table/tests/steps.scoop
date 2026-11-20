@@ -9,9 +9,9 @@ import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.window.*
 
-internal fun advanceTable(p: TableProbe) {
+internal fun advanceTable(p: TableProbe, host: UiHost) {
     if (p.phase >= 43) {
-        advanceColumnResize(p)
+        advanceColumnResize(p, host)
         return
     }
     when (p.phase) {

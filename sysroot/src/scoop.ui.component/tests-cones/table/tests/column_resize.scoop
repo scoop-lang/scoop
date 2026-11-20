@@ -8,6 +8,7 @@ import scoop.ui.component.frame as resizeFrame
 import scoop.ui.component.row as resizeRow
 import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.WindowState
 
 internal fun standaloneResize(p: TableProbe): View {
     val handler = p.resizeHandler
@@ -124,11 +125,28 @@ internal fun inspectResizeSemantics(p: TableProbe, tag: Int) {
         }
         case 79 -> assertFalse(p.resizeNode!!.flag(1))
         case 84 -> assertFalse(p.resizeNode!!.flag(0))
+        case 86 -> {
+            p.resizeNode =
+                Some(
+                    p.nativeRoot!!.find("shared-column-resize") ?:
+                        fail(Some("missing remounted resize handle"))
+                )
+            assertEquals(160L, p.resizeNode!!.numericValue)
+        }
+        case 89 -> {
+            assertTrue(p.ui!!.isClosed)
+            assertEquals(WindowState.Open, p.native!!.state)
+            assertEquals(Some(160.0), p.resizeWidth.value)
+            assertFalse(p.resizeFocus.isAttached)
+            assertFalse(p.resizeNode!!.flag(0))
+            assertEquals(4, p.resizeEnds)
+            assertEquals(3, p.resizeCancels)
+        }
         else -> {}
     }
 }
 
-internal fun advanceColumnResize(p: TableProbe) {
+internal fun advanceColumnResize(p: TableProbe, host: UiHost) {
     when (p.phase) {
         case 43 -> {
             p.shown = true
@@ -302,7 +320,37 @@ internal fun advanceColumnResize(p: TableProbe) {
             assertEquals(3, p.resizeCancels)
             nativeResize(p)
         }
-        case 85 -> p.native!!.requestDestroy()
+        case 85 -> {
+            p.press(p.dragX + 400.0, p.dragY, false)
+            p.resizeWidth.value = Some(160.0)
+            p.resizeCustom = false
+            p.shown = true
+            p.changed()
+        }
+        case 86 -> {
+            p.resizeNode!!.close();
+            p.resizeNode = None;
+            nativeResize(p)
+        }
+        case 87 -> beginResize(p)
+        case 88 -> p.move(p.dragX + 40.0, p.dragY)
+        case 89 -> {
+            assertEquals(Some(200.0), p.resizeWidth.value)
+            p.ui!!.close()
+            nativeResize(p)
+        }
+        case 90 -> {
+            p.press(p.dragX + 40.0, p.dragY, false)
+            p.resizeCustom = true
+            p.changed()
+            p.ui = host.attach(p.native!!, { scope -> TableScene(p, scope) }, fonts = Some(p.fonts))
+        }
+        case 91 -> beginResize(p)
+        case 92 -> p.move(p.dragX + 40.0, p.dragY)
+        case 93 -> {
+            assertEquals(Some(200.0), p.resizeWidth.value);
+            p.native!!.requestDestroy()
+        }
         else -> fail(Some("unexpected public resize phase"))
     }
 }

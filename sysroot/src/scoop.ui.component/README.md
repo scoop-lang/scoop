@@ -51,7 +51,7 @@ Switch／Toggle 读取实际布尔绑定；RadioGroup 通过原选择入口选�
 
 `table { header { row { head(...) } }; body { row(key) { cell(...) } } }` 提供有限表格、跨列、caption 和 footer。行与单元格可混用默认 Position 和显式 Number／Text key；自动单元格身份按兄弟索引保持，前方 span 变化只更新列坐标。`dataTable(model)` 消费应用持有的 DataTableState、TableSource 与类型化 TableColumn。Local 缓存筛选、稳定排序和分页结果，Provided 直接呈现当前页。选择只针对本页可选行，列宽拖动共用一份轨道，固定表头位于 VirtualList 正文之外；行内编辑与菜单保留普通生命周期。完整合同见组件规范第 45 节，原生组合测试位于 `tests-cones/table`。
 
-自绘表头可用 `tableColumnResize(header, width.binding()) { size = TableColumnSize(minimum = 80.0) }` 复用 DataTable 的列宽手柄。父布局按同一个逻辑宽度分配表头和正文；None 恢复列定义。方向键每次调整 10，Home 恢复，Escape 取消拖动，RTL 与主题密度自动转换。可用 focus 和 semantics 提供焦点与操作名称。需要先提交编辑时由 onResizeStart 返回是否允许；提供 onResizeEnd 后须自行处理 Cancelled(initialWidth) 的恢复，检查应用是否已经替换状态。默认不提供回调时沿用内置恢复。
+自绘表头可用 `tableColumnResize(header, width.binding()) { size = TableColumnSize(minimum = 80.0) }` 复用 DataTable 的列宽手柄。父布局按同一个逻辑宽度分配表头和正文；None 恢复列定义。方向键每次调整 10，Home 恢复，Escape 取消拖动，RTL 与主题密度自动转换。可用 focus 和 semantics 提供焦点与操作名称。需要先提交编辑时由 onResizeStart 返回是否允许；提供 onResizeEnd 后须自行处理 Cancelled(initialWidth) 的恢复，检查应用是否已经替换状态。默认不提供回调时沿用内置恢复。关闭 UI 根也会取消拖动并退休语义；保留的原生窗口恢复默认光标。
 
 `calendar(selected.binding(), initialPage)`、`calendarMultiple` 和 `calendarRange` 提供日期单选、多选和完整范围。CalendarOptions 配置多月、完整周、outside days、ISO／locale 周号、月／年下拉、日期规则及自定义 CalendarPageSource；日期运算采用 LocalDate，范围长度按夜数计算。方向键、周边界和翻页复用日期焦点，布局为实际主题焦点环留白。CalendarHandle 可定位／聚焦日期或取消暂定范围。
 
