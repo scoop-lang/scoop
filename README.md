@@ -55,6 +55,8 @@ Windows 安装包的主命令为 `sco`，上述命令中的 `scoop` 替换为 `s
 
 ## 从源码构建
 
+从当前检出构建并更新本机安装的工具链，可运行 `python3 scripts/install_toolchain.py`。用 `--install-dir <目录>` 指定其他安装根。构建依赖和复用选项见[本地工具链安装说明](scripts/README.md#从源码更新本地工具链)。
+
 编译器使用 Rust（edition 2024）和 inkwell 0.10。需要安装：
 
 - 支持 edition 2024 的 Rust 工具链和 Cargo。

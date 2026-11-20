@@ -30,7 +30,7 @@ from build_llvm import VERSION
 from build_rust_text import LIBRARY as RUST_TEXT_LIBRARY
 from build_skia import LIBRARY as SKIA_LIBRARY
 from build_skia import TARGETS as SKIA_TARGETS
-from build_support import RELEASE_CONFIG, ROOT
+from build_support import RELEASE_CONFIG, ROOT, build_lock
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
 from download_support import download_directory
 from prepare_gtk import LINK_INPUTS as GTK_LINK_INPUTS
@@ -497,9 +497,10 @@ def archive(directory, destination, *, arcname="."):
     print(f"Created {destination}", flush=True)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version")
+def argument_parser(description=__doc__, *, include_version=True):
+    parser = argparse.ArgumentParser(description=description)
+    if include_version:
+        parser.add_argument("--version")
     parser.add_argument("--revision")
     parser.add_argument("--work-dir", type=Path)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "tmp/dist")
@@ -560,7 +561,10 @@ def main():
     parser.add_argument("--musl-include", type=Path, help="Linux musl development headers")
     package_windows.arguments(parser)
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 6))
-    args = parser.parse_args()
+    return parser
+
+
+def build_package(parser, args):
     host_config = current_host(platform.system(), platform.machine())
     args.host = host_config["rust_target"] if host_config else None
     if args.host is None or args.jobs < 1:
@@ -588,6 +592,15 @@ def main():
     args.download_dir = download_directory(args.download_dir)
     if args.prepared_sysroot is not None:
         args.prepared_sysroot = args.prepared_sysroot.resolve(strict=True)
+    lock_dir = ROOT / "tmp"
+    lock_dir.mkdir(exist_ok=True)
+    # Packaging writes shared sysroot and tooling outputs in this checkout.
+    with build_lock(lock_dir / "package-toolchain.lock"):
+        return build_release(parser, args, release, host_system)
+
+
+def build_release(parser, args, release, host_system):
+    windows = host_system == "Windows"
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
     scratch = args.work_dir / "scratch"
     scratch.mkdir(parents=True, exist_ok=True)
@@ -817,6 +830,12 @@ def main():
     package_manifest.produce(
         output, args.version, args.revision, args.host, targets, packages, release
     )
+    return output / "manifest.toml"
+
+
+def main():
+    parser = argument_parser()
+    build_package(parser, parser.parse_args())
 
 
 if __name__ == "__main__":
