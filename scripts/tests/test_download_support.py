@@ -54,7 +54,7 @@ class DownloadTests(unittest.TestCase):
 
     def obtain(self, version="1", **kwargs):
         return download_support.obtain(
-            self.root / "downloads", "sample", version, "input", self.url, **kwargs
+            self.root / "downloads" / f"sample-{version}-input", self.url, **kwargs
         )
 
     def test_concurrent_download_and_later_hit_do_not_request_or_hash_again(self):
@@ -79,9 +79,9 @@ class DownloadTests(unittest.TestCase):
         self.interrupted = True
         with self.assertRaises((ValueError, http.client.IncompleteRead)):
             self.obtain()
-        final = self.root / "downloads/sample/1/input"
+        final = self.root / "downloads/sample-1-input"
         self.assertFalse(final.exists())
-        self.assertFalse(final.with_name("input.part").exists())
+        self.assertFalse(final.with_name("sample-1-input.part").exists())
         self.interrupted = False
         with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
             self.obtain(sha256="0" * 64)
@@ -110,10 +110,8 @@ class DownloadTests(unittest.TestCase):
             archive.addfile(entry, io.BytesIO(self.body))
         self.body = data.getvalue()
 
-        def from_server(directory, dependency, version, filename, url, **kwargs):
-            return download_support.obtain(
-                directory, dependency, version, filename, self.url, **kwargs
-            )
+        def from_server(destination, url, **kwargs):
+            return download_support.obtain(destination, self.url, **kwargs)
 
         with (
             patch.object(package_llvm, "ROOT", self.root),
@@ -145,8 +143,8 @@ class DownloadTests(unittest.TestCase):
             archive.writestr(f"{name}/bin/clang.exe", b"compiler input")
         self.body = data.getvalue()
 
-        def from_server(directory, dependency, version, filename, url):
-            return download_support.obtain(directory, dependency, version, filename, self.url)
+        def from_server(destination, url):
+            return download_support.obtain(destination, self.url)
 
         with patch.object(package_inputs, "obtain", side_effect=from_server):
             first = package_inputs.prepare_mingw(self.root / "downloads", self.root / "one", "ucrt")
@@ -162,7 +160,7 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual((first / "bin/clang.exe").read_bytes(), b"compiler input")
         self.assertEqual((second / "bin/clang.exe").read_bytes(), b"compiler input")
         self.assertEqual(len(self.requests), 1)
-        self.assertTrue((self.root / "downloads/llvm-mingw" / version / (name + ".zip")).is_file())
+        self.assertTrue((self.root / "downloads" / (name + ".zip")).is_file())
 
 
 if __name__ == "__main__":
