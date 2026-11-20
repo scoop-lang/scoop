@@ -1,0 +1,74 @@
+package scoop.tests.ui.gridaccessibility
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+/** The popup is a row descendant and a cell sibling, as in a cell context menu. */
+internal fun axRowOverlay(probe: AxGridProbe, cell: View): View =
+    element(
+        { scope -> AxOverlayCell(scope) },
+        [
+            cell,
+            portal(
+                probe.cellOverlayOpen.binding(),
+                element({ scope -> AxOverlayAction(probe, scope) })
+            ) {
+                placement =
+                    OverlayPlacement.Viewport(OverlayAlignment.Start, OverlayAlignment.Start)
+            }
+        ]
+    )
+
+private class AxOverlayCell(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val cell = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutResult(cell, Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.children()
+    }
+}
+
+private class AxOverlayAction(private val probe: AxGridProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area)
+    private val press = scope.press(area) { invoke() }
+    private val semantics = scope.semantics(SemanticRole.Button)
+    init {
+        semantics.bindFocus(Some(focus))
+        semantics.update(
+            SemanticProperties(
+                name = Some("Row popup action"),
+                automationId = Some("row-popup-action")
+            ),
+            SemanticActions(
+                invoke =
+                    Some {
+                        invoke();
+                        SemanticActionResult.Completed
+                    }
+            )
+        )
+    }
+    private fun invoke() {
+        probe.cellOverlayClicks += 1
+        probe.cellOverlayOpen.value = false
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(120.0, 28.0))), Unit)
+    public override fun scene(context: SceneContext, value: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.semantics(semantics, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.3, 0.6, 0.3))) }
+    }
+}

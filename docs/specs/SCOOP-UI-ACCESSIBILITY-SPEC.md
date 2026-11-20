@@ -12,6 +12,8 @@
 
 `ComponentScope.routeSemanticsChildren(parent: SemanticsHandle?)` 指定普通子挂载使用的语义父节点；Some 要求资源属于本挂载，None 恢复从祖先继承。它不移动本挂载中其他节点。普通 Component、布局、方向包装与没有登记节点的 Element 默认透明；阅读顺序沿实际挂载子项／数据顺序，独立于场景层叠顺序。未登记集合的 Lazy 仅处理已挂载条目；已登记的集合按 §6.1 发布逻辑条目，普通树更新仍不枚举未实现的数据项。
 
+Portal 的内容默认从窗口 provider 根开始新的语义子树，不继承触发器所在的行、单元格或文本容器路由。这样弹层不会被虚拟集合的行列投影或正文内容合并吞掉；层内的普通路由与显式 parent 仍沿上述规则处理。嵌套 Portal 同样独立发布。该边界只改变默认语义父级，逻辑挂载、输入路由、模态边界、焦点恢复和资源归属保持原来的 Portal 合同。
+
 关闭单个 UI handle 只退休这个资源。框架先把仍由其他活动 scope／handle 拥有的直接语义子节点接到其原父级，清除已关闭的子项路由，然后按当前挂载关系重新发布；不会因替换父角色而误退役仍存活的子控件。显式子节点对已关闭父资源的引用同样移向原父级。真正卸载时，该挂载及其后代各自的资源全部退休。UI 不暴露底层 AccessibilityNode，避免绕过此归属规则。
 
 `SemanticsReference` 是跨声明位置借用同一挂载语义身份的轻量引用；`id` 可参与正常 render 依赖，未绑定或退休后为 None。`SemanticsHandle.bindReference(reference)` 只允许该 reference 绑定一个活动节点，换绑与关闭同步撤下旧引用，不产生焦点、View 或延迟重试。重复绑定同一节点不发布状态变化，也不使读取该 id 的 render 再次失效；`bindReferences` 保留、重排或重复列出同一引用同样如此。真实绑定、解绑和退休仍通知其依赖者。Component 的真实控件可以提供该引用供 controls／label／active descendant 关系使用。

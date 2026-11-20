@@ -194,11 +194,16 @@ internal class AxColumns(val rows: AxRows, val row: Long, val index: Long): Item
         val span = rows.columnSpan(row, column)
         assertEquals(column, span.column, Some("a covered column was built"))
         rows.probe.cellBuilds += 1
-        return element(
-            AxCellProps(this, rows.columnAt(column), column, span.columnSpan),
-            { props, scope -> AxCell(props, scope) },
-            [element({ scope -> AxCellCaption(scope) })]
-        )
+        val cell =
+            element(
+                AxCellProps(this, rows.columnAt(column), column, span.columnSpan),
+                { props, scope -> AxCell(props, scope) },
+                [element({ scope -> AxCellCaption(scope) })]
+            )
+        return if (row == 50000000L && rows.columnAt(column) == 250L)
+            axRowOverlay(rows.probe, cell)
+        else
+            cell
     }
 }
 

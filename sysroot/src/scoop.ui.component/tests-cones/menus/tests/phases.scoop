@@ -410,6 +410,50 @@ private fun menuFinal(p: MenuProbe) {
         case 71 -> {
             assertEquals(None, p.barOpen.value);
             assertTrue(p.edit.hasFocus);
+            p.nestedContext = true
+            p.changed()
+        }
+        case 72 -> {
+            assertTrue(p.contextFocus.requestFocus())
+            assertTrue(moveSurfacePointer(p.native!!, 50.0, 150.0))
+            assertEquals(0, menuRightClick(p.native!!, 50.0, 150.0))
+        }
+        case 73 -> {
+            assertTrue(p.innerContextOpen.value)
+            assertFalse(p.contextOpen.value)
+            assertTrue(p.innerContextItem.hasFocus)
+            assertEquals(1, p.contextClicks)
+            p.key(53)
+        }
+        case 74 -> {
+            assertFalse(p.innerContextOpen.value)
+            assertTrue(p.contextFocus.hasFocus)
+            p.key(109, "", 1)
+        }
+        case 75 -> {
+            assertTrue(p.innerContextOpen.value)
+            assertFalse(p.contextOpen.value)
+            assertTrue(p.innerContextItem.hasFocus)
+            p.key(36, "\r")
+        }
+        case 76 -> {
+            assertEquals(1, p.innerContextActions)
+            assertFalse(p.innerContextOpen.value)
+            assertTrue(p.contextFocus.hasFocus)
+            p.innerContextEnabled = false
+            p.changed()
+        }
+        case 77 -> {
+            assertEquals(0, menuRightClick(p.native!!, 50.0, 150.0))
+        }
+        case 78 -> {
+            assertFalse(p.innerContextOpen.value)
+            assertTrue(p.contextOpen.value)
+            assertTrue(p.contextItem.hasFocus)
+            p.key(53)
+        }
+        case 79 -> {
+            assertFalse(p.contextOpen.value)
             p.native!!.requestDestroy()
         }
         else -> throw IllegalStateException(Some("unexpected menu final phase"))

@@ -33,38 +33,37 @@ internal class MenuRootLayout(
         }
         scope.routeChildren(target)
         scope.layoutAnchor(props.value.anchor)
-        target.scope.captureHandler =
-            {
-                context, event ->
-                val input = props.value
-                if (input.enabled && !input.link.containsContent(context.target))
-                    when (event) {
-                        case Pointer(
-                            InputPointerEvent.Button(
-                                val pointer,
-                                MouseButton.Right,
-                                ElementState.Pressed,
-                                _
+        target.scope.addDefaultAction {
+            context, event ->
+            val input = props.value
+            if (input.enabled && !input.link.containsContent(context.target))
+                when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(
+                            val pointer,
+                            MouseButton.Right,
+                            ElementState.Pressed,
+                            _
+                        )
+                    ) -> {
+                        if (input.contextMenu && target.visibleBounds != None) {
+                            context.consume()
+                            if (!target.scope.activity.hasFocus)
+                                fallback!!.handle.requestFocus(FocusOrigin.Pointer)
+                            input.show(
+                                Some(
+                                    Point(
+                                        pointer.state.logicalPosition.x,
+                                        pointer.state.logicalPosition.y
+                                    )
+                                ),
+                                false
                             )
-                        ) -> {
-                            if (input.contextMenu && target.visibleBounds != None) {
-                                context.consume()
-                                if (!target.scope.activity.hasFocus)
-                                    fallback!!.handle.requestFocus(FocusOrigin.Pointer)
-                                input.show(
-                                    Some(
-                                        Point(
-                                            pointer.state.logicalPosition.x,
-                                            pointer.state.logicalPosition.y
-                                        )
-                                    ),
-                                    false
-                                )
-                            }
                         }
-                        else -> {}
                     }
-            }
+                    else -> {}
+                }
+        }
         target.scope.addEventHandler {
             context,
             event -> if (props.value.enabled && !props.value.link.containsContent(context.target))

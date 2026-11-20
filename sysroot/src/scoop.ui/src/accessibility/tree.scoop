@@ -9,16 +9,21 @@ internal class SemanticOrder {
     fun apply(node: MountedNode, inherited: SemanticsHandle?) {
         if (!node.active)
             return
+        val ancestor =
+            when (node.body) {
+                case Portal(_) -> None
+                else -> inherited
+            }
         for (handle in node.semanticHandles) {
             if (!handle.active)
                 continue
-            val parent = semanticParent(handle.explicitParent, inherited)
+            val parent = semanticParent(handle.explicitParent, ancestor)
             handle.resource.reparent(parent?.resource, next)
             handle.parent = parent
             handles.add(handle)
             next += 1L
         }
-        val route = semanticParent(node.semanticRoute, inherited)
+        val route = semanticParent(node.semanticRoute, ancestor)
         for (child in node.children)
             apply(child, route)
     }
@@ -37,6 +42,10 @@ internal fun inheritedSemantics(node: MountedNode): SemanticsHandle? {
     var ancestor = node.parent
     while (true) {
         val current = ancestor ?: return None
+        when (current.body) {
+            case Portal(_) -> return None
+            else -> {}
+        }
         when (val route = current.semanticRoute) {
             case Some(val handle) -> if (handle.active)
                 return Some(handle)

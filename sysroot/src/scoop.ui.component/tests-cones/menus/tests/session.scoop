@@ -50,6 +50,7 @@ internal class MenuProbe(val touch: MenuTouchScenario? = None) {
     val open = state(false)
     val alternate = state(false)
     val contextOpen = state(false)
+    val innerContextOpen = state(false)
     val barOpen = state<ViewKey?>(None)
     val checked = state(false)
     val selected = state(1)
@@ -69,6 +70,7 @@ internal class MenuProbe(val touch: MenuTouchScenario? = None) {
     val deep = FocusHandle()
     val zulu = FocusHandle()
     val contextItem = FocusHandle()
+    val innerContextItem = FocusHandle()
     val file = FocusHandle()
     val edit = FocusHandle()
     val fileItem = FocusHandle()
@@ -94,6 +96,9 @@ internal class MenuProbe(val touch: MenuTouchScenario? = None) {
     var mountedBefore = 0
     var checkedCalls = 0
     var contextClicks = 0
+    var nestedContext = false
+    var innerContextEnabled = true
+    var innerContextActions = 0
     var betaBounds = Rect(0.0, 0.0, 0.0, 0.0)
     var popupBounds = Rect(0.0, 0.0, 0.0, 0.0)
     var shareBounds = Rect(0.0, 0.0, 0.0, 0.0)
@@ -165,11 +170,11 @@ internal class MenuProbe(val touch: MenuTouchScenario? = None) {
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()
-                if (phase < (touch?.steps ?: 72))
+                if (phase < (touch?.steps ?: 80))
                     wait(active)
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == (touch?.steps ?: 72);
+                finished = phase == (touch?.steps ?: 80);
                 active.requestExit()
             }
             else -> {}
