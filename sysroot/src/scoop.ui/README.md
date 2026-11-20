@@ -134,7 +134,7 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 `hover: DropHover?` 提供当前接收格式、操作与局部位置，可以在 render 或 scene 读取来绘制反馈。目标变化和正常结束清除旧值并通知仍存活目标；禁用后的 leave 在正常 UI 收尾时执行。UI 使用 AppKit 的活动拖放更新重新查询几何；无活动会话时不为拖放建立 timer 或持续请求帧。
 
-`scope.dragSource(area, DragSourceOptions(threshold = 4.0)) { start -> ... }` 为本挂载登记来源。窗口逻辑距离达到阈值后调用 prepare，返回 `Some(DragSourceData(content, effects, localData = None, onCompleted = ...))` 才接管原按下路径；None 保留普通点击并允许祖先继续尝试。localData 沿 Window 的真实来源关联供本进程接收者使用。仅处理非上下文菜单的左键单击，局部位置来自 Accepted 几何，原始及当前 PointerState 保留修饰键和窗口坐标。不要在每次移动时读取全文或文件。
+`scope.dragSource(area, DragSourceOptions(threshold = 4.0)) { start -> ... }` 为本挂载登记来源。窗口逻辑距离达到阈值后调用 prepare，返回 `Some(DragSourceData(content, effects, localData = None, onCompleted = ...))` 才接管原按下路径；None 保留普通点击并允许祖先继续尝试。localData 沿 Window 的真实来源关联供本进程接收者使用。仅处理非上下文菜单的左键单击，局部位置来自 Accepted 几何，原始及当前 PointerState 保留修饰键和窗口坐标。不要在每次移动时读取全文或文件。需要自定义预览时，在 prepare 中用 `start.renderPreview(bounds) { canvas -> ... }` 绘制一次，再传 `preview = Some(image)`。文本宿主用 `start.renderSelectionPreview(rectangles, area, draw)` 从当前排版绘制透明的可见选区。
 
 DragSource.update 替换下一次准备的配置／函数；每份数据的 onCompleted 保留自己的来源，先清除 isDragging 再回到本根业务派发。默认只提供 Copy；需要 Move 时在准备中捕获原模型及修订，收到 Dropped(Move) 后核对原内容仍可删除。库不替业务删除数据。isDragging 包含尚未启动的准备状态，cancelPending 只撤销候选或未启动请求；关闭行为撤销完成回调，AppKit 活动会话的数据按系统生命周期保留。
 
@@ -299,7 +299,7 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。策略在编辑事务发布之前处理已提交文字，可组合单行归一化、粘贴变换、字符接受与 grapheme 长度限制；未提交 preedit 原样保留。策略回调返回带 UTF-8 区间的变换或拒绝，`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。
 
-TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`TextEditOptions(acceptDrops = false)` 单独关闭接收。`drag = TextDragOptions(enabled = false)` 单独关闭选区拖出；该选项也配置阈值、Copy／Move、copyPolicy 和 onCompleted。默认导出遵守复制及 protectedText／遮罩限制，只读和 SelectableTextHost 仅导出 Copy。选区内按下延迟定位，阈值后才准备数据；普通拖选、多击和键盘路径继续可用。
+TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`TextEditOptions(acceptDrops = false)` 单独关闭接收。`drag = TextDragOptions(enabled = false)` 单独关闭选区拖出；该选项也配置阈值、Copy／Move、copyPolicy、preview 和 onCompleted。默认导出遵守复制及 protectedText／遮罩限制，只读和 SelectableTextHost 仅导出 Copy。选区内按下延迟定位，阈值后才准备数据；普通拖选、多击和键盘路径继续可用。
 
 `TextEditOptions.touch` 与 `SelectableTextOptions.touch` 接收 `scoop.ui.text.TextTouchOptions`，默认允许直接触摸／笔尖短按定位、连续二／三击选择和 500 ms 长按选词。`threshold` 使用窗口逻辑距离，默认 8；`longPressDelay = None` 只关闭长按，`enabled = false` 关闭文本触摸选择。长按进入同一个原生文本菜单，保留现有选区方向及复制／保护策略；菜单 mode=Disabled 时仍可选词。行内链接短按激活动作，长按选词，滚动接管后两者都不会补触发。
 

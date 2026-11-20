@@ -12,7 +12,7 @@ class DragSource final : public IDropSource {
 public:
   SWWindow *owner;
   SWApplication *application;
-  SWDragData *data = new SWDragData;
+  IDataObject *data = nullptr;
   SWDragCallback callback;
   void *context;
   int effects, initial_effects, format = 0, feedback = 0;
@@ -25,7 +25,10 @@ public:
       : owner(window), application(window->application), callback(callback),
         context(context), effects(effects), initial_effects(effects),
         contact(input->contact), direct(input->kind == SWContact) {}
-  ~DragSource() { data->Release(); }
+  ~DragSource() {
+    if (data)
+      data->Release();
+  }
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void **result) override {
     if (!result)
       return E_POINTER;
@@ -118,10 +121,11 @@ bool mouse_live(SWWindow *window, SWNativeInput *input) {
          (window->input.pressed_buttons & 1);
 }
 
-void add_wide(SWDragData *data, CLIPFORMAT type, const std::wstring &value) {
+HRESULT add_wide(IDataObject *data, CLIPFORMAT type,
+                 const std::wstring &value) {
   const auto *bytes = reinterpret_cast<const uint8_t *>(value.c_str());
-  data->formats.push_back(
-      {type, {bytes, bytes + (value.size() + 1) * sizeof(WCHAR)}});
+  return sw_drag_set_bytes(data, type, bytes,
+                           (value.size() + 1) * sizeof(WCHAR));
 }
 } // namespace
 
@@ -145,6 +149,14 @@ extern "C" SWResult scoop_window_drag_create(SWWindow *window,
       source->Release();
       return {nullptr, -4};
     }
+    // The Shell data object also owns arbitrary formats added by the drag image
+    // helper.
+    HRESULT status = SHCreateDataObject(nullptr, 0, nullptr, nullptr,
+                                        IID_PPV_ARGS(&source->data));
+    if (FAILED(status)) {
+      source->Release();
+      return {nullptr, static_cast<uint32_t>(status)};
+    }
     return {source, 0};
   } catch (const std::bad_alloc &) {
     return {nullptr, ERROR_NOT_ENOUGH_MEMORY};
@@ -167,13 +179,14 @@ extern "C" int64_t scoop_window_drag_add(DragSource *source, int32_t format,
     if (format == 2 && !sw_drag_absolute_url(text))
       status = -8;
     else {
-      add_wide(source->data, CF_UNICODETEXT, text);
-      if (format == 2) {
+      status =
+          static_cast<uint32_t>(add_wide(source->data, CF_UNICODETEXT, text));
+      if (status == 0 && format == 2) {
         CLIPFORMAT type = sw_drag_url_format();
         if (!type)
           status = GetLastError();
         else
-          add_wide(source->data, type, text);
+          status = static_cast<uint32_t>(add_wide(source->data, type, text));
       }
       source->format = format;
     }
@@ -206,6 +219,15 @@ extern "C" int64_t scoop_window_drag_add_path(DragSource *source,
   }
 }
 
+extern "C" int64_t
+scoop_window_drag_preview(DragSource *source, int32_t width, int32_t height,
+                          const uint8_t *rgba, double logical_width,
+                          double logical_height, double hot_x, double hot_y) {
+  return sw_drag_set_preview(source->data, GetDpiForWindow(source->owner->hwnd),
+                             width, height, rgba, logical_width, logical_height,
+                             hot_x, hot_y);
+}
+
 extern "C" int64_t scoop_window_drag_ready(DragSource *source) {
   if (source->closed || source->ready || source->active || !source->available())
     return -4;
@@ -226,7 +248,10 @@ extern "C" int64_t scoop_window_drag_ready(DragSource *source) {
       header.pFiles = sizeof(DROPFILES);
       header.fWide = TRUE;
       memcpy(bytes.data(), &header, sizeof(header));
-      source->data->formats.push_back({CF_HDROP, std::move(bytes)});
+      HRESULT status =
+          sw_drag_set_bytes(source->data, CF_HDROP, bytes.data(), bytes.size());
+      if (FAILED(status))
+        return static_cast<uint32_t>(status);
     }
     source->ready = true;
     source->application->drag_source = source;
@@ -264,8 +289,12 @@ int sw_drag_local(SWWindow *window, IDataObject *data) {
   IUnknown *identity = nullptr;
   HRESULT status =
       data->QueryInterface(IID_IUnknown, reinterpret_cast<void **>(&identity));
-  bool same = SUCCEEDED(status) && identity && !source->closed &&
-              identity == static_cast<IDataObject *>(source->data);
+  IUnknown *source_identity = nullptr;
+  if (SUCCEEDED(status))
+    source->data->QueryInterface(IID_PPV_ARGS(&source_identity));
+  bool same = identity && identity == source_identity && !source->closed;
+  if (source_identity)
+    source_identity->Release();
   if (identity)
     identity->Release();
   source->Release();

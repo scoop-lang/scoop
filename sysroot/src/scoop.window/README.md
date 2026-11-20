@@ -164,7 +164,7 @@ Enter／Over 和 prepare 不读正文。真正 Drop 时才复制所选表示为 
 
 ## 发起原生数据拖放
 
-`window.beginDrag(content, effects = DragEffects(true, false, false), localData = None, onCompleted = {})` 只在当前真实鼠标或支持的 Touch／Pen owner 派发中调用，上层负责阈值。Windows 的直接接触请求等真实系统兼容鼠标消息到达才启动，等待期间仍可取消；GTK 保留真实 GdkEvent／device，macOS 使用左键 Down／Dragged。content 使用同一 DragContent；文本复制原值，绝对 URL 在同一项提供 URL／文本表示，Files 是非空绝对路径列表。localData 用于同程序实际来源关联，保留普通引用，不编码或传给外部程序。无对应输入、已有源或系统窗口操作时报告状态错误；无效数据或空操作集为参数错误，失败不接管按下序列。
+`window.beginDrag(content, effects = DragEffects(true, false, false), localData = None, preview = None, onCompleted = {})` 只在当前真实鼠标或支持的 Touch／Pen owner 派发中调用，上层负责阈值。Windows 的直接接触请求等真实系统兼容鼠标消息到达才启动，等待期间仍可取消；GTK 保留真实 GdkEvent／device，macOS 使用左键 Down／Dragged。content 使用同一 DragContent；文本复制原值，绝对 URL 在同一项提供 URL／文本表示，Files 是非空绝对路径列表。localData 用于同程序实际来源关联，保留普通引用，不编码或传给外部程序。无对应输入、已有源或系统窗口操作时报告状态错误；无效数据或空操作集为参数错误，失败不接管按下序列。可选的 `preview = Some(DragPreview(image, hotSpot))` 使用 DesktopImage 的透明像素及逻辑尺寸。hotSpot 相对于图像左上角，在拖出窗口时仍与指针对齐。
 
 DragSession.effects 可以调整后续协商，只能使用创建时提供过的操作，允许暂时为空；已有结果或关闭后不能更新。正文变化后可撤销 Move 资格，native getter 不进入 Scoop。目标已经报告的 Move 不会被后来的 effects 更新改写成取消，来源仍须核对并报告删除结果。
 

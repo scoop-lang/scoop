@@ -7,6 +7,8 @@ typedef int32_t (*SWDragCallback)(void *, int32_t, int32_t);
 @property(nonatomic, strong) NSEvent *event;
 @property(nonatomic, strong) NSMutableArray<NSDraggingItem *> *items;
 @property(nonatomic, strong) NSDraggingSession *session;
+@property(nonatomic, strong) NSImage *preview;
+@property(nonatomic) NSPoint hotSpot;
 // The OS may retain this source after the managed window and callback retire.
 @property(nonatomic, strong) SWDragSource *activeOwner;
 @property(nonatomic) SWDragCallback callback;
@@ -72,6 +74,7 @@ static BOOL available(SWDragSource *source) {
   self.owner = nil;
   self.event = nil;
   self.items = nil;
+  self.preview = nil;
   self.session = nil;
   self.ready = NO;
 }
@@ -125,6 +128,23 @@ int64_t scoop_window_drag_add_path(void *pointer, const uint8_t *bytes,
   return scoop_window_drag_add(pointer, 3, bytes, length);
 }
 
+int64_t scoop_window_drag_preview(void *pointer, int32_t width, int32_t height,
+                                  const uint8_t *pixels, double logical_width,
+                                  double logical_height, double hot_x,
+                                  double hot_y) {
+  SWDragSource *source = (__bridge SWDragSource *)pointer;
+  @autoreleasepool {
+    NSBitmapImageRep *bitmap = sw_rgba_bitmap(
+        width, height, pixels, NSMakeSize(logical_width, logical_height));
+    if (!bitmap)
+      return -7;
+    source.preview = [[NSImage alloc] initWithSize:bitmap.size];
+    [source.preview addRepresentation:bitmap];
+    source.hotSpot = NSMakePoint(hot_x, hot_y);
+    return 0;
+  }
+}
+
 int64_t scoop_window_drag_ready(void *pointer) {
   SWDragSource *source = (__bridge SWDragSource *)pointer;
   if (source.closed || source.ready || source.active || !available(source))
@@ -149,6 +169,32 @@ int64_t scoop_window_drag_effects(void *pointer, int32_t effects) {
   return 0;
 }
 
+void sw_drag_item_images(NSArray<NSDraggingItem *> *items, NSImage *preview,
+                         NSPoint hotSpot, NSPoint point) {
+  if (preview) {
+    NSSize size = preview.size;
+    NSRect frame = NSMakeRect(point.x - hotSpot.x, point.y - hotSpot.y,
+                              size.width, size.height);
+    [items.firstObject setDraggingFrame:frame contents:preview];
+    // The preview represents the whole selection; keep every pasteboard writer.
+    if (items.count > 1) {
+      NSImage *clear = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+      for (NSUInteger i = 1; i < items.count; ++i)
+        [items[i] setDraggingFrame:NSMakeRect(point.x, point.y, 1, 1)
+                          contents:clear];
+    }
+  } else {
+    NSImage *image = [NSImage imageNamed:NSImageNameMultipleDocuments];
+    NSUInteger index = 0;
+    for (NSDraggingItem *item in items) {
+      double offset = 4.0 * (double)index++;
+      [item setDraggingFrame:NSMakeRect(point.x - 16.0 + offset,
+                                        point.y - 16.0 + offset, 32.0, 32.0)
+                    contents:image];
+    }
+  }
+}
+
 int64_t scoop_window_drag_start(void *pointer) {
   SWDragSource *source = (__bridge SWDragSource *)pointer;
   if (source.closed || !source.ready || source.active || !available(source))
@@ -156,14 +202,7 @@ int64_t scoop_window_drag_start(void *pointer) {
   SWView *view = source.owner.view;
   NSPoint point = [view convertPoint:source.event.locationInWindow
                             fromView:nil];
-  NSImage *image = [NSImage imageNamed:NSImageNameMultipleDocuments];
-  NSUInteger index = 0;
-  for (NSDraggingItem *item in source.items) {
-    double offset = 4.0 * (double)index++;
-    [item setDraggingFrame:NSMakeRect(point.x - 16.0 + offset,
-                                      point.y - 16.0 + offset, 32.0, 32.0)
-                  contents:image];
-  }
+  sw_drag_item_images(source.items, source.preview, source.hotSpot, point);
   source.ready = NO;
   source.active = YES;
   source.activeOwner = source;

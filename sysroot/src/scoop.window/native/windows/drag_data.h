@@ -7,31 +7,13 @@
 #include <string>
 #include <vector>
 
-struct SWDragFormat {
-  CLIPFORMAT format;
-  std::vector<uint8_t> bytes;
-};
+HRESULT sw_drag_set_bytes(IDataObject *data, CLIPFORMAT format,
+                          const uint8_t *bytes, size_t length);
 
-class SWDragData final : public IDataObject {
-  ULONG references = 1;
-
-public:
-  std::vector<SWDragFormat> formats;
-  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID, void **) override;
-  ULONG STDMETHODCALLTYPE AddRef() override;
-  ULONG STDMETHODCALLTYPE Release() override;
-  HRESULT STDMETHODCALLTYPE GetData(FORMATETC *, STGMEDIUM *) override;
-  HRESULT STDMETHODCALLTYPE GetDataHere(FORMATETC *, STGMEDIUM *) override;
-  HRESULT STDMETHODCALLTYPE QueryGetData(FORMATETC *) override;
-  HRESULT STDMETHODCALLTYPE GetCanonicalFormatEtc(FORMATETC *,
-                                                  FORMATETC *) override;
-  HRESULT STDMETHODCALLTYPE SetData(FORMATETC *, STGMEDIUM *, BOOL) override;
-  HRESULT STDMETHODCALLTYPE EnumFormatEtc(DWORD, IEnumFORMATETC **) override;
-  HRESULT STDMETHODCALLTYPE DAdvise(FORMATETC *, DWORD, IAdviseSink *,
-                                    DWORD *) override;
-  HRESULT STDMETHODCALLTYPE DUnadvise(DWORD) override;
-  HRESULT STDMETHODCALLTYPE EnumDAdvise(IEnumSTATDATA **) override;
-};
+int64_t sw_drag_set_preview(IDataObject *data, UINT dpi, int32_t width,
+                            int32_t height, const uint8_t *rgba,
+                            double logical_width, double logical_height,
+                            double hot_x, double hot_y);
 
 struct SWDropPayload {
   std::vector<std::vector<uint8_t>> items;

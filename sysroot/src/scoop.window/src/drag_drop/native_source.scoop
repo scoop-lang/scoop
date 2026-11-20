@@ -5,6 +5,7 @@ public fun Window.beginDrag(
     content: DragContent,
     effects: DragEffects = DragEffects(true, false, false),
     localData: Any? = None,
+    preview: DragPreview? = None,
     onCompleted: (DragResult) -> Unit = {}
 ): DragSession {
     owner.requireInteractive()
@@ -28,7 +29,7 @@ public fun Window.beginDrag(
         else -> {}
     }
     val session = DragSession(owner, effects, localData, onCompleted)
-    session.bind(prepareDragSource(owner, pointer, content, effects, session))
+    session.bind(prepareDragSource(owner, pointer, content, effects, preview, session))
     session.schedule(input.time)
     return session
 }
@@ -38,6 +39,7 @@ private fun prepareDragSource(
     input: Ptr<Unit>,
     content: DragContent,
     effects: DragEffects,
+    preview: DragPreview?,
     session: DragSession
 ): NativeDragSource {
     @Unsafe
@@ -95,6 +97,18 @@ private fun prepareDragSource(
                         }
                     checkDragContent(status)
                 }
+            }
+            when (preview) {
+                case Some(val value) -> {
+                    val metrics =
+                        platformObservedMetrics(owner) ?:
+                            throw WindowException(
+                                "data drag preview metrics",
+                                WindowErrorKind.InvalidState
+                            )
+                    prepareDragPreview(pointer, value, metrics.scaleFactor)
+                }
+                case None -> {}
             }
             checkNativeStatus(nativeDragReady(pointer), "prepare data drag")
             return PlatformDragSource(owner.application, pointer, callback)

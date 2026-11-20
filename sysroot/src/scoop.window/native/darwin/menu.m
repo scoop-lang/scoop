@@ -95,6 +95,27 @@ int64_t scoop_window_menu_append(void *pointer, int64_t identity,
   }
 }
 
+NSBitmapImageRep *sw_rgba_bitmap(int32_t width, int32_t height,
+                                 const uint8_t *pixels, NSSize size) {
+  NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc]
+      initWithBitmapDataPlanes:NULL
+                    pixelsWide:width
+                    pixelsHigh:height
+                 bitsPerSample:8
+               samplesPerPixel:4
+                      hasAlpha:YES
+                      isPlanar:NO
+                colorSpaceName:NSDeviceRGBColorSpace
+                  bitmapFormat:NSBitmapFormatAlphaNonpremultiplied
+                   bytesPerRow:(NSInteger)width * 4
+                  bitsPerPixel:32];
+  if (!bitmap)
+    return nil;
+  memcpy(bitmap.bitmapData, pixels, (size_t)width * (size_t)height * 4);
+  bitmap.size = size;
+  return bitmap;
+}
+
 int64_t scoop_window_menu_image(void *pointer, int64_t identity, int32_t width,
                                 int32_t height, const uint8_t *pixels,
                                 double logical_width, double logical_height,
@@ -105,22 +126,10 @@ int64_t scoop_window_menu_image(void *pointer, int64_t identity, int32_t width,
       NSMenuItem *item = owner.entries[@(identity)].item;
       if (!item)
         return 1;
-      NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc]
-          initWithBitmapDataPlanes:NULL
-                        pixelsWide:width
-                        pixelsHigh:height
-                     bitsPerSample:8
-                   samplesPerPixel:4
-                          hasAlpha:YES
-                          isPlanar:NO
-                    colorSpaceName:NSDeviceRGBColorSpace
-                      bitmapFormat:NSBitmapFormatAlphaNonpremultiplied
-                       bytesPerRow:(NSInteger)width * 4
-                      bitsPerPixel:32];
+      NSBitmapImageRep *bitmap = sw_rgba_bitmap(
+          width, height, pixels, NSMakeSize(logical_width, logical_height));
       if (!bitmap)
         return 1;
-      memcpy(bitmap.bitmapData, pixels, (size_t)width * (size_t)height * 4);
-      bitmap.size = NSMakeSize(logical_width, logical_height);
       if (!item.image)
         item.image = [[NSImage alloc] initWithSize:bitmap.size];
       [item.image addRepresentation:bitmap];

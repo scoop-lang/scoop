@@ -1,6 +1,7 @@
 package scoop.window
 
 import scoop.test.*
+import scoop.tests.window.inspectGtkDragIcon
 import scoop.tests.window.sendGtkDragPointer
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.Duration
@@ -9,10 +10,11 @@ import scoop.time.Duration
 private class LinuxDragInputTest {
     @Test
     @Ignore("Requires an isolated X11 display for protocol input; run separately with --ignored")
-    fun `GTK mouse motion retains native input for threshold based data dragging`() {
+    fun `GTK retains threshold input and shows the prepared image at the hotspot during a system drag`() {
         val handler = GtkDragInputHandler()
         Application().run(handler)
-        assertEquals(1, handler.completions)
+        assertTrue(handler.previewObserved)
+        assertEquals(2, handler.completions)
         assertEquals(1, handler.destroyed)
     }
 }
@@ -22,6 +24,8 @@ private class GtkDragInputHandler: ApplicationHandler {
     var stage = 0
     var completions = 0
     var destroyed = 0
+    var previewObserved = false
+    private var inspect: WindowDeadline? = None
 
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -40,7 +44,11 @@ private class GtkDragInputHandler: ApplicationHandler {
                         )
                     )
             }
-            case NewEvents(StartCause.Deadline) -> fail(Some("GTK drag input timed out"))
+            case NewEvents(StartCause.Deadline) -> {
+                if (stage >= 1)
+                    send(2)
+                fail(Some("GTK drag input timed out"))
+            }
             case Window(_, WindowEvent.RedrawRequested) -> if (stage == 0) {
                 stage = 1
                 send(0)
@@ -56,26 +64,80 @@ private class GtkDragInputHandler: ApplicationHandler {
             }
             case Window(_, WindowEvent.Pointer(PointerEvent.Moved(_))) -> if (stage == 2) {
                 stage = 3
+                val activePreview = completions == 1
                 try {
                     val session =
-                        window!!.beginDrag(DragContent.Text("drag 😀")) {
+                        window!!.beginDrag(
+                            DragContent.Text("drag 😀"),
+                            preview =
+                                Some(
+                                    DragPreview(
+                                        DesktopImage(
+                                            LogicalSize(24.0, 12.0),
+                                            [
+                                                DesktopImageRepresentation(
+                                                    PhysicalSize(48, 24),
+                                                    Array<UInt8>(4608L) {
+                                                        index -> if (index % 4L == 3L)
+                                                            128.toUByte()
+                                                        else
+                                                            240.toUByte()
+                                                    }
+                                                )
+                                            ]
+                                        ),
+                                        LogicalPosition(5.0, 7.0)
+                                    )
+                                )
+                        ) {
                             result ->
                             when (result) {
                                 case NotDropped -> {}
-                                else -> fail(Some("pending drag did not cancel"))
+                                else -> fail(Some("drag without a destination did not cancel"))
                             }
                             completions += 1
-                            window!!.requestDestroy()
-                            application.requestExit()
+                            if (activePreview) {
+                                window!!.requestDestroy()
+                                application.requestExit()
+                            } else {
+                                stage = 1
+                                send(0)
+                            }
                         }
                     assertFalse(session.isStarted)
-                    assertTrue(session.cancelPending())
+                    if (activePreview) {
+                        inspect = Some(window!!.createDeadline { verifyIcon() })
+                        scheduleInspection()
+                    } else {
+                        assertTrue(session.cancelPending())
+                    }
                 } finally {
-                    send(2)
+                    when (inspect) {
+                        case None -> send(2)
+                        case Some(_) -> Unit
+                    }
                 }
             }
             case Window(_, WindowEvent.Destroyed) -> destroyed += 1
             else -> {}
+        }
+    }
+
+    private fun scheduleInspection() {
+        inspect!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(25L))
+    }
+
+    private fun verifyIcon() {
+        @Unsafe
+        {
+            val result = inspectGtkDragIcon(window!!.owner.pointer!!)
+            if (result == 0) {
+                scheduleInspection()
+                return
+            }
+            send(2)
+            assertEquals(1, result)
+            previewObserved = true
         }
     }
 

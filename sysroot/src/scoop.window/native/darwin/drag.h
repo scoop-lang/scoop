@@ -6,4 +6,7 @@
 NSDraggingItem *sw_drag_item(int32_t format, const uint8_t *bytes,
                              int64_t length);
 
+void sw_drag_item_images(NSArray<NSDraggingItem *> *items, NSImage *preview,
+                         NSPoint hotSpot, NSPoint point);
+
 #endif

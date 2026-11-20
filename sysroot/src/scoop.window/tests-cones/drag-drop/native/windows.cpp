@@ -40,13 +40,26 @@ std::vector<uint8_t> padded_text(const std::wstring &text) {
 
 class Source final : public IDataObject {
   ULONG references = 1;
-  Com<SWDragData> contents{new SWDragData};
+  Com<IDataObject> contents;
+  void put(CLIPFORMAT format, const std::vector<uint8_t> &bytes) {
+    CHECK(SUCCEEDED(
+        sw_drag_set_bytes(contents.get(), format, bytes.data(), bytes.size())));
+  }
+  static bool payload(FORMATETC *type) {
+    return type &&
+           (type->cfFormat == CF_UNICODETEXT || type->cfFormat == CF_HDROP ||
+            type->cfFormat == sw_drag_url_format());
+  }
 
 public:
   bool busy = false, unreadable = false;
   int queries = 0, busy_queries = 0, reads = 0;
   std::function<void()> on_query, on_read;
   explicit Source(int format) {
+    IDataObject *object = nullptr;
+    CHECK(SUCCEEDED(SHCreateDataObject(nullptr, 0, nullptr, nullptr,
+                                       IID_PPV_ARGS(&object))));
+    contents.reset(object);
     if (format == 3) {
       DROPFILES header = {};
       header.pFiles = sizeof(header);
@@ -59,14 +72,12 @@ public:
         bytes.insert(bytes.end(), value.begin(), value.end());
       }
       bytes.resize(bytes.size() + sizeof(WCHAR), 0);
-      contents->formats.push_back({CF_HDROP, std::move(bytes)});
+      put(CF_HDROP, bytes);
     } else {
-      contents->formats.push_back(
-          {CF_UNICODETEXT, padded_text(L"中文😀\r\nvalue")});
+      put(CF_UNICODETEXT, padded_text(L"中文😀\r\nvalue"));
       if (format == 2)
-        contents->formats.push_back(
-            {sw_drag_url_format(),
-             padded_text(L"https://example.test/path?q=1#sample")});
+        put(sw_drag_url_format(),
+            padded_text(L"https://example.test/path?q=1#sample"));
     }
   }
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void **result) override {
@@ -87,6 +98,8 @@ public:
     return left;
   }
   HRESULT STDMETHODCALLTYPE QueryGetData(FORMATETC *format) override {
+    if (!payload(format))
+      return contents->QueryGetData(format);
     ++queries;
     if (busy) {
       ++busy_queries;
@@ -98,6 +111,8 @@ public:
   }
   HRESULT STDMETHODCALLTYPE GetData(FORMATETC *format,
                                     STGMEDIUM *medium) override {
+    if (!payload(format))
+      return contents->GetData(format, medium);
     ++reads;
     if (on_read)
       std::exchange(on_read, {})();
@@ -232,6 +247,35 @@ void stable_formats(SWWindow *window, POINTL point) {
   }
 }
 
+void shell_preview(SWWindow *window, POINTL point) {
+  Target destination(window);
+  Com<Source> source(new Source(1));
+  std::vector<uint8_t> rgba(32 * 16 * 4, 0);
+  for (size_t i = 0; i < rgba.size(); i += 4) {
+    rgba[i] = 227;
+    rgba[i + 3] = 130;
+  }
+  CHECK(sw_drag_set_preview(source.get(), 144, 32, 16, rgba.data(), 16, 8, 2.5,
+                            6) == S_OK);
+  // The Shell helper publishes its image independently of the text payload.
+  FORMATETC image = {
+      static_cast<CLIPFORMAT>(RegisterClipboardFormatW(L"DragImageBits")),
+      nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
+  STGMEDIUM medium = {};
+  CHECK(source->GetData(&image, &medium) == S_OK);
+  CHECK(medium.tymed == TYMED_HGLOBAL &&
+        GlobalSize(medium.hGlobal) >= 24 * 12 * 4);
+  ReleaseStgMedium(&medium);
+  DWORD effect = DROPEFFECT_COPY;
+  CHECK(destination.target->DragEnter(source.get(), MK_CONTROL, point,
+                                      &effect) == S_OK);
+  CHECK(effect == DROPEFFECT_COPY && !source->reads);
+  CHECK(destination.target->DragOver(MK_CONTROL, point, &effect) == S_OK);
+  CHECK(destination.target->Drop(source.get(), MK_CONTROL, point, &effect) ==
+        S_OK);
+  CHECK(effect == DROPEFFECT_COPY && source->reads == 1);
+}
+
 void invalidated_data(SWWindow *window, POINTL point) {
   for (int scenario = 0; scenario < 4; ++scenario) {
     Target destination(window);
@@ -295,6 +339,7 @@ extern "C" int32_t scoop_drop_test_windows_metadata(HWND hwnd) {
     CHECK(window && window->hwnd == hwnd && !window->drop_target);
     POINT point = {35, 45};
     CHECK(IsWindowVisible(hwnd) && ClientToScreen(hwnd, &point));
+    shell_preview(window, {point.x, point.y});
     stable_formats(window, {point.x, point.y});
     invalidated_data(window, {point.x, point.y});
     updated_receiver(window, {point.x, point.y});

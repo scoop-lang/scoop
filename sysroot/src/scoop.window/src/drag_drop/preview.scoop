@@ -1,0 +1,69 @@
+package scoop.window
+
+/** A native drag image and its pointer offset from the logical top-left corner. */
+public class DragPreview public constructor(
+    public val image: DesktopImage,
+    public val hotSpot: LogicalPosition
+) {
+    init {
+        checkPosition(hotSpot)
+    }
+
+    internal fun representation(scale: Double): DesktopImageRepresentation {
+        val target = image.size.toPhysical(scale)
+        var best = image.representations[0L]
+        var distance = Long.MAX_VALUE
+        for (candidate in image.representations) {
+            val dx = candidate.size.width.toLong() - target.width.toLong()
+            val dy = candidate.size.height.toLong() - target.height.toLong()
+            val difference = dx * dx + dy * dy
+            if (
+                difference <
+                    distance ||
+                    (difference == distance && candidate.size.width > best.size.width)
+            ) {
+                best = candidate
+                distance = difference
+            }
+        }
+        return best
+    }
+}
+
+internal fun prepareDragPreview(source: Ptr<Unit>, preview: DragPreview, scale: Double) {
+    val image = preview.image
+    val rep = preview.representation(scale)
+    @Unsafe
+    {
+        val status =
+            rep.pixels.withDataPointer {
+                bytes,
+                _ -> @Unsafe
+                {
+                    return@withDataPointer nativeDragPreview(
+                        source,
+                        rep.size.width,
+                        rep.size.height,
+                        bytes,
+                        image.size.width,
+                        image.size.height,
+                        preview.hotSpot.x,
+                        preview.hotSpot.y
+                    )
+                }
+            }
+        checkNativeStatus(status, "set data drag preview")
+    }
+}
+
+@Extern(name = "scoop_window_drag_preview")
+private fun nativeDragPreview(
+    source: Ptr<Unit>,
+    width: Int,
+    height: Int,
+    bytes: Ptr<UInt8>,
+    logicalWidth: Double,
+    logicalHeight: Double,
+    hotX: Double,
+    hotY: Double
+): Long

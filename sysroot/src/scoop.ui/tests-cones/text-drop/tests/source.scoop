@@ -32,6 +32,7 @@ internal class TextSourceProbe(val fonts: FontCollection) {
     var editor: TextEditHost? = None
     var selectable: SelectableTextHost? = None
     var native: NativeTextDrop? = None
+    private var sourceWindow: Window? = None
     var frames = 0
     var prepared = 0
     var callbacks = 0
@@ -116,7 +117,8 @@ internal class TextSourceProbe(val fonts: FontCollection) {
                             1
                         else
                             17,
-                        native!!.sourceMask()
+                        native!!.sourceMask(),
+                        Some(f"prepared source operation for case ${testCase}")
                     )
                     native!!.assertSource(
                         if (readonly)
@@ -154,15 +156,17 @@ internal class TextSourceProbe(val fonts: FontCollection) {
                             visible = false
                         }
                     )
+                sourceWindow = Some(window)
                 native = Some(nativeTextDrop(window))
                 host.attach(window, { scope -> TextSourceRoot(this, scope) })
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
                 )
                 window.setVisible(true)
+                window.requestFocus()
             }
             case AboutToWait -> {
-                if (finished || waiting || frames < requiredFrames)
+                if (finished || waiting || frames < requiredFrames || !sourceWindow!!.isFocused)
                     return
                 if (step == 3) {
                     testCase += 1

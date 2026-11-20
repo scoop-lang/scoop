@@ -12,6 +12,10 @@ public fun sendGtkInput(window: Ptr<Unit>, view: Ptr<Unit>): Int
 @Extern(name = "scoop_test_gtk_drag_pointer")
 public fun sendGtkDragPointer(window: Ptr<Unit>, phase: Int): Int
 
+/** Checks the mapped X11 drag icon against the expected logical image and pointer position. */
+@Extern(name = "scoop_test_gtk_drag_icon")
+public fun inspectGtkDragIcon(window: Ptr<Unit>): Int
+
 /** Compares raw-event conversion used by contacts with GTK's delivered mouse position. */
 @Extern(name = "scoop_test_gtk_contact_position")
 public fun matchesGtkContactPosition(view: Ptr<Unit>, x: Double, y: Double): Boolean

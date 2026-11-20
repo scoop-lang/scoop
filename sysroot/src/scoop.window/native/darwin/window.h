@@ -169,4 +169,7 @@ BOOL sw_window_input_event(NSEvent *event);
 void sw_show_owned_window(SWWindow *owner, BOOL activate);
 void sw_modal_resume_ending(SWApplication *application);
 
+NSBitmapImageRep *sw_rgba_bitmap(int32_t width, int32_t height,
+                                 const uint8_t *pixels, NSSize size);
+
 #endif

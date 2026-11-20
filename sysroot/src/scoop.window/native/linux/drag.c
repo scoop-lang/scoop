@@ -1,5 +1,7 @@
 #include "drag.h"
 #include "input/delivery.h"
+#include <limits.h>
+#include <math.h>
 
 typedef struct {
   unsigned references;
@@ -9,6 +11,8 @@ typedef struct {
   void *context;
   GdkEvent *event;
   GdkDrag *drag;
+  GdkPaintable *preview;
+  int hot_x, hot_y;
   GPtrArray *providers;
   GString *uris;
   int format, effects, initial_effects;
@@ -26,6 +30,7 @@ static void release(SWDragSource *source) {
   if (source->event)
     gdk_event_unref(source->event);
   g_clear_object(&source->drag);
+  g_clear_object(&source->preview);
   g_ptr_array_unref(source->providers);
   g_string_free(source->uris, TRUE);
   free(source);
@@ -164,6 +169,29 @@ int64_t scoop_window_drag_add_path(SWDragSource *source, const uint8_t *bytes,
   source->format = 3;
   return 0;
 }
+int64_t scoop_window_drag_preview(SWDragSource *source, int32_t width,
+                                  int32_t height, const uint8_t *pixels,
+                                  double logical_width, double logical_height,
+                                  double hot_x, double hot_y) {
+  if (fabs(hot_x) > INT_MAX || fabs(hot_y) > INT_MAX ||
+      logical_width > INT_MAX || logical_height > INT_MAX)
+    return -8;
+  GBytes *bytes = g_bytes_new(pixels, (gsize)width * height * 4);
+  GdkTexture *texture = gdk_memory_texture_new(
+      width, height, GDK_MEMORY_R8G8B8A8, bytes, (gsize)width * 4);
+  g_bytes_unref(bytes);
+  // A texture's intrinsic size is in pixels; the icon uses logical units.
+  GtkSnapshot *snapshot = gtk_snapshot_new();
+  graphene_rect_t bounds =
+      GRAPHENE_RECT_INIT(0, 0, (float)logical_width, (float)logical_height);
+  gtk_snapshot_append_texture(snapshot, texture, &bounds);
+  g_object_unref(texture);
+  source->preview = gtk_snapshot_free_to_paintable(snapshot, &bounds.size);
+  source->hot_x = (int)round(hot_x);
+  source->hot_y = (int)round(hot_y);
+  return 0;
+}
+
 int64_t scoop_window_drag_ready(SWDragSource *source) {
   if (source->closed || source->ready || source->active || !available(source))
     return -4;
@@ -208,10 +236,15 @@ int64_t scoop_window_drag_start(SWDragSource *source) {
   retain(source);
   g_signal_connect(source->drag, "dnd-finished", G_CALLBACK(finished), source);
   g_signal_connect(source->drag, "cancel", G_CALLBACK(cancelled), source);
-  GtkWidget *icon = gtk_drag_icon_get_for_drag(source->drag);
-  gtk_drag_icon_set_child(GTK_DRAG_ICON(icon),
-                          gtk_image_new_from_icon_name("text-x-generic"));
-  gdk_drag_set_hotspot(source->drag, 12, 12);
+  if (source->preview) {
+    gtk_drag_icon_set_from_paintable(source->drag, source->preview,
+                                     source->hot_x, source->hot_y);
+  } else {
+    GtkWidget *icon = gtk_drag_icon_get_for_drag(source->drag);
+    gtk_drag_icon_set_child(GTK_DRAG_ICON(icon),
+                            gtk_image_new_from_icon_name("text-x-generic"));
+    gdk_drag_set_hotspot(source->drag, 12, 12);
+  }
   if (source->callback)
     source->callback(source->context, 0, 0);
   return 0;

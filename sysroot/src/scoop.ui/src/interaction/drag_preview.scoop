@@ -1,0 +1,104 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.math.max
+import scoop.math.min
+import scoop.surface.InputArea
+import scoop.window.*
+
+/** Draws a native preview in source-local coordinates at the current display scale. */
+public fun DragSourceStart.renderPreview(bounds: Rect, draw: (Canvas) -> Unit): DragPreview =
+    rasterDragPreview(bounds, start, pointer.scaleFactor, draw)
+
+private fun rasterDragPreview(
+    bounds: Rect,
+    anchor: Point,
+    scale: Double,
+    draw: (Canvas) -> Unit
+): DragPreview {
+    val size = LogicalSize(bounds.width, bounds.height)
+    val pixels = size.toPhysical(scale)
+    return RasterSurface(pixels.width, pixels.height).use {
+        surface ->
+        surface.draw {
+            canvas ->
+            canvas.clear(Color.Transparent)
+            canvas.scale(
+                pixels.width.toDouble() / bounds.width,
+                pixels.height.toDouble() / bounds.height
+            )
+            canvas.translate(-bounds.x, -bounds.y)
+            draw(canvas)
+        }
+        val bytes = surface.readPixels()
+        val rep =
+            DesktopImageRepresentation(pixels, Array<UInt8>(bytes.size) { bytes[it].toUByte() })
+        DragPreview(
+            DesktopImage(size, [rep]),
+            LogicalPosition(anchor.x - bounds.x, anchor.y - bounds.y)
+        )
+    }
+}
+
+/** Paints only the visible selected regions, keeping the press anchored even in a scrolled or transformed area. */
+public fun DragSourceStart.renderSelectionPreview(
+    regions: Array<Rect>,
+    area: InputArea,
+    draw: (Canvas) -> Unit
+): DragPreview? {
+    val viewport = area.visibleBounds ?: return None
+    val origin = area.toWindow(Rect(0.0, 0.0, 0.0, 0.0))?.origin ?: return None
+    val x = area.toWindow(Rect(1.0, 0.0, 0.0, 0.0))!!.origin
+    val y = area.toWindow(Rect(0.0, 1.0, 0.0, 0.0))!!.origin
+    val transform =
+        Transform(
+            x.x - origin.x,
+            x.y - origin.y,
+            y.x - origin.x,
+            y.y - origin.y,
+            origin.x,
+            origin.y
+        )
+    val anchor = transform.map(start)
+    return PathBuilder().use {
+        builder ->
+        var left = Double.POSITIVE_INFINITY
+        var top = Double.POSITIVE_INFINITY
+        var right = Double.NEGATIVE_INFINITY
+        var bottom = Double.NEGATIVE_INFINITY
+        for (region in regions) {
+            val visible = intersectReveal(area.toWindow(region)!!, viewport) ?: continue
+            left = min(left, visible.x)
+            top = min(top, visible.y)
+            right = max(right, visible.x + visible.width)
+            bottom = max(bottom, visible.y + visible.height)
+            builder.addRect(region)
+        }
+        if (right <= left || bottom <= top)
+            return@use None
+        val w = min(360.0, right - left)
+        val h = min(240.0, bottom - top)
+        val bounds =
+            Rect(
+                max(left, min(right - w, anchor.x - w * 0.5)),
+                max(top, min(bottom - h, anchor.y - h * 0.5)),
+                w,
+                h
+            )
+        builder.build().use {
+            shape -> Some(
+                rasterDragPreview(bounds, anchor, pointer.scaleFactor) {
+                    canvas ->
+                    canvas.concat(transform)
+                    canvas.clipPath(shape)
+                    canvas.saveLayer(opacity = 0.8)
+                    try {
+                        draw(canvas)
+                    } finally {
+                        canvas.restore()
+                    }
+                }
+            )
+        }
+    }
+}
