@@ -46,6 +46,7 @@ internal class AxGridProbe: Closeable {
     var leafHeader: SemanticsHandle? = None
     var target: FocusHandle? = None
     var targetSemantics: SemanticsHandle? = None
+    var distantSemantics: SemanticsHandle? = None
     var other: FocusHandle? = None
     var frozen: FocusHandle? = None
     var frozenSemantics: SemanticsHandle? = None
@@ -71,6 +72,7 @@ internal class AxGridProbe: Closeable {
     private var frozenCell: NativeNode? = None
     private var spanCell: NativeNode? = None
     private var coveredCell: NativeNode? = None
+    private var distantCell: NativeNode? = None
     private var beforeX = 0.0
     private var beforeSpanOffset = Point(0.0, 0.0)
     private var calls: NativeCalls? = None
@@ -118,7 +120,9 @@ internal class AxGridProbe: Closeable {
                 Some(
                     f"grid AX timeout phase=${phase}, nativeFocus=${
                         window?.isFocused ?: false
-                    }, pending=${target?.isPending ?: false}, mounted=${mounted}"
+                    }, pending=${target?.isPending ?: false}, mounted=${mounted}, x=${
+                        scroll.offset.x
+                    }, y=${scroll.offset.y}"
                 )
             )
             case Window(_, WindowEvent.Focused(true)) -> frame?.requestFrame()
@@ -166,6 +170,7 @@ internal class AxGridProbe: Closeable {
             case 32 -> calls!!.post(spanCell!!, phase, 19, selectionStart = 1L)
             case 34 -> calls!!.post(spanCell!!, phase, 2)
             case 38 -> calls!!.post(spanCell!!, phase, 19)
+            case 43 -> calls!!.post(distantCell!!, phase, 19, selectionStart = 1L)
             else -> calls!!.post(root!!, phase, 20)
         }
     }
@@ -418,6 +423,26 @@ internal class AxGridProbe: Closeable {
             }
             case 41 -> assertFalse(spanCell!!.flag(0))
             case 42 -> {
+                val builtRows = rowBuilds
+                val builtCells = cellBuilds
+                distantCell = Some(at(50000000L, 250L))
+                assertTrue(distantCell!!.text(1, Some("50000000:250")))
+                assertFalse(distantCell!!.flag(2))
+                assertEquals(builtRows, rowBuilds)
+                assertEquals(builtCells, cellBuilds)
+                assertEquals(Point(0.0, 0.0), scroll.offset)
+            }
+            case 43 -> assertTrue(outside.hasFocus)
+            case 44 -> {
+                val geometry = distantSemantics?.geometry ?: None
+                retry = (geometry?.visibleBounds ?: None) == None
+                if (!retry) {
+                    assertTrue(distantCell!!.frame(nativeView!!, 176.0, 156.0, 80.0, 24.0))
+                    assertEquals(Point(19824.0, 1199999844.0), scroll.offset)
+                    assertTrue(outside.hasFocus)
+                }
+            }
+            case 45 -> {
                 assertFalse(nativeTable!!.flag(0))
                 assertFalse(replacement!!.flag(0))
                 assertFalse(otherCell!!.flag(0))
@@ -453,6 +478,7 @@ internal class AxGridProbe: Closeable {
                 case 28 -> 0
                 case 32 -> 0
                 case 38 -> 0
+                case 43 -> 0
                 else -> 1
             }
         assertEquals(expected, result, Some(f"native grid action phase ${phase}"))
@@ -461,7 +487,7 @@ internal class AxGridProbe: Closeable {
             frame!!.requestFrame()
             return
         }
-        if (phase == 42) {
+        if (phase == 45) {
             finished = true
             active!!.requestExit()
             return
@@ -507,6 +533,12 @@ internal class AxGridProbe: Closeable {
             case 40 -> rows.value = AxRows(this, reverse = true, spanning = true)
             case 41 -> rows.value = AxRows(this, reverse = true, omitRow = true, spanning = true)
             case 42 -> {
+                assertTrue(outside.requestFocus())
+                scroll.scrollTo(Point(0.0, 0.0))
+                rows.value = AxRows(this)
+            }
+            case 44 -> frame!!.requestFrame()
+            case 45 -> {
                 ui!!.close();
                 send()
             }

@@ -1,6 +1,33 @@
 #include "graphics.h"
 #include "include/pathops/SkPathOps.h"
 
+static SGPoint queryPoint(const SkMatrix &matrix, SGPoint point) {
+  if (matrix.hasPerspective())
+    return sg_point(matrix.mapPoint(sg_point(point)));
+  return {static_cast<double>(matrix.getScaleX()) * point.x +
+              static_cast<double>(matrix.getSkewX()) * point.y +
+              matrix.getTranslateX(),
+          static_cast<double>(matrix.getSkewY()) * point.x +
+              static_cast<double>(matrix.getScaleY()) * point.y +
+              matrix.getTranslateY()};
+}
+
+static SGRect queryRect(const SkMatrix &matrix, SGRect rect) {
+  const auto mapped = sg_rect(matrix.mapRect(sg_rect(rect)));
+  if (matrix.hasPerspective() || (mapped.width != 0 && mapped.height != 0))
+    return mapped;
+  // Distant translations can round both native edges to the same scalar.
+  // Keep the captured affine transform and recover extents before translating.
+  const auto origin = queryPoint(matrix, {rect.x, rect.y});
+  const double xx = static_cast<double>(matrix.getScaleX()) * rect.width;
+  const double xy = static_cast<double>(matrix.getSkewX()) * rect.height;
+  const double yx = static_cast<double>(matrix.getSkewY()) * rect.width;
+  const double yy = static_cast<double>(matrix.getScaleY()) * rect.height;
+  return {origin.x + std::min(0.0, xx) + std::min(0.0, xy),
+          origin.y + std::min(0.0, yx) + std::min(0.0, yy),
+          std::abs(xx) + std::abs(xy), std::abs(yx) + std::abs(yy)};
+}
+
 static int32_t clip(SGCanvas *value, const SkPath &path) {
   try {
     auto transformed = path.tryMakeTransform(value->logical());
@@ -159,17 +186,17 @@ SGSample scoop_graphics_geometry_point(const SGGeometry *value, SGPoint point,
                                        bool inverse) {
   if (inverse && !value->invertible)
     return {};
-  SkPoint result =
-      (inverse ? value->inverse : value->matrix).mapPoint(sg_point(point));
-  if (!result.isFinite())
+  const auto result =
+      queryPoint(inverse ? value->inverse : value->matrix, point);
+  if (!std::isfinite(result.x) || !std::isfinite(result.y))
     return {};
-  return {1, sg_point(result), {0, 0}};
+  return {1, result, {0, 0}};
 }
 SGRect scoop_graphics_geometry_rect_map(const SGGeometry *value, SGRect rect) {
-  return sg_rect(value->matrix.mapRect(sg_rect(rect)));
+  return queryRect(value->matrix, rect);
 }
 SGRect scoop_graphics_geometry_bounds(SGGeometry *value) {
-  return sg_rect(value->matrix.mapRect(value->shape.computeTightBounds()));
+  return queryRect(value->matrix, sg_rect(value->shape.computeTightBounds()));
 }
 SGBounds scoop_graphics_geometry_visible(SGGeometry *value) {
   if (value->visibilityKnown)

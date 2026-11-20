@@ -59,6 +59,8 @@ DPI 缩放由目标根部施加一次，geometry 快照仍使用逻辑坐标。�
 
 普通 hitTest 与原生 contains 共用形状、变换和完整 clip，并排除 viewport 外的点（包含右／下边界）。孔洞、不可逆变换和非有限的原生坐标不产生命中；窗口的层叠顺序、语义状态与实际呈现时机仍由消费者处理。
 
+捕获后仿射点查询使用 Double；完整边界在大平移造成 native scalar 尺寸归零时，以同一矩阵保留局部尺寸，供虚拟条目的显露定位使用。离屏范围仍没有可见交集或命中，真正到达窗口后继续使用真实绘制几何；捕获矩阵本身仍遵守原生精度。
+
 准备 [native 资源](../../../scripts/README.md)后运行 `scoop test sysroot/src/scoop.graphics --release --sysroot sysroot`。测试通过真实 Skia 像素、几何和跨 Cone 借用验证行为；文本与字体测试归 graphics.text。整体进展见 [Surface 实施记录](../../../docs/surface/PROGRESS.md)及 [UI 实施记录](../../../docs/ui/PROGRESS.md)。
 
 `Path.rasterizeRegion(clip, scale)` 和 `graphics.native.CanvasGeometry.rasterizeRegion(scale)` 使用 Skia 的非抗锯齿区域栅格化，返回逻辑坐标中的自有矩形集合。后者包含捕获时的真实变换、路径 clip 与 viewport，可供 Accepted 帧发布原生输入／窗框区域；graphics 保持不依赖 window。
