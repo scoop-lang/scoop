@@ -84,19 +84,22 @@ internal class TableScene(private val p: TableProbe, scope: ComponentScope): Com
             if (!p.shown)
                 empty()
             else
-                if (p.finite)
-                    finiteTable(p)
+                if (p.standaloneResize)
+                    standaloneResize(p)
                 else
-                    dataTable(p.model) {
-                        this.bodyHeight = 260.0
-                        this.selection = p.selection
-                        this.columnMenu = false
-                        this.pagination = false
-                        this.horizontal = Some(p.horizontal)
-                        this.vertical = Some(p.vertical)
-                        this.handle = Some(p.handle)
-                        this.enabled = !p.disabled
-                    }
+                    if (p.finite)
+                        finiteTable(p)
+                    else
+                        dataTable(p.model) {
+                            this.bodyHeight = 260.0
+                            this.selection = p.selection
+                            this.columnMenu = false
+                            this.pagination = false
+                            this.horizontal = Some(p.horizontal)
+                            this.vertical = Some(p.vertical)
+                            this.handle = Some(p.handle)
+                            this.enabled = !p.disabled
+                        }
         return direction(
             element(
                 generation,
@@ -216,7 +219,7 @@ private class TableRoot(
                 0.0
             else
                 size.width - 40.0
-        context.measureChild(2L, Constraints(width, Some(width)))
+        context.measureChild(2L, Constraints(width, Some(width)), LayoutInput(917L))
         context.placeChild(2L, Point(20.0, 70.0))
         return LayoutResult(LayoutMetrics(size), Unit)
     }

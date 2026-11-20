@@ -10,6 +10,10 @@ import scoop.ui.style.shadcn.shadcnTheme
 import scoop.window.*
 
 internal fun advanceTable(p: TableProbe) {
+    if (p.phase >= 43) {
+        advanceColumnResize(p)
+        return
+    }
     when (p.phase) {
         case 0 -> {
             assertTrue(p.handle.isAttached)
@@ -212,7 +216,6 @@ internal fun advanceTable(p: TableProbe) {
             assertFalse(p.frames!!.snapshot().required)
         }
         case 42 -> assertTrue(p.outsideFocus.requestFocus())
-        case 43 -> p.native!!.requestDestroy()
         else -> fail(Some("unexpected table phase"))
     }
 }

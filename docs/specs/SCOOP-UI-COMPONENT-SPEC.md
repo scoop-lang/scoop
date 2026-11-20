@@ -1206,6 +1206,12 @@ setQuery／toggleSort／setFilter／setPage／setPageSize 是显式模型动作�
 
 selectedKeys、hiddenColumns、widths 分开保存，只通过相应显式动作更新。isSelected／setSelected 以稳定 key 工作；selectPage 与 pageSelection 只看当前呈现页中 selectable 的行，混合为 Indeterminate，空集合为 Unchecked 且禁用全选；跨页选择保留。隐藏列与调整宽度不改变排序／筛选，至少保留一个数据列。resizeColumn 以逻辑长度夹取列限制，resetColumnWidth 恢复声明宽度；表头分隔区复用 Drag，逻辑前后键改变 10，Home 恢复声明值，Escape／外层取消恢复本次开始值，期间外部改宽则保留外部结果。
 
+`tableColumnResize(content, width) { ... }` 公开复用同一列宽手柄，供自绘表头使用。width 为 `Binding<Double?>`，None 恢复列的声明宽度；父布局负责按该值分配整列表头与正文的共享宽度。包装本身保持 content 的测量结果和子树身份，只在逻辑 End 的 8 个密度单位区域处理输入。builder 提供 size、enabled、theme、focus、semantics 和 key；size 默认 TableColumnSize，实际宽度仅来自 Accepted 布局，未就绪时不能调宽。密度、方向、取消、键盘、竖向 Separator 及数值范围沿用上述合同。绑定可拒绝更新，手柄立即读回应用值；被拒绝的拖动停止，不覆盖应用结果。
+
+原生绝对数值必须位于已发布的 range 内，越界由 Window 返回 InvalidArgument 并保留应用值；拖动和方向键在 TableColumnSize 限制内夹取。不能把原生 setter 的返回当作业务值已经被采纳，调用方仍读取模型和下一次 Accepted 状态。
+
+需要与其他编辑事务组合时，可提供 `onResizeStart: () -> Boolean`，仅在实际拖动开始时检查并允许该次操作；false 不改宽度，也不产生结束回调。可选 `onResizeEnd: ((TableColumnResizeEnd) -> Unit)?` 在该次拖动结束时调用一次，结果为 Completed 或 Cancelled(initialWidth)。None 使用内置取消恢复；提供回调时由调用方负责取消恢复，便于同时检查模型快照和应用状态，不能同时执行第二次默认恢复。键盘／原生数值操作仍只经过同一个宽度绑定，不伪造拖动会话。禁用、方向／密度改变、焦点离开和卸载结束现有拖动；取消回调使用开始时的处理器，不能把旧操作交给替换后的模型。
+
 DataTable 提供选择列、排序按钮、列显隐菜单、页码／页大小控制和 toolbar／footer／empty 插槽；列菜单只列出 hideable 的列，无可切换列时禁用入口。筛选输入由应用的 TextEditorState 与 setFilter 组合，行操作直接使用 cell 中的实际按钮或菜单。默认 bodyHeight=320，itemExtent 为 Variable(48)，可配置准确 Fixed 或其他估计；行使用稳定来源 key 和 VirtualList 的活动项保留、焦点显露与 KeepVisible，不让页索引冒充身份。主题／fonts／enabled／滚动状态与句柄可显式传入，静止后停帧。验收覆盖稳定多列排序、重复标签、空页及末页删除、本页三态与禁用行、Provided 替换、列隐藏／共享宽度／RTL／横向滚动、实际拖动和虚拟行中的编辑／弹层。
 
 
