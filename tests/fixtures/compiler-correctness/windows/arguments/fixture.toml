@@ -7,6 +7,8 @@ targets = ["x86_64-pc-windows-msvc-ucrt", "x86_64-w64-windows-llvm-mingw-msvcrt"
 tags = ["windows", "cli", "runtime", "compiler-correctness"]
 
 [vars]
+# Exercise the PE driver when its output staging directory exceeds MAX_PATH.
+nested = "Windows build outputs, including application binaries and symbols"
 build_args = ["--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
 
 [[steps]]
@@ -57,14 +59,14 @@ stderr = ""
 
 [[steps]]
 name = "relink"
-argv = ["${scoop-link}", {each = "${link_args}"}, "--root-slib", "${raw.result.root.path}", {each = "${raw.result.dependencies}", field = "path", prefix = "--dep-slib"}, "--runtime-objects", "${raw.result.runtime_index}", "-o", "${work}/relinked.exe", "--cache-dir", "${cache}", "--sysroot", "${sysroot}"]
+argv = ["${scoop-link}", {each = "${link_args}"}, "--root-slib", "${raw.result.root.path}", {each = "${raw.result.dependencies}", field = "path", prefix = "--dep-slib"}, "--runtime-objects", "${raw.result.runtime_index}", "-o", "${work}/${nested}/${nested}/${nested}/${nested}/relinked.exe", "--cache-dir", "${cache}", "--sysroot", "${sysroot}"]
 exit = 0
 stdout = "link-plan ${raw.result.link_plan_fingerprint}\n"
 stderr = ""
 
 [[steps]]
 name = "relinked_run"
-argv = ["${python}", "${fixture}/inspect.py", "raw", "${work}/relinked.exe"]
+argv = ["${python}", "${fixture}/inspect.py", "raw", "${work}/${nested}/${nested}/${nested}/${nested}/relinked.exe"]
 exit = 0
 stdout = "raw passed\n"
 stderr = ""
