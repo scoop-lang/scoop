@@ -131,7 +131,67 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
   return result == self.mounted ? self : result;
 }
 - (NSArray *)accessibilityCustomActions {
-  return self.row.accessibilityCustomActions;
+  if (!self.isAccessibilityEnabled)
+    return @[];
+  int32_t flags = self.row.collection.state.collectionActions;
+  NSMutableArray *actions = [NSMutableArray new];
+  if (flags & 16)
+    [actions addObject:[[NSAccessibilityCustomAction alloc]
+                           initWithName:@"Realize Cell"
+                                 target:self
+                               selector:@selector(realizeAccessibilityCell)]];
+  if (flags & 32) {
+    NSString *name = @"Scroll to Visible";
+    if (@available(macOS 26.0, *)) {
+      NSString *localized = NSAccessibilityActionDescription(
+          NSAccessibilityScrollToVisibleAction);
+      if (localized.length)
+        name = localized;
+    }
+    [actions addObject:[[NSAccessibilityCustomAction alloc]
+                           initWithName:name
+                                 target:self
+                               selector:@selector(revealAccessibilityCell)]];
+  }
+  return actions;
+}
+- (BOOL)performCell:(int32_t)operation {
+  if (!self.isAccessibilityEnabled)
+    return NO;
+  int32_t flag = operation == 12 ? 16 : operation == 13 ? 32 : 64;
+  if (!(self.row.collection.state.collectionActions & flag) ||
+      (flag == 64 && !self.data.focusable))
+    return NO;
+  NSInteger column = self.columnIndex;
+  if (column == NSNotFound)
+    return NO;
+  return [self.row.collection query:operation
+                             index:column
+                               key:self.row.key
+                             reply:nil] == 1 &&
+         self.isAccessibilityElement;
+}
+- (BOOL)realizeAccessibilityCell {
+  return [self performCell:12];
+}
+- (BOOL)revealAccessibilityCell {
+  return [self performCell:13];
+}
+- (void)setAccessibilityFocused:(BOOL)focused {
+  [self performCell:focused ? 14 : 15];
+}
+- (BOOL)isAccessibilityFocused {
+  if (!self.isAccessibilityElement ||
+      !self.row.collection.tree.view.window.isKeyWindow)
+    return NO;
+  SWAccessibilityNode *cell = self.mounted;
+  int64_t number = self.row.collection.tree.focused;
+  while (number && cell) {
+    if (number == cell.number)
+      return YES;
+    number = self.row.collection.tree.published[@(number)].data.parent;
+  }
+  return NO;
 }
 - (BOOL)isAccessibilitySelectorAllowed:(SEL)selector {
   if (!self.isAccessibilityElement)
@@ -140,9 +200,14 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
     return self.mounted.state.data.geometry != 0;
   if (selector == @selector(isAccessibilitySelected))
     return self.data && self.data.selected >= 0;
+  if (selector == @selector(setAccessibilityFocused:) ||
+      selector == @selector(isAccessibilityFocused))
+    return self.data.focusable &&
+           (self.row.collection.state.collectionActions & 64);
+  if (selector == @selector(accessibilityCustomActions))
+    return (self.row.collection.state.collectionActions & 48) != 0;
   if (selector == @selector(setAccessibilitySelected:) ||
-      selector == @selector(setAccessibilityValue:) ||
-      selector == @selector(setAccessibilityFocused:))
+      selector == @selector(setAccessibilityValue:))
     return NO;
   return [super isAccessibilitySelectorAllowed:selector];
 }

@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.window.accessibility.*
+import scoop.collections.HashMap
 
 /** One scope-owned semantic identity, independent of drawing and input areas. */
 public class SemanticsHandle internal constructor(
@@ -24,6 +25,7 @@ public class SemanticsHandle internal constructor(
     internal var collectionSource: ItemSource? = None
     internal var collectionItems: ItemSemantics? = None
     internal var collectionViewport: ScrollViewport? = None
+    internal val gridColumns = HashMap<ViewKey, SemanticGridColumns>()
     internal val generation: ULong get() = resource.contentRevision
 
     public val id: SemanticNodeId get() = resource.id

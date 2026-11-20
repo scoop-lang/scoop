@@ -19,7 +19,9 @@ private class PendingSemanticReveal(
     val retention: SemanticItemRetention? = None,
     val region: (() -> Rect?)? = None,
     val horizontal: ScrollAlignment = ScrollAlignment.Nearest,
-    val vertical: ScrollAlignment = ScrollAlignment.Nearest
+    val vertical: ScrollAlignment = ScrollAlignment.Nearest,
+    val columnRetention: SemanticItemRetention? = None,
+    val column: SemanticItemKey? = None
 ) {
     val attempt = RevealAttempt()
     val hasRegion: Boolean get() =
@@ -133,10 +135,28 @@ internal class SemanticRevealController(private val root: UiRoot) {
 
     fun requestItem(parent: SemanticsHandle, entry: LazyItemEntry): SemanticActionResult {
         val handle = entry.node.semanticItem ?: return SemanticActionResult.Unavailable
+        return requestCollection(parent, entry, handle, None, None)
+    }
+
+    fun requestCell(
+        parent: SemanticsHandle,
+        entry: LazyItemEntry,
+        handle: SemanticsHandle,
+        columnEntry: LazyItemEntry?,
+        column: SemanticItemKey
+    ): SemanticActionResult = requestCollection(parent, entry, handle, columnEntry, Some(column))
+
+    private fun requestCollection(
+        parent: SemanticsHandle,
+        entry: LazyItemEntry,
+        handle: SemanticsHandle,
+        columnEntry: LazyItemEntry?,
+        column: SemanticItemKey?
+    ): SemanticActionResult {
         val viewport = parent.collectionViewport ?: return SemanticActionResult.Unsupported
         if (!viewport.active)
             return SemanticActionResult.Unavailable
-        when (val result = eligibility(handle, Some(parent), Some(entry))) {
+        when (val result = eligibility(handle, Some(parent), Some(entry), column)) {
             case Some(val value) -> return value
             case None -> {}
         }
@@ -160,13 +180,25 @@ internal class SemanticRevealController(private val root: UiRoot) {
                         handle,
                         scene,
                         Some(parent),
-                        Some(SemanticItemRetention(entry))
+                        Some(SemanticItemRetention(entry)),
+                        columnRetention =
+                            when (columnEntry) {
+                                case Some(val item) -> Some(SemanticItemRetention(item))
+                                case None -> None
+                            },
+                        column = column
                     )
                 case None -> PendingSemanticReveal(
                     handle,
                     scene,
                     Some(parent),
-                    Some(SemanticItemRetention(entry))
+                    Some(SemanticItemRetention(entry)),
+                    columnRetention =
+                        when (columnEntry) {
+                            case Some(val item) -> Some(SemanticItemRetention(item))
+                            case None -> None
+                        },
+                    column = column
                 )
             }
         install(value)
@@ -197,7 +229,10 @@ internal class SemanticRevealController(private val root: UiRoot) {
         val previous = pending
         pending = None
         when (previous) {
-            case Some(val value) -> value.retention?.close()
+            case Some(val value) -> {
+                value.columnRetention?.close()
+                value.retention?.close()
+            }
             case None -> {}
         }
     }
@@ -320,7 +355,7 @@ internal class SemanticRevealController(private val root: UiRoot) {
 
     private fun eligible(value: PendingSemanticReveal): Boolean =
         value.attempt.isCurrent &&
-            eligibility(value.handle, value.collection, value.retention?.entry) ==
+            eligibility(value.handle, value.collection, value.retention?.entry, value.column) ==
             None
 
     private fun current(value: PendingSemanticReveal): SemanticRevealPlacement? {
@@ -362,7 +397,8 @@ internal class SemanticRevealController(private val root: UiRoot) {
     private fun eligibility(
         handle: SemanticsHandle,
         collection: SemanticsHandle?,
-        entry: LazyItemEntry?
+        entry: LazyItemEntry?,
+        column: SemanticItemKey? = None
     ): SemanticActionResult? {
         if (!root.isOpen || !handle.active || root.window.state != WindowState.Open)
             return Some(SemanticActionResult.Unavailable)
@@ -373,7 +409,13 @@ internal class SemanticRevealController(private val root: UiRoot) {
         when (collection) {
             case Some(val parent) -> {
                 val item = entry ?: return Some(SemanticActionResult.Unavailable)
-                if (!parent.active || !sameSemantics(item.node.semanticItem, Some(handle)))
+                if (
+                    !parent.active ||
+                        !item.node.active ||
+                        !withinFocusScope(handle.owner, item.node)
+                )
+                    return Some(SemanticActionResult.Unavailable)
+                if (column == None && !sameSemantics(item.node.semanticItem, Some(handle)))
                     return Some(SemanticActionResult.Unavailable)
                 val source =
                     parent.resource.collection ?: return Some(SemanticActionResult.Unavailable)
@@ -383,6 +425,16 @@ internal class SemanticRevealController(private val root: UiRoot) {
                             return Some(SemanticActionResult.Rejected)
                     }
                     else -> return Some(SemanticActionResult.Unavailable)
+                }
+                when (column) {
+                    case Some(val key) -> when (source.cellForKey(semanticItemKey(item.key), key)) {
+                        case Found(val value) -> {
+                            if (!value.properties.enabled)
+                                return Some(SemanticActionResult.Rejected)
+                        }
+                        else -> return Some(SemanticActionResult.Unavailable)
+                    }
+                    case None -> {}
                 }
             }
             case None -> if (handle.properties.ignored)

@@ -36,7 +36,8 @@ public struct SemanticCollectionActions(
     val realize: ((SemanticItemKey) -> SemanticActionResult)? = None,
     val reveal: ((SemanticItemKey) -> SemanticActionResult)? = None,
     val focus: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None,
-    val setSelected: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None
+    val setSelected: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None,
+    val grid: SemanticGridActions? = None
 )
 
 /** An immutable selection snapshot whose size is proportional to the selection. */

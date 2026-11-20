@@ -155,7 +155,26 @@ private fun collectionActionBits(actions: SemanticCollectionActions): Int =
                 case Some(_) -> 8;
                 case None -> 0
             }
-        )
+        ) +
+        gridActionBits(actions.grid)
+
+private fun gridActionBits(actions: SemanticGridActions?): Int {
+    val grid = actions ?: return 0
+    var bits = 0
+    when (grid.realize) {
+        case Some(_) -> bits += 16
+        case None -> {}
+    }
+    when (grid.reveal) {
+        case Some(_) -> bits += 32
+        case None -> {}
+    }
+    when (grid.focus) {
+        case Some(_) -> bits += 64
+        case None -> {}
+    }
+    return bits
+}
 
 private fun collectionCallback(application: ApplicationOwner, provider: AccessibilityProvider):
 ForeignCallback<(Ptr<Unit>, Long, Int, Long, Int, Long, Ptr<UInt8>?, Long, Ptr<Unit>?) -> Int> {
@@ -203,13 +222,13 @@ private fun queryCollection(
     length: Long,
     reply: Ptr<Unit>?
 ): Int {
-    if (operation >= 3 && operation <= 8) {
+    if ((operation >= 3 && operation <= 8) || (operation >= 12 && operation <= 15)) {
         val result =
             application.performAccessibility {
                 val key =
                     collectionKey(kind, number, bytes, length) ?:
                         return@performAccessibility SemanticActionResult.InvalidArgument
-                provider.performCollection(owner, key, operation)
+                provider.performCollection(owner, key, operation, index)
             }
         return actionCode(result)
     }

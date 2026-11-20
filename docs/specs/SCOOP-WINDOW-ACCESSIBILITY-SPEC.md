@@ -138,9 +138,13 @@ AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；
 
 `AccessibilityNode.collectionActions` 接受 `SemanticCollectionActions(realize, reveal, focus, setSelected)`，用于 List 或 Table。前两项是可选 `(SemanticItemKey) -> SemanticActionResult` 回调，focus 为可选 `(SemanticItemKey, Boolean) -> SemanticActionResult` 回调。能力随 collection 一同发布；动作重新按当前有效快照解析 key，经过相同 owner、模态、祖先 enabled／hidden 和退休边界。描述暂不可用或 key 已删除时返回 Unavailable，disabled 返回 Rejected；没有相应回调或条目未声明 focusable 时返回 Unsupported。
 
+表格可另传 `SemanticCollectionActions.grid = Some(SemanticGridActions(...))`：realize／reveal 回调接收行 key、列 key，focus 再接收 Boolean。每次调用同时检查当前行和列，单元格禁用或未声明 focusable 时沿相同结果规则处理。单元格动作不会降级为同一行的动作；列重排保留 key，删除后复用同 key 不复活旧代理。Realize 的 Completed 要求目标单元格及其语义子树已经发布，Reveal 和 Focus 仍分别等待真实可见几何与活动焦点。
+
 Realize 的 Completed 表示实际行及其当前语义子树已挂载并发布，原生同步调用返回之前不得回收；它不承诺几何、滚动或焦点。Reveal 只有真实 Accepted 场景中目标已具有有效可见区域时才 Completed，准备或等待呈现期间为 Busy。Focus 选择该项实际支持的焦点目标，以实际活动键盘焦点完成；清除请求仍指向该 key 的真实目标，请求之间的先后与取消遵循原焦点控制器。窗口不在前台时，不把逻辑焦点或排队请求当作实际活动焦点。
 
 AppKit 用公开 NSAccessibilityCustomAction 提供“Realize Item”和“Scroll to Visible”，分别对应实际已登记能力，BOOL 只把 Completed 映射为 YES。聚焦使用公开 setAccessibilityFocused:；条目 getter 依据真实挂载子树中已发布的实际焦点，不借读取启动任何操作。旧动作、旧代理以及删除后重新使用同 key 均不能越过退休边界；动作对象不保活实际行或 Window。
+
+表格单元格的 AppKit 自定义动作使用“Realize Cell”和“Scroll to Visible”，只公布 grid 回调实际提供的能力。isAccessibilityFocused 读取该单元格实际子树中的活动焦点；setAccessibilityFocused: 指向同一行列身份，不能返回或改写该行其他单元格的焦点。
 
 ## 4. AppKit 投影与验证
 

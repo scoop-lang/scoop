@@ -1,0 +1,316 @@
+package scoop.tests.ui.gridaccessibility
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class GridAccessibilityTest {
+    @Test
+    fun `native cells realize reveal focus and retire across two lazy axes`() {
+        val probe = AxGridProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(0, probe.mounted)
+            assertTrue(probe.rowBuilds < 300)
+            assertTrue(probe.cellBuilds < 2000)
+            assertEquals(0, probe.queryGuard.value)
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class AxGridProbe: Closeable {
+    val scroll = ScrollState()
+    val outside = FocusHandle()
+    val rows = state(AxRows(this))
+    val queryGuard = state(0)
+    var viewport: ScrollViewport? = None
+    var frame: ComponentScope? = None
+    var table: SemanticsHandle? = None
+    var target: FocusHandle? = None
+    var targetSemantics: SemanticsHandle? = None
+    var other: FocusHandle? = None
+    var rowBuilds = 0
+    var cellBuilds = 0
+    var mounted = 0
+    var finished = false
+    private var phase = 0
+    private var waiting = false
+    private var retry = false
+    private var initialized = false
+    private var beforeRows = 0
+    private var beforeCells = 0
+    private var active: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var root: NativeNode? = None
+    private var nativeTable: NativeNode? = None
+    private var cell: NativeNode? = None
+    private var otherCell: NativeNode? = None
+    private var replacement: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private val held = ArrayList<NativeNode>()
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
+                )
+                val native =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop Grid accessibility"
+                            size = LogicalSize(280.0, 220.0)
+                        }
+                    )
+                window = Some(native)
+                ui = host.attach(native, { mount -> AxGridScene(this, mount) })
+                @Unsafe
+                {
+                    val lease = native.acquireNativeWindow()
+                    try {
+                        val view =
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> pointer
+                            }
+                        root = Some(keep(NativeNode(nativeRoot(view)!!)))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                calls =
+                    Some(
+                        NativeCalls(application.proxy(), { tag -> inspect(tag) }) {
+                            tag,
+                            result -> completed(tag, result)
+                        }
+                    )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"grid AX timeout phase=${phase}, nativeFocus=${
+                        window?.isFocused ?: false
+                    }, pending=${target?.isPending ?: false}, mounted=${mounted}"
+                )
+            )
+            case Window(_, WindowEvent.Focused(true)) -> frame?.requestFrame()
+            else -> {}
+        }
+    }
+    fun accepted(snapshot: AxRows) {
+        if (finished || waiting || snapshot !== rows.value)
+            return
+        when (calls) {
+            case Some(_) -> {}
+            case None -> return
+        }
+        if (!initialized) {
+            initialized = true
+            window!!.requestFocus()
+            assertTrue(outside.requestFocus())
+        }
+        send()
+    }
+    private fun keep(node: NativeNode): NativeNode {
+        held.add(node)
+        return node
+    }
+    private fun at(row: Long, column: Long): NativeNode = keep(nativeTable!!.cell(row, column)!!)
+    private fun send() {
+        waiting = true
+        retry = false
+        when (phase) {
+            case 1 -> calls!!.post(cell!!, phase, 19)
+            case 3 -> calls!!.post(cell!!, phase, 19, selectionStart = 1L)
+            case 5 -> calls!!.post(cell!!, phase, 19, selectionStart = 1L)
+            case 7 -> calls!!.post(otherCell!!, phase, 2)
+            case 9 -> calls!!.post(cell!!, phase, 3)
+            case 10 -> calls!!.post(otherCell!!, phase, 3)
+            case 12 -> calls!!.post(cell!!, phase, 19, selectionStart = 1L)
+            case 15 -> calls!!.post(cell!!, phase, 19)
+            case 18 -> calls!!.post(cell!!, phase, 19)
+            case 21 -> calls!!.post(replacement!!, phase, 2)
+            else -> calls!!.post(root!!, phase, 20)
+        }
+    }
+    private fun inspect(tag: Int) {
+        assertEquals(phase, tag)
+        when (phase) {
+            case 0 -> {
+                nativeTable = Some(keep(root!!.find("grid")!!))
+                beforeRows = rowBuilds
+                beforeCells = cellBuilds
+                cell = Some(at(50000L, 250L))
+                assertTrue(cell!!.text(1, Some("50000:250")))
+                assertTrue(cell!!.flag(15))
+                assertTrue(cell!!.flag(16))
+                assertFalse(cell!!.flag(2))
+                assertEquals(beforeRows, rowBuilds)
+                assertEquals(beforeCells, cellBuilds)
+            }
+            case 1 -> {
+                assertEquals(beforeRows + 1, rowBuilds)
+                assertEquals(beforeCells + 1, cellBuilds)
+                assertTrue(target!!.isAttached)
+                assertFalse(cell!!.flag(2))
+                assertEquals(Point(0.0, 0.0), scroll.offset)
+                assertTrue(outside.hasFocus)
+            }
+            case 2 -> retry = target?.isAttached ?: false
+            case 3 -> assertTrue(outside.hasFocus)
+            case 4 -> {
+                val geometry = targetSemantics?.geometry ?: None
+                retry = (geometry?.visibleBounds ?: None) == None
+                if (!retry) {
+                    assertTrue(cell!!.flag(2))
+                    assertFalse(cell!!.flag(4))
+                    assertTrue(scroll.offset.x > 10000.0 && scroll.offset.y > 1000000.0)
+                    assertTrue(outside.hasFocus)
+                }
+            }
+            case 5 -> assertFalse(cell!!.flag(4))
+            case 6 -> {
+                beforeCells = cellBuilds
+                otherCell = Some(at(60000L, 260L))
+                assertTrue(otherCell!!.text(1, Some("60000:260")))
+                assertEquals(beforeCells, cellBuilds)
+            }
+            case 7 -> assertTrue(other!!.isPending)
+            case 8 -> {
+                retry = !(other?.isFocusActive ?: false)
+                if (!retry) {
+                    assertTrue(otherCell!!.flag(4))
+                    assertFalse(cell!!.flag(4))
+                    assertFalse(outside.hasFocus)
+                }
+            }
+            case 9 -> assertTrue(otherCell!!.flag(4))
+            case 10 -> {
+                assertFalse(otherCell!!.flag(4))
+                assertFalse(other!!.isPending)
+            }
+            case 11 -> {
+                assertTrue(otherCell!!.same(at(60000L, 39L)))
+                assertTrue(cell!!.same(at(50000L, 49L)))
+                assertTrue(cell!!.text(1, Some("50000:250")))
+            }
+            case 12 -> scroll.scrollTo(Point(0.0, 0.0))
+            case 13 -> {
+                retry = scroll.offset != Point(0.0, 0.0) || (target?.isAttached ?: false)
+                if (!retry) {
+                    assertFalse(cell!!.flag(4))
+                    beforeRows = rowBuilds
+                    beforeCells = cellBuilds
+                }
+            }
+            case 14 -> {
+                assertFalse(cell!!.flag(1))
+                beforeRows = rowBuilds
+                beforeCells = cellBuilds
+            }
+            case 15 -> {
+                assertEquals(beforeRows, rowBuilds)
+                assertEquals(beforeCells, cellBuilds)
+            }
+            case 16 -> {
+                assertFalse(cell!!.flag(0))
+                assertTrue(otherCell!!.same(at(60000L, 39L)))
+            }
+            case 17 -> {
+                replacement = Some(at(50000L, 49L))
+                assertFalse(cell!!.same(replacement!!))
+                assertFalse(cell!!.flag(0))
+                assertTrue(replacement!!.flag(0))
+                beforeCells = cellBuilds
+            }
+            case 18 -> assertEquals(beforeCells, cellBuilds)
+            case 19 -> {
+                assertFalse(replacement!!.flag(0))
+                assertTrue(otherCell!!.same(at(59999L, 39L)))
+            }
+            case 20 -> {
+                val restored = at(50000L, 49L)
+                assertFalse(replacement!!.same(restored))
+                assertFalse(replacement!!.flag(0))
+                replacement = Some(restored)
+            }
+            case 21 -> {
+                assertTrue(target!!.isPending)
+                assertTrue(outside.requestFocus())
+                assertFalse(target!!.isPending)
+            }
+            case 22 -> {
+                retry = !outside.isFocusActive
+                if (!retry)
+                    assertFalse(replacement!!.flag(4))
+            }
+            case 23 -> {
+                assertFalse(nativeTable!!.flag(0))
+                assertFalse(replacement!!.flag(0))
+                assertFalse(otherCell!!.flag(0))
+            }
+            else -> fail(Some("unknown AX phase"))
+        }
+    }
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(phase, tag)
+        val expected =
+            when (phase) {
+                case 3 -> 0
+                case 12 -> 0
+                case 15 -> 0
+                case 18 -> 0
+                else -> 1
+            }
+        assertEquals(expected, result, Some(f"native grid action phase ${phase}"))
+        waiting = false
+        if (retry) {
+            frame!!.requestFrame()
+            return
+        }
+        if (phase == 23) {
+            finished = true
+            active!!.requestExit()
+            return
+        }
+        phase += 1
+        when (phase) {
+            case 2 -> frame!!.requestLayout()
+            case 4 -> frame!!.requestFrame()
+            case 8 -> frame!!.requestFrame()
+            case 11 -> {
+                assertTrue(outside.requestFocus())
+                rows.value = AxRows(this, reverse = true)
+            }
+            case 13 -> frame!!.requestLayout()
+            case 14 -> rows.value = AxRows(this, reverse = true, enabled = false)
+            case 16 -> rows.value = AxRows(this, reverse = true, omitColumn = true)
+            case 17 -> rows.value = AxRows(this, reverse = true)
+            case 19 -> rows.value = AxRows(this, reverse = true, omitRow = true)
+            case 20 -> rows.value = AxRows(this, reverse = true)
+            case 22 -> frame!!.requestLayout()
+            case 23 -> {
+                ui!!.close();
+                send()
+            }
+            else -> send()
+        }
+    }
+    public override fun close() {
+        calls?.close()
+        for (node in held)
+            node.close()
+    }
+}

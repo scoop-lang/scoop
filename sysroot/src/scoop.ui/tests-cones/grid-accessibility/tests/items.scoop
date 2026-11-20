@@ -1,0 +1,264 @@
+package scoop.tests.ui.gridaccessibility
+
+import scoop.collections.HashSet
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class AxRows(
+    val probe: AxGridProbe,
+    val reverse: Boolean = false,
+    val omitColumn: Boolean = false,
+    val omitRow: Boolean = false,
+    val enabled: Boolean = true
+): ItemSource {
+    public override val count: Long get() =
+        if (omitRow)
+            99999999L
+        else
+            100000000L
+    val columnCount: Long get() =
+        if (omitColumn)
+            299L
+        else
+            300L
+    public override fun keyAt(index: Long): ViewKey =
+        ViewKey.Number(
+            if (omitRow && index >= 50000L)
+                index + 1L
+            else
+                index
+        )
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(val value) -> {
+                if (value < 0L || value >= 100000000L || (omitRow && value == 50000L))
+                    None
+                else
+                    Some(
+                        if (omitRow && value > 50000L)
+                            value - 1L
+                        else
+                            value
+                    )
+            }
+            else -> None
+        }
+    fun columnAt(index: Long): Long {
+        val at =
+            if (reverse)
+                columnCount - index - 1L
+            else
+                index
+        return if (omitColumn && at >= 250L)
+            at + 1L
+        else
+            at
+    }
+    fun columnIndex(key: Long): Long? {
+        if (key < 0L || key >= 300L || (omitColumn && key == 250L))
+            return None
+        val at =
+            if (omitColumn && key > 250L)
+                key - 1L
+            else
+                key
+        return Some(
+            if (reverse)
+                columnCount - at - 1L
+            else
+                at
+        )
+    }
+    public override fun build(index: Long): View {
+        probe.rowBuilds += 1
+        val row =
+            when (keyAt(index)) {
+                case Number(val key) -> key
+                else -> fail(Some("numeric row expected"))
+            }
+        val columns = AxColumns(this, row, index)
+        return lazyElement(columns, columns, { props, scope -> AxRow(props, scope) })
+    }
+    fun semantics(): ItemSemantics =
+        ItemSemantics(
+            this,
+            { _ -> Some(SemanticItemProperties(enabled = enabled, focusable = true)) },
+            grid =
+                Some(
+                    SemanticGrid(
+                        Array(columnCount) {
+                            index -> SemanticGridColumn(
+                                SemanticItemKey.Number(columnAt(index)),
+                                Some("Column")
+                            )
+                        }
+                    ) {
+                        row, column ->
+                        // Queries are protected by the ordinary read-only UI evaluation boundary.
+                        assertFailsWith<IllegalStateException> { probe.queryGuard.value += 1 }
+                        Some(
+                            SemanticItemProperties(
+                                value =
+                                    Some(
+                                        when (row) {
+                                            case Number(val key) -> f"${key}:${columnAt(column)}"
+                                            else -> "invalid"
+                                        }
+                                    ),
+                                enabled = enabled,
+                                focusable = true
+                            )
+                        )
+                    }
+                )
+        )
+}
+
+internal class AxColumns(val rows: AxRows, val row: Long, val index: Long): ItemSource {
+    public override val count: Long get() = rows.columnCount
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(rows.columnAt(index))
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(val value) -> rows.columnIndex(value)
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        rows.probe.cellBuilds += 1
+        return element(
+            AxCellProps(this, rows.columnAt(index), index),
+            { props, scope -> AxCell(props, scope) }
+        )
+    }
+}
+
+internal class AxTable(private val props: Props<AxRows>, scope: ComponentScope): LazyElement<Unit>(
+    scope
+) {
+    private val semantics = scope.semantics(SemanticRole.Table)
+    init {
+        props.value.probe.table = Some(semantics)
+        scope.routeSemanticsChildren(Some(semantics))
+    }
+    public override fun update(): UiInvalidation {
+        val rows = props.value
+        semantics.update(
+            SemanticProperties(
+                automationId = Some("grid"),
+                table = Some(SemanticTableSize(rows.count, rows.columnCount))
+            )
+        )
+        semantics.updateCollection(rows, Some(rows.semantics()), rows.probe.viewport)
+        return UiInvalidation.Layout
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> {
+        val scroll = context.input<AxLayout>().scroll.snapshot
+        val first = (scroll.offset.y / 24.0).toLong()
+        val selected = HashSet<Long>()
+        for (index in first ..< first + 10L)
+            if (index >= 0L && index < context.itemCount)
+                selected.add(index)
+        for (index in context.pinnedItems)
+            selected.add(index)
+        for (index in selected) {
+            context.measureItem(index, Constraints.tight(Size(scroll.content.width, 24.0)))
+            context.placeItem(index, Point(0.0, index.toDouble() * 24.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(scroll.content)), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}
+
+private class AxRow(private val props: Props<AxColumns>, scope: ComponentScope): LazyElement<Unit>(
+    scope
+) {
+    public override fun onMount() {
+        val input = props.value
+        assertFailsWith<IllegalArgumentException> {
+            scope.bindGridColumns(input.rows.probe.table!!, ViewKey.Number(input.row + 1L))
+        }
+        scope.bindGridColumns(input.rows.probe.table!!, ViewKey.Number(input.row))
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> {
+        val scroll = context.input<AxLayout>().scroll.snapshot
+        val first = (scroll.offset.x / 80.0).toLong()
+        val selected = HashSet<Long>()
+        for (index in first ..< first + 5L)
+            if (index >= 0L && index < context.itemCount)
+                selected.add(index)
+        for (index in context.pinnedItems)
+            selected.add(index)
+        for (index in selected) {
+            context.measureItem(index, Constraints.tight(Size(80.0, 24.0)))
+            context.placeItem(index, Point(index.toDouble() * 80.0, 0.0))
+        }
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(scroll.content.width, 24.0))),
+            Unit
+        )
+    }
+    public override fun scene(context: SceneContext, value: Unit) = context.children()
+}
+
+private class AxCellProps(val source: AxColumns, val column: Long, val index: Long)
+
+private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    private val focus = FocusHandle()
+    private val area = scope.createArea(focusable = true)
+    private val target = scope.focusTarget(area, FocusOptions(Some(focus)))
+    private val semantics = scope.semantics(SemanticRole.Cell)
+    public override fun onMount() {
+        val input = props.value
+        input.source.rows.probe.mounted += 1
+        if (input.source.row == 50000L && input.column == 250L) {
+            input.source.rows.probe.target = Some(focus)
+            input.source.rows.probe.targetSemantics = Some(semantics)
+        }
+        if (input.source.row == 60000L && input.column == 260L)
+            input.source.rows.probe.other = Some(focus)
+        semantics.bindFocus(Some(target))
+    }
+    public override fun onUnmount() {
+        props.value.source.rows.probe.mounted -= 1
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        semantics.update(
+            SemanticProperties(
+                value = Some(f"${input.source.row}:${input.column}"),
+                enabled = input.source.rows.enabled,
+                cell =
+                    Some(
+                        SemanticTableCell(
+                            input.source.index,
+                            input.index,
+                            columnKey = Some(SemanticItemKey.Number(input.column))
+                        )
+                    )
+            )
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 24.0))), Unit)
+    public override fun scene(context: SceneContext, value: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.semantics(semantics, bounds)
+        val inset = Rect(1.0, 1.0, context.size.width - 2.0, context.size.height - 2.0)
+        context.draw { paint -> paint.canvas.drawRect(inset, Paint(Color(0.2, 0.4, 0.8))) }
+    }
+}

@@ -238,7 +238,12 @@ public class AccessibilityProvider internal constructor(
             node.publishedCollection
     }
 
-    internal fun performCollection(number: Long, key: SemanticItemKey, operation: Int):
+    internal fun performCollection(
+        number: Long,
+        key: SemanticItemKey,
+        operation: Int,
+        column: Long
+    ):
     SemanticActionResult {
         if (closed || owner.phase != WindowState.Open || owner.application.exiting)
             return SemanticActionResult.Unavailable
@@ -266,23 +271,26 @@ public class AccessibilityProvider internal constructor(
             return SemanticActionResult.Unsupported
         val actions = node.itemActions
         val result =
-            when (operation) {
-                case 3 -> actions.realize?.invoke(key) ?: SemanticActionResult.Unsupported
-                case 4 -> actions.reveal?.invoke(key) ?: SemanticActionResult.Unsupported
-                case 5 -> actions.focus?.invoke(key, true) ?: SemanticActionResult.Unsupported
-                case 6 -> actions.focus?.invoke(key, false) ?: SemanticActionResult.Unsupported
-                case 7 -> when (source.selection) {
-                    case Some(_) -> actions.setSelected?.invoke(key, true) ?:
-                        SemanticActionResult.Unsupported
-                    case None -> SemanticActionResult.Unsupported
+            if (operation >= 12 && operation <= 15)
+                performGridCell(source, actions.grid, key, column, operation)
+            else
+                when (operation) {
+                    case 3 -> actions.realize?.invoke(key) ?: SemanticActionResult.Unsupported
+                    case 4 -> actions.reveal?.invoke(key) ?: SemanticActionResult.Unsupported
+                    case 5 -> actions.focus?.invoke(key, true) ?: SemanticActionResult.Unsupported
+                    case 6 -> actions.focus?.invoke(key, false) ?: SemanticActionResult.Unsupported
+                    case 7 -> when (source.selection) {
+                        case Some(_) -> actions.setSelected?.invoke(key, true) ?:
+                            SemanticActionResult.Unsupported
+                        case None -> SemanticActionResult.Unsupported
+                    }
+                    case 8 -> when (source.selection) {
+                        case Some(_) -> actions.setSelected?.invoke(key, operation == 7) ?:
+                            SemanticActionResult.Unsupported
+                        case None -> SemanticActionResult.Unsupported
+                    }
+                    else -> SemanticActionResult.Unsupported
                 }
-                case 8 -> when (source.selection) {
-                    case Some(_) -> actions.setSelected?.invoke(key, operation == 7) ?:
-                        SemanticActionResult.Unsupported
-                    case None -> SemanticActionResult.Unsupported
-                }
-                else -> SemanticActionResult.Unsupported
-            }
         if (!closed && owner.phase == WindowState.Open)
             publish()
         return if (node.active)
