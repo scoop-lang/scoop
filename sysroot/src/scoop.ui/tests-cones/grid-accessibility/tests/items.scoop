@@ -4,6 +4,7 @@ import scoop.collections.HashSet
 import scoop.graphics.*
 import scoop.math.max
 import scoop.math.min
+import scoop.surface.FrameSubmission
 import scoop.test.*
 import scoop.ui.*
 import scoop.window.accessibility.*
@@ -130,7 +131,8 @@ internal class AxColumns(val rows: AxRows, val row: Long, val index: Long): Item
         rows.probe.cellBuilds += 1
         return element(
             AxCellProps(this, rows.columnAt(index), index),
-            { props, scope -> AxCell(props, scope) }
+            { props, scope -> AxCell(props, scope) },
+            [element({ scope -> AxCellCaption(scope) })]
         )
     }
 }
@@ -231,6 +233,7 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
     private val area = scope.createArea(focusable = true)
     private val target = scope.focusTarget(area, FocusOptions(Some(focus)))
     private val semantics = scope.semantics(SemanticRole.Cell)
+    private var presented = false
     public override fun onMount() {
         val input = props.value
         input.source.rows.probe.mounted += 1
@@ -245,6 +248,8 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
             input.source.rows.probe.frozenSemantics = Some(semantics)
         }
         semantics.bindFocus(Some(target))
+        semantics.mergeLabels = true
+        scope.routeSemanticsChildren(Some(semantics))
     }
     public override fun onUnmount() {
         props.value.source.rows.probe.mounted -= 1
@@ -289,6 +294,8 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
                 props.value.index.toDouble() * 80.0 - scroll.offset.x
         val start = max(0.0, left - x)
         val end = min(80.0, right - x)
+        context.measureChild(0L, Constraints.tight(Size(80.0, 24.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
         return LayoutResult(
             LayoutMetrics(constraints.constrain(Size(80.0, 24.0))),
             Rect(start, 0.0, max(0.0, end - start), 24.0)
@@ -316,6 +323,85 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
             cell.place(area, bounds)
             cell.semantics(semantics, bounds)
             cell.draw { paint -> paint.canvas.drawRect(inset, Paint(Color(0.2, 0.4, 0.8))) }
+            cell.children()
+            cell.onFrameComplete {
+                frame -> if (frame.submission == FrameSubmission.Accepted && !presented) {
+                    presented = true
+                    assertTrue(
+                        semantics.geometry != None,
+                        Some("a lazy cell with a merged caption lost its first accepted geometry")
+                    )
+                }
+            }
+        }
+    }
+}
+
+private class AxCellCaption(scope: ComponentScope): Element<Unit>(scope) {
+    private val semantics = scope.semantics(SemanticRole.Text)
+    public override fun update(): UiInvalidation {
+        semantics.update(SemanticProperties(name = Some("Cell caption")))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 24.0))), Unit)
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+    }
+}
+
+internal fun axCaptionOverlay(probe: AxGridProbe): View {
+    val captions = AxCaptionSource()
+    return portal(
+        probe.overlayOpen.binding(),
+        lazyElement(captions, { scope -> AxCaptionOverlay(probe, scope) })
+    ) {
+        options {
+            placement = OverlayPlacement.Viewport(OverlayAlignment.End, OverlayAlignment.End, 0.0)
+        }
+    }
+}
+
+private class AxCaptionSource: ItemSource {
+    public override val count: Long get() = 1L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Text("caption")
+    public override fun indexOfKey(key: ViewKey): Long? =
+        if (key == ViewKey.Text("caption"))
+            Some(0L)
+        else
+            None
+    public override fun build(index: Long): View = element({ scope -> AxCellCaption(scope) })
+}
+
+private class AxCaptionOverlay(private val probe: AxGridProbe, scope: ComponentScope): LazyElement<
+    Unit
+>(scope) {
+    private val semantics = scope.semantics(SemanticRole.Group)
+    init {
+        scope.routeSemanticsChildren(Some(semantics))
+        semantics.mergeLabels = true
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> {
+        val size = Size(80.0, 24.0)
+        context.measureItem(0L, Constraints.tight(size))
+        context.placeItem(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(size)), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && !probe.overlayPresented) {
+                probe.overlayPresented = true
+                assertTrue(
+                    semantics.geometry != None,
+                    Some("an overlay with a lazy caption lost its first accepted geometry")
+                )
+            }
         }
     }
 }

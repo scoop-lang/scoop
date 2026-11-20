@@ -19,7 +19,8 @@ internal class AxGridScene(private val probe: AxGridProbe, scope: ComponentScope
                     { props, mount -> AxGridRoot(probe, props, mount) },
                     [lazyElement(rows, rows, { props, mount -> AxTable(props, mount) })]
                 ),
-                element({ mount -> AxOutside(probe, mount) })
+                element({ mount -> AxOutside(probe, mount) }),
+                axCaptionOverlay(probe)
             ]
         )
     }
@@ -42,6 +43,8 @@ private class AxGridPanel(
         context.placeChild(0L, Point(0.0, 0.0))
         context.measureChild(1L, Constraints.tight(Size(280.0, 32.0)))
         context.placeChild(1L, Point(0.0, 188.0))
+        context.measureChild(2L, Constraints.tight(Size(0.0, 0.0)))
+        context.placeChild(2L, Point(0.0, 0.0))
         return LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 220.0))), props.value)
     }
     public override fun scene(context: SceneContext, rows: AxRows) {
