@@ -55,6 +55,12 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             return nativeCellSpan(pointer, row, column, rows, columns) != 0
         }
     }
+    public val rowCellCount: Long get() {
+        @Unsafe
+        {
+            return nativeRowCellCount(pointer)
+        }
+    }
     public fun parent(expected: NativeNode): Boolean {
         @Unsafe
         {
@@ -299,6 +305,9 @@ private fun nativeColumnHeader(node: Ptr<Unit>, index: Long): Ptr<Unit>?
 
 @Extern(name = "scoop_ui_ax_cell_span")
 private fun nativeCellSpan(node: Ptr<Unit>, row: Long, column: Long, rows: Long, columns: Long): Int
+
+@Extern(name = "scoop_ui_ax_row_cell_count")
+private fun nativeRowCellCount(node: Ptr<Unit>): Long
 
 @Extern(name = "scoop_ui_ax_text")
 private fun nativeText(node: Ptr<Unit>, field: Int, text: Ptr<UInt8>?, length: Long): Int

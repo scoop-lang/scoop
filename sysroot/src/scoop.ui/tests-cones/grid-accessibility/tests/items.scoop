@@ -14,7 +14,8 @@ internal class AxRows(
     val reverse: Boolean = false,
     val omitColumn: Boolean = false,
     val omitRow: Boolean = false,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val spanning: Boolean = false
 ): ItemSource {
     public override val count: Long get() =
         if (omitRow)
@@ -74,6 +75,13 @@ internal class AxRows(
                 at
         )
     }
+    fun columnSpan(row: Long, column: Long): SemanticGridSpan {
+        val anchor = columnIndex(250L) ?: return SemanticGridSpan(column)
+        return if (spanning && row == 50000L && column >= anchor && column < anchor + 3L)
+            SemanticGridSpan(anchor, 3L)
+        else
+            SemanticGridSpan(column)
+    }
     public override fun build(index: Long): View {
         probe.rowBuilds += 1
         val row =
@@ -97,41 +105,97 @@ internal class AxRows(
                                 Some("Column"),
                                 probe.leafHeader?.id
                             )
-                        }
-                    ) {
-                        row, column ->
-                        // Queries are protected by the ordinary read-only UI evaluation boundary.
-                        assertFailsWith<IllegalStateException> { probe.queryGuard.value += 1 }
-                        Some(
-                            SemanticItemProperties(
-                                value =
-                                    Some(
-                                        when (row) {
-                                            case Number(val key) -> f"${key}:${columnAt(column)}"
-                                            else -> "invalid"
-                                        }
-                                    ),
-                                enabled = enabled,
-                                focusable = true
+                        },
+                        {
+                            row, column ->
+                            // Queries are protected by the ordinary read-only UI evaluation boundary.
+                            assertFailsWith<IllegalStateException> { probe.queryGuard.value += 1 }
+                            Some(
+                                SemanticItemProperties(
+                                    value =
+                                        Some(
+                                            when (row) {
+                                                case Number(val key) -> f"${key}:${
+                                                    columnAt(column)
+                                                }"
+                                                else -> "invalid"
+                                            }
+                                        ),
+                                    enabled = enabled,
+                                    focusable = true
+                                )
                             )
-                        )
-                    }
+                        },
+                        span =
+                            if (spanning)
+                                Some {
+                                    row, column ->
+                                    assertFailsWith<IllegalStateException> {
+                                        probe.queryGuard.value += 1
+                                    }
+                                    when (row) {
+                                        case Number(val key) -> columnSpan(key, column)
+                                        else -> SemanticGridSpan(column)
+                                    }
+                                }
+                            else
+                                None
+                    )
                 )
         )
 }
 
 internal class AxColumns(val rows: AxRows, val row: Long, val index: Long): ItemSource {
-    public override val count: Long get() = rows.columnCount
-    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(rows.columnAt(index))
+    private val anchor: Long? =
+        if (rows.spanning && row == 50000L)
+            rows.columnIndex(250L)
+        else
+            None
+    public override val count: Long get() =
+        rows.columnCount -
+            if (anchor != None)
+                2L
+            else
+                0L
+    fun columnIndex(index: Long): Long =
+        when (anchor) {
+            case Some(val at) -> if (index > at)
+                index + 2L
+            else
+                index
+            case None -> index
+        }
+    private fun itemIndex(column: Long): Long? =
+        when (anchor) {
+            case Some(val at) -> if (column > at && column < at + 3L)
+                None
+            else
+                Some(
+                    if (column >= at + 3L)
+                        column - 2L
+                    else
+                        column
+                )
+            case None -> Some(column)
+        }
+    fun anchorItem(column: Long): Long = itemIndex(rows.columnSpan(row, column).column)!!
+    public override fun keyAt(index: Long): ViewKey =
+        ViewKey.Number(rows.columnAt(columnIndex(index)))
     public override fun indexOfKey(key: ViewKey): Long? =
         when (key) {
-            case Number(val value) -> rows.columnIndex(value)
+            case Number(val value) -> when (rows.columnIndex(value)) {
+                case Some(val at) -> itemIndex(at)
+                case None -> None
+            }
             else -> None
         }
     public override fun build(index: Long): View {
+        val column = columnIndex(index)
+        val span = rows.columnSpan(row, column)
+        assertEquals(column, span.column, Some("a covered column was built"))
         rows.probe.cellBuilds += 1
         return element(
-            AxCellProps(this, rows.columnAt(index), index),
+            AxCellProps(this, rows.columnAt(column), column, span.columnSpan),
             { props, scope -> AxCell(props, scope) },
             [element({ scope -> AxCellCaption(scope) })]
         )
@@ -206,21 +270,23 @@ private class AxRow(private val props: Props<AxColumns>, scope: ComponentScope):
         val scroll = context.input<AxLayout>().scroll.snapshot
         val first = (scroll.offset.x / 80.0).toLong()
         val selected = HashSet<Long>()
-        selected.add(props.value.rows.columnIndex(0L)!!)
+        selected.add(props.value.anchorItem(props.value.rows.columnIndex(0L)!!))
         for (index in first ..< first + 5L)
-            if (index >= 0L && index < context.itemCount)
-                selected.add(index)
+            if (index >= 0L && index < props.value.rows.columnCount)
+                selected.add(props.value.anchorItem(index))
         for (index in context.pinnedItems)
             selected.add(index)
         for (index in selected) {
-            context.measureItem(index, Constraints.tight(Size(80.0, 24.0)))
+            val column = props.value.columnIndex(index)
+            val span = props.value.rows.columnSpan(props.value.row, column).columnSpan
+            context.measureItem(index, Constraints.tight(Size(80.0 * span.toDouble(), 24.0)))
             context.placeItem(
                 index,
                 Point(
-                    if (props.value.rows.columnAt(index) == 0L)
+                    if (props.value.rows.columnAt(column) == 0L)
                         scroll.offset.x + 24.0
                     else
-                        index.toDouble() * 80.0,
+                        column.toDouble() * 80.0,
                     0.0
                 )
             )
@@ -233,7 +299,7 @@ private class AxRow(private val props: Props<AxColumns>, scope: ComponentScope):
     public override fun scene(context: SceneContext, value: Unit) = context.children()
 }
 
-private class AxCellProps(val source: AxColumns, val column: Long, val index: Long)
+private class AxCellProps(val source: AxColumns, val column: Long, val index: Long, val span: Long)
 
 private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScope): Element<Rect>(
     scope
@@ -274,6 +340,7 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
                         SemanticTableCell(
                             input.source.index,
                             input.index,
+                            columnSpan = input.span,
                             columnKey = Some(SemanticItemKey.Number(input.column))
                         )
                     )
@@ -310,11 +377,12 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
             else
                 props.value.index.toDouble() * 80.0 - scroll.offset.x
         val start = max(0.0, left - x)
-        val end = min(80.0, right - x)
-        context.measureChild(0L, Constraints.tight(Size(80.0, 24.0)))
+        val width = 80.0 * props.value.span.toDouble()
+        val end = min(width, right - x)
+        context.measureChild(0L, Constraints.tight(Size(width, 24.0)))
         context.placeChild(0L, Point(0.0, 0.0))
         return LayoutResult(
-            LayoutMetrics(constraints.constrain(Size(80.0, 24.0))),
+            LayoutMetrics(constraints.constrain(Size(width, 24.0))),
             Rect(start, 0.0, max(0.0, end - start), 24.0)
         )
     }

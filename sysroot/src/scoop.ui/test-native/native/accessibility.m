@@ -1,6 +1,6 @@
 #import <AppKit/AppKit.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <unistd.h>
 
 @interface SWUiAccessibilityCalls : NSObject
@@ -150,7 +150,8 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
   case 15:
     return [node accessibilityCustomActions].count == 2;
   case 16:
-    return [node isAccessibilitySelectorAllowed:@selector(setAccessibilityFocused:)];
+    return [node
+        isAccessibilitySelectorAllowed:@selector(setAccessibilityFocused:)];
   default:
     return 0;
   }
@@ -176,6 +177,11 @@ int32_t scoop_ui_ax_cell_span(void *pointer, int64_t row, int64_t column,
                        NSMakeRange(row, rows)) &&
          NSEqualRanges([node accessibilityColumnIndexRange],
                        NSMakeRange(column, columns));
+}
+
+int64_t scoop_ui_ax_row_cell_count(void *pointer) {
+  id parent = [(__bridge id)pointer accessibilityParent];
+  return (int64_t)[[parent accessibilityChildren] count];
 }
 
 int32_t scoop_ui_ax_frame(void *pointer, void *view, double x, double y,

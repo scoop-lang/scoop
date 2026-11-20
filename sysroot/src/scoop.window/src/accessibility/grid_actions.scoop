@@ -22,10 +22,10 @@ internal fun performGridCell(
         return SemanticActionResult.Unsupported
     val callbacks = actions ?: return SemanticActionResult.Unsupported
     return when (operation) {
-        case 12 -> callbacks.realize?.invoke(row, key) ?: SemanticActionResult.Unsupported
-        case 13 -> callbacks.reveal?.invoke(row, key) ?: SemanticActionResult.Unsupported
-        case 14 -> callbacks.focus?.invoke(row, key, true) ?: SemanticActionResult.Unsupported
-        case 15 -> callbacks.focus?.invoke(row, key, false) ?: SemanticActionResult.Unsupported
+        case 12 -> callbacks.realize?.invoke(row, cell.key) ?: SemanticActionResult.Unsupported
+        case 13 -> callbacks.reveal?.invoke(row, cell.key) ?: SemanticActionResult.Unsupported
+        case 14 -> callbacks.focus?.invoke(row, cell.key, true) ?: SemanticActionResult.Unsupported
+        case 15 -> callbacks.focus?.invoke(row, cell.key, false) ?: SemanticActionResult.Unsupported
         else -> SemanticActionResult.Unsupported
     }
 }
