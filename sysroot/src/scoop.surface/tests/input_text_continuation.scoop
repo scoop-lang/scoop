@@ -1,0 +1,185 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputTextContinuationTest {
+    @Test
+    fun `a prepared receiver continues the same native connection only when focused`() {
+        InputRig().use {
+            rig ->
+            val source = rig.area("source", text = true)
+            val target = rig.area("target", text = true)
+            val connection = TextInputConnection(WindowId(1L), 1L)
+            source.setCaret(Some(Rect(2.0, 2.0, 1.0, 12.0)), Some(0L))
+            target.setCaret(Some(Rect(5.0, 3.0, 1.0, 12.0)), Some(0L))
+            rig.frame { frame, canvas -> frame.place(canvas, source, Rect(0.0, 0.0, 40.0, 30.0)) }
+            assertTrue(source.requestFocus())
+            assertFalse(target.continueTextInputFrom(source))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(connection))))
+            assertTrue(target.continueTextInputFrom(source))
+            assertFalse(target.requestFocus())
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(continuationEdit(connection)))
+            assertEquals("source/edit", rig.log.trace())
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, source, Rect(0.0, 0.0, 40.0, 30.0))
+                canvas.translate(60.0, 0.0)
+                frame.place(canvas, target, Rect(0.0, 0.0, 40.0, 30.0))
+            }
+            rig.log.events.clear()
+            assertTrue(target.requestFocus())
+            assertEquals("target/enabled,source/disabled,source/blur,target/focus", rig.log.trace())
+            assertEquals(1L, rig.log.ime.size)
+            assertTrue(target.isFocusActive)
+            assertFalse(source.isFocusActive)
+            val caret = rig.log.caretUpdates[rig.log.caretUpdates.size - 1L]
+            assertEquals(Some(connection), caret.connection)
+            assertEquals(Some(Rect(65.0, 3.0, 1.0, 12.0)), caret.rect)
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(continuationEdit(connection)))
+            rig.router.event(
+                WindowEvent.TextInput(continuationEdit(TextInputConnection(WindowId(1L), 2L)))
+            )
+            assertEquals("target/edit", rig.log.trace())
+            assertFalse(target.continueTextInputFrom(source))
+            assertFalse(target.continueTextInputFrom(target))
+        }
+    }
+
+    @Test
+    fun `another focus destination discards the continuation and keeps ordinary isolation`() {
+        InputRig().use {
+            rig ->
+            val source = rig.area("source", text = true)
+            val target = rig.area("target", text = true)
+            val outside = rig.area("outside", true)
+            continuationFrame(rig, source, target, Some(outside))
+            val first = TextInputConnection(WindowId(1L), 1L)
+            val next = TextInputConnection(WindowId(1L), 2L)
+            assertTrue(source.requestFocus())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(first))))
+            assertTrue(target.continueTextInputFrom(source))
+            assertTrue(outside.requestFocus())
+            assertEquals(2L, rig.log.ime.size)
+            assertFalse(rig.log.ime[1L])
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(continuationEdit(first)))
+            assertEquals("source/edit", rig.log.trace())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(Some(first))))
+            assertTrue(source.requestFocus())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(next))))
+            rig.log.events.clear()
+            assertTrue(target.requestFocus())
+            assertEquals("source/blur,target/focus", rig.log.trace())
+            assertFalse(rig.log.ime[rig.log.ime.size - 1L])
+            rig.router.event(WindowEvent.TextInput(continuationEdit(next)))
+            assertEquals("source/blur,target/focus,source/edit", rig.log.trace())
+        }
+    }
+
+    @Test
+    fun `restart disability and window loss cannot revive an old prepared connection`() {
+        for (mode in 0 ..< 4) {
+            InputRig().use {
+                rig ->
+                val source = rig.area("source", text = true)
+                val target = rig.area("target", text = true)
+                continuationFrame(rig, source, target)
+                val first = TextInputConnection(WindowId(1L), 1L)
+                assertTrue(source.requestFocus())
+                rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(first))))
+                assertTrue(target.continueTextInputFrom(source))
+                when (mode) {
+                    case 0 -> {
+                        target.restartTextInput();
+                        Unit
+                    }
+                    case 1 -> {
+                        target.scope.enabled = false;
+                        target.scope.enabled = true
+                    }
+                    case 2 -> {
+                        target.textInput = false;
+                        target.textInput = true
+                    }
+                    case 3 -> {
+                        rig.router.event(WindowEvent.Focused(false))
+                        rig.router.event(
+                            WindowEvent.TextInput(TextInputEvent.Disabled(Some(first)))
+                        )
+                        rig.router.event(WindowEvent.Focused(true))
+                        rig.router.event(
+                            WindowEvent.TextInput(
+                                TextInputEvent.Enabled(Some(TextInputConnection(WindowId(1L), 2L)))
+                            )
+                        )
+                    }
+                    else -> fail(Some("unknown continuation case"))
+                }
+                rig.log.events.clear()
+                assertTrue(target.requestFocus())
+                assertEquals("source/blur,target/focus", rig.log.trace())
+                assertFalse(rig.log.ime[rig.log.ime.size - 1L])
+            }
+        }
+    }
+
+    @Test
+    fun `closed and foreign areas cannot adopt text input`() {
+        InputRig().use {
+            rig -> InputRig().use {
+                other ->
+                val source = rig.area("source", text = true)
+                val target = rig.area("target", text = true)
+                val foreign = other.area("foreign", text = true)
+                continuationFrame(rig, source, target)
+                assertTrue(source.requestFocus())
+                rig.router.event(
+                    WindowEvent.TextInput(
+                        TextInputEvent.Enabled(Some(TextInputConnection(WindowId(1L), 1L)))
+                    )
+                )
+                assertFailsWith<IllegalArgumentException> { target.continueTextInputFrom(foreign) }
+                assertTrue(target.continueTextInputFrom(source))
+                target.close()
+                val replacement = rig.area("replacement", text = true)
+                continuationFrame(rig, source, replacement)
+                rig.log.events.clear()
+                assertTrue(replacement.requestFocus())
+                assertEquals("source/blur,replacement/focus", rig.log.trace())
+                source.close()
+                assertFalse(replacement.continueTextInputFrom(source))
+            }
+        }
+    }
+}
+
+private fun continuationFrame(
+    rig: InputRig,
+    source: InputArea,
+    target: InputArea,
+    outside: InputArea? = None
+) {
+    rig.frame {
+        frame, canvas ->
+        frame.place(canvas, source, Rect(0.0, 0.0, 40.0, 30.0))
+        frame.place(canvas, target, Rect(60.0, 0.0, 40.0, 30.0))
+        when (outside) {
+            case Some(val area) -> frame.place(canvas, area, Rect(120.0, 0.0, 40.0, 30.0))
+            case None -> {}
+        }
+    }
+}
+
+private fun continuationEdit(connection: TextInputConnection): TextInputEvent =
+    TextInputEvent.Edit(
+        TextInputBatch(
+            None,
+            [TextInputOperation.Commit("first", TextReplacement.CurrentSelection)],
+            Some(TextInputOrigin(connection, 1L))
+        )
+    )

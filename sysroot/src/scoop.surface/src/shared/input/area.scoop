@@ -190,6 +190,11 @@ public class InputArea internal constructor(
         checkOpen()
         return owner.restartTextInput(this)
     }
+    /** Continues the source's current native document when ordinary focus reaches this area. */
+    public fun continueTextInputFrom(source: InputArea): Boolean {
+        checkOpen()
+        return owner.continueTextInput(source, this)
+    }
     /** Stages a value for the next placement; None withdraws unavailable geometry. */
     public fun setCaret(rect: Rect?, revision: Long? = None) {
         checkOpen()

@@ -139,6 +139,7 @@ public class TextEditHost public constructor(
         viewport.physics = initialOptions.scrollPhysics
         viewport.reduceMotion = appearance.reduceMotion
         refreshMenuCommands()
+        current.inputStarter?.bind(this)
     }
 
     public val isClosed: Boolean get() {
@@ -272,6 +273,8 @@ public class TextEditHost public constructor(
             touchHandles.hide()
         }
         if (restart) {
+            if (rebound)
+                current.inputStarter?.detach(this)
             retireConnection()
             editorStopDrag(this, false)
             if (current.ownsHost(this))
@@ -319,6 +322,7 @@ public class TextEditHost public constructor(
             current.attachHost(this)
         if (restart)
             invalidate()
+        current.inputStarter?.bind(this)
         editorInteraction(this, area.isFocusActive, visual.value.hovered && options.enabled)
         if (layoutChanged)
             scope.requestLayout()
@@ -468,7 +472,7 @@ public class TextEditHost public constructor(
             return
         closed = true
         val owned = current.detachHost(this)
-        var failure: Throwable? = None
+        var failure = cleanupUi(None) { current.inputStarter?.detach(this) }
         failure = cleanupUi(failure) { semantics.close() }
         failure = cleanupUi(failure) { retireSemanticDocument() }
         semanticLayout = None

@@ -15,6 +15,7 @@ public class TextEditorState public constructor(
     internal var composition: EditorComposition? = None
     internal var contentRevision = 0L
     private var activeHost: TextEditHost? = None
+    internal var inputStarter: TextInputStarter? = None
     internal val semanticDocuments = ArrayList<SemanticTextDocument>()
 
     internal fun checkHost(host: TextEditHost) {
@@ -29,6 +30,7 @@ public class TextEditorState public constructor(
     }
     internal fun attachHost(host: TextEditHost) {
         checkHost(host)
+        inputStarter?.cancel()
         activeHost = Some(host)
     }
     internal fun ownsHost(host: TextEditHost): Boolean =
@@ -226,8 +228,10 @@ public class TextEditorState public constructor(
             contentRevision = value.input.revision
         if (changed || changedHistory)
             storage.publish(value)
-        if (changed)
+        if (changed) {
             activeHost?.modelChanged()
+            inputStarter?.modelChanged()
+        }
         return changed || changedHistory
     }
 }

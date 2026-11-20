@@ -18,6 +18,7 @@
 
 | 需求                                              | Cone 与材料                                                                                    |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| GUI 浏览状态直接输入 | `scoop.ui.text` 的 `scope.textInputStarter(area, enabled, onStart)` 接收首个原生 Commit／Preedit，把真实空状态交给回调；采用该状态显示 Input／Textarea／TextEditHost，返回 `Some(TextInputStartOptions(policy, multiline))`，None 拒绝开始。普通焦点进入新宿主时沿 Surface 的 `continueTextInputFrom` 接管同一连接和组合；不要用 LogicalKey.Character 重建首字符。业务取消用 starter.cancel，外部改写、失焦、禁用与卸载清理未接管状态。入口、原生 Unicode／系统拼音及生命周期用例见 UI README 和 `scoop.ui/tests-cones/text-start`。 |
 | Option 类型、值类型、基本容器、StringBuilder、资源协议 | `scoop.core`；`language/*`、`text/strings`、`collections/list`                              |
 | Result 类型、Option/Result 的映射、展平和惰性替代 | `scoop.std` 的 `src/results/`；操作选择见 [design.md](design.md#组合-optionresult保留失败信息) |
 | 编译期嵌入文件／目录、读取构建环境                | `scoop.core` 的 `scoop.compiler` package；`language/compiler-inputs`                           |

@@ -156,6 +156,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
         case Enabled(val connection) -> {
             host.connection = connection
             host.sessionEnabled = true
+            host.current.inputStarter?.take(host, connection)
             host.publishNative()
         }
         case Disabled(val connection) -> {

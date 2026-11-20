@@ -1,0 +1,157 @@
+package scoop.tests.ui.textstart
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.TextInputEvent
+import scoop.window.accessibility.*
+
+internal class StartScene(private val probe: StartProbe, scope: ComponentScope): Component(scope) {
+    public override fun render(): View {
+        val children = ArrayList<View>()
+        children.add(
+            element(probe.enabled.value, { props, scope -> StartArea(probe, props, scope) })
+        )
+        children.add(element({ scope -> OutsideArea(probe, scope) }))
+        when (probe.current.value) {
+            case Some(val state) -> if (probe.mountEditor.value) {
+                state.inputState
+                children.add(element(state, { props, scope -> StartedEditor(probe, props, scope) }))
+            }
+            case None -> {}
+        }
+        return element({ scope -> StartLayout(probe, scope) }, children.toArray())
+    }
+}
+
+private class StartLayout(private val probe: StartProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    init {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints.tight(Size(210.0, 40.0)))
+            context.placeChild(
+                index,
+                when (index) {
+                    case 0L -> Point(20.0, 20.0)
+                    case 1L -> Point(270.0, 20.0)
+                    else -> Point(20.0, 90.0)
+                }
+            )
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(520.0, 200.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted()
+        }
+    }
+}
+
+private class StartArea(
+    private val probe: StartProbe,
+    private val props: Props<Boolean>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area, FocusOptions(Some(probe.browse)))
+    private val starter = scope.textInputStarter(area) { state -> probe.start(state) }
+    private val semantics = scope.semantics(SemanticRole.Cell)
+    init {
+        probe.starter = Some(starter)
+        scope.resource {
+            area.scope.addEventHandler {
+                _,
+                event -> when (event) {
+                    case TextInput(TextInputEvent.Enabled(val value)) -> probe.sourceConnection =
+                        value
+                    case TextInput(TextInputEvent.Disabled(_)) -> probe.sourceConnection = None
+                    else -> {}
+                }
+            }
+        }
+    }
+    public override fun update(): UiInvalidation {
+        starter.update(props.value) { state -> probe.start(state) }
+        area.scope.enabled = props.value
+        semantics.update(SemanticProperties(name = Some("Browsing cell"), enabled = props.value))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(210.0, 40.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.3, 0.5, 0.8))) }
+        context.place(area, bounds)
+        context.semantics(semantics, bounds)
+    }
+}
+
+private class OutsideArea(private val probe: StartProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area, FocusOptions(Some(probe.outside)))
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(210.0, 40.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.7, 0.7, 0.7))) }
+        context.place(area, bounds)
+    }
+}
+
+private class StartedEditor(
+    private val probe: StartProbe,
+    private val props: Props<TextEditorState>,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val options = TextEditOptions(policy = probe.policy)
+    private val host =
+        scope.resource { TextEditHost(scope, props.value, probe.appearance, options) }
+    private val semantics = scope.semantics(SemanticRole.TextField)
+    public override fun onMount() {
+        probe.field = Some(host)
+        probe.mounts += 1
+        update()
+        if (probe.requestEditor)
+            assertTrue(probe.editor.requestFocus())
+    }
+    public override fun update(): UiInvalidation {
+        host.update(
+            props.value,
+            probe.appearance,
+            options,
+            FocusOptions(Some(probe.editor)),
+            onEdited = { _ -> probe.edits += 1 }
+        )
+        semantics.updateTextEditor(host, SemanticProperties(name = Some("Started editor")))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measurement = host.measure(constraints)
+        return LayoutResult(measurement.metrics, measurement, { measurement.close() })
+    }
+    public override fun scene(context: SceneContext, measurement: TextEditMeasurement) {
+        context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+        host.scene(context, measurement)
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1;
+        probe.field = None
+    }
+}

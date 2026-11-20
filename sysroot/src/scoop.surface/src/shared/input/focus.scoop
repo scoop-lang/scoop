@@ -33,6 +33,7 @@ internal fun InputRouter.clearFocus() {
 }
 
 internal fun InputRouter.reconcileFocus() {
+    validateTextContinuation()
     when (logicalFocus) {
         case Some(val area) -> {
             if (!area.focusable || !allowsFocus(area.scope) || path(area.scope).size == 0L)
@@ -49,8 +50,13 @@ internal fun InputRouter.reconcileFocus() {
     if (ownerChanged) {
         val previous = activeFocus
         activeFocus = next
+        completeTextContinuation(previous, next)
         when (previous) {
-            case Some(val area) -> notify(area.scope, InputEvent.FocusChanged(false), terminal = true);
+            case Some(val area) -> notify(
+                area.scope,
+                InputEvent.FocusChanged(false),
+                terminal = true
+            );
             case None -> {}
         }
         when (next) {
@@ -63,7 +69,10 @@ internal fun InputRouter.reconcileFocus() {
         activeFocusVisible = visible
         if (!ownerChanged) {
             when (next) {
-                case Some(val area) -> notify(area.scope, InputEvent.FocusVisibilityChanged(visible))
+                case Some(val area) -> notify(
+                    area.scope,
+                    InputEvent.FocusVisibilityChanged(visible)
+                )
                 case None -> {}
             }
         }
@@ -130,6 +139,11 @@ internal fun InputRouter.notifyFocused(event: InputEvent) {
 }
 
 internal fun InputRouter.restartTextInput(area: InputArea): Boolean {
+    when (textContinuation) {
+        case Some(val value) -> if (value.source === area || value.target === area)
+            textContinuation = None
+        case None -> {}
+    }
     val owned = sameArea(imeOwner(ime), Some(area))
     area.textInputRevision += 1UL
     changed()
@@ -157,6 +171,7 @@ internal fun InputRouter.textEvent(event: TextInputEvent) {
             ime = ImeSession.Off;
             imeCaret = None;
             imeConnection = None
+            textContinuation = None
             pending = true
         }
         case Edit(val batch) -> {
@@ -211,6 +226,7 @@ private fun InputRouter.continueIme(area: InputArea, desired: InputArea?) {
     if (sameArea(Some(area), desired) && imeRequest == area.textInputRevision)
         publishCaret(area)
     else {
+        textContinuation = None
         ime = ImeSession.Closing(area);
         imeAllowed(false)
     }
