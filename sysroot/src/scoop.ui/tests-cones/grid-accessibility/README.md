@@ -2,6 +2,10 @@
 
 使用生产 LazyElement、ScrollViewport、SemanticsHandle 和真实 AppKit 单元格代理，描述一亿行、300 列；只挂载窗口附近及明确动作需要的行列。一个测试进程只运行一个 Application。
 
+多级表头用真实 `columnHeaders` 关系核对已挂载格的组／列表头顺序、未挂载时的列元数据回退、隐藏表头过滤、重新挂载和退休。测试消费与源码对应的预编译依赖，不会为表头查询创建整行单元格。原生辅助入口读取 ColumnHeaderUIElements 与行列跨度，几何断言失败时输出实际及期望矩形。
+
+这组关联检查已在本机 macOS aarch64 随完整 29 阶段 release 回归通过，进程正常退出、failures 为空，耗时约 8.53 秒；格式化、check 与原生辅助库 release 构建通过。修复只改变 macOS 虚拟单元格的表头查询，未重建编译器和其他 GUI 库。
+
 准备与源码对应的本机 Window、Surface 和 UI 产物后运行：
 
 ```sh

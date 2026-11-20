@@ -74,7 +74,7 @@ Windows 从 WM_POINTER 和对应查询复制触点，整条消息路径一致交
 
 数值使用 `SemanticValueRange`，进度未知时保持 None。静态容器用 `selectionMode = Some(SemanticSelectionMode.Single)` 或 Multiple 声明真实选择模式，required 指定必选；虚拟集合改用 `SemanticCollectionSelection` 的稳定 keys，两者不同时设置。`SemanticGrid` 描述稳定列及按 key 读取的单元格，静态表格使用 `SemanticTableSize`／`SemanticTableCell` 的实际坐标和跨度。描述查询不创建条目 View。
 
-`SemanticRelations.activeDescendant` 可以引用 Node 或集合 Item，和实际键盘焦点分开；rowHeaders／columnHeaders 指向真实表头。`invalid`、`busy`、`modal` 与 `headingLevel` 发布真实状态。`live` 默认为 Off，Polite／Assertive 合并同一节点的最新公告；首次挂载不自动播报，节点或祖先 busy 时延迟，隐藏、模态背景和受保护内容抑制公告。需要明确通知时调用 `node.announce(...)`。
+`SemanticRelations.activeDescendant` 可以引用 Node 或集合 Item，和实际键盘焦点分开；rowHeaders／columnHeaders 指向真实表头。macOS 虚拟表格单元格优先返回其已挂载节点的有效 `columnHeaders`，支持多级表头；未挂载或没有有效关联时使用 `SemanticGridColumn.header`。节点卸载或关联表头隐藏后，原生查询不保留旧关联。`invalid`、`busy`、`modal` 与 `headingLevel` 发布真实状态。`live` 默认为 Off，Polite／Assertive 合并同一节点的最新公告；首次挂载不自动播报，节点或祖先 busy 时延迟，隐藏、模态背景和受保护内容抑制公告。需要明确通知时调用 `node.announce(...)`。
 
 需要保留文本范围的自绘宿主可将 `SemanticTextDocument` 绑定到 `node.textDocument`。它只保存端点和版本，普通编辑用现有偏移映射更新，全文换绑用 reset，关闭后旧范围不可用；UI 的 TextEditHost 自动维护它。`textChildren` 显式关联正文中的 UTF-8 区间与实际语义后代，供内联操作和原生文本内对象查询。`revealText(range, SemanticTextScroll(...))` 沿实际文本几何显露范围，不修改选区。
 

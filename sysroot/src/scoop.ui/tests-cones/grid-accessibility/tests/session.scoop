@@ -7,6 +7,7 @@ import scoop.tests.ui.accessibility.native.*
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.window.*
+import scoop.window.accessibility.SemanticProperties
 import scoop.window.native.*
 
 @Test
@@ -41,6 +42,8 @@ internal class AxGridProbe: Closeable {
     var frame: ComponentScope? = None
     var endedScene: SceneContext? = None
     var table: SemanticsHandle? = None
+    var groupHeader: SemanticsHandle? = None
+    var leafHeader: SemanticsHandle? = None
     var target: FocusHandle? = None
     var targetSemantics: SemanticsHandle? = None
     var other: FocusHandle? = None
@@ -177,6 +180,7 @@ internal class AxGridProbe: Closeable {
                 assertFalse(cell!!.flag(2))
                 assertEquals(beforeRows, rowBuilds)
                 assertEquals(beforeCells, cellBuilds)
+                checkHeaders(cell!!, ["Column"])
             }
             case 1 -> {
                 assertEquals(beforeRows + 1, rowBuilds)
@@ -185,8 +189,13 @@ internal class AxGridProbe: Closeable {
                 assertFalse(cell!!.flag(2))
                 assertEquals(Point(0.0, 0.0), scroll.offset)
                 assertTrue(outside.hasFocus)
+                checkHeaders(cell!!, ["Metrics", "Column"])
             }
-            case 2 -> retry = target?.isAttached ?: false
+            case 2 -> {
+                retry = target?.isAttached ?: false
+                if (!retry)
+                    checkHeaders(cell!!, ["Column"])
+            }
             case 3 -> assertTrue(outside.hasFocus)
             case 4 -> {
                 val geometry = targetSemantics?.geometry ?: None
@@ -197,11 +206,14 @@ internal class AxGridProbe: Closeable {
                     assertTrue(scroll.offset.x > 10000.0 && scroll.offset.y > 1000000.0)
                     assertEquals(Point(19824.0, 1199844.0), scroll.offset)
                     assertTrue(cell!!.frame(nativeView!!, 176.0, 156.0, 80.0, 24.0))
+                    assertTrue(cell!!.cellSpan(50000L, 250L))
+                    checkHeaders(cell!!, ["Metrics", "Column"])
                     assertTrue(outside.hasFocus)
                 }
             }
             case 5 -> assertFalse(cell!!.flag(4))
             case 6 -> {
+                checkHeaders(cell!!, ["Column"])
                 beforeCells = cellBuilds
                 otherCell = Some(at(60000L, 260L))
                 assertTrue(otherCell!!.text(1, Some("60000:260")))
@@ -212,6 +224,7 @@ internal class AxGridProbe: Closeable {
                 retry = !(other?.isFocusActive ?: false)
                 if (!retry) {
                     assertTrue(otherCell!!.flag(4))
+                    checkHeaders(otherCell!!, ["Metrics", "Column"])
                     assertEquals(Point(20624.0, 1439844.0), scroll.offset)
                     assertTrue(otherCell!!.frame(nativeView!!, 176.0, 156.0, 80.0, 24.0))
                     val adjacent = at(60000L, 0L)
@@ -256,6 +269,7 @@ internal class AxGridProbe: Closeable {
             }
             case 16 -> {
                 assertFalse(cell!!.flag(0))
+                checkHeaders(cell!!, [])
                 assertTrue(otherCell!!.same(at(60000L, 39L)))
             }
             case 17 -> {
@@ -311,8 +325,23 @@ internal class AxGridProbe: Closeable {
                 assertFalse(replacement!!.flag(0))
                 assertFalse(otherCell!!.flag(0))
                 assertFalse(frozenCell!!.flag(0))
+                checkHeaders(replacement!!, [])
+                checkHeaders(otherCell!!, [])
             }
             else -> fail(Some("unknown AX phase"))
+        }
+    }
+    private fun checkHeaders(node: NativeNode, names: Array<String>) {
+        for (index in 0L ..< names.size) {
+            val header = node.columnHeader(index) ?: fail(Some(f"missing grid header ${index}"))
+            header.use { value -> assertTrue(value.text(0, Some(names[index]))) }
+        }
+        when (node.columnHeader(names.size)) {
+            case Some(val extra) -> {
+                extra.close();
+                fail(Some("unexpected grid header"))
+            }
+            case None -> {}
         }
     }
     private fun completed(tag: Int, result: Int) {
@@ -341,6 +370,14 @@ internal class AxGridProbe: Closeable {
         when (phase) {
             case 2 -> frame!!.requestLayout()
             case 4 -> frame!!.requestFrame()
+            case 6 -> {
+                groupHeader!!.update(SemanticProperties(name = Some("Metrics"), hidden = true))
+                frame!!.requestFrame()
+            }
+            case 7 -> {
+                groupHeader!!.update(SemanticProperties(name = Some("Metrics")))
+                frame!!.requestFrame()
+            }
             case 8 -> frame!!.requestFrame()
             case 11 -> {
                 assertTrue(outside.requestFocus())
