@@ -11,5 +11,11 @@ public fun ComponentScope.dragSource(
 ): DragSource =
     createDragSource(area, options, prepare) {
         data,
-        completed -> nativeWindow.beginDrag(data.content, data.effects, data.localData, completed)
+        completed -> nativeWindow.beginDrag(
+            data.content,
+            data.effects,
+            data.localData,
+            data.preview,
+            completed
+        )
     }

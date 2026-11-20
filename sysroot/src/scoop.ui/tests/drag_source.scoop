@@ -1,5 +1,6 @@
 package scoop.ui
 
+import scoop.graphics.*
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
 import scoop.test.*
@@ -7,6 +8,32 @@ import scoop.window.*
 
 @Test
 private class UiDragSourceTest {
+    @Test
+    fun `custom drag drawing retains alpha and anchors a fractional scale bitmap at the original press`() {
+        val pointer = sourcePointer(30.0, 20.0, 1.5).state
+        val start =
+            DragSourceStart(
+                Point(11.0, 12.5),
+                Point(13.0, 14.0),
+                pointer,
+                pointer,
+                DragInput.Mouse(MouseButton.Left)
+            )
+        val preview =
+            start.renderPreview(Rect(10.0, 10.0, 4.0, 4.0)) {
+                canvas -> canvas.drawRect(
+                    Rect(10.0, 10.0, 2.0, 2.0),
+                    Paint(Color(1.0, 0.0, 0.0, 0.5))
+                )
+            }
+        val rep = preview.image.representations[0L]
+        assertEquals(LogicalPosition(1.0, 2.5), preview.hotSpot)
+        assertEquals(PhysicalSize(6, 6), rep.size)
+        assertEquals(255.toUByte(), rep.pixels[0L])
+        assertEquals(128.toUByte(), rep.pixels[3L])
+        assertEquals(0.toUByte(), rep.pixels[143L])
+    }
+
     @Test
     fun `data drag threshold uses either logical axis independently of display scale`() {
         for (scale in [1.0, 2.0, 1.5]) {

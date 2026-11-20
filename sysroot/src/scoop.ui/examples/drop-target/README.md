@@ -19,3 +19,5 @@ scoop run sysroot/src/scoop.ui/examples/drop-target --release
 在可交互桌面上分别检查同窗口、两个窗口之间和外部原生文本编辑器／浏览器的双向拖放，另从访达拖入文件。检查拒绝时不高亮、子区域不会穿透兄弟、文件沿父目标接受、退出区域清除反馈、窗口缩放后落点使用新 Accepted 场景、关闭来源或目标后旧回调不再进入组件。右侧 URL 可以拖到左侧文本区，由原生 URL 的文本表示完成同窗口 Copy；可继续拖到第二窗口或外部程序。实际 OS 会话、VoiceOver 和键盘入口分别验收，构建成功不代表这些操作已经通过。
 
 自动逻辑测试见 [drop_routing.scoop](../../tests/drop_routing.scoop)、[drag_source.scoop](../../tests/drag_source.scoop)、[text_drop_edit.scoop](../../tests/text_drop_edit.scoop) 和 [text_drag_edit.scoop](../../tests/text_drag_edit.scoop)，几何测试见 [input_hit.scoop](../../../scoop.surface/tests/input_hit.scoop)，来源与真实帧接入见 [drag-source](../../tests-cones/drag-source/README.md)，文本宿主接入见 [text-drop](../../tests-cones/text-drop/README.md)。接收逻辑测试中的候选路径是直接提供的；来源准备测试主动取消尚未启动的请求。文本目标测试调用 AppKit 公开 destination 协议，使用真实 Accepted 场景但没有创建系统拖动会话。它们和实际系统 tracking、外部程序、VoiceOver 的结果分别记录。当前 macOS 示例已由用户手动确认同框移动、拖到彩色区域复制、跨窗口及外部程序双向文本拖放正常；这不替代取消／关窗／文件与其他平台的完整矩阵，结果见[实施记录](../../../../../docs/ui/interaction-polish/PROGRESS.md)，完整范围见[统一计划](../../../../../docs/ui/interaction-polish/PLAN.md)。
+
+从右侧 URL 区域拖动可看到包含实际地址的半透明卡片。拖动编辑器中的选区则显示该段文字，换行间隙保持透明。

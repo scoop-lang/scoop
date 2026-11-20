@@ -42,7 +42,7 @@ isDragging 是可追踪的 UI 状态，表示该行为当前持有准备中或�
 
 拖出区域可在准备时用 `preview = Some(DragPreview(image, hotSpot))` 指定本次预览。需要绘制卡片或文字时，`DragSourceStart.renderPreview(bounds, draw)` 将区域局部逻辑坐标下的内容按指针所在屏幕的像素密度绘制一次，透明底，原按下点相对 bounds 的位置作为热点。交给平台的图像脱离挂载后仍有效。未指定预览时使用后端默认反馈。
 
-文本编辑与可选择文字默认用当前 Accepted 排版绘制选中的可见字形。多行、双向文字及滚动使用真实选区矩形裁剪，透明处不带上相邻正文或编辑光标。过大的选区取抓取点附近的局部，保留字号与热点。可在自绘文本宿主中使用同一 `DragSourceStart.renderSelectionPreview(regions, viewport, draw)`；没有可见区域时返回 None。复制策略、选区导出和完成事务沿用原合同。
+文本编辑与可选择文字默认用当前 Accepted 排版绘制选中的可见字形。多行、双向文字及滚动使用真实选区矩形裁剪，透明处不带上相邻正文或编辑光标。过大的选区取抓取点附近的局部，保留字号与热点。可在自绘文本宿主中使用同一 `DragSourceStart.renderSelectionPreview(regions, area, draw)`；没有可见区域时返回 None。TextDragOptions 的可选 preview 回调接收 DragSourceStart 和按当前复制策略获准导出的字符串，可返回自定义图片或 None（平台默认反馈）。只在可以开始导出时调用，替换默认选区绘制，回调期间来源失效则放弃本次拖动。复制策略、选区导出和完成事务沿用原合同。
 
 ### 3.1 Touch／Pen 来源
 
@@ -64,7 +64,7 @@ TextEditOptions.acceptDrops 默认为 true，Input／Textarea／OTP 及其 build
 
 ## 5. 文本选区拖出与移动
 
-TextEditOptions 与 SelectableTextOptions 增加 drag: TextDragOptions。TextDragOptions 默认 enabled=true、threshold=4.0、effects=DragEffects(true, true, false)、copyPolicy=TextCopyPolicy.Default、onCompleted={}；阈值使用窗口逻辑距离。Link 不是文本移动，配置不允许它，也不允许初始空操作集。只读宿主与 SelectableTextHost 仅使用其中的 Copy，未允许 Copy 则不拖出。Input／Textarea／OTP、可选择 StyledText／Typography 及其 builder 和包装透传同一选项。
+TextEditOptions 与 SelectableTextOptions 增加 drag: TextDragOptions。TextDragOptions 默认 enabled=true、threshold=4.0、effects=DragEffects(true, true, false)、copyPolicy=TextCopyPolicy.Default、preview=None、onCompleted={}；阈值使用窗口逻辑距离。Link 不是文本移动，配置不允许它，也不允许初始空操作集。只读宿主与 SelectableTextHost 仅使用其中的 Copy，未允许 Copy 则不拖出。Input／Textarea／OTP、可选择 StyledText／Typography 及其 builder 和包装透传同一选项。
 
 默认导出策略同时遵守宿主复制策略与 protectedText／遮罩限制；显式 Allow／Deny 单独控制拖出原文。导出开关与 acceptDrops 独立，关闭任何一端不关闭普通点击、拖选、多击、键盘编辑或复制／粘贴。正在预编辑的宿主先沿普通点击／编辑路径结束 composition，该次按下不启动数据来源。
 

@@ -142,7 +142,7 @@ private class WorkshopRow(
                     DragContent.Text(f"Item ${input.id}"),
                     DragEffects(true, true, false),
                     Some(transfer),
-                    { result -> transfer.finish(result) }
+                    onCompleted = { result -> transfer.finish(result) }
                 )
             )
         }

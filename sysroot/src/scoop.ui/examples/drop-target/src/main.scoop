@@ -69,7 +69,42 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
     private val textSource =
         scope.dragSource(textArea) { _ -> Some(DragSourceData(DragContent.Text(textContent()))) }
     private val urlSource =
-        scope.dragSource(urlArea) { _ -> Some(DragSourceData(DragContent.Url(urlContent()))) }
+        scope.dragSource(urlArea) {
+            start ->
+            val url = urlContent()
+            val preview =
+                Paragraph(
+                    scope.defaultFonts,
+                    url,
+                    textStyle {
+                        fontSize = 14.0;
+                        color = Color.White
+                    },
+                    paragraphStyle { maxLines = Some(1L) }
+                ).use {
+                    paragraph -> paragraph.layout(180.0).use {
+                        label ->
+                        val card =
+                            Rect(
+                                start.start.x - 12.0,
+                                start.start.y - 12.0,
+                                204.0,
+                                label.size.height + 16.0
+                            )
+                        start.renderPreview(card) {
+                            canvas ->
+                            canvas.drawRoundRect(
+                                card,
+                                8.0,
+                                8.0,
+                                Paint(Color(0.17, 0.29, 0.48, 0.90))
+                            )
+                            canvas.drawText(label, Point(card.x + 12.0, card.y + 8.0))
+                        }
+                    }
+                }
+            Some(DragSourceData(DragContent.Url(url), preview = Some(preview)))
+        }
     private val press =
         scope.press(textArea) {
             paste();

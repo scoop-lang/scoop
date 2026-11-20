@@ -14,6 +14,8 @@ public class TextDragOptions public constructor(
     public val threshold: Double = 4.0,
     public val effects: DragEffects = DragEffects(true, true, false),
     public val copyPolicy: TextCopyPolicy = TextCopyPolicy.Default,
+    /** Uses the platform default when the callback returns None; absent draws the visible selection. */
+    public val preview: ((DragSourceStart, String) -> DragPreview?)? = None,
     public val onCompleted: (TextDragResult) -> Unit = {}
 ) {
     internal fun check() {
@@ -24,6 +26,17 @@ public class TextDragOptions public constructor(
         )
     }
 }
+
+/** Resolves one eligible text export for editor, selectable and custom text hosts. */
+public fun TextDragOptions.preparePreview(
+    start: DragSourceStart,
+    text: String,
+    selectionImage: () -> DragPreview?
+): DragPreview? =
+    when (preview) {
+        case Some(val custom) -> custom(start, text)
+        case None -> selectionImage()
+    }
 
 internal fun textDragAllowed(options: TextDragOptions, defaultCopy: Boolean): Boolean =
     options.enabled &&

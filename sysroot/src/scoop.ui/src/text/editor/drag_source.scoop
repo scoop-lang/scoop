@@ -240,9 +240,30 @@ internal class EditorDragSource(
                     !host.options.readOnly &&
                     host.options.drag.effects.move
             }
+        val frame = host.accepted ?: return None
+        if (
+            frame.editor !==
+                editor ||
+                frame.revision !=
+                editor.revision ||
+                frame.projection !==
+                host.options.projection
+        )
+            return None
+        val preview =
+            config.preparePreview(start, transfer.text) {
+                val boxes =
+                    frame.layout.selection(frame.display.displayRange(candidate.selection.range))
+                start.renderSelectionPreview(
+                    Array<Rect>(boxes.size) { boxes[it].rect },
+                    host.area
+                ) { canvas -> canvas.drawText(frame.layout) }
+            }
+        if (!valid(candidate))
+            return None
         active = Some(transfer)
         return Some(
-            DragSourceData(DragContent.Text(transfer.text), effects, Some(transfer)) {
+            DragSourceData(DragContent.Text(transfer.text), effects, Some(transfer), preview) {
                 result -> completed(transfer, result, config.onCompleted)
             }
         )

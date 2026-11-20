@@ -33,6 +33,7 @@ private class UiDragSourceSessionTest {
 }
 
 internal class SourceSessionProbe {
+    var area: InputArea? = None
     var source: DragSource? = None
     var press: Press? = None
     var window: Window? = None
@@ -57,6 +58,21 @@ internal class SourceSessionProbe {
         assertEquals(LogicalPosition(52.0, 45.0), value.pointer.logicalPosition)
         if (mode == 0)
             return None
+        val preview =
+            value.renderSelectionPreview(
+                [Rect(8.0, 10.0, 6.0, 2.0), Rect(10.0, 13.0, 4.0, 2.0)],
+                area!!
+            ) { canvas -> canvas.drawRect(Rect(4.0, 4.0, 17.0, 17.0), Paint(Color.Black)) }!!
+        assertEquals(LogicalSize(12.0, 10.0), preview.image.size)
+        assertEquals(LogicalPosition(4.0, 5.0), preview.hotSpot)
+        val rep = preview.image.representations[0L]
+        val scale = value.pointer.scaleFactor
+        val stride = rep.size.width.toLong() * 4L
+        assertEquals(
+            204.toUByte(),
+            rep.pixels[scale.toLong() * stride + (2.0 * scale).toLong() * 4L + 3L]
+        )
+        assertEquals(0.toUByte(), rep.pixels[(5.0 * scale).toLong() * stride + 3L])
         val preparedMode = mode
         if (mode == 3) {
             assertTrue(source!!.cancelPending())
@@ -65,6 +81,7 @@ internal class SourceSessionProbe {
         return Some(
             DragSourceData(
                 DragContent.Text("prepared source"),
+                preview = Some(preview),
                 onCompleted =
                     {
                         result ->
@@ -255,6 +272,7 @@ private class SourceSessionElement(
 ): Element<Unit>(scope) {
     private val area = scope.createArea()
     init {
+        probe.area = Some(area)
         probe.source = Some(scope.dragSource(area) { value -> probe.prepare(value) })
         probe.press = Some(scope.press(area) { probe.clicks += 1 })
     }

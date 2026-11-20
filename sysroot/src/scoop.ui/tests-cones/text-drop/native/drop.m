@@ -23,6 +23,7 @@
 // started.
 @interface SWDragSource : NSObject <NSDraggingSource>
 @property(nonatomic, readonly) NSArray<NSDraggingItem *> *items;
+@property(nonatomic, readonly) NSImage *preview;
 @property(nonatomic, readonly) BOOL active;
 - (NSDragOperation)draggingSession:(NSDraggingSession *_Nullable)session
     sourceOperationMaskForDraggingContext:(NSDraggingContext)context;
@@ -194,6 +195,19 @@ bool scoop_ui_text_source_ready(void *pointer, const uint8_t *bytes,
   SWView *view = (SWView *)probe.view;
   SWDragSource *source = view.owner.application.dragSource;
   if (!source || source.active || source.items.count != 1)
+    return false;
+  NSBitmapImageRep *rep = (id)source.preview.representations.firstObject;
+  if (![rep isKindOfClass:NSBitmapImageRep.class] || !rep.bitmapData)
+    return false;
+  bool ink = false, transparent = false;
+  for (NSInteger y = 0; y < rep.pixelsHigh; ++y) {
+    const uint8_t *row = rep.bitmapData + y * rep.bytesPerRow;
+    for (NSInteger x = 0; x < rep.pixelsWide; ++x) {
+      ink |= row[x * 4 + 3] > 0;
+      transparent |= row[x * 4 + 3] == 0;
+    }
+  }
+  if (!ink || !transparent)
     return false;
   NSPasteboardItem *item = (id)source.items.firstObject.item;
   NSString *expected = [[NSString alloc] initWithBytes:bytes

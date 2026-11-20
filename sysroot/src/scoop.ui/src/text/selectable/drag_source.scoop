@@ -2,6 +2,7 @@ package scoop.ui.text
 
 import scoop.graphics.*
 import scoop.graphics.text.TextRange
+import scoop.graphics.text.drawText
 import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
@@ -195,11 +196,23 @@ internal class SelectableDragSource(
             return None
         val range = candidate.selection.range
         val text = frame.content.toPlainText(TextRange(range.start, range.end))
+        val preview =
+            host.options.drag.preparePreview(start, text) {
+                val boxes = frame.layout.selection(TextRange(range.start, range.end))
+                start.renderSelectionPreview(
+                    Array<Rect>(boxes.size) { boxes[it].rect },
+                    host.area
+                ) { canvas -> canvas.drawText(frame.layout) }
+            }
+        if (!valid(candidate))
+            return None
         val notify = host.options.drag.onCompleted
         return Some(
-            DragSourceData(DragContent.Text(text), DragEffects(true, false, false)) {
-                result -> notify(textDragResult(result))
-            }
+            DragSourceData(
+                DragContent.Text(text),
+                DragEffects(true, false, false),
+                preview = preview
+            ) { result -> notify(textDragResult(result)) }
         )
     }
 

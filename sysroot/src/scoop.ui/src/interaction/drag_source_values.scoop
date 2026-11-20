@@ -32,6 +32,7 @@ public struct DragSourceData(
     val content: DragContent,
     val effects: DragEffects = DragEffects(true, false, false),
     val localData: Any? = None,
+    val preview: DragPreview? = None,
     val onCompleted: (DragResult) -> Unit = {}
 )
 
