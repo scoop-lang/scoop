@@ -31,6 +31,10 @@ private class TableWindowTest {
             assertTrue(p.finished)
             assertFalse(p.handle.isAttached)
             assertFalse(p.frames!!.snapshot().attached)
+            assertTrue(p.ui!!.isClosed)
+            assertEquals(Some(90.0), p.resizeWidth.value)
+            assertEquals(5, p.resizeEnds)
+            assertEquals(4, p.resizeCancels)
             for (cell in p.cells)
                 assertEquals(cell.mounts, cell.unmounts)
         } catch (error: Throwable) {
@@ -113,6 +117,7 @@ internal class TableProbe {
     var rendered = -1
     var finished = false
     var native: Window? = None
+    var ui: UiWindow? = None
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
     private var next = MonotonicTimeSource.now()
@@ -191,7 +196,7 @@ internal class TableProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { scope -> TableScene(this, scope) }, fonts = Some(fonts))
+                ui = host.attach(window, { scope -> TableScene(this, scope) }, fonts = Some(fonts))
                 @Unsafe
                 {
                     window.acquireNativeWindow().use {
@@ -237,13 +242,13 @@ internal class TableProbe {
                         !resizeWaiting &&
                         !frames!!.snapshot().required
                 ) {
-                    advanceTable(this)
+                    advanceTable(this, host)
                     phase += 1
                     next = MonotonicTimeSource.now() + Duration.milliseconds(220L)
                 } else
                     if (!native!!.isFocused)
                         native!!.requestFocus()
-                if (phase < 86)
+                if (phase < 94)
                     active.setControlFlow(
                         ControlFlow.WaitUntil(
                             if (next > now)
@@ -254,7 +259,7 @@ internal class TableProbe {
                     )
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 86;
+                finished = phase == 94;
                 active.requestExit()
             }
             else -> {}

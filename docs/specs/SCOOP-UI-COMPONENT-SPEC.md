@@ -1210,7 +1210,7 @@ selectedKeys、hiddenColumns、widths 分开保存，只通过相应显式动作
 
 原生绝对数值必须位于已发布的 range 内，越界由 Window 返回 InvalidArgument 并保留应用值；拖动和方向键在 TableColumnSize 限制内夹取。不能把原生 setter 的返回当作业务值已经被采纳，调用方仍读取模型和下一次 Accepted 状态。
 
-需要与其他编辑事务组合时，可提供 `onResizeStart: () -> Boolean`，仅在实际拖动开始时检查并允许该次操作；false 不改宽度，也不产生结束回调。可选 `onResizeEnd: ((TableColumnResizeEnd) -> Unit)?` 在该次拖动结束时调用一次，结果为 Completed 或 Cancelled(initialWidth)。None 使用内置取消恢复；提供回调时由调用方负责取消恢复，便于同时检查模型快照和应用状态，不能同时执行第二次默认恢复。键盘／原生数值操作仍只经过同一个宽度绑定，不伪造拖动会话。禁用、方向／密度改变、焦点离开和卸载结束现有拖动；取消回调使用开始时的处理器，不能把旧操作交给替换后的模型。
+需要与其他编辑事务组合时，可提供 `onResizeStart: () -> Boolean`，仅在实际拖动开始时检查并允许该次操作；false 不改宽度，也不产生结束回调。可选 `onResizeEnd: ((TableColumnResizeEnd) -> Unit)?` 在该次拖动结束时调用一次，结果为 Completed 或 Cancelled(initialWidth)。None 使用内置取消恢复；提供回调时由调用方负责取消恢复，便于同时检查模型快照和应用状态，不能同时执行第二次默认恢复。键盘／原生数值操作仍只经过同一个宽度绑定，不伪造拖动会话。禁用、方向／密度改变、焦点离开和卸载结束现有拖动；取消回调使用开始时的处理器，不能把旧操作交给替换后的模型。关闭整个 UI 根同样完成取消和语义退休；若原生窗口仍开放，恢复默认光标，原生窗口已开始销毁时不再提交光标操作。卸载清理使用挂载时取得的窗口引用，不读取已经失效的组件 scope。
 
 DataTable 提供选择列、排序按钮、列显隐菜单、页码／页大小控制和 toolbar／footer／empty 插槽；列菜单只列出 hideable 的列，无可切换列时禁用入口。筛选输入由应用的 TextEditorState 与 setFilter 组合，行操作直接使用 cell 中的实际按钮或菜单。默认 bodyHeight=320，itemExtent 为 Variable(48)，可配置准确 Fixed 或其他估计；行使用稳定来源 key 和 VirtualList 的活动项保留、焦点显露与 KeepVisible，不让页索引冒充身份。主题／fonts／enabled／滚动状态与句柄可显式传入，静止后停帧。验收覆盖稳定多列排序、重复标签、空页及末页删除、本页三态与禁用行、Provided 替换、列隐藏／共享宽度／RTL／横向滚动、实际拖动和虚拟行中的编辑／弹层。
 

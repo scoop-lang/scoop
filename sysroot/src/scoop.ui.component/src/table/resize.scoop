@@ -36,6 +36,7 @@ internal class TableResizeHeader(
     private val props: Props<TableResizeInput>,
     scope: ComponentScope
 ): Element<Unit>(scope) {
+    private val window = scope.nativeWindow
     private var accepted: Double? = None
     private var gesture: TableResizeGesture? = None
     private var cursor = false
@@ -251,7 +252,7 @@ internal class TableResizeHeader(
     private fun updateCursor() {
         val next = props.value.enabled && (area.scope.isHovered || drag.isDragging)
         if (next || cursor)
-            scope.nativeWindow.setCursorIcon(
+            window.setCursorIcon(
                 if (next)
                     CursorIcon.ResizeHorizontal
                 else
@@ -346,7 +347,10 @@ internal class TableResizeHeader(
     }
     public override fun onUnmount() {
         cancel();
-        if (cursor)
-            scope.nativeWindow.setCursorIcon(CursorIcon.Default)
+        if (
+            cursor &&
+                (window.state == WindowState.Open || window.state == WindowState.PendingConfigure)
+        )
+            window.setCursorIcon(CursorIcon.Default)
     }
 }
