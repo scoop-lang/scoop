@@ -1176,6 +1176,8 @@ Linux 和 Windows 的 Cone 原生 C/C++ 源码在 release 优化下按函数和�
 
 Windows 最终链接的 `--linker` 选择实际 linker：Microsoft 环境默认宿主配套 lld-link，也可显式选择 link.exe；MinGW 使用配套 GNU 接口的 LLD。Microsoft 经 clang-cl driver 传递已选 SDK／toolset 的库目录与正常 CRT defaults，native 对象可来自 cl 或 clang-cl，C++ producer 的选择不改变此链接调用。MinGW 经目标 prefix 的 Clang driver 选择 startup、compiler-rt 与 libc++。三个环境均使用 Unicode wmain startup，动态依赖其已选 CRT；辅助 C++／Scoop unwind archive 可静态加入，不能借此切换 CRT。`--link-mode static` 不适用于首期 Windows `/MD` 资源；默认或 dynamic 使用同一配套。Scoop 的 LLVM unwind archive 始终取已选 `<unwind-prefix>/lib/libunwind.a`，C++ 模式也不替换为另一套 `_Unwind_*` 实现。
 
+PE 链接器在宿主临时目录下独立的工作目录中读取响应文件，允许构建缓存与产物位于深层目录。候选 executable、DLL、PDB 和 import library 在输出所在卷暂存并发布。
+
 Windows final-link 直接准备所选目标、CRT、SEH 与 C++ 运行库的实际链接调用，不先编译或链接探测程序。工具与 SDK 状态不进入更新记录；实际 native 依赖、runtime 和链接参数沿普通更新规则处理。PE、CRT、展开与 C++ 行为由真实产物的编译、链接和运行测试覆盖。最终 PE 使用 ASLR 和 NX。Microsoft 链接器接口使用 `/OPT:REF,NOICF`，MinGW 使用 `--gc-sections --icf=none`。此设置也适用于 DLL、保留符号和生成 PDB 的链接。COMDAT 关联保留被选代码的 GC／EH metadata。请求调试信息／调试文件时输出相邻 `<output>.pdb`，沿用已替换文本 map 的统一伴随文件接口；PDB 使用相邻文件名定位，随 executable 一起纳入结果存在性与发布，不把临时目录写入其部署合同。
 
 Windows generated-C bridge 的主定义拥有 `WindowsUnwindTable`／`WindowsUnwindInfo` 关联 atom，对应 `.pdata`／`.xdata`，不投影 Unix `EhFrame`。桥编译保留包含叶函数的 frame pointer，使独立桥单元始终有完整的 SEH 表与稳定边界；这些表与桥正文按 COMDAT 关联一起选择和裁剪。该要求独立于优化及调试级别。

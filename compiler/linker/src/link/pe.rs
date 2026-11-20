@@ -1,11 +1,9 @@
 use super::*;
 use scoop_toolchain::WindowsFinalLinkProfile;
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn link(
     profile: &WindowsFinalLinkProfile,
     inputs: &ProgramInputs<'_>,
-    directory: &Path,
     archives: &[PathBuf],
     candidate: &Path,
     pdb: Option<&Path>,
@@ -17,6 +15,13 @@ pub(super) fn link(
             "PE link requires a COFF namespace",
         ));
     };
+    // CreateProcessW can reject a deeply nested cache or output directory as
+    // its working directory. Keep the short response name independent of it.
+    let scratch = tempfile::Builder::new()
+        .prefix("scoop-pe-")
+        .tempdir()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
+    let directory = scratch.path();
     let mut paths = archives.to_vec();
     let mut arguments: Vec<_> = archives
         .iter()
