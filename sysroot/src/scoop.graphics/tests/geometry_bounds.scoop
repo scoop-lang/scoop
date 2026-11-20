@@ -6,6 +6,83 @@ import scoop.test.*
 @Test
 private class GeometryBoundsTest {
     @Test
+    fun `distant affine queries retain cell extents without creating visible geometry`() {
+        for (horizontal in [true, false]) {
+            for (offset in [1600000000.0, -1600000000.0]) {
+                RasterSurface(300, 300).use {
+                    surface -> surface.draw {
+                        canvas ->
+                        val x =
+                            if (horizontal)
+                                offset
+                            else
+                                12.0
+                        val y =
+                            if (horizontal)
+                                12.0
+                            else
+                                offset
+                        canvas.translate(x, y)
+                        @Unsafe
+                        {
+                            captureGeometry(canvas, Rect(0.0, 0.0, 24.0, 32.0)).use {
+                                geometry ->
+                                assertEquals(Rect(x, y, 24.0, 32.0), geometry.bounds)
+                                assertEquals(
+                                    Point(x + 3.0, y + 5.0),
+                                    geometry.toWindow(Point(3.0, 5.0))
+                                )
+                                assertEquals(
+                                    Some(Point(3.0, 5.0)),
+                                    geometry.toLocal(Point(x + 3.0, y + 5.0))
+                                )
+                                assertEquals(None, geometry.visibleBounds)
+                                assertFalse(geometry.hitTest(Point(x + 3.0, y + 5.0)))
+                                @Unsafe
+                                {
+                                    geometry.withNativeGeometry {
+                                        native -> @Unsafe
+                                        {
+                                            val local =
+                                                native.toLocal(native.context, x + 3.0, y + 5.0)
+                                            assertEquals(1, local.status)
+                                            assertEquals(Point(3.0, 5.0), local.position)
+                                            val mapped =
+                                                native.mapRect(
+                                                    native.context,
+                                                    Rect(2.0, 3.0, 16.0, 20.0),
+                                                    0
+                                                )
+                                            assertEquals(1, mapped.status)
+                                            assertEquals(
+                                                Rect(x + 2.0, y + 3.0, 16.0, 20.0),
+                                                mapped.rect
+                                            )
+                                            assertEquals(
+                                                0,
+                                                native.mapRect(
+                                                    native.context,
+                                                    Rect(2.0, 3.0, 16.0, 20.0),
+                                                    1
+                                                ).status
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            captureGeometry(canvas, Rect(0.0, 0.0, 0.0, 0.0)).use {
+                                empty ->
+                                assertEquals(Rect(x, y, 0.0, 0.0), empty.bounds)
+                                assertEquals(None, empty.visibleBounds)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun `fractional clipped rectangles preserve native edges in double geometry`() {
         for (horizontal in [true, false]) {
             val rect =

@@ -241,7 +241,7 @@ internal class AxTable(private val props: Props<AxRows>, scope: ComponentScope):
             selected.add(index)
         for (index in selected) {
             context.measureItem(index, Constraints.tight(Size(scroll.content.width, 24.0)))
-            context.placeItem(index, Point(0.0, index.toDouble() * 24.0))
+            context.placeItem(index, Point(0.0, index.toDouble() * 24.0 - scroll.offset.y))
         }
         return LayoutResult(LayoutMetrics(constraints.constrain(scroll.content)), Unit)
     }
@@ -284,9 +284,9 @@ private class AxRow(private val props: Props<AxColumns>, scope: ComponentScope):
                 index,
                 Point(
                     if (props.value.rows.columnAt(column) == 0L)
-                        scroll.offset.x + 24.0
+                        24.0
                     else
-                        column.toDouble() * 80.0,
+                        column.toDouble() * 80.0 - scroll.offset.x,
                     0.0
                 )
             )
@@ -316,6 +316,8 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
             input.source.rows.probe.target = Some(focus)
             input.source.rows.probe.targetSemantics = Some(semantics)
         }
+        if (input.source.row == 50000000L && input.column == 250L)
+            input.source.rows.probe.distantSemantics = Some(semantics)
         if (input.source.row == 60000L && input.column == 260L)
             input.source.rows.probe.other = Some(focus)
         if (input.source.row == 70000L && input.column == 0L) {

@@ -56,6 +56,8 @@ contains 的两个 Double 是窗口逻辑坐标，返回 1 表示命中、0 表�
 
 toLocal(context, x, y) 把窗口逻辑点转换到捕获时的局部坐标，返回 NativeGeometryPoint(status, position)；它不代替 contains 的形状与 clip 检查。mapRect(context, rect, clipped) 返回 NativeGeometryRect(status, rect)，输入为局部矩形；clipped=0 返回变换后的完整外接矩形，clipped=1 使用同一形状、全部 clip 和 viewport 求实际可见交集的外接矩形，不以采样点或包围盒相交猜测。两种结果均使用窗口逻辑坐标；完整映射保留零尺寸矩形，可见交集为空或变换不可逆时不可用。status 为 1（成功）、0（不可用）、-1（无效参数）、-2（原生失败），仅成功时数据有效。计算使用查询自己的临时结果，不改写共享快照缓存。
 
+捕获后的仿射点坐标转换使用 Double 计算，不先把查询点降为 native scalar；远离原点的相邻点仍应保留局部间距。完整 bounds／mapRect 优先保留原生边界；若非退化的局部范围仅因大平移后的 native scalar 舍入折叠为零宽或零高，用捕获的同一仿射矩阵以 Double 求外接范围，不能因此阻止虚拟条目显露。可见交集、路径命中和绘制仍由原生形状、clip 与 viewport 决定；这不让离屏几何取得可交互区域，也不消除已捕获矩阵本身的 native scalar 精度限制。
+
 SkSL／SkRuntimeEffect 的公开接入列为后续 graphics 增强，见[SkSL 设计](../graphics/sksl/DESIGN.md)。本期先按[图像滤镜与图层规范](SCOOP-GRAPHICS-EFFECTS-SPEC.md)补齐 Skia Gaussian blur、alpha 阴影、混合与图层滤镜，供离屏和公共 UI style 消费；这批已在 macOS aarch64 实现并通过 Raster／Metal 定向验证，x86_64 的 Rosetta 补验也已通过，详见 [UI 实施记录](../ui/PROGRESS.md)。RuntimeEffect／shader 填充仍未接入，不作为基础效果前置。后续实现通过既有 Skia 后端与普通 FFI 扩展，不隐式创建时间驱动器，也不改变 Canvas 借用或第 4.1 节的按需停帧规则。
 
 ### 2.1 绘制记录与兼容离屏图像
