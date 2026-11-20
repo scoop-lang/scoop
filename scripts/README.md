@@ -201,6 +201,19 @@ post-install 使用配套 `scoop`／`scoopc`，显式选择上述目标清单，
 
 打包脚本的归档布局与失败保留检查使用 `python3 -m unittest discover -s scripts/tests`；运行前对改动的 Python 脚本执行与 fixture runner 相同版本的 Ruff 格式化及 lint。完整包验收还应确认 `VERSION` 与命令版本一致、VSIX 内包含扩展代码及两个 WASM，并使用解压目录中的工具完成冷构建／运行及再次复用。
 
+## 从源码更新本地工具链
+
+可以从仓库根目录运行脚本。
+
+```sh
+python3 scripts/install_toolchain.py
+python3 scripts/install_toolchain.py --install-dir "$HOME/.scoop-dev" --jobs 6
+```
+
+默认安装根为 `~/.scoop`。脚本优先使用所选安装根 `bin` 中的 `scoop-install`，也可复用 `~/.scoop/bin` 或 `PATH` 中的安装器。构建成功后，安装器把本地版本设为默认，并沿用原默认工具链的目标和可选组件。空安装根首次安装使用宿主默认目标。旧版本仍可通过 `scoop-install` 选择。
+
+脚本沿用上节的完整打包流程与构建依赖。可传入 `--work-dir`、`--download-dir`、`--llvm-prefix`、`--debugger-prefix` 等打包选项复用已有构建资源。每次生成独立的本地版本，归档和 manifest 默认留在 `tmp/dist`，可用 `--output-dir` 改位置。后续为本地版本追加目标或组件时仍需这些文件。可用 `--skip-docs` 暂缓生成离线 API 文档，之后用 `scoop-install docs` 补齐。
+
 ## GitHub Release
 
 [Release workflow](../.github/workflows/release.yml) 在推送 `vMAJOR.MINOR.PATCH`（可带预发布和 build metadata）tag 时执行，也可通过 `workflow_dispatch` 指定已有 tag 重跑。三个构建任务使用 `xcode-27`（macOS 27.0.1 AArch64）、`windows-2025`（x64）和 `ubuntu-26.04`（x64），按 `release.toml` 的固定版本准备 LLVM、Windows Rust 与 LLVM-MinGW，并复用匹配的 LLVM／LLDB SDK 缓存。
