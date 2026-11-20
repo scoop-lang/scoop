@@ -11,14 +11,37 @@ internal class ScrollReveal(
     val viewport: ScrollViewport,
     val state: ScrollState,
     val layout: ScrollLayout,
-    val geometry: CanvasGeometry
+    val geometry: CanvasGeometry,
+    private val region: Rect? = None,
+    val horizontal: Boolean = true,
+    val vertical: Boolean = true
 ) {
+    val area: Rect get() =
+        region ?:
+            Rect(
+                layout.snapshot.padding.left,
+                layout.snapshot.padding.top,
+                layout.snapshot.visibleSize.width,
+                layout.snapshot.visibleSize.height
+            )
+    val windowBounds: Rect get() = geometry.toWindow(area)
+    val visibleBounds: Rect? get() =
+        when (geometry.visibleBounds) {
+            case Some(val visible) -> intersectReveal(windowBounds, visible)
+            case None -> None
+        }
+    fun constrain(value: Rect, axes: ScrollAxes): ScrollReveal =
+        ScrollReveal(
+            viewport,
+            state,
+            layout,
+            geometry,
+            Some(intersectReveal(area, value) ?: Rect(0.0, 0.0, 0.0, 0.0)),
+            horizontal && axes.horizontal,
+            vertical && axes.vertical
+        )
     val active: Boolean get() =
-        viewport.matches(state, layout.binding) &&
-            layout.snapshot.visibleSize.width >
-            0.0 &&
-            layout.snapshot.visibleSize.height >
-            0.0
+        viewport.matches(state, layout.binding) && area.width > 0.0 && area.height > 0.0
     val current: Boolean get() = active && state.requestRevision == layout.revision
 
     fun local(window: Rect): Rect? {
@@ -34,24 +57,29 @@ internal class ScrollReveal(
             )
         )
     }
+    fun revealedOffset(rect: Rect, h: ScrollAlignment, v: ScrollAlignment): Point =
+        scrollRegionOffset(layout.snapshot, area, rect, horizontal, vertical, h, v)
     fun needsMove(
         rect: Rect,
         horizontal: ScrollAlignment = ScrollAlignment.Nearest,
         vertical: ScrollAlignment = ScrollAlignment.Nearest
     ): Boolean {
-        if (layout.overscroll != Point(0.0, 0.0))
+        if (
+            (this.horizontal && layout.overscroll.x != 0.0) ||
+                (this.vertical && layout.overscroll.y != 0.0)
+        )
             return true
         val snapshot = layout.snapshot
-        val wanted = snapshot.revealedOffset(rect, horizontal, vertical)
+        val wanted = revealedOffset(rect, horizontal, vertical)
         val visible =
             when (
                 intersectReveal(
                     rect,
                     Rect(
-                        snapshot.offset.x,
-                        snapshot.offset.y,
-                        snapshot.visibleSize.width,
-                        snapshot.visibleSize.height
+                        snapshot.offset.x + area.x - snapshot.padding.left,
+                        snapshot.offset.y + area.y - snapshot.padding.top,
+                        area.width,
+                        area.height
                     )
                 )
             ) {
@@ -174,13 +202,11 @@ internal class RevealAttempt(private val keyboard: KeyboardReveal? = None) {
                 else
                     ScrollAlignment.Nearest
             if (boundary.needsMove(local, h, v)) {
-                val revision =
-                    boundary.state.position(boundary.layout.snapshot.revealedOffset(local, h, v))
+                val revision = boundary.state.position(boundary.revealedOffset(local, h, v))
                 remember(boundary, revision)
                 return RevealProgress.Moved
             }
-            rect =
-                intersectReveal(rect, boundary.geometry.bounds) ?: return RevealProgress.Unavailable
+            rect = intersectReveal(rect, boundary.windowBounds) ?: return RevealProgress.Unavailable
         }
         return if (visible)
             RevealProgress.Ready

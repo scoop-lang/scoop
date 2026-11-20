@@ -123,13 +123,19 @@ internal class TextHandleScroll(
 private fun textHandleScrollDelta(boundary: ScrollReveal, pointer: Point): Point {
     if (!boundary.current)
         return Point(0.0, 0.0)
-    val visible = boundary.geometry.visibleBounds ?: return Point(0.0, 0.0)
+    val visible = boundary.visibleBounds ?: return Point(0.0, 0.0)
     val bounds = localReveal(boundary.geometry, visible) ?: return Point(0.0, 0.0)
     val point = boundary.geometry.toLocal(pointer) ?: return Point(0.0, 0.0)
     val snapshot = boundary.layout.snapshot
     return Point(
-        textHandleEdge(point.x, bounds.x, bounds.width, snapshot.offset.x, snapshot.maximum.x),
-        textHandleEdge(point.y, bounds.y, bounds.height, snapshot.offset.y, snapshot.maximum.y)
+        if (boundary.horizontal)
+            textHandleEdge(point.x, bounds.x, bounds.width, snapshot.offset.x, snapshot.maximum.x)
+        else
+            0.0,
+        if (boundary.vertical)
+            textHandleEdge(point.y, bounds.y, bounds.height, snapshot.offset.y, snapshot.maximum.y)
+        else
+            0.0
     )
 }
 

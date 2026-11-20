@@ -212,6 +212,37 @@ public class SceneContext internal constructor(
         checkActive()
         return withPath(scrollPath, paintCache, block)
     }
+    /** Narrows an existing viewport's reveal region for this actual content subtree. */
+    public fun <T> withScrollReveal(
+        viewport: ScrollViewport,
+        region: Rect,
+        axes: ScrollAxes = ScrollAxes.Both,
+        block: (SceneContext) -> T
+    ): T {
+        checkActive()
+        checkScrollRect(region)
+        var found = -1L
+        for (index in 0L ..< scrollPath.size)
+            if (scrollPath[index].viewport === viewport)
+                found = index
+        requireUi(found >= 0L, "reveal viewport is not in the actual scene path")
+        val boundary = scrollPath[found]
+        requireUi(
+            viewport.matches(boundary.state, boundary.layout.binding),
+            "reveal viewport is closed or rebound"
+        )
+        val replacement = boundary.constrain(region, axes)
+        val selected = found
+        val path =
+            Array<ScrollReveal>(scrollPath.size) {
+                index -> if (index == selected)
+                    replacement
+                else
+                    scrollPath[index]
+            }
+        pass.cacheable = false
+        return withPath(path, paintCache, block)
+    }
     internal fun presentScroll(viewport: ScrollViewport) {
         checkActive()
         pass.cacheable = false

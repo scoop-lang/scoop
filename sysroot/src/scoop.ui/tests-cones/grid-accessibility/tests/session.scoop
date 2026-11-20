@@ -36,10 +36,13 @@ internal class AxGridProbe: Closeable {
     val queryGuard = state(0)
     var viewport: ScrollViewport? = None
     var frame: ComponentScope? = None
+    var endedScene: SceneContext? = None
     var table: SemanticsHandle? = None
     var target: FocusHandle? = None
     var targetSemantics: SemanticsHandle? = None
     var other: FocusHandle? = None
+    var frozen: FocusHandle? = None
+    var frozenSemantics: SemanticsHandle? = None
     var rowBuilds = 0
     var cellBuilds = 0
     var mounted = 0
@@ -55,9 +58,12 @@ internal class AxGridProbe: Closeable {
     private var ui: UiWindow? = None
     private var root: NativeNode? = None
     private var nativeTable: NativeNode? = None
+    private var nativeView: Ptr<Unit>? = None
     private var cell: NativeNode? = None
     private var otherCell: NativeNode? = None
     private var replacement: NativeNode? = None
+    private var frozenCell: NativeNode? = None
+    private var beforeX = 0.0
     private var calls: NativeCalls? = None
     private val held = ArrayList<NativeNode>()
 
@@ -86,6 +92,7 @@ internal class AxGridProbe: Closeable {
                                 case AppKit(_, val pointer) -> pointer
                             }
                         root = Some(keep(NativeNode(nativeRoot(view)!!)))
+                        nativeView = Some(view)
                     } finally {
                         lease.close()
                     }
@@ -142,6 +149,9 @@ internal class AxGridProbe: Closeable {
             case 15 -> calls!!.post(cell!!, phase, 19)
             case 18 -> calls!!.post(cell!!, phase, 19)
             case 21 -> calls!!.post(replacement!!, phase, 2)
+            case 24 -> calls!!.post(frozenCell!!, phase, 19, selectionStart = 1L)
+            case 26 -> calls!!.post(frozenCell!!, phase, 2)
+            case 27 -> calls!!.post(frozenCell!!, phase, 3)
             else -> calls!!.post(root!!, phase, 20)
         }
     }
@@ -149,6 +159,11 @@ internal class AxGridProbe: Closeable {
         assertEquals(phase, tag)
         when (phase) {
             case 0 -> {
+                assertFailsWith<IllegalStateException> {
+                    endedScene!!.withScrollReveal<Unit>(viewport!!, Rect(0.0, 0.0, 280.0, 180.0)) {
+                        _ -> fail(Some("an ended scene was accepted"))
+                    }
+                }
                 nativeTable = Some(keep(root!!.find("grid")!!))
                 beforeRows = rowBuilds
                 beforeCells = cellBuilds
@@ -177,6 +192,8 @@ internal class AxGridProbe: Closeable {
                     assertTrue(cell!!.flag(2))
                     assertFalse(cell!!.flag(4))
                     assertTrue(scroll.offset.x > 10000.0 && scroll.offset.y > 1000000.0)
+                    assertEquals(Point(19824.0, 1199844.0), scroll.offset)
+                    assertTrue(cell!!.frame(nativeView!!, 176.0, 156.0, 80.0, 24.0))
                     assertTrue(outside.hasFocus)
                 }
             }
@@ -192,6 +209,8 @@ internal class AxGridProbe: Closeable {
                 retry = !(other?.isFocusActive ?: false)
                 if (!retry) {
                     assertTrue(otherCell!!.flag(4))
+                    assertEquals(Point(20624.0, 1439844.0), scroll.offset)
+                    assertTrue(otherCell!!.frame(nativeView!!, 176.0, 156.0, 80.0, 24.0))
                     assertFalse(cell!!.flag(4))
                     assertFalse(outside.hasFocus)
                 }
@@ -257,9 +276,30 @@ internal class AxGridProbe: Closeable {
                     assertFalse(replacement!!.flag(4))
             }
             case 23 -> {
+                frozenCell = Some(at(70000L, 299L))
+                beforeX = scroll.offset.x
+            }
+            case 24 -> assertTrue(outside.hasFocus)
+            case 25 -> {
+                val geometry = frozenSemantics?.geometry ?: None
+                retry = (geometry?.visibleBounds ?: None) == None
+                if (!retry) {
+                    assertEquals(beforeX, scroll.offset.x)
+                    assertTrue(frozenCell!!.frame(nativeView!!, 24.0, 156.0, 80.0, 24.0))
+                    assertTrue(outside.hasFocus)
+                }
+            }
+            case 26 -> {
+                assertTrue(frozen!!.isFocusActive)
+                assertTrue(frozenCell!!.flag(4))
+                assertEquals(beforeX, scroll.offset.x)
+            }
+            case 27 -> assertFalse(frozenCell!!.flag(4))
+            case 28 -> {
                 assertFalse(nativeTable!!.flag(0))
                 assertFalse(replacement!!.flag(0))
                 assertFalse(otherCell!!.flag(0))
+                assertFalse(frozenCell!!.flag(0))
             }
             else -> fail(Some("unknown AX phase"))
         }
@@ -272,6 +312,7 @@ internal class AxGridProbe: Closeable {
                 case 12 -> 0
                 case 15 -> 0
                 case 18 -> 0
+                case 24 -> 0
                 else -> 1
             }
         assertEquals(expected, result, Some(f"native grid action phase ${phase}"))
@@ -280,7 +321,7 @@ internal class AxGridProbe: Closeable {
             frame!!.requestFrame()
             return
         }
-        if (phase == 23) {
+        if (phase == 28) {
             finished = true
             active!!.requestExit()
             return
@@ -302,6 +343,10 @@ internal class AxGridProbe: Closeable {
             case 20 -> rows.value = AxRows(this, reverse = true)
             case 22 -> frame!!.requestLayout()
             case 23 -> {
+                frame!!.requestFrame()
+            }
+            case 25 -> frame!!.requestFrame()
+            case 28 -> {
                 ui!!.close();
                 send()
             }

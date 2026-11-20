@@ -726,6 +726,8 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 显露边界使用扣除 padding 的有效视口，零有效尺寸不继续显露；正文的绘制与命中仍裁剪到完整 viewport。边界几何、snapshot 和内容内区域的所属路径仅在 Accepted 后一起生效；输入区域的位置仍复用 Surface 已提交的几何，不复制输入状态。焦点请求把目标的窗口包围盒映回最近视口的内容坐标，以 Nearest 调整；一次只改变最近一个尚需滚动的视口，再等下一 Accepted 后继续外层。已满足的内层将目标区域限制在自己的视口后交给外层；任意变换使用实际场景几何，已可见时容忍图形后端的浮点误差，不因亚像素差异持续排帧。无法反变换、零视口、未放置或不能通过滚动显露的目标不能靠周期重试变为有效。
 
+`SceneContext.withScrollReveal<T>(viewport, region: Rect, axes = ScrollAxes.Both, block: (SceneContext) -> T): T` 为当前子场景收窄一个已在实际内容路径中的显露边界。region 使用该视口的物理局部坐标，与当前有效 padding 及外层已声明区域求交；axes 只限制该视口允许的显露滚动轴。固定表头下的正文可扣除顶部，中心列可扣除两侧冻结区，冻结列可仅允许 Vertical。它不创建视口、修改滚动范围、平移内容或代替实际绘制／命中裁剪；调用方仍在同一场景绘制和裁剪真实内容。区域和轴限制随当次 Accepted 路径被焦点、语义显露及文本选区边缘滚动共同使用，外层视口仍按原规则推进。零交集不能显露；边界外或已关闭的视口拒绝。作用域共享一次子项呈现计数，沿用 withState 的借用与异常退出规则，不向兄弟泄漏，也不通过缓存重放旧边界。
+
 显露复用 ScrollState 的同一位置意图序号。由本次显露调整过的视口若收到更新的显式滚动／动画请求，或登记被关闭／换绑，则取消旧显露；不覆盖更新的用户位置意图。焦点请求或等待新位置发布可以要求必要的下一帧，隐藏／遮挡时仍依赖正常恢复，不启动定时轮询。ScrollState 的可观察发布与用户 onFrameComplete 动作保持原登记顺序；焦点依据的是同一 Accepted 帧的几何及 snapshot，不依赖这些用户回调先执行。
 
 `animateTo(Point, AnimationSpec, origin = Programmatic)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，按视口实际使用阶段采样、Accepted 发布；isAnimating 包括等待首布局的动画。首个 Accepted 后启动、重新定向或终止滚动动画时，按已登记的视口用途请求布局或场景，使未读过动画值的初始结果也能失效。终点按最新范围收敛，无剩余移动时撤销动画需求，边界请求仍登记意图。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。cancelAnimation 只终止活动动画，不另生成定位通知。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。

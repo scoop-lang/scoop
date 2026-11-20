@@ -1,0 +1,111 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class ScrollRevealRegionTest {
+    @Test
+    fun `center cells reveal between fixed columns and below the header`() {
+        val snapshot =
+            ScrollSnapshot(Point(0.0, 0.0), Size(640.0, 320.0), Size(27000.0, 2800000032.0))
+        assertEquals(
+            Point(22040.0, 1399740.0),
+            scrollRegionOffset(
+                snapshot,
+                Rect(90.0, 32.0, 460.0, 288.0),
+                Rect(22500.0, 1400032.0, 90.0, 28.0),
+                true,
+                true,
+                ScrollAlignment.Nearest,
+                ScrollAlignment.Nearest
+            )
+        )
+        val at = ScrollSnapshot(Point(22040.0, 1399740.0), snapshot.viewport, snapshot.content)
+        assertEquals(
+            at.offset,
+            scrollRegionOffset(
+                at,
+                Rect(90.0, 32.0, 460.0, 288.0),
+                Rect(22500.0, 1400032.0, 90.0, 28.0),
+                true,
+                true,
+                ScrollAlignment.Nearest,
+                ScrollAlignment.Nearest
+            )
+        )
+    }
+    @Test
+    fun `frozen cells retain the disabled axis and obey the real extent`() {
+        val snapshot =
+            ScrollSnapshot(Point(12340.0, 0.0), Size(640.0, 320.0), Size(27000.0, 10000.0))
+        assertEquals(
+            Point(12340.0, 9680.0),
+            scrollRegionOffset(
+                snapshot,
+                Rect(0.0, 32.0, 640.0, 288.0),
+                Rect(0.0, 50000.0, 90.0, 28.0),
+                false,
+                true,
+                ScrollAlignment.Nearest,
+                ScrollAlignment.Nearest
+            )
+        )
+        assertEquals(
+            Point(0.0, 0.0),
+            scrollRegionOffset(
+                snapshot,
+                Rect(90.0, 0.0, 460.0, 320.0),
+                Rect(0.0, 50000.0, 90.0, 28.0),
+                true,
+                false,
+                ScrollAlignment.Nearest,
+                ScrollAlignment.Nearest
+            )
+        )
+    }
+    @Test
+    fun `physical asymmetric regions and ordinary padding use the same alignment rules`() {
+        val snapshot = ScrollSnapshot(Point(0.0, 0.0), Size(640.0, 320.0), Size(27000.0, 10000.0))
+        assertEquals(
+            Point(2570.0, 760.0),
+            scrollRegionOffset(
+                snapshot,
+                Rect(60.0, 32.0, 460.0, 288.0),
+                Rect(3000.0, 1020.0, 90.0, 60.0),
+                true,
+                true,
+                ScrollAlignment.Nearest,
+                ScrollAlignment.Nearest
+            )
+        )
+        val padded =
+            ScrollSnapshot(
+                Point(20.0, 30.0),
+                Size(100.0, 80.0),
+                Size(212.0, 314.0),
+                ScrollPadding(left = 12.0, bottom = 14.0)
+            )
+        val rect = Rect(90.0, 90.0, 20.0, 20.0)
+        for (
+            alignment in [
+                ScrollAlignment.Nearest,
+                ScrollAlignment.Start,
+                ScrollAlignment.Center,
+                ScrollAlignment.End
+            ]
+        )
+            assertEquals(
+                padded.revealedOffset(rect, alignment, alignment),
+                scrollRegionOffset(
+                    padded,
+                    Rect(12.0, 0.0, 88.0, 66.0),
+                    rect,
+                    true,
+                    true,
+                    alignment,
+                    alignment
+                )
+            )
+    }
+}
