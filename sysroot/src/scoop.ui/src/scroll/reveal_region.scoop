@@ -1,0 +1,46 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.math.max
+
+/** Reuses the ordinary alignment and clamping rules within an actual viewport subregion. */
+internal fun scrollRegionOffset(
+    snapshot: ScrollSnapshot,
+    area: Rect,
+    rect: Rect,
+    horizontal: Boolean,
+    vertical: Boolean,
+    h: ScrollAlignment,
+    v: ScrollAlignment
+): Point {
+    val relative =
+        Rect(
+            rect.x - area.x + snapshot.padding.left,
+            rect.y - area.y + snapshot.padding.top,
+            rect.width,
+            rect.height
+        )
+    val narrowed =
+        ScrollSnapshot(
+            snapshot.offset,
+            snapshot.viewport,
+            snapshot.content,
+            ScrollPadding(
+                area.x,
+                area.y,
+                max(0.0, snapshot.viewport.width - area.x - area.width),
+                max(0.0, snapshot.viewport.height - area.y - area.height)
+            )
+        )
+    val wanted = narrowed.revealedOffset(relative, h, v)
+    return Point(
+        if (horizontal)
+            wanted.x
+        else
+            snapshot.offset.x,
+        if (vertical)
+            wanted.y
+        else
+            snapshot.offset.y
+    )
+}

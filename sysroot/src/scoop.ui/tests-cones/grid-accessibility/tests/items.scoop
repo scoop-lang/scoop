@@ -2,6 +2,8 @@ package scoop.tests.ui.gridaccessibility
 
 import scoop.collections.HashSet
 import scoop.graphics.*
+import scoop.math.max
+import scoop.math.min
 import scoop.test.*
 import scoop.ui.*
 import scoop.window.accessibility.*
@@ -193,6 +195,7 @@ private class AxRow(private val props: Props<AxColumns>, scope: ComponentScope):
         val scroll = context.input<AxLayout>().scroll.snapshot
         val first = (scroll.offset.x / 80.0).toLong()
         val selected = HashSet<Long>()
+        selected.add(props.value.rows.columnIndex(0L)!!)
         for (index in first ..< first + 5L)
             if (index >= 0L && index < context.itemCount)
                 selected.add(index)
@@ -200,7 +203,16 @@ private class AxRow(private val props: Props<AxColumns>, scope: ComponentScope):
             selected.add(index)
         for (index in selected) {
             context.measureItem(index, Constraints.tight(Size(80.0, 24.0)))
-            context.placeItem(index, Point(index.toDouble() * 80.0, 0.0))
+            context.placeItem(
+                index,
+                Point(
+                    if (props.value.rows.columnAt(index) == 0L)
+                        scroll.offset.x + 24.0
+                    else
+                        index.toDouble() * 80.0,
+                    0.0
+                )
+            )
         }
         return LayoutResult(
             LayoutMetrics(constraints.constrain(Size(scroll.content.width, 24.0))),
@@ -212,7 +224,7 @@ private class AxRow(private val props: Props<AxColumns>, scope: ComponentScope):
 
 private class AxCellProps(val source: AxColumns, val column: Long, val index: Long)
 
-private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScope): Element<Unit>(
+private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScope): Element<Rect>(
     scope
 ) {
     private val focus = FocusHandle()
@@ -228,6 +240,10 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
         }
         if (input.source.row == 60000L && input.column == 260L)
             input.source.rows.probe.other = Some(focus)
+        if (input.source.row == 70000L && input.column == 0L) {
+            input.source.rows.probe.frozen = Some(focus)
+            input.source.rows.probe.frozenSemantics = Some(semantics)
+        }
         semantics.bindFocus(Some(target))
     }
     public override fun onUnmount() {
@@ -252,13 +268,54 @@ private class AxCell(private val props: Props<AxCellProps>, scope: ComponentScop
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        Unit
-    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 24.0))), Unit)
-    public override fun scene(context: SceneContext, value: Unit) {
+        Rect
+    > {
+        val scroll = context.input<AxLayout>().scroll.snapshot
+        val fixed = props.value.column == 0L
+        val left =
+            if (fixed)
+                24.0
+            else
+                104.0
+        val right =
+            if (fixed)
+                104.0
+            else
+                256.0
+        val x =
+            if (fixed)
+                24.0
+            else
+                props.value.index.toDouble() * 80.0 - scroll.offset.x
+        val start = max(0.0, left - x)
+        val end = min(80.0, right - x)
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(80.0, 24.0))),
+            Rect(start, 0.0, max(0.0, end - start), 24.0)
+        )
+    }
+    public override fun scene(context: SceneContext, clip: Rect) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
-        context.place(area, bounds)
-        context.semantics(semantics, bounds)
         val inset = Rect(1.0, 1.0, context.size.width - 2.0, context.size.height - 2.0)
-        context.draw { paint -> paint.canvas.drawRect(inset, Paint(Color(0.2, 0.4, 0.8))) }
+        val fixed = props.value.column == 0L
+        val region =
+            if (fixed)
+                Rect(24.0, 24.0, 80.0, 156.0)
+            else
+                Rect(104.0, 24.0, 152.0, 156.0)
+        context.withScrollReveal(
+            props.value.source.rows.probe.viewport!!,
+            region,
+            if (fixed)
+                ScrollAxes.Vertical
+            else
+                ScrollAxes.Both
+        ) {
+            cell ->
+            cell.clipRect(clip)
+            cell.place(area, bounds)
+            cell.semantics(semantics, bounds)
+            cell.draw { paint -> paint.canvas.drawRect(inset, Paint(Color(0.2, 0.4, 0.8))) }
+        }
     }
 }

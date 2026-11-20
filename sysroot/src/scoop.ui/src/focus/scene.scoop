@@ -51,7 +51,7 @@ internal class FocusScene: Closeable {
             val local = boundary.local(rect) ?: return false
             if (!boundary.current || boundary.needsMove(local))
                 return true
-            rect = intersectReveal(rect, boundary.geometry.bounds) ?: return false
+            rect = intersectReveal(rect, boundary.windowBounds) ?: return false
         }
         return false
     }

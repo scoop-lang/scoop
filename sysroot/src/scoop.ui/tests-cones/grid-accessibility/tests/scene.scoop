@@ -2,6 +2,7 @@ package scoop.tests.ui.gridaccessibility
 
 import scoop.graphics.*
 import scoop.surface.FrameSubmission
+import scoop.test.*
 import scoop.ui.*
 
 internal class AxGridScene(private val probe: AxGridProbe, scope: ComponentScope): Component(
@@ -76,7 +77,23 @@ private class AxGridRoot(
         return LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 180.0))), layout)
     }
     public override fun scene(context: SceneContext, layout: AxLayout) {
-        viewport.present(context, layout.scroll, Some { content -> content.children() })
+        val offset = layout.scroll.presentationOffset
+        viewport.present(
+            context,
+            layout.scroll,
+            Some {
+                content -> content.withScrollReveal(viewport, Rect(24.0, 24.0, 232.0, 156.0)) {
+                    restricted ->
+                    assertFailsWith<IllegalStateException> { content.size }
+                    restricted.withScrollReveal(viewport, Rect(0.0, 0.0, 280.0, 180.0)) {
+                        child ->
+                        probe.endedScene = Some(child)
+                        child.clipRect(Rect(offset.x + 24.0, offset.y + 24.0, 232.0, 156.0))
+                        child.children()
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -89,6 +106,11 @@ private class AxOutside(private val probe: AxGridProbe, scope: ComponentScope): 
         Unit
     > = LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 32.0))), Unit)
     public override fun scene(context: SceneContext, value: Unit) {
+        assertFailsWith<IllegalArgumentException> {
+            context.withScrollReveal<Unit>(probe.viewport!!, Rect(0.0, 0.0, 280.0, 180.0)) {
+                _ -> fail(Some("a sibling viewport was accepted"))
+            }
+        }
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area, bounds)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.3, 0.6, 0.3))) }
