@@ -429,6 +429,8 @@ internal class SemanticRevealController(private val root: UiRoot) {
                 when (column) {
                     case Some(val key) -> when (source.cellForKey(semanticItemKey(item.key), key)) {
                         case Found(val value) -> {
+                            if (value.key != key)
+                                return Some(SemanticActionResult.Unavailable)
                             if (!value.properties.enabled)
                                 return Some(SemanticActionResult.Rejected)
                         }

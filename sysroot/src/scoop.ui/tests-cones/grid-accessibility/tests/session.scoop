@@ -69,7 +69,10 @@ internal class AxGridProbe: Closeable {
     private var otherCell: NativeNode? = None
     private var replacement: NativeNode? = None
     private var frozenCell: NativeNode? = None
+    private var spanCell: NativeNode? = None
+    private var coveredCell: NativeNode? = None
     private var beforeX = 0.0
+    private var beforeSpanOffset = Point(0.0, 0.0)
     private var calls: NativeCalls? = None
     private val held = ArrayList<NativeNode>()
 
@@ -158,6 +161,11 @@ internal class AxGridProbe: Closeable {
             case 24 -> calls!!.post(frozenCell!!, phase, 19, selectionStart = 1L)
             case 26 -> calls!!.post(frozenCell!!, phase, 2)
             case 27 -> calls!!.post(frozenCell!!, phase, 3)
+            case 28 -> calls!!.post(coveredCell!!, phase, 19, selectionStart = 1L)
+            case 30 -> calls!!.post(spanCell!!, phase, 19)
+            case 32 -> calls!!.post(spanCell!!, phase, 19, selectionStart = 1L)
+            case 34 -> calls!!.post(spanCell!!, phase, 2)
+            case 38 -> calls!!.post(spanCell!!, phase, 19)
             else -> calls!!.post(root!!, phase, 20)
         }
     }
@@ -319,8 +327,97 @@ internal class AxGridProbe: Closeable {
                 assertTrue(frozenCell!!.flag(4))
                 assertEquals(beforeX, scroll.offset.x)
             }
-            case 27 -> assertFalse(frozenCell!!.flag(4))
+            case 27 -> {
+                assertFalse(frozenCell!!.flag(4))
+                coveredCell = Some(at(50000L, 48L))
+                beforeSpanOffset = scroll.offset
+            }
             case 28 -> {
+                assertTrue(coveredCell!!.text(1, Some("50000:251")))
+                assertTrue(coveredCell!!.cellSpan(50000L, 48L))
+            }
+            case 29 -> {
+                beforeRows = rowBuilds
+                beforeCells = cellBuilds
+                assertFalse(coveredCell!!.flag(0))
+                spanCell = Some(at(50000L, 251L))
+                assertTrue(spanCell!!.same(at(50000L, 250L)))
+                assertTrue(spanCell!!.same(at(50000L, 252L)))
+                assertTrue(spanCell!!.text(1, Some("50000:250")))
+                assertTrue(spanCell!!.cellSpan(50000L, 250L, columns = 3L))
+                assertEquals(298L, spanCell!!.rowCellCount)
+                assertFalse(spanCell!!.flag(2))
+                assertEquals(beforeSpanOffset, scroll.offset)
+                assertEquals(beforeRows, rowBuilds)
+                assertEquals(beforeCells, cellBuilds)
+            }
+            case 30 -> {
+                assertEquals(beforeRows + 1, rowBuilds)
+                assertEquals(beforeCells + 1, cellBuilds)
+                assertTrue(target!!.isAttached)
+                assertTrue(spanCell!!.cellSpan(50000L, 250L, columns = 3L))
+                checkHeaders(spanCell!!, ["Metrics", "Column"])
+            }
+            case 31 -> {
+                retry = target?.isAttached ?: false
+                if (!retry) {
+                    assertTrue(spanCell!!.cellSpan(50000L, 250L, columns = 3L))
+                    checkHeaders(spanCell!!, ["Column"])
+                }
+            }
+            case 32 -> assertTrue(outside.hasFocus)
+            case 33 -> {
+                val geometry = targetSemantics?.geometry ?: None
+                retry = (geometry?.visibleBounds ?: None) == None
+                if (!retry) {
+                    assertTrue(spanCell!!.frame(nativeView!!, 104.0, 24.0, 240.0, 24.0))
+                    assertTrue(spanCell!!.same(at(50000L, 252L)))
+                    assertTrue(outside.hasFocus)
+                }
+            }
+            case 34 -> {
+                assertTrue(target!!.isFocusActive)
+                assertTrue(spanCell!!.flag(4))
+            }
+            case 35 -> {
+                assertTrue(spanCell!!.same(at(50000L, 49L)))
+                assertTrue(spanCell!!.same(at(50000L, 51L)))
+                assertTrue(spanCell!!.cellSpan(50000L, 49L, columns = 3L))
+                assertTrue(spanCell!!.text(1, Some("50000:250")))
+            }
+            case 36 -> {
+                assertTrue(spanCell!!.same(at(50000L, 49L)))
+                assertTrue(spanCell!!.cellSpan(50000L, 49L))
+                assertFalse(coveredCell!!.flag(0))
+                assertFalse(coveredCell!!.same(at(50000L, 48L)))
+                assertEquals(300L, spanCell!!.rowCellCount)
+                coveredCell = Some(at(50000L, 50L))
+                assertFalse(coveredCell!!.same(spanCell!!))
+            }
+            case 37 -> {
+                assertFalse(coveredCell!!.flag(0))
+                assertFalse(spanCell!!.flag(1))
+                assertTrue(spanCell!!.same(at(50000L, 50L)))
+                beforeRows = rowBuilds
+                beforeCells = cellBuilds
+            }
+            case 38 -> {
+                assertEquals(beforeRows, rowBuilds)
+                assertEquals(beforeCells, cellBuilds)
+            }
+            case 39 -> {
+                assertFalse(spanCell!!.flag(0))
+                assertTrue(at(50000L, 49L).text(1, Some("50000:249")))
+            }
+            case 40 -> {
+                val restored = at(50000L, 50L)
+                assertFalse(spanCell!!.same(restored))
+                assertFalse(spanCell!!.flag(0))
+                spanCell = Some(restored)
+                assertTrue(spanCell!!.cellSpan(50000L, 49L, columns = 3L))
+            }
+            case 41 -> assertFalse(spanCell!!.flag(0))
+            case 42 -> {
                 assertFalse(nativeTable!!.flag(0))
                 assertFalse(replacement!!.flag(0))
                 assertFalse(otherCell!!.flag(0))
@@ -353,6 +450,9 @@ internal class AxGridProbe: Closeable {
                 case 15 -> 0
                 case 18 -> 0
                 case 24 -> 0
+                case 28 -> 0
+                case 32 -> 0
+                case 38 -> 0
                 else -> 1
             }
         assertEquals(expected, result, Some(f"native grid action phase ${phase}"))
@@ -361,7 +461,7 @@ internal class AxGridProbe: Closeable {
             frame!!.requestFrame()
             return
         }
-        if (phase == 28) {
+        if (phase == 42) {
             finished = true
             active!!.requestExit()
             return
@@ -394,7 +494,19 @@ internal class AxGridProbe: Closeable {
                 frame!!.requestFrame()
             }
             case 25 -> frame!!.requestFrame()
-            case 28 -> {
+            case 29 -> {
+                assertTrue(outside.requestFocus())
+                rows.value = AxRows(this, spanning = true)
+            }
+            case 31 -> frame!!.requestLayout()
+            case 33 -> frame!!.requestFrame()
+            case 35 -> rows.value = AxRows(this, reverse = true, spanning = true)
+            case 36 -> rows.value = AxRows(this, reverse = true)
+            case 37 -> rows.value = AxRows(this, reverse = true, enabled = false, spanning = true)
+            case 39 -> rows.value = AxRows(this, reverse = true, omitColumn = true, spanning = true)
+            case 40 -> rows.value = AxRows(this, reverse = true, spanning = true)
+            case 41 -> rows.value = AxRows(this, reverse = true, omitRow = true, spanning = true)
+            case 42 -> {
                 ui!!.close();
                 send()
             }

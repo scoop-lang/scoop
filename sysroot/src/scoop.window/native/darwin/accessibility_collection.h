@@ -7,7 +7,7 @@
 @property(nonatomic, copy) id key;
 @property(nonatomic, strong) NSData *search;
 @property(nonatomic, copy) NSString *name, *help, *identifier, *value;
-@property(nonatomic) int64_t index, count;
+@property(nonatomic) int64_t index, count, span;
 @property(nonatomic) int32_t enabled, selected, expanded, focusable;
 @end
 

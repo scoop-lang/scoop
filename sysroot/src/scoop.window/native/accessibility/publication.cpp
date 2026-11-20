@@ -259,14 +259,13 @@ int64_t scoop_window_accessibility_collection_active(
     value.activeKey = keyValue(kind, number, text, length);
   });
 }
-void scoop_window_accessibility_collection_item(void *pointer, int64_t index,
-                                                int64_t count, int32_t enabled,
-                                                int32_t selected,
-                                                int32_t expanded,
-                                                int32_t focusable) {
+void scoop_window_accessibility_collection_item(
+    void *pointer, int64_t index, int64_t count, int64_t span, int32_t enabled,
+    int32_t selected, int32_t expanded, int32_t focusable) {
   auto &reply = *static_cast<Item *>(pointer);
   reply.index = index;
   reply.count = count;
+  reply.span = span;
   reply.enabled = enabled;
   reply.selected = selected;
   reply.expanded = expanded;

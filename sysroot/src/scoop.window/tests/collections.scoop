@@ -96,10 +96,99 @@ private class SemanticCollectionTest {
 
 private class CellDescriptions {
     var count = 0
+    var key: SemanticItemKey? = None
 }
 
 @Test
 private class SemanticGridTest {
+    @Test
+    fun `covered columns share metadata and actions with their anchor`() {
+        val row = SemanticItemKey.Number(9L)
+        val columns = Array(4L) { index -> SemanticGridColumn(SemanticItemKey.Number(index)) }
+        val source = CollectionSource([row], [Some("row")])
+        val calls = CellDescriptions()
+        val grid =
+            SemanticGrid(
+                columns,
+                {
+                    _, column ->
+                    calls.count += 1
+                    Some(SemanticItemProperties(value = Some(f"${column}"), focusable = true))
+                },
+                span =
+                    Some {
+                        _,
+                        column -> if (column == 1L || column == 2L)
+                            SemanticGridSpan(1L, 2L)
+                        else
+                            SemanticGridSpan(column)
+                    }
+            )
+        val snapshot = SemanticCollectionSnapshot(source, grid = Some(grid))
+        val covered = item(snapshot.cellForKey(row, SemanticItemKey.Number(2L)))
+        assertEquals(SemanticItemKey.Number(1L), covered.key)
+        assertEquals(1L, covered.index)
+        assertEquals(2L, covered.span)
+        assertEquals(4L, covered.count)
+        assertEquals(Some("1"), covered.properties.value)
+        assertEquals(1, calls.count)
+        assertEquals(1L, item(snapshot.cellForKey(row, SemanticItemKey.Number(3L))).span)
+        assertEquals(0, source.descriptions)
+        val actions =
+            SemanticGridActions(
+                realize =
+                    Some {
+                        key, column ->
+                        assertEquals(row, key)
+                        calls.key = Some(column)
+                        SemanticActionResult.Completed
+                    }
+            )
+        assertEquals(
+            SemanticActionResult.Completed,
+            performGridCell(snapshot, Some(actions), row, 2L, 12)
+        )
+        assertEquals(Some(SemanticItemKey.Number(1L)), calls.key)
+    }
+
+    @Test
+    fun `grid spans reject invalid bounds without scanning other rows or columns`() {
+        val row = SemanticItemKey.Number(1L)
+        val source = CollectionSource([row], [Some("row")])
+        val columns = Array(3L) { index -> SemanticGridColumn(SemanticItemKey.Number(index)) }
+        for (
+            span in [
+                SemanticGridSpan(-1L),
+                SemanticGridSpan(0L, 0L),
+                SemanticGridSpan(Long.MAX_VALUE, 1L),
+                SemanticGridSpan(1L),
+                SemanticGridSpan(0L, 4L)
+            ]
+        ) {
+            val snapshot =
+                SemanticCollectionSnapshot(
+                    source,
+                    grid =
+                        Some(
+                            SemanticGrid(
+                                columns,
+                                {
+                                    _,
+                                    _ -> fail(
+                                        Some("invalid ranges must fail before describing values")
+                                    )
+                                },
+                                span = Some { _, _ -> span }
+                            )
+                        )
+                )
+            assertFailsWith<IllegalArgumentException> {
+                snapshot.cellForKey(row, SemanticItemKey.Number(0L))
+            }
+        }
+        assertEquals(0, source.descriptions)
+    }
+
     @Test
     fun `selection snapshots and cells follow stable row and column keys`() {
         val a = SemanticItemKey.Number(1L)
@@ -109,24 +198,27 @@ private class SemanticGridTest {
         val source = CollectionSource([a, b], [Some("A"), Some("B")])
         val cells = CellDescriptions()
         val grid =
-            SemanticGrid([SemanticGridColumn(title, Some("Title")), SemanticGridColumn(details)]) {
-                row, column ->
-                cells.count += 1
-                if (row == b && column == 1L)
-                    None
-                else
-                    Some(
-                        SemanticItemProperties(
-                            name =
-                                Some(
-                                    if (row == a)
-                                        "A title"
-                                    else
-                                        "B title"
-                                )
+            SemanticGrid(
+                [SemanticGridColumn(title, Some("Title")), SemanticGridColumn(details)],
+                {
+                    row, column ->
+                    cells.count += 1
+                    if (row == b && column == 1L)
+                        None
+                    else
+                        Some(
+                            SemanticItemProperties(
+                                name =
+                                    Some(
+                                        if (row == a)
+                                            "A title"
+                                        else
+                                            "B title"
+                                    )
+                            )
                         )
-                    )
-            }
+                }
+            )
         val snapshot =
             SemanticCollectionSnapshot(
                 source,
@@ -160,7 +252,7 @@ private class SemanticGridTest {
             )
         }
         assertFailsWith<IllegalArgumentException> {
-            SemanticGrid([SemanticGridColumn(title), SemanticGridColumn(title)]) { _, _ -> None }
+            SemanticGrid([SemanticGridColumn(title), SemanticGridColumn(title)], { _, _ -> None })
         }
     }
 }

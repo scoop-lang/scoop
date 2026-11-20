@@ -19,7 +19,8 @@ public struct SemanticGridActions(
 /** Describes cells from the collection's immutable data snapshot, without building views. */
 public class SemanticGrid public constructor(
     public val columns: Array<SemanticGridColumn>,
-    public val describe: (SemanticItemKey, Long) -> SemanticItemProperties?
+    public val describe: (SemanticItemKey, Long) -> SemanticItemProperties?,
+    public val span: ((SemanticItemKey, Long) -> SemanticGridSpan)? = None
 ) {
     private val indices = HashMap<SemanticItemKey, Long>()
     init {
@@ -29,6 +30,30 @@ public class SemanticGrid public constructor(
         }
     }
     public fun indexOf(key: SemanticItemKey): Long? = indices[key]
+    internal fun resolveSpan(row: SemanticItemKey, column: Long): SemanticGridSpan {
+        val value = span?.invoke(row, column) ?: SemanticGridSpan(column)
+        value.check()
+        requireWindow(
+            value.column <=
+                column &&
+                column -
+                value.column <
+                value.columnSpan &&
+                value.column +
+                value.columnSpan <=
+                columns.size,
+            "semantic grid span does not contain the column or exceeds the grid"
+        )
+        return value
+    }
+}
+
+/** One logical cell covers this continuous column range in the current grid snapshot. */
+public struct SemanticGridSpan(val column: Long, val columnSpan: Long = 1L) {
+    internal fun check() {
+        requireWindow(column >= 0L && columnSpan > 0L, "invalid semantic grid span")
+        requireWindow(column <= Long.MAX_VALUE - columnSpan, "semantic grid span overflow")
+    }
 }
 
 public struct SemanticTableSize(val rows: Long, val columns: Long) {

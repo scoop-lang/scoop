@@ -76,7 +76,8 @@ public struct SemanticItem(
     val key: SemanticItemKey,
     val index: Long,
     val count: Long,
-    val properties: SemanticItemProperties
+    val properties: SemanticItemProperties,
+    val span: Long = 1L
 )
 
 public enum SemanticItemResult {
@@ -158,8 +159,27 @@ public class SemanticCollectionSnapshot public constructor(
             return SemanticItemResult.NotFound
         val table = grid ?: return SemanticItemResult.Unsupported
         val index = table.indexOf(column) ?: return SemanticItemResult.NotFound
-        val properties = table.describe(row, index) ?: return SemanticItemResult.Unavailable
-        return SemanticItemResult.Found(SemanticItem(column, index, table.columns.size, properties))
+        val span = table.resolveSpan(row, index)
+        val properties = table.describe(row, span.column) ?: return SemanticItemResult.Unavailable
+        return SemanticItemResult.Found(
+            SemanticItem(
+                table.columns[span.column].key,
+                span.column,
+                table.columns.size,
+                properties,
+                span.columnSpan
+            )
+        )
+    }
+
+    /** Used only while publishing to retire an existing covered column identity. */
+    internal fun cellSpanForIndex(row: SemanticItemKey, column: Long): SemanticGridSpan? {
+        if (indexOf(row) == None)
+            return None
+        val table = grid ?: return None
+        if (column < 0L || column >= table.columns.size)
+            return None
+        return Some(table.resolveSpan(row, column))
     }
 
     /** Searches after a key in this snapshot, without retaining a positional cursor. */

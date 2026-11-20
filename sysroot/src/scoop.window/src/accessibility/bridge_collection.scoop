@@ -48,7 +48,8 @@ internal class NativeCollectionQueries(
                     node.id.number,
                     node.collectionValue?.count ?: -1L,
                     node.collectionRevision,
-                    collectionActionBits(node.itemActions)
+                    collectionActionBits(node.itemActions) +
+                        gridSpanFlag(node.collectionValue?.grid ?: None)
                 ),
                 "publish semantic collection"
             )
@@ -130,6 +131,12 @@ private fun nativeCollectionActive(
 private class CollectionQueryStatus {
     var value = 4
 }
+
+private fun gridSpanFlag(grid: SemanticGrid?): Int =
+    when (grid?.span ?: None) {
+        case Some(_) -> 128
+        case None -> 0
+    }
 
 private fun collectionActionBits(actions: SemanticCollectionActions): Int =
     (
@@ -232,10 +239,26 @@ private fun queryCollection(
             }
         return actionCode(result)
     }
-    if (operation == 2) {
+    if (operation == 2 || operation == 16) {
         try {
             val source = provider.collectionSource(owner, true) ?: return 4
             val key = collectionKey(kind, number, bytes, length) ?: return 4
+            if (operation == 16) {
+                val span = source.cellSpanForIndex(key, index) ?: return 2
+                val target = reply ?: return 4
+                val grid = source.grid!!
+                writeCollectionItem(
+                    target,
+                    SemanticItem(
+                        grid.columns[span.column].key,
+                        span.column,
+                        grid.columns.size,
+                        SemanticItemProperties(),
+                        span.columnSpan
+                    )
+                )
+                return 1
+            }
             return if (source.contains(key))
                 1
             else
@@ -520,6 +543,7 @@ private fun writeCollectionItem(reply: Ptr<Unit>, item: SemanticItem) {
             reply,
             item.index,
             item.count,
+            item.span,
             if (props.enabled)
                 1
             else
@@ -608,6 +632,7 @@ private fun nativeCollectionItem(
     reply: Ptr<Unit>,
     index: Long,
     count: Long,
+    span: Long,
     enabled: Int,
     selected: Int,
     expanded: Int,
