@@ -7,7 +7,8 @@ private class SemanticButtonProps(
     val input: ButtonProps,
     val role: SemanticRole,
     val state: SemanticProperties,
-    val actions: SemanticActions
+    val actions: SemanticActions,
+    val fallbackName: String?
 )
 
 private class SemanticButton(
@@ -20,7 +21,8 @@ private class SemanticButton(
             scope,
             props.value.role,
             { Some(props.value.state) },
-            { Some(props.value.actions) }
+            { Some(props.value.actions) },
+            { props.value.fallbackName }
         )
     public override fun onMount() {
         button.mount()
@@ -33,10 +35,11 @@ internal fun semanticButton(
     input: ButtonProps,
     role: SemanticRole,
     state: SemanticProperties,
-    actions: SemanticActions
+    actions: SemanticActions,
+    fallbackName: String? = None
 ): View =
     component(
-        SemanticButtonProps(input, role, state, actions),
+        SemanticButtonProps(input, role, state, actions, fallbackName),
         { props, mount -> SemanticButton(props, scope = mount) },
         // A role change retires its identity even when the surrounding component is reused.
         key =
@@ -57,15 +60,19 @@ internal fun semanticButton(
 internal fun popupSemanticButton(
     input: ButtonProps,
     expanded: Boolean,
-    change: (Boolean) -> SemanticActionResult
+    change: (Boolean) -> SemanticActionResult,
+    value: String? = None,
+    fallbackName: String? = None
 ): View =
     semanticButton(
         input,
         SemanticRole.Button,
         input.semantics.properties(
+            value = value,
             enabled = input.enabled,
             invalid = input.invalid,
             expanded = Some(expanded)
         ),
-        SemanticActions(invoke = Some { change(!expanded) }, setExpanded = Some(change))
+        SemanticActions(invoke = Some { change(!expanded) }, setExpanded = Some(change)),
+        fallbackName
     )

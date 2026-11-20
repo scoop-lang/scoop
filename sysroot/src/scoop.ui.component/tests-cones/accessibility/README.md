@@ -20,4 +20,8 @@ ScrollArea 的默认容器角色、命名覆盖和内容路由也在无 drawable
 
 `AdvancedComponentSemanticsTest` 覆盖 Slider／Progress 的实际范围与拒绝、Tabs／Disclosure／Trace 的选择与展开、OTP 单一文本宿主及保护切换、Calendar 的行与表头、合并单元格、分页动作，以及真实文本编辑和 undo 对保留范围的映射。保留范围检查验证共享文档机制与 UI 宿主接线，不表示新增了 AppKit AXTextMarker 协议。
 
+Select 的 8 个值检查阶段覆盖独立的显式名称、Field 标签与无标签目标的名称回退、外部改选、禁用选项、空标签、未知值、None、动态标签和整体禁用。自定义显示不替代 Choice 的实际语义值，读取不构造 View，外部更新不伪造用户选择通知，始终检查原来的原生节点。
+
+该 Select 回归及相邻 `select` Cone 的 41 阶段真实交互在本机 macOS aarch64 的 release 配置下通过。两套测试消费当前工具链中已准备的组件产物；交互回归覆盖键盘、定位、滚动、拒绝更新、关闭和生命周期。
+
 `ModalSemanticBoundaryTest` 检查 Dialog 打开后背景旧引用不可操作、拒绝关闭时仍保持打开、默认 “Close” 按钮可按语义名称找到并实际关闭，以及关闭后原背景身份恢复。两个新场景都使用 `requestActivation = false`，不设置或重试系统前台焦点。GUI 测试类各自在独立进程中执行；构建和运行结果记录在 [实施记录](../../../../../docs/ui/interaction-polish/PROGRESS.md)。
