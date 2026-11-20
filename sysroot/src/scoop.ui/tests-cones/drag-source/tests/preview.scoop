@@ -1,0 +1,138 @@
+package scoop.tests.ui.drag
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class UiDragSelectionPreviewTest {
+    private var area: InputArea? = None
+    private var checked = false
+
+    @Test
+    fun `selection ink fades only at viewport and preview crop edges`() {
+        SurfaceHost {
+            host,
+            active,
+            event -> when (event) {
+                case Resumed -> {
+                    val native =
+                        active.createWindow(
+                            windowAttributes {
+                                title = "Scoop selection preview"
+                                size = LogicalSize(520.0, 370.0)
+                                visible = false
+                                requestActivation = false
+                            }
+                        )
+                    val surface =
+                        host.attach(native) {
+                            frame ->
+                            val placed = area ?: return@attach
+                            frame.canvas.clear(Color.White)
+                            frame.canvas.translate(20.0, 20.0)
+                            frame.canvas.scale(2.0, 2.0)
+                            frame.place(placed, Rect(0.0, 0.0, 240.0, 160.0))
+                        }
+                    area = Some(surface.createArea { _, _ -> Unit })
+                    native.setVisible(true)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
+                    )
+                }
+                case AboutToWait -> {
+                    val placed = area ?: return@SurfaceHost
+                    if (!checked && placed.visibleBounds != None) {
+                        checkCroppedSelectionPreviews(placed)
+                        checked = true
+                        active.requestExit()
+                    }
+                }
+                case NewEvents(StartCause.Deadline) -> fail(
+                    Some("selection preview placement timed out")
+                )
+                else -> {}
+            }
+        }.use { host -> Application().run(host) }
+        assertTrue(checked)
+    }
+}
+
+private fun previewStart(local: Point, scale: Double): DragSourceStart {
+    val x = 20.0 + local.x * 2.0
+    val y = 20.0 + local.y * 2.0
+    val sides = ModifierSides(None, None)
+    val pointer =
+        PointerState(
+            LogicalPosition(x, y),
+            PhysicalPosition(x * scale, y * scale),
+            scale,
+            Modifiers(false, false, false, false, false, false, sides, sides, sides, sides),
+            InputTime.Observed(MonotonicTimeSource.now())
+        )
+    return DragSourceStart(local, local, pointer, pointer, DragInput.Mouse(MouseButton.Left))
+}
+
+private fun DragPreview.channelAt(x: Double, y: Double, channel: Long = 3L): Int {
+    val rep = image.representations[0L]
+    val px = (x * rep.size.width.toDouble() / image.size.width).toLong()
+    val py = (y * rep.size.height.toDouble() / image.size.height).toLong()
+    return rep.pixels[(py * rep.size.width.toLong() + px) * 4L + channel].toInt()
+}
+
+private fun solidSelection(start: DragSourceStart, area: InputArea, region: Rect): DragPreview =
+    start.renderSelectionPreview([region], area) {
+        canvas -> canvas.drawRect(region, Paint(Color(1.0, 0.0, 0.0)))
+    } ?:
+        fail(Some(f"missing selection preview at ${region.x}, ${region.y}"))
+
+private fun checkCroppedSelectionPreviews(area: InputArea) {
+    val start = previewStart(Point(10.0, 12.5), 1.0)
+    // The viewport cuts the top and left. Its 60-point visible span shortens each ramp to 15.
+    val clipped = solidSelection(start, area, Rect(-10.0, -10.0, 40.0, 40.0))
+    assertEquals(LogicalSize(60.0, 60.0), clipped.image.size)
+    assertEquals(LogicalPosition(20.0, 25.0), clipped.hotSpot)
+    assertTrue(clipped.channelAt(0.0, 30.0) < 10)
+    val half = clipped.channelAt(8.0, 30.0)
+    assertTrue(half > 100 && half < 125)
+    assertTrue(clipped.channelAt(8.0, 8.0) < half)
+    assertTrue(clipped.channelAt(30.0, 0.0) < 10)
+    assertEquals(204, clipped.channelAt(15.0, 15.0))
+    assertEquals(204, clipped.channelAt(59.0, 59.0))
+    assertEquals(255, clipped.channelAt(8.0, 30.0, 0L))
+    assertEquals(0, clipped.channelAt(8.0, 30.0, 1L))
+
+    // A long line grabbed near the beginning fades only at the right.
+    val line = solidSelection(start, area, Rect(3.0, 5.0, 225.0, 10.0))
+    assertEquals(LogicalSize(360.0, 20.0), line.image.size)
+    assertEquals(LogicalPosition(14.0, 15.0), line.hotSpot)
+    assertEquals(204, line.channelAt(0.0, 0.0))
+    assertEquals(204, line.channelAt(335.0, 19.0))
+    val right = line.channelAt(348.0, 10.0)
+    assertTrue(right > 90 && right < 110)
+    assertTrue(line.channelAt(359.0, 10.0) < 10)
+
+    // Grab the middle of a selection on a fractional-density display. Both size limits apply.
+    val centered = previewStart(Point(120.0, 80.0), 1.5)
+    val large = solidSelection(centered, area, Rect(0.0, 0.0, 240.0, 160.0))
+    assertEquals(LogicalPosition(180.0, 120.0), large.hotSpot)
+    assertEquals(PhysicalSize(540, 360), large.image.representations[0L].size)
+    assertEquals(204, large.channelAt(180.0, 120.0))
+    assertTrue(large.channelAt(0.0, 120.0) < 10)
+    assertTrue(large.channelAt(359.0, 120.0) < 10)
+    assertTrue(large.channelAt(180.0, 0.0) < 10)
+    assertTrue(large.channelAt(180.0, 239.0) < 10)
+
+    // Touching the viewport is a natural edge. An unrelated offscreen row does not crop it.
+    val rect = Rect(0.0, 0.0, 16.0, 8.0)
+    val whole =
+        start.renderSelectionPreview([Rect(-10.0, -35.0, 400.0, 3.0), rect], area) {
+            canvas -> canvas.drawRect(rect, Paint(Color.Black))
+        }!!
+    assertEquals(204, whole.channelAt(0.0, 0.0))
+    assertEquals(204, whole.channelAt(31.0, 15.0))
+}

@@ -67,38 +67,103 @@ public fun DragSourceStart.renderSelectionPreview(
         var right = Double.NEGATIVE_INFINITY
         var bottom = Double.NEGATIVE_INFINITY
         for (region in regions) {
-            val visible = intersectReveal(area.toWindow(region)!!, viewport) ?: continue
-            left = min(left, visible.x)
-            top = min(top, visible.y)
-            right = max(right, visible.x + visible.width)
-            bottom = max(bottom, visible.y + visible.height)
+            val rect = area.toWindow(region)!!
+            if (intersectReveal(rect, viewport) == None)
+                continue
+            left = min(left, rect.x)
+            top = min(top, rect.y)
+            right = max(right, rect.x + rect.width)
+            bottom = max(bottom, rect.y + rect.height)
             builder.addRect(region)
         }
         if (right <= left || bottom <= top)
             return@use None
-        val w = min(360.0, right - left)
-        val h = min(240.0, bottom - top)
-        val bounds =
-            Rect(
-                max(left, min(right - w, anchor.x - w * 0.5)),
-                max(top, min(bottom - h, anchor.y - h * 0.5)),
-                w,
-                h
-            )
+        val horizontal = cropPreviewAxis(left, right, viewport.x, viewport.width, anchor.x, 360.0)
+        val vertical = cropPreviewAxis(top, bottom, viewport.y, viewport.height, anchor.y, 240.0)
+        val bounds = Rect(horizontal.start, vertical.start, horizontal.size, vertical.size)
         builder.build().use {
             shape -> Some(
                 rasterDragPreview(bounds, anchor, pointer.scaleFactor) {
                     canvas ->
-                    canvas.concat(transform)
-                    canvas.clipPath(shape)
-                    canvas.saveLayer(opacity = 0.8)
-                    try {
-                        draw(canvas)
-                    } finally {
-                        canvas.restore()
+                    canvas.withState {
+                        content ->
+                        content.concat(transform)
+                        content.clipPath(shape)
+                        content.saveLayer(opacity = 0.8)
+                        try {
+                            draw(content)
+                        } finally {
+                            content.restore()
+                        }
                     }
+                    horizontal.fade(canvas, bounds, Point(bounds.x + bounds.width, bounds.y))
+                    vertical.fade(canvas, bounds, Point(bounds.x, bounds.y + bounds.height))
                 }
             )
         }
     }
+}
+
+private struct PreviewAxis(
+    val start: Double,
+    val size: Double,
+    val cutStart: Boolean,
+    val cutEnd: Boolean
+) {
+    fun fade(canvas: Canvas, bounds: Rect, end: Point) {
+        if (!cutStart && !cutEnd)
+            return
+        val ramp = min(24.0 / size, 0.25)
+        val mask =
+            Gradient.linear(
+                bounds.origin,
+                end,
+                [
+                    GradientStop(
+                        0.0,
+                        if (cutStart)
+                            Color.Transparent
+                        else
+                            Color.White
+                    ),
+                    GradientStop(ramp, Color.White),
+                    GradientStop(1.0 - ramp, Color.White),
+                    GradientStop(
+                        1.0,
+                        if (cutEnd)
+                            Color.Transparent
+                        else
+                            Color.White
+                    )
+                ]
+            )
+        canvas.saveLayer(blendMode = BlendMode.DstIn, bounds = Some(bounds))
+        try {
+            canvas.drawRect(bounds, Paint(gradient = Some(mask)))
+        } finally {
+            canvas.restore()
+        }
+    }
+}
+
+private fun cropPreviewAxis(
+    first: Double,
+    last: Double,
+    viewportStart: Double,
+    viewportSize: Double,
+    anchor: Double,
+    limit: Double
+): PreviewAxis {
+    val visibleStart = max(first, viewportStart)
+    val visibleEnd = min(last, viewportStart + viewportSize)
+    val visibleSize = visibleEnd - visibleStart
+    val size = min(limit, visibleSize)
+    val overflow = visibleSize - size
+    val offset = max(0.0, min(overflow, anchor - visibleStart - size * 0.5))
+    return PreviewAxis(
+        visibleStart + offset,
+        size,
+        first < visibleStart || offset > 0.0,
+        last > visibleEnd || offset < overflow
+    )
 }

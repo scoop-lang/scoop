@@ -42,7 +42,7 @@ isDragging 是可追踪的 UI 状态，表示该行为当前持有准备中或�
 
 拖出区域可在准备时用 `preview = Some(DragPreview(image, hotSpot))` 指定本次预览。需要绘制卡片或文字时，`DragSourceStart.renderPreview(bounds, draw)` 将区域局部逻辑坐标下的内容按指针所在屏幕的像素密度绘制一次，透明底，原按下点相对 bounds 的位置作为热点。交给平台的图像脱离挂载后仍有效。未指定预览时使用后端默认反馈。
 
-文本编辑与可选择文字默认用当前 Accepted 排版绘制选中的可见字形。多行、双向文字及滚动使用真实选区矩形裁剪，透明处不带上相邻正文或编辑光标。过大的选区取抓取点附近的局部，保留字号与热点。可在自绘文本宿主中使用同一 `DragSourceStart.renderSelectionPreview(regions, area, draw)`；没有可见区域时返回 None。TextDragOptions 的可选 preview 回调接收 DragSourceStart 和按当前复制策略获准导出的字符串，可返回自定义图片或 None（平台默认反馈）。只在可以开始导出时调用，替换默认选区绘制，回调期间来源失效则放弃本次拖动。复制策略、选区导出和完成事务沿用原合同。
+文本编辑与可选择文字默认用当前 Accepted 排版绘制选中的可见字形。多行、双向文字及滚动使用真实选区矩形裁剪，透明处不带上相邻正文或编辑光标。过大的选区取抓取点附近的局部，保留字号与热点。视口或预览尺寸裁切到选区的边缘向外渐变至透明，两条裁边相交时叠加透明度。选区的自然边缘保留原有字形和颜色。可在自绘文本宿主中使用同一 `DragSourceStart.renderSelectionPreview(regions, area, draw)`；没有可见区域时返回 None。TextDragOptions 的可选 preview 回调接收 DragSourceStart 和按当前复制策略获准导出的字符串，可返回自定义图片或 None（平台默认反馈）。只在可以开始导出时调用，替换默认选区绘制，回调期间来源失效则放弃本次拖动。复制策略、选区导出和完成事务沿用原合同。
 
 ### 3.1 Touch／Pen 来源
 
