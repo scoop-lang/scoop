@@ -1,0 +1,10 @@
+package dev.test
+
+@Extern(name = "read_live_data")
+fun readLiveData(): Int
+
+fun main() {
+    @Unsafe {
+        println(readLiveData())
+    }
+}

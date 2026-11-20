@@ -137,7 +137,7 @@ fn link_inputs(
     let retain_symbols = options.keep_symbols || options.emit_debug_file;
     let dead_strip = profile
         .output_kind()
-        .dead_strip(profile.target().id(), retain_symbols);
+        .dead_strip(profile.target(), retain_symbols);
     let mut link_input_paths = Vec::new();
     match profile {
         ValidatedFinalLinkProfile::Darwin(_) => darwin::link(
@@ -156,6 +156,7 @@ fn link_inputs(
             &archives,
             &candidate,
             retain_symbols,
+            dead_strip,
         )?,
         ValidatedFinalLinkProfile::Windows(windows) => {
             link_input_paths = pe::link(

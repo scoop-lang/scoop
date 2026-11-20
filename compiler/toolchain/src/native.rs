@@ -91,6 +91,14 @@ pub fn compile_native_source(
     command::compile(input, config, compiler, optimization, output)
 }
 
+fn split_sections(target: scoop_lir::LirTargetProfile, optimization: OptimizationMode) -> bool {
+    optimization == OptimizationMode::Release
+        && matches!(
+            target.native_object_format(),
+            scoop_lir::NativeObjectFormat::Elf64 | scoop_lir::NativeObjectFormat::Coff64
+        )
+}
+
 fn error(code: scoop_source::DiagnosticCode, error: impl std::fmt::Display) -> ToolchainError {
     ToolchainError::new(code, format!("native compilation: {error}"))
 }

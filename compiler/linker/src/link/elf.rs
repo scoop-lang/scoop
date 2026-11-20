@@ -27,12 +27,16 @@ pub(super) fn link(
     archives: &[PathBuf],
     candidate: &Path,
     keep_symbols: bool,
+    dead_strip: bool,
 ) -> Result<(), LinkError> {
     let mut command = profile
         .command(directory, candidate)
         .map_err(|cause| error(cause.code(), cause))?;
     if !keep_symbols {
         command.arg("-Xlinker").arg("--strip-all");
+    }
+    if dead_strip {
+        command.arg("-Xlinker").arg("--gc-sections");
     }
 
     append_archives(&mut command, directory, archives)?;

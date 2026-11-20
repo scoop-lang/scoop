@@ -11,12 +11,12 @@ pub enum FinalOutputKind {
 }
 
 impl FinalOutputKind {
-    pub fn dead_strip(self, target: TargetProfileId, retain_symbols: bool) -> bool {
-        self == Self::Executable
-            && !retain_symbols
-            && scoop_target_data::definition(target).is_some_and(|target| {
-                target.final_link == scoop_target_data::FinalLinkProfile::Darwin
-            })
+    pub fn dead_strip(self, target: LirTargetProfile, retain_symbols: bool) -> bool {
+        use scoop_lir::NativeObjectFormat::*;
+        match target.native_object_format() {
+            MachO64 | Elf64 => self == Self::Executable && !retain_symbols,
+            Coff64 => true,
+        }
     }
 }
 
@@ -125,19 +125,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dead_strip_is_limited_to_stripped_darwin_executables() {
-        let target = scoop_target_data::DARWIN_AARCH64.id();
-        assert!(FinalOutputKind::Executable.dead_strip(target, false));
-        assert!(!FinalOutputKind::Executable.dead_strip(target, true));
-        assert!(!FinalOutputKind::SharedLibrary.dead_strip(target, false));
-        assert!(
-            !FinalOutputKind::Executable
-                .dead_strip(scoop_target_data::LINUX_X86_64_GNU.id(), false)
-        );
-        assert!(
-            !FinalOutputKind::Executable
-                .dead_strip(scoop_target_data::WINDOWS_X86_64_MSVC_UCRT.id(), false)
-        );
+    fn section_gc_follows_the_output_and_object_format() {
+        for target in [
+            scoop_target_data::DARWIN_AARCH64,
+            scoop_target_data::LINUX_X86_64_GNU,
+            scoop_target_data::LINUX_X86_64_MUSL,
+        ] {
+            assert!(FinalOutputKind::Executable.dead_strip(target, false));
+            assert!(!FinalOutputKind::Executable.dead_strip(target, true));
+            assert!(!FinalOutputKind::SharedLibrary.dead_strip(target, false));
+            assert!(!FinalOutputKind::SharedLibrary.dead_strip(target, true));
+        }
+        for target in [
+            scoop_target_data::WINDOWS_X86_64_MSVC_UCRT,
+            scoop_target_data::WINDOWS_X86_64_MINGW_UCRT,
+            scoop_target_data::WINDOWS_X86_64_MINGW_MSVCRT,
+        ] {
+            for output in [FinalOutputKind::Executable, FinalOutputKind::SharedLibrary] {
+                assert!(output.dead_strip(target, false));
+                assert!(output.dead_strip(target, true));
+            }
+        }
     }
 
     #[test]
