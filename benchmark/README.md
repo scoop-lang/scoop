@@ -1,8 +1,12 @@
 # Scoop / Go / GraalVM 21 本机基准
 
 三套普通程序实现同一批工作负载，Java 同时运行 Graal JIT 和 Native Image。
-源码、复跑脚本和结果都保存在此目录；`build/`、`logs/` 与编译中间产物由
-[.gitignore](.gitignore) 排除。最终分析见 [2026-10-29 报告](results/2026-10-29/REPORT.md)。
+源码、复跑脚本与各轮报告都保存在此目录。`build/`、`logs/` 与编译中间产物由
+[.gitignore](.gitignore) 排除。
+
+- [第一轮，2026-10-29](results/2026-10-29/REPORT.md)
+- [第二轮，2026-11-07](results/2026-11-07/REPORT.md)
+- [第三轮，2026-11-21](results/2026-11-21/REPORT.md)
 
 ## 工具与复跑
 
@@ -85,7 +89,7 @@ Java 构建使用 `javac -Xlint:all -Werror`；C helper 使用 C11，只有读�
 这里的结论只覆盖这些确定性程序。桌面背景任务和 macOS 对性能核／能效核的调度
 未被隔离，不以小幅差异宣称统计显著性，也不使用一个总分给语言排名。
 
-## 本次 Scoop 更新
+## 第一轮的 Scoop 工具链
 
 先用 LLVM 22.1.8 执行：
 
