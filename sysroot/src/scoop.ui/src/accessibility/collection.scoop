@@ -174,7 +174,15 @@ private fun readonlyGrid(grid: SemanticGrid?): SemanticGrid? =
                     column -> evaluateUi<SemanticItemProperties?>(None) {
                         value.describe(row, column)
                     }
-                }
+                },
+                span =
+                    when (value.span) {
+                        case Some(val resolve) -> Some {
+                            row,
+                            column -> evaluateUi<SemanticGridSpan>(None) { resolve(row, column) }
+                        }
+                        case None -> None
+                    }
             )
         )
         case None -> None

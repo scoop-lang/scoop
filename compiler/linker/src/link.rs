@@ -162,7 +162,6 @@ fn link_inputs(
             link_input_paths = pe::link(
                 windows,
                 inputs,
-                directory.path(),
                 &archives,
                 &candidate,
                 candidate_pdb.as_deref(),

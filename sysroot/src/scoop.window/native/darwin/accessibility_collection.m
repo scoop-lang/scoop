@@ -518,14 +518,13 @@ int64_t scoop_window_accessibility_collection_row(void *pointer, int64_t node,
   return state.itemKey ? 0 : -4;
 }
 
-void scoop_window_accessibility_collection_item(void *pointer, int64_t index,
-                                                int64_t count, int32_t enabled,
-                                                int32_t selected,
-                                                int32_t expanded,
-                                                int32_t focusable) {
+void scoop_window_accessibility_collection_item(
+    void *pointer, int64_t index, int64_t count, int64_t span, int32_t enabled,
+    int32_t selected, int32_t expanded, int32_t focusable) {
   SWAccessibilityItemData *data = (__bridge SWAccessibilityItemData *)pointer;
   data.index = index;
   data.count = count;
+  data.span = span;
   data.enabled = enabled;
   data.selected = selected;
   data.expanded = expanded;

@@ -122,7 +122,7 @@ AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible�
 
 `SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected、expanded 与 focusable；可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded 的 None 表示没有该状态。focusable 缺省 false；只有数据源明确知道该项有真实聚焦目标时设为 true，不从名称或角色猜测。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
 
-快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count 与 properties。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
+快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count、properties 与缺省为 1 的 span；普通条目的 span 为 1，表格单元格用它表达连续列跨度。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
 
 `AccessibilityNode.collection` 暂存一个可选快照，用于 List 或 Table；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生并缓存轻量条目代理，不预建 count 个对象或完整子 ID 数组。发布数据变化时只复核已经产生的代理 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
 
@@ -134,11 +134,17 @@ AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；
 
 `SemanticGrid` 给 Table 集合提供稳定列 key、标题及可选实际表头引用，并通过 `(rowKey, columnIndex)` 查询轻量单元格描述。行身份仍属于集合，单元格身份由行 key 和列 key 组成；索引只表示当前坐标。查询不构造 cell View，未知描述返回 Unavailable；列或行删除永久退休对应旧代理。已挂载单元格用 `SemanticTableCell` 声明真实行列位置与跨度，`SemanticTableSize` 描述静态表格尺寸。窗口层不缓存第二份业务表格。Table 和 List 共用集合的发布、按需代理及明确操作边界。
 
+跨列集合可传 `SemanticGrid.span = Some { rowKey, columnIndex -> SemanticGridSpan(column, columnSpan) }`。缺省每列独立；回调给出包含被查询列的锚点索引和正跨度，同一跨度内所有列须返回同一范围。范围不能超出当前 columns，查询时检查负值、零跨度、溢出、当前边界及包含关系，不枚举行列矩阵。`cellForKey` 返回锚点的 key、index、span 和 describe 元数据；describe 只读取锚点。行列重排或跨列关系变化通过新快照发布。此能力只跨列，不合并不同行。
+
+AppKit 按被查询列解析到同一锚点代理，行子项只列出一次锚点；离屏 ColumnIndexRange 也使用声明的真实跨度。被覆盖的旧独立单元格退休，取消跨列后不会复活旧代理。挂载内容仍以锚点 columnKey 对应唯一的真实单元格，几何与关联表头沿实际挂载读取；未挂载时没有估算 Frame。未声明 span 的集合沿原有按需单列查询路径，不为枚举列代理额外读取每格描述。
+
 ### 3.5 虚拟条目的明确操作
 
 `AccessibilityNode.collectionActions` 接受 `SemanticCollectionActions(realize, reveal, focus, setSelected)`，用于 List 或 Table。前两项是可选 `(SemanticItemKey) -> SemanticActionResult` 回调，focus 为可选 `(SemanticItemKey, Boolean) -> SemanticActionResult` 回调。能力随 collection 一同发布；动作重新按当前有效快照解析 key，经过相同 owner、模态、祖先 enabled／hidden 和退休边界。描述暂不可用或 key 已删除时返回 Unavailable，disabled 返回 Rejected；没有相应回调或条目未声明 focusable 时返回 Unsupported。
 
 表格可另传 `SemanticCollectionActions.grid = Some(SemanticGridActions(...))`：realize／reveal 回调接收行 key、列 key，focus 再接收 Boolean。每次调用同时检查当前行和列，单元格禁用或未声明 focusable 时沿相同结果规则处理。单元格动作不会降级为同一行的动作；列重排保留 key，删除后复用同 key 不复活旧代理。Realize 的 Completed 要求目标单元格及其语义子树已经发布，Reveal 和 Focus 仍分别等待真实可见几何与活动焦点。
+
+跨列单元格的动作先在当前快照解析锚点，再把锚点列 key 交给上述回调；对被覆盖列的查询和操作不能构造第二个控件或改变被覆盖列的独立业务值。
 
 Realize 的 Completed 表示实际行及其当前语义子树已挂载并发布，原生同步调用返回之前不得回收；它不承诺几何、滚动或焦点。Reveal 只有真实 Accepted 场景中目标已具有有效可见区域时才 Completed，准备或等待呈现期间为 Busy。Focus 选择该项实际支持的焦点目标，以实际活动键盘焦点完成；清除请求仍指向该 key 的真实目标，请求之间的先后与取消遵循原焦点控制器。窗口不在前台时，不把逻辑焦点或排队请求当作实际活动焦点。
 

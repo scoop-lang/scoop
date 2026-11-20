@@ -102,8 +102,17 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
 }
 - (NSRange)accessibilityColumnIndexRange {
   NSInteger index = self.columnIndex;
-  return self.isAccessibilityElement ? NSMakeRange((NSUInteger)index, 1)
-                                     : NSMakeRange(NSNotFound, 0);
+  if (!self.isAccessibilityElement)
+    return NSMakeRange(NSNotFound, 0);
+  if (self.row.collection.state.collectionActions & 128) {
+    SWAccessibilityItemData *data = self.data;
+    if (data)
+      return NSMakeRange((NSUInteger)data.index, (NSUInteger)data.span);
+  }
+  SWAccessibilityNode *mounted = self.mounted;
+  if (mounted)
+    return mounted.accessibilityColumnIndexRange;
+  return NSMakeRange((NSUInteger)index, 1);
 }
 - (NSArray *)accessibilityColumnHeaderUIElements {
   NSInteger index = self.columnIndex;
@@ -169,9 +178,9 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
   if (column == NSNotFound)
     return NO;
   return [self.row.collection query:operation
-                             index:column
-                               key:self.row.key
-                             reply:nil] == 1 &&
+                              index:column
+                                key:self.row.key
+                              reply:nil] == 1 &&
          self.isAccessibilityElement;
 }
 - (BOOL)realizeAccessibilityCell {
@@ -218,9 +227,22 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
 
 @implementation SWAccessibilityVirtualItem (Grid)
 - (id)cellForKey:(id)key {
-  if (!self.isAccessibilityElement ||
-      columnIndex(self.collection.state, key) == NSNotFound)
+  NSInteger index = columnIndex(self.collection.state, key);
+  if (!self.isAccessibilityElement || index == NSNotFound)
     return nil;
+  SWAccessibilityItemData *data = nil;
+  if (self.collection.state.collectionActions & 128) {
+    data = [SWAccessibilityItemData new];
+    if ([self.collection query:11 index:index key:self.key reply:data] == 1) {
+      key = data.key;
+    } else {
+      // Focus publication can refer to an actual anchor while owner queries are
+      // busy.
+      if (!mountedCell([self.collection mountedRow:self.key], key))
+        return nil;
+      data = nil;
+    }
+  }
   if (!self.cells)
     self.cells = [NSMapTable strongToStrongObjectsMapTable];
   SWAccessibilityVirtualCell *cell = [self.cells objectForKey:key];
@@ -230,22 +252,44 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
     cell.key = key;
     [self.cells setObject:cell forKey:key];
   }
+  if (data) {
+    cell.cached = data;
+    cell.revision = self.collection.state.collectionRevision;
+  }
   return cell;
 }
 - (NSArray *)gridCells {
   NSMutableArray *result = [NSMutableArray new];
-  for (SWAccessibilityColumnData *column in self.collection.state.gridColumns) {
+  SWAccessibilityState *state = self.collection.state;
+  for (NSUInteger index = 0; index < state.gridColumns.count;) {
+    SWAccessibilityColumnData *column = state.gridColumns[index];
     id cell = [self cellForKey:column.key];
     if (cell)
       [result addObject:cell];
+    SWAccessibilityItemData *data =
+        state.collectionActions & 128
+            ? ((SWAccessibilityVirtualCell *)cell).cached
+            : nil;
+    index =
+        data ? MAX(index + 1, (NSUInteger)(data.index + data.span)) : index + 1;
   }
   return result;
 }
 - (void)refreshCells {
   for (SWAccessibilityVirtualCell *cell in self.cells.objectEnumerator
            .allObjects) {
-    if (self.retired ||
-        columnIndex(self.collection.state, cell.key) == NSNotFound) {
+    NSInteger index = columnIndex(self.collection.state, cell.key);
+    BOOL covered = NO;
+    if (!self.retired && index != NSNotFound &&
+        (self.collection.state.collectionActions & 128)) {
+      SWAccessibilityItemData *data = [SWAccessibilityItemData new];
+      covered = [self.collection query:16
+                                 index:index
+                                   key:self.key
+                                 reply:data] == 1 &&
+                ![data.key isEqual:cell.key];
+    }
+    if (self.retired || index == NSNotFound || covered) {
       cell.retired = YES;
       cell.cached = nil;
       [self.cells removeObjectForKey:cell.key];
