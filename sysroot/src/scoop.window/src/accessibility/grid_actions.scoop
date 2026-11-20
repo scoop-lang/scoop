@@ -1,0 +1,31 @@
+package scoop.window.accessibility
+
+internal fun performGridCell(
+    source: SemanticCollectionSnapshot,
+    actions: SemanticGridActions?,
+    row: SemanticItemKey,
+    column: Long,
+    operation: Int
+): SemanticActionResult {
+    val grid = source.grid ?: return SemanticActionResult.Unsupported
+    if (column < 0L || column >= grid.columns.size)
+        return SemanticActionResult.Unavailable
+    val key = grid.columns[column].key
+    val cell =
+        when (source.cellForKey(row, key)) {
+            case Found(val value) -> value
+            else -> return SemanticActionResult.Unavailable
+        }
+    if (!cell.properties.enabled)
+        return SemanticActionResult.Rejected
+    if ((operation == 14 || operation == 15) && !cell.properties.focusable)
+        return SemanticActionResult.Unsupported
+    val callbacks = actions ?: return SemanticActionResult.Unsupported
+    return when (operation) {
+        case 12 -> callbacks.realize?.invoke(row, key) ?: SemanticActionResult.Unsupported
+        case 13 -> callbacks.reveal?.invoke(row, key) ?: SemanticActionResult.Unsupported
+        case 14 -> callbacks.focus?.invoke(row, key, true) ?: SemanticActionResult.Unsupported
+        case 15 -> callbacks.focus?.invoke(row, key, false) ?: SemanticActionResult.Unsupported
+        else -> SemanticActionResult.Unsupported
+    }
+}

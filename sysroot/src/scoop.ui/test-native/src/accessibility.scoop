@@ -30,6 +30,16 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             return NativeNode(nativeChild(pointer, index)!!)
         }
     }
+    public fun cell(row: Long, column: Long): NativeNode? {
+        @Unsafe
+        {
+            return when (nativeCell(pointer, row, column)) {
+                case Some(val found) -> Some(NativeNode(found))
+                case None -> None
+            }
+        }
+    }
+    public fun same(other: NativeNode): Boolean = pointer == other.pointer
     public fun parent(expected: NativeNode): Boolean {
         @Unsafe
         {
@@ -265,6 +275,9 @@ private fun nativeChild(node: Ptr<Unit>, index: Long): Ptr<Unit>?
 
 @Extern(name = "scoop_ui_ax_parent")
 private fun nativeParent(node: Ptr<Unit>, parent: Ptr<Unit>): Int
+
+@Extern(name = "scoop_ui_ax_cell")
+private fun nativeCell(node: Ptr<Unit>, row: Long, column: Long): Ptr<Unit>?
 
 @Extern(name = "scoop_ui_ax_text")
 private fun nativeText(node: Ptr<Unit>, field: Int, text: Ptr<UInt8>?, length: Long): Int

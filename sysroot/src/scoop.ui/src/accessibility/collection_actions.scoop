@@ -59,6 +59,10 @@ internal fun semanticCollectionActions(handle: SemanticsHandle): SemanticCollect
                 case None -> None
             }
             case None -> None
+        },
+        when (handle.collectionItems?.grid ?: None) {
+            case Some(_) -> Some(semanticGridActions(handle))
+            case None -> None
         }
     )
 }

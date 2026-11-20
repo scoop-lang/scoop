@@ -75,6 +75,10 @@ public fun SemanticsHandle.updateDataCollection(
                     value -> controller.perform(this) { action(key, value) }
                 };
                 case None -> None
+            },
+            when (actions.grid) {
+                case Some(val grid) -> Some(wrappedGridActions(this, grid))
+                case None -> None
             }
         )
     controller.changed()
@@ -145,7 +149,7 @@ public fun SemanticsHandle.updateCollection(
                     },
                 grid =
                     when (items) {
-                        case Some(val value) -> value.grid;
+                        case Some(val value) -> readonlyGrid(value.grid);
                         case None -> None
                     }
             )
@@ -159,6 +163,51 @@ public fun SemanticsHandle.updateCollection(
     lazy.bindSemantics(this)
     controller.changed()
 }
+
+private fun readonlyGrid(grid: SemanticGrid?): SemanticGrid? =
+    when (grid) {
+        case Some(val value) -> Some(
+            SemanticGrid(
+                value.columns,
+                {
+                    row,
+                    column -> evaluateUi<SemanticItemProperties?>(None) {
+                        value.describe(row, column)
+                    }
+                }
+            )
+        )
+        case None -> None
+    }
+
+private fun wrappedGridActions(
+    table: SemanticsHandle,
+    actions: SemanticGridActions
+): SemanticGridActions =
+    SemanticGridActions(
+        when (actions.realize) {
+            case Some(val action) -> Some {
+                row,
+                column -> table.controller.perform(table) { action(row, column) }
+            }
+            case None -> None
+        },
+        when (actions.reveal) {
+            case Some(val action) -> Some {
+                row,
+                column -> table.controller.perform(table) { action(row, column) }
+            }
+            case None -> None
+        },
+        when (actions.focus) {
+            case Some(val action) -> Some {
+                row,
+                column,
+                focused -> table.controller.perform(table) { action(row, column, focused) }
+            }
+            case None -> None
+        }
+    )
 
 internal fun semanticItemKey(key: ViewKey): SemanticItemKey =
     when (key) {

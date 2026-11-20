@@ -112,6 +112,12 @@ VirtualList 提供可选 itemSemantics，并默认绑定自身实际 ScrollViewp
 
 存在同挂载 LazyFocus 且描述明确声明 focusable 的条目支持 Focus；沿既有按 key 焦点搜索选择首个真实目标，必要时准备和显露。Completed 只对应目标子树中真实活动的键盘焦点，已登记但未完成为 Busy；不直接激活系统窗口。清除只显式取消该 key 的在途条目请求，并向该 key 的真实目标发起 clearFocus；不把目标转发到另一行，focusRevision 与请求替换遵守既有控制器规则。行内任意控件的操作继续由实际控件自身提供，数据描述不代替其 handler。
 
+### 6.3 表格单元格与列虚拟化
+
+带 `ItemSemantics.grid` 的 Table 同时提供按行、列 key 的 Realize／Reveal／Focus。整行内容已挂载时按 `SemanticTableCell.columnKey` 找到实际单元格；行内还按列虚拟化时，在该列 LazyElement 的 onMount 中调用 `scope.bindGridColumns(table, rowKey)`。table 必须属于当前行的祖先 LazyElement，rowKey 必须是该实际行的 key；列 ItemSource 使用与 SemanticGrid 一致的显式列 key。登记由该 scope 拥有，卸载自动撤下，不为离屏行预建登记或单元格矩阵。
+
+明确动作先沿现有 LazyChildren 准备目标行，再在已登记的列容器准备目标列；两个条目均在同步动作返回前保留。Realize 不滚动或聚焦。Reveal 在原 SemanticRevealController 中保留这两个实际条目，将它们纳入既有 pinnedItems，并沿目标单元格的 Accepted 滚动路径推进；后来的滚动、删除、禁用、换绑、根关闭和替换请求均执行原取消规则。Focus 优先使用该实际单元格声明的 focus 回调，未声明时使用绑定的真实 FocusTarget；未完成布局时返回 Busy，清除只影响该格子树内的焦点及请求。元数据描述继续只读，不触发准备或视口移动。
+
 ## 7. 验证边界
 
 用真实第三方 Element 验证无 InputArea 的文本、多节点、透明挂载、子项路由、重排／角色替换、最新 handler、禁用／隐藏／模态限制、自删与关根、跨根错误和旧对象退休。无 drawable 的属性更新必须独立验证；场景缓存命中、Accepted／Discarded、裁剪、未放置和属性与候选帧不匹配必须通过实际场景验证。

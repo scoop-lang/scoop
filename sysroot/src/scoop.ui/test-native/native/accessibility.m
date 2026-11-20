@@ -146,9 +146,18 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
     return [node accessibilityVerticalScrollBar] != nil;
   case 14:
     return [node accessibilityCustomActions].count == 1;
+  case 15:
+    return [node accessibilityCustomActions].count == 2;
+  case 16:
+    return [node isAccessibilitySelectorAllowed:@selector(setAccessibilityFocused:)];
   default:
     return 0;
   }
+}
+
+void *scoop_ui_ax_cell(void *pointer, int64_t row, int64_t column) {
+  id node = (__bridge id)pointer;
+  return (__bridge_retained void *)[node accessibilityCellForColumn:column row:row];
 }
 
 int32_t scoop_ui_ax_frame(void *pointer, void *view, double x, double y,
@@ -313,6 +322,16 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
         break;
       case 18:
         result = [node accessibilityPerformCancel];
+        break;
+      case 19: {
+        NSArray *actions = [node accessibilityCustomActions];
+        result = selectionStart >= 0 && (uint64_t)selectionStart < actions.count
+                     ? performCustomAction(actions[(NSUInteger)selectionStart])
+                     : 0;
+        break;
+      }
+      case 20:
+        result = 1;
         break;
       default:
         result = -1;

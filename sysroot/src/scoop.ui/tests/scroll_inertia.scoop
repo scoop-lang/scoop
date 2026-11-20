@@ -1,6 +1,5 @@
 package scoop.ui
 
-import scoop.platform.time.MonotonicInstant
 import scoop.graphics.Point
 import scoop.math.abs
 import scoop.platform.time.MonotonicTimeSource
@@ -8,11 +7,12 @@ import scoop.test.*
 import scoop.time.*
 import scoop.window.InputTime
 
-private fun contactTime(milliseconds: Long): InputTime =
-    InputTime.Event(MonotonicInstant(MonotonicTimeSource, Duration.milliseconds(milliseconds)))
-
 @Test
 private class ScrollInertiaTest {
+    private val origin = MonotonicTimeSource.now()
+    private fun contactTime(milliseconds: Long): InputTime =
+        InputTime.Event(origin + Duration.milliseconds(milliseconds))
+
     @Test
     fun `contact velocity uses recent timestamps and forgets holds duplicate and reversed time`() {
         val value = ScrollVelocity()

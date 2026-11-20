@@ -437,6 +437,12 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(value)
         return value
     }
+    /** Binds this row's actual lazy column container to its ancestor table collection. */
+    public fun bindGridColumns(table: SemanticsHandle, row: ViewKey) {
+        checkMounted()
+        checkSemanticsMutation()
+        managed.add(SemanticGridColumns(table, row, node))
+    }
     public fun animation(initial: Double): Animatable<Double> =
         animation(initial, AnimationConverters.DoubleValue)
     public fun animation(initial: Point): Animatable<Point> =

@@ -9,6 +9,13 @@ public struct SemanticGridColumn(
     val header: SemanticNodeId? = None
 )
 
+/** Explicit operations address one stable row and column, independently of their positions. */
+public struct SemanticGridActions(
+    val realize: ((SemanticItemKey, SemanticItemKey) -> SemanticActionResult)? = None,
+    val reveal: ((SemanticItemKey, SemanticItemKey) -> SemanticActionResult)? = None,
+    val focus: ((SemanticItemKey, SemanticItemKey, Boolean) -> SemanticActionResult)? = None
+)
+
 /** Describes cells from the collection's immutable data snapshot, without building views. */
 public class SemanticGrid public constructor(
     public val columns: Array<SemanticGridColumn>,

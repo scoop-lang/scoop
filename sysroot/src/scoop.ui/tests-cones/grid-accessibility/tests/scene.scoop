@@ -1,0 +1,96 @@
+package scoop.tests.ui.gridaccessibility
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+
+internal class AxGridScene(private val probe: AxGridProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val rows = probe.rows.value
+        return element(
+            rows,
+            { props, mount -> AxGridPanel(probe, props, mount) },
+            [
+                element(
+                    rows,
+                    { props, mount -> AxGridRoot(probe, props, mount) },
+                    [lazyElement(rows, rows, { props, mount -> AxTable(props, mount) })]
+                ),
+                element({ mount -> AxOutside(probe, mount) })
+            ]
+        )
+    }
+}
+
+internal class AxLayout(val scroll: ScrollLayout)
+
+private class AxGridPanel(
+    private val probe: AxGridProbe,
+    private val props: Props<AxRows>,
+    scope: ComponentScope
+): Element<AxRows>(scope) {
+    init {
+        probe.frame = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        AxRows
+    > {
+        context.measureChild(0L, Constraints.tight(Size(280.0, 180.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints.tight(Size(280.0, 32.0)))
+        context.placeChild(1L, Point(0.0, 188.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 220.0))), props.value)
+    }
+    public override fun scene(context: SceneContext, rows: AxRows) {
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted(rows)
+        }
+    }
+}
+
+private class AxGridRoot(
+    private val probe: AxGridProbe,
+    private val props: Props<AxRows>,
+    scope: ComponentScope
+): Element<AxLayout>(scope) {
+    private val viewport = scope.scrollViewport(probe.scroll)
+    init {
+        probe.viewport = Some(viewport)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        AxLayout
+    > {
+        val rows = props.value
+        val scroll =
+            viewport.layout(
+                Size(280.0, 180.0),
+                Size(rows.columnCount.toDouble() * 80.0, rows.count.toDouble() * 24.0)
+            )
+        val layout = AxLayout(scroll)
+        context.measureChild(0L, Constraints.tight(scroll.snapshot.content), LayoutInput(layout))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 180.0))), layout)
+    }
+    public override fun scene(context: SceneContext, layout: AxLayout) {
+        viewport.present(context, layout.scroll, Some { content -> content.children() })
+    }
+}
+
+private class AxOutside(private val probe: AxGridProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area, FocusOptions(Some(probe.outside)))
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 32.0))), Unit)
+    public override fun scene(context: SceneContext, value: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.3, 0.6, 0.3))) }
+    }
+}

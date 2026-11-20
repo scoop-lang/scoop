@@ -1,0 +1,199 @@
+package scoop.ui
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.window.accessibility.*
+
+/** Exists only for an actual mounted row with lazy columns. */
+internal class SemanticGridColumns(
+    private val table: SemanticsHandle,
+    val row: ViewKey,
+    val node: MountedNode
+): Closeable {
+    val items =
+        node.lazyItems ?:
+            throw IllegalArgumentException(Some("grid columns require a lazy element"))
+    private var closed = false
+    val active: Boolean get() = !closed && node.active && table.active
+    init {
+        table.checkOpen()
+        requireUi(table.role == SemanticRole.Table, "grid columns require a table collection")
+        val rows =
+            table.owner.lazyItems ?:
+                throw IllegalArgumentException(Some("grid columns require an ancestor lazy table"))
+        val entry =
+            rows.entryContaining(node) ?:
+                throw IllegalArgumentException(
+                    Some("grid columns must belong to an actual table row")
+                )
+        requireUi(entry.key == row, "grid column row key differs from its actual row")
+        requireUi(!(table.gridColumns[row]?.active ?: false), "row already has grid columns")
+        table.gridColumns[row] = this
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        when (table.gridColumns[row]) {
+            case Some(val current) -> if (current === this)
+                table.gridColumns.remove(row)
+            case None -> {}
+        }
+    }
+}
+
+internal fun semanticGridActions(table: SemanticsHandle): SemanticGridActions =
+    SemanticGridActions(
+        Some { row, column -> performSemanticCell(table, row, column, 12) },
+        when (table.collectionViewport) {
+            case Some(_) -> Some { row, column -> performSemanticCell(table, row, column, 13) }
+            case None -> None
+        },
+        Some {
+            row,
+            column,
+            focused -> performSemanticCell(
+                table,
+                row,
+                column,
+                if (focused)
+                    14
+                else
+                    15
+            )
+        }
+    )
+
+private class CellOperation {
+    var row: SemanticItemRetention? = None
+    var column: SemanticItemRetention? = None
+}
+
+private fun performSemanticCell(
+    table: SemanticsHandle,
+    row: SemanticItemKey,
+    column: SemanticItemKey,
+    operation: Int
+): SemanticActionResult {
+    val retained = CellOperation()
+    try {
+        val result =
+            table.controller.perform(table) {
+                val rows = table.owner.lazyItems ?: return@perform SemanticActionResult.Unavailable
+                val rowKey = itemViewKey(row)
+                val index = rows.indexOf(rowKey) ?: return@perform SemanticActionResult.Unavailable
+                if (operation == 15) {
+                    val entry = rows.entry(rowKey) ?: return@perform SemanticActionResult.Completed
+                    val cell =
+                        findSemanticCell(entry.node, column) ?:
+                            return@perform SemanticActionResult.Completed
+                    return@perform focusSemanticCell(cell, false)
+                }
+                val entry =
+                    prepareUi<LazyItemEntry> {
+                        rows.prepare(table.owner, index, MonotonicTimeSource.now())
+                    }
+                if (!table.active || !entry.node.active)
+                    return@perform SemanticActionResult.Unavailable
+                retained.row = Some(SemanticItemRetention(entry))
+                val binding = table.gridColumns[rowKey]
+                var cellNode = entry.node
+                var columnEntry: LazyItemEntry? = None
+                when (binding) {
+                    case Some(val bound) -> {
+                        if (!bound.active)
+                            return@perform SemanticActionResult.Unavailable
+                        val at =
+                            bound.items.indexOf(itemViewKey(column)) ?:
+                                return@perform SemanticActionResult.Unavailable
+                        val child =
+                            prepareUi<LazyItemEntry> {
+                                bound.items.prepare(bound.node, at, MonotonicTimeSource.now())
+                            }
+                        if (!child.node.active)
+                            return@perform SemanticActionResult.Unavailable
+                        retained.column = Some(SemanticItemRetention(child))
+                        cellNode = child.node
+                        columnEntry = Some(child)
+                    }
+                    case None -> {}
+                }
+                val cell =
+                    findSemanticCell(cellNode, column) ?:
+                        return@perform SemanticActionResult.Unavailable
+                return@perform when (operation) {
+                    case 12 -> SemanticActionResult.Completed
+                    case 13 -> table.controller.revealCell(table, entry, cell, columnEntry, column)
+                    case 14 -> {
+                        table.controller.cancelReveal()
+                        focusSemanticCell(cell, true)
+                    }
+                    else -> SemanticActionResult.Unsupported
+                }
+            }
+        if (
+            !table.active ||
+                !(retained.row?.entry?.node?.active ?: true) ||
+                !(retained.column?.entry?.node?.active ?: true)
+        )
+            return SemanticActionResult.Unavailable
+        return result
+    } catch (ended: UiLayoutEnded) {
+        return SemanticActionResult.Unavailable
+    } finally {
+        retained.column?.close()
+        retained.row?.close()
+    }
+}
+
+private fun findSemanticCell(node: MountedNode, column: SemanticItemKey): SemanticsHandle? {
+    if (!node.active)
+        return None
+    for (handle in node.semanticHandles)
+        if (handle.active && (handle.properties.cell?.columnKey ?: None) == Some(column))
+            return Some(handle)
+    for (handle in node.semanticHandles)
+        if (handle.active && handle.role == SemanticRole.Table)
+            return None
+    for (child in node.children) {
+        val found = findSemanticCell(child, column)
+        when (found) {
+            case Some(_) -> return found
+            case None -> {}
+        }
+    }
+    return None
+}
+
+private fun focusSemanticCell(cell: SemanticsHandle, focused: Boolean): SemanticActionResult {
+    if (!cell.active)
+        return SemanticActionResult.Unavailable
+    if (cell.merged || !cell.owner.scope.input.isInputAllowed)
+        return SemanticActionResult.Rejected
+    var ancestor: SemanticsHandle? = Some(cell)
+    while (true) {
+        val handle = ancestor ?: break
+        if (!handle.active || handle.properties.hidden || !handle.properties.enabled)
+            return SemanticActionResult.Rejected
+        ancestor = handle.parent
+    }
+    when (cell.actions.focus) {
+        case Some(val action) -> return action(focused)
+        case None -> {}
+    }
+    if (!focused) {
+        for (target in focusOrder(cell.owner))
+            if (target.handle.hasFocus || target.handle.isPending)
+                target.handle.clearFocus()
+        return SemanticActionResult.Completed
+    }
+    for (target in focusOrder(cell.owner))
+        if (target.handle.isFocusActive)
+            return SemanticActionResult.Completed
+    val target = cell.focus ?: return SemanticActionResult.Unsupported
+    if (!target.handle.requestFocus())
+        return SemanticActionResult.Rejected
+    return if (target.handle.isFocusActive)
+        SemanticActionResult.Completed
+    else
+        SemanticActionResult.Busy
+}

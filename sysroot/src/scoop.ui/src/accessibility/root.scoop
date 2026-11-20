@@ -179,6 +179,13 @@ internal class RootSemantics(
     fun reveal(handle: SemanticsHandle): SemanticActionResult = reveals.request(handle)
     fun revealItem(parent: SemanticsHandle, entry: LazyItemEntry): SemanticActionResult =
         reveals.requestItem(parent, entry)
+    fun revealCell(
+        parent: SemanticsHandle,
+        entry: LazyItemEntry,
+        cell: SemanticsHandle,
+        columnEntry: LazyItemEntry?,
+        column: SemanticItemKey
+    ): SemanticActionResult = reveals.requestCell(parent, entry, cell, columnEntry, column)
     fun cancelCollectionReveal(parent: SemanticsHandle) {
         reveals.cancelCollection(parent)
     }
