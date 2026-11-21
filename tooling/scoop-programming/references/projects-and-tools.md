@@ -157,6 +157,8 @@ VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Pee
 
 在普通文件私有函数的调用处，`Inline Function` 可展开表达式体或末尾返回值的块体，保留该处原有求值顺序。
 
+非泛型内部类或文件私有类的普通 final 方法可用于提取接口、提取父类，或在同文件的直接父子类之间上下移。重构菜单按实际签名和已有使用处判断动作是否可用。
+
 `Organize Imports` 删除未使用的普通精确导入。`Scoop: Move Declaration` 可在同一 Cone、同一 package 中移动顶层函数。`Scoop: Change Signature` 为文件私有函数调整参数顺序并保留调用处的求值顺序。
 
 ## 测试和诊断

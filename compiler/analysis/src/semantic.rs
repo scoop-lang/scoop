@@ -21,6 +21,8 @@ mod implementations;
 pub use implementations::{MemberHierarchy, MemberImplementationSearch, TypeImplementationSearch};
 mod inline_function;
 mod inline_local;
+mod member_refactor;
+pub use member_refactor::MemberRefactoring;
 mod move_declaration;
 mod organize_imports;
 mod project;

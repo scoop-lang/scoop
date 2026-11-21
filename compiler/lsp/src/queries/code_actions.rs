@@ -4,8 +4,8 @@ use lsp_types::{
     OptionalVersionedTextDocumentIdentifier, Range, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
 use scoop_analysis::{
-    AnalysisSnapshot, Cancellation, DeclarationExtraction, ProjectAnalysisError, SafeDelete,
-    SemanticSession, SourceId, SourceInput, SyntaxFix,
+    AnalysisSnapshot, Cancellation, DeclarationExtraction, MemberRefactoring, ProjectAnalysisError,
+    SafeDelete, SemanticSession, SourceId, SourceInput, SyntaxFix,
 };
 use scoop_source::{SourceEdit, Span};
 use serde::{Deserialize, Serialize};
@@ -52,22 +52,30 @@ enum Refactoring {
     ExtractConstant,
     ExtractProperty,
     ExtractParameter,
+    ExtractInterface,
+    ExtractSuperclass,
     InlineVariable,
     InlineFunction,
+    PullMembersUp,
+    PushMembersDown,
     SafeDelete,
     OrganizeImports,
 }
 
 impl Refactoring {
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 14] = [
         Self::ExtractVariable,
         Self::ExtractFunction,
         Self::ExtractTypeAlias,
         Self::ExtractConstant,
         Self::ExtractProperty,
         Self::ExtractParameter,
+        Self::ExtractInterface,
+        Self::ExtractSuperclass,
         Self::InlineVariable,
         Self::InlineFunction,
+        Self::PullMembersUp,
+        Self::PushMembersDown,
         Self::SafeDelete,
         Self::OrganizeImports,
     ];
@@ -79,9 +87,13 @@ impl Refactoring {
             | Self::ExtractTypeAlias
             | Self::ExtractConstant
             | Self::ExtractProperty
-            | Self::ExtractParameter => CodeActionKind::REFACTOR_EXTRACT,
+            | Self::ExtractParameter
+            | Self::ExtractInterface
+            | Self::ExtractSuperclass => CodeActionKind::REFACTOR_EXTRACT,
             Self::InlineVariable | Self::InlineFunction => CodeActionKind::REFACTOR_INLINE,
-            Self::SafeDelete => CodeActionKind::REFACTOR_REWRITE,
+            Self::SafeDelete | Self::PullMembersUp | Self::PushMembersDown => {
+                CodeActionKind::REFACTOR_REWRITE
+            }
             Self::OrganizeImports => CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
         }
     }
@@ -94,11 +106,27 @@ impl Refactoring {
             Self::ExtractConstant => "Extract Constant",
             Self::ExtractProperty => "Extract Property",
             Self::ExtractParameter => "Extract Parameter",
+            Self::ExtractInterface => "Extract Interface",
+            Self::ExtractSuperclass => "Extract Superclass",
             Self::InlineVariable => "Inline Local Variable",
             Self::InlineFunction => "Inline Function",
+            Self::PullMembersUp => "Pull Members Up",
+            Self::PushMembersDown => "Push Members Down",
             Self::SafeDelete => "Safe Delete Function",
             Self::OrganizeImports => "Organize Imports",
         }
+    }
+
+    fn requires_selection(self) -> bool {
+        matches!(
+            self,
+            Self::ExtractVariable
+                | Self::ExtractFunction
+                | Self::ExtractTypeAlias
+                | Self::ExtractConstant
+                | Self::ExtractProperty
+                | Self::ExtractParameter
+        )
     }
 }
 
@@ -132,8 +160,7 @@ pub(crate) fn actions(
         .filter(|target| {
             (!matches!(target, Refactoring::OrganizeImports) || query.context.only.is_some())
                 && requested(&query.context, &target.kind())
-                && (query.range.start != query.range.end
-                    || target.kind() != CodeActionKind::REFACTOR_EXTRACT)
+                && (query.range.start != query.range.end || !target.requires_selection())
         })
         .collect::<Vec<_>>();
     if !quickfix && refactors.is_empty() {
@@ -321,6 +348,24 @@ fn refactor(
             check,
         ))?
         .map(|edit| vec![edit]),
+        Refactoring::ExtractInterface
+        | Refactoring::ExtractSuperclass
+        | Refactoring::PullMembersUp
+        | Refactoring::PushMembersDown => {
+            let kind = match target {
+                Refactoring::ExtractInterface => MemberRefactoring::ExtractInterface,
+                Refactoring::ExtractSuperclass => MemberRefactoring::ExtractSuperclass,
+                Refactoring::PullMembersUp => MemberRefactoring::PullUp,
+                _ => MemberRefactoring::PushDown,
+            };
+            analysis_result(semantics.refactor_members(
+                context.snapshot,
+                context.source_id,
+                range,
+                kind,
+                check,
+            ))?
+        }
         Refactoring::OrganizeImports => {
             analysis_result(semantics.organize_imports(context.snapshot, context.source_id, check))?
         }

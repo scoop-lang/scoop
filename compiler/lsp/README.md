@@ -151,6 +151,8 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `Inline Function` 在所选调用处展开同文件中的普通私有函数，支持表达式体和末尾返回值的块体。显式实参在原位置按源码顺序各求值一次，随后按声明顺序求值省略的默认实参。原声明及其他调用处保留。
 
+`Extract Interface` 从选中的普通 final 方法生成接口并保留原实现。`Extract Superclass` 将方法及其注释移动到新建的无状态父类。`Pull Members Up` 和 `Push Members Down` 沿同文件中的直接类继承关系移动方法。适用于非泛型内部类或文件私有类，编辑前会核对原有用法及移动正文的绑定。
+
 `source.organizeImports` 去除已确认未使用的普通文件头精确 import。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在同一 Cone 和 package 移动普通顶层函数。`scoop/prepareChangeSignature` 返回 `parameters` 和 `revision`，`scoop/changeSignature` 接收该 revision 与零基 `order` 排列。移动和参数换序返回版本化 workspace edit。
 
 开发验证使用 `cargo test -p scoop-analysis -p scoop-lsp`；LSP 集成测试启动真实 `scoop-lsp` 进程，检查传输、状态变化和查询结果。运行时将 `TMPDIR` 指向仓库外工作目录，测试工作文件遵守同一设置。
