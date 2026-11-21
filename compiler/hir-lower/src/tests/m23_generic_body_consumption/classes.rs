@@ -10,6 +10,50 @@ fn fixture(name: &str) -> String {
 }
 
 #[test]
+fn imported_default_can_load_a_class_that_inherits_it() {
+    let provider = r#"
+package test.provider
+
+public interface Value<T> {
+    public fun read(fallback: T): T {
+        val box = Box<T>(fallback)
+        return box.item
+    }
+}
+
+public class Box<T> public constructor(public val item: T): Value<T>
+"#;
+    let consumer = r#"
+package test.consumer
+import test.provider.Value
+
+public fun use(value: Value<Int>): Int = value.read(7)
+"#;
+    with_provider_consumer(provider, consumer, |output, _, _, _, _| {
+        let export = output.output().export.module();
+        let class = export
+            .loaded_class_definitions
+            .values()
+            .find(|entry| entry.declaration.name() == "Box")
+            .expect("the imported default body loads its local class type");
+        let methods = &class.definition.interface_implementations[0].methods;
+        let hir::InterfaceImplementationTarget::ImportedTemplate(application) = methods[0].target
+        else {
+            panic!("Box inherits the imported default implementation");
+        };
+        let application = &export.imported_generic_applications[application];
+        assert!(application.requirements.is_empty());
+        assert_eq!(
+            export.imported_generic_templates[application.template]
+                .signature
+                .name,
+            "read"
+        );
+    })
+    .unwrap();
+}
+
+#[test]
 fn source_and_dependency_class_instances_share_fields_bases_and_interfaces() {
     for case in ["standalone", "combined"] {
         with_provider_consumer(
