@@ -28,8 +28,17 @@ public struct SemanticItemProperties(
     val enabled: Boolean = true,
     val selected: Boolean? = None,
     val expanded: Boolean? = None,
-    val focusable: Boolean = false
+    val focusable: Boolean = false,
+    /** Zero-based hierarchy depth; absent for collections without a hierarchy. */
+    val hierarchyLevel: Long? = None
 )
+
+private fun checkItemProperties(properties: SemanticItemProperties) {
+    when (properties.hierarchyLevel) {
+        case Some(val level) -> requireWindow(level >= 0L, "negative semantic hierarchy level")
+        case None -> {}
+    }
+}
 
 /** Explicit item operations, separate from immutable metadata queries. */
 public struct SemanticCollectionActions(
@@ -37,7 +46,8 @@ public struct SemanticCollectionActions(
     val reveal: ((SemanticItemKey) -> SemanticActionResult)? = None,
     val focus: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None,
     val setSelected: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None,
-    val grid: SemanticGridActions? = None
+    val grid: SemanticGridActions? = None,
+    val setExpanded: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None
 )
 
 /** An immutable selection snapshot whose size is proportional to the selection. */
@@ -137,6 +147,7 @@ public class SemanticCollectionSnapshot public constructor(
 
     private fun described(key: SemanticItemKey, index: Long): SemanticItemResult {
         val properties = source.describe(index) ?: return SemanticItemResult.Unavailable
+        checkItemProperties(properties)
         val actual =
             when (selection) {
                 case Some(val selected) -> SemanticItemProperties(
@@ -147,7 +158,8 @@ public class SemanticCollectionSnapshot public constructor(
                     properties.enabled,
                     Some(selected.contains(key)),
                     properties.expanded,
-                    properties.focusable
+                    properties.focusable,
+                    properties.hierarchyLevel
                 )
                 case None -> properties
             }
@@ -161,6 +173,7 @@ public class SemanticCollectionSnapshot public constructor(
         val index = table.indexOf(column) ?: return SemanticItemResult.NotFound
         val span = table.resolveSpan(row, index)
         val properties = table.describe(row, span.column) ?: return SemanticItemResult.Unavailable
+        checkItemProperties(properties)
         return SemanticItemResult.Found(
             SemanticItem(
                 table.columns[span.column].key,

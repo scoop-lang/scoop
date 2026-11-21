@@ -9,7 +9,8 @@ public class ItemSemantics public constructor(
     public val search: SemanticItemSearch = SemanticItemSearch(),
     public val selection: SemanticCollectionSelection? = None,
     public val setSelected: ((ViewKey, Boolean) -> SemanticActionResult)? = None,
-    public val grid: SemanticGrid? = None
+    public val grid: SemanticGrid? = None,
+    public val setExpanded: ((ViewKey, Boolean) -> SemanticActionResult)? = None
 )
 
 private class LazySemanticSource(
@@ -78,6 +79,13 @@ public fun SemanticsHandle.updateDataCollection(
             },
             when (actions.grid) {
                 case Some(val grid) -> Some(wrappedGridActions(this, grid))
+                case None -> None
+            },
+            when (actions.setExpanded) {
+                case Some(val action) -> Some {
+                    key,
+                    value -> controller.perform(this) { action(key, value) }
+                }
                 case None -> None
             }
         )

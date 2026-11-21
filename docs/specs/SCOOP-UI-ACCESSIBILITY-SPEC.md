@@ -110,6 +110,8 @@ grapheme 范围使用语义正文的原边界；词、视觉行和逻辑行从�
 
 VirtualList 提供可选 itemSemantics，并默认绑定自身实际 ScrollViewport；已有 ScrollArea、ScrollBar 和行内控件继续使用自身语义，不重复业务选择状态。普通元数据查询不会触发 Realize／Reveal／Focus。
 
+层级行通过 `SemanticItemProperties.hierarchyLevel` 声明从零开始的深度，通过 expanded 区分可展开行与普通叶项。`ItemSemantics.setExpanded` 接受稳定 ViewKey 与目标 Boolean，经现有 owner 动作边界调用应用模型；离屏行同样可执行，不要求 build 或取得焦点。`updateDataCollection` 对应的 `SemanticCollectionActions.setExpanded` 使用相同包装与资源寿命。原生能力随当前快照更新，禁用、删除、卸载及旧代理仍由 Window 的统一边界处理。
+
 ### 6.2 Lazy 条目操作与暂时保留
 
 集合默认提供 Realize：经正常 owner 动作边界按 key 调用既有 LazyChildren 准备、挂载和语义发布，临时保留实例直到同步回调结束。仅创建所请求的行，不改变滚动位置或焦点；尚无 Accepted 场景时几何仍不可用。回调结束后恢复普通回收规则，不因原生代理或子对象被保留而固定整个 View。

@@ -269,6 +269,8 @@ public class AccessibilityProvider internal constructor(
             return SemanticActionResult.Rejected
         if ((operation == 5 || operation == 6) && !item.properties.focusable)
             return SemanticActionResult.Unsupported
+        if ((operation == 17 || operation == 18) && item.properties.expanded == None)
+            return SemanticActionResult.Unsupported
         val actions = node.itemActions
         val result =
             if (operation >= 12 && operation <= 15)
@@ -289,6 +291,10 @@ public class AccessibilityProvider internal constructor(
                             SemanticActionResult.Unsupported
                         case None -> SemanticActionResult.Unsupported
                     }
+                    case 17 -> actions.setExpanded?.invoke(key, true) ?:
+                        SemanticActionResult.Unsupported
+                    case 18 -> actions.setExpanded?.invoke(key, false) ?:
+                        SemanticActionResult.Unsupported
                     else -> SemanticActionResult.Unsupported
                 }
         if (!closed && owner.phase == WindowState.Open)
