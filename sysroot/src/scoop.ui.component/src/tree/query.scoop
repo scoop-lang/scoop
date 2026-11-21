@@ -1,0 +1,91 @@
+package scoop.ui.component
+
+import scoop.charset.unicodeCasefold
+import scoop.collections.HashMap
+import scoop.collections.HashSet
+import scoop.collections.sortWith
+import scoop.comparisons.comparatorOf
+import scoop.text.contains
+import scoop.ui.ViewKey
+
+internal class TreeOrder<T>(
+    val data: TreeData<T>,
+    val definition: TreeColumns<T>?,
+    val sorting: TableSort?
+) {
+    private val groups = HashMap<Long, Array<Long>>()
+    private val roots = ordered(data.rootIndices)
+    init {
+        when (sorting) {
+            case Some(_) ->
+                for (index in 0L..<data.count) {
+                    val children = data.records[index].children
+                    if (children.size > 1L) groups[index] = ordered(children)
+                }
+            case None -> {}
+        }
+    }
+    fun children(parent: Long?): Array<Long> = when (parent) {
+        case Some(val index) -> groups[index] ?: data.records[index].children
+        case None -> roots
+    }
+    private fun ordered(indices: Array<Long>): Array<Long> {
+        val sort = sorting ?: return indices
+        if (indices.size < 2L) return indices
+        val compare = definition!!.column(sort.column).compare!!
+        val result = ArrayList<Long>()
+        for (index in indices)
+            result.add(index)
+        result
+            .sortWith(
+                comparatorOf<Long> { left, right ->
+                    val first = data.records[left].node.value
+                    val second = data.records[right].node.value
+                    val value = if (sort.direction == TableSortDirection.Ascending)
+                        compare(first, second)
+                    else
+                        compare(second, first)
+                    if (value != 0)
+                        value.toLong()
+                    else if (left < right) -1L else if (left > right) 1L else 0L
+                }
+            )
+        return result.toArray()
+    }
+}
+
+internal class TreeMatches<T>(val data: TreeData<T>, val query: TreeQuery<T>) {
+    val matched = HashSet<ViewKey>()
+    val included = HashSet<Long>()
+    val expanded = HashSet<ViewKey>()
+    val active = query.text != ""
+    init {
+        if (active) {
+            val folded = unicodeCasefold(query.text)
+            for (index in 0L..<data.count) {
+                val node = data.records[index].node
+                val matches = when (query.matches) {
+                    case Some(val test) -> test(node, query.text)
+                    case None -> unicodeCasefold(node.label).contains(folded)
+                }
+                if (!matches) continue
+                matched.add(node.key)
+                included.add(index)
+                var parent = data.records[index].parent
+                while (true) {
+                    val at = parent ?: break
+                    expanded.add(data.records[at].node.key)
+                    if (!included.add(at)) break
+                    parent = data.records[at].parent
+                }
+            }
+        }
+    }
+    fun includes(index: Long): Boolean = !active ||
+        query.mode !=
+        TreeQueryMode.Filter ||
+        included.contains(index)
+    fun expands(key: ViewKey): Boolean = active &&
+        (query.mode == TreeQueryMode.Filter || query.expandMatches) &&
+        expanded.contains(key)
+}

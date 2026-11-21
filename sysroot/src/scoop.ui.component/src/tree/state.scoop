@@ -1,0 +1,312 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+/** Application-owned tree state; bindings remain the only truth for controlled values. */
+public class TreeState<T> public constructor(
+    data: TreeData<T>,
+    columns: TreeColumns<T>? = None,
+    public val selection: TreeSelectionMode = TreeSelectionMode.Single,
+    public val checking: TreeChecking = TreeChecking.Off,
+    initialExpandedKeys: Array<ViewKey> = [],
+    initialSelectedKeys: Array<ViewKey> = [],
+    initialExpandAll: Boolean = false,
+    initialExpandParent: Boolean = true,
+    expanded: Binding<Array<ViewKey>>? = None,
+    selected: Binding<Array<ViewKey>>? = None,
+    initialQuery: TreeQuery<T> = TreeQuery<T>(),
+    query: Binding<TreeQuery<T>>? = None,
+    columnState: Binding<TreeColumnState<T>>? = None,
+    private val onExpand: (TreeKeyChange<T>) -> Unit = { _ -> },
+    private val onSelect: (TreeKeyChange<T>) -> Unit = { _ -> },
+    onCheck: (TreeCheckChange<T>) -> Unit = { _ -> },
+    onColumnsChange: (TreeColumnChange<T>) -> Unit = { _ -> }
+) {
+    private val dataStore = state(data)
+    private val expansion = expanded ?:
+        state(
+            treeInitialExpansion(data, initialExpandedKeys, initialExpandAll, initialExpandParent)
+        )
+            .binding()
+    private val choice = selected ?:
+        state(treeSelectionKeys(initialSelectedKeys, selection)).binding()
+    private val queryInput = query ?: state(initialQuery).binding()
+    private val columnModel = TreeColumnModel(
+        columnState ?: state(TreeColumnState(columns)).binding(),
+        { dataStore.checkMutation() }, onColumnsChange
+    )
+    private val checks = TreeChecks(
+        checking,
+        { dataStore.value },
+        { dataStore.checkMutation() },
+        onCheck
+    )
+    private val range = TreeRangeSelection()
+    private var expandedMemo: TreeKeySnapshot? = None
+    private var selectedMemo: TreeKeySnapshot? = None
+    private var orderMemo: TreeOrder<T>? = None
+    private var matchMemo: TreeMatches<T>? = None
+    private var projectionMemo: TreeProjectionCache<T>? = None
+
+    init {
+        treeUniqueKeys(expansion.value)
+        treeSelectionKeys(choice.value, selection)
+    }
+
+    public val data: TreeData<T> get() = dataStore.value
+    public val expandedKeys: Array<ViewKey> get() = expandedSnapshot().unique
+    public val selectedKeys: Array<ViewKey> get() = selectedSnapshot().unique
+    public val query: TreeQuery<T> get() = queryInput.value
+    public val columnState: TreeColumnState<T> get() = columnModel.value
+    public val columns: TreeColumns<T>? get() = columnState.columns
+    public val visibleColumns: Array<TreeColumn<T>> get() = columnState.visibleColumns
+    public val sort: TableSort? get() = columnState.sorting
+    public val checkedKeys: Array<ViewKey> get() = checks.value.checkedKeys
+    public val halfCheckedKeys: Array<ViewKey> get() = checks.value.halfCheckedKeys
+    public val checkValue: TreeCheckValue get() = checks.value
+
+    /** Replaces loaded data without pruning application-owned expansion, selection or check keys. */
+    public fun replaceData(value: TreeData<T>) {
+        dataStore.checkMutation()
+        if (dataStore.value !== value) dataStore.value = value
+    }
+    public fun pathTo(key: ViewKey): Array<ViewKey>? = data.pathTo(key)
+    public fun isExpanded(key: ViewKey): Boolean = expandedSnapshot().lookup.contains(key)
+    public fun isSelected(key: ViewKey): Boolean = selectedSnapshot().lookup.contains(key)
+    public fun checkState(key: ViewKey): CheckState = checks.state(key)
+    public fun setQuery(value: TreeQuery<T>): Boolean {
+        dataStore.checkMutation()
+        if (queryInput.value !== value) queryInput.value = value
+        return queryInput.value === value
+    }
+
+    /** Restores expansion keys, optionally adding known ancestors for this update only. */
+    public fun setExpanded(
+        keys: Array<ViewKey>,
+        expandAncestors: Boolean = false,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean {
+        dataStore.checkMutation()
+        return writeExpansion(treeExpandedAncestors(data, keys, expandAncestors), None, origin)
+    }
+
+    /** Changes an enabled branch and reports whether the controlled binding accepted its state. */
+    public fun setExpanded(
+        key: ViewKey,
+        expanded: Boolean,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean {
+        dataStore.checkMutation()
+        val node = data.node(key) ?: return false
+        if (!node.enabled || !node.expandable) return false
+        if (isExpanded(key) == expanded) return true
+        val next = treeChangedKey(expandedKeys, key, expanded)
+        writeExpansion(next, Some(key), origin)
+        return isExpanded(key) == expanded
+    }
+    public fun setSelected(
+        keys: Array<ViewKey>,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean {
+        dataStore.checkMutation()
+        val result = writeSelection(keys, None, origin)
+        range.reset()
+        return result
+    }
+    /** Applies a selection gesture in projected row order; focus is only a fallback range anchor. */
+    public fun select(
+        key: ViewKey,
+        action: TreeSelectionAction = TreeSelectionAction.Replace,
+        focused: ViewKey? = None,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean {
+        dataStore.checkMutation()
+        val node = data.node(key) ?: return false
+        if (selection == TreeSelectionMode.None || !node.canSelect) return false
+        if ((action == TreeSelectionAction.Range || action == TreeSelectionAction.AddRange) &&
+            projection.indexOfKey(key) ==
+            None
+        )
+            return false
+        val current = selectedKeys
+        val plan = range
+            .plan(
+                projection, current, key,
+                if (selection == TreeSelectionMode.Single && action != TreeSelectionAction.Toggle)
+                    TreeSelectionAction.Replace
+                else
+                    action,
+                focused,
+                selection
+            )
+        val accepted = writeSelection(plan.keys, Some(key), origin)
+        if (accepted) range.accept(plan, selectedKeys)
+        return accepted
+    }
+    public fun setChecked(
+        key: ViewKey,
+        value: Boolean,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = checks.set(key, value, origin)
+    /** Restores cascade intents. Use setChecks for independent checked and mixed values. */
+    public fun setCheckedKeys(
+        keys: Array<ViewKey>,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = checks.replaceCascade(keys, origin)
+    /** Replaces the complete independent check value; cascade mode derives mixed ancestors itself. */
+    public fun setChecks(
+        value: TreeCheckValue,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = checks.replaceIndependent(value, origin)
+
+    /** Atomically replaces column definitions and retains valid state by id; None restores implicit columns. */
+    public fun replaceColumns(
+        columns: TreeColumns<T>?,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = columnModel.replace(columns, origin)
+    public fun setColumnVisible(
+        id: String,
+        visible: Boolean,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = columnModel.show(id, visible, origin)
+    /** Constrains a logical width to the column's bounds; a controlled binding may reject it. */
+    public fun resizeColumn(
+        id: String,
+        width: Double,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = columnModel.resize(id, Some(width), origin)
+    public fun resetColumnWidth(
+        id: String,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = columnModel.resize(id, None, origin)
+    public fun setSort(
+        value: TableSort?,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = columnModel.sort(value, origin)
+    public fun toggleSort(
+        id: String,
+        origin: TreeChangeOrigin = TreeChangeOrigin.Programmatic
+    ): Boolean = columnModel.toggleSort(id, origin)
+
+    /** Memoized visible rows. Selection, checking, visibility and width changes preserve this snapshot. */
+    public val projection: TreeProjection<T>
+        get() {
+            val current = data
+            val expansion = expandedSnapshot()
+            val columnState = this.columnState
+            val definition = columnState.columns
+            var order = orderMemo
+            val sameOrder = when (order) {
+                case Some(val old) -> {
+                    val sameDefinition = when ((old.definition, definition)) {
+                        case(Some(val a), Some(val b)) -> a === b
+                        case(None, None) -> true
+                        else -> false
+                    }
+                    old.data === current && sameDefinition && old.sorting == columnState.sorting
+                }
+
+                case None -> false
+            }
+            if (!sameOrder) {
+                order = Some(TreeOrder(current, definition, columnState.sorting))
+                orderMemo = order
+            }
+            val query = this.query
+            var matches = matchMemo
+            val sameMatches = when (matches) {
+                case Some(val old) -> old.data === current && old.query === query
+                case None -> false
+            }
+            if (!sameMatches) {
+                matches = Some(TreeMatches(current, query))
+                matchMemo = matches
+            }
+            when (projectionMemo) {
+                case Some(val previous) ->
+                    if (previous.order ===
+                        order!! &&
+                        previous.matches ===
+                        matches!! &&
+                        previous.expanded ===
+                        expansion
+                    )
+                        return previous.projection
+                case None -> {}
+            }
+            val result = TreeProjectionCache(order!!, matches!!, expansion)
+            projectionMemo = Some(result)
+            return result.projection
+        }
+
+    private fun expandedSnapshot(): TreeKeySnapshot {
+        val keys = expansion.value
+        when (expandedMemo) {
+            case Some(val old) -> if (old.keys === keys) return old
+            case None -> {}
+        }
+        val result = TreeKeySnapshot(keys)
+        expandedMemo = Some(result)
+        return result
+    }
+    private fun selectedSnapshot(): TreeKeySnapshot {
+        val keys = choice.value
+        when (selectedMemo) {
+            case Some(val old) -> if (old.keys === keys) return old
+            case None -> {}
+        }
+        treeSelectionKeys(keys, selection)
+        val result = TreeKeySnapshot(keys)
+        selectedMemo = Some(result)
+        return result
+    }
+    private fun writeExpansion(
+        keys: Array<ViewKey>,
+        key: ViewKey?,
+        origin: TreeChangeOrigin
+    ): Boolean {
+        dataStore.checkMutation()
+        val before = expandedKeys
+        if (treeKeysEqual(before, keys)) return true
+        expansion.value = keys
+        val actual = expandedKeys
+        if (!treeKeysEqual(before, actual))
+            onExpand(TreeKeyChange(key, nodeAt(key), actual, origin))
+        return treeKeysEqual(actual, keys)
+    }
+    private fun writeSelection(
+        keys: Array<ViewKey>,
+        key: ViewKey?,
+        origin: TreeChangeOrigin
+    ): Boolean {
+        val next = treeSelectionKeys(keys, selection)
+        val before = selectedKeys
+        if (treeKeysEqual(before, next)) return true
+        choice.value = next
+        val actual = selectedKeys
+        if (!treeKeysEqual(before, actual))
+            onSelect(TreeKeyChange(key, nodeAt(key), actual, origin))
+        return treeKeysEqual(actual, next)
+    }
+    private fun nodeAt(key: ViewKey?): TreeNode<T>? = when (key) {
+        case Some(val value) -> data.node(value)
+        case None -> None
+    }
+}
+
+internal fun treeSelectionKeys(keys: Array<ViewKey>, mode: TreeSelectionMode): Array<ViewKey> {
+    val unique = treeUniqueKeys(keys)
+    requireComponent(
+        mode != TreeSelectionMode.Single || unique.size <= 1L,
+        "single tree selection accepts at most one key"
+    )
+    return unique
+}
+
+internal fun treeChangedKey(keys: Array<ViewKey>, key: ViewKey, included: Boolean): Array<ViewKey> {
+    val result = ArrayList<ViewKey>()
+    for (value in keys)
+        if (value != key) result.add(value)
+    if (included) result.add(key)
+    return result.toArray()
+}

@@ -1,5 +1,27 @@
 # 自绘基础控件
 
+`TreeData<T>`、`TreeState<T>` 提供与挂载无关的树模型：显式唯一 `ViewKey`、已知／待加载子项、展开投影、单／多选、级联／独立勾选及 Unicode 查询。`TreeColumns<T>(columns, treeColumn)` 把同一节点分成多列，树列可位于任意位置；`TreeColumnState<T>` 将定义、隐藏列、宽度覆盖和同级排序作为一次原子更新。当前模型可单独使用，Tree 的界面入口仍在实施，进度见[Tree 实施记录](../../../docs/ui/tree/PROGRESS.md)。
+
+```kotlin
+import scoop.ui.ViewKey
+import scoop.ui.component.*
+
+fun documentTree(): TreeState<String> = TreeState(
+    TreeData([
+        TreeNode(ViewKey.Text("src"), "src", "源码", TreeChildren.Known([
+            TreeNode(ViewKey.Text("main"), "src/main.scoop", "main.scoop")
+        ]))
+    ]),
+    selection = TreeSelectionMode.Multiple,
+    checking = TreeChecking.Cascade(),
+    initialExpandAll = true
+)
+```
+
+`projection` 只展平当前可见行；展开和查询变化重建投影，选择、勾选、调宽与显隐继续复用它。`TreeQuery(text, TreeQueryMode.Filter)` 暂时保留命中及祖先并展开路径，清除查询恢复原展开值；不会加载 `TreeChildren.Deferred`。`setExpanded(keys, expandAncestors = true)` 在明确更新时补齐祖先。`setExpanded(key, expanded)`、`select`、`setChecked` 读取 Binding 实际采纳的值后再通知；未知恢复 key 保留到数据接入，删除节点不擅自改写外部选择。级联勾选在 disabled、不可勾选或停用 Checkbox 的节点处停止传播，其后代仍可独立交互；独立勾选用 `TreeChecking.Independent(TreeCheckValue(...))` 同时保存 checked／halfChecked，两组不可重叠。
+
+多列用 `TreeColumn(id, header, cell, size, compare)`，`cell` 接收 `TreeNode<T>`，`compare` 接收两个业务值；只排序同级兄弟，同值保持来源顺序。`setColumnVisible` 不允许隐藏树列，`resizeColumn` 将逻辑宽度限制在 `TableColumnSize` 范围，`resetColumnWidth` 恢复定义。`replaceColumns` 按 ID 保留仍有效的列状态，删除无效排序并约束旧宽度；受控模式通过单一 `Binding<TreeColumnState<T>>` 整体采纳或拒绝。模型测试见 `tests/tree_*.scoop`，覆盖深树、大数据、受控拒绝、勾选边界、过滤与范围选择组合。
+
 Input／Textarea／InputOtp 及其组合包装透传 `primarySelection` 和 `automaticTextReplacement`；后者默认 false。PreferSystem 文本菜单的 `systemServices` 默认 true，可单独关闭；受保护／遮蔽文本不发送到系统检查或 Services。Typography／SelectableStyledText 通过 `SelectableTextOptions.primarySelection` 配置选区导出。`TextTouchOptions.hapticFeedback=false` 关闭长按触觉请求。完整组合入口见[双窗口交互展示](examples/touch-input/README.md)，平台能力与限制见[文本服务核查](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
 
 直接触摸的剩余入口共用 UI 行为：Tooltip／HoverCard 的 `longPress` 默认启用且可配置，图表短按选中数据，侧栏隐藏动作可长按显示，候选列表、输入外边距及组合输入保留普通点击与滚动竞争。Input／Textarea 的 `inputPurpose`、`softwareKeyboard` 同时提供 Props 与 builder；OTP 默认按 Digits 模式提示数字键盘。软键盘的实际遮挡由文本宿主沿原滚动路径处理，不改变选区。用法见[触摸输入示例](examples/touch-input/README.md)；实际设备行为仍需对应平台验收。

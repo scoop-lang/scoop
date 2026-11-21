@@ -1,0 +1,120 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+internal fun treeTestNode(
+    id: Long,
+    children: TreeChildren<Int> = TreeChildren.Leaf,
+    enabled: Boolean = true,
+    selectable: Boolean = true,
+    checkable: Boolean = true,
+    checkboxEnabled: Boolean = true
+): TreeNode<Int> = TreeNode(
+    ViewKey.Number(id),
+    id.toInt(),
+    f"node ${id}",
+    children,
+    enabled,
+    selectable,
+    checkable,
+    checkboxEnabled
+)
+
+internal fun treeTestKeys(ids: Array<Long>): Array<ViewKey> = Array<ViewKey>(ids.size) { index ->
+    ViewKey.Number(ids[index])
+}
+
+internal fun <T> assertTreeRows(projection: TreeProjection<T>, ids: Array<Long>) {
+    assertEquals(ids.size, projection.count)
+    for (index in 0L..<ids.size) {
+        assertEquals(ViewKey.Number(ids[index]), projection.keyAt(index))
+        assertEquals(Some(index), projection.indexOfKey(ViewKey.Number(ids[index])))
+    }
+}
+
+@Test
+private class TreeDataTest {
+    @Test
+    fun `tree snapshots reject duplicate identity and distinguish unloaded empty and leaf nodes`() {
+        val leaf = treeTestNode(2L)
+        val data = TreeData(
+            [
+                treeTestNode(0L, TreeChildren.Known([leaf])),
+                treeTestNode(1L, TreeChildren.Deferred),
+                treeTestNode(3L, TreeChildren.Known([]))
+            ]
+        )
+        assertEquals(4L, data.count)
+        assertFalse(leaf.expandable)
+        assertTrue(data.node(ViewKey.Number(1L))!!.expandable)
+        assertFalse(data.node(ViewKey.Number(3L))!!.expandable)
+        val path = data.pathTo(leaf.key)!!
+        assertEquals(2L, path.size)
+        assertEquals(ViewKey.Number(0L), path[0L])
+        assertEquals(leaf.key, path[1L])
+        assertFalse(panelPresent(data.pathTo(ViewKey.Number(99L))))
+        assertFailsWith<IllegalArgumentException> { TreeNode(ViewKey.Position, 0, "bad") }
+        assertFailsWith<IllegalArgumentException> { TreeData([leaf, leaf]) }
+        assertFailsWith<IllegalArgumentException> {
+            TreeData(
+                [
+                    treeTestNode(0L, TreeChildren.Known([leaf])),
+                    treeTestNode(1L, TreeChildren.Known([leaf]))
+                ]
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            data.withChildren(ViewKey.Number(1L), TreeChildren.Known([leaf]))
+        }
+        assertEquals(4L, data.count)
+        val loaded = data.withChildren(ViewKey.Number(1L), TreeChildren.Known([treeTestNode(4L)]))
+        assertEquals(5L, loaded.count)
+        assertSame(leaf, loaded.node(leaf.key)!!)
+        assertSame(data.roots[0L], loaded.roots[0L])
+        assertNotSame(data.roots[1L], loaded.roots[1L])
+        assertEquals(None, data.indexOfKey(ViewKey.Number(4L)))
+        assertFailsWith<IllegalArgumentException> {
+            data.withChildren(ViewKey.Number(99L), TreeChildren.Leaf)
+        }
+    }
+
+    @Test
+    fun `deep tree indexing replacement and projection use explicit traversal stacks`() {
+        var root = treeTestNode(0L)
+        for (id in 1L..<10001L)
+            root = treeTestNode(id, TreeChildren.Known([root]))
+        val original = TreeData([root])
+        val path = original.pathTo(ViewKey.Number(0L))!!
+        assertEquals(10001L, path.size)
+        assertEquals(ViewKey.Number(10000L), path[0L])
+        assertEquals(ViewKey.Number(0L), path[10000L])
+        val model = TreeState(original, initialExpandAll = true)
+        val projection = model.projection
+        assertEquals(10001L, projection.count)
+        assertEquals(10000L, projection.rowAt(10000L).depth)
+        assertEquals(10001L, projection.rowAt(0L).subtreeEnd)
+        val replaced = original
+            .withChildren(ViewKey.Number(0L), TreeChildren.Known([treeTestNode(-1L)]))
+        assertEquals(10002L, replaced.count)
+        assertEquals(10001L, original.count)
+        assertNotSame(original.roots[0L], replaced.roots[0L])
+        model.replaceData(replaced)
+        // Initialization is not replayed for the newly nonempty former leaf.
+        assertEquals(10001L, model.projection.count)
+        assertTrue(model.setExpanded(ViewKey.Number(0L), true))
+        assertEquals(10002L, model.projection.count)
+    }
+
+    @Test
+    fun `hundred thousand nodes retain the same projection through selection and columnless reads`() {
+        val data = TreeData(Array<TreeNode<Int>>(100000L) { index -> treeTestNode(index) })
+        val model = TreeState(data, selection = TreeSelectionMode.Multiple)
+        val projection = model.projection
+        assertEquals(100000L, projection.count)
+        assertTrue(model.select(ViewKey.Number(99999L)))
+        assertSame(projection, model.projection)
+        assertEquals(Some(99999L), data.indexOfKey(ViewKey.Number(99999L)))
+        assertEquals(0L, model.visibleColumns.size)
+    }
+}

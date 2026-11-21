@@ -18,6 +18,7 @@
 
 | 需求                                              | Cone 与材料                                                                                    |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| GUI 树数据与多列模型 | `scoop.ui.component` 的 `TreeData<T>`／`TreeState<T>` 用显式唯一 ViewKey 表达 Leaf／Known／Deferred 子项；projection 只展平可见节点。展开、选择、级联／独立勾选及 TreeQuery 读取真实 Binding，拒绝不假报成功，未知恢复 key 不被自动清空。TreeColumns(columns, treeColumn) 的树列可在任意位置；TreeColumnState 将定义、隐藏列、宽度与同级稳定排序合为原子值。选择／勾选／调宽不重建投影；查询不加载远程子项。API 与模型示例见 Component README，界面入口的实际交付见 docs/ui/tree/PROGRESS.md。 |
 | GUI 浏览状态直接输入 | `scoop.ui.text` 的 `scope.textInputStarter(area, enabled, onStart)` 接收首个原生 Commit／Preedit，把真实空状态交给回调；采用该状态显示 Input／Textarea／TextEditHost，返回 `Some(TextInputStartOptions(policy, multiline))`，None 拒绝开始。普通焦点进入新宿主时沿 Surface 的 `continueTextInputFrom` 接管同一连接和组合；不要用 LogicalKey.Character 重建首字符。业务取消以及消费可能产生文本的浏览快捷键后调用 starter.cancel，即使首批仍在排队、尚无 pendingState 也会重建空连接；重复取消不重复重启。外部改写、失焦、禁用与卸载清理未接管状态。入口、原生 Unicode／系统拼音及生命周期用例见 UI README 和 `scoop.ui/tests-cones/text-start`。 |
 | Option 类型、值类型、基本容器、StringBuilder、资源协议 | `scoop.core`；`language/*`、`text/strings`、`collections/list`                              |
 | Result 类型、Option/Result 的映射、展平和惰性替代 | `scoop.std` 的 `src/results/`；操作选择见 [design.md](design.md#组合-optionresult保留失败信息) |

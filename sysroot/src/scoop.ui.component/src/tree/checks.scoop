@@ -1,0 +1,147 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.state as treeCheckState
+
+private enum TreeCheckStorage {
+    Off, Cascade(Binding<Array<ViewKey>>), Independent(Binding<TreeCheckValue>)
+}
+
+private class TreeIndependentSnapshot(val value: TreeCheckValue) {
+    val checked = treeKeySet(value.checkedKeys)
+    val half = treeKeySet(value.halfCheckedKeys)
+    fun state(key: ViewKey): CheckState = if (checked.contains(key))
+        CheckState.Checked
+    else if (half.contains(key)) CheckState.Indeterminate else CheckState.Unchecked
+}
+
+internal class TreeChecks<T>(
+    checking: TreeChecking,
+    private val data: () -> TreeData<T>,
+    private val mutation: () -> Unit,
+    private val changed: (TreeCheckChange<T>) -> Unit
+) {
+    private val storage: TreeCheckStorage = when (checking) {
+        case Off -> TreeCheckStorage.Off
+        case Cascade(val initial, val input) ->
+            TreeCheckStorage.Cascade(input ?: treeCheckState(treeUniqueKeys(initial)).binding())
+        case Independent(val initial, val input) ->
+            TreeCheckStorage.Independent(input ?: treeCheckState(initial).binding())
+    }
+    private val empty = TreeCheckValue()
+    private var cascadeMemo: TreeCascadeSnapshot<T>? = None
+    private var independentMemo: TreeIndependentSnapshot? = None
+
+    val value: TreeCheckValue
+        get() = when (storage) {
+            case Off -> empty
+            case Cascade(val input) -> cascade(input.value).value
+            case Independent(val input) -> independent(input.value).value
+        }
+    fun state(key: ViewKey): CheckState = when (storage) {
+        case Off -> CheckState.Unchecked
+        case Cascade(val input) -> cascade(input.value).state(key)
+        case Independent(val input) -> independent(input.value).state(key)
+    }
+    private fun cascade(input: Array<ViewKey>): TreeCascadeSnapshot<T> {
+        val current = data()
+        when (cascadeMemo) {
+            case Some(val previous) ->
+                if (previous.data === current && previous.input === input) return previous
+            case None -> {}
+        }
+        val result = treeCascadeSnapshot(current, input)
+        cascadeMemo = Some(result)
+        return result
+    }
+    private fun independent(value: TreeCheckValue): TreeIndependentSnapshot {
+        when (independentMemo) {
+            case Some(val previous) -> if (previous.value === value) return previous
+            case None -> {}
+        }
+        val result = TreeIndependentSnapshot(value)
+        independentMemo = Some(result)
+        return result
+    }
+    fun set(key: ViewKey, checked: Boolean, origin: TreeChangeOrigin): Boolean {
+        mutation()
+        val current = data()
+        val index = current.indexOfKey(key) ?: return false
+        if (!current.records[index].node.canCheck) return false
+        val desired = if (checked) CheckState.Checked else CheckState.Unchecked
+        if (state(key) == desired)
+            return when (storage) {
+                case Off -> false
+                else -> true
+            }
+        val before = value
+        when (storage) {
+            case Off -> return false
+
+            case Cascade(val input) -> {
+                val previous = cascade(input.value)
+                val change = TreeCascadeChange(previous, index, checked)
+                input.value = change.value.checkedKeys
+                val actual = input.value
+                val stillCurrent = when (cascadeMemo) {
+                    case Some(val snapshot) -> snapshot === previous && snapshot.data === data()
+                    case None -> false
+                }
+                if (stillCurrent && treeKeysEqual(actual, change.value.checkedKeys))
+                    change.accept(actual)
+            }
+
+            case Independent(val input) -> {
+                input.value = TreeCheckValue(
+                    treeChangedKey(before.checkedKeys, key, checked),
+                    treeChangedKey(before.halfCheckedKeys, key, false)
+                )
+            }
+        }
+        notify(before, Some(key), origin)
+        return state(key) == desired
+    }
+    fun replaceCascade(keys: Array<ViewKey>, origin: TreeChangeOrigin): Boolean {
+        mutation()
+        val input = when (storage) {
+            case Cascade(val input) -> input
+            else -> throw IllegalStateException(Some("checked keys require cascade tree checking"))
+        }
+        val next = treeUniqueKeys(keys)
+        val before = value
+        if (treeKeysEqual(treeUniqueKeys(input.value), next)) return true
+        input.value = next
+        val accepted = treeKeysEqual(treeUniqueKeys(input.value), next)
+        notify(before, None, origin)
+        return accepted
+    }
+    fun replaceIndependent(next: TreeCheckValue, origin: TreeChangeOrigin): Boolean {
+        mutation()
+        val input = when (storage) {
+            case Independent(val input) -> input
+            else ->
+                throw IllegalStateException(
+                    Some("complete check values require independent tree checking")
+                )
+        }
+        val before = value
+        if (treeCheckValuesEqual(before, next)) return true
+        input.value = next
+        val accepted = treeCheckValuesEqual(value, next)
+        notify(before, None, origin)
+        return accepted
+    }
+    private fun notify(before: TreeCheckValue, key: ViewKey?, origin: TreeChangeOrigin) {
+        val actual = value
+        if (treeCheckValuesEqual(before, actual)) return
+        val node = when (key) {
+            case Some(val key) -> data().node(key)
+            case None -> None
+        }
+        changed(TreeCheckChange(key, node, actual, origin))
+    }
+}
+
+internal fun treeCheckValuesEqual(left: TreeCheckValue, right: TreeCheckValue): Boolean =
+    treeKeysEqual(left.checkedKeys, right.checkedKeys) &&
+        treeKeysEqual(left.halfCheckedKeys, right.halfCheckedKeys)

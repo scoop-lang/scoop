@@ -1327,3 +1327,41 @@ ImageView、PathView、Spinner 和 Separator 的 Props／builder 提供 `semanti
 可调整宽度的表头为实际拖动区域发布带数值范围的竖向 Separator，名称包含列标题，步进与键盘保持一致；未接受布局时不声称已知当前宽度。最大宽度未设时使用有限 Double 的上限，不将当前窗口宽度当作列宽限制。语义调整经过同一列宽 Binding 并检查采纳结果。Sidebar rail 发布实际展开状态，WindowControls 的最小化／最大化／还原／关闭按钮可通过 semantics 回调命名；Badge、Item 和其他可点击卡片的语义动作复用原 PressControl。
 
 WindowControls 的默认命名函数 `windowControlSemantics(button, maximized)` 为公共函数，应用覆盖个别按钮时可继续调用它处理其余按钮。它只返回 ComponentSemantics，不创建窗口资源或执行窗口操作。
+
+## 54. Tree 数据与状态
+
+Tree 的完整呈现、交互与交付范围见 [Tree 设计](../ui/tree/DESIGN.md)，实际交付见[实施记录](../ui/tree/PROGRESS.md)。本节首先规定模型合同；组件、异步和原生语义随对应实现批次补齐，不将尚未实现的入口视作可用 API。
+
+### 54.1 不可变数据与展开行
+
+`TreeNode<T>(key, value, label, children = Leaf, enabled = true, selectable = true, checkable = true, checkboxEnabled = true, draggable = true)` 保存类型化业务值和显式 ViewKey。`TreeChildren<T>` 为 Leaf、Known(Array<TreeNode<T>>) 或 Deferred；Known 空数组是已加载的空分支，Deferred 才是未加载。节点不保存标题 View。enabled=false 停用该节点的用户动作，不隐式禁用后代；细分资格可表达可展开但不能选择／勾选／拖动的节点。
+
+`TreeData<T>(roots)` 在新快照边界迭代建立 O(N) 的 key、父项、深度、同级位置和子树范围索引，拒绝 Position、重复 key、循环或共享挂入；同名节点合法。不会递归使用与深度成正比的调用栈。`node(key)`、`indexOfKey(key)` 和 `pathTo(key)` 只访问已知数据，未知项返回 None。`withChildren(key, children)` 返回新的完整快照，仅重建目标及祖先节点，保留其余节点引用；未知父 key 或重复新 key 报参数错误，原快照不变。
+
+`TreeState<T>` 持有数据、展开、选择、勾选、查询和列状态。`replaceData` 明确替换数据，不按隐藏或删除结果擅自清空应用的展开／选择／勾选值；未知 key 可保留作待加载恢复值，但不产生可见行。所有明确动作先检查 owner 线程及 State 的可写阶段，render／measure／scene／原生只读查询不得调用它们。
+
+展开、选择、级联勾选分别可接收 key 数组 Binding；独立勾选使用完整 TreeCheckValue 的 Binding；查询和列状态也可整体绑定。无 Binding 时仅初始化一次本地 State；有 Binding 时其值是唯一真相。写入后读回采纳值，只有实际变化才通知。动作返回是否达到请求状态，被拒绝的值不先显示成功；单项用户动作拒绝未知或相应资格禁用的节点。整体恢复值允许包含未知、禁用节点，不把它们转化为用户动作。回调使用 TreeChangeOrigin 的 Programmatic／Pointer／Keyboard／Accessibility 和类型化节点，不参与第二条写入路径。
+
+`initialExpandAll` 只展开初始已知的非空／Deferred 分支；`initialExpandParent` 默认 true，只扩充初始 keys 的祖先。`setExpanded(keys, expandAncestors = false)` 可在本次动作显式扩充祖先，后续手动折叠不因残留的后代 key 再次打开。Leaf／Known 空分支没有可展开行；数据接入不会重放初始化开关。
+
+`TreeProjection<T>` 是只读展开行快照，包含节点、父行索引、深度、同级位置、有效展开状态及可见子树的排除末端。data／展开／查询／排序变化才构建 O(V) 的当前 V 行投影；滚动、选择、勾选、列调宽及显隐复用原投影。连接线与吸顶沿父行索引查询，不为每行复制完整祖先数组。按 key 的行查找不扫描挂载 View。
+
+### 54.2 查询与列
+
+`TreeQuery<T>` 含 text、Highlight／Filter 模式、expandMatches 及可选类型化 matches。默认匹配对节点 label 和查询做 Unicode casefold 后执行包含判断。Highlight 只标记命中，expandMatches 可临时展开祖先；Filter 保留命中及祖先并临时展开通路。清空查询恢复存储的展开状态，不写回展开 Binding；只搜索已加载数据，不构建单元格或触发加载。查询结果只在数据或查询快照变化时重算。
+
+`TreeColumns<T>(columns, treeColumn)` 是非空、列 id 唯一、包含指定树列的不可变定义。`TreeColumn<T>` 包含稳定 String id、header 文字兼默认无障碍名称、cell(TreeNode<T>)、可选 headerView、semanticText、TableColumnSize、alignment、hideable、resizable 与可选业务值 compare(T,T)。只有树列负责层级控件，其他列保持原始单元格；树列不限于物理第一列。
+
+`TreeColumnState<T>` 将列定义、hiddenColumns、widths 和单列 TableSort 合为一个可整体绑定的不可变值，构造时检查列引用、重复状态、宽度范围及排序能力。TreeState 的 replaceColumns、setColumnVisible、resizeColumn、resetColumnWidth、setSort／toggleSort 通过该值一次写入并读回，绑定拒绝时保留实际采纳值。树列不可隐藏，非 hideable／resizable 列拒绝对应用户操作。更换定义保留仍有效的同 ID 状态，按新范围收敛宽度，移除失效的隐藏／宽度／排序项；整个更新也可以被绑定拒绝。显式列模式只剩一列时仍保留定义和表头语义。
+
+排序对每组直接子项分别稳定执行，根节点也是一组；相等时保持来源顺序，降序不翻转相等项。先排序同级，再展开和过滤，不能排序整个展开数组。比较只读取业务数据；数据、排序或列定义变化才更新同级顺序。宽度／显隐状态变化不会重跑比较或搜索；隐藏排序列不取消已生效排序。
+
+### 54.3 选择与勾选
+
+TreeSelectionMode 为 None／Single／Multiple，Single 的恢复值最多一个 key。明确的 setSelected 恢复值独立于焦点；单项 select 支持 Replace／Toggle／Range／AddRange。Range 在当前投影中取锚点到目标，跳过不可选择项。连续范围动作复用开始时的基线；反向缩短不累加旧范围。锚点离开投影后取实际焦点 key 或目标作为新锚点。折叠及过滤不主动裁掉已存的隐藏选择。
+
+`TreeChecking.Off` 不提供用户勾选动作；`Cascade(initialKeys = [], binding = None)` 只接收 checked keys；`Independent(initial = TreeCheckValue(), binding = None)` 接收 checked／halfChecked，二者不得重叠。TreeState 的 checkState 返回既有 CheckState 三态，setChecked(key, value) 沿配置操作；完整恢复用 setCheckedKeys 或 setChecks，错误策略调用报状态错误。
+
+级联向下传播勾选意图、向上汇总：enabled=false、checkable=false、checkboxEnabled=false 均为传播边界，排除该分支且不穿透其后代；边界自身的外部值照常显示。没有可参与子项时保留自身意图，不从空集自动选中。取消子项须同时移除祖先的全选 key，后续读取不能从旧父 key 重新选回。用户操作只更新相关子树和祖先的勾选结果，序列输出允许按结果数量物化；外部完整值或数据变化允许 O(N) 重算。过滤不改变基础树的勾选范围。
+
+Deferred 父项的 checked key 保存分支意图，不发起加载；后续以 withChildren／replaceData 接入的可传播子项继承最新意图，再汇总三态。独立模式只改目标 key，Mixed 的用户激活转为 Checked。变化通知携实际 resolved checked／halfChecked 值；被拒绝的勾选不改缓存结果或通知成功。
