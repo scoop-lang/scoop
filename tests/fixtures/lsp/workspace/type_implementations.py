@@ -1,4 +1,4 @@
-"""Implementation navigation follows checked, shared nominal relationships."""
+"""Implementation navigation and type hierarchy follow checked nominal relationships."""
 
 
 def check(peer, root):
@@ -22,6 +22,10 @@ def check(peer, root):
         "typealias Saved = Contract<Boolean>\n"
         "fun usingContract(value: Saved): Contract<Boolean> = value\n"
         "fun damagedContract(value: Contract<Boolean>) { value. }\n"
+        "interface Apex {}\n"
+        "interface Left : Apex {}\n"
+        "interface Right : Apex {}\n"
+        "class Diamond : Left, Right {}\n"
     )
     other = root / "src/unrelatedImplementations.scoop"
     for file, text in [
@@ -42,9 +46,9 @@ def check(peer, root):
             },
         )
 
-    def query(file, text, line, name):
+    def query(file, text, line, name, method="textDocument/implementation"):
         return peer.request(
-            "textDocument/implementation",
+            method,
             {
                 "textDocument": {"uri": file.as_uri()},
                 "position": {"line": line, "character": text.splitlines()[line].index(name)},
@@ -84,6 +88,29 @@ def check(peer, root):
     assert query(path, source, 5, "Value") == []
     assert query(path, source, 8, "usingContract") is None
 
+    prepare = "textDocument/prepareTypeHierarchy"
+
+    def expand(item, direction):
+        return peer.request(f"typeHierarchy/{direction}", {"item": item})
+
+    [contract] = query(path, source, 8, "Saved", prepare)
+    assert (contract["name"], contract["kind"]) == ("契约", 11), contract
+    assert contract["selectionRange"] == location(provider, library, 1, "契约")["range"]
+    assert query(path, source, 7, "Saved", prepare) == [contract]
+    [middle, value] = expand(contract, "subtypes")
+    assert [middle["name"], value["name"]] == ["Middle", "Value"]
+    assert expand(value, "subtypes") == []
+    assert [node["name"] for node in expand(middle, "supertypes")] == ["契约"]
+    [base, singleton] = expand(middle, "subtypes")
+    assert [base["name"], singleton["name"]] == ["Base", "Singleton"]
+    assert [node["name"] for node in expand(base, "subtypes")] == ["Existing", "Local"]
+    [local] = query(path, source, 4, "Local", prepare)
+    assert [node["name"] for node in expand(local, "supertypes")] == ["Base"]
+    [apex] = query(path, source, 10, "Apex", prepare)
+    [diamond] = query(path, source, 13, "Diamond", prepare)
+    assert [node["name"] for node in expand(apex, "subtypes")] == ["Left", "Right"]
+    assert [node["name"] for node in expand(diamond, "supertypes")] == ["Left", "Right"]
+
     updated = source.replace("class Local : Base<Boolean>() {}", "class Local {}")
     peer.notify(
         "textDocument/didChange",
@@ -92,6 +119,10 @@ def check(peer, root):
             "contentChanges": [{"text": updated}],
         },
     )
+    pending = peer.send_request("typeHierarchy/subtypes", {"item": base})
+    peer.response(pending, error_code=-32801)
+    [new_base] = query(path, updated, 3, "Base", prepare)
+    assert [node["name"] for node in expand(new_base, "subtypes")] == ["Existing"]
     verify(query(provider, library, 1, "契约"), [item for item in expected if item != expected[3]])
     peer.notify("textDocument/didClose", {"textDocument": {"uri": path.as_uri()}})
     verify(query(provider, library, 1, "契约"), expected)

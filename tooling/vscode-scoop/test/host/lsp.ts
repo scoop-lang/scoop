@@ -174,6 +174,18 @@ export async function runLanguageServerTests() {
   assert.ok(selections?.[0].parent);
 
   const api = await vscode.workspace.openTextDocument(apiUri);
+  const hierarchy = await vscode.commands.executeCommand<
+    vscode.TypeHierarchyItem[]
+  >("vscode.prepareTypeHierarchy", useUri, at(document, "Marked"));
+  assert.equal(hierarchy?.length, 1);
+  assert.equal(hierarchy?.[0].name, "Marked");
+  const supertypes = await vscode.commands.executeCommand<
+    vscode.TypeHierarchyItem[]
+  >("vscode.provideSupertypes", hierarchy?.[0]);
+  assert.deepEqual(
+    supertypes?.map((item) => item.name),
+    ["Marker"],
+  );
   const editor = await vscode.window.showTextDocument(document);
   const member = at(document, "override fun ", true);
   editor.selection = new vscode.Selection(member, member);
@@ -198,6 +210,13 @@ export async function runLanguageServerTests() {
   );
   const extracted = extraction?.find(
     (action) => action.title === "Extract Local Variable",
+  );
+  const extractedFunction = extraction?.find(
+    (action) => action.title === "Extract Function",
+  );
+  assert.match(
+    extractedFunction?.edit?.get(useUri)[0]?.newText ?? "",
+    /fun extractedFunction\(\): Boolean = choose\(flag\)/,
   );
   assert.ok(extracted?.edit);
   assert.ok(await vscode.workspace.applyEdit(extracted.edit));

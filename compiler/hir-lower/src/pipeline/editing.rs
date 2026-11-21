@@ -76,6 +76,7 @@ impl Lowerer {
                     static_variant_references: Vec::new(),
                     static_calls: Vec::new(),
                     type_implementations: None,
+                    direct_type_children: None,
                     member_implementations: None,
                     documentation: None,
                 });
@@ -170,6 +171,7 @@ impl Lowerer {
             static_variant_references: constants.variants,
             static_calls: constants.calls,
             type_implementations: None,
+            direct_type_children: None,
             member_implementations: None,
             documentation,
         })

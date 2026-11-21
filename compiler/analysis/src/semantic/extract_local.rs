@@ -6,10 +6,10 @@ use scoop_hir::{
 use scoop_source::{SourceEdit, Span};
 
 use super::{ProjectAnalysisError, SemanticSession};
-use crate::{AnalysisSnapshot, SnapshotEditError, SourceId};
+use crate::{AnalysisSnapshot, SnapshotEditError, SourceId, SourceInput};
 
 mod syntax;
-use syntax::Selection;
+use syntax::{ExtractionKind, Selection};
 
 impl SemanticSession {
     pub fn extract_local(
@@ -19,11 +19,38 @@ impl SemanticSession {
         range: Span,
         is_cancelled: impl Fn() -> bool + 'static,
     ) -> Result<Option<SourceEdit>, ProjectAnalysisError> {
+        self.extract(snapshot, source_id, range, Selection::find, is_cancelled)
+    }
+
+    pub fn extract_function(
+        &mut self,
+        snapshot: &AnalysisSnapshot,
+        source_id: SourceId,
+        range: Span,
+        is_cancelled: impl Fn() -> bool + 'static,
+    ) -> Result<Option<SourceEdit>, ProjectAnalysisError> {
+        self.extract(
+            snapshot,
+            source_id,
+            range,
+            Selection::find_function,
+            is_cancelled,
+        )
+    }
+
+    fn extract(
+        &mut self,
+        snapshot: &AnalysisSnapshot,
+        source_id: SourceId,
+        range: Span,
+        select: fn(&SourceInput, Span) -> Option<Selection>,
+        is_cancelled: impl Fn() -> bool + 'static,
+    ) -> Result<Option<SourceEdit>, ProjectAnalysisError> {
         snapshot.check_cancelled()?;
         let Some(source) = snapshot.source(source_id)? else {
             return Ok(None);
         };
-        let Some(selection) = Selection::find(source, range) else {
+        let Some(selection) = select(source, range) else {
             return Ok(None);
         };
         let Some(project) = snapshot.workspace.project_for_source(source_id) else {
@@ -73,13 +100,18 @@ impl SemanticSession {
         if moved_callees
             .into_iter()
             .any(|callee| analysis.is_source_location_call(callee))
+            || analysis.has_source_location_default(body.id, selection.expression)
         {
             return Ok(None);
         }
-        let Some((value_type, annotation)) =
-            analysis.expression_type_for_edit(body.id, selection.expression)
-        else {
-            return Ok(None);
+        let statements = selection.kind() == ExtractionKind::FunctionStatements;
+        let expression_type = if statements {
+            None
+        } else {
+            let Some(ty) = analysis.expression_type_for_edit(body.id, selection.expression) else {
+                return Ok(None);
+            };
+            Some(ty)
         };
         let Some(before) = analysis
             .body_reference_index(&body, check.clone())
@@ -87,7 +119,10 @@ impl SemanticSession {
         else {
             return Ok(None);
         };
-        let Some(edit) = selection.edit(source, annotation.as_deref()) else {
+        let annotation = expression_type
+            .as_ref()
+            .and_then(|(_, syntax)| syntax.as_deref());
+        let Some(edit) = selection.edit(source, annotation) else {
             return Ok(None);
         };
         let candidate = match snapshot.with_edits(std::slice::from_ref(&edit.source_edit)) {
@@ -107,13 +142,25 @@ impl SemanticSession {
         else {
             return Ok(None);
         };
-        for span in [edit.initializer, edit.replacement] {
-            if analysis
-                .expression_type_for_edit(body.id, span)
-                .is_none_or(|(ty, _)| ty != value_type)
-            {
-                return Ok(None);
+        if let Some((value_type, _)) = expression_type {
+            for span in [edit.initializer, edit.replacement] {
+                if analysis
+                    .expression_type_for_edit(body.id, span)
+                    .is_none_or(|(ty, _)| ty != value_type)
+                {
+                    return Ok(None);
+                }
             }
+        }
+        if selection.kind() != ExtractionKind::Variable
+            && !analysis.valid_extracted_call(
+                body.id,
+                edit.replacement,
+                Span::new(edit.source_edit.span.start, edit.initializer.start),
+                statements,
+            )
+        {
+            return Ok(None);
         }
         let Some(after) = analysis
             .body_reference_index(&body, check.clone())

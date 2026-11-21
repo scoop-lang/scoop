@@ -220,6 +220,7 @@ def main():
         assert initialized["capabilities"]["referencesProvider"]
         assert initialized["capabilities"]["renameProvider"]["prepareProvider"]
         assert initialized["capabilities"]["experimental"]["scoopSuperDeclarations"]
+        assert initialized["capabilities"]["typeHierarchyProvider"]
         assert (
             "refactor.extract"
             in initialized["capabilities"]["codeActionProvider"]["codeActionKinds"]

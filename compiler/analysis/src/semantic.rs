@@ -19,6 +19,8 @@ pub use references::ReferenceSearch;
 mod rename;
 pub use rename::{RenameError, RenamePreparation};
 mod sources;
+mod type_hierarchy;
+pub use type_hierarchy::{TypeHierarchyDirection, TypeHierarchyNode, TypeHierarchyOrigin};
 
 #[derive(Clone, Debug)]
 pub enum ProjectAnalysisError {

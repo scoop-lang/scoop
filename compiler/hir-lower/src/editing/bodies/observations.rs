@@ -26,6 +26,7 @@ pub(crate) struct BodyObservation {
     pub(super) call_inputs: imbl::HashMap<ast::Span, calls::CallInput>,
     pub(super) argument_maps: imbl::HashMap<ast::Span, calls::CheckedArguments>,
     pub(super) calls: imbl::HashMap<ast::Span, hir::EditingAppliedCall>,
+    pub(super) source_location_defaults: imbl::HashSet<ast::Span>,
     pub(super) selector_inputs: imbl::HashMap<ast::Span, Vec<selectors::SelectorInput>>,
     pub(super) selectors: imbl::HashMap<ast::Span, hir::EditingSelector>,
     pub(super) contexts: imbl::HashMap<hir::SourceContextId, ObservedContext>,
@@ -45,6 +46,7 @@ pub(crate) struct ObservedBody {
     pub(super) selectors: Vec<hir::EditingSelector>,
     pub(super) selector_members: imbl::HashMap<ast::Span, V<hir::EditingMembers>>,
     pub(super) calls: Vec<hir::EditingAppliedCall>,
+    pub(super) source_location_defaults: imbl::HashSet<ast::Span>,
     pub(super) contexts: imbl::HashMap<hir::SourceContextId, ObservedContext>,
 }
 
@@ -84,6 +86,7 @@ impl BodyObservation {
             call_inputs: Default::default(),
             argument_maps: Default::default(),
             calls: Default::default(),
+            source_location_defaults: Default::default(),
             selector_inputs: Default::default(),
             selectors: Default::default(),
             contexts: Default::default(),
@@ -211,6 +214,7 @@ impl BodyObservation {
             selectors,
             selector_members: Default::default(),
             calls,
+            source_location_defaults: self.source_location_defaults,
             contexts: self.contexts,
         }
     }

@@ -147,6 +147,15 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                         semantics,
                         &cancellation,
                     ),
+                    QueryKind::TypeHierarchy(kind) => queries::type_hierarchy::run(
+                        &work.snapshot,
+                        source_id,
+                        &query.uri,
+                        kind,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
                     QueryKind::References {
                         position,
                         include_declaration,

@@ -35,11 +35,19 @@ enum Repair {
         end: u32,
         analysis_revision: u64,
     },
-    ExtractLocal {
+    Extract {
+        target: ExtractionTarget,
         start: u32,
         end: u32,
         analysis_revision: u64,
     },
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+enum ExtractionTarget {
+    Variable,
+    Function,
 }
 
 pub(crate) struct Context<'a> {
@@ -107,7 +115,9 @@ pub(crate) fn actions(
         }
     }
     if extract && range.start != range.end {
-        actions.extend(extract_local(&context, semantics, range)?);
+        for target in [ExtractionTarget::Variable, ExtractionTarget::Function] {
+            actions.extend(extract_selection(&context, semantics, range, target)?);
+        }
     }
     super::json(actions)
 }
@@ -159,7 +169,8 @@ pub(crate) fn resolve(
                 })?;
             super::json(imports::action(&context, repair)?)
         }
-        Repair::ExtractLocal {
+        Repair::Extract {
+            target,
             start,
             end,
             analysis_revision,
@@ -170,9 +181,9 @@ pub(crate) fn resolve(
                     "refactoring context changed",
                 ));
             }
-            let action =
-                extract_local(&context, semantics, Span::new(start, end))?.ok_or_else(|| {
-                    convert::error(ErrorCode::InvalidParams, "local extraction is unavailable")
+            let action = extract_selection(&context, semantics, Span::new(start, end), target)?
+                .ok_or_else(|| {
+                    convert::error(ErrorCode::InvalidParams, "extraction is unavailable")
                 })?;
             super::json(action)
         }
@@ -192,31 +203,41 @@ fn requested(context: &CodeActionContext, kind: &CodeActionKind) -> bool {
     })
 }
 
-fn extract_local(
+fn extract_selection(
     context: &Context<'_>,
     semantics: &mut SemanticSession,
     range: Span,
+    target: ExtractionTarget,
 ) -> Result<Option<CodeAction>, ResponseError> {
     let cancellation = context.cancellation.clone();
-    let edit =
-        match semantics.extract_local(context.snapshot, context.source_id, range, move || {
-            cancellation.check().is_err()
-        }) {
-            Ok(edit) => edit,
-            Err(
-                ProjectAnalysisError::Cancelled
-                | ProjectAnalysisError::Declarations(
-                    scoop_analysis::DeclarationAnalysisError::Cancelled,
-                ),
-            ) => return Err(super::semantic::cancelled()),
-            Err(_) => None,
-        };
+    let check = move || cancellation.check().is_err();
+    let result = match target {
+        ExtractionTarget::Variable => {
+            semantics.extract_local(context.snapshot, context.source_id, range, check)
+        }
+        ExtractionTarget::Function => {
+            semantics.extract_function(context.snapshot, context.source_id, range, check)
+        }
+    };
+    let edit = match result {
+        Ok(edit) => edit,
+        Err(
+            ProjectAnalysisError::Cancelled
+            | ProjectAnalysisError::Declarations(scoop_analysis::DeclarationAnalysisError::Cancelled),
+        ) => return Err(super::semantic::cancelled()),
+        Err(_) => None,
+    };
     edit.map(|edit| {
+        let title = match target {
+            ExtractionTarget::Variable => "Extract Local Variable",
+            ExtractionTarget::Function => "Extract Function",
+        };
         action(
             context,
-            "Extract Local Variable".to_owned(),
+            title.to_owned(),
             edit,
-            Repair::ExtractLocal {
+            Repair::Extract {
+                target,
                 start: range.start,
                 end: range.end,
                 analysis_revision: context.snapshot.revision.0,
@@ -244,7 +265,7 @@ fn action(
     repair: Repair,
 ) -> Result<CodeAction, ResponseError> {
     let kind = match repair {
-        Repair::ExtractLocal { .. } => CodeActionKind::REFACTOR_EXTRACT,
+        Repair::Extract { .. } => CodeActionKind::REFACTOR_EXTRACT,
         _ => CodeActionKind::QUICKFIX,
     };
     let data = context.settings.code_action_resolve.then(|| ResolveData {

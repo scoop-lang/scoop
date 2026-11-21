@@ -127,6 +127,8 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `scoop/superDeclarations` 从覆写方法或属性的声明名称返回最近的上级声明位置。可通过 `scoop-lsp query super-declarations` 或 VS Code 的 `Scoop: Go to Super Declaration` 调用。
 
+类型层级通过 `textDocument/prepareTypeHierarchy` 选择名义类型，再用 `typeHierarchy/supertypes` 和 `typeHierarchy/subtypes` 展开直接父类型或子类型。别名展开到原类型，泛型应用归并到同一声明。展开保留发起时的项目配置，输入更新后重新打开层级。
+
 方法与 logical property 的实现导航复用实际重写和接口选择，抽象中间声明保持连接，返回具体声明自身、默认实现和继承提供方的源码位置。getter／setter 合并到原 property，构造参数属性仍指向原参数名称；只有部分 accessor 提供默认实现时保留该来源。调用与绑定方法引用沿普通绑定选中目标，重载和泛型声明保持原身份；预编译中间层沿已有 slot 与 property 引用读取。待生成方法和内部 adapter 不产生导航结果。
 
 客户端支持 `workspace.workspaceEdit.documentChanges` 时，提供 `textDocument/prepareRename` 与 `textDocument/rename`。改名使用原声明、引用和重写关系，区分重载、局部遮蔽、透明类型别名与显式 import alias；构造名称随对应类型改名，同一名称 token 上的 property 和构造参数共同更新。无 alias 的转导出沿实际 binding 路径联动，显式 alias 的拼写独立保留。名称支持 Unicode 和反引号，关键字会使用合法转义形式。
@@ -136,6 +138,8 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 客户端同时支持 code action literal 和版本化编辑时，提供缺失右括号、逗号等固定标点的 quickfix；返回的 TextDocumentEdit 带实际文档 version。名称、类型与表达式缺失不生成猜测内容。支持 resolve 的客户端还可重新取得同版修复；原文变化后旧动作返回 ContentModified，原文未变而客户端 version 更新时返回最新 version。未实现的能力不在初始化中声明。
 
 `refactor.extract` 支持在同一块内把选中的完整初始化式、return 值或首个可提前求值的直接实参提取为 `val`。候选沿实际绑定和上下文类型核对编辑，保留求值次序，更新源码或项目后旧动作失效。
+
+`Extract Function` 将块内的完整表达式或连续语句提取为局部函数。调用仍位于原选区，外部不可重新绑定的值按 Scoop 的局部函数规则捕获。需要写回外部局部变量、离开选区跳转或在选区外继续使用被移动声明时没有可用动作。
 
 开发验证使用 `cargo test -p scoop-analysis -p scoop-lsp`；LSP 集成测试启动真实 `scoop-lsp` 进程，检查传输、状态变化和查询结果。运行时将 `TMPDIR` 指向仓库外工作目录，测试工作文件遵守同一设置。
 

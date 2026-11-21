@@ -27,6 +27,14 @@ pub struct EditingTypeImplementation {
     pub origin: SemanticSourceLocation,
 }
 
+#[derive(Clone, Debug)]
+pub struct EditingHierarchyType {
+    pub declaration: SourceNominalId,
+    pub kind: crate::PublicNominalKindV1,
+    pub name: String,
+    pub origin: SemanticSourceLocation,
+}
+
 /// Declaration identity survives transparent expansion and nominal application.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EditingTypeIdentity {

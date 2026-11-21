@@ -20,6 +20,7 @@ mod semantic;
 mod signature_help;
 mod symbols;
 mod type_definition;
+pub(crate) mod type_hierarchy;
 mod workspace_symbols;
 pub(crate) use completion::completion;
 pub(crate) use definition::definition;
@@ -40,6 +41,7 @@ pub(crate) enum QueryKind {
     TypeDefinition(Position),
     Implementation(Position),
     SuperDeclarations(Position),
+    TypeHierarchy(type_hierarchy::HierarchyQuery),
     References {
         position: Position,
         include_declaration: bool,
@@ -210,6 +212,32 @@ impl DocumentQuery {
                 Ok(Self {
                     uri: params.text_document_position_params.text_document.uri,
                     kind: QueryKind::Implementation(params.text_document_position_params.position),
+                })
+            }
+            "textDocument/prepareTypeHierarchy" => {
+                let params: lsp_types::TypeHierarchyPrepareParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document_position_params.text_document.uri,
+                    kind: QueryKind::TypeHierarchy(type_hierarchy::HierarchyQuery::Prepare(
+                        params.text_document_position_params.position,
+                    )),
+                })
+            }
+            "typeHierarchy/supertypes" | "typeHierarchy/subtypes" => {
+                let direction = if request.method == "typeHierarchy/supertypes" {
+                    scoop_analysis::TypeHierarchyDirection::Super
+                } else {
+                    scoop_analysis::TypeHierarchyDirection::Sub
+                };
+                let params: lsp_types::TypeHierarchySubtypesParams =
+                    params(request.params.clone())?;
+                let data = type_hierarchy::ItemData::from_item(params.item)?;
+                Ok(Self {
+                    uri: data.anchor.clone(),
+                    kind: QueryKind::TypeHierarchy(type_hierarchy::HierarchyQuery::Expand {
+                        data,
+                        direction,
+                    }),
                 })
             }
             "scoop/superDeclarations" => {
