@@ -1,0 +1,38 @@
+package scoop.platform.process
+
+import scoop.platform.system.*
+
+/**
+ * Launches a child with all standard streams connected to a pseudoterminal. Used by asyncio's
+ * native backends. The caller owns the returned ScoopPlatformPty and must release it through
+ * scoop_platform_pty_close after retiring all native borrows.
+ */
+@Unsafe
+public fun Command.spawnPtyNative(
+    columns: Long,
+    rows: Long,
+    searchPath: Boolean = false
+): Ptr<Unit> {
+    requirePtySize(columns, rows)
+    if (!stdin.isInherited() || !stdout.isInherited() || !stderr.isInherited() || mergeError)
+        throw IllegalArgumentException(Some("pseudoterminal launch owns all standard streams"))
+    return launchProcess("spawn pseudoterminal", searchPath) { packed, path ->
+        val result = packed.spawnPty(path, columns.toInt(), rows.toInt())
+        (result.pty, result.error)
+    }
+}
+
+private fun Stdio.isInherited(): Boolean = when (this) {
+    case Stdio.Inherit -> true
+    case _ -> false
+}
+
+/** Validates cell dimensions accepted by the native pseudoterminal on this target. */
+public fun requirePtySize(columns: Long, rows: Long) {
+    val maximum = if (operatingSystem == OperatingSystem.Windows) 32767L else 65535L
+    if (columns <= 0L || rows <= 0L || columns > maximum || rows > maximum)
+        throw IllegalArgumentException(Some("pseudoterminal dimensions out of range"))
+}
+
+@CLayout
+internal struct NativePtyOpened(val pty: Ptr<Unit>?, val error: Int)

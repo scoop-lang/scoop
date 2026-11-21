@@ -76,9 +76,10 @@ public class Command internal constructor(
         if (mergeError) {
             when (stderr) {
                 case Stdio.Inherit -> {}
-                case _ -> throw IllegalArgumentException(
-                    Some("merged stderr cannot be redirected separately")
-                )
+                case _ ->
+                    throw IllegalArgumentException(
+                        Some("merged stderr cannot be redirected separately")
+                    )
             }
         }
     }
@@ -87,43 +88,50 @@ public class Command internal constructor(
     /**
      * Starts an owned child process. PATH lookup occurs only when searchPath is requested.
      */
-    public fun spawn(searchPath: Boolean = false): ChildProcess = start(searchPath)
-
-    private fun start(search: Boolean): ChildProcess {
-        val packed = SpawnInput(executable, arguments, environment, workingDirectory)
+    public fun spawn(searchPath: Boolean = false): ChildProcess {
         val child = ChildProcess(isPipe(stdin), isPipe(stdout), isPipe(stderr))
         val result = MutableArray<NativeFileHandle>(3L) { NativeFileHandle(ULong.MAX_VALUE) }
-        var denied: PlatformException? = None
-        var missing: PlatformException? = None
-        val paths =
-            if (search)
-                searchCandidates(executable, environment)
-            else
-                Array<Path>(1L) { executable }
-        for (path in paths) {
+        return launchProcess("spawn", searchPath) { packed, path ->
             val spawned = packed.spawn(path, stdin, stdout, stderr, mergeError, result)
             if (spawned.process.value != ULong.MAX_VALUE) {
                 child.adopt(spawned.process, result)
-                return child
-            }
-            val error = processError(spawned.error)
-            val failure =
-                PlatformException("spawn", error.kind, Some(error), Some(path.toOsString()))
-            if (!search)
-                throw failure
-            when (error.kind) {
-                case PlatformErrorKind.PermissionDenied -> denied = Some(failure)
-                case PlatformErrorKind.NotFound -> missing = Some(failure)
-                case PlatformErrorKind.NotDirectory -> missing = Some(failure)
-                case _ -> throw failure
+                (Some(child), 0)
+            } else {
+                (None, spawned.error)
             }
         }
-        throw denied ?: missing!!
     }
 }
 
-internal fun isPipe(value: Stdio): Boolean =
-    when (value) {
-        case Stdio.Pipe -> true
-        case _ -> false
+internal fun <T> Command.launchProcess(
+    operation: String,
+    searchPath: Boolean,
+    attempt: (SpawnInput, Path) -> (T?, Int)
+): T {
+    val packed = SpawnInput(executable, arguments, environment, workingDirectory)
+    val paths = if (searchPath) searchCandidates(executable, environment) else [executable]
+    var denied: PlatformException? = None
+    var missing: PlatformException? = None
+    for (path in paths) {
+        val(result, code) = attempt(packed, path)
+        when (result) {
+            case Some(val child) -> return child
+            case None -> {}
+        }
+        val error = processError(code)
+        val failure = PlatformException(operation, error.kind, Some(error), Some(path.toOsString()))
+        if (!searchPath) throw failure
+        when (error.kind) {
+            case PlatformErrorKind.PermissionDenied -> denied = Some(failure)
+            case PlatformErrorKind.NotFound -> missing = Some(failure)
+            case PlatformErrorKind.NotDirectory -> missing = Some(failure)
+            case _ -> throw failure
+        }
     }
+    throw denied ?: missing!!
+}
+
+internal fun isPipe(value: Stdio): Boolean = when (value) {
+    case Stdio.Pipe -> true
+    case _ -> false
+}

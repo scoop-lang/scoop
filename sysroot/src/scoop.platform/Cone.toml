@@ -135,6 +135,14 @@ when = {os = "windows"}
 [[native.sources]]
 path = "native/process_wait.c"
 [[native.sources]]
+path = "native/pty.c"
+[[native.sources]]
+path = "native/pty_posix.c"
+when = {os = ["darwin", "linux"]}
+[[native.sources]]
+path = "native/pty_windows.c"
+when = {os = "windows"}
+[[native.sources]]
 path = "native/socket_addresses.c"
 [[native.sources]]
 path = "native/socket_open.c"

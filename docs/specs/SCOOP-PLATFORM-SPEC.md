@@ -348,6 +348,16 @@ Windows 为实际配置的三个方向各启动一个库内 Thread，独立拥�
 依据：[POSIX spawn 与 file actions](https://pubs.opengroup.org/onlinepubs/9799919799/functions/posix_spawn.html)、[Linux posix_spawn](https://man7.org/linux/man-pages/man3/posix_spawn.3.html) 以及当前 Darwin SDK 的 spawn 扩展。上述能力均为普通 platform 库，不增加 runtime 进程管理协议。
 Windows 依据：[CreateProcessW](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw)、[HANDLE_LIST](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)、[CRT 参数解析](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments)、[TerminateProcess](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess) 与 [CancelSynchronousIo](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelsynchronousio)。
 
+### 11.4 子进程伪终端
+
+伪终端启动复用 `Command` 的 executable、argv、环境、cwd、PATH 搜索与平台错误。`stdin`、`stdout` 和 `stderr` 须为 `Inherit`，`mergeError` 须为 false，三路流由伪终端接管。尺寸以列、行为序，须为正数且能由目标表示，在 child 开始运行前生效。
+
+Unix 子进程开启会话，把 slave 设为控制终端和三路标准流。父进程只保留 nonblocking master。fork 后子进程执行原生初始化和 exec，使用 close-on-exec 错误管道报告初始化及 exec 失败。调整尺寸使用 `TIOCSWINSZ`，前台进程组依终端驱动接收信号。
+
+Windows 通过系统 ConPTY 启动控制台进程，尺寸使用 `ResizePseudoConsole`。两条本地命名管道以同步端接 ConPTY，宿主端用 overlapped I/O。缺少 ConPTY 系统函数时报 Unsupported。初始化失败关闭全部已取得资源，并报告本次系统错误。
+
+platform 的 `spawnPtyNative` 是 `scoop.asyncio` 使用的 unsafe 原生资源交接入口。调用方取得端点和直接子进程的唯一关闭责任，串行协调控制调用及等待，在原生请求退役后释放所借用的句柄。公开异步会话及关闭语义见[异步 I/O 规范](SCOOP-ASYNCIO-SPEC.md)。
+
 ## 12. 阻塞 DNS、TCP 与 UDP
 
 ### 12.1 地址与解析
