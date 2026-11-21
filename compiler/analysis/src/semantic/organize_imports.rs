@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use scoop_ast::{ImportExposureSyntax, ImportSyntax};
 use scoop_hir::SemanticSourceLocation;
-use scoop_source::SourceEdit;
+use scoop_source::{SourceEdit, Span};
+use scoop_syntax::SyntaxKind as K;
 
 use super::extract_local::bindings;
 use super::inline_local::{removal_span, updated_span};
@@ -19,21 +20,47 @@ impl SemanticSession {
         let Some(input) = snapshot.source(source)? else {
             return Ok(None);
         };
-        let Some(ast) = input.parse().ok().and_then(|parsed| parsed.ast()) else {
+        let Ok(parsed) = input.parse() else {
             return Ok(None);
         };
-        let imports = ast
-            .imports
-            .iter()
-            .filter_map(|import| match import {
-                ImportSyntax::Exact {
-                    exposure: ImportExposureSyntax::Local,
-                    span,
-                    ..
-                } => Some(*span),
-                _ => None,
+        let Some(ast) = parsed.ast() else {
+            return Ok(None);
+        };
+        let root = parsed.syntax();
+        let file_imports = ast.imports.iter().filter_map(|import| match import {
+            ImportSyntax::Exact {
+                exposure: ImportExposureSyntax::Local,
+                span,
+                ..
+            }
+            | ImportSyntax::Star {
+                exposure: ImportExposureSyntax::Local,
+                span,
+                ..
+            } => Some(*span),
+            _ => None,
+        });
+        let block_imports = root
+            .descendants()
+            .filter(|node| {
+                node.kind() == K::ImportHeader
+                    && node.ancestors().any(|ancestor| ancestor.kind() == K::Block)
             })
-            .collect::<Vec<_>>();
+            .filter_map(|node| {
+                let mut tokens = node
+                    .descendants_with_tokens()
+                    .filter_map(|element| element.into_token())
+                    .filter(|token| !token.kind().is_trivia());
+                let keyword = tokens.next()?;
+                let last = tokens.last()?;
+                (keyword.kind() == K::KwImport).then(|| {
+                    Span::new(
+                        keyword.text_range().start().into(),
+                        last.text_range().end().into(),
+                    )
+                })
+            });
+        let imports = file_imports.chain(block_imports).collect::<Vec<_>>();
         if imports.is_empty() {
             return Ok(None);
         }

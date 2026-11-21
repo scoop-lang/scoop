@@ -65,7 +65,7 @@ pub struct EditingImportAlias {
     pub exports: Vec<scoop_identity::PersistentExportBindingId>,
 }
 
-/// Successful exact-layer lookup; targets remain the ordinary bound targets.
+/// Successful explicit import lookup; targets remain the ordinary bound targets.
 #[derive(Clone, Debug)]
 pub struct EditingImportUse {
     pub span: crate::Span,

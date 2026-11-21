@@ -1,5 +1,4 @@
 use super::*;
-use crate::imports::ImportedTargetBinding;
 
 impl Lowerer {
     pub(super) fn editing_operator_import_sources(
@@ -35,18 +34,7 @@ impl Lowerer {
                         .values()
                         .flat_map(|targets| targets.iter())
                         .filter(|binding| matches(binding))
-                        .filter_map(|binding| binding.direct_binding())
-                        .map(|binding| hir::EditingImportSource::Dependency {
-                            import: Some(hir::SemanticSourceLocation {
-                                source: import.origin.source.clone(),
-                                span: import.origin.span,
-                            }),
-                            target: binding.target(),
-                            routes: binding
-                                .sources()
-                                .map(|source| source.route().clone())
-                                .collect(),
-                        })
+                        .map(|binding| star_import_source(&import.origin, binding))
                 })
                 .collect(),
             ImportLookupLayer::CurrentPackage(_) => file

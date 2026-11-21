@@ -36,7 +36,7 @@ Run／Debug 后才调用普通构建入口。扩展不自动准备 sysroot；不
 
 将光标放在内部类或文件私有类的名称、方法名称上，重构菜单可提供 `Extract Interface`、`Extract Superclass`、`Pull Members Up` 或 `Push Members Down`。移动要求目标类在同一文件，成员下移要求唯一直接子类。
 
-`Organize Imports` 删除未使用的普通文件头精确导入。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择同一 Cone、同一 package 的目标文件。在文件私有顶层函数上执行 `Scoop: Change Signature`，按提示输入参数编号的新排列。移动和换序支持预览后应用。
+`Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择同一 Cone、同一 package 的目标文件。在文件私有顶层函数上执行 `Scoop: Change Signature`，按提示输入参数编号的新排列。移动和换序支持预览后应用。
 
 将完整工具包解压到 `~/.scoop` 后安装随包 VSIX：
 
