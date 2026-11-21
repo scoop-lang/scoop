@@ -149,6 +149,8 @@ type-definition、implementation、references 提供进一步导航。workspace-
 
 VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Peek Call Hierarchy` 查看调用方和被调用方。同一块内选中完整表达式或可独立执行的连续语句时，重构菜单可提供 `Extract Function`。
 
+重构菜单还支持内联字面量或稳定值初始化的局部 `val`、从完整类型选区引入透明 `typealias`，以及检查文件私有顶层函数能否安全删除。
+
 ## 测试和诊断
 
 从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 提供名义与结构相等重载，具体规则见[语言参考](language.md)。遇到候选错误先核对实际参数及内层调用，不要将精确断言改成只报告 Boolean 的断言来绕过诊断。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。

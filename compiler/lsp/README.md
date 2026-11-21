@@ -143,6 +143,8 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `Extract Function` 将块内的完整表达式或连续语句提取为局部函数。调用仍位于原选区，外部不可重新绑定的值按 Scoop 的局部函数规则捕获。需要写回外部局部变量、离开选区跳转或在选区外继续使用被移动声明时没有可用动作。
 
+`Inline Local Variable` 将普通局部 `val` 的稳定初始化值替换到全部读取处，并检查每处类型和绑定。`Introduce Type Alias` 从完整类型选区声明透明别名，适用于文件内和局部类型语法。`Safe Delete Function` 检查文件私有顶层函数，返回版本化删除编辑或包含阻塞用法的源码位置。
+
 开发验证使用 `cargo test -p scoop-analysis -p scoop-lsp`；LSP 集成测试启动真实 `scoop-lsp` 进程，检查传输、状态变化和查询结果。运行时将 `TMPDIR` 指向仓库外工作目录，测试工作文件遵守同一设置。
 
 预编译 core／标准库的正式进程覆盖位于 `tests/fixtures/lsp`，使用显式准备的 sysroot，按 fixture runner 的 `--scoop-lsp` 参数选择服务器。

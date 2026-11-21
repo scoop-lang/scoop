@@ -70,7 +70,7 @@ export async function runLanguageServerTests() {
   const useUri = vscode.Uri.joinPath(project, "src/use.scoop");
   await write(
     useUri,
-    "package editor\nfun use(): Boolean = choose(true)\nfun inspect(𐐀flag: Boolean): String = 𐐀flag.toString()\nfun fromDisk(): Boolean = diskFlag(true)\nclass Marked : Marker { override fun readMarker(): Boolean = true }\nfun extract(flag: Boolean): Boolean { return choose(flag) }\n",
+    "package editor\nfun use(): Boolean = choose(true)\nfun inspect(𐐀flag: Boolean): String = 𐐀flag.toString()\nfun fromDisk(): Boolean = diskFlag(true)\nclass Marked : Marker { override fun readMarker(): Boolean = true }\nfun extract(flag: Boolean): Boolean { return choose(flag) }\nprivate fun used(): Boolean = true\nfun usePrivate(): Boolean = used()\n",
   );
   const document = await vscode.workspace.openTextDocument(useUri);
   await vscode.window.showTextDocument(document);
@@ -237,6 +237,27 @@ export async function runLanguageServerTests() {
   assert.match(
     document.getText(),
     /val extracted: Boolean = choose\(flag\); return extracted/,
+  );
+  const privateDeclaration = at(document, "private fun ", true);
+  const deletion = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+    "vscode.executeCodeActionProvider",
+    useUri,
+    new vscode.Range(privateDeclaration, privateDeclaration),
+    vscode.CodeActionKind.RefactorRewrite.value,
+  );
+  const usages = deletion?.find(
+    (action) => action.title === "Show Safe Delete Usages",
+  )?.command;
+  assert.ok(usages);
+  await vscode.commands.executeCommand(
+    usages.command,
+    ...(usages.arguments ?? []),
+  );
+  await eventually(
+    () =>
+      vscode.window.activeTextEditor?.selection.active.line ===
+      at(document, "fun usePrivate()").line,
+    "navigation to a use that blocks safe deletion",
   );
 
   const rename = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(

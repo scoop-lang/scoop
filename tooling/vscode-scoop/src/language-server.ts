@@ -4,6 +4,7 @@ import {
   DidChangeConfigurationNotification,
   LanguageClient,
   type Location as ProtocolLocation,
+  type Position as ProtocolPosition,
   RevealOutputChannelOn,
 } from "vscode-languageclient/node";
 import {
@@ -15,6 +16,13 @@ import {
 interface Service {
   client: LanguageClient;
   folder: vscode.WorkspaceFolder | undefined;
+}
+
+interface SafeDeleteUsages {
+  uri: string;
+  version: number | null;
+  position: ProtocolPosition;
+  locations: ProtocolLocation[];
 }
 
 export class ScoopLanguageServer {
@@ -39,6 +47,10 @@ export class ScoopLanguageServer {
       vscode.commands.registerCommand("scoop.goToSuperDeclaration", () =>
         this.goToSuperDeclaration(),
       ),
+      vscode.commands.registerCommand(
+        "scoop.showSafeDeleteUsages",
+        (usages: SafeDeleteUsages) => this.showSafeDeleteUsages(usages),
+      ),
       vscode.workspace.onDidGrantWorkspaceTrust(() => void this.update(true)),
       vscode.workspace.onDidChangeWorkspaceFolders(() => void this.update()),
       vscode.window.onDidChangeActiveTextEditor(() => {
@@ -51,16 +63,42 @@ export class ScoopLanguageServer {
     );
   }
 
-  private async goToSuperDeclaration() {
-    const editor = vscode.window.activeTextEditor;
-    if (editor?.document.languageId !== "scoop") return;
-    const { document, selection } = editor;
-    const folder = vscode.workspace.getWorkspaceFolder(document.uri);
-    const client = (
+  private clientFor(uri: vscode.Uri) {
+    const folder = vscode.workspace.getWorkspaceFolder(uri);
+    return (
       folder
         ? this.clients.get(folder.uri.fsPath)
         : this.clients.values().next().value
     )?.client;
+  }
+
+  private async showSafeDeleteUsages(usages: SafeDeleteUsages) {
+    const editor = vscode.window.activeTextEditor;
+    if (
+      editor?.document.uri.toString() !== usages.uri ||
+      editor.document.version !== usages.version
+    )
+      return;
+    const uri = editor.document.uri;
+    const client = this.clientFor(uri);
+    if (!client?.isRunning()) return;
+    await vscode.commands.executeCommand(
+      "editor.action.goToLocations",
+      uri,
+      client.protocol2CodeConverter.asPosition(usages.position),
+      usages.locations.map((location) =>
+        client.protocol2CodeConverter.asLocation(location),
+      ),
+      "peek",
+      "No usage with available source.",
+    );
+  }
+
+  private async goToSuperDeclaration() {
+    const editor = vscode.window.activeTextEditor;
+    if (editor?.document.languageId !== "scoop") return;
+    const { document, selection } = editor;
+    const client = this.clientFor(document.uri);
     if (
       !client?.isRunning() ||
       !client.initializeResult?.capabilities.experimental

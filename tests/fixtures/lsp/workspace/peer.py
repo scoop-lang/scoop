@@ -42,6 +42,7 @@ from recovered_interfaces import check as check_recovered_interfaces
 from recovered_objects import check as check_recovered_objects
 from recovered_structs import check as check_recovered_structs
 from reexport_references import check as check_reexport_references
+from refactor_local import check as check_refactor_local
 from references import check as check_references
 from rename import check as check_rename
 from rename_bodies import check as check_rename_bodies
@@ -460,6 +461,7 @@ def main():
         check_reexport_references(peer, root)
         check_rename(peer, root)
         check_extract_local(peer, root)
+        check_refactor_local(peer, root)
         check_rename_types(peer, root)
         check_rename_members(peer, root)
         check_rename_exports(peer, root)

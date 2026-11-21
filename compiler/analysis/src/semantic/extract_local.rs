@@ -8,7 +8,7 @@ use scoop_source::{SourceEdit, Span};
 use super::{ProjectAnalysisError, SemanticSession};
 use crate::{AnalysisSnapshot, SnapshotEditError, SourceId, SourceInput};
 
-mod syntax;
+pub(super) mod syntax;
 use syntax::{ExtractionKind, Selection};
 
 impl SemanticSession {
@@ -180,18 +180,23 @@ fn contains(outer: Span, inner: Span) -> bool {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-enum Binding {
+pub(in crate::semantic) enum Binding {
     Source(SemanticSourceLocation),
     Declaration(EditingReferenceTarget),
 }
 
-fn bindings(
+pub(in crate::semantic) fn bindings(
     index: &EditingReferenceIndex,
+    include: impl Fn(&scoop_hir::EditingReference) -> bool,
     mut map: impl FnMut(&SemanticSourceLocation) -> Option<SemanticSourceLocation>,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Option<HashSet<(SemanticSourceLocation, Binding)>>, ProjectAnalysisError> {
     let mut bindings = HashSet::new();
-    for reference in index.occurrences() {
+    for reference in index
+        .occurrences()
+        .iter()
+        .filter(|reference| include(reference))
+    {
         if is_cancelled() {
             return Err(ProjectAnalysisError::Cancelled);
         }
@@ -220,6 +225,7 @@ fn preserves_bindings(
 ) -> Result<bool, ProjectAnalysisError> {
     let Some(expected) = bindings(
         before,
+        |_| true,
         |origin| {
             let span = if &origin.source == source {
                 edit.map(origin.span)?
@@ -236,7 +242,8 @@ fn preserves_bindings(
     else {
         return Ok(false);
     };
-    let Some(actual) = bindings(after, |origin| Some(origin.clone()), is_cancelled)? else {
+    let Some(actual) = bindings(after, |_| true, |origin| Some(origin.clone()), is_cancelled)?
+    else {
         return Ok(false);
     };
     let positions = expected

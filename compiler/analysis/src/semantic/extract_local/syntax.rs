@@ -235,7 +235,7 @@ impl Extraction {
     }
 }
 
-fn trimmed_range(source: &SourceInput, range: Span) -> Option<Span> {
+pub(in crate::semantic) fn trimmed_range(source: &SourceInput, range: Span) -> Option<Span> {
     let selected = source
         .text
         .as_str()
@@ -267,7 +267,10 @@ fn whole_statements(root: &SyntaxNode, range: Span) -> bool {
         })
 }
 
-fn enclosing_statement(root: &SyntaxNode, range: Span) -> Option<SyntaxNode> {
+pub(in crate::semantic) fn enclosing_statement(
+    root: &SyntaxNode,
+    range: Span,
+) -> Option<SyntaxNode> {
     root.token_at_offset(range.start.into())
         .right_biased()?
         .parent_ancestors()
@@ -278,7 +281,7 @@ fn enclosing_statement(root: &SyntaxNode, range: Span) -> Option<SyntaxNode> {
         })
 }
 
-fn fresh_name(root: &SyntaxNode, stem: &str) -> Option<String> {
+pub(in crate::semantic) fn fresh_name(root: &SyntaxNode, stem: &str) -> Option<String> {
     let names = root
         .descendants_with_tokens()
         .filter_map(|item| item.into_token())
@@ -337,7 +340,7 @@ fn first_direct_argument(outer: &SyntaxNode, expression: Span) -> bool {
         .is_some_and(|argument| node_span(&argument) == expression)
 }
 
-fn node_span(node: &SyntaxNode) -> Span {
+pub(in crate::semantic) fn node_span(node: &SyntaxNode) -> Span {
     let mut tokens = node
         .descendants_with_tokens()
         .filter_map(|part| part.into_token())

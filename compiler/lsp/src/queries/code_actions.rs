@@ -1,11 +1,11 @@
 use lsp_server::{ErrorCode, ResponseError};
 use lsp_types::{
-    CodeAction, CodeActionContext, CodeActionKind, DocumentChanges, OneOf,
+    CodeAction, CodeActionContext, CodeActionKind, Command, DocumentChanges, OneOf,
     OptionalVersionedTextDocumentIdentifier, Range, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
 use scoop_analysis::{
-    AnalysisSnapshot, Cancellation, ProjectAnalysisError, SemanticSession, SourceId, SourceInput,
-    SyntaxFix,
+    AnalysisSnapshot, Cancellation, ProjectAnalysisError, SafeDelete, SemanticSession, SourceId,
+    SourceInput, SyntaxFix,
 };
 use scoop_source::{SourceEdit, Span};
 use serde::{Deserialize, Serialize};
@@ -35,8 +35,8 @@ enum Repair {
         end: u32,
         analysis_revision: u64,
     },
-    Extract {
-        target: ExtractionTarget,
+    Refactor {
+        target: Refactoring,
         start: u32,
         end: u32,
         analysis_revision: u64,
@@ -45,9 +45,42 @@ enum Repair {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-enum ExtractionTarget {
-    Variable,
-    Function,
+enum Refactoring {
+    ExtractVariable,
+    ExtractFunction,
+    ExtractTypeAlias,
+    InlineVariable,
+    SafeDelete,
+}
+
+impl Refactoring {
+    const ALL: [Self; 5] = [
+        Self::ExtractVariable,
+        Self::ExtractFunction,
+        Self::ExtractTypeAlias,
+        Self::InlineVariable,
+        Self::SafeDelete,
+    ];
+
+    fn kind(self) -> CodeActionKind {
+        match self {
+            Self::ExtractVariable | Self::ExtractFunction | Self::ExtractTypeAlias => {
+                CodeActionKind::REFACTOR_EXTRACT
+            }
+            Self::InlineVariable => CodeActionKind::REFACTOR_INLINE,
+            Self::SafeDelete => CodeActionKind::REFACTOR_REWRITE,
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Self::ExtractVariable => "Extract Local Variable",
+            Self::ExtractFunction => "Extract Function",
+            Self::ExtractTypeAlias => "Introduce Type Alias",
+            Self::InlineVariable => "Inline Local Variable",
+            Self::SafeDelete => "Safe Delete Function",
+        }
+    }
 }
 
 pub(crate) struct Context<'a> {
@@ -75,8 +108,15 @@ pub(crate) fn actions(
         return Err(unsupported());
     }
     let quickfix = requested(&query.context, &CodeActionKind::QUICKFIX);
-    let extract = requested(&query.context, &CodeActionKind::REFACTOR_EXTRACT);
-    if !quickfix && !extract {
+    let refactors = Refactoring::ALL
+        .into_iter()
+        .filter(|target| {
+            requested(&query.context, &target.kind())
+                && (query.range.start != query.range.end
+                    || target.kind() != CodeActionKind::REFACTOR_EXTRACT)
+        })
+        .collect::<Vec<_>>();
+    if !quickfix && refactors.is_empty() {
         return super::json(Vec::<CodeAction>::new());
     }
     let range = Span::new(
@@ -114,10 +154,8 @@ pub(crate) fn actions(
             actions.push(imports::action(&context, repair)?);
         }
     }
-    if extract && range.start != range.end {
-        for target in [ExtractionTarget::Variable, ExtractionTarget::Function] {
-            actions.extend(extract_selection(&context, semantics, range, target)?);
-        }
+    for target in refactors {
+        actions.extend(refactor(&context, semantics, range, target)?);
     }
     super::json(actions)
 }
@@ -169,7 +207,7 @@ pub(crate) fn resolve(
                 })?;
             super::json(imports::action(&context, repair)?)
         }
-        Repair::Extract {
+        Repair::Refactor {
             target,
             start,
             end,
@@ -181,9 +219,9 @@ pub(crate) fn resolve(
                     "refactoring context changed",
                 ));
             }
-            let action = extract_selection(&context, semantics, Span::new(start, end), target)?
-                .ok_or_else(|| {
-                    convert::error(ErrorCode::InvalidParams, "extraction is unavailable")
+            let action =
+                refactor(&context, semantics, Span::new(start, end), target)?.ok_or_else(|| {
+                    convert::error(ErrorCode::InvalidParams, "refactoring is unavailable")
                 })?;
             super::json(action)
         }
@@ -203,55 +241,127 @@ fn requested(context: &CodeActionContext, kind: &CodeActionKind) -> bool {
     })
 }
 
-fn extract_selection(
+fn refactor(
     context: &Context<'_>,
     semantics: &mut SemanticSession,
     range: Span,
-    target: ExtractionTarget,
+    target: Refactoring,
 ) -> Result<Option<CodeAction>, ResponseError> {
     let cancellation = context.cancellation.clone();
     let check = move || cancellation.check().is_err();
-    let result = match target {
-        ExtractionTarget::Variable => {
-            semantics.extract_local(context.snapshot, context.source_id, range, check)
-        }
-        ExtractionTarget::Function => {
-            semantics.extract_function(context.snapshot, context.source_id, range, check)
-        }
+    let edits = match target {
+        Refactoring::ExtractVariable => analysis_result(semantics.extract_local(
+            context.snapshot,
+            context.source_id,
+            range,
+            check,
+        ))?
+        .map(|edit| vec![edit]),
+        Refactoring::ExtractFunction => analysis_result(semantics.extract_function(
+            context.snapshot,
+            context.source_id,
+            range,
+            check,
+        ))?
+        .map(|edit| vec![edit]),
+        Refactoring::ExtractTypeAlias => analysis_result(semantics.extract_type_alias(
+            context.snapshot,
+            context.source_id,
+            range,
+            check,
+        ))?
+        .map(|edit| vec![edit]),
+        Refactoring::InlineVariable => analysis_result(semantics.inline_local(
+            context.snapshot,
+            context.source_id,
+            range,
+            check,
+        ))?,
+        Refactoring::SafeDelete => match analysis_result(semantics.safe_delete_function(
+            context.snapshot,
+            context.source_id,
+            range,
+            check,
+        ))? {
+            Some(SafeDelete::Edit(edit)) => Some(vec![edit]),
+            Some(SafeDelete::Blocked(usages)) => {
+                return delete_usages(context, range, usages).map(Some);
+            }
+            None => None,
+        },
     };
-    let edit = match result {
-        Ok(edit) => edit,
+    edits
+        .map(|edits| {
+            action(
+                context,
+                target.title().to_owned(),
+                edits,
+                Repair::Refactor {
+                    target,
+                    start: range.start,
+                    end: range.end,
+                    analysis_revision: context.snapshot.revision.0,
+                },
+            )
+        })
+        .transpose()
+}
+
+fn analysis_result<T>(
+    result: Result<Option<T>, ProjectAnalysisError>,
+) -> Result<Option<T>, ResponseError> {
+    match result {
+        Ok(result) => Ok(result),
         Err(
             ProjectAnalysisError::Cancelled
             | ProjectAnalysisError::Declarations(scoop_analysis::DeclarationAnalysisError::Cancelled),
-        ) => return Err(super::semantic::cancelled()),
-        Err(_) => None,
-    };
-    edit.map(|edit| {
-        let title = match target {
-            ExtractionTarget::Variable => "Extract Local Variable",
-            ExtractionTarget::Function => "Extract Function",
-        };
-        action(
-            context,
-            title.to_owned(),
-            edit,
-            Repair::Extract {
-                target,
-                start: range.start,
-                end: range.end,
-                analysis_revision: context.snapshot.revision.0,
-            },
-        )
+        ) => Err(super::semantic::cancelled()),
+        Err(_) => Ok(None),
+    }
+}
+
+fn delete_usages(
+    context: &Context<'_>,
+    range: Span,
+    usages: Vec<scoop_hir::SemanticSourceLocation>,
+) -> Result<CodeAction, ResponseError> {
+    let project = context
+        .snapshot
+        .workspace
+        .project_for_source(context.source_id)
+        .expect("safe delete requires a selected project");
+    let mut locations = Vec::new();
+    for usage in usages {
+        if let Some(location) =
+            convert::location(context.snapshot, project, &usage, context.settings)?
+        {
+            locations.push(location);
+        }
+    }
+    let position = convert::range(&context.source.text, range, context.settings.encoding)?.start;
+    let title = "Show Safe Delete Usages".to_owned();
+    Ok(CodeAction {
+        title: title.clone(),
+        kind: Some(Refactoring::SafeDelete.kind()),
+        command: Some(Command {
+            title,
+            command: "scoop.showSafeDeleteUsages".to_owned(),
+            arguments: Some(vec![serde_json::json!({
+                "uri": context.uri,
+                "version": context.version,
+                "position": position,
+                "locations": locations,
+            })]),
+        }),
+        ..Default::default()
     })
-    .transpose()
 }
 
 fn syntax_action(context: &Context<'_>, fix: SyntaxFix) -> Result<CodeAction, ResponseError> {
     action(
         context,
         format!("Insert `{}`", fix.edit.replacement),
-        fix.edit,
+        [fix.edit],
         Repair::Syntax {
             missing: fix.missing,
         },
@@ -261,19 +371,29 @@ fn syntax_action(context: &Context<'_>, fix: SyntaxFix) -> Result<CodeAction, Re
 fn action(
     context: &Context<'_>,
     title: String,
-    edit: SourceEdit,
+    edits: impl IntoIterator<Item = SourceEdit>,
     repair: Repair,
 ) -> Result<CodeAction, ResponseError> {
     let kind = match repair {
-        Repair::Extract { .. } => CodeActionKind::REFACTOR_EXTRACT,
+        Repair::Refactor { target, .. } => target.kind(),
         _ => CodeActionKind::QUICKFIX,
     };
     let data = context.settings.code_action_resolve.then(|| ResolveData {
         uri: context.uri.clone(),
-        source: edit.source.source.0,
-        revision: edit.source.revision.0,
+        source: context.source.version.source.0,
+        revision: context.source.version.revision.0,
         repair,
     });
+    let edits = edits
+        .into_iter()
+        .map(|edit| {
+            debug_assert_eq!(edit.source, context.source.version);
+            Ok(OneOf::Left(TextEdit {
+                range: convert::range(&context.source.text, edit.span, context.settings.encoding)?,
+                new_text: edit.replacement,
+            }))
+        })
+        .collect::<Result<Vec<_>, ResponseError>>()?;
     Ok(CodeAction {
         title,
         kind: Some(kind),
@@ -283,14 +403,7 @@ fn action(
                     uri: context.uri.clone(),
                     version: context.version,
                 },
-                edits: vec![OneOf::Left(TextEdit {
-                    range: convert::range(
-                        &context.source.text,
-                        edit.span,
-                        context.settings.encoding,
-                    )?,
-                    new_text: edit.replacement,
-                })],
+                edits,
             }])),
             ..Default::default()
         }),

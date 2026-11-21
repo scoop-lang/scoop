@@ -49,7 +49,7 @@ CLI 首轮的 25 项失败分别来自压缩 manifest 首项名称、artifact su
 
 语法仍整文件重解析，未变化文件直接复用；受影响 Cone 的语义和引用索引保守失效。没有局部重解析或正文级增量类型检查，大项目首次打开和引用索引仍有完整前端分析成本。
 
-rename 要求所选项目的必要源码及语义分析完整。存在不可证明的引用或绑定时明确拒绝。code action 提供固定标点、导入修复、提取局部 `val` 和提取函数。semanticTokens、inlayHint 和格式化仍待实现。
+rename 要求所选项目的必要源码及语义分析完整。存在不可证明的引用或绑定时明确拒绝。code action 提供固定标点、导入修复和[已交付的重构动作](NAVIGATION-AND-REFACTORING.md#当前能力)。semanticTokens、inlayHint 和格式化仍待实现。
 
 启动与编辑器配置见[服务器说明](../../compiler/lsp/README.md)。
 
@@ -60,6 +60,8 @@ rename 要求所选项目的必要源码及语义分析完整。存在不可证�
 第二批接入按直接声明边展开的类型层级，以及提取局部函数。macOS 定向 Rust、VS Code Extension Host 和三项 release LSP fixture 均通过。源码依赖、别名、接口菱形、过期层级项、局部捕获和默认实参的源码位置均有协议覆盖。对应用提取编辑前后的程序分别执行 release 构建和运行，实参求值顺序和短路行为一致。 [实施方案](NAVIGATION-AND-REFACTORING.md)
 
 第三批接入普通源码函数和方法的调用层级。覆盖跨 Cone 重载、递归、局部函数、调用位置合并和编辑后刷新。macOS release Clippy、三项正式 LSP fixture 和 VS Code Extension Host 通过。
+
+第三批重构接入局部内联、引入透明类型别名和文件私有函数安全删除。正式 LSP fixture 应用版本化编辑，并检查可变绑定、泛型参数、默认表达式引用和阻塞位置。VS Code Extension Host 执行阻塞用法的跳转命令。macOS Clippy、Ruff、TypeScript 检查、三项 release LSP fixture 和扩展宿主验收通过。
 
 ## 合并 origin/main
 

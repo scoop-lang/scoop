@@ -121,6 +121,8 @@ pub(crate) fn initialize(params: InitializeParams) -> (Settings, InitializeResul
                     code_action_kinds: Some(vec![
                         lsp_types::CodeActionKind::QUICKFIX,
                         lsp_types::CodeActionKind::REFACTOR_EXTRACT,
+                        lsp_types::CodeActionKind::REFACTOR_INLINE,
+                        lsp_types::CodeActionKind::REFACTOR_REWRITE,
                     ]),
                     resolve_provider: Some(code_action_resolve),
                     ..Default::default()
