@@ -57,6 +57,7 @@ from source_dependencies import check as check_source_dependencies
 from static_calls import check as check_static_calls
 from static_constants import check as check_static_constants
 from static_variants import check as check_static_variants
+from structure_refactors import check as check_structure_refactors
 from subscript_references import check as check_subscript_references
 from type_definitions import check as check_type_definitions
 from type_hovers import check as check_type_hovers
@@ -464,6 +465,7 @@ def main():
         check_rename(peer, root)
         check_extract_local(peer, root)
         check_refactor_local(peer, root)
+        check_structure_refactors(peer, root)
         check_rename_types(peer, root)
         check_rename_members(peer, root)
         check_rename_exports(peer, root)

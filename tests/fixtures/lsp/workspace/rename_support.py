@@ -91,6 +91,8 @@ class RenameWorkspace:
             assert identifier["version"] == self.versions[name], result
             text = self.texts[name]
             lines = text.splitlines(keepends=True)
+            if not lines or text.endswith(("\r", "\n")):
+                lines.append("")
 
             def offset(position, lines=lines):
                 line = position["line"]

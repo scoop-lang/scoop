@@ -196,6 +196,14 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                             &cancellation,
                         )
                     }
+                    QueryKind::StructuralRefactor(kind) => queries::structural_refactor::run(
+                        &work.snapshot,
+                        source_id,
+                        kind,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
                     QueryKind::PrepareRename(position) => queries::prepare_rename(
                         &work.snapshot,
                         source_id,

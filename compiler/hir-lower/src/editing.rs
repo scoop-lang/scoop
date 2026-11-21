@@ -46,6 +46,8 @@ pub struct DeclarationAnalysis {
     pub(crate) body_facts:
         std::collections::HashMap<hir::EditingSourceBodyId, hir::EditingValue<ObservedBody>>,
     pub(crate) reference_index: Option<hir::EditingReferenceIndex>,
+    pub(crate) resolved_import_uses:
+        Vec<(hir::SemanticSourceLocation, hir::SemanticSourceLocation)>,
     pub(crate) type_references: Vec<hir::EditingTypeReference>,
     pub(crate) type_applications: Vec<hir::EditingTypeApplication>,
     pub(crate) constant_references: Vec<hir::EditingConstantReference>,

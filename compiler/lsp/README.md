@@ -147,6 +147,8 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `Inline Local Variable` 将普通局部 `val` 的稳定初始化值替换到全部读取处，并检查每处类型和绑定。`Introduce Type Alias` 从完整类型选区声明透明别名，适用于文件内和局部类型语法。`Safe Delete Function` 检查文件私有顶层函数，返回版本化删除编辑或包含阻塞用法的源码位置。
 
+`source.organizeImports` 去除已确认未使用的普通文件头精确 import。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在同一 Cone 和 package 移动普通顶层函数。`scoop/prepareChangeSignature` 返回 `parameters` 和 `revision`，`scoop/changeSignature` 接收该 revision 与零基 `order` 排列。移动和参数换序返回版本化 workspace edit。
+
 开发验证使用 `cargo test -p scoop-analysis -p scoop-lsp`；LSP 集成测试启动真实 `scoop-lsp` 进程，检查传输、状态变化和查询结果。运行时将 `TMPDIR` 指向仓库外工作目录，测试工作文件遵守同一设置。
 
 预编译 core／标准库的正式进程覆盖位于 `tests/fixtures/lsp`，使用显式准备的 sysroot，按 fixture runner 的 `--scoop-lsp` 参数选择服务器。

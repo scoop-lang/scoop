@@ -51,15 +51,17 @@ enum Refactoring {
     ExtractTypeAlias,
     InlineVariable,
     SafeDelete,
+    OrganizeImports,
 }
 
 impl Refactoring {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::ExtractVariable,
         Self::ExtractFunction,
         Self::ExtractTypeAlias,
         Self::InlineVariable,
         Self::SafeDelete,
+        Self::OrganizeImports,
     ];
 
     fn kind(self) -> CodeActionKind {
@@ -69,6 +71,7 @@ impl Refactoring {
             }
             Self::InlineVariable => CodeActionKind::REFACTOR_INLINE,
             Self::SafeDelete => CodeActionKind::REFACTOR_REWRITE,
+            Self::OrganizeImports => CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
         }
     }
 
@@ -79,6 +82,7 @@ impl Refactoring {
             Self::ExtractTypeAlias => "Introduce Type Alias",
             Self::InlineVariable => "Inline Local Variable",
             Self::SafeDelete => "Safe Delete Function",
+            Self::OrganizeImports => "Organize Imports",
         }
     }
 }
@@ -111,7 +115,8 @@ pub(crate) fn actions(
     let refactors = Refactoring::ALL
         .into_iter()
         .filter(|target| {
-            requested(&query.context, &target.kind())
+            (!matches!(target, Refactoring::OrganizeImports) || query.context.only.is_some())
+                && requested(&query.context, &target.kind())
                 && (query.range.start != query.range.end
                     || target.kind() != CodeActionKind::REFACTOR_EXTRACT)
         })
@@ -277,6 +282,9 @@ fn refactor(
             range,
             check,
         ))?,
+        Refactoring::OrganizeImports => {
+            analysis_result(semantics.organize_imports(context.snapshot, context.source_id, check))?
+        }
         Refactoring::SafeDelete => match analysis_result(semantics.safe_delete_function(
             context.snapshot,
             context.source_id,

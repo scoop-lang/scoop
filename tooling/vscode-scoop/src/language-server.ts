@@ -5,6 +5,7 @@ import {
   LanguageClient,
   type Location as ProtocolLocation,
   type Position as ProtocolPosition,
+  type WorkspaceEdit as ProtocolWorkspaceEdit,
   RevealOutputChannelOn,
 } from "vscode-languageclient/node";
 import {
@@ -62,6 +63,12 @@ export class ScoopLanguageServer {
       ),
       vscode.commands.registerCommand("scoop.showMemberHierarchy", () =>
         this.showMemberHierarchy(),
+      ),
+      vscode.commands.registerCommand("scoop.moveDeclaration", () =>
+        this.moveDeclaration(),
+      ),
+      vscode.commands.registerCommand("scoop.changeSignature", () =>
+        this.changeSignature(),
       ),
       vscode.commands.registerCommand(
         "scoop.showSafeDeleteUsages",
@@ -211,6 +218,133 @@ export class ScoopLanguageServer {
       ),
       "peek",
     );
+  }
+
+  private async moveDeclaration() {
+    const editor = vscode.window.activeTextEditor;
+    if (editor?.document.languageId !== "scoop") return;
+    const { document, selection } = editor;
+    const client = this.clientFor(document.uri);
+    if (
+      !client?.isRunning() ||
+      !client.initializeResult?.capabilities.experimental?.scoopMoveDeclaration
+    )
+      return;
+    const version = document.version;
+    const [target] =
+      (await vscode.window.showOpenDialog({
+        title: "Move Declaration to a Scoop File",
+        openLabel: "Choose Destination",
+        canSelectMany: false,
+        filters: { Scoop: ["scoop"] },
+        defaultUri: vscode.workspace.getWorkspaceFolder(document.uri)?.uri,
+      })) ?? [];
+    if (!target || document.version !== version) return;
+    const edit = await client.sendRequest<ProtocolWorkspaceEdit | null>(
+      "scoop/moveDeclaration",
+      {
+        ...client.code2ProtocolConverter.asTextDocumentPositionParams(
+          document,
+          selection.active,
+        ),
+        targetUri: client.code2ProtocolConverter.asUri(target),
+      },
+    );
+    if (document.version === version)
+      await this.applyRefactoring(client, edit, "Move Declaration");
+  }
+
+  private async changeSignature() {
+    const editor = vscode.window.activeTextEditor;
+    if (editor?.document.languageId !== "scoop") return;
+    const { document, selection } = editor;
+    const client = this.clientFor(document.uri);
+    if (
+      !client?.isRunning() ||
+      !client.initializeResult?.capabilities.experimental?.scoopChangeSignature
+    )
+      return;
+    const version = document.version;
+    const position = client.code2ProtocolConverter.asTextDocumentPositionParams(
+      document,
+      selection.active,
+    );
+    const plan = await client.sendRequest<{
+      parameters: string[];
+      revision: number;
+    } | null>("scoop/prepareChangeSignature", position);
+    if (!plan) {
+      await vscode.window.showInformationMessage(
+        "Select a private function declaration with two or more parameters.",
+      );
+      return;
+    }
+    const parseOrder = (input: string) =>
+      input.split(",").map((number) => Number(number.trim()) - 1);
+    const value = await vscode.window.showInputBox({
+      title: "Change Parameter Order",
+      prompt: plan.parameters
+        .map((name, index) => `${index + 1}. ${name}`)
+        .join(", "),
+      value: plan.parameters.map((_, index) => index + 1).join(", "),
+      validateInput: (input) => {
+        const order = parseOrder(input);
+        return order.length === plan.parameters.length &&
+          new Set(order).size === order.length &&
+          order.every(
+            (index) =>
+              Number.isInteger(index) && index >= 0 && index < order.length,
+          )
+          ? undefined
+          : "Enter each parameter number once.";
+      },
+    });
+    if (value === undefined || document.version !== version) return;
+    const edit = await client.sendRequest<ProtocolWorkspaceEdit | null>(
+      "scoop/changeSignature",
+      { ...position, revision: plan.revision, order: parseOrder(value) },
+    );
+    if (document.version === version)
+      await this.applyRefactoring(client, edit, "Change Signature");
+  }
+
+  private async applyRefactoring(
+    client: LanguageClient,
+    edit: ProtocolWorkspaceEdit | null,
+    label: string,
+  ) {
+    if (!edit) {
+      await vscode.window.showInformationMessage(
+        `${label} is unavailable for the selected declaration.`,
+      );
+      return;
+    }
+    for (const change of edit.documentChanges ?? []) {
+      if (!("textDocument" in change) || change.textDocument.version === null)
+        continue;
+      const uri = client.protocol2CodeConverter.asUri(change.textDocument.uri);
+      const document = vscode.workspace.textDocuments.find(
+        (candidate) => candidate.uri.toString() === uri.toString(),
+      );
+      if (document?.version !== change.textDocument.version) return;
+    }
+    const converted = await client.protocol2CodeConverter.asWorkspaceEdit(edit);
+    if (!converted?.size) return;
+    const preview = new vscode.WorkspaceEdit();
+    for (const [uri, edits] of converted.entries()) {
+      preview.set(
+        uri,
+        edits.map(
+          (
+            sourceEdit,
+          ): [vscode.TextEdit, vscode.WorkspaceEditEntryMetadata] => [
+            sourceEdit,
+            { label, needsConfirmation: true },
+          ],
+        ),
+      );
+    }
+    await vscode.workspace.applyEdit(preview, { isRefactoring: true });
   }
 
   update(restart = false): Promise<void> {

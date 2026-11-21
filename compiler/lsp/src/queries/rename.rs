@@ -5,7 +5,10 @@ use lsp_types::{
     DocumentChanges, OneOf, OptionalVersionedTextDocumentIdentifier, Position, TextDocumentEdit,
     TextEdit, WorkspaceEdit,
 };
-use scoop_analysis::{AnalysisSnapshot, Cancellation, RenameError, SemanticSession, SourceId};
+use scoop_analysis::{
+    AnalysisSnapshot, Cancellation, ProjectInput, RenameError, SemanticSession, SourceId,
+};
+use scoop_source::SourceEdit;
 use serde_json::Value;
 
 use super::semantic;
@@ -60,27 +63,35 @@ pub(crate) fn rename(
     else {
         return Ok(Value::Null);
     };
+    workspace_edit(snapshot, cursor.project, edits, settings)
+}
+
+pub(super) fn workspace_edit(
+    snapshot: &AnalysisSnapshot,
+    project: &ProjectInput,
+    edits: Vec<SourceEdit>,
+    settings: Settings,
+) -> Result<Value, ResponseError> {
     let mut documents = BTreeMap::<String, TextDocumentEdit>::new();
     for edit in edits {
-        let file = cursor
-            .project
+        let file = project
             .cones
             .values()
             .filter_map(|cone| cone.source())
             .flat_map(|cone| &cone.sources)
             .find(|file| file.source == edit.source.source)
             .ok_or_else(|| {
-                convert::error(ErrorCode::RequestFailed, "rename source is unavailable")
+                convert::error(ErrorCode::RequestFailed, "edit source is unavailable")
             })?;
         let origin = scoop_hir::SemanticSourceLocation {
             source: file.identity.clone(),
             span: edit.span,
         };
         let location =
-            convert::location(snapshot, cursor.project, &origin, settings)?.ok_or_else(|| {
+            convert::location(snapshot, project, &origin, settings)?.ok_or_else(|| {
                 convert::error(
                     ErrorCode::RequestFailed,
-                    "rename source location is unavailable",
+                    "edit source location is unavailable",
                 )
             })?;
         let document = documents

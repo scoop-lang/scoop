@@ -30,6 +30,8 @@ Run／Debug 后才调用普通构建入口。扩展不自动准备 sysroot；不
 
 在以字面量或稳定值初始化的局部 `val` 上，可用 `Inline Local Variable` 替换各处读取。选中完整的类型语法后可用 `Introduce Type Alias`。文件私有顶层函数可用 `Safe Delete Function`，有阻塞用法时可选择 `Show Safe Delete Usages` 查看位置。
 
+`Organize Imports` 删除未使用的普通文件头精确导入。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择同一 Cone、同一 package 的目标文件。在文件私有顶层函数上执行 `Scoop: Change Signature`，按提示输入参数编号的新排列。移动和换序支持预览后应用。
+
 将完整工具包解压到 `~/.scoop` 后安装随包 VSIX：
 
 ```sh

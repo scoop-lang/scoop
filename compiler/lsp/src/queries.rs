@@ -19,6 +19,7 @@ pub(crate) mod references;
 mod rename;
 mod semantic;
 mod signature_help;
+pub(crate) mod structural_refactor;
 mod symbols;
 mod type_definition;
 pub(crate) mod type_hierarchy;
@@ -50,6 +51,7 @@ pub(crate) enum QueryKind {
         include_declaration: bool,
     },
     UsageLocations(Position, references::UsageView),
+    StructuralRefactor(structural_refactor::RefactorQuery),
     PrepareRename(Position),
     Rename {
         position: Position,
@@ -108,6 +110,38 @@ impl Query {
 impl DocumentQuery {
     fn from_request(request: &Request) -> Result<Self, ResponseError> {
         match request.method.as_str() {
+            "scoop/moveDeclaration" => {
+                let params: structural_refactor::MoveParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.position.text_document.uri,
+                    kind: QueryKind::StructuralRefactor(structural_refactor::RefactorQuery::Move {
+                        position: params.position.position,
+                        target_uri: params.target_uri,
+                    }),
+                })
+            }
+            "scoop/prepareChangeSignature" => {
+                let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document.uri,
+                    kind: QueryKind::StructuralRefactor(
+                        structural_refactor::RefactorQuery::PrepareSignature(params.position),
+                    ),
+                })
+            }
+            "scoop/changeSignature" => {
+                let params: structural_refactor::SignatureParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.position.text_document.uri,
+                    kind: QueryKind::StructuralRefactor(
+                        structural_refactor::RefactorQuery::ChangeSignature {
+                            position: params.position.position,
+                            order: params.order,
+                            revision: params.revision,
+                        },
+                    ),
+                })
+            }
             "textDocument/prepareRename" => {
                 let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
                 Ok(Self {

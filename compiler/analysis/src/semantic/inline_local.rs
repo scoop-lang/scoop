@@ -264,7 +264,7 @@ fn initializer(input: &SourceInput, span: Span) -> Option<(Span, Span, bool)> {
     Some((node_span(&statement), value, literal))
 }
 
-fn removal_span(text: &str, statement: Span) -> Span {
+pub(super) fn removal_span(text: &str, statement: Span) -> Span {
     let begin = statement.start as usize;
     let trailing = &text[statement.end as usize..];
     let rest = trailing.trim_start_matches([' ', '\t']);
@@ -292,11 +292,13 @@ fn removal_span(text: &str, statement: Span) -> Span {
     statement
 }
 
-fn updated_span(span: Span, edits: &[SourceEdit]) -> Option<Span> {
-    let offset = |position| {
+pub(super) fn updated_span(span: Span, edits: &[SourceEdit]) -> Option<Span> {
+    let offset = |position, end| {
         let mut shift = 0i64;
         for edit in edits {
-            if position <= edit.span.start {
+            if position < edit.span.start
+                || (position == edit.span.start && (end || edit.span.start < edit.span.end))
+            {
                 break;
             }
             if position < edit.span.end {
@@ -306,5 +308,8 @@ fn updated_span(span: Span, edits: &[SourceEdit]) -> Option<Span> {
         }
         u32::try_from(i64::from(position) + shift).ok()
     };
-    Some(Span::new(offset(span.start)?, offset(span.end)?))
+    Some(Span::new(
+        offset(span.start, false)?,
+        offset(span.end, true)?,
+    ))
 }

@@ -159,6 +159,14 @@
         "title": "Scoop: Go to Related Tests"
       },
       {
+        "command": "scoop.moveDeclaration",
+        "title": "Scoop: Move Declaration"
+      },
+      {
+        "command": "scoop.changeSignature",
+        "title": "Scoop: Change Signature"
+      },
+      {
         "command": "scoop.debugFile",
         "title": "Scoop: Debug Current File"
       },

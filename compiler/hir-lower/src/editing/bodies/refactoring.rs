@@ -93,33 +93,45 @@ impl DeclarationAnalysis {
     }
 
     pub fn is_source_location_call(&self, target: hir::EditingCallee) -> bool {
+        self.editing_intrinsic(target) == Some(hir::IntrinsicFunctionKind::CurrentSourceLocation)
+    }
+
+    pub fn is_relative_source_call(&self, target: hir::EditingCallee) -> bool {
+        matches!(
+            self.editing_intrinsic(target),
+            Some(
+                hir::IntrinsicFunctionKind::IncludeStr
+                    | hir::IntrinsicFunctionKind::IncludeBytes
+                    | hir::IntrinsicFunctionKind::IncludeDir
+            )
+        )
+    }
+
+    fn editing_intrinsic(&self, target: hir::EditingCallee) -> Option<hir::IntrinsicFunctionKind> {
         use hir::{DefaultCallableDeclarationV1 as D, SemanticCallable};
-        let Some(callable) = target.callable() else {
-            return false;
-        };
-        let origin = match callable {
+        let origin = match target.callable()? {
             SemanticCallable::Current(id) => {
-                return matches!(&self.lowerer.functions[id].kind, hir::FunctionKind::Intrinsic(intrinsic)
-                    if intrinsic.kind == hir::IntrinsicFunctionKind::CurrentSourceLocation);
+                return match &self.lowerer.functions[id].kind {
+                    hir::FunctionKind::Intrinsic(intrinsic) => Some(intrinsic.kind),
+                    _ => None,
+                };
             }
             SemanticCallable::Imported(D::Function(id)) => CallableTemplateOrigin::Function(id),
             SemanticCallable::Imported(D::GenericFunction(id)) => {
                 CallableTemplateOrigin::GenericFunction(id)
             }
-            _ => return false,
+            _ => return None,
         };
         self.lowerer
             .dependencies
             .as_ref()
             .and_then(|catalog| catalog.callable_declaration(origin).ok())
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.interface().effects().implementation(),
-                    hir::CallableImplementationV1::Intrinsic(
-                        hir::IntrinsicFunctionKind::CurrentSourceLocation
-                    )
-                )
-            })
+            .and_then(
+                |declaration| match declaration.interface().effects().implementation() {
+                    hir::CallableImplementationV1::Intrinsic(kind) => Some(kind),
+                    _ => None,
+                },
+            )
     }
 
     pub fn has_source_location_default(

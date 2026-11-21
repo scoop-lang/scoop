@@ -9,6 +9,7 @@ use crate::{AnalysisSnapshot, Cancelled, DeclarationAnalysisError, SourceId};
 
 mod call_hierarchy;
 pub use call_hierarchy::{CallHierarchyDirection, CallHierarchyRelation};
+mod change_signature;
 mod dependencies;
 mod diagnostics;
 mod documentation;
@@ -17,6 +18,8 @@ mod extract_local;
 mod implementations;
 pub use implementations::{MemberHierarchy, MemberImplementationSearch, TypeImplementationSearch};
 mod inline_local;
+mod move_declaration;
+mod organize_imports;
 mod project;
 mod references;
 pub use references::ReferenceSearch;
