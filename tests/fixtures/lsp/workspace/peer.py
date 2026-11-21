@@ -21,6 +21,7 @@ from diagnostics import check as check_diagnostics
 from do_while_recovery import check as check_do_while_recovery
 from documentation import check as check_documentation
 from exception_recovery import check as check_exception_recovery
+from extract_local import check as check_extract_local
 from file_headers import check as check_file_headers
 from for_recovery import check as check_for_recovery
 from import_failures import check as check_import_failures
@@ -201,7 +202,16 @@ def main():
                         "didChangeWatchedFiles": {"dynamicRegistration": True},
                         "workspaceEdit": {"documentChanges": True},
                     },
-                    "textDocument": {"documentSymbol": {"hierarchicalDocumentSymbolSupport": True}},
+                    "textDocument": {
+                        "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
+                        "codeAction": {
+                            "codeActionLiteralSupport": {
+                                "codeActionKind": {"valueSet": ["quickfix", "refactor"]}
+                            },
+                            "dataSupport": True,
+                            "resolveSupport": {"properties": ["edit"]},
+                        },
+                    },
                 },
             },
         )
@@ -209,6 +219,11 @@ def main():
         assert initialized["capabilities"]["definitionProvider"]
         assert initialized["capabilities"]["referencesProvider"]
         assert initialized["capabilities"]["renameProvider"]["prepareProvider"]
+        assert initialized["capabilities"]["experimental"]["scoopSuperDeclarations"]
+        assert (
+            "refactor.extract"
+            in initialized["capabilities"]["codeActionProvider"]["codeActionKinds"]
+        )
         assert initialized["capabilities"]["completionProvider"]["triggerCharacters"] == ["."]
         assert initialized["capabilities"]["signatureHelpProvider"]["triggerCharacters"] == [
             "(",
@@ -440,6 +455,7 @@ def main():
         check_file_headers(peer, root)
         check_reexport_references(peer, root)
         check_rename(peer, root)
+        check_extract_local(peer, root)
         check_rename_types(peer, root)
         check_rename_members(peer, root)
         check_rename_exports(peer, root)

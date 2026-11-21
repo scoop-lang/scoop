@@ -7,6 +7,7 @@ mod conformances;
 mod imported;
 mod selection;
 mod source;
+mod super_declarations;
 
 #[derive(Default)]
 struct MemberIndex {

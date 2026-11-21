@@ -192,6 +192,14 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                         semantics,
                         &cancellation,
                     ),
+                    QueryKind::SuperDeclarations(position) => queries::super_declarations(
+                        &work.snapshot,
+                        source_id,
+                        position,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
                     QueryKind::Completion(position) => queries::completion(
                         &work.snapshot,
                         source_id,

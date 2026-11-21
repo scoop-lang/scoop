@@ -24,7 +24,7 @@ mod workspace_symbols;
 pub(crate) use completion::completion;
 pub(crate) use definition::definition;
 pub(crate) use hover::hover;
-pub(crate) use implementation::implementation;
+pub(crate) use implementation::{implementation, super_declarations};
 pub(crate) use references::references;
 pub(crate) use rename::{prepare_rename, rename};
 pub(crate) use semantic::cancelled;
@@ -39,6 +39,7 @@ pub(crate) enum QueryKind {
     Definition(Position),
     TypeDefinition(Position),
     Implementation(Position),
+    SuperDeclarations(Position),
     References {
         position: Position,
         include_declaration: bool,
@@ -209,6 +210,13 @@ impl DocumentQuery {
                 Ok(Self {
                     uri: params.text_document_position_params.text_document.uri,
                     kind: QueryKind::Implementation(params.text_document_position_params.position),
+                })
+            }
+            "scoop/superDeclarations" => {
+                let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document.uri,
+                    kind: QueryKind::SuperDeclarations(params.position),
                 })
             }
             _ => Err(convert::error(

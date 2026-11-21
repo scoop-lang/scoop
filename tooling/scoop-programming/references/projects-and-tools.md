@@ -131,6 +131,7 @@ scoop-lsp query hover src/main.scoop --line 8 --column 12 --format json
 scoop-lsp query signature src/main.scoop --line 8 --column 20
 scoop-lsp query completion src/main.scoop --line 9 --column 10
 scoop-lsp query definition src/main.scoop --line 8 --column 12
+scoop-lsp query super-declarations src/main.scoop --line 8 --column 12
 scoop-lsp query diagnostics src/main.scoop --format json
 scoop-lsp query code-actions src/main.scoop --line 8 --column 12 --format json
 scoop-lsp query symbols src/main.scoop

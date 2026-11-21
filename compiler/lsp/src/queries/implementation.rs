@@ -1,5 +1,5 @@
 use lsp_server::{ErrorCode, ResponseError};
-use lsp_types::Position;
+use lsp_types::{Location, Position};
 use scoop_analysis::{
     AnalysisSnapshot, Cancellation, ProjectAnalysisError, SemanticSession, SourceId,
 };
@@ -47,14 +47,46 @@ pub(crate) fn implementation(
             .map(|implementation| implementation.origin)
             .collect()
     };
+    declaration_locations(snapshot, cursor.project, origins, settings, cancellation)
+}
+
+pub(crate) fn super_declarations(
+    snapshot: &AnalysisSnapshot,
+    source_id: SourceId,
+    position: Position,
+    settings: Settings,
+    semantics: &mut SemanticSession,
+    cancellation: &Cancellation,
+) -> Result<Value, ResponseError> {
+    let Some(cursor) = semantic::cursor(snapshot, source_id, position, settings)? else {
+        return super::json(Vec::<Location>::new());
+    };
+    let Some(analysis) = semantic::declarations(semantics, snapshot, source_id, cancellation)?
+    else {
+        return super::json(Vec::<Location>::new());
+    };
+    let origins = analysis
+        .super_declarations(&cursor.file.identity, cursor.span, || {
+            cancellation.check().is_err() || snapshot.check_cancelled().is_err()
+        })
+        .map_err(|_| semantic::cancelled())?;
+    declaration_locations(snapshot, cursor.project, origins, settings, cancellation)
+}
+
+fn declaration_locations(
+    snapshot: &AnalysisSnapshot,
+    project: &scoop_analysis::ProjectInput,
+    origins: Vec<scoop_hir::SemanticSourceLocation>,
+    settings: Settings,
+    cancellation: &Cancellation,
+) -> Result<Value, ResponseError> {
     let mut locations = Vec::new();
     for origin in origins {
         cancellation.check().map_err(|_| semantic::cancelled())?;
         snapshot
             .check_cancelled()
             .map_err(|_| semantic::cancelled())?;
-        if let Some(location) =
-            convert::definition_location(snapshot, cursor.project, &origin, settings)?
+        if let Some(location) = convert::definition_location(snapshot, project, &origin, settings)?
         {
             locations.push(location);
         }

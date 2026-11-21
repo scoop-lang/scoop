@@ -49,9 +49,13 @@ CLI 首轮的 25 项失败分别来自压缩 manifest 首项名称、artifact su
 
 语法仍整文件重解析，未变化文件直接复用；受影响 Cone 的语义和引用索引保守失效。没有局部重解析或正文级增量类型检查，大项目首次打开和引用索引仍有完整前端分析成本。
 
-rename 当前要求所选项目的必要源码及语义分析完整；存在不可证明的引用或绑定时明确拒绝，缺少源码的位置不猜测。code action 仅修复已确定的缺失固定标点。semanticTokens、inlayHint、格式化和 call／type hierarchy 属于后续能力，服务器没有声明它们已实现。
+rename 要求所选项目的必要源码及语义分析完整。存在不可证明的引用或绑定时明确拒绝。code action 提供固定标点、导入修复和提取局部 `val`。semanticTokens、inlayHint、格式化和 call／type hierarchy 仍待实现。
 
 启动与编辑器配置见[服务器说明](../../compiler/lsp/README.md)。
+
+## 导航与重构扩展
+
+首批已接入从覆写方法或属性转到上级声明，以及从完整表达式提取局部 `val`。macOS 定向 Rust、VS Code Extension Host 及三项正式 release LSP fixture 通过。fixture 覆盖上级关系、上下文定型、版本化编辑和过期动作。 [实施方案](NAVIGATION-AND-REFACTORING.md)
 
 ## 合并 origin/main
 

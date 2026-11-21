@@ -147,6 +147,10 @@
         "title": "Scoop: Show Language Server Output"
       },
       {
+        "command": "scoop.goToSuperDeclaration",
+        "title": "Scoop: Go to Super Declaration"
+      },
+      {
         "command": "scoop.debugFile",
         "title": "Scoop: Debug Current File"
       },
@@ -155,6 +159,15 @@
         "title": "Scoop: Show Debug Output"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "scoop.goToSuperDeclaration",
+          "when": "editorLangId == scoop",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Scoop",
       "properties": {

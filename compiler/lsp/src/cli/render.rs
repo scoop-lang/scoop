@@ -62,7 +62,8 @@ pub(super) fn text(output: &Output) -> serde_json::Result<String> {
                     }
                 }
             }
-            "definition" | "type-definition" | "implementation" | "references" => {
+            "definition" | "type-definition" | "implementation" | "super-declarations"
+            | "references" => {
                 let values = output
                     .result
                     .as_array()

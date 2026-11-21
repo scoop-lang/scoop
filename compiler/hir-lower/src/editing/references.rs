@@ -23,6 +23,27 @@ struct ReferenceBuilder {
 }
 
 impl DeclarationAnalysis {
+    pub fn body_reference_index(
+        &mut self,
+        body: &hir::EditingSourceBody,
+        is_cancelled: Rc<dyn Fn() -> bool>,
+    ) -> Result<Option<hir::EditingReferenceIndex>, EditingCancelled> {
+        let mut builder = ReferenceBuilder::default();
+        builder.body(self, body, &is_cancelled)?;
+        if !builder.unavailable.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(hir::EditingReferenceIndex::new(
+            builder.occurrences,
+            builder.definitions,
+            Vec::new(),
+            true,
+            builder.aliases,
+            Vec::new(),
+            Vec::new(),
+        )))
+    }
+
     pub fn reference_index(
         &mut self,
         is_cancelled: impl Fn() -> bool + 'static,

@@ -11,6 +11,7 @@ scoop-lsp query hover src/main.scoop --line 8 --column 12
 scoop-lsp query signature src/main.scoop --line 8 --column 20 --format json
 scoop-lsp query completion src/main.scoop --line 9 --column 10 --purpose test --format json
 scoop-lsp query definition src/main.scoop --line 8 --column 12
+scoop-lsp query super-declarations src/main.scoop --line 8 --column 12
 scoop-lsp query references src/main.scoop --line 8 --column 12
 scoop-lsp query symbols src/main.scoop
 scoop-lsp query workspace-symbols Greeting
@@ -19,7 +20,7 @@ scoop-lsp query code-actions src/main.scoop --line 8 --column 12 --format json
 scoop-lsp query capabilities --format json
 ```
 
-hover 包含当前位置可确定的类型、签名和文档；signature 针对调用参数位置。completion 使用实际接收者、可见性和约束。type-definition、implementation 分别查询类型定义和实现。symbols 与 workspace-symbols 检索当前文档/工作区源码声明，不宣称已经检索全部已安装库；按名字发现尚未使用的库 API 由文档查询负责。
+hover 包含当前位置可确定的类型、签名和文档；signature 针对调用参数位置。completion 使用实际接收者、可见性和约束。type-definition、implementation 分别查询类型定义和实现。super-declarations 从方法或属性的声明名称查询最近的上级声明。symbols 与 workspace-symbols 检索当前文档/工作区源码声明，不宣称已经检索全部已安装库；按名字发现尚未使用的库 API 由文档查询负责。
 
 code-actions 查询该位置的 quickfix，返回已展开的普通 LSP WorkspaceEdit。目前包括已有的语法插入，以及诊断给出的 import 候选。导入来源是当前 Cone 和直接依赖的公开命名空间；接收者类型和约束使用前端已有求解器。多个合法路径分别返回，不替调用方选一个。缺少依赖、私有声明、歧义路径或会与已有绑定冲突的路径不生成导入编辑。候选不等于完整的 API 检索结果，也不保证加入 import 后其他类型错误自动消失。
 

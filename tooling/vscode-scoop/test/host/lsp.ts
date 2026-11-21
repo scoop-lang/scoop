@@ -61,7 +61,7 @@ export async function runLanguageServerTests() {
   await write(manifestUri, manifestText);
   const apiUri = vscode.Uri.joinPath(project, "src/api.scoop");
   const apiText =
-    "package editor\n/// Returns the supplied flag.\npublic fun choose(flag: Boolean): Boolean = flag\n";
+    "package editor\n/// Returns the supplied flag.\npublic fun choose(flag: Boolean): Boolean = flag\ninterface Marker { fun readMarker(): Boolean }\n";
   await write(apiUri, apiText);
   const diskUri = vscode.Uri.joinPath(project, "src/disk.scoop");
   const diskText =
@@ -70,7 +70,7 @@ export async function runLanguageServerTests() {
   const useUri = vscode.Uri.joinPath(project, "src/use.scoop");
   await write(
     useUri,
-    "package editor\nfun use(): Boolean = choose(true)\nfun inspect(𐐀flag: Boolean): String = 𐐀flag.toString()\nfun fromDisk(): Boolean = diskFlag(true)\n",
+    "package editor\nfun use(): Boolean = choose(true)\nfun inspect(𐐀flag: Boolean): String = 𐐀flag.toString()\nfun fromDisk(): Boolean = diskFlag(true)\nclass Marked : Marker { override fun readMarker(): Boolean = true }\nfun extract(flag: Boolean): Boolean { return choose(flag) }\n",
   );
   const document = await vscode.workspace.openTextDocument(useUri);
   await vscode.window.showTextDocument(document);
@@ -174,6 +174,38 @@ export async function runLanguageServerTests() {
   assert.ok(selections?.[0].parent);
 
   const api = await vscode.workspace.openTextDocument(apiUri);
+  const editor = await vscode.window.showTextDocument(document);
+  const member = at(document, "override fun ", true);
+  editor.selection = new vscode.Selection(member, member);
+  await vscode.commands.executeCommand("scoop.goToSuperDeclaration");
+  await eventually(
+    () =>
+      vscode.window.activeTextEditor?.document.uri.toString() ===
+        apiUri.toString() &&
+      vscode.window.activeTextEditor.selection.active.line ===
+        at(api, "readMarker").line,
+    "navigation to an overridden declaration",
+  );
+  await vscode.window.showTextDocument(document);
+  const extraction = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+    "vscode.executeCodeActionProvider",
+    useUri,
+    new vscode.Range(
+      at(document, "choose(flag)"),
+      at(document, "choose(flag)", true),
+    ),
+    vscode.CodeActionKind.RefactorExtract.value,
+  );
+  const extracted = extraction?.find(
+    (action) => action.title === "Extract Local Variable",
+  );
+  assert.ok(extracted?.edit);
+  assert.ok(await vscode.workspace.applyEdit(extracted.edit));
+  assert.match(
+    document.getText(),
+    /val extracted: Boolean = choose\(flag\); return extracted/,
+  );
+
   const rename = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
     "vscode.executeDocumentRenameProvider",
     useUri,
@@ -190,7 +222,13 @@ export async function runLanguageServerTests() {
     () =>
       vscode.languages
         .getDiagnostics(useUri)
-        .some((item) => /Boolean/.test(item.message)),
+        .some(
+          (item) =>
+            /Boolean/.test(item.message) ||
+            item.relatedInformation?.some((note) =>
+              /Boolean/.test(note.message),
+            ),
+        ),
     "type diagnostic for an unsaved edit",
   );
   await replace(document, 'selectFlag("wrong")', "selectFlag(true)");

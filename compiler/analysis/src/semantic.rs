@@ -10,6 +10,7 @@ use crate::{AnalysisSnapshot, Cancelled, DeclarationAnalysisError, SourceId};
 mod dependencies;
 mod diagnostics;
 mod documentation;
+mod extract_local;
 mod implementations;
 pub use implementations::{MemberImplementationSearch, TypeImplementationSearch};
 mod project;
@@ -56,6 +57,16 @@ pub struct SemanticSession {
 }
 
 impl SemanticSession {
+    fn for_edits(&self) -> Self {
+        Self {
+            projects: self
+                .projects
+                .iter()
+                .map(project::ProjectSemantics::for_edits)
+                .collect(),
+        }
+    }
+
     /// Current input hosts remain shared as additional bodies are queried on demand.
     pub fn compiler_inputs(
         &self,

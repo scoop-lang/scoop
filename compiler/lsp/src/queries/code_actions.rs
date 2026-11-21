@@ -4,7 +4,8 @@ use lsp_types::{
     OptionalVersionedTextDocumentIdentifier, Range, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
 use scoop_analysis::{
-    AnalysisSnapshot, Cancellation, SemanticSession, SourceId, SourceInput, SyntaxFix,
+    AnalysisSnapshot, Cancellation, ProjectAnalysisError, SemanticSession, SourceId, SourceInput,
+    SyntaxFix,
 };
 use scoop_source::{SourceEdit, Span};
 use serde::{Deserialize, Serialize};
@@ -30,6 +31,11 @@ enum Repair {
     },
     Import {
         path: Vec<String>,
+        start: u32,
+        end: u32,
+        analysis_revision: u64,
+    },
+    ExtractLocal {
         start: u32,
         end: u32,
         analysis_revision: u64,
@@ -60,11 +66,9 @@ pub(crate) fn actions(
     if !context.settings.code_actions {
         return Err(unsupported());
     }
-    if query.context.only.as_ref().is_some_and(|kinds| {
-        !kinds
-            .iter()
-            .any(|kind| kind == &CodeActionKind::QUICKFIX || kind == &CodeActionKind::EMPTY)
-    }) {
+    let quickfix = requested(&query.context, &CodeActionKind::QUICKFIX);
+    let extract = requested(&query.context, &CodeActionKind::REFACTOR_EXTRACT);
+    if !quickfix && !extract {
         return super::json(Vec::<CodeAction>::new());
     }
     let range = Span::new(
@@ -85,20 +89,25 @@ pub(crate) fn actions(
             "reversed code action range",
         ));
     }
-    let fixes = context
-        .source
-        .syntax_fixes(range)
-        .map_err(|error| convert::error(ErrorCode::RequestFailed, error))?;
-    let mut actions = Vec::with_capacity(fixes.len());
-    for fix in fixes {
-        context
-            .cancellation
-            .check()
-            .map_err(|_| super::semantic::cancelled())?;
-        actions.push(syntax_action(&context, fix)?);
+    let mut actions = Vec::new();
+    if quickfix {
+        let fixes = context
+            .source
+            .syntax_fixes(range)
+            .map_err(|error| convert::error(ErrorCode::RequestFailed, error))?;
+        for fix in fixes {
+            context
+                .cancellation
+                .check()
+                .map_err(|_| super::semantic::cancelled())?;
+            actions.push(syntax_action(&context, fix)?);
+        }
+        for repair in imports::repairs(&context, semantics, range)? {
+            actions.push(imports::action(&context, repair)?);
+        }
     }
-    for repair in imports::repairs(&context, semantics, range)? {
-        actions.push(imports::action(&context, repair)?);
+    if extract && range.start != range.end {
+        actions.extend(extract_local(&context, semantics, range)?);
     }
     super::json(actions)
 }
@@ -150,7 +159,71 @@ pub(crate) fn resolve(
                 })?;
             super::json(imports::action(&context, repair)?)
         }
+        Repair::ExtractLocal {
+            start,
+            end,
+            analysis_revision,
+        } => {
+            if context.snapshot.revision.0 != analysis_revision {
+                return Err(convert::error(
+                    ErrorCode::ContentModified,
+                    "refactoring context changed",
+                ));
+            }
+            let action =
+                extract_local(&context, semantics, Span::new(start, end))?.ok_or_else(|| {
+                    convert::error(ErrorCode::InvalidParams, "local extraction is unavailable")
+                })?;
+            super::json(action)
+        }
     }
+}
+
+fn requested(context: &CodeActionContext, kind: &CodeActionKind) -> bool {
+    context.only.as_ref().is_none_or(|kinds| {
+        kinds.iter().any(|prefix| {
+            prefix == &CodeActionKind::EMPTY
+                || prefix == kind
+                || kind
+                    .as_str()
+                    .strip_prefix(prefix.as_str())
+                    .is_some_and(|suffix| suffix.starts_with('.'))
+        })
+    })
+}
+
+fn extract_local(
+    context: &Context<'_>,
+    semantics: &mut SemanticSession,
+    range: Span,
+) -> Result<Option<CodeAction>, ResponseError> {
+    let cancellation = context.cancellation.clone();
+    let edit =
+        match semantics.extract_local(context.snapshot, context.source_id, range, move || {
+            cancellation.check().is_err()
+        }) {
+            Ok(edit) => edit,
+            Err(
+                ProjectAnalysisError::Cancelled
+                | ProjectAnalysisError::Declarations(
+                    scoop_analysis::DeclarationAnalysisError::Cancelled,
+                ),
+            ) => return Err(super::semantic::cancelled()),
+            Err(_) => None,
+        };
+    edit.map(|edit| {
+        action(
+            context,
+            "Extract Local Variable".to_owned(),
+            edit,
+            Repair::ExtractLocal {
+                start: range.start,
+                end: range.end,
+                analysis_revision: context.snapshot.revision.0,
+            },
+        )
+    })
+    .transpose()
 }
 
 fn syntax_action(context: &Context<'_>, fix: SyntaxFix) -> Result<CodeAction, ResponseError> {
@@ -170,6 +243,10 @@ fn action(
     edit: SourceEdit,
     repair: Repair,
 ) -> Result<CodeAction, ResponseError> {
+    let kind = match repair {
+        Repair::ExtractLocal { .. } => CodeActionKind::REFACTOR_EXTRACT,
+        _ => CodeActionKind::QUICKFIX,
+    };
     let data = context.settings.code_action_resolve.then(|| ResolveData {
         uri: context.uri.clone(),
         source: edit.source.source.0,
@@ -178,7 +255,7 @@ fn action(
     });
     Ok(CodeAction {
         title,
-        kind: Some(CodeActionKind::QUICKFIX),
+        kind: Some(kind),
         edit: Some(WorkspaceEdit {
             document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
                 text_document: OptionalVersionedTextDocumentIdentifier {

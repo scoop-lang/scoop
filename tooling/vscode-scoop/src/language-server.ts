@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import {
   DidChangeConfigurationNotification,
   LanguageClient,
+  type Location as ProtocolLocation,
   RevealOutputChannelOn,
 } from "vscode-languageclient/node";
 import {
@@ -35,6 +36,9 @@ export class ScoopLanguageServer {
       vscode.commands.registerCommand("scoop.showLanguageServerOutput", () =>
         this.output.show(),
       ),
+      vscode.commands.registerCommand("scoop.goToSuperDeclaration", () =>
+        this.goToSuperDeclaration(),
+      ),
       vscode.workspace.onDidGrantWorkspaceTrust(() => void this.update(true)),
       vscode.workspace.onDidChangeWorkspaceFolders(() => void this.update()),
       vscode.window.onDidChangeActiveTextEditor(() => {
@@ -44,6 +48,52 @@ export class ScoopLanguageServer {
         if (event.affectsConfiguration("scoop"))
           void this.update(event.affectsConfiguration("scoop.server"));
       }),
+    );
+  }
+
+  private async goToSuperDeclaration() {
+    const editor = vscode.window.activeTextEditor;
+    if (editor?.document.languageId !== "scoop") return;
+    const { document, selection } = editor;
+    const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+    const client = (
+      folder
+        ? this.clients.get(folder.uri.fsPath)
+        : this.clients.values().next().value
+    )?.client;
+    if (
+      !client?.isRunning() ||
+      !client.initializeResult?.capabilities.experimental
+        ?.scoopSuperDeclarations
+    ) {
+      await vscode.window.showInformationMessage(
+        "The active Scoop language server does not provide Go to Super Declaration.",
+      );
+      return;
+    }
+    const version = document.version;
+    const position = selection.active;
+    const locations = await client.sendRequest<ProtocolLocation[]>(
+      "scoop/superDeclarations",
+      client.code2ProtocolConverter.asTextDocumentPositionParams(
+        document,
+        position,
+      ),
+    );
+    if (
+      editor.document.version !== version ||
+      vscode.window.activeTextEditor !== editor
+    )
+      return;
+    await vscode.commands.executeCommand(
+      "editor.action.goToLocations",
+      document.uri,
+      position,
+      locations.map((location) =>
+        client.protocol2CodeConverter.asLocation(location),
+      ),
+      "peek",
+      "No overridden declaration with available source.",
     );
   }
 

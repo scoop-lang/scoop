@@ -9,6 +9,7 @@ mod operators;
 mod prepared;
 mod properties;
 mod record;
+mod refactoring;
 mod rejected_references;
 mod selectors;
 pub(in crate::editing) use calls::CallInput;

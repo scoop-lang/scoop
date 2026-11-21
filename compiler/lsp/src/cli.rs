@@ -106,6 +106,8 @@ enum QueryKind {
     TypeDefinition(Position),
     /// Implementations of an interface or member.
     Implementation(Position),
+    /// Nearest declarations overridden by this method or property.
+    SuperDeclarations(Position),
     /// References, including the declaration.
     References(Position),
     /// Declarations in this document.

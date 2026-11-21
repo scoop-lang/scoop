@@ -150,13 +150,7 @@ impl SemanticSession {
         let edits = plan.edits(&world, &spelling);
         let candidate = snapshot.with_edits(&edits).map_err(RenameError::Edit)?;
         world.check()?;
-        let mut session = Self {
-            projects: self
-                .projects
-                .iter()
-                .map(|project| project.for_edits())
-                .collect(),
-        };
+        let mut session = self.for_edits();
         let updated = World::load(
             &mut session,
             &candidate,
