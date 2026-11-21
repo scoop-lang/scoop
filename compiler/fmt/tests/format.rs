@@ -15,6 +15,46 @@ fn declarations_and_blocks() {
 }
 
 #[test]
+fn kotlin_operator_and_colon_spacing() {
+    assert_eq!(
+        checked("fun f(n:Int){for(i in 0 .. n){ take(i ..< n) }\nval valid=1 in 0 .. n && n>0}"),
+        "fun f(n: Int) {\n    for (i in 0..n) {\n        take(i..<n)\n    }\n    val valid = 1 in 0..n && n > 0\n}\n"
+    );
+    assert_eq!(
+        checked(
+            "class C<T:Bound>(val x:T):Base(), Face where T:Other {\nconstructor(x:T,y:Int):this(x){}\nval a=object:Face{}\nfun f(cb:(Int)->Int):T=x\n}"
+        ),
+        "class C<T : Bound>(val x: T) : Base(), Face where T : Other {\n    constructor(x: T, y: Int) : this(x) {}\n    val a = object : Face {}\n    fun f(cb: (Int) -> Int): T = x\n}\n"
+    );
+    let formatted = checked(
+        "fun f() = veryLongValueNameFromTheFirstInput in 0 .. veryLongLimitFromTheSecondInput && anotherVeryLongCondition",
+    );
+    assert!(formatted.contains("0..veryLongLimitFromTheSecondInput"));
+}
+
+#[test]
+fn annotation_spacing_and_groups() {
+    for (source, expected) in [
+        ("@Test  fun f(){}", "@Test fun f() {}\n"),
+        ("@Test\nfun f(){}", "@Test\nfun f() {}\n"),
+        (
+            "@First @Second public fun f()=1",
+            "@First @Second\npublic fun f() = 1\n",
+        ),
+        (
+            "@First @With(1) @Second fun f(){}",
+            "@First\n@With(1)\n@Second\nfun f() {}\n",
+        ),
+        (
+            "class C(@field : Tag val x:Int){ @get: Tag val y=1 }",
+            "class C(@field:Tag val x: Int) {\n    @get:Tag val y = 1\n}\n",
+        ),
+    ] {
+        assert_eq!(checked(source), expected);
+    }
+}
+
+#[test]
 fn whitespace_sensitive_expressions() {
     for source in [
         "fun f(){ return\n value\n call\n (x)\n array\n [1,2]\n array[0] }",
@@ -46,6 +86,16 @@ fn comments_strings_and_newlines_are_verbatim() {
 }
 
 #[test]
+fn kotlin_plain_line_comment_spacing() {
+    assert_eq!(
+        checked(
+            "//! dep: scoop:scoop.json:0.1.0\n//中文 说明\n///docs\nfun f(){\nwork()//retry   later\n//  preformatted\n//&delimiter\n/*raw text*/\n}"
+        ),
+        "//! dep: scoop:scoop.json:0.1.0\n// 中文 说明\n///docs\nfun f() {\n    work() // retry   later\n    //  preformatted\n    //&delimiter\n    /*raw text*/\n}\n"
+    );
+}
+
+#[test]
 fn lists_break_at_unicode_scalar_width() {
     let name = "参数".repeat(10);
     let source = format!("fun f({name}: Int, {name}b: Int, {name}c: Int) {{}}");
@@ -58,16 +108,48 @@ fn lists_break_at_unicode_scalar_width() {
 }
 
 #[test]
+fn multiline_parameters_and_argument_groups() {
+    assert_eq!(
+        checked("fun f(\na:Int,b:Int\n){\nplot(x=10,y=10,\nwidth=100,height=100,\nfill=true)\n}"),
+        "fun f(\n    a: Int,\n    b: Int\n) {\n    plot(\n        x = 10, y = 10,\n        width = 100, height = 100,\n        fill = true\n    )\n}\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f() {\ncall(\nfirstCoordinateWithALongDescriptiveName, secondCoordinateWithAnEvenLongerDescriptiveNameThanTheFirst,\nthird)\n}"
+        ),
+        "fun f() {\n    call(\n        firstCoordinateWithALongDescriptiveName,\n        secondCoordinateWithAnEvenLongerDescriptiveNameThanTheFirst,\n        third\n    )\n}\n"
+    );
+}
+
+#[test]
+fn multiline_supertypes_and_constraints() {
+    assert_eq!(
+        checked("class C : Base(),\nFirst,\nSecond {}"),
+        "class C : Base(),\n    First,\n    Second {}\n"
+    );
+    assert_eq!(
+        checked(
+            "class Implementor : FirstTypeNameThatIsVeryLongIndeed(), SecondTypeNameThatIsJustAsLongAsFirstType, ThirdTypeNameThatIsQuiteLongToo {}"
+        ),
+        "class Implementor :\n    FirstTypeNameThatIsVeryLongIndeed(),\n    SecondTypeNameThatIsJustAsLongAsFirstType,\n    ThirdTypeNameThatIsQuiteLongToo {}\n"
+    );
+    assert_eq!(
+        checked("fun <T> f(x:T):T where T:First,\nT:Second=x"),
+        "fun <T> f(x: T): T\n    where T : First,\n          T : Second = x\n"
+    );
+    assert_eq!(
+        checked("class Box<T>\n: First, Second\nwhere T:Reference {}"),
+        "class Box<T> : First, Second\n    where T : Reference {}\n"
+    );
+}
+
+#[test]
 fn callable_bodies_annotations_and_control_layout() {
     for (source, expected) in [
         ("fun f()=apply {x->x+1}", "fun f() = apply { x -> x + 1 }\n"),
         (
-            "@First @Second public fun f()=1",
-            "@First\n@Second\npublic fun f() = 1\n",
-        ),
-        (
             "fun f(){if(x)call() else other()}",
-            "fun f() {\n    if (x)\n        call()\n    else\n        other()\n}\n",
+            "fun f() {\n    if (x) call() else other()\n}\n",
         ),
         (
             "fun f(){when(x){1->a()\nelse->b()}}",
@@ -78,6 +160,138 @@ fn callable_bodies_annotations_and_control_layout() {
     ] {
         assert_eq!(checked(source), expected);
     }
+}
+
+#[test]
+fn kotlin_control_braces_and_clauses() {
+    assert_eq!(
+        checked(
+            "fun f()\n{\nif (ok)\n{ first() }\nelse\nif (ready)\n{ second() }\nelse\n{ third() }\ntry\n{ first() }\ncatch(e: Error)\n{ second() }\nfinally\n{ done() }\ndo\n{ first() }\nwhile (ok)\n}"
+        ),
+        "fun f() {\n    if (ok) {\n        first()\n    } else if (ready) {\n        second()\n    } else {\n        third()\n    }\n    try {\n        first()\n    } catch (e: Error) {\n        second()\n    } finally {\n        done()\n    }\n    do {\n        first()\n    } while (ok)\n}\n"
+    );
+    assert_eq!(
+        checked("fun f() {\nif (ok) // wait\nact()\nelse stop()\n}\nfun g() { catch(1) }"),
+        "fun f() {\n    if (ok) // wait\n        act()\n    else\n        stop()\n}\n\nfun g() {\n    catch(1)\n}\n"
+    );
+}
+
+#[test]
+fn kotlin_short_if_and_multiline_condition() {
+    assert_eq!(
+        checked("fun choose(ok:Boolean)=if (ok) 1 else 2"),
+        "fun choose(ok: Boolean) = if (ok) 1 else 2\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f() { if (firstLongConditionThatMustBeChecked && secondLongConditionThatMustBeChecked && thirdLongConditionThatMustBeChecked) { work() } }"
+        ),
+        "fun f() {\n    if (firstLongConditionThatMustBeChecked &&\n        secondLongConditionThatMustBeChecked &&\n        thirdLongConditionThatMustBeChecked\n    ) {\n        work()\n    }\n}\n"
+    );
+}
+
+#[test]
+fn kotlin_when_branch_continuations() {
+    assert_eq!(
+        checked("fun f(){when(x){ first -> start()\nsecond ->\n{ work() }\nelse ->\n finish()\n}}"),
+        "fun f() {\n    when (x) {\n        first -> start()\n\n        second -> {\n            work()\n        }\n\n        else -> finish()\n    }\n}\n"
+    );
+    let handler = "handler".repeat(12);
+    assert_eq!(
+        checked(&format!(
+            "fun f() {{ when (x) {{ alpha -> // comment\n short()\nbeta -> {handler}()\nelse -> fallback()\n}} }}"
+        )),
+        format!(
+            "fun f() {{\n    when (x) {{\n        alpha -> // comment\n            short()\n        beta ->\n            {handler}()\n        else -> fallback()\n    }}\n}}\n"
+        )
+    );
+}
+
+#[test]
+fn kotlin_chained_call_continuations() {
+    assert_eq!(
+        checked("fun f(){ return api.\nread()?.decode() }\nval value = api\n.read()\n?.decode()"),
+        "fun f() {\n    return api\n        .read()\n        ?.decode()\n}\n\nval value = api\n    .read()\n    ?.decode()\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f(){ return connection.obtainAVeryLongFirstMethodName().obtainAVeryLongSecondMethodName().obtainAVeryLongThirdMethodName() }"
+        ),
+        "fun f() {\n    return connection\n        .obtainAVeryLongFirstMethodName()\n        .obtainAVeryLongSecondMethodName()\n        .obtainAVeryLongThirdMethodName()\n}\n"
+    );
+    assert_eq!(
+        checked("fun f()=cell.{value:1}.read()"),
+        "fun f() = cell.{value: 1}.read()\n"
+    );
+}
+
+#[test]
+fn expression_heads_stay_after_equals_when_the_first_line_fits() {
+    assert_eq!(
+        checked("fun f()=when(x){1->first()\nelse->other()}\nval value=setup{first();second()}"),
+        "fun f() = when (x) {\n    1 -> first()\n    else -> other()\n}\n\nval value = setup {\n    first();\n    second()\n}\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f() = call(firstLongArgumentNameThatMakesTheCallTakeMoreThanOneLine, secondLongArgumentNameThatMakesTheCallTakeMoreThanOneLine)"
+        ),
+        "fun f() = call(\n    firstLongArgumentNameThatMakesTheCallTakeMoreThanOneLine,\n    secondLongArgumentNameThatMakesTheCallTakeMoreThanOneLine\n)\n"
+    );
+    assert_eq!(
+        checked(
+            "val aDescriptivePropertyNameThatLeavesInsufficientSpaceForItsInitializer=anEquallyDescriptiveInitializerName"
+        ),
+        "val aDescriptivePropertyNameThatLeavesInsufficientSpaceForItsInitializer =\n    anEquallyDescriptiveInitializerName\n"
+    );
+    let text = "x".repeat(110);
+    assert_eq!(
+        checked(&format!(
+            "fun f() = when (ok) {{ true -> \"{text}\"\nelse -> \"\" }}"
+        )),
+        format!("fun f() = when (ok) {{\n    true ->\n        \"{text}\"\n    else -> \"\"\n}}\n")
+    );
+    assert_eq!(
+        checked("fun f() = outer(inner(a=leaf(b=1)))"),
+        "fun f() = outer(inner(a = leaf(b = 1)))\n"
+    );
+}
+
+#[test]
+fn kotlin_multiline_lambda_signatures() {
+    assert_eq!(
+        checked("fun f(){ run{\nx->first(x);second(x)} }"),
+        "fun f() {\n    run { x ->\n        first(x);\n        second(x)\n    }\n}\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f(){ run { firstParameterWithAVeryLongName: FirstArgumentType, secondParameterWithAVeryLongName: SecondArgumentType -> work() } }"
+        ),
+        "fun f() {\n    run {\n        firstParameterWithAVeryLongName: FirstArgumentType,\n        secondParameterWithAVeryLongName: SecondArgumentType\n        ->\n        work()\n    }\n}\n"
+    );
+    assert_eq!(
+        checked("fun f(){ run{ -> }\n run label@{ x->first(x)// note\nsecond(x)} }"),
+        "fun f() {\n    run { -> }\n    run label@{ x ->\n        first(x) // note\n        second(x)\n    }\n}\n"
+    );
+}
+
+#[test]
+fn kotlin_property_accessor_indentation() {
+    assert_eq!(
+        checked(
+            "val small:Int get ()=1\nval separate:Int\nget()=2\nval complex:Int get(){work();return 3}"
+        ),
+        "val small: Int get() = 1\n\nval separate: Int\n    get() = 2\n\nval complex: Int\n    get() {\n        work();\n        return 3\n    }\n"
+    );
+    assert_eq!(
+        checked(
+            "class C{var value:Int=0\nget(){return field}\n/** setter */\n@Mark private set (content){field=content}\nval get:Int=get()}"
+        ),
+        "class C {\n    var value: Int = 0\n        get() {\n            return field\n        }\n        /** setter */\n        @Mark private set(content) {\n            field = content\n        }\n    val get: Int = get()\n}\n"
+    );
+    assert_eq!(
+        checked("val computed = 0 get 1"),
+        "val computed = 0 get 1\n"
+    );
 }
 
 #[test]

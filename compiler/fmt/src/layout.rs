@@ -1,16 +1,30 @@
 use crate::{
     render::{self, Document},
-    spacing::Gap,
+    spacing::{Gap, is_else_if},
     syntax::Input,
 };
 use scoop_syntax::SyntaxKind as K;
 
+mod accessors;
+mod expressions;
+mod lists;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Style {
     List,
+    Arguments,
+    Parameters,
+    Supertypes,
+    Where,
     Block,
     Lambda,
     Control,
+    If,
+    IfBody,
+    Condition,
+    WhenBody,
+    Accessor,
+    InlineGetter,
     Expression,
     Continuation,
 }
@@ -45,7 +59,12 @@ fn regions(input: &Input) -> Vec<Region> {
                     _ => Style::Block,
                 }
             } else {
-                Style::List
+                match (kind, parent) {
+                    (K::LParen, K::ArgumentList) => Style::Arguments,
+                    (K::LParen, K::ParameterList) => Style::Parameters,
+                    (K::LParen, K::IfExpr | K::WhenExpr) => Style::Condition,
+                    _ => Style::List,
+                }
             };
             stack.push((index, style));
         } else if matches!(
@@ -63,19 +82,31 @@ fn regions(input: &Input) -> Vec<Region> {
             });
         }
     }
-    for &(kind, start, end, _) in &input.nodes {
+    for &(kind, start, end, parent) in &input.nodes {
+        if kind == K::PropertyDecl {
+            accessors::regions(input, start, end, &mut regions);
+        }
+        if let Some(style) = match kind {
+            K::SupertypeList => Some(Style::Supertypes),
+            K::WhereClause => Some(Style::Where),
+            K::IfExpr => Some(Style::If),
+            K::Statement if parent == Some(K::WhenArm) => Some(Style::WhenBody),
+            K::SingleControlBody if !is_else_if(input, start, parent) => {
+                if parent == Some(K::IfExpr) {
+                    Some(Style::IfBody)
+                } else {
+                    Some(Style::Control)
+                }
+            }
+            _ => None,
+        } {
+            regions.push(Region { start, end, style });
+        }
         if kind == K::Expression && start > 0 && input.tokens[start - 1].kind() == K::Equal {
             regions.push(Region {
                 start,
                 end,
                 style: Style::Continuation,
-            });
-        }
-        if kind == K::SingleControlBody {
-            regions.push(Region {
-                start,
-                end,
-                style: Style::Control,
             });
         }
     }
@@ -91,10 +122,15 @@ fn regions(input: &Input) -> Vec<Region> {
             region.start,
             std::cmp::Reverse(region.end),
             match region.style {
-                Style::Control => 0,
+                Style::Control
+                | Style::IfBody
+                | Style::WhenBody
+                | Style::Accessor
+                | Style::InlineGetter => 0,
                 Style::Continuation => 1,
-                Style::Expression => 2,
-                _ => 3,
+                Style::If => 2,
+                Style::Expression => 3,
+                _ => 4,
             },
         )
     });
@@ -115,7 +151,17 @@ fn sequence(
     while index < end {
         if (leading || index != start)
             && !regions.get(cursor).is_some_and(|r| {
-                r.start == index && matches!(r.style, Style::Control | Style::Continuation)
+                r.start == index
+                    && matches!(
+                        r.style,
+                        Style::Control
+                            | Style::IfBody
+                            | Style::WhenBody
+                            | Style::Continuation
+                            | Style::Where
+                            | Style::Accessor
+                            | Style::InlineGetter
+                    )
             })
         {
             docs.push(gap(gaps[index]));
@@ -129,7 +175,7 @@ fn sequence(
             index = region.end;
             cursor = nested_end;
         } else {
-            docs.push(render::token(input.tokens[index].syntax.text()));
+            docs.push(render::source_token(&input.tokens[index]));
             index += 1;
         }
     }
@@ -139,136 +185,78 @@ fn sequence(
 fn delimited(input: &Input, gaps: &[Gap], nested: &[Region], region: &Region) -> Document {
     let Region { start, end, style } = *region;
     if style == Style::Continuation {
-        return Document::line()
+        return expressions::continuation(sequence(input, gaps, nested, start, end, false));
+    }
+    if style == Style::Expression {
+        return expressions::expression(input, gaps, nested, start, end);
+    }
+    if matches!(style, Style::Accessor | Style::InlineGetter) {
+        let leading = if gaps[start].is_line() {
+            gap(gaps[start])
+        } else if style == Style::Accessor {
+            Document::hardline()
+        } else {
+            Document::line()
+        };
+        return leading
             .append(sequence(input, gaps, nested, start, end, false))
             .nest(4)
             .group();
     }
-    if style == Style::Expression {
-        return expression(input, gaps, nested, start, end);
-    }
-    if style == Style::Control {
-        return Document::hardline()
+    if matches!(style, Style::Control | Style::IfBody | Style::WhenBody) {
+        let leading = if style == Style::Control {
+            Document::hardline()
+        } else if gaps[start].is_line() && input.tokens[start - 1].is_comment() {
+            gap(gaps[start])
+        } else {
+            Document::line()
+        };
+        let body = leading
             .append(sequence(input, gaps, nested, start, end, false))
             .nest(4);
+        return if style == Style::WhenBody {
+            body.group()
+        } else {
+            body
+        };
     }
-    let open = render::token(input.tokens[start].syntax.text());
-    let close = render::token(input.tokens[end - 1].syntax.text());
-    if end == start + 2 {
-        return open.append(close);
+    if style == Style::If {
+        return sequence(input, gaps, nested, start, end, false).group();
     }
-    let multiline_lambda = style == Style::Lambda
-        && input
-            .nodes
-            .iter()
-            .filter(|&&(kind, s, e, parent)| {
-                kind == K::Statement
-                    && parent == Some(K::LambdaExpr)
-                    && s > start
-                    && e < end
-                    && !nested.iter().any(|region| {
-                        region.style == Style::Lambda && s > region.start && e < region.end
-                    })
-            })
-            .count()
-            > 1;
-    let block = style == Style::Block || multiline_lambda;
-    let edge = if block {
-        Document::hardline()
-    } else if style == Style::Lambda {
-        Document::line()
+    if style == Style::Condition {
+        return condition(input, gaps, nested, start, end);
+    }
+    if matches!(style, Style::Supertypes | Style::Where) {
+        lists::header(input, gaps, nested, region)
     } else {
-        Document::line_()
-    };
-    let mut pieces = Vec::new();
-    let mut item_start = start + 1;
-    let mut nested_cursor = 0;
-    let mut index = item_start;
-    while index < end - 1 {
-        if let Some(child) = nested
-            .get(nested_cursor)
-            .filter(|child| child.start == index)
-        {
-            index = child.end;
-            nested_cursor +=
-                1 + nested[nested_cursor + 1..].partition_point(|r| r.start < child.end);
-            continue;
-        }
-        if !block && input.tokens[index].kind() == K::Comma && index + 1 < end - 1 {
-            let children = within(nested, item_start, index + 1);
-            pieces.push(sequence(
-                input,
-                gaps,
-                children,
-                item_start,
-                index + 1,
-                false,
-            ));
-            pieces.push(
-                if input.tokens[index + 1].is_comment() || input.tokens[index].is_comment() {
-                    gap(gaps[index + 1])
-                } else {
-                    Document::line()
-                },
-            );
-            item_start = index + 1;
-        }
-        index += 1;
+        lists::delimited(input, gaps, nested, region)
     }
-    pieces.push(sequence(
+}
+
+fn condition(input: &Input, gaps: &[Gap], nested: &[Region], start: usize, end: usize) -> Document {
+    let contents = sequence(
         input,
         gaps,
-        within(nested, item_start, end - 1),
-        item_start,
+        within(nested, start + 1, end - 1),
+        start + 1,
         end - 1,
         false,
-    ));
+    );
+    let contents = if input.tokens[start + 1].is_comment() && gaps[start + 1].is_line() {
+        gap(gaps[start + 1]).append(contents).nest(4)
+    } else {
+        contents
+    };
     let tail = if input.tokens[end - 2].is_comment() {
         gap(gaps[end - 1])
     } else {
-        edge.clone()
+        Document::line_()
     };
-    let result = open
-        .append(edge.append(Document::concat(pieces)).nest(4))
+    render::token(input.tokens[start].syntax.text())
+        .append(contents)
         .append(tail)
-        .append(close);
-    if block { result } else { result.group() }
-}
-
-fn expression(
-    input: &Input,
-    gaps: &[Gap],
-    nested: &[Region],
-    start: usize,
-    end: usize,
-) -> Document {
-    let mut pieces = Vec::new();
-    let mut cursor = 0;
-    let mut index = start;
-    let mut item = start;
-    while index < end {
-        if let Some(child) = nested.get(cursor).filter(|child| child.start == index) {
-            index = child.end;
-            cursor += 1 + nested[cursor + 1..].partition_point(|region| region.start < child.end);
-            continue;
-        }
-        let last_operator_token = input.tokens[index].parent_kind() == K::BinaryOperator
-            && (index + 1 == end
-                || input.tokens[index].operator() != input.tokens[index + 1].operator());
-        index += 1;
-        if last_operator_token {
-            let part = sequence(input, gaps, within(nested, item, index), item, index, false);
-            pieces.push(if item == start {
-                part
-            } else {
-                Document::line().append(part).nest(4)
-            });
-            item = index;
-        }
-    }
-    let part = sequence(input, gaps, within(nested, item, end), item, end, false);
-    pieces.push(Document::line().append(part).nest(4));
-    Document::concat(pieces).group()
+        .append(render::token(input.tokens[end - 1].syntax.text()))
+        .group()
 }
 
 fn within(regions: &[Region], start: usize, end: usize) -> &[Region] {
@@ -281,6 +269,7 @@ fn gap(gap: Gap) -> Document {
     match gap {
         Gap::None => Document::nil(),
         Gap::Space => Document::space(),
+        Gap::SoftLine => Document::line(),
         Gap::Line => Document::hardline(),
         Gap::Blank => Document::hardline().append(Document::hardline()),
     }

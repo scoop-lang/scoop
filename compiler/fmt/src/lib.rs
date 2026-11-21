@@ -8,7 +8,7 @@ mod syntax;
 use scoop_syntax::SyntaxNode;
 
 /// Format the lossless tree from a successful parse of a complete source file.
-/// The caller owns parsing, diagnostics, and file I/O. No tokens are rewritten.
+/// The caller owns parsing, diagnostics, and file I/O. Language tokens are unchanged.
 pub fn format(syntax: &SyntaxNode) -> String {
     let input = syntax::Input::new(syntax);
     if input.tokens.is_empty() {

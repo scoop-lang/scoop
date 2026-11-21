@@ -1,6 +1,19 @@
+use crate::syntax::Token;
 use pretty::{Doc, RcDoc, Render, RenderAnnotated};
+use scoop_syntax::SyntaxKind;
 
 pub(crate) type Document = RcDoc<'static, ()>;
+
+pub(crate) fn source_token(source: &Token) -> Document {
+    let text = source.syntax.text();
+    if source.kind() == SyntaxKind::LineComment
+        && let Some(body) = text.strip_prefix("//")
+        && body.starts_with(char::is_alphanumeric)
+    {
+        return token(&format!("// {body}"));
+    }
+    token(text)
+}
 
 pub(crate) fn token(text: &str) -> Document {
     let parts = text.split('\n').map(|part| {

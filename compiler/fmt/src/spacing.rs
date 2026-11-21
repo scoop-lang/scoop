@@ -5,8 +5,15 @@ use scoop_syntax::SyntaxKind as K;
 pub(crate) enum Gap {
     None,
     Space,
+    SoftLine,
     Line,
     Blank,
+}
+
+impl Gap {
+    pub fn is_line(self) -> bool {
+        matches!(self, Self::Line | Self::Blank)
+    }
 }
 
 pub(crate) fn gaps(input: &Input) -> Vec<Gap> {
@@ -15,32 +22,11 @@ pub(crate) fn gaps(input: &Input) -> Vec<Gap> {
         *gap = between(&input.tokens[index - 1], &input.tokens[index]);
     }
     for &(kind, start, end, parent) in &input.nodes {
-        if kind == K::Statement
-            && parent == Some(K::LambdaExpr)
-            && start > 0
-            && input.tokens[start - 1].kind() == K::Arrow
-        {
-            let single_statement = input.tokens[start]
-                .syntax
-                .parent_ancestors()
-                .find(|node| node.kind() == K::LambdaExpr)
-                .is_some_and(|node| {
-                    node.children()
-                        .filter(|child| child.kind() == K::Statement)
-                        .count()
-                        == 1
-                });
-            gaps[start] = if single_statement {
-                Gap::Space
-            } else {
-                Gap::Line
-            };
-            continue;
-        }
         let separation = match kind {
             K::Declaration if parent == Some(K::SourceFile) => Some(Gap::Blank),
             K::PackageHeader => Some(Gap::Blank),
             K::ImportHeader => Some(Gap::Line),
+            K::WhenArm if separates_when_blocks(input, start) => Some(Gap::Blank),
             K::WhenArm | K::Member => Some(Gap::Line),
             K::Statement if matches!(parent, Some(K::Block | K::LambdaExpr)) => Some(Gap::Line),
             _ => None,
@@ -64,30 +50,77 @@ pub(crate) fn gaps(input: &Input) -> Vec<Gap> {
         if kind == K::PackageHeader && end < gaps.len() {
             gaps[end] = Gap::Blank;
         }
-        if kind == K::SingleControlBody
-            && end < gaps.len()
-            && matches!(input.tokens[end].kind(), K::KwElse | K::KwWhile)
-        {
-            gaps[end] = Gap::Line;
+        if kind == K::SingleControlBody {
+            if is_else_if(input, start, parent) {
+                gaps[start] = Gap::Space;
+            }
+            if let Some(next) = input.tokens.get(end) {
+                match next.kind() {
+                    K::KwElse if !input.tokens[end - 1].is_comment() => gaps[end] = Gap::SoftLine,
+                    K::KwWhile => gaps[end] = Gap::Line,
+                    _ => {}
+                }
+            }
         }
         if kind == K::AnnotationList
             && matches!(parent, Some(K::Declaration | K::Member | K::Statement))
         {
-            for &(child, child_start, child_end, _) in &input.nodes {
-                if child == K::Annotation
-                    && child_start >= start
-                    && child_end <= end
-                    && child_end < gaps.len()
-                {
-                    gaps[child_end] = Gap::Line;
-                }
-            }
+            declaration_annotations(input, &mut gaps, start, end);
         }
     }
     if !gaps.is_empty() {
         gaps[0] = Gap::None;
     }
     gaps
+}
+
+fn separates_when_blocks(input: &Input, start: usize) -> bool {
+    let arm = input.tokens[start]
+        .syntax
+        .parent_ancestors()
+        .find(|node| node.kind() == K::WhenArm)
+        .expect("when arm starts with its condition");
+    let has_body = |node: &scoop_syntax::SyntaxNode| {
+        node.children()
+            .any(|child| child.kind() == K::Block && input.token_range(&child).len() > 2)
+    };
+    arm.prev_sibling()
+        .filter(|previous| previous.kind() == K::WhenArm)
+        .is_some_and(|previous| has_body(&previous) || has_body(&arm))
+}
+
+pub(crate) fn is_else_if(input: &Input, start: usize, parent: Option<K>) -> bool {
+    parent == Some(K::IfExpr)
+        && input.tokens[start].kind() == K::KwIf
+        && start > 0
+        && input.tokens[start - 1].kind() == K::KwElse
+}
+
+fn declaration_annotations(input: &Input, gaps: &mut [Gap], start: usize, end: usize) {
+    let list = input.tokens[start]
+        .syntax
+        .parent_ancestors()
+        .find(|node| node.kind() == K::AnnotationList)
+        .expect("annotation list starts with an annotation");
+    let mut multiple = false;
+    for annotation in list.children().filter(|node| node.kind() == K::Annotation) {
+        let range = input.token_range(&annotation);
+        if annotation
+            .children()
+            .any(|child| child.kind() == K::ArgumentList && !child.text_range().is_empty())
+        {
+            if range.start > start && gaps[range.start] == Gap::Space {
+                gaps[range.start] = Gap::Line;
+            }
+            if gaps.get(range.end) == Some(&Gap::Space) {
+                gaps[range.end] = Gap::Line;
+            }
+        }
+        multiple |= range.start > start;
+    }
+    if multiple && gaps.get(end) == Some(&Gap::Space) {
+        gaps[end] = Gap::Line;
+    }
 }
 
 fn between(left: &Token, right: &Token) -> Gap {
@@ -113,6 +146,23 @@ fn between(left: &Token, right: &Token) -> Gap {
     }
     let lp = left.parent_kind();
     let rp = right.parent_kind();
+    if left.is_range_operator() || right.is_range_operator() {
+        return None;
+    }
+    if l == K::Colon && lp == K::Annotation || r == K::Colon && rp == K::Annotation {
+        return None;
+    }
+    if left.is_navigation() && matches!(r, K::Ident | K::EscapedIdent) && rp == K::Expression {
+        return None;
+    }
+    if r == K::LParen
+        && rp == K::PropertyDecl
+        && lp == K::PropertyDecl
+        && l == K::Ident
+        && matches!(left.syntax.text(), "get" | "set")
+    {
+        return None;
+    }
     if lp == K::BinaryOperator
         && rp == K::BinaryOperator
         && left.syntax.parent() == right.syntax.parent()
@@ -120,6 +170,15 @@ fn between(left: &Token, right: &Token) -> Gap {
         return None;
     }
     if lp == K::BinaryOperator || rp == K::BinaryOperator {
+        return Space;
+    }
+    if r == K::Colon && rp == K::SupertypeList {
+        return Space;
+    }
+    if r == K::LBrace && joins_header(right)
+        || l == K::RBrace && joins_clause(left, right)
+        || l == K::Ident && r == K::LParen && lp == K::TryExpr && rp == K::TryExpr
+    {
         return Space;
     }
     // Other newlines can terminate return operands, infix calls, and when-arm bodies.
@@ -136,6 +195,15 @@ fn between(left: &Token, right: &Token) -> Gap {
     }
     if lp == K::PostfixOperator && rp == K::PostfixOperator {
         return None;
+    }
+    if l == K::Colon
+        || r == K::Colon
+            && matches!(
+                rp,
+                K::SupertypeList | K::TypeParameter | K::TypeConstraint | K::SecondaryConstructor
+            )
+    {
+        return Space;
     }
     if matches!(
         r,
@@ -175,6 +243,7 @@ fn between(left: &Token, right: &Token) -> Gap {
         };
     }
     if r == K::At
+        && rp != K::Annotation
         && matches!(
             l,
             K::KwReturn | K::KwBreak | K::KwContinue | K::Ident | K::EscapedIdent
@@ -189,6 +258,48 @@ fn between(left: &Token, right: &Token) -> Gap {
         return Line;
     }
     Space
+}
+
+fn joins_header(brace: &Token) -> bool {
+    match brace.parent_kind() {
+        K::ClassBody | K::StructBody | K::InterfaceBody | K::EnumDecl | K::WhenExpr => true,
+        K::Block => brace
+            .syntax
+            .parent()
+            .and_then(|block| block.parent())
+            .is_some_and(|owner| match owner.kind() {
+                K::FunctionDecl
+                | K::AnonymousFunctionExpr
+                | K::SecondaryConstructor
+                | K::PropertyDecl
+                | K::InitBlock
+                | K::ReleaseBlock
+                | K::IfExpr
+                | K::TryExpr
+                | K::WhileStmt
+                | K::ForStmt
+                | K::WhenArm => true,
+                K::Statement => owner
+                    .children_with_tokens()
+                    .any(|item| item.kind() == K::KwDo),
+                _ => false,
+            }),
+        _ => false,
+    }
+}
+
+fn joins_clause(brace: &Token, keyword: &Token) -> bool {
+    brace
+        .syntax
+        .parent()
+        .filter(|body| body.kind() == K::Block)
+        .and_then(|body| body.parent())
+        .is_some_and(|owner| {
+            matches!(
+                (owner.kind(), keyword.kind()),
+                (K::IfExpr, K::KwElse) | (K::TryExpr, K::Ident) | (K::Statement, K::KwWhile)
+            ) && keyword.syntax.parent().as_ref() == Some(&owner)
+        })
 }
 
 fn would_merge(left: &Token, right: &Token) -> bool {

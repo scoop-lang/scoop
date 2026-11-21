@@ -1,4 +1,5 @@
 use scoop_syntax::{SyntaxKind as K, SyntaxNode, SyntaxToken};
+use std::ops::Range;
 
 pub(crate) struct Token {
     pub syntax: SyntaxToken,
@@ -26,6 +27,14 @@ impl Token {
         })
     }
 
+    pub fn is_range_operator(&self) -> bool {
+        matches!(self.kind(), K::DotDot | K::DotDotLess) && self.parent_kind() == K::BinaryOperator
+    }
+
+    pub fn is_navigation(&self) -> bool {
+        matches!(self.kind(), K::Dot | K::QuestionDot) && self.parent_kind() == K::Expression
+    }
+
     pub fn newlines(&self) -> usize {
         self.before
             .replace("\r\n", "\n")
@@ -47,6 +56,10 @@ pub(crate) struct Input {
 }
 
 impl Input {
+    pub fn token_range(&self, node: &SyntaxNode) -> Range<usize> {
+        token_range(&self.tokens, node)
+    }
+
     pub fn new(root: &SyntaxNode) -> Self {
         let mut tokens = Vec::new();
         let mut whitespace = String::new();
@@ -72,15 +85,11 @@ impl Input {
         let nodes = root
             .descendants()
             .map(|node| {
-                let range = node.text_range();
-                let start = tokens
-                    .partition_point(|token| token.syntax.text_range().end() <= range.start());
-                let end =
-                    tokens.partition_point(|token| token.syntax.text_range().start() < range.end());
+                let Range { start, end } = token_range(&tokens, &node);
                 if node.kind() == K::Expression
-                    && node
-                        .children()
-                        .any(|child| child.kind() == K::BinaryOperator)
+                    && node.children_with_tokens().any(|child| {
+                        matches!(child.kind(), K::BinaryOperator | K::Dot | K::QuestionDot)
+                    })
                 {
                     expressions.push((start, end));
                 }
@@ -100,4 +109,11 @@ impl Input {
             expressions,
         }
     }
+}
+
+fn token_range(tokens: &[Token], node: &SyntaxNode) -> Range<usize> {
+    let range = node.text_range();
+    let start = tokens.partition_point(|token| token.syntax.text_range().end() <= range.start());
+    let end = tokens.partition_point(|token| token.syntax.text_range().start() < range.end());
+    start..end
 }

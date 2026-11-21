@@ -15,8 +15,18 @@ pub fn checked(source: &str) -> String {
     let original = parse(source);
     let formatted = scoop_fmt::format(&original.syntax());
     let after = parse(&formatted);
+    let mut expected_tokens = tokens(&original);
+    for (kind, text) in &mut expected_tokens {
+        if *kind == SyntaxKind::LineComment
+            && text
+                .strip_prefix("//")
+                .is_some_and(|body| body.chars().next().is_some_and(char::is_alphanumeric))
+        {
+            text.insert(2, ' ');
+        }
+    }
     assert_eq!(
-        tokens(&original),
+        expected_tokens,
         tokens(&after),
         "changed tokens:\n{formatted}"
     );
