@@ -234,11 +234,9 @@ fn workspace_symbols_follow_buffers_disk_and_project_membership() {
         initial[0]["location"]["range"]["start"],
         json!({"line": 1, "character": 4})
     );
-    assert!(
-        workspace_symbols(&mut client, "testOnly")
-            .as_array()
-            .unwrap()
-            .is_empty()
+    assert_eq!(
+        workspace_symbols(&mut client, "testOnly")[0]["location"]["uri"],
+        uri(&test)
     );
     client.open(
         &source_uri,

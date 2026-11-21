@@ -6,24 +6,26 @@ use std::{
 use lsp_types::{InitializeParams, Uri, WorkspaceFolder};
 use scoop_analysis::{ProjectConfiguration, ProjectDiagnostic};
 use scoop_protocol::CompilationPurpose;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::documents::{Documents, file_path};
 
-#[derive(Clone, Copy, Default, Deserialize)]
+#[derive(Clone, Copy, Default, Deserialize, Serialize, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
-enum Purpose {
+pub enum WorkspacePurpose {
     #[default]
+    Auto,
     Production,
     Test,
 }
 
-impl From<Purpose> for CompilationPurpose {
-    fn from(value: Purpose) -> Self {
-        match value {
-            Purpose::Production => Self::Production,
-            Purpose::Test => Self::Test,
+impl WorkspacePurpose {
+    fn compilation(self) -> Option<CompilationPurpose> {
+        match self {
+            Self::Auto => None,
+            Self::Production => Some(CompilationPurpose::Production),
+            Self::Test => Some(CompilationPurpose::Test),
         }
     }
 }
@@ -33,7 +35,7 @@ impl From<Purpose> for CompilationPurpose {
 struct Options {
     target: Option<String>,
     sysroot: Option<PathBuf>,
-    purpose: Purpose,
+    purpose: WorkspacePurpose,
     artifact_search_roots: Vec<PathBuf>,
     package_manager: Option<PathBuf>,
     package_cache_dir: Option<PathBuf>,
@@ -49,7 +51,7 @@ struct Configuration {
     root_uri: Uri,
     target: Option<String>,
     sysroot: Option<PathBuf>,
-    purpose: Option<Purpose>,
+    purpose: Option<WorkspacePurpose>,
     artifact_search_roots: Option<Vec<PathBuf>>,
     package_manager: Option<PathBuf>,
     package_cache_dir: Option<PathBuf>,
@@ -297,7 +299,7 @@ fn project(
         purpose: entry
             .and_then(|entry| entry.purpose)
             .unwrap_or(options.purpose)
-            .into(),
+            .compilation(),
         sysroot: absolute(&root, &sysroot),
         artifact_search_roots: search.iter().map(|path| absolute(&root, path)).collect(),
         package_manager: absolute(&root, &package_manager),

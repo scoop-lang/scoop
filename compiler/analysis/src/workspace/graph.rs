@@ -26,15 +26,6 @@ impl ProjectBuilder {
         resolution: PreparedResolutionV1,
     ) -> Result<(ProjectInput, Vec<LoadError>), LoadError> {
         let manifest = configuration.root.join("Cone.toml");
-        if resolution.target != configuration.target.target().contract().canonical_triple()
-            || resolution.purpose != configuration.purpose
-        {
-            return Err(LoadError::new(
-                scoop_source::DiagnosticCode::E2502,
-                &manifest,
-                "prepared target or purpose differs from the request",
-            ));
-        }
         let root = resolution.coordinate.identity().map_err(|error| {
             LoadError::new(scoop_source::DiagnosticCode::ICE0401, &manifest, error)
         })?;
@@ -42,6 +33,7 @@ impl ProjectBuilder {
             manifest,
             project: ProjectInput {
                 configuration,
+                purpose: resolution.purpose,
                 root,
                 cones: BTreeMap::new(),
                 artifact_sources: BTreeMap::new(),
@@ -79,11 +71,11 @@ impl ProjectBuilder {
                         host,
                         &builder.project.configuration.name,
                         root,
+                        builder.project.purpose,
                         *config,
                     )?;
                     let include_tests = identity == root
-                        && builder.project.configuration.purpose
-                            == scoop_protocol::CompilationPurpose::Test;
+                        && builder.project.purpose == scoop_protocol::CompilationPurpose::Test;
                     let source = match loader.files.sources(
                         host,
                         overlays,

@@ -24,7 +24,7 @@ hover 包含当前位置可确定的类型、签名和文档；signature 针对�
 
 code-actions 查询该位置的 quickfix，返回已展开的普通 LSP WorkspaceEdit。目前包括已有的语法插入，以及诊断给出的 import 候选。导入来源是当前 Cone 和直接依赖的公开命名空间；接收者类型和约束使用前端已有求解器。多个合法路径分别返回，不替调用方选一个。缺少依赖、私有声明、歧义路径或会与已有绑定冲突的路径不生成导入编辑。候选不等于完整的 API 检索结果，也不保证加入 import 后其他类型错误自动消失。
 
-共用选项为 `--project`、`--sysroot`、`--target`、`--purpose production|test`、`--package-manager`、`--package-cache-dir`、`--cone-path`、`--lockfile`、`--position-encoding utf-8|utf-16|utf-32` 以及 `--format text|json`。capabilities 报告实际服务器能力，不加载项目。
+共用选项为 `--project`、`--sysroot`、`--target`、`--purpose auto|production|test`、`--package-manager`、`--package-cache-dir`、`--cone-path`、`--lockfile`、`--position-encoding utf-8|utf-16|utf-32` 以及 `--format text|json`。默认 `auto` 加载各成员在当前目标下已有的锁定图，生产源码优先使用所属成员的生产图，测试源码使用测试图。capabilities 报告实际服务器能力，不加载项目。
 
 文档查询可加 `--stdin`，将 stdin 的完整 UTF-8 正文作为该文件的编辑 buffer；文件名仍用于确定项目归属和位置，正文不写回磁盘。每次 CLI 调用建立新会话，使用当前磁盘/显式 buffer；不复用上一次 CLI 的旧快照。引用与定义继续通过原有 typed 实体和源码映射查询。
 
@@ -39,4 +39,4 @@ code-actions 的编辑附带本次 buffer 版本 1；它不是磁盘文件的持
 
 客户端发送 initialize/initialized，必要时发送 didOpen，再执行查询。diagnostics 使用已有 publishDiagnostics；文档查询等待同一版本的诊断，防止将缺失项目误报为“没有类型”。读取服务器通知和响应使用已有 lsp-server 协议实现。结束时发送 shutdown/exit 并回收自己启动的子进程，异常路径也释放管道与进程。
 
-缺少 lock 时由现有 PM 解析入口初始化；之后离线取得已锁定的依赖 metadata。缺失源码、目标库或无效配置会以实际诊断说明，不下载/构建 sysroot，不通过更换工具链或清缓存隐藏错误。
+缺少 lock 时由现有 PM 解析入口初始化，`auto` 初始化生产图。已有 lock 时离线取得已锁定的依赖 metadata，需补充测试图时可运行 `scoop pm resolve --purpose test`。缺失源码、目标库或无效配置会以实际诊断说明。

@@ -1,17 +1,17 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
-use scoop_identity::ConeCoordinate;
 use scoop_process::CommandExt;
 use scoop_protocol::{
     CompilationPurpose, DiagnosticOriginV1, HostPathCarrier,
     package::{
         ManifestOverlayV1, ManifestOverlaysV1, PACKAGE_PROTOCOL_VERSION, PackageDiagnosticV1,
-        PackageMembersV1, PreparedWorkspaceV1,
+        PackageLockedPurposesV1, PackageMemberV1, PackageMembersV1, PreparedResolutionV1,
+        PreparedWorkspaceV1,
     },
 };
 use serde::de::DeserializeOwned;
@@ -58,52 +58,90 @@ impl<'a> PackageInputs<'a> {
 
     pub fn members(&self, root: &Path) -> Result<PackageMembersV1, LoadError> {
         let result: PackageMembersV1 =
-            self.invoke(self.command("members", root), Some(&self.overlays))?;
+            self.invoke(root, self.command("members", root), Some(&self.overlays))?;
         result
             .validate()
             .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2502, root, error))?;
         Ok(result)
+    }
+
+    pub fn locked_purposes(
+        &self,
+        lockfile: &Path,
+    ) -> Result<BTreeMap<String, Vec<CompilationPurpose>>, LoadError> {
+        let mut command = Command::new(&self.configuration.package_manager);
+        command
+            .arg("locked-purposes")
+            .arg(lockfile)
+            .arg("--target")
+            .arg(self.target());
+        let result: PackageLockedPurposesV1 = self.invoke(lockfile, command, None)?;
+        result.validate().map_err(|error| {
+            LoadError::new(scoop_source::DiagnosticCode::E2502, lockfile, error)
+        })?;
+        Ok(result.purposes)
     }
 
     pub fn load_member(
         &self,
         root: &Path,
-        member: &ConeCoordinate,
+        member: &PackageMemberV1,
+        purpose: CompilationPurpose,
         initialize_lockfile: bool,
-    ) -> Result<PreparedWorkspaceV1, LoadError> {
+    ) -> Result<PreparedResolutionV1, LoadError> {
+        let manifest = root.join("Cone.toml");
         if initialize_lockfile {
             self.invoke::<serde_json::Value>(
-                self.dependency_command("resolve", root, member),
+                &manifest,
+                self.dependency_command("resolve", root, member, purpose),
                 None,
             )?;
         }
-        let mut command = self.dependency_command("metadata", root, member);
+        let mut command = self.dependency_command("metadata", root, member, purpose);
         command.arg("--offline");
-        let result: PreparedWorkspaceV1 = self.invoke(command, Some(&self.overlays))?;
-        result
-            .validate()
-            .map_err(|error| LoadError::new(scoop_source::DiagnosticCode::E2502, root, error))?;
-        Ok(result)
+        let mut result: PreparedWorkspaceV1 =
+            self.invoke(&manifest, command, Some(&self.overlays))?;
+        result.validate().map_err(|error| {
+            LoadError::new(scoop_source::DiagnosticCode::E2502, &manifest, error)
+        })?;
+        let resolution = result
+            .resolutions
+            .pop()
+            .expect("validated workspace has a resolution");
+        if !result.resolutions.is_empty()
+            || resolution.root != member.path
+            || resolution.coordinate != member.coordinate
+            || resolution.purpose != purpose
+            || resolution.target != self.target()
+        {
+            return Err(LoadError::new(
+                scoop_source::DiagnosticCode::E2502,
+                &manifest,
+                "package manager returned a different member, target or purpose",
+            ));
+        }
+        Ok(resolution)
     }
 
-    fn dependency_command(&self, action: &str, root: &Path, member: &ConeCoordinate) -> Command {
+    fn dependency_command(
+        &self,
+        action: &str,
+        root: &Path,
+        member: &PackageMemberV1,
+        purpose: CompilationPurpose,
+    ) -> Command {
+        let coordinate = &member.coordinate;
         let mut command = self.command(action, root);
         command
             .arg("-p")
-            .arg(format!("{}:{}", member.group(), member.name()))
+            .arg(format!("{}:{}", coordinate.group(), coordinate.name()))
             .arg("--purpose")
-            .arg(match self.configuration.purpose {
+            .arg(match purpose {
                 CompilationPurpose::Production => "production",
                 CompilationPurpose::Test => "test",
             })
             .arg("--target")
-            .arg(
-                self.configuration
-                    .target
-                    .target()
-                    .contract()
-                    .canonical_triple(),
-            )
+            .arg(self.target())
             .arg("--sysroot")
             .arg(&self.configuration.sysroot);
         for path in &self.configuration.artifact_search_roots {
@@ -118,6 +156,14 @@ impl<'a> PackageInputs<'a> {
         command
     }
 
+    fn target(&self) -> &str {
+        self.configuration
+            .target
+            .target()
+            .contract()
+            .canonical_triple()
+    }
+
     fn command(&self, action: &str, root: &Path) -> Command {
         let mut command = Command::new(&self.configuration.package_manager);
         command.arg(action).arg(root).arg("--json");
@@ -126,10 +172,10 @@ impl<'a> PackageInputs<'a> {
 
     fn invoke<T: DeserializeOwned>(
         &self,
+        path: &Path,
         mut command: Command,
         overlays: Option<&ManifestOverlaysV1>,
     ) -> Result<T, LoadError> {
-        let path = &self.configuration.root;
         let bytes = if let Some(overlays) = overlays.filter(|value| !value.manifests.is_empty()) {
             command.arg("--overlays-stdin");
             Some(serde_json::to_vec(overlays).map_err(|error| {
