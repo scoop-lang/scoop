@@ -227,6 +227,24 @@ fn expression_heads_stay_after_equals_when_the_first_line_fits() {
 }
 
 #[test]
+fn kotlin_multiline_lambda_signatures() {
+    assert_eq!(
+        checked("fun f(){ run{\nx->first(x);second(x)} }"),
+        "fun f() {\n    run { x ->\n        first(x);\n        second(x)\n    }\n}\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f(){ run { firstParameterWithAVeryLongName: FirstArgumentType, secondParameterWithAVeryLongName: SecondArgumentType -> work() } }"
+        ),
+        "fun f() {\n    run {\n        firstParameterWithAVeryLongName: FirstArgumentType,\n        secondParameterWithAVeryLongName: SecondArgumentType\n        ->\n        work()\n    }\n}\n"
+    );
+    assert_eq!(
+        checked("fun f(){ run{ -> }\n run label@{ x->first(x)// note\nsecond(x)} }"),
+        "fun f() {\n    run { -> }\n    run label@{ x ->\n        first(x) // note\n        second(x)\n    }\n}\n"
+    );
+}
+
+#[test]
 fn long_expressions_and_comments_keep_grammar_boundaries() {
     for source in [
         "fun f() = veryLongValueName + anotherLongValueName + yetAnotherLongValueName + finalLongValueName + lastLongValueName",

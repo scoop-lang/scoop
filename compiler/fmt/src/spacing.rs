@@ -22,28 +22,6 @@ pub(crate) fn gaps(input: &Input) -> Vec<Gap> {
         *gap = between(&input.tokens[index - 1], &input.tokens[index]);
     }
     for &(kind, start, end, parent) in &input.nodes {
-        if kind == K::Statement
-            && parent == Some(K::LambdaExpr)
-            && start > 0
-            && input.tokens[start - 1].kind() == K::Arrow
-        {
-            let single_statement = input.tokens[start]
-                .syntax
-                .parent_ancestors()
-                .find(|node| node.kind() == K::LambdaExpr)
-                .is_some_and(|node| {
-                    node.children()
-                        .filter(|child| child.kind() == K::Statement)
-                        .count()
-                        == 1
-                });
-            gaps[start] = if single_statement {
-                Gap::Space
-            } else {
-                Gap::Line
-            };
-            continue;
-        }
         let separation = match kind {
             K::Declaration if parent == Some(K::SourceFile) => Some(Gap::Blank),
             K::PackageHeader => Some(Gap::Blank),

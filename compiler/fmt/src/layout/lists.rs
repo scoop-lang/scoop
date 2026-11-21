@@ -13,22 +13,13 @@ pub(super) fn delimited(
     if end == start + 2 {
         return open.append(close);
     }
-    let multiline_lambda = style == Style::Lambda
-        && input
-            .nodes
-            .iter()
-            .filter(|&&(kind, s, e, parent)| {
-                kind == K::Statement
-                    && parent == Some(K::LambdaExpr)
-                    && s > start
-                    && e < end
-                    && !nested.iter().any(|region| {
-                        region.style == Style::Lambda && s > region.start && e < region.end
-                    })
-            })
-            .count()
-            > 1;
-    let block = style == Style::Block || multiline_lambda;
+    if style == Style::Lambda {
+        return open
+            .append(lambda_contents(input, gaps, nested, start + 1..end - 1))
+            .append(close)
+            .group();
+    }
+    let block = style == Style::Block;
     let contents = start + 1..end - 1;
     let items = if block {
         Vec::new()
@@ -41,8 +32,6 @@ pub(super) fn delimited(
             || has_item_break(gaps, &items));
     let edge = if block || keep_lines {
         Document::hardline()
-    } else if style == Style::Lambda {
-        Document::line()
     } else {
         Document::line_()
     };
@@ -78,6 +67,71 @@ pub(super) fn delimited(
     } else {
         result.group()
     }
+}
+
+fn lambda_contents(
+    input: &Input,
+    gaps: &[Gap],
+    nested: &[Region],
+    contents: Range<usize>,
+) -> Document {
+    let lambda = input.tokens[contents.start - 1]
+        .syntax
+        .parent()
+        .expect("lambda opening brace has a syntax parent");
+    let arrow = lambda
+        .children()
+        .find(|node| node.kind() == K::ParameterList)
+        .map(|parameters| input.token_range(&parameters).end - 1)
+        .or_else(|| {
+            contents
+                .clone()
+                .find(|&index| !input.tokens[index].is_comment())
+                .filter(|&index| input.tokens[index].kind() == K::Arrow)
+        });
+    let separator = |index: usize| {
+        if gaps[index].is_line()
+            && (input.tokens[index - 1].is_comment() || input.tokens[index].is_comment())
+        {
+            gap(gaps[index])
+        } else {
+            Document::line()
+        }
+    };
+    let mut signature = Document::nil();
+    let mut body_start = contents.start;
+    if let Some(arrow) = arrow {
+        signature = separator(contents.start);
+        if contents.start < arrow {
+            let items = comma_items(input, nested, contents.start..arrow);
+            signature = signature
+                .append(item_documents(input, gaps, nested, &items, false))
+                .append(separator(arrow));
+        }
+        signature = signature
+            .append(render::token(input.tokens[arrow].syntax.text()))
+            .nest(4)
+            .group();
+        body_start = arrow + 1;
+    }
+
+    if body_start == contents.end {
+        return signature.append(separator(contents.end));
+    }
+
+    let body = sequence(
+        input,
+        gaps,
+        within(nested, body_start, contents.end),
+        body_start,
+        contents.end,
+        false,
+    );
+    // The signature can fit independently of the body. A hard break between
+    // statements keeps the enclosing lambda group from flattening.
+    signature
+        .append(separator(body_start).append(body).nest(4))
+        .append(separator(contents.end))
 }
 
 pub(super) fn header(input: &Input, gaps: &[Gap], nested: &[Region], region: &Region) -> Document {
