@@ -3,9 +3,12 @@
 
 namespace swax::atspi {
 uint32_t role(const State &state) {
-  static const uint32_t roles[] = {99, 61, 43, 7,  79, 49, 48, 130, 62, 44,
-                                   99, 27, 31, 88, 83, 51, 42, 33,  35, 38,
-                                   37, 16, 55, 56, 47, 10, 62, 50,  90};
+  static const uint32_t roles[] = {99, 61, 43, 7,  79, 49, 48, 130, 62, 44, 99,
+                                   27, 31, 88, 83, 51, 42, 33, 35,  38, 37, 16,
+                                   55, 56, 47, 10, 62, 50, 90, 65,  91};
+  if (state.data.role == 29 &&
+      (!state.columns.empty() || state.data.table_columns > 0))
+    return 66;
   if (state.data.role == 4 && (state.data.flags & SWAXProtected))
     return 40;
   if (state.data.role == 4 && state.data.expanded >= 0)
@@ -28,7 +31,10 @@ const char *roleName(const State &state) {
       "progress bar",  "menu",          "menu item",     "page tab list",
       "page tab",      "dialog",        "table",         "table cell",
       "row header",    "column header", "toggle button", "separator",
-      "table row"};
+      "table row",     "tree",          "tree item"};
+  if (state.data.role == 29 &&
+      (!state.columns.empty() || state.data.table_columns > 0))
+    return "tree table";
   if (state.data.role == 4 && (state.data.flags & SWAXProtected))
     return "password text";
   if (state.data.role == 4 && state.data.expanded >= 0)
@@ -83,7 +89,9 @@ std::vector<std::string> interfaces(const ElementPtr &element,
   if (state.data.role == 4 && !(state.data.flags & SWAXReadOnly) &&
       (state.data.actions & (4 | 32)))
     result.push_back("org.a11y.atspi.EditableText");
-  if (state.data.role == 22)
+  if (state.data.role == 22 ||
+      (state.data.role == 29 &&
+       (!state.columns.empty() || state.data.table_columns > 0)))
     result.push_back("org.a11y.atspi.Table");
   if (state.data.cell_row >= 0 && state.data.cell_column >= 0)
     result.push_back("org.a11y.atspi.TableCell");
@@ -145,6 +153,13 @@ std::map<std::string, std::string> objectAttributes(const State &state) {
   std::map<std::string, std::string> result = {{"toolkit", "Scoop"}};
   if (state.data.heading_level > 0)
     result["level"] = std::to_string(state.data.heading_level);
+  if (state.hierarchyLevel >= 0)
+    result["level"] =
+        std::to_string(static_cast<uint64_t>(state.hierarchyLevel) + 1);
+  if (state.siblingIndex >= 0)
+    result["posinset"] = std::to_string(state.siblingIndex + 1);
+  if (state.siblingCount >= 0)
+    result["setsize"] = std::to_string(state.siblingCount);
   if (state.text[2])
     result["id"] = *state.text[2];
   if (state.data.live)

@@ -26,6 +26,8 @@ int64_t scoop_ui_ax_trait(void *pointer, int32_t field) {
         [node isAccessibilitySelectorAllowed:@selector(setAccessibilityValue:)];
   case 9:
     return [node isAccessibilityModal];
+  case 10:
+    return (int64_t)[[node accessibilityDisclosedRows] count];
   default:
     return -1;
   }
@@ -99,4 +101,14 @@ int32_t scoop_ui_ax_retained_range(void *pointer, int64_t start, int64_t end) {
 void scoop_ui_ax_release_range(void *pointer) {
   if (pointer)
     (void)CFBridgingRelease(pointer);
+}
+
+void *scoop_ui_ax_disclosure(void *pointer, int64_t index) {
+  id node = (__bridge id)pointer;
+  if (index < 0)
+    return (__bridge_retained void *)[node accessibilityDisclosedByRow];
+  NSArray *rows = [node accessibilityDisclosedRows];
+  return (uint64_t)index < rows.count
+             ? (__bridge_retained void *)rows[(NSUInteger)index]
+             : NULL;
 }

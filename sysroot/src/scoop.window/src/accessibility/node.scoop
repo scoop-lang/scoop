@@ -11,7 +11,7 @@ public class AccessibilityNode internal constructor(
     public val id: SemanticNodeId,
     public val role: SemanticRole,
     internal var parentNode: AccessibilityNode?
-): Closeable {
+) : Closeable {
     internal val children = ArrayList<AccessibilityNode>()
     internal var active = true
     internal var properties = SemanticProperties()
@@ -20,18 +20,17 @@ public class AccessibilityNode internal constructor(
     internal var content: Array<SemanticNodeId> = []
     internal var textChildValues: Array<SemanticTextChild> = []
     public var textChildren: Array<SemanticTextChild>
-    get() {
-        checkOpen();
-        return textChildValues
-    }
-    set(value) {
-        checkOpen()
-        if (sameSemanticTextChildren(textChildValues, value))
-            return
-        checkSemanticTextChildren(this, value)
-        installSemanticReferences(this, relationValues, content, value)
-        provider.changed(this)
-    }
+        get() {
+            checkOpen();
+            return textChildValues
+        }
+        set(value) {
+            checkOpen()
+            if (sameSemanticTextChildren(textChildValues, value)) return
+            checkSemanticTextChildren(this, value)
+            installSemanticReferences(this, relationValues, content, value)
+            provider.changed(this)
+        }
     internal val referrers = HashMap<Long, AccessibilityNode>()
     internal var nameDirty = true
     internal var resolvingName = false
@@ -58,143 +57,155 @@ public class AccessibilityNode internal constructor(
     internal var documentEpoch = 1UL
     internal var documentRevision = 0UL
     public var textDocument: SemanticTextDocument?
-    get() {
-        checkOpen();
-        return documentValue
-    }
-    set(value) {
-        checkOpen()
-        when (value) {
-            case Some(val document) -> requireWindow(
-                !document.isClosed &&
-                    !properties.protectedText &&
-                    (role == SemanticRole.Text || role == SemanticRole.TextField),
-                "text document requires public text"
-            )
-            case None -> {}
+        get() {
+            checkOpen();
+            return documentValue
         }
-        val same =
-            when ((documentValue, value)) {
+        set(value) {
+            checkOpen()
+            when (value) {
+                case Some(val document) ->
+                    requireWindow(
+                        !document.isClosed &&
+                            !properties.protectedText &&
+                            (role == SemanticRole.Text || role == SemanticRole.TextField),
+                        "text document requires public text"
+                    )
+                case None -> {}
+            }
+            val same = when ((documentValue, value)) {
                 case(Some(val before), Some(val after)) -> before === after
                 case(None, None) -> true
                 else -> false
             }
-        val revision =
-            when (value) {
+            val revision = when (value) {
                 case Some(val document) -> document.revision;
                 case None -> 0UL
             }
-        if (same) {
-            if (documentRevision != revision) {
-                documentRevision = revision;
-                provider.changed(this)
+            if (same) {
+                if (documentRevision != revision) {
+                    documentRevision = revision;
+                    provider.changed(this)
+                }
+                return
             }
-            return
+            requireWindow(documentEpoch < ULong.MAX_VALUE, "text document identity exhausted")
+            documentEpoch += 1UL
+            documentValue = value
+            documentRevision = revision
+            provider.changed(this)
         }
-        requireWindow(documentEpoch < ULong.MAX_VALUE, "text document identity exhausted")
-        documentEpoch += 1UL
-        documentValue = value
-        documentRevision = revision
-        provider.changed(this)
-    }
-    internal val announcementText: String? get() =
-        when (val value = properties.value) {
+    internal val announcementText: String?
+        get() = when (val value = properties.value) {
             case Some(_) -> value
             case None -> resolvedName
         }
 
     /** Operations on logical items; ordinary queries never invoke these callbacks. */
     public var collectionActions: SemanticCollectionActions
-    get() {
-        checkOpen()
-        return itemActions
-    }
-    set(value) {
-        checkOpen()
-        requireWindow(
-            role == SemanticRole.List || role == SemanticRole.Table,
-            "semantic collections require a list or table role"
-        )
-        itemActions = value
-        provider.changed(this)
-    }
+        get() {
+            checkOpen()
+            return itemActions
+        }
+        set(value) {
+            checkOpen()
+            requireWindow(
+                role ==
+                    SemanticRole.List ||
+                    role ==
+                    SemanticRole.Table ||
+                    role ==
+                    SemanticRole.Tree,
+                "semantic collections require a list, table or tree role"
+            )
+            itemActions = value
+            provider.changed(this)
+        }
 
     /** Publishes a data source independently of the currently mounted row controls. */
     public var collection: SemanticCollectionSnapshot?
-    get() {
-        checkOpen()
-        return collectionValue
-    }
-    set(value) {
-        checkOpen()
-        requireWindow(
-            role == SemanticRole.List || role == SemanticRole.Table,
-            "semantic collections require a list or table role"
-        )
-        when ((collectionValue, value)) {
-            case(Some(val before), Some(val after)) -> if (before === after)
-                return
-            case(None, None) -> return
-            else -> {}
+        get() {
+            checkOpen()
+            return collectionValue
         }
-        when (value) {
-            case Some(val snapshot) -> when (snapshot.grid) {
-                case Some(val grid) -> {
-                    requireWindow(
-                        role == SemanticRole.Table,
-                        "semantic grid requires the table role"
-                    )
-                    for (column in grid.columns)
-                        when (column.header) {
-                            case Some(val id) -> checkSemanticTargets(this, [id])
-                            case None -> {}
+        set(value) {
+            checkOpen()
+            requireWindow(
+                role ==
+                    SemanticRole.List ||
+                    role ==
+                    SemanticRole.Table ||
+                    role ==
+                    SemanticRole.Tree,
+                "semantic collections require a list, table or tree role"
+            )
+            when ((collectionValue, value)) {
+                case(Some(val before), Some(val after)) -> if (before === after) return
+                case(None, None) -> return
+                else -> {}
+            }
+            when (value) {
+                case Some(val snapshot) ->
+                    when (snapshot.grid) {
+                        case Some(val grid) -> {
+                            requireWindow(
+                                role == SemanticRole.Table || role == SemanticRole.Tree,
+                                "semantic grid requires a table or tree role"
+                            )
+                            for (column in grid.columns)
+                                when (column.header) {
+                                    case Some(val id) -> checkSemanticTargets(this, [id])
+                                    case None -> {}
+                                }
                         }
-                }
+
+                        case None -> {}
+                    }
                 case None -> {}
             }
-            case None -> {}
+            requireWindow(
+                !(value?.hasSelection ?: false) || properties.selectionMode == None,
+                "collection and static selection modes cannot be combined"
+            )
+            collectionValue = value
+            refreshSemanticItemReferences(this)
+            if (collectionRevision == ULong.MAX_VALUE)
+                throw IllegalStateException(Some("semantic collection revision exhausted"))
+            collectionRevision += 1UL
+            provider.changed(this)
         }
-        requireWindow(
-            !(value?.hasSelection ?: false) || properties.selectionMode == None,
-            "collection and static selection modes cannot be combined"
-        )
-        collectionValue = value
-        refreshSemanticItemReferences(this)
-        if (collectionRevision == ULong.MAX_VALUE)
-            throw IllegalStateException(Some("semantic collection revision exhausted"))
-        collectionRevision += 1UL
-        provider.changed(this)
-    }
 
     /** Associates a mounted row group with its logical item, without owning that item. */
     public var collectionItem: SemanticItemKey?
-    get() {
-        checkOpen()
-        return itemKey
-    }
-    set(value) {
-        checkOpen()
-        requireWindow(
-            role ==
-                SemanticRole.Group &&
-                (
-                    parentNode?.role ==
-                        Some(SemanticRole.List) ||
+        get() {
+            checkOpen()
+            return itemKey
+        }
+        set(value) {
+            checkOpen()
+            requireWindow(
+                role ==
+                    SemanticRole.Group &&
+                    (
                         parentNode?.role ==
-                        Some(SemanticRole.Table)
-                ),
-            "a collection item requires a group directly inside a collection"
-        )
-        if (itemKey == value)
-            return
-        itemKey = value
-        provider.changed(this)
-    }
+                            Some(SemanticRole.List) ||
+                            parentNode?.role ==
+                            Some(SemanticRole.Table) ||
+                            parentNode?.role ==
+                            Some(SemanticRole.Tree)
+                    ),
+                "a collection item requires a group directly inside a collection"
+            )
+            if (itemKey == value) return
+            itemKey = value
+            provider.changed(this)
+        }
 
-    public val isClosed: Boolean get() {
-        provider.checkThread()
-        return !active
-    }
+    public val isClosed: Boolean
+        get() {
+            provider.checkThread()
+            return !active
+        }
 
     /** Coalesces explicit announcements until the next ordinary publication. */
     public fun announce(text: String, priority: SemanticLive = SemanticLive.Polite) {
@@ -203,60 +214,59 @@ public class AccessibilityNode internal constructor(
     }
 
     /** Changes when content or a label dependency invalidates captured layout geometry. */
-    public val contentRevision: ULong get() {
-        checkOpen()
-        return revision
-    }
+    public val contentRevision: ULong
+        get() {
+            checkOpen()
+            return revision
+        }
 
     /** Current references, with retired targets removed by the provider. */
-    public val relations: SemanticRelations get() {
-        checkOpen()
-        return relationValues
-    }
+    public val relations: SemanticRelations
+        get() {
+            checkOpen()
+            return relationValues
+        }
 
     /** Fallback content names; callers separately decide which labels should be ignored. */
     public var contentLabels: Array<SemanticNodeId>
-    get() {
-        checkOpen()
-        return content
-    }
-    set(value) {
-        checkOpen()
-        if (sameSemanticIds(content, value))
-            return
-        checkSemanticTargets(this, value)
-        installSemanticReferences(this, relationValues, value)
-        val affectsName = properties.name == None
-        if (affectsName)
-            invalidateContent()
-        semanticTextChanged(this, affectsName)
-        provider.changed(this)
-    }
+        get() {
+            checkOpen()
+            return content
+        }
+        set(value) {
+            checkOpen()
+            if (sameSemanticIds(content, value)) return
+            checkSemanticTargets(this, value)
+            installSemanticReferences(this, relationValues, value)
+            val affectsName = properties.name == None
+            if (affectsName) invalidateContent()
+            semanticTextChanged(this, affectsName)
+            provider.changed(this)
+        }
 
     /** Stages matching, already accepted layout geometry; None invalidates an old layout. */
     public var geometry: SemanticGeometry?
-    get() {
-        checkOpen()
-        return placement
-    }
-    set(value) {
-        checkOpen()
-        if (placement == value)
-            when ((hit, textGeometry)) {
-                case(None, None) -> return
-                else -> {}
-            }
-        value?.check()
-        invalidateGeometry()
-        placement = value
-        provider.changed(this)
-    }
+        get() {
+            checkOpen()
+            return placement
+        }
+        set(value) {
+            checkOpen()
+            if (placement == value)
+                when ((hit, textGeometry)) {
+                    case(None, None) -> return
+                    else -> {}
+                }
+            value?.check()
+            invalidateGeometry()
+            placement = value
+            provider.changed(this)
+        }
 
     /** Reads the matching native shape only; it does not run input handlers. */
     public fun containsPoint(point: LogicalPosition): Boolean {
         checkOpen()
-        if (!point.x.isFinite() || !point.y.isFinite())
-            return false
+        if (!point.x.isFinite() || !point.y.isFinite()) return false
         val snapshot = hit ?: return false
         @Unsafe
         {
@@ -266,50 +276,49 @@ public class AccessibilityNode internal constructor(
 
     /** A point verified against the renderer's current input routing, not a bounds estimate. */
     public var activationPoint: LogicalPosition?
-    get() {
-        checkOpen();
-        return activation
-    }
-    set(value) {
-        checkOpen()
-        if (activation == value)
-            return
-        when (value) {
-            case Some(val point) -> {
-                val visible =
-                    (placement?.visibleBounds ?: None) ?:
-                        throw IllegalArgumentException(Some("activation needs visible geometry"))
-                requireWindow(
-                    point.x.isFinite() &&
-                        point.y.isFinite() &&
-                        point.x >=
-                        visible.origin.x &&
-                        point.y >=
-                        visible.origin.y &&
-                        point.x <
-                        visible.origin.x +
-                        visible.size.width &&
-                        point.y <
-                        visible.origin.y +
-                        visible.size.height,
-                    "activation point is outside visible geometry"
-                )
-                val snapshot =
-                    hit ?:
-                        throw IllegalArgumentException(Some("activation needs exact hit geometry"))
-                @Unsafe
-                {
-                    requireWindow(
-                        snapshot.native.contains(snapshot.native.context, point.x, point.y) == 1,
-                        "activation point is outside the accepted shape"
-                    )
-                }
-            }
-            case None -> {}
+        get() {
+            checkOpen();
+            return activation
         }
-        activation = value
-        provider.changed(this)
-    }
+        set(value) {
+            checkOpen()
+            if (activation == value) return
+            when (value) {
+                case Some(val point) -> {
+                    val visible = (placement?.visibleBounds ?: None) ?:
+                        throw IllegalArgumentException(Some("activation needs visible geometry"))
+                    requireWindow(
+                        point.x.isFinite() &&
+                            point.y.isFinite() &&
+                            point.x >=
+                            visible.origin.x &&
+                            point.y >=
+                            visible.origin.y &&
+                            point.x <
+                            visible.origin.x +
+                            visible.size.width &&
+                            point.y <
+                            visible.origin.y +
+                            visible.size.height,
+                        "activation point is outside visible geometry"
+                    )
+                    val snapshot = hit ?:
+                        throw IllegalArgumentException(Some("activation needs exact hit geometry"))
+                    @Unsafe
+                    {
+                        requireWindow(
+                            snapshot.native.contains(snapshot.native.context, point.x, point.y) ==
+                                1,
+                            "activation point is outside the accepted shape"
+                        )
+                    }
+                }
+
+                case None -> {}
+            }
+            activation = value
+            provider.changed(this)
+        }
 
     /** Retains matching accepted geometry and its native hit test in actual scene order. */
     @Unsafe
@@ -332,28 +341,28 @@ public class AccessibilityNode internal constructor(
     @Unsafe
     public fun setTextGeometry(geometry: NativeSemanticTextGeometry?) {
         checkOpen()
-        val next =
-            when (geometry) {
-                case Some(val value) -> {
-                    requireWindow(
-                        (role == SemanticRole.Text || role == SemanticRole.TextField) &&
-                            properties.value !=
-                            None &&
-                            !properties.protectedText &&
-                            placement !=
-                            None,
-                        "text geometry requires known unprotected text and accepted node geometry"
-                    )
-                    Some(SemanticTextSnapshot(value))
-                }
-                case None -> {
-                    when (textGeometry) {
-                        case None -> return
-                        case Some(_) -> {}
-                    }
-                    None
-                }
+        val next = when (geometry) {
+            case Some(val value) -> {
+                requireWindow(
+                    (role == SemanticRole.Text || role == SemanticRole.TextField) &&
+                        properties.value !=
+                        None &&
+                        !properties.protectedText &&
+                        placement !=
+                        None,
+                    "text geometry requires known unprotected text and accepted node geometry"
+                )
+                Some(SemanticTextSnapshot(value))
             }
+
+            case None -> {
+                when (textGeometry) {
+                    case None -> return
+                    case Some(_) -> {}
+                }
+                None
+            }
+        }
         textGeometry?.close()
         textGeometry = next
         provider.changed(this)
@@ -379,18 +388,19 @@ public class AccessibilityNode internal constructor(
                 role ==
                 SemanticRole.TabGroup ||
                 role ==
-                SemanticRole.Table,
+                SemanticRole.Table ||
+                role ==
+                SemanticRole.Tree,
             "selection mode requires a selection container role"
         )
         requireWindow(
             properties.selectionMode == None || !(collectionValue?.hasSelection ?: false),
             "collection and static selection modes cannot be combined"
         )
-        if (properties.protectedText)
-            textDocument = None
+        if (properties.protectedText) textDocument = None
         requireWindow(
-            properties.table == None || role == SemanticRole.Table,
-            "table dimensions require the table role"
+            properties.table == None || role == SemanticRole.Table || role == SemanticRole.Tree,
+            "table dimensions require a table or tree role"
         )
         requireWindow(
             properties.cell ==
@@ -434,7 +444,9 @@ public class AccessibilityNode internal constructor(
                 role ==
                 SemanticRole.RadioButton ||
                 role ==
-                SemanticRole.MenuItem,
+                SemanticRole.MenuItem ||
+                role ==
+                SemanticRole.TreeItem,
             "checked state requires a checkable role"
         )
         requireWindow(
@@ -443,7 +455,9 @@ public class AccessibilityNode internal constructor(
                 role ==
                 SemanticRole.Checkbox ||
                 role ==
-                SemanticRole.MenuItem,
+                SemanticRole.MenuItem ||
+                role ==
+                SemanticRole.TreeItem,
             "mixed state requires the checkbox role"
         )
         requireWindow(
@@ -455,56 +469,50 @@ public class AccessibilityNode internal constructor(
                 SemanticRole.TextField,
             "text selection requires a text role"
         )
-        if (
-            this.properties ==
-                properties &&
-                this.actions.capabilities ==
-                actions.capabilities &&
-                this.relationValues ==
-                relations
+        if (this.properties ==
+            properties &&
+            this.actions.capabilities ==
+            actions.capabilities &&
+            this.relationValues ==
+            relations
         ) {
             this.actions = actions
             return
         }
-        if (this.relationValues != relations)
-            checkSemanticRelations(this, relations)
-        val nameChanged =
-            this.properties.name !=
-                properties.name ||
-                (
-                    properties.name ==
-                        None &&
-                        (
-                            !sameSemanticIds(
-                                this.relationValues.labelledBy,
-                                relations.labelledBy
-                            ) ||
-                                (
-                                    role ==
-                                        SemanticRole.Text &&
-                                        (
-                                            this.properties.value !=
-                                                properties.value ||
-                                                this.properties.protectedText !=
-                                                properties.protectedText
-                                        )
-                                )
-                        )
-                )
-        if (nameChanged || this.properties.value != properties.value)
-            invalidateContent()
-        if (this.relationValues != relations)
-            installSemanticReferences(this, relations, content)
+        if (this.relationValues != relations) checkSemanticRelations(this, relations)
+        val nameChanged = this.properties.name !=
+            properties.name ||
+            (
+                properties.name ==
+                    None &&
+                    (
+                        !sameSemanticIds(
+                            this.relationValues.labelledBy,
+                            relations.labelledBy
+                        ) ||
+                            (
+                                role ==
+                                    SemanticRole.Text &&
+                                    (
+                                        this.properties.value !=
+                                            properties.value ||
+                                            this.properties.protectedText !=
+                                            properties.protectedText
+                                    )
+                            )
+                    )
+            )
+        if (nameChanged || this.properties.value != properties.value) invalidateContent()
+        if (this.relationValues != relations) installSemanticReferences(this, relations, content)
         if ((this.properties.name == None) != (properties.name == None))
             for (id in relations.labelledBy) {
                 val target = provider.lookup(id) ?: continue
                 provider.changed(target)
             }
-        if (
-            this.properties.value !=
-                properties.value ||
-                this.properties.protectedText !=
-                properties.protectedText
+        if (this.properties.value !=
+            properties.value ||
+            this.properties.protectedText !=
+            properties.protectedText
         ) {
             textRevision += 1UL
             installSemanticReferences(this, relationValues, content, [])
@@ -540,27 +548,25 @@ public class AccessibilityNode internal constructor(
             requireWindow(current !== this, "semantic parent would create a cycle")
             ancestor = current.parentNode
         }
-        val sameParent =
-            when (val current = parentNode) {
-                case Some(val value) -> when (parent) {
+        val sameParent = when (val current = parentNode) {
+            case Some(val value) ->
+                when (parent) {
                     case Some(val next) -> value === next
                     case None -> false
                 }
-                case None -> when (parent) {
+            case None ->
+                when (parent) {
                     case Some(_) -> false
                     case None -> true
                 }
-            }
-        if (sameParent && this.order == order)
-            return
-        if (!sameParent)
-            itemKey = None
+        }
+        if (sameParent && this.order == order) return
+        if (!sameParent) itemKey = None
         val previousAncestors = ArrayList<AccessibilityNode>()
         var before = parentNode
         while (true) {
             val ancestor = before ?: break
-            if (ancestor.textChildValues.size > 0L)
-                previousAncestors.add(ancestor)
+            if (ancestor.textChildValues.size > 0L) previousAncestors.add(ancestor)
             before = ancestor.parentNode
         }
         provider.removeChild(this)
@@ -587,35 +593,31 @@ public class AccessibilityNode internal constructor(
 
     internal fun checkOpen() {
         provider.checkOpen()
-        if (!active)
-            throw IllegalStateException(Some("semantic node is retired"))
+        if (!active) throw IllegalStateException(Some("semantic node is retired"))
     }
 
     internal fun canAct(): Boolean {
-        if (properties.ignored)
-            return false
+        if (properties.ignored) return false
         var current: AccessibilityNode? = Some(this)
         while (true) {
             val node = current ?: return true
-            if (!node.active || node.properties.hidden || !node.properties.enabled)
-                return false
+            if (!node.active || node.properties.hidden || !node.properties.enabled) return false
             current = node.parentNode
         }
     }
 
-    internal val announcementBusy: Boolean get() {
-        var current: AccessibilityNode? = Some(this)
-        while (true) {
-            val node = current ?: return false
-            if (node.properties.busy)
-                return true
-            current = node.parentNode
+    internal val announcementBusy: Boolean
+        get() {
+            var current: AccessibilityNode? = Some(this)
+            while (true) {
+                val node = current ?: return false
+                if (node.properties.busy) return true
+                current = node.parentNode
+            }
         }
-    }
 
     internal fun canAnnounce(): Boolean {
-        if (properties.ignored || properties.protectedText)
-            return false
+        if (properties.ignored || properties.protectedText) return false
         var current: AccessibilityNode? = Some(this)
         while (true) {
             val node = current ?: return true

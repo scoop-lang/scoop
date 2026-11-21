@@ -67,6 +67,8 @@
                                  NSAccessibilityCellRole,
                                  NSAccessibilityDisclosureTriangleRole,
                                  NSAccessibilitySplitterRole,
+                                 NSAccessibilityRowRole,
+                                 NSAccessibilityOutlineRole,
                                  NSAccessibilityRowRole};
   return roles[state.data.role];
 }
@@ -87,7 +89,7 @@
 - (BOOL)usesToggleAction {
   int32_t role = self.state.data.role;
   return role == 3 || role == 7 || role == 8 ||
-         (role == 18 && self.state.data.checked >= 0);
+         ((role == 18 || role == 30) && self.state.data.checked >= 0);
 }
 - (NSString *)accessibilityLabel {
   return self.state.name;
@@ -148,12 +150,12 @@
   return result;
 }
 - (NSArray *)accessibilityRowHeaderUIElements {
-  return self.state.data.role == 22
+  return (self.state.data.role == 22 || self.state.data.role == 29)
              ? sw_accessibility_table_headers(self, YES)
              : [self relatedElements:self.state.rowHeaders];
 }
 - (NSArray *)accessibilityColumnHeaderUIElements {
-  return self.state.data.role == 22
+  return (self.state.data.role == 22 || self.state.data.role == 29)
              ? sw_accessibility_table_headers(self, NO)
              : [self relatedElements:self.state.columnHeaders];
 }
@@ -364,7 +366,8 @@
   return visible;
 }
 - (NSInteger)accessibilityRowCount {
-  if (self.state.data.role == 12 && self.state.itemCount < 0)
+  if ((self.state.data.role == 12 || self.state.data.role == 29) &&
+      self.state.itemCount < 0)
     return (NSInteger)sw_accessibility_table_rows(self, NO).count;
   return self.state.itemCount >= 0 ? self.state.itemCount
                                    : MAX(self.state.data.table_rows, 0);
@@ -596,7 +599,7 @@
       selector == @selector(accessibilityVisibleRows) ||
       selector == @selector(accessibilityRowCount))
     return (self.state.itemCount >= 0 || self.state.data.role == 12 ||
-            self.state.data.role == 22) &&
+            (self.state.data.role == 22 || self.state.data.role == 29)) &&
            self.isAccessibilityElement;
   SWAccessibilityState *state = self.state;
   if (!state)
@@ -605,9 +608,11 @@
       selector == @selector(accessibilityColumnCount) ||
       selector == @selector(accessibilityCellForColumn:row:) ||
       selector == @selector(accessibilitySelectedRows))
-    return self.isAccessibilityElement && state.data.role == 22;
+    return self.isAccessibilityElement &&
+           (state.data.role == 22 || state.data.role == 29);
   if (selector == @selector(accessibilityIndex))
-    return self.isAccessibilityElement && state.data.role == 28;
+    return self.isAccessibilityElement &&
+           (state.data.role == 28 || state.data.role == 30);
   if (selector == @selector(accessibilityRowIndexRange) ||
       selector == @selector(accessibilityColumnIndexRange))
     return self.isAccessibilityElement && state.data.cell_row >= 0;

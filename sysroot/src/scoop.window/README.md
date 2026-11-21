@@ -74,6 +74,8 @@ Windows 从 WM_POINTER 和对应查询复制触点，整条消息路径一致交
 
 数值使用 `SemanticValueRange`，进度未知时保持 None。静态容器用 `selectionMode = Some(SemanticSelectionMode.Single)` 或 Multiple 声明真实选择模式，required 指定必选；虚拟集合改用 `SemanticCollectionSelection` 的稳定 keys，两者不同时设置。`SemanticGrid` 描述稳定列及按 key 读取的单元格，静态表格使用 `SemanticTableSize`／`SemanticTableCell` 的实际坐标和跨度。描述查询不创建条目 View。
 
+树使用 `SemanticRole.Tree` 和先序展开行的 `SemanticCollectionSnapshot`，多列时附加原有 `SemanticGrid`。行描述用 `parentKey`、`hierarchyLevel`、`siblings = Some(SemanticItemPosition(index, count))` 表达父项、深度与同级位置，用 `checked` 和 `busy` 发布实际模型状态；叶项不声明 expanded。`SemanticCollectionActions.setExpanded`／`setChecked` 直接调用原模型，Mixed 的勾选动作请求 On。查询和动作无需创建离屏控件，模型拒绝时保留原值；删除后同 key 的新项不会复活旧代理。AppKit 使用 Outline 的披露关系，多列单元格和表头沿同一 grid 接口查询。
+
 `SemanticRelations.activeDescendant` 可以引用 Node 或集合 Item，和实际键盘焦点分开；rowHeaders／columnHeaders 指向真实表头。macOS 虚拟表格单元格优先返回其已挂载节点的有效 `columnHeaders`，支持多级表头；未挂载或没有有效关联时使用 `SemanticGridColumn.header`。节点卸载或关联表头隐藏后，原生查询不保留旧关联。`invalid`、`busy`、`modal` 与 `headingLevel` 发布真实状态。`live` 默认为 Off，Polite／Assertive 合并同一节点的最新公告；首次挂载不自动播报，节点或祖先 busy 时延迟，隐藏、模态背景和受保护内容抑制公告。需要明确通知时调用 `node.announce(...)`。
 
 需要保留文本范围的自绘宿主可将 `SemanticTextDocument` 绑定到 `node.textDocument`。它只保存端点和版本，普通编辑用现有偏移映射更新，全文换绑用 reset，关闭后旧范围不可用；UI 的 TextEditHost 自动维护它。`textChildren` 显式关联正文中的 UTF-8 区间与实际语义后代，供内联操作和原生文本内对象查询。`revealText(range, SemanticTextScroll(...))` 沿实际文本几何显露范围，不修改选区。
@@ -82,7 +84,7 @@ Windows 查询通过 HWND 内容根与 UIA pattern 暴露；Linux 通过 GTK 公
 
 导入 `scoop.window.accessibility.*`，对 PendingConfigure 或 Open 的 Window 调用 `createAccessibilityProvider()`。首次配置前即可登记和发布语义，不必先显示窗口或取得 drawable；原生动作仍要求 Open。每个窗口同时只附着一个 provider；用 `createNode(role, parent)` 创建语义资源，`update(properties, actions, relations)` 替换事实、真实回调与关系，后两项默认空值；`reparent(parent, order)` 设置阅读顺序。不同节点的 id 不复用，角色固定；需要更换角色时关闭旧节点再创建。macOS 使用 AppKit，Windows 使用 UIA，Linux GNU 使用 GTK 内容容器内的 AT-SPI 子树；实现与平台验收的状态分别记录。
 
-角色覆盖文本、按钮、选择控件、滚动、图像、Link／Heading、数值、菜单／Tab／Dialog、List／Table／Row／Cell／表头、Disclosure 与 Separator。Image 使用替代名称和实际几何，不隐含点击或焦点动作。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；selected／expanded／checked 只发布实际适用的状态，protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 只公布实际回调；setNumber／increment／decrement、setSelected、setExpanded、dismiss 与文本／滚动动作均进入已有控制器。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
+角色覆盖文本、按钮、选择控件、滚动、图像、Link／Heading、数值、菜单／Tab／Dialog、List／Table／Row／Cell／表头、Tree／TreeItem、Disclosure 与 Separator。Image 使用替代名称和实际几何，不隐含点击或焦点动作。`SemanticProperties` 的可选名称、说明、标识和值区分未知和已知空串；selected／expanded／checked 只发布实际适用的状态，protectedText 不允许发布 value 明文。hidden 排除整个子树并保留身份。`SemanticActions` 只公布实际回调；setNumber／increment／decrement、setSelected、setExpanded、dismiss 与文本／滚动动作均进入已有控制器。回调只在业务已执行后返回 Completed，拒绝写入保持真实旧值；`provider.focused` 由实际键盘焦点更新，不表示焦点请求已经成功。
 
 Text／TextField 的已知非保护 value 同时提供纯文本正文；`selection = Some(Utf8Selection(anchor, cursor))` 使用正文中的 UTF-8 边界，保留公共选区方向。AppKit 将其映射为 UTF-16 单范围，提供正文长度、选中文本、范围读取和无额外样式的 attributed string；越界或切断 surrogate 的请求返回无结果。`setSelection` 可用于只读文本，`replaceText` 只替换仍匹配的已发布选区并遵守只读状态；修改后仍需发布真实结果。选区变化不清除节点几何，正文变化使旧文本范围写入失效。`cursorAffinity: SemanticTextAffinity` 默认 Downstream，保留活动 cursor 在软换行边界的实际偏向；AppKit 光标行号读取该偏向，按 index 请求则默认 Downstream。受保护文本不提供正文、长度或选区，但可以提供实际允许的全文 setValue。
 

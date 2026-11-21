@@ -334,10 +334,14 @@ static void collectRole(SWAccessibilityNode *node, int32_t role, BOOL visible,
     SWAccessibilityNode *child = [node.tree element:number.longLongValue];
     if (![child participatesInAccessibility])
       continue;
-    if (child.state.data.role == role) {
+    if (child.state.data.role == role ||
+        (role == 28 && child.state.data.role == 30)) {
       if (!visible || (child.state.data.geometry && child.state.data.visible))
         [result addObject:child];
-    } else if (child.state.data.role != 22)
+      if (role == 28 && child.state.data.role == 30 &&
+          child.state.data.expanded == 1)
+        collectRole(child, role, visible, result);
+    } else if ((child.state.data.role != 22 && child.state.data.role != 29))
       collectRole(child, role, visible, result);
   }
 }
@@ -375,7 +379,8 @@ static id staticCell(SWAccessibilityNode *node, NSInteger column,
                      NSInteger row) {
   for (NSNumber *number in node.tree.children[@(node.number)]) {
     SWAccessibilityNode *child = [node.tree element:number.longLongValue];
-    if (![child participatesInAccessibility] || child.state.data.role == 22)
+    if (![child participatesInAccessibility] ||
+        (child.state.data.role == 22 || child.state.data.role == 29))
       continue;
     SWAccessibilityData data = child.state.data;
     if (data.cell_row >= 0 && row >= data.cell_row &&
@@ -527,10 +532,12 @@ static id staticCell(SWAccessibilityNode *node, NSInteger column,
   return rows;
 }
 - (NSInteger)accessibilityIndex {
-  if (!self.isAccessibilityElement || self.state.data.role != 28)
+  if (!self.isAccessibilityElement ||
+      (self.state.data.role != 28 && self.state.data.role != 30))
     return NSNotFound;
   SWAccessibilityNode *parent = [self.tree element:self.state.data.parent];
-  while (parent && parent.state.data.role != 22)
+  while (parent &&
+         (parent.state.data.role != 22 && parent.state.data.role != 29))
     parent = parent.number ? [self.tree element:parent.state.data.parent] : nil;
   NSUInteger index =
       [sw_accessibility_table_rows(parent, NO) indexOfObjectIdenticalTo:self];

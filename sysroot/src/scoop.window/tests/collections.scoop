@@ -11,21 +11,23 @@ private class CollectionSource(
     private val hierarchyLevel: Long? = None,
     private val expanded: Boolean? = None,
     private val selectable: Boolean = true,
-    private val focusable: Boolean = false
-): SemanticCollectionSource {
+    private val focusable: Boolean = false,
+    private val parent: SemanticItemKey? = None,
+    private val siblings: SemanticItemPosition? = None,
+    private val checked: SemanticChecked? = None,
+    private val busy: Boolean = false
+) : SemanticCollectionSource {
     var descriptions = 0
     public override val count: Long get() = keys.size
     public override fun keyAt(index: Long): SemanticItemKey = keys[index]
     public override fun indexOfKey(key: SemanticItemKey): Long? {
-        for (index in 0L ..< keys.size)
-            if (keys[index] == key)
-                return Some(index)
+        for (index in 0L..<keys.size)
+            if (keys[index] == key) return Some(index)
         return None
     }
     public override fun describe(index: Long): SemanticItemProperties? {
         descriptions += 1
-        if (unavailable == Some(index))
-            return None
+        if (unavailable == Some(index)) return None
         return Some(
             SemanticItemProperties(
                 name = labels[index],
@@ -34,20 +36,80 @@ private class CollectionSource(
                 hierarchyLevel = hierarchyLevel,
                 expanded = expanded,
                 selectable = selectable,
-                focusable = focusable
+                focusable = focusable,
+                parentKey = parent,
+                siblings = siblings,
+                checked = checked,
+                busy = busy
             )
         )
     }
 }
 
-private fun item(result: SemanticItemResult): SemanticItem =
-    when (result) {
-        case Found(val value) -> value
-        else -> fail(Some("expected a semantic item"))
-    }
+private fun item(result: SemanticItemResult): SemanticItem = when (result) {
+    case Found(val value) -> value
+    else -> fail(Some("expected a semantic item"))
+}
 
 @Test
 private class SemanticCollectionTest {
+    @Test
+    fun `tree selection preserves parent sibling check and loading metadata`() {
+        val parent = SemanticItemKey.Number(1L)
+        val child = SemanticItemKey.Number(2L)
+        val source = CollectionSource(
+            [parent, child], [Some("Parent"), Some("Child")],
+            hierarchyLevel = Some(1L), parent = Some(parent),
+            siblings = Some(SemanticItemPosition(0L, 1L)),
+            checked = Some(SemanticChecked.Mixed), busy = true
+        )
+        val snapshot = SemanticCollectionSnapshot(source, Some(SemanticCollectionSelection([])))
+        assertEquals(0, source.descriptions)
+        val properties = item(snapshot.itemForKey(child)).properties
+        assertEquals(Some(false), properties.selected)
+        assertEquals(Some(parent), properties.parentKey)
+        assertEquals(Some(1L), properties.hierarchyLevel)
+        assertEquals(0L, properties.siblings!!.index)
+        assertEquals(1L, properties.siblings!!.count)
+        assertEquals(Some(SemanticChecked.Mixed), properties.checked)
+        assertTrue(properties.busy)
+        assertEquals(1, source.descriptions)
+    }
+
+    @Test
+    fun `tree descriptions reject invalid sibling and parent references locally`() {
+        val parent = SemanticItemKey.Number(1L)
+        val child = SemanticItemKey.Number(2L)
+        for (
+            position in [
+                SemanticItemPosition(-1L, 2L),
+                SemanticItemPosition(0L, 0L),
+                SemanticItemPosition(2L, 2L)
+            ]
+        ) {
+            val snapshot = SemanticCollectionSnapshot(
+                CollectionSource(
+                    [parent, child], [None, None], siblings = Some(position)
+                )
+            )
+            assertFailsWith<IllegalArgumentException> { snapshot.itemForKey(child) }
+        }
+        for (invalid in [child, SemanticItemKey.Number(3L)]) {
+            val snapshot = SemanticCollectionSnapshot(
+                CollectionSource(
+                    [parent, child], [None, None], parent = Some(invalid)
+                )
+            )
+            assertFailsWith<IllegalArgumentException> { snapshot.itemForKey(child) }
+        }
+        val future = SemanticCollectionSnapshot(
+            CollectionSource(
+                [parent, child], [None, None], parent = Some(child)
+            )
+        )
+        assertFailsWith<IllegalArgumentException> { future.itemForKey(parent) }
+    }
+
     @Test
     fun `nonselectable items keep reading and focus without selection state`() {
         val key = SemanticItemKey.Text("total")
@@ -71,13 +133,12 @@ private class SemanticCollectionTest {
     @Test
     fun `selection keeps declared hierarchy metadata and invalid depth is rejected`() {
         val key = SemanticItemKey.Text("group")
-        val source =
-            CollectionSource(
-                [key],
-                [Some("Group")],
-                hierarchyLevel = Some(3L),
-                expanded = Some(false)
-            )
+        val source = CollectionSource(
+            [key],
+            [Some("Group")],
+            hierarchyLevel = Some(3L),
+            expanded = Some(false)
+        )
         val snapshot = SemanticCollectionSnapshot(source, Some(SemanticCollectionSelection([key])))
         assertEquals(0, source.descriptions)
         val props = item(snapshot.itemForKey(key)).properties
@@ -90,10 +151,9 @@ private class SemanticCollectionTest {
             Some(Long.MAX_VALUE),
             SemanticItemProperties(hierarchyLevel = Some(Long.MAX_VALUE)).hierarchyLevel
         )
-        val invalid =
-            SemanticCollectionSnapshot(
-                CollectionSource([key], [Some("Group")], hierarchyLevel = Some(-1L))
-            )
+        val invalid = SemanticCollectionSnapshot(
+            CollectionSource([key], [Some("Group")], hierarchyLevel = Some(-1L))
+        )
         assertFailsWith<IllegalArgumentException> { invalid.itemAt(0L) }
     }
 
@@ -108,8 +168,9 @@ private class SemanticCollectionTest {
         assertEquals(text, item(first.itemAt(1L)).key)
         assertEquals(Some(""), item(first.itemForKey(text)).properties.name)
         assertEquals(2, source.descriptions)
-        val reordered =
-            SemanticCollectionSnapshot(CollectionSource([text, numeric], [Some(""), Some("one")]))
+        val reordered = SemanticCollectionSnapshot(
+            CollectionSource([text, numeric], [Some(""), Some("one")])
+        )
         assertEquals(0L, item(reordered.itemForKey(text)).index)
         assertEquals(1L, item(first.itemForKey(text)).index)
         assertEquals(SemanticItemResult.NotFound, first.itemAt(-1L))
@@ -122,10 +183,9 @@ private class SemanticCollectionTest {
         val a = SemanticItemKey.Number(1L)
         val b = SemanticItemKey.Number(2L)
         val c = SemanticItemKey.Number(3L)
-        val complete =
-            SemanticCollectionSnapshot(
-                CollectionSource([a, b, c], [Some("same"), Some("same"), Some("")])
-            )
+        val complete = SemanticCollectionSnapshot(
+            CollectionSource([a, b, c], [Some("same"), Some("same"), Some("")])
+        )
         assertEquals(b, item(complete.find(SemanticItemQuery.Name("same"), Some(a))).key)
         assertEquals(c, item(complete.find(SemanticItemQuery.Name(""))).key)
         assertEquals(SemanticItemResult.NotFound, complete.find(SemanticItemQuery.Name("absent")))
@@ -139,8 +199,9 @@ private class SemanticCollectionTest {
         )
         val unknown = SemanticCollectionSnapshot(CollectionSource([a], [None]))
         assertEquals(SemanticItemResult.Unavailable, unknown.find(SemanticItemQuery.Name("x")))
-        val unavailable =
-            SemanticCollectionSnapshot(CollectionSource([a], [Some("one")], unavailable = Some(0L)))
+        val unavailable = SemanticCollectionSnapshot(
+            CollectionSource([a], [Some("one")], unavailable = Some(0L))
+        )
         assertEquals(SemanticItemResult.Unavailable, unavailable.itemForKey(a))
         assertEquals(
             SemanticItemResult.Unavailable,
@@ -168,27 +229,21 @@ private class SemanticGridTest {
         val spans = CellDescriptions()
         val shapes = CellDescriptions()
         val actions = CellDescriptions()
-        val grid =
-            SemanticGrid(
-                [SemanticGridColumn(column)],
-                {
-                    _, _ ->
-                    descriptions.count += 1
-                    Some(SemanticItemProperties(focusable = true))
-                },
-                span =
-                    Some {
-                        _, at ->
-                        spans.count += 1;
-                        SemanticGridSpan(at)
-                    },
-                hasCells =
-                    Some {
-                        key ->
-                        shapes.count += 1;
-                        key != detail
-                    }
-            )
+        val grid = SemanticGrid(
+            [SemanticGridColumn(column)],
+            { _, _ ->
+                descriptions.count += 1
+                Some(SemanticItemProperties(focusable = true))
+            },
+            span = Some { _, at ->
+                spans.count += 1;
+                SemanticGridSpan(at)
+            },
+            hasCells = Some { key ->
+                shapes.count += 1;
+                key != detail
+            }
+        )
         val snapshot = SemanticCollectionSnapshot(source, grid = Some(grid))
         assertEquals(0, shapes.count)
         assertEquals(SemanticItemResult.NotFound, snapshot.cellForKey(detail, column))
@@ -196,15 +251,12 @@ private class SemanticGridTest {
         assertEquals(0, descriptions.count)
         assertEquals(0, spans.count)
         assertEquals(0, source.descriptions)
-        val operations =
-            SemanticGridActions(
-                realize =
-                    Some {
-                        _, _ ->
-                        actions.count += 1
-                        SemanticActionResult.Completed
-                    }
-            )
+        val operations = SemanticGridActions(
+            realize = Some { _, _ ->
+                actions.count += 1
+                SemanticActionResult.Completed
+            }
+        )
         assertEquals(
             SemanticActionResult.Unavailable,
             performGridCell(snapshot, Some(operations), detail, 0L, 12)
@@ -233,22 +285,20 @@ private class SemanticGridTest {
         val detail = SemanticItemKey.Number(2L)
         val column = SemanticItemKey.Text("value")
         val source = CollectionSource([data, detail], [None, None], unavailable = Some(1L))
-        val grid =
-            SemanticGrid(
-                [SemanticGridColumn(column)],
-                { _, _ -> None },
-                hasCells = Some { key -> key != detail }
-            )
+        val grid = SemanticGrid(
+            [SemanticGridColumn(column)],
+            { _, _ -> None },
+            hasCells = Some { key -> key != detail }
+        )
         val snapshot = SemanticCollectionSnapshot(source, grid = Some(grid))
         assertEquals(SemanticItemResult.Unavailable, snapshot.cellForKey(data, column))
         assertEquals(SemanticItemResult.NotFound, snapshot.cellForKey(detail, column))
         assertEquals(0, source.descriptions)
         assertEquals(SemanticItemResult.Unavailable, snapshot.itemForKey(detail))
-        val dense =
-            SemanticCollectionSnapshot(
-                source,
-                grid = Some(SemanticGrid([SemanticGridColumn(column)], { _, _ -> None }))
-            )
+        val dense = SemanticCollectionSnapshot(
+            source,
+            grid = Some(SemanticGrid([SemanticGridColumn(column)], { _, _ -> None }))
+        )
         assertTrue(item(dense.itemForKey(data)).hasCells)
         assertEquals(SemanticItemResult.Unavailable, dense.cellForKey(detail, column))
     }
@@ -259,23 +309,19 @@ private class SemanticGridTest {
         val columns = Array(4L) { index -> SemanticGridColumn(SemanticItemKey.Number(index)) }
         val source = CollectionSource([row], [Some("row")])
         val calls = CellDescriptions()
-        val grid =
-            SemanticGrid(
-                columns,
-                {
-                    _, column ->
-                    calls.count += 1
-                    Some(SemanticItemProperties(value = Some(f"${column}"), focusable = true))
-                },
-                span =
-                    Some {
-                        _,
-                        column -> if (column == 1L || column == 2L)
-                            SemanticGridSpan(1L, 2L)
-                        else
-                            SemanticGridSpan(column)
-                    }
-            )
+        val grid = SemanticGrid(
+            columns,
+            { _, column ->
+                calls.count += 1
+                Some(SemanticItemProperties(value = Some(f"${column}"), focusable = true))
+            },
+            span = Some { _, column ->
+                if (column == 1L || column == 2L)
+                    SemanticGridSpan(1L, 2L)
+                else
+                    SemanticGridSpan(column)
+            }
+        )
         val snapshot = SemanticCollectionSnapshot(source, grid = Some(grid))
         val covered = item(snapshot.cellForKey(row, SemanticItemKey.Number(2L)))
         assertEquals(SemanticItemKey.Number(1L), covered.key)
@@ -286,16 +332,13 @@ private class SemanticGridTest {
         assertEquals(1, calls.count)
         assertEquals(1L, item(snapshot.cellForKey(row, SemanticItemKey.Number(3L))).span)
         assertEquals(0, source.descriptions)
-        val actions =
-            SemanticGridActions(
-                realize =
-                    Some {
-                        key, column ->
-                        assertEquals(row, key)
-                        calls.key = Some(column)
-                        SemanticActionResult.Completed
-                    }
-            )
+        val actions = SemanticGridActions(
+            realize = Some { key, column ->
+                assertEquals(row, key)
+                calls.key = Some(column)
+                SemanticActionResult.Completed
+            }
+        )
         assertEquals(
             SemanticActionResult.Completed,
             performGridCell(snapshot, Some(actions), row, 2L, 12)
@@ -317,23 +360,20 @@ private class SemanticGridTest {
                 SemanticGridSpan(0L, 4L)
             ]
         ) {
-            val snapshot =
-                SemanticCollectionSnapshot(
-                    source,
-                    grid =
-                        Some(
-                            SemanticGrid(
-                                columns,
-                                {
-                                    _,
-                                    _ -> fail(
-                                        Some("invalid ranges must fail before describing values")
-                                    )
-                                },
-                                span = Some { _, _ -> span }
+            val snapshot = SemanticCollectionSnapshot(
+                source,
+                grid = Some(
+                    SemanticGrid(
+                        columns,
+                        { _, _ ->
+                            fail(
+                                Some("invalid ranges must fail before describing values")
                             )
-                        )
+                        },
+                        span = Some { _, _ -> span }
+                    )
                 )
+            )
             assertFailsWith<IllegalArgumentException> {
                 snapshot.cellForKey(row, SemanticItemKey.Number(0L))
             }
@@ -349,34 +389,27 @@ private class SemanticGridTest {
         val details = SemanticItemKey.Text("details")
         val source = CollectionSource([a, b], [Some("A"), Some("B")])
         val cells = CellDescriptions()
-        val grid =
-            SemanticGrid(
-                [SemanticGridColumn(title, Some("Title")), SemanticGridColumn(details)],
-                {
-                    row, column ->
-                    cells.count += 1
-                    if (row == b && column == 1L)
-                        None
-                    else
-                        Some(
-                            SemanticItemProperties(
-                                name =
-                                    Some(
-                                        if (row == a)
-                                            "A title"
-                                        else
-                                            "B title"
-                                    )
+        val grid = SemanticGrid(
+            [SemanticGridColumn(title, Some("Title")), SemanticGridColumn(details)],
+            { row, column ->
+                cells.count += 1
+                if (row == b && column == 1L)
+                    None
+                else
+                    Some(
+                        SemanticItemProperties(
+                            name = Some(
+                                if (row == a) "A title" else "B title"
                             )
                         )
-                }
-            )
-        val snapshot =
-            SemanticCollectionSnapshot(
-                source,
-                Some(SemanticCollectionSelection([a], required = true)),
-                Some(grid)
-            )
+                    )
+            }
+        )
+        val snapshot = SemanticCollectionSnapshot(
+            source,
+            Some(SemanticCollectionSelection([a], required = true)),
+            Some(grid)
+        )
         assertEquals(0, cells.count)
         assertEquals(0, source.descriptions)
         assertEquals(Some(true), item(snapshot.itemAt(0L)).properties.selected)

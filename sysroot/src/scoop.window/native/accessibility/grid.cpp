@@ -3,13 +3,13 @@
 namespace swax {
 int64_t Element::rowCount() {
   auto value = state();
-  if (!value || value->data.role != 22)
+  if (!value || (value->data.role != 22 && value->data.role != 29))
     return 0;
   return value->count >= 0 ? value->count : value->data.table_rows;
 }
 int64_t Element::columnCount() {
   auto value = state();
-  if (!value || value->data.role != 22)
+  if (!value || (value->data.role != 22 && value->data.role != 29))
     return 0;
   return value->count >= 0 ? static_cast<int64_t>(value->columns.size())
                            : value->data.table_columns;
@@ -17,8 +17,8 @@ int64_t Element::columnCount() {
 ElementPtr Element::cellAt(int64_t row, int64_t column) {
   auto owner = tree.lock();
   auto value = state();
-  if (!owner || !value || value->data.role != 22 || row < 0 || column < 0 ||
-      row >= rowCount() || column >= columnCount())
+  if (!owner || !value || (value->data.role != 22 && value->data.role != 29) ||
+      row < 0 || column < 0 || row >= rowCount() || column >= columnCount())
     return {};
   if (value->count >= 0) {
     auto item = owner->itemAt(reference.node, row);
@@ -38,7 +38,7 @@ ElementPtr Element::cellAt(int64_t row, int64_t column) {
         column >= d.cell_column && row - d.cell_row < d.row_span &&
         column - d.cell_column < d.column_span)
       return child;
-    if (d.role != 22) {
+    if ((d.role != 22 && d.role != 29)) {
       auto nested = child->actualChildren();
       search.insert(search.end(), nested.begin(), nested.end());
     }
@@ -51,7 +51,7 @@ std::vector<ElementPtr> Element::headers(bool rows) {
   auto value = state();
   if (!owner || !value)
     return result;
-  if (value->data.role != 22) {
+  if ((value->data.role != 22 && value->data.role != 29)) {
     for (auto number : value->relations[rows ? 5 : 6])
       if (auto target = owner->actual(number))
         result.push_back(target);
@@ -78,7 +78,7 @@ std::vector<ElementPtr> Element::headers(bool rows) {
             continue;
           if (data->data.role == (rows ? 24 : 25))
             result.push_back(child);
-          else if (data->data.role != 22)
+          else if ((data->data.role != 22 && data->data.role != 29))
             append(child);
         }
       };

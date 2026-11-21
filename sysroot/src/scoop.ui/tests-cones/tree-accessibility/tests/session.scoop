@@ -1,0 +1,278 @@
+package scoop.tests.ui.treeaccessibility
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class NativeTreeTest {
+    @Test
+    fun `tree and tree grid expose hierarchy and check the original offscreen model`() {
+        val probe = TreeProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }
+                .use { host -> Application().run(host) }
+            assertTrue(probe.finished)
+            assertEquals(3, probe.round)
+        } catch (error: Throwable) {
+            println(f"tree round=${probe.round}, phase=${probe.phase}")
+            throw error
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class TreeProbe : Closeable {
+    val rows = state(TreeRows())
+    var scope: ComponentScope? = None
+    var finished = false
+    var round = 0
+    var phase = 0
+    private var checks = 0
+    private var expansions = 0
+    private var reject = false
+    private var waiting = false
+    private var active: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var root: NativeNode? = None
+    private var tree: NativeNode? = None
+    private var branch: NativeNode? = None
+    private var child: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private val held = ArrayList<NativeNode>()
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
+                    )
+                val window = application
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop tree semantics";
+                            size = LogicalSize(320.0, 200.0)
+                        }
+                    )
+                ui = host.attach(window, { mount -> TreeScene(this, mount) })
+                @Unsafe {
+                    window
+                        .acquireNativeWindow()
+                        .use { lease ->
+                            @Unsafe {
+                                when (lease.handle) {
+                                    case AppKit(_, val pointer) ->
+                                        root = Some(keep(NativeNode(nativeRoot(pointer)!!)))
+                                    else -> fail(Some("expected AppKit"))
+                                }
+                            }
+                        }
+                }
+                calls = Some(
+                    NativeCalls(application.proxy(), { tag -> inspect(tag) }) { tag, result ->
+                        completed(tag, result)
+                    }
+                )
+            }
+
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"tree timeout at ${round}/${phase}"))
+            else -> {}
+        }
+    }
+    fun check(key: ViewKey, value: Boolean): SemanticActionResult {
+        assertEquals(ViewKey.Number(1L), key)
+        checks += 1
+        if (reject) return SemanticActionResult.Rejected
+        rows.value = TreeRows(
+            round,
+            checked = Some(if (value) SemanticChecked.On else SemanticChecked.Off)
+        )
+        return SemanticActionResult.Completed
+    }
+    fun expand(key: ViewKey, value: Boolean): SemanticActionResult {
+        assertEquals(ViewKey.Number(1L), key)
+        expansions += 1
+        if (reject) return SemanticActionResult.Rejected
+        rows.value = TreeRows(round, expanded = value)
+        return SemanticActionResult.Completed
+    }
+    fun accepted(source: TreeRows) {
+        if (finished || waiting || source !== rows.value) return
+        waiting = true
+        when (phase) {
+            case 1 -> calls!!.post(branch!!, phase, 21)
+            case 2 -> calls!!.post(branch!!, phase, 21)
+            case 3 -> calls!!.post(branch!!, phase, 21)
+            case 4 -> calls!!.post(branch!!, phase, 21)
+            case 10 -> calls!!.post(branch!!, phase, 21)
+            case 11 -> calls!!.post(branch!!, phase, 21)
+            case 5 -> calls!!.post(branch!!, phase, 14)
+            case 7 -> calls!!.post(branch!!, phase, 14)
+            case 8 -> calls!!.post(branch!!, phase, 14)
+            case 6 -> calls!!.post(branch!!, phase, 15)
+            case 9 -> calls!!.post(child!!, phase, 21)
+            else -> calls!!.post(root!!, phase, 20)
+        }
+    }
+    private fun inspect(tag: Int) {
+        assertEquals(phase, tag)
+        when (phase) {
+            case 0 -> {
+                tree = Some(keep(root!!.find("tree")!!))
+                branch = Some(keep(tree!!.row(0L)!!))
+                child = Some(keep(tree!!.row(1L)!!))
+                assertTrue(tree!!.text(2, Some("AXOutline")))
+                assertTrue(branch!!.text(2, Some("AXRow")))
+                assertEquals(3L, tree!!.rowCount)
+                assertEquals(0L, branch!!.hierarchyLevel)
+                assertEquals(1L, child!!.hierarchyLevel)
+                assertTrue(keep(child!!.disclosedByRow()!!).same(branch!!))
+                assertTrue(keep(branch!!.disclosedRow(0L)!!).same(child!!))
+                assertEquals(1L, branch!!.trait(10))
+                assertEquals(2L, branch!!.numericValue)
+                assertTrue(branch!!.text(7, Some("Busy")))
+                assertTrue(child!!.text(1, Some("leaf value")))
+                assertFalse(branch!!.flag(2))
+                assertFalse(branch!!.flag(4))
+                assertFalse(child!!.flag(18))
+                assertEquals(0, checks)
+                if (rows.value.columns) {
+                    assertEquals(2L, tree!!.trait(6))
+                    assertTrue(keep(tree!!.cell(0L, 1L)!!).text(1, Some("Folder")))
+                    assertTrue(keep(tree!!.columnHeader(1L)!!).text(0, Some("Kind")))
+                }
+            }
+
+            case 1 -> {
+                assertEquals(1L, branch!!.numericValue);
+                assertEquals(1, checks)
+            }
+
+            case 2 -> {
+                assertEquals(1L, branch!!.numericValue);
+                assertEquals(2, checks)
+            }
+
+            case 3 -> {
+                assertEquals(2L, branch!!.numericValue);
+                assertEquals(2, checks);
+                assertFalse(branch!!.flag(1))
+            }
+
+            case 4 -> {
+                assertEquals(-1L, branch!!.numericValue);
+                assertEquals(2, checks)
+            }
+
+            case 5 -> {
+                assertEquals(3L, tree!!.rowCount);
+                assertEquals(1, expansions)
+            }
+
+            case 6 -> {
+                assertEquals(2L, tree!!.rowCount);
+                assertEquals(0L, branch!!.trait(10));
+                assertFalse(child!!.flag(0));
+                assertEquals(2, expansions)
+            }
+
+            case 7 -> {
+                assertEquals(2L, tree!!.rowCount);
+                assertEquals(3, expansions)
+            }
+
+            case 8 -> {
+                val fresh = keep(tree!!.row(1L)!!)
+                assertFalse(child!!.same(fresh))
+                child = Some(fresh)
+                assertEquals(3L, tree!!.rowCount)
+                assertEquals(4, expansions)
+            }
+
+            case 9 -> assertEquals(2, checks)
+
+            case 10 -> {
+                assertEquals(1L, tree!!.rowCount);
+                assertFalse(branch!!.flag(0));
+                assertEquals(2, checks)
+            }
+
+            case 11 -> {
+                assertFalse(branch!!.same(keep(tree!!.row(0L)!!)));
+                assertFalse(branch!!.flag(0));
+                assertEquals(2, checks)
+            }
+
+            case 12 -> assertFalse(tree!!.flag(0))
+            else -> fail(Some("unexpected tree phase"))
+        }
+    }
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(phase, tag)
+        assertEquals(
+            if (phase == 2 || phase == 3 || phase == 4 || phase == 9 || phase == 10 || phase == 11)
+                0
+            else
+                1,
+            result
+        )
+        waiting = false
+        phase += 1
+        when (phase) {
+            case 2 -> reject = true
+
+            case 3 -> {
+                reject = false;
+                rows.value = TreeRows(round, enabled = false)
+            }
+
+            case 4 -> rows.value = TreeRows(round, checked = None)
+            case 5 -> rows.value = TreeRows(round, expanded = false)
+            case 7 -> reject = true
+            case 8 -> reject = false
+            case 10 -> rows.value = TreeRows(round, removed = true)
+            case 11 -> rows.value = TreeRows(round)
+
+            case 12 -> {
+                if (round < 3) {
+                    round += 1
+                    phase = 0
+                    checks = 0
+                    expansions = 0
+                    rows.value = TreeRows(round)
+                } else {
+                    ui!!.close()
+                    waiting = true
+                    calls!!.post(root!!, phase, 20)
+                    return
+                }
+            }
+
+            case 13 -> {
+                finished = true;
+                active!!.requestExit();
+                return
+            }
+
+            else -> {}
+        }
+        scope!!.requestFrame()
+    }
+    private fun keep(node: NativeNode): NativeNode {
+        held.add(node);
+        return node
+    }
+    public override fun close() {
+        calls?.close();
+        for (node in held)
+            node.close()
+    }
+}
