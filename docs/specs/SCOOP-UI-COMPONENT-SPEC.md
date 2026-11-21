@@ -1018,7 +1018,7 @@ SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布
 
 `contextMenu(content: View, menu: MenuContent, configure: ContextMenuBuilder.() -> Unit = {})` 构造 ContextMenuProps／ContextMenu；open 可选，缺省为该挂载的本地 State，其他菜单选项及回调同上。右键 Press 使用原生事件的窗口逻辑坐标打开 AtPoint，消费此右键动作而不触发原内容主动作；没有有效已提交区域时不打开。Menu 键或 Shift+F10 在焦点所属内容的作用域打开，以已提交内容矩形逻辑起侧下角定位，不猜测未放置几何。包装区域提供 tabStop=false 的焦点退路，原内容的按钮／选择／编辑保留各自输入所有权；键盘打开不覆盖原后代焦点。
 
-右键与键盘入口均沿普通默认动作从内向外处理。命中后代自己的 ContextMenu 或文字菜单时，由后代先消费，外层菜单不抢先打开；禁用的内层菜单不消费，允许仍有效的外层入口处理。Portal 菜单内容按 UI 无障碍规范从窗口语义根发布，虚拟表格行内的菜单同样可由原生客户端读取和执行。
+右键与键盘入口均沿普通默认动作从内向外处理。命中后代自己的 ContextMenu 或文字菜单时，由后代先消费，外层菜单不抢先打开；禁用的内层菜单不消费，允许仍有效的外层入口处理。ContextMenu 的 enabled 只控制菜单入口，不禁用所包装的正文或其后代；正文保留自身的输入与无障碍 enabled 状态。Portal 菜单内容按 UI 无障碍规范从窗口语义根发布，虚拟表格行内的菜单同样可由原生客户端读取和执行。
 
 ContextMenuProps 与 ContextMenuBuilder 的 longPress 默认为 LongPressOptions()，通过公共 LongPress 接入 Touch／Pen；可单独关闭或配置延迟、移动容差。成功后以真实接触的窗口逻辑位置打开同一菜单，正文已有焦点保留，无焦点时沿同一包装退路。普通短按仍交给正文，内层文本长按或滚动已接管时不再打开外层菜单；菜单已经打开、触发器禁用或失效时不另建候选。关闭触摸长按不改变右键、Menu 键和 Shift+F10。
 

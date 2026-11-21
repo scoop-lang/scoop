@@ -63,6 +63,9 @@ internal class FieldSemanticsProbe {
     ) {
         when (step) {
             case 0 -> {
+                assertTrue(input!!.flag(1))
+                assertTrue(checkbox!!.flag(1))
+                assertTrue(button!!.flag(1))
                 assertTrue(input!!.flag(9))
                 assertTrue(input!!.flag(10))
                 assertFalse(input!!.flag(11))
