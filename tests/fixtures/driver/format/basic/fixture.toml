@@ -32,7 +32,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{actual = "${write.result.mode}", equals = "write"}, {actual = "${write.result.success}", equals = true}, {actual = "${write.result.counts.formatted}", equals = 3}, {file = "${work}/cone/src/one.scoop", equals = "fun one(a: Int, b: Int): Int {\n    return a + b\n}\n"}, {file = "${work}/cone/linux/platform.scoop", equals = "fun platform() = unknown(1, 2)\n"}, {file = "${work}/cone/checks/case.scoop", equals = "@Test\nfun case() {\n    assertTrue(true)\n}\n"}, {file = "${work}/cone/unselected.scoop", same_as = "${fixture}/cone/unselected.scoop"}, {file = "${work}/cone/src/alias.scoop", type = "symlink"}, {file = "${work}/cone/target", exists = false}, {glob = "${work}/cone/src/.scoop-fmt-*", equals = []}]
+checks = [{actual = "${write.result.mode}", equals = "write"}, {actual = "${write.result.success}", equals = true}, {actual = "${write.result.counts.formatted}", equals = 3}, {file = "${work}/cone/src/one.scoop", equals = "fun one(a: Int, b: Int): Int {\n    return a + b\n}\n"}, {file = "${work}/cone/linux/platform.scoop", equals = "fun platform() = unknown(1, 2)\n"}, {file = "${work}/cone/checks/case.scoop", equals = "@Test fun case() {\n    assertTrue(true)\n}\n"}, {file = "${work}/cone/unselected.scoop", same_as = "${fixture}/cone/unselected.scoop"}, {file = "${work}/cone/src/alias.scoop", type = "symlink"}, {file = "${work}/cone/target", exists = false}, {glob = "${work}/cone/src/.scoop-fmt-*", equals = []}]
 
 [[steps]]
 name = "stable"

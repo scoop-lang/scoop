@@ -15,6 +15,46 @@ fn declarations_and_blocks() {
 }
 
 #[test]
+fn kotlin_operator_and_colon_spacing() {
+    assert_eq!(
+        checked("fun f(n:Int){for(i in 0 .. n){ take(i ..< n) }\nval valid=1 in 0 .. n && n>0}"),
+        "fun f(n: Int) {\n    for (i in 0..n) {\n        take(i..<n)\n    }\n    val valid = 1 in 0..n && n > 0\n}\n"
+    );
+    assert_eq!(
+        checked(
+            "class C<T:Bound>(val x:T):Base(), Face where T:Other {\nconstructor(x:T,y:Int):this(x){}\nval a=object:Face{}\nfun f(cb:(Int)->Int):T=x\n}"
+        ),
+        "class C<T : Bound>(val x: T) : Base(), Face where T : Other {\n    constructor(x: T, y: Int) : this(x) {}\n    val a = object : Face {}\n    fun f(cb: (Int) -> Int): T = x\n}\n"
+    );
+    let formatted = checked(
+        "fun f() = veryLongValueNameFromTheFirstInput in 0 .. veryLongLimitFromTheSecondInput && anotherVeryLongCondition",
+    );
+    assert!(formatted.contains("0..veryLongLimitFromTheSecondInput"));
+}
+
+#[test]
+fn annotation_spacing_and_groups() {
+    for (source, expected) in [
+        ("@Test  fun f(){}", "@Test fun f() {}\n"),
+        ("@Test\nfun f(){}", "@Test\nfun f() {}\n"),
+        (
+            "@First @Second public fun f()=1",
+            "@First @Second\npublic fun f() = 1\n",
+        ),
+        (
+            "@First @With(1) @Second fun f(){}",
+            "@First\n@With(1)\n@Second\nfun f() {}\n",
+        ),
+        (
+            "class C(@field : Tag val x:Int){ @get: Tag val y=1 }",
+            "class C(@field:Tag val x: Int) {\n    @get:Tag val y = 1\n}\n",
+        ),
+    ] {
+        assert_eq!(checked(source), expected);
+    }
+}
+
+#[test]
 fn whitespace_sensitive_expressions() {
     for source in [
         "fun f(){ return\n value\n call\n (x)\n array\n [1,2]\n array[0] }",
@@ -61,10 +101,6 @@ fn lists_break_at_unicode_scalar_width() {
 fn callable_bodies_annotations_and_control_layout() {
     for (source, expected) in [
         ("fun f()=apply {x->x+1}", "fun f() = apply { x -> x + 1 }\n"),
-        (
-            "@First @Second public fun f()=1",
-            "@First\n@Second\npublic fun f() = 1\n",
-        ),
         (
             "fun f(){if(x)call() else other()}",
             "fun f() {\n    if (x)\n        call()\n    else\n        other()\n}\n",

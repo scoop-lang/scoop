@@ -73,21 +73,40 @@ pub(crate) fn gaps(input: &Input) -> Vec<Gap> {
         if kind == K::AnnotationList
             && matches!(parent, Some(K::Declaration | K::Member | K::Statement))
         {
-            for &(child, child_start, child_end, _) in &input.nodes {
-                if child == K::Annotation
-                    && child_start >= start
-                    && child_end <= end
-                    && child_end < gaps.len()
-                {
-                    gaps[child_end] = Gap::Line;
-                }
-            }
+            declaration_annotations(input, &mut gaps, start, end);
         }
     }
     if !gaps.is_empty() {
         gaps[0] = Gap::None;
     }
     gaps
+}
+
+fn declaration_annotations(input: &Input, gaps: &mut [Gap], start: usize, end: usize) {
+    let list = input.tokens[start]
+        .syntax
+        .parent_ancestors()
+        .find(|node| node.kind() == K::AnnotationList)
+        .expect("annotation list starts with an annotation");
+    let mut multiple = false;
+    for annotation in list.children().filter(|node| node.kind() == K::Annotation) {
+        let range = input.token_range(&annotation);
+        if annotation
+            .children()
+            .any(|child| child.kind() == K::ArgumentList && !child.text_range().is_empty())
+        {
+            if range.start > start && gaps[range.start] == Gap::Space {
+                gaps[range.start] = Gap::Line;
+            }
+            if gaps.get(range.end) == Some(&Gap::Space) {
+                gaps[range.end] = Gap::Line;
+            }
+        }
+        multiple |= range.start > start;
+    }
+    if multiple && gaps.get(end) == Some(&Gap::Space) {
+        gaps[end] = Gap::Line;
+    }
 }
 
 fn between(left: &Token, right: &Token) -> Gap {
@@ -113,6 +132,12 @@ fn between(left: &Token, right: &Token) -> Gap {
     }
     let lp = left.parent_kind();
     let rp = right.parent_kind();
+    if left.is_range_operator() || right.is_range_operator() {
+        return None;
+    }
+    if l == K::Colon && lp == K::Annotation || r == K::Colon && rp == K::Annotation {
+        return None;
+    }
     if lp == K::BinaryOperator
         && rp == K::BinaryOperator
         && left.syntax.parent() == right.syntax.parent()
@@ -136,6 +161,15 @@ fn between(left: &Token, right: &Token) -> Gap {
     }
     if lp == K::PostfixOperator && rp == K::PostfixOperator {
         return None;
+    }
+    if l == K::Colon
+        || r == K::Colon
+            && matches!(
+                rp,
+                K::SupertypeList | K::TypeParameter | K::TypeConstraint | K::SecondaryConstructor
+            )
+    {
+        return Space;
     }
     if matches!(
         r,
@@ -175,6 +209,7 @@ fn between(left: &Token, right: &Token) -> Gap {
         };
     }
     if r == K::At
+        && rp != K::Annotation
         && matches!(
             l,
             K::KwReturn | K::KwBreak | K::KwContinue | K::Ident | K::EscapedIdent

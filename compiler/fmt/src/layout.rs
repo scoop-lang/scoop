@@ -253,6 +253,7 @@ fn expression(
             continue;
         }
         let last_operator_token = input.tokens[index].parent_kind() == K::BinaryOperator
+            && !input.tokens[index].is_range_operator()
             && (index + 1 == end
                 || input.tokens[index].operator() != input.tokens[index + 1].operator());
         index += 1;
@@ -267,6 +268,9 @@ fn expression(
         }
     }
     let part = sequence(input, gaps, within(nested, item, end), item, end, false);
+    if item == start {
+        return part;
+    }
     pieces.push(Document::line().append(part).nest(4));
     Document::concat(pieces).group()
 }
