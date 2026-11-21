@@ -90,28 +90,56 @@ int32_t scoop_window_test_drag_data(void) {
   }
 }
 
+static void dragInput(SWView *view, int32_t kind) {
+  NSEventType type = kind == 0   ? NSEventTypeLeftMouseDown
+                     : kind == 1 ? NSEventTypeLeftMouseDragged
+                                 : NSEventTypeLeftMouseUp;
+  NSPoint point = [view convertPoint:NSMakePoint(40.0 + kind * 12.0, 45.0)
+                              toView:nil];
+  NSEvent *event =
+      [NSEvent mouseEventWithType:type
+                         location:point
+                    modifierFlags:0
+                        timestamp:NSProcessInfo.processInfo.systemUptime
+                     windowNumber:view.window.windowNumber
+                          context:nil
+                      eventNumber:100 + kind
+                       clickCount:1
+                         pressure:kind == 2 ? 0 : 1];
+  if (kind == 0)
+    [view mouseDown:event];
+  else if (kind == 1)
+    [view mouseDragged:event];
+  else
+    [view mouseUp:event];
+}
+
 void scoop_window_test_drag_input(void *pointer, int32_t kind) {
+  SWView *view = (__bridge SWView *)pointer;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (view.owner && view.window)
+      dragInput(view, kind);
+  });
+}
+
+void scoop_window_test_drag_end(void *pointer, int32_t cancel) {
+  SWView *view = (__bridge SWView *)pointer;
+  if (cancel)
+    [view cancelPointer:SWPointerCaptureLost];
+  else
+    dragInput(view, 2);
+}
+
+void scoop_window_test_drag_finished_input(void *pointer, int32_t ending) {
   SWView *view = (__bridge SWView *)pointer;
   dispatch_async(dispatch_get_main_queue(), ^{
     if (!view.owner || !view.window)
       return;
-    NSEventType type =
-        kind == 0 ? NSEventTypeLeftMouseDown : NSEventTypeLeftMouseDragged;
-    NSPoint point = [view convertPoint:NSMakePoint(40.0 + kind * 12.0, 45.0)
-                                toView:nil];
-    NSEvent *event =
-        [NSEvent mouseEventWithType:type
-                           location:point
-                      modifierFlags:0
-                          timestamp:NSProcessInfo.processInfo.systemUptime
-                       windowNumber:view.window.windowNumber
-                            context:nil
-                        eventNumber:100 + kind
-                         clickCount:1
-                           pressure:1];
-    if (kind == 0)
-      [view mouseDown:event];
-    else
-      [view mouseDragged:event];
+    dragInput(view, 0);
+    dragInput(view, 1);
+    if (ending < 3)
+      scoop_window_test_drag_end(pointer, ending == 1);
+    if (ending == 2)
+      dragInput(view, 0);
   });
 }

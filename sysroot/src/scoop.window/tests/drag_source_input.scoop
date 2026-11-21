@@ -1,0 +1,103 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.window.native.*
+
+@Test
+private class DragSourceInputTest {
+    @Test
+    fun `queued and pending native input cannot start an ended drag sequence`() {
+        val probe = DragInputProbe()
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(probe)
+        assertEquals(6, probe.completions)
+        assertEquals(5, probe.ending)
+    }
+}
+
+private class DragInputProbe : ApplicationHandler {
+    var completions = 0
+    var ending = 0
+    private var caseCompletions = 0
+    private var window: Window? = None
+    private var lease: NativeWindowLease? = None
+    private var view: Ptr<Unit>? = None
+    private var session: DragSession? = None
+
+    public override fun onEvent(active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                window = Some(
+                    active
+                        .createWindow(
+                            windowAttributes {
+                                title = "Scoop queued drag input"
+                                requestActivation = false
+                            }
+                        )
+                )
+                active
+                    .setControlFlow(
+                        ControlFlow
+                            .WaitUntil(
+                                MonotonicTimeSource.now() + Duration.seconds(5L)
+                            )
+                    )
+                @Unsafe {
+                    lease = Some(window!!.acquireNativeWindow())
+                    when (lease!!.handle) {
+                        case AppKit(_, val nativeView) -> {
+                            view = Some(nativeView)
+                            postFinishedDragInput(nativeView, ending)
+                        }
+                    }
+                }
+            }
+
+            case Window(_, WindowEvent.Pointer(PointerEvent.Moved(_))) -> begin()
+            case Window(_, WindowEvent.Closing) -> lease!!.close()
+            case NewEvents(StartCause.Deadline) -> fail(Some("queued drag input timed out"))
+            else -> {}
+        }
+    }
+
+    private fun begin() {
+        val nextPress = ending == 2 && caseCompletions == 1
+        val value = window!!
+            .beginDrag(DragContent.Text("queued input")) { result ->
+                assertNotDropped(result)
+                assertTrue(session!!.isClosed)
+                assertFalse(session!!.isStarted)
+                completions += 1
+                caseCompletions += 1
+                if (ending == 2 && caseCompletions == 1) {
+                    // The previous request must not clear the newer native press.
+                    @Unsafe {
+                        postDragInput(view!!, 1)
+                    }
+                } else {
+                    ending += 1
+                    caseCompletions = 0
+                    if (ending == 5) {
+                        window!!.requestDestroy()
+                    } else {
+                        @Unsafe {
+                            postFinishedDragInput(view!!, ending)
+                        }
+                    }
+                }
+            }
+        session = Some(value)
+        assertNoResult(value)
+        assertFalse(value.isStarted)
+        if (nextPress) {
+            assertTrue(value.cancelPending())
+        } else if (ending >= 3) {
+            @Unsafe {
+                endDragInput(view!!, if (ending == 4) 1 else 0)
+            }
+        }
+    }
+}

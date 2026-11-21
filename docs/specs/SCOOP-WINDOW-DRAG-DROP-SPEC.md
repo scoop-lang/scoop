@@ -44,6 +44,8 @@ prepareForDragOperation 只复核元数据和已协商选择；performDragOperat
 
 准备成功后沿已有 SystemOperation 取消通知结束普通鼠标与接触路由，再在 owner 的原生操作边界启动；Darwin 调用 beginDraggingSessionWithItems。左键拖动保留对应 NSEvent，使阈值后的接管不用伪造按下；系统移动／调整窗口的事件限制不随此扩展改变。准备到实际启动之间的取消、模态、关窗或退出不启动会话。未提供预览时沿用各后端的默认拖放反馈。
 
+AppKit 的拖出输入按采集时的左键按下序列保留，合法性不依赖业务回调执行时普通按键集合是否仍为按下。原生释放或取消可能先于附着 asyncio 的业务派发；此时当前 Down／Dragged 仍可准备请求，但实际启动前发现原按下序列已经结束，应以 NotDropped 完成，isStarted 保持 false。新的按下不能使旧请求重新有效，旧请求也不能清除新按下的普通路由状态。SystemOperation 接管只清除普通路由，不把仍在进行的原生拖动误报为已经释放。
+
 GTK 的左键按下与按住左键的移动事件都必须将真实 GdkEvent 附件保留到 owner 派发结束；不能只保留按下而丢弃达到上层拖动阈值的移动。没有按住左键的移动、释放和取消不取得拖出输入资格，不用伪造旧按下弥补丢失的附件。
 
 DragSession 的 isStarted 表示原生已确认开始，result: DragResult? 保存终态，isClosed 可查询；所有访问要求 owner。DragResult 为 Dropped(DragEffect)、NotDropped 或 Failed(WindowException)。Dropped 仅表示系统报告目标接受了允许的操作，绝不隐含删除来源；NotDropped 合并系统未接受、拒收及用户取消，因为 AppKit 不区分其原因。Failed 表示实际启动失败。完成结果通过普通 owner 队列交付 onCompleted 一次，交付前释放源登记；处理器仍沿正常应用错误边界执行。Copy 不删源，Move 的文档版本确认与一次删除由实际 UI／业务实现；Window 不擅自删除文字或文件。

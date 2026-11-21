@@ -172,9 +172,13 @@ DragSession.effects 可以调整后续协商，只能使用创建时提供过的
 
 准备成功后结束普通鼠标和接触路由，并在已有延迟原生操作边界启动系统会话。返回的 DragSession 提供 isStarted、result、isClosed；结果为 Dropped(effect)、NotDropped 或 Failed(error)。onCompleted 在普通 owner 队列交付一次，登记和原生回调先退休。Dropped(Move) 只表示目标接受 Move，Window 不删源；实际文档或文件业务必须独立确认自己的版本和完成条件。
 
+AppKit 保留触发事件所属的左键按下序列。快速松键或取消可能先于业务派发，这种请求正常完成为 NotDropped，isStarted 保持 false；不会因为派发延迟而抛出状态异常，也不会借用后一次按下来启动旧拖动。
+
 `cancelPending()` 只取消未启动请求，返回 true 并产生 NotDropped；已启动返回 false。`close()` 撤销未来回调，关窗自动调用。AppKit 没有公开强制取消接口，关闭已启动资源时 native 继续持有系统使用的数据直到真实结束，清除 Scoop context；未知结果保持 None，也不会再触发来源删除。源窗口失活本身不取消跨程序拖放。
 
 完整两窗口消费者见 [drag-drop 示例](examples/drag-drop/README.md)，原生 item 与准备通路测试见 [drag_source.scoop](tests/drag_source.scoop)。完成状态机的替身测试单独标明；系统拖动、外部程序和关闭中继续拖放的实际结果仍需桌面验收。
+
+2026-11-22 本机 macOS release 通过原生数据／来源收尾的 2 项测试和[排队输入回归](tests/drag_source_input.scoop)：同一个 Application 内覆盖派发前释放／取消／再次按下、准备后释放／取消，共 6 次请求均完成且资源退休。分别使用 `--filter DragSourceTest` 和 `--filter DragSourceInputTest` 运行，遵守每进程一个 Application 的合同。Scoop 格式／含测试语义检查、native clang-format 与严格警告编译通过；这组输入测试不启动 OS 拖放会话。
 
 ## 文本输入
 
