@@ -1,0 +1,100 @@
+package scoop.asyncio
+
+import scoop.platform.env.environment
+import scoop.platform.env.executablePath
+import scoop.platform.fs.*
+import scoop.platform.process.*
+import scoop.platform.system.OsString
+import scoop.test.*
+import scoop.text.contains
+
+@Test
+private class AsyncPtyUnixTest {
+    @Test
+    fun resizeAndInterruptSignalTheForegroundProcess() {
+        val loop = eventLoop()
+        loop
+            .run {
+                loop
+                    .spawnPty(unixPtyCommand(signalProbe), 40L, 20L)
+                    .useAsync { pty ->
+                        pty.readMarker("signal-ready")
+                        pty.resize(60L, 25L)
+                        pty.readMarker("signal-winch")
+                        pty.send("\u0003")
+                        assertTrue(String.fromUtf8(pty.readAllBytes()).contains("signal-int"))
+                        assertEquals(ExitStatus.Exited(23), pty.wait())
+                    }
+            }
+    }
+
+    @Test
+    fun outputCanEndWhileTheChildStillRuns() {
+        val temporary = createTempDirectory(prefix = "scoop-pty-eof-")
+        val release = temporary.resolve(Path.fromString("release"))
+        try {
+            val loop = eventLoop()
+            loop
+                .run {
+                    val scope = this
+                    loop
+                        .spawnPty(eofFirstChild(release), 40L, 20L)
+                        .useAsync { pty ->
+                            val child = scope.async { pty.wait() }
+                            assertEquals(0L, pty.readAllBytes().size)
+                            assertFalse(child.isCompleted)
+                            release.writeText("")
+                            assertEquals(ExitStatus.Exited(24), child.await())
+                        }
+                }
+        } finally {
+            temporary.deleteRecursively()
+        }
+    }
+}
+
+internal fun unixPtyCommand(script: String): Command = command(
+    Path.fromString("/bin/sh")
+) {
+    arg(OsString.fromString("-c"))
+    arg(OsString.fromString(script))
+}
+
+private val signalProbe = """
+trap 'printf signal-winch' WINCH
+trap 'printf signal-int; exit 23' INT
+printf signal-ready
+while IFS= read -r ignored; do :; done
+"""
+
+private val releaseVariable = OsString.fromString("SCOOP_PTY_EOF_RELEASE")
+
+private fun eofFirstChild(release: Path): Command = command(executablePath()) {
+    removeEnv(OsString.fromString("SCOOP_TEST_RUN_DIR"))
+    env(OsString.fromString("SCOOP_TEST_NOCAPTURE"), OsString.fromString("1"))
+    env(releaseVariable, release.toOsString())
+    arg(OsString.fromString("--scoop-test-filter-ignored"))
+    arg(OsString.fromString("PtyUnixChildProbe::eofFirst"))
+}
+
+@Test
+private class PtyUnixChildProbe {
+    @Test
+    @Ignore("Launched by AsyncPtyUnixTest")
+    fun eofFirst() {
+        val release = Path.fromOsString(environment()[releaseVariable]!!)
+        @Unsafe
+        {
+            val status = release
+                .withNativePath { pointer ->
+                    @Unsafe {
+                        return@withNativePath closeThenWait(pointer)
+                    }
+                }
+            exit(status)
+        }
+    }
+}
+
+@Extern(name = "scoop_test_pty_child_close_then_wait")
+private fun closeThenWait(release: Ptr<Byte>): Int

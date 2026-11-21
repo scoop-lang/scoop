@@ -141,7 +141,7 @@ private suspend fun <E : Throwable> expectFailure(block: suspend () -> Unit): E 
     }
 }
 
-private suspend fun AsyncPty.send(text: String) {
+internal suspend fun AsyncPty.send(text: String) {
     val bytes = text.toByteArray()
     val buffer = NativeByteBuffer.allocate(bytes.size)
     try {
@@ -152,7 +152,7 @@ private suspend fun AsyncPty.send(text: String) {
     }
 }
 
-private suspend fun AsyncPty.readMarker(marker: String) {
+internal suspend fun AsyncPty.readMarker(marker: String) {
     val collected = ByteArrayBuilder()
     val buffer = NativeByteBuffer.allocate(512L)
     try {
