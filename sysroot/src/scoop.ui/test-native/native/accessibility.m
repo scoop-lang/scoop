@@ -49,6 +49,16 @@ void *scoop_ui_ax_child(void *pointer, int64_t index) {
   return (__bridge_retained void *)children[(NSUInteger)index];
 }
 
+void *scoop_ui_ax_row(void *pointer, int64_t index) {
+  if (index < 0)
+    return NULL;
+  NSArray *rows = [(__bridge id)pointer
+      accessibilityArrayAttributeValues:NSAccessibilityRowsAttribute
+                                  index:(NSUInteger)index
+                               maxCount:1];
+  return (__bridge_retained void *)rows.firstObject;
+}
+
 int32_t scoop_ui_ax_parent(void *pointer, void *parent) {
   return [(__bridge id)pointer accessibilityParent] == (__bridge id)parent;
 }

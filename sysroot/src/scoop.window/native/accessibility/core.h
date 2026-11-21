@@ -67,6 +67,7 @@ struct Item {
   Key key;
   int64_t index = -1, count = 0, span = 1, hierarchyLevel = -1;
   int32_t enabled = 1, selected = -1, expanded = -1, focusable = 0;
+  int32_t hasCells = 1;
   std::array<std::optional<std::string>, 4> text;
 };
 struct TextChild {
@@ -86,6 +87,7 @@ struct State {
   uint64_t collectionRevision = 0;
   int32_t collectionActions = 0, selectionKind = -1;
   bool selectionRequired = false;
+  bool hasCells = true;
   std::vector<Key> selected;
   std::vector<Column> columns;
   Key itemKey, cellKey, activeKey;

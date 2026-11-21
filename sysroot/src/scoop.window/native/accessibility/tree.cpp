@@ -98,6 +98,12 @@ ElementPtr Tree::item(int64_t owner, const Key &key) {
   return key ? element({1, owner, key, {}}) : nullptr;
 }
 ElementPtr Tree::cell(int64_t owner, const Key &row, const Key &column) {
+  auto source = state(owner);
+  if (source && (source->collectionActions & 512)) {
+    Item shape;
+    if (query(owner, 16, 0, row, &shape) == 2)
+      return {};
+  }
   return row && column ? element({2, owner, row, column}) : nullptr;
 }
 ElementPtr Tree::column(int64_t owner, const Key &key) {
@@ -180,7 +186,7 @@ int32_t Tree::query(int64_t owner, int32_t operation, int64_t index,
     if (self->closed || !source || source->count < 0 ||
         !self->collectionCallback)
       return 4;
-    if (self->publishing && operation != 2)
+    if (self->publishing && operation != 2 && operation != 16)
       return operation >= 3 && operation <= 8 ? 6 : 4;
     const auto result = self->collectionCallback(
         self->collectionContext, owner, operation, index,
@@ -243,13 +249,21 @@ void Tree::refreshProxies(const std::vector<ElementPtr> &proxies,
       proxy->retired = true;
     if (ref.kind >= 2) {
       bool present = false;
-      for (const auto &column : source->second->columns)
+      int64_t index = 0;
+      for (const auto &column : source->second->columns) {
         if (column.key == ref.column) {
           present = true;
           break;
         }
+        ++index;
+      }
       if (!present)
         proxy->retired = true;
+      else if (ref.kind == 2 && (source->second->collectionActions & 512)) {
+        Item shape;
+        if (query(ref.node, 16, index, ref.row, &shape) == 2)
+          proxy->retired = true;
+      }
     }
   }
 }

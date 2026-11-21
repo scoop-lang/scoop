@@ -39,6 +39,15 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             }
         }
     }
+    public fun row(index: Long): NativeNode? {
+        @Unsafe
+        {
+            return when (nativeRow(pointer, index)) {
+                case Some(val found) -> Some(NativeNode(found))
+                case None -> None
+            }
+        }
+    }
     public fun same(other: NativeNode): Boolean = pointer == other.pointer
     public fun columnHeader(index: Long): NativeNode? {
         @Unsafe
@@ -320,6 +329,9 @@ private fun nativeCount(node: Ptr<Unit>): Long
 
 @Extern(name = "scoop_ui_ax_child")
 private fun nativeChild(node: Ptr<Unit>, index: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_ax_row")
+private fun nativeRow(node: Ptr<Unit>, index: Long): Ptr<Unit>?
 
 @Extern(name = "scoop_ui_ax_parent")
 private fun nativeParent(node: Ptr<Unit>, parent: Ptr<Unit>): Int

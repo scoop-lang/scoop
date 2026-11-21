@@ -65,6 +65,8 @@ ApplicationScope 和 ComponentScope 均提供 application、uiHost、resource、
 LazyElement 可为自己的 List 节点调用 `updateCollection(source, items, viewport)`，其中可选 `ItemSemantics(source, describe, search)` 必须绑定同一 ItemSource 快照。数据描述在只读 evaluation 内查询，不执行 build 或写入 UI State；未提供描述时名称未知，只公布实际身份与集合位置。框架只给已挂载行建立具体语义子树，行回收不删除数据级条目；实际几何沿同一 Accepted 场景发布。Realize 经原挂载流程仅准备请求行，在原生返回边界前保留真实子树，随后恢复回收。可选 viewport 必须是本 Lazy 挂载实际拥有的 ScrollViewport；显露通过原 pinnedItems 测量／放置，并复用 Accepted 滚动路径，完成或取消后释放保留。数据声明 focusable 且已绑定 LazyFocus 时，条目聚焦沿真实按 key 焦点路径。Component 的 VirtualList 自动绑定这些控制器。混合集合的总计、说明等项使用 `SemanticItemProperties(selectable = false)`，选择模型不会为其补上 selected 状态，原生选择列表与动作也排除该项；它仍可阅读和聚焦。
 
 
+表格中的详情、说明等整行内容用 `SemanticGrid(hasCells = Some { rowKey -> ... })` 区分。返回 false 的行没有列单元格，原生查询暴露它已经挂载的真实控件子树；不要为其声明 `SemanticTableCell` 或绑定列 ItemSource。未挂载内容只提供行元数据，查询不创建 View，嵌套表格保留自己的行列与操作。普通表格省略该参数即可。
+
 `ComponentScope.semantics` 在构造／挂载时登记 `SemanticsHandle`；角色、属性与动作从 `scoop.window.accessibility` 导入，三个桌面平台使用同一声明。一个挂载可以有多个节点，普通布局默认透明，`routeSemanticsChildren` 指定子挂载的语义父级。下面的包装不改变子项布局，也不为语义登记创建 InputArea：
 
 Portal 内容默认从窗口语义根独立发布，不继承触发器所在的行、单元格或文本容器路由。虚拟网格单元格旁声明的菜单因此可以由原生客户端读取和执行。层内普通路由、显式 parent、模态输入限制与焦点恢复仍沿原合同；这不改变逻辑挂载或生命周期。

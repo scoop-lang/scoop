@@ -128,6 +128,8 @@ VirtualList 提供可选 itemSemantics，并默认绑定自身实际 ScrollViewp
 
 行内跨列通过 `SemanticGrid.span` 提供轻量的锚点范围，span 与 describe 都在正常只读 UI 求值边界执行。被覆盖列的动作已由 Window 快照解析成锚点 key，UI 仅准备该锚点条目；调用方以相同 columnKey 和 columnSpan 发布真实单元格，并在所覆盖区域进入视口时挂载离屏锚点。不允许用重复 View 或多个语义节点模拟同一个跨列格。
 
+同一表格中的详情或说明行通过 `SemanticGrid.hasCells` 返回 false。该回调沿相同只读求值边界执行；行内容是普通 View，不绑定列 ItemSource，也不声明伪造的 SemanticTableCell。原生行子项使用该 View 已发布的实际语义子树，控件及嵌套表格继续拥有自己的输入和动作。未挂载行仍只提供行元数据，查询不构建详情；结构变化、删除及卸载使用同一退休边界。
+
 明确动作先沿现有 LazyChildren 准备目标行，再在已登记的列容器准备目标列；两个条目均在同步动作返回前保留。Realize 不滚动或聚焦。Reveal 在原 SemanticRevealController 中保留这两个实际条目，将它们纳入既有 pinnedItems，并沿目标单元格的 Accepted 滚动路径推进；后来的滚动、删除、禁用、换绑、根关闭和替换请求均执行原取消规则。Focus 优先使用该实际单元格声明的 focus 回调，未声明时使用绑定的真实 FocusTarget；未完成布局时返回 Busy，清除只影响该格子树内的焦点及请求。元数据描述继续只读，不触发准备或视口移动。
 
 ## 7. 验证边界

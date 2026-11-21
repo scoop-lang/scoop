@@ -49,7 +49,7 @@ internal class NativeCollectionQueries(
                     node.collectionValue?.count ?: -1L,
                     node.collectionRevision,
                     collectionActionBits(node.itemActions) +
-                        gridSpanFlag(node.collectionValue?.grid ?: None)
+                        gridShapeFlags(node.collectionValue?.grid ?: None)
                 ),
                 "publish semantic collection"
             )
@@ -132,11 +132,19 @@ private class CollectionQueryStatus {
     var value = 4
 }
 
-private fun gridSpanFlag(grid: SemanticGrid?): Int =
-    when (grid?.span ?: None) {
-        case Some(_) -> 128
-        case None -> 0
-    }
+private fun gridShapeFlags(grid: SemanticGrid?): Int =
+    (
+        when (grid?.span ?: None) {
+            case Some(_) -> 128
+            case None -> 0
+        }
+    ) +
+        (
+            when (grid?.hasCells ?: None) {
+                case Some(_) -> 512
+                case None -> 0
+            }
+        )
 
 private fun collectionActionBits(actions: SemanticCollectionActions): Int =
     (
@@ -585,7 +593,11 @@ private fun writeCollectionItem(reply: Ptr<Unit>, item: SemanticItem) {
                 1
             else
                 0,
-            props.hierarchyLevel ?: -1L
+            props.hierarchyLevel ?: -1L,
+            if (item.hasCells)
+                1
+            else
+                0
         )
     }
     withCollectionKey(item.key) {
@@ -657,7 +669,8 @@ private fun nativeCollectionItem(
     selected: Int,
     expanded: Int,
     focusable: Int,
-    hierarchyLevel: Long
+    hierarchyLevel: Long,
+    hasCells: Int
 )
 
 @Extern(name = "scoop_window_accessibility_collection_item_key")

@@ -215,7 +215,7 @@
 - (NSArray *)accessibilityChildren {
   if (!self.isAccessibilityElement)
     return @[];
-  if (self.collection.state.gridColumns.count)
+  if (self.collection.state.gridColumns.count && self.hasGridCells)
     return self.gridCells;
   SWAccessibilityNode *row = [self.collection mountedRow:self.key];
   return row ? row.accessibilityChildren : @[];
@@ -534,7 +534,7 @@ int64_t scoop_window_accessibility_collection_row(void *pointer, int64_t node,
 void scoop_window_accessibility_collection_item(
     void *pointer, int64_t index, int64_t count, int64_t span, int32_t enabled,
     int32_t selected, int32_t expanded, int32_t focusable,
-    int64_t hierarchy_level) {
+    int64_t hierarchy_level, int32_t has_cells) {
   SWAccessibilityItemData *data = (__bridge SWAccessibilityItemData *)pointer;
   data.index = index;
   data.count = count;
@@ -544,6 +544,7 @@ void scoop_window_accessibility_collection_item(
   data.expanded = expanded;
   data.focusable = focusable;
   data.hierarchyLevel = hierarchy_level;
+  data.hasCells = has_cells;
 }
 void scoop_window_accessibility_collection_item_key(void *pointer, int32_t kind,
                                                     int64_t number,

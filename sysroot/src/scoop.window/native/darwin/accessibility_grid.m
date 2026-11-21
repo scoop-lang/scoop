@@ -37,7 +37,7 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
 }
 - (BOOL)isAccessibilityElement {
   return !self.retired && self.row.isAccessibilityElement &&
-         self.columnIndex != NSNotFound;
+         self.columnIndex != NSNotFound && self.row.hasGridCells;
 }
 - (SWAccessibilityItemData *)data {
   if (!self.isAccessibilityElement)
@@ -226,9 +226,18 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
 @end
 
 @implementation SWAccessibilityVirtualItem (Grid)
+- (BOOL)hasGridCells {
+  if (!(self.collection.state.collectionActions & 512))
+    return YES;
+  SWAccessibilityItemData *data = self.itemData;
+  if (data)
+    return data.hasCells != 0;
+  SWAccessibilityItemData *shape = [SWAccessibilityItemData new];
+  return [self.collection query:16 index:0 key:self.key reply:shape] != 2;
+}
 - (id)cellForKey:(id)key {
   NSInteger index = columnIndex(self.collection.state, key);
-  if (!self.isAccessibilityElement || index == NSNotFound)
+  if (!self.isAccessibilityElement || index == NSNotFound || !self.hasGridCells)
     return nil;
   SWAccessibilityItemData *data = nil;
   if (self.collection.state.collectionActions & 128) {
@@ -279,17 +288,17 @@ static SWAccessibilityNode *mountedCell(SWAccessibilityNode *node, id key) {
   for (SWAccessibilityVirtualCell *cell in self.cells.objectEnumerator
            .allObjects) {
     NSInteger index = columnIndex(self.collection.state, cell.key);
-    BOOL covered = NO;
+    BOOL absent = NO;
     if (!self.retired && index != NSNotFound &&
-        (self.collection.state.collectionActions & 128)) {
+        (self.collection.state.collectionActions & (128 | 512))) {
       SWAccessibilityItemData *data = [SWAccessibilityItemData new];
-      covered = [self.collection query:16
-                                 index:index
-                                   key:self.key
-                                 reply:data] == 1 &&
-                ![data.key isEqual:cell.key];
+      int32_t result = [self.collection query:16
+                                        index:index
+                                          key:self.key
+                                        reply:data];
+      absent = result == 2 || (result == 1 && ![data.key isEqual:cell.key]);
     }
-    if (self.retired || index == NSNotFound || covered) {
+    if (self.retired || index == NSNotFound || absent) {
       cell.retired = YES;
       cell.cached = nil;
       [self.cells removeObjectForKey:cell.key];

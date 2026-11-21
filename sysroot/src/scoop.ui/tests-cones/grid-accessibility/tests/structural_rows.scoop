@@ -1,0 +1,336 @@
+package scoop.tests.ui.gridaccessibility
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class StructuralRowsTest {
+    @Test
+    fun `structural rows expose real children and retire former cell identities`() {
+        val probe = StructuralProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.builds <= 2)
+            assertEquals(1, probe.clicks)
+            assertEquals(0, probe.guard.value)
+        } catch (error: Throwable) {
+            println(f"structural rows phase=${probe.phase}, builds=${probe.builds}")
+            throw error
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+private class StructuralProbe: Closeable {
+    val items = state(StructuralItems(this))
+    val guard = state(0)
+    var phase = 0
+    var builds = 0
+    var clicks = 0
+    var finished = false
+    var frame: ComponentScope? = None
+    private var waiting = false
+    private var beforeQueryBuilds = 0
+    private var active: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var root: NativeNode? = None
+    private var table: NativeNode? = None
+    private var row: NativeNode? = None
+    private var oldCell: NativeNode? = None
+    private var action: NativeNode? = None
+    private var nested: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private val held = ArrayList<NativeNode>()
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
+                )
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop structural grid rows"
+                            size = LogicalSize(320.0, 200.0)
+                        }
+                    )
+                ui = host.attach(window, { scope -> StructuralScene(this, scope) })
+                @Unsafe
+                {
+                    window.acquireNativeWindow().use {
+                        lease -> @Unsafe
+                        {
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> root =
+                                    Some(keep(NativeNode(nativeRoot(pointer)!!)))
+                            }
+                        }
+                    }
+                }
+                calls =
+                    Some(
+                        NativeCalls(application.proxy(), { tag -> inspect(tag) }) {
+                            tag,
+                            result -> completed(tag, result)
+                        }
+                    )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"structural timeout at ${phase}"))
+            else -> {}
+        }
+    }
+    fun accepted(source: StructuralItems) {
+        if (finished || waiting || source !== items.value)
+            return
+        waiting = true
+        beforeQueryBuilds = builds
+        if (phase == 2)
+            calls!!.post(action!!, phase)
+        else
+            calls!!.post(root!!, phase, 20)
+    }
+    private fun inspect(tag: Int) {
+        assertEquals(phase, tag)
+        when (phase) {
+            case 0 -> {
+                table = Some(keep(root!!.find("structural-grid")!!))
+                assertEquals(100000000L, table!!.rowCount)
+                row = Some(keep(table!!.row(1L)!!))
+                assertEquals(0L, row!!.count)
+                assertFalse(hasCell(1L))
+                assertFalse(hasCell(50000000L))
+                assertEquals(0L, keep(table!!.row(50000000L)!!).count)
+                assertEquals(0, builds)
+                oldCell = Some(keep(table!!.cell(2L, 0L)!!))
+                assertTrue(oldCell!!.flag(0))
+            }
+            case 1 -> {
+                assertTrue(row!!.same(keep(table!!.row(1L)!!)))
+                assertFalse(hasCell(1L))
+                assertFalse(hasCell(2L))
+                assertFalse(oldCell!!.flag(0))
+                assertEquals(2L, row!!.count)
+                action = Some(keep(row!!.find("structural-action")!!))
+                nested = Some(keep(row!!.find("structural-nested")!!))
+                assertTrue(action!!.parent(row!!))
+                assertTrue(nested!!.parent(row!!))
+                val cell = keep(nested!!.cell(0L, 0L)!!)
+                assertTrue(cell.parent(nested!!))
+                assertTrue(cell.text(1, Some("nested value")))
+                assertFalse(cell.same(oldCell!!))
+                assertEquals(1, builds)
+            }
+            case 2 -> {
+                assertEquals(1, clicks)
+                assertEquals(1, builds)
+            }
+            case 3 -> {
+                assertEquals(0L, row!!.count)
+                assertFalse(action!!.flag(0))
+                assertFalse(nested!!.flag(0))
+                assertFalse(oldCell!!.flag(0))
+                val replacement = keep(table!!.cell(2L, 0L)!!)
+                assertTrue(replacement.flag(0))
+                assertFalse(replacement.same(oldCell!!))
+            }
+            case 4 -> {
+                assertFalse(row!!.flag(0))
+                assertFalse(oldCell!!.flag(0))
+            }
+            else -> fail(Some("unexpected structural phase"))
+        }
+        assertEquals(beforeQueryBuilds, builds)
+    }
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(phase, tag)
+        assertEquals(1, result)
+        waiting = false
+        phase += 1
+        when (phase) {
+            case 1 -> items.value = StructuralItems(this, show = true, detailSecond = true)
+            case 3 -> items.value = StructuralItems(this)
+            case 4 -> {
+                ui!!.close()
+                waiting = true
+                calls!!.post(root!!, phase, 20)
+                return
+            }
+            case 5 -> {
+                finished = true
+                active!!.requestExit()
+                return
+            }
+            else -> {}
+        }
+        frame!!.requestFrame()
+    }
+    private fun hasCell(index: Long): Boolean =
+        when (table!!.cell(index, 0L)) {
+            case Some(val value) -> {
+                keep(value);
+                true
+            }
+            case None -> false
+        }
+    private fun keep(node: NativeNode): NativeNode {
+        held.add(node)
+        return node
+    }
+    public override fun close() {
+        calls?.close()
+        for (node in held)
+            node.close()
+    }
+}
+
+private class StructuralItems(
+    val probe: StructuralProbe,
+    val show: Boolean = false,
+    val detailSecond: Boolean = false
+): ItemSource {
+    public override val count: Long get() = 100000000L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(val value) -> if (value >= 0L && value < count)
+                Some(value)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        assertEquals(1L, index)
+        probe.builds += 1
+        return element({ scope -> StructuralContent(probe, scope) })
+    }
+    private fun hasCells(key: SemanticItemKey): Boolean =
+        key !=
+            SemanticItemKey.Number(1L) &&
+            key !=
+            SemanticItemKey.Number(50000000L) &&
+            !(detailSecond && key == SemanticItemKey.Number(2L))
+    fun semantics(): ItemSemantics =
+        ItemSemantics(
+            this,
+            { _ -> Some(SemanticItemProperties(selectable = false)) },
+            grid =
+                Some(
+                    SemanticGrid(
+                        [SemanticGridColumn(SemanticItemKey.Text("value"))],
+                        {
+                            row, _ ->
+                            assertTrue(hasCells(row))
+                            Some(SemanticItemProperties(value = Some("data")))
+                        },
+                        hasCells =
+                            Some {
+                                row ->
+                                assertFailsWith<IllegalStateException> { probe.guard.value += 1 }
+                                hasCells(row)
+                            }
+                    )
+                )
+        )
+}
+
+private class StructuralScene(private val probe: StructuralProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val source = probe.items.value
+        return lazyElement(source, source, { props, mount -> StructuralTable(props, mount) })
+    }
+}
+
+private class StructuralTable(
+    private val props: Props<StructuralItems>,
+    scope: ComponentScope
+): LazyElement<StructuralItems>(scope) {
+    private val semantics = scope.semantics(SemanticRole.Table)
+    init {
+        props.value.probe.frame = Some(scope)
+        scope.routeSemanticsChildren(Some(semantics))
+    }
+    public override fun update(): UiInvalidation {
+        semantics.update(
+            SemanticProperties(
+                automationId = Some("structural-grid"),
+                table = Some(SemanticTableSize(props.value.count, 1L))
+            )
+        )
+        semantics.updateCollection(props.value, Some(props.value.semantics()))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<StructuralItems> {
+        if (props.value.show) {
+            context.measureItem(1L, Constraints.tight(Size(300.0, 100.0)))
+            context.placeItem(1L, Point(0.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 200.0))), props.value)
+    }
+    public override fun scene(context: SceneContext, source: StructuralItems) {
+        context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                source.probe.accepted(source)
+        }
+    }
+}
+
+private class StructuralContent(private val probe: StructuralProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    private val action = scope.semantics(SemanticRole.Button)
+    private val table = scope.semantics(SemanticRole.Table)
+    private val cell = scope.semantics(SemanticRole.Cell, Some(table))
+    init {
+        action.update(
+            SemanticProperties(
+                name = Some("Detail action"),
+                automationId = Some("structural-action")
+            ),
+            SemanticActions(
+                invoke =
+                    Some {
+                        probe.clicks += 1;
+                        SemanticActionResult.Completed
+                    }
+            )
+        )
+        table.update(
+            SemanticProperties(
+                automationId = Some("structural-nested"),
+                table = Some(SemanticTableSize(1L, 1L))
+            )
+        )
+        cell.update(
+            SemanticProperties(value = Some("nested value"), cell = Some(SemanticTableCell(0L, 0L)))
+        )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(300.0, 100.0))), Unit)
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.semantics(action, Rect(0.0, 0.0, 120.0, 24.0))
+        context.semantics(table, Rect(0.0, 32.0, 240.0, 48.0))
+        context.semantics(cell, Rect(0.0, 32.0, 240.0, 48.0))
+    }
+}
