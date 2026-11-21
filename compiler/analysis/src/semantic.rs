@@ -10,7 +10,7 @@ use crate::{AnalysisSnapshot, Cancelled, DeclarationAnalysisError, SourceId};
 mod call_hierarchy;
 pub use call_hierarchy::{CallHierarchyDirection, CallHierarchyRelation};
 mod change_signature;
-pub use change_signature::ParameterChange;
+pub use change_signature::{ParameterChange, SignaturePreparation};
 mod dependencies;
 mod diagnostics;
 mod documentation;

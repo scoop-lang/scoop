@@ -18,6 +18,17 @@ pub(super) struct CheckedArguments {
 }
 
 impl DeclarationAnalysis {
+    pub fn literal_value_call(
+        &self,
+        body: hir::EditingSourceBodyId,
+        call: ast::Span,
+    ) -> Option<(ast::Span, hir::EditingCallee)> {
+        let V::Known(observed) = self.body_facts.get(&body)? else {
+            return None;
+        };
+        observed.literal_value_calls.get(&call).copied()
+    }
+
     pub fn calls(
         &mut self,
         body: impl Into<hir::EditingSourceBodyId>,

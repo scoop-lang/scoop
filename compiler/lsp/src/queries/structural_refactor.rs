@@ -134,12 +134,13 @@ pub(crate) fn run(
     let check = move || request.check().is_err();
     let edits = match query {
         RefactorQuery::PrepareSignature(_) => {
-            let parameters = semantics
+            let prepared = semantics
                 .prepare_change_signature(snapshot, source, cursor.span)
                 .map_err(analysis_error)?;
-            return Ok(parameters.map_or(Value::Null, |parameters| {
+            return Ok(prepared.map_or(Value::Null, |prepared| {
                 serde_json::json!({
-                    "parameters": parameters,
+                    "parameters": prepared.parameters,
+                    "reorderOnly": prepared.reorder_only,
                     "revision": snapshot.revision.0,
                 })
             }));

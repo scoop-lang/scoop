@@ -161,6 +161,8 @@ VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Pee
 
 `Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。`Scoop: Move Declaration` 可在同一 Cone、同一 package 中移动顶层函数。`Scoop: Change Signature` 可为文件私有函数调整参数顺序、新增带默认值的形参、删除未使用形参或编辑默认值。既有显式实参保持求值顺序。
 
+方法换序可同步更新同文件内部或私有类型的实际重写链，直接调用文件私有函数引用的表达式也可以跟随换序。
+
 ## 测试和诊断
 
 从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 提供名义与结构相等重载，具体规则见[语言参考](language.md)。遇到候选错误先核对实际参数及内层调用，不要将精确断言改成只报告 Boolean 的断言来绕过诊断。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。

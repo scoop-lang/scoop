@@ -10,7 +10,9 @@ type Operation = "order" | ParameterEdit["kind"];
 
 export async function chooseSignatureChange(
   parameters: string[],
+  reorderOnly: boolean,
 ): Promise<SignatureChange | undefined> {
+  if (reorderOnly) return chooseOrder(parameters);
   const operations: (vscode.QuickPickItem & { operation: Operation })[] = [];
   if (parameters.length > 1)
     operations.push({ label: "Reorder Parameters", operation: "order" });

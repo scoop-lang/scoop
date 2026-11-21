@@ -155,7 +155,7 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `source.organizeImports` 去除文件头和块内已确认未使用的普通精确导入与星号导入，保留公开重导出。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在同一 Cone 和 package 移动普通顶层函数。
 
-`scoop/prepareChangeSignature` 返回 `parameters` 和 `revision`。`scoop/changeSignature` 接收该 revision 与零基 `order` 排列，或接收 `edit`。编辑种类为 `addDefault`、`removeUnused`、`setDefault`。新增提供 `name`、`type`、`expression`，后两项提供零基 `parameter`，设置默认值还提供 `expression`，以 `null` 清除。服务端返回版本化 workspace edit。
+`scoop/prepareChangeSignature` 返回 `parameters`、`revision` 和 `reorderOnly`。`scoop/changeSignature` 接收该 revision 与零基 `order` 排列，或接收 `edit`。编辑种类为 `addDefault`、`removeUnused`、`setDefault`。新增提供 `name`、`type`、`expression`，后两项提供零基 `parameter`，设置默认值还提供 `expression`，以 `null` 清除。方法换序覆盖同文件内部或私有类型的重写关系。文件私有函数的引用直接被调用时，可改写为等价的命名直接调用。服务端返回版本化 workspace edit。
 
 开发验证使用 `cargo test -p scoop-analysis -p scoop-lsp`；LSP 集成测试启动真实 `scoop-lsp` 进程，检查传输、状态变化和查询结果。运行时将 `TMPDIR` 指向仓库外工作目录，测试工作文件遵守同一设置。
 

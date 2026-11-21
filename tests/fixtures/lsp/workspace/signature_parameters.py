@@ -78,3 +78,59 @@ def check(peer, root):
     case.apply(cleared, 1)
     assert "withReference(flag: Boolean)" in case.texts[file]
     case.finish()
+
+
+def check_methods(peer, root):
+    project = root / "signature-methods"
+    manifest(project, "signature-methods")
+    file = "src/methods.scoop"
+    text = (
+        "package methods\n"
+        "interface Checker { fun check(flag: Boolean, limit: Int): Boolean }\n"
+        "open class Base : Checker {\n"
+        "    override fun check(enabled: Boolean, count: Int): Boolean = enabled && count == 1\n"
+        "}\n"
+        "class Child : Base() {\n"
+        "    override fun check(on: Boolean, number: Int): Boolean = super.check(on, number)\n"
+        "}\n"
+        "fun viaInterface(checker: Checker): Boolean = checker.check(true, 1)\n"
+        "fun viaChild(child: Child): Boolean = child.check(true, 1)\n"
+        "private fun invoked(flag: Boolean, number: Int): Boolean = flag && number == 2\n"
+        "fun viaReference(): Boolean = (::invoked)(true, 2)\n"
+    )
+    case = RenameWorkspace(peer, project, {file: text})
+    case.clean()
+    params = {
+        "textDocument": {"uri": case.paths[file].as_uri()},
+        "position": case.position(file, "override fun check(on", "check"),
+    }
+    prepared = peer.request("scoop/prepareChangeSignature", params)
+    assert prepared["parameters"] == ["on", "number"] and prepared["reorderOnly"]
+    edit = peer.request(
+        "scoop/changeSignature",
+        {**params, "revision": prepared["revision"], "order": [1, 0]},
+    )
+    assert edit is not None
+    case.apply(edit, 9)
+    for fragment in (
+        "fun check(limit: Int, flag: Boolean)",
+        "fun check(count: Int, enabled: Boolean)",
+        "fun check(number: Int, on: Boolean)",
+        "super.check(enabled = on, count = number)",
+        "checker.check(flag = true, limit = 1)",
+        "child.check(on = true, number = 1)",
+    ):
+        assert fragment in case.texts[file], case.texts[file]
+
+    params["position"] = case.position(file, "private fun invoked", "invoked")
+    prepared = peer.request("scoop/prepareChangeSignature", params)
+    assert prepared["parameters"] == ["flag", "number"] and not prepared["reorderOnly"]
+    edit = peer.request(
+        "scoop/changeSignature",
+        {**params, "revision": prepared["revision"], "order": [1, 0]},
+    )
+    assert edit is not None
+    case.apply(edit, 4)
+    assert "private fun invoked(number: Int, flag: Boolean)" in case.texts[file]
+    assert "fun viaReference(): Boolean = invoked(flag = true, number = 2)" in case.texts[file]
+    case.finish()

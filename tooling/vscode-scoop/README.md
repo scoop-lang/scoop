@@ -38,6 +38,8 @@ Run／Debug 后才调用普通构建入口。扩展不自动准备 sysroot；不
 
 `Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择同一 Cone、同一 package 的目标文件。在文件私有顶层函数上执行 `Scoop: Change Signature`，可调整顺序、新增带默认值的形参、删除未用形参，或设置与清除默认值。移动和签名编辑支持预览。
 
+在内部类、文件私有类或接口的方法上执行 `Scoop: Change Signature`，可在同文件的重写链中联动换序。
+
 将完整工具包解压到 `~/.scoop` 后安装随包 VSIX：
 
 ```sh

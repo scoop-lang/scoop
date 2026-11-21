@@ -272,15 +272,16 @@ export class ScoopLanguageServer {
     );
     const plan = await client.sendRequest<{
       parameters: string[];
+      reorderOnly: boolean;
       revision: number;
     } | null>("scoop/prepareChangeSignature", position);
     if (!plan) {
       await vscode.window.showInformationMessage(
-        "Select a private function declaration.",
+        "Select a private function or an editable method declaration.",
       );
       return;
     }
-    const change = await chooseSignatureChange(plan.parameters);
+    const change = await chooseSignatureChange(plan.parameters, plan.reorderOnly);
     if (change === undefined || document.version !== version) return;
     const edit = await client.sendRequest<ProtocolWorkspaceEdit | null>(
       "scoop/changeSignature",

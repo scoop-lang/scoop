@@ -63,6 +63,7 @@ from static_constants import check as check_static_constants
 from static_variants import check as check_static_variants
 from structure_refactors import check as check_structure_refactors
 from signature_parameters import check as check_signature_parameters
+from signature_parameters import check_methods as check_signature_methods
 from subscript_references import check as check_subscript_references
 from type_definitions import check as check_type_definitions
 from type_hovers import check as check_type_hovers
@@ -476,6 +477,7 @@ def main():
         check_refactor_local(peer, root)
         check_structure_refactors(peer, root)
         check_signature_parameters(peer, root)
+        check_signature_methods(peer, root)
         check_rename_types(peer, root)
         check_rename_members(peer, root)
         check_rename_exports(peer, root)
