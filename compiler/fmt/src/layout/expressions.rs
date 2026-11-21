@@ -2,9 +2,27 @@ use super::{Document, Gap, Input, K, Region, gap, sequence, within};
 use std::ops::Range;
 
 pub(super) fn continuation(body: Document) -> Document {
-    let inline = Document::space().append(body.clone());
-    let folded = Document::line().append(body).nest(4);
-    inline.union(folded)
+    Document::column(move |column| {
+        let body = body.clone();
+        Document::nesting(move |indent| {
+            let inline_column = column + 1;
+            if inline_column <= indent + 4 {
+                return Document::space().append(body.clone());
+            }
+            let body = body.clone();
+            // Group only the separator so its fit check stops at the next line in the body.
+            Document::line()
+                .group()
+                .append(Document::column(move |start| {
+                    if start == inline_column {
+                        body.clone().nest(-4)
+                    } else {
+                        body.clone()
+                    }
+                }))
+                .nest(4)
+        })
+    })
 }
 
 pub(super) fn expression(

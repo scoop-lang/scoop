@@ -243,6 +243,17 @@ fn expression_heads_stay_after_equals_when_the_first_line_fits() {
         ),
         "val aDescriptivePropertyNameThatLeavesInsufficientSpaceForItsInitializer =\n    anEquallyDescriptiveInitializerName\n"
     );
+    let text = "x".repeat(110);
+    assert_eq!(
+        checked(&format!(
+            "fun f() = when (ok) {{ true -> \"{text}\"\nelse -> \"\" }}"
+        )),
+        format!("fun f() = when (ok) {{\n    true ->\n        \"{text}\"\n    else -> \"\"\n}}\n")
+    );
+    assert_eq!(
+        checked("fun f() = outer(inner(a=leaf(b=1)))"),
+        "fun f() = outer(inner(a = leaf(b = 1)))\n"
+    );
 }
 
 #[test]
