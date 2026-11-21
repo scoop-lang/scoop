@@ -7,3 +7,11 @@ public fun exerciseDragData(): Int
 /** Posts owned events through the real view; this does not start an OS drag session. */
 @Extern(name = "scoop_window_test_drag_input")
 public fun postDragInput(view: Ptr<Unit>, kind: Int)
+
+/** Queues Down/Dragged together, then releases (0), cancels (1), represses (2), or holds (3). */
+@Extern(name = "scoop_window_test_drag_finished_input")
+public fun postFinishedDragInput(view: Ptr<Unit>, ending: Int)
+
+/** Ends native input immediately, including after managed drag preparation has returned. */
+@Extern(name = "scoop_window_test_drag_end")
+public fun endDragInput(view: Ptr<Unit>, cancel: Int)
