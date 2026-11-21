@@ -194,7 +194,16 @@ fn kotlin_short_if_and_multiline_condition() {
 fn kotlin_when_branch_continuations() {
     assert_eq!(
         checked("fun f(){when(x){ first -> start()\nsecond ->\n{ work() }\nelse ->\n finish()\n}}"),
-        "fun f() {\n    when (x) {\n        first -> start()\n\n        second -> {\n            work()\n        }\n\n        else ->\n            finish()\n    }\n}\n"
+        "fun f() {\n    when (x) {\n        first -> start()\n\n        second -> {\n            work()\n        }\n\n        else -> finish()\n    }\n}\n"
+    );
+    let handler = "handler".repeat(12);
+    assert_eq!(
+        checked(&format!(
+            "fun f() {{ when (x) {{ alpha -> // comment\n short()\nbeta -> {handler}()\nelse -> fallback()\n}} }}"
+        )),
+        format!(
+            "fun f() {{\n    when (x) {{\n        alpha -> // comment\n            short()\n        beta ->\n            {handler}()\n        else -> fallback()\n    }}\n}}\n"
+        )
     );
 }
 

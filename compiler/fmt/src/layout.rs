@@ -206,9 +206,7 @@ fn delimited(input: &Input, gaps: &[Gap], nested: &[Region], region: &Region) ->
     if matches!(style, Style::Control | Style::IfBody | Style::WhenBody) {
         let leading = if style == Style::Control {
             Document::hardline()
-        } else if gaps[start].is_line()
-            && (style == Style::WhenBody || input.tokens[start - 1].is_comment())
-        {
+        } else if gaps[start].is_line() && input.tokens[start - 1].is_comment() {
             gap(gaps[start])
         } else {
             Document::line()
