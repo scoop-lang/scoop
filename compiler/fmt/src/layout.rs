@@ -1,6 +1,6 @@
 use crate::{
     render::{self, Document},
-    spacing::Gap,
+    spacing::{Gap, is_else_if},
     syntax::Input,
 };
 use scoop_syntax::SyntaxKind as K;
@@ -17,6 +17,10 @@ enum Style {
     Block,
     Lambda,
     Control,
+    If,
+    IfBody,
+    Condition,
+    WhenBody,
     Expression,
     Continuation,
 }
@@ -54,6 +58,7 @@ fn regions(input: &Input) -> Vec<Region> {
                 match (kind, parent) {
                     (K::LParen, K::ArgumentList) => Style::Arguments,
                     (K::LParen, K::ParameterList) => Style::Parameters,
+                    (K::LParen, K::IfExpr | K::WhenExpr) => Style::Condition,
                     _ => Style::List,
                 }
             };
@@ -73,10 +78,19 @@ fn regions(input: &Input) -> Vec<Region> {
             });
         }
     }
-    for &(kind, start, end, _) in &input.nodes {
+    for &(kind, start, end, parent) in &input.nodes {
         if let Some(style) = match kind {
             K::SupertypeList => Some(Style::Supertypes),
             K::WhereClause => Some(Style::Where),
+            K::IfExpr => Some(Style::If),
+            K::Statement if parent == Some(K::WhenArm) => Some(Style::WhenBody),
+            K::SingleControlBody if !is_else_if(input, start, parent) => {
+                if parent == Some(K::IfExpr) {
+                    Some(Style::IfBody)
+                } else {
+                    Some(Style::Control)
+                }
+            }
             _ => None,
         } {
             regions.push(Region { start, end, style });
@@ -86,13 +100,6 @@ fn regions(input: &Input) -> Vec<Region> {
                 start,
                 end,
                 style: Style::Continuation,
-            });
-        }
-        if kind == K::SingleControlBody {
-            regions.push(Region {
-                start,
-                end,
-                style: Style::Control,
             });
         }
     }
@@ -108,10 +115,11 @@ fn regions(input: &Input) -> Vec<Region> {
             region.start,
             std::cmp::Reverse(region.end),
             match region.style {
-                Style::Control => 0,
+                Style::Control | Style::IfBody | Style::WhenBody => 0,
                 Style::Continuation => 1,
-                Style::Expression => 2,
-                _ => 3,
+                Style::If => 2,
+                Style::Expression => 3,
+                _ => 4,
             },
         )
     });
@@ -133,7 +141,14 @@ fn sequence(
         if (leading || index != start)
             && !regions.get(cursor).is_some_and(|r| {
                 r.start == index
-                    && matches!(r.style, Style::Control | Style::Continuation | Style::Where)
+                    && matches!(
+                        r.style,
+                        Style::Control
+                            | Style::IfBody
+                            | Style::WhenBody
+                            | Style::Continuation
+                            | Style::Where
+                    )
             })
         {
             docs.push(gap(gaps[index]));
@@ -165,16 +180,62 @@ fn delimited(input: &Input, gaps: &[Gap], nested: &[Region], region: &Region) ->
     if style == Style::Expression {
         return expression(input, gaps, nested, start, end);
     }
-    if style == Style::Control {
-        return Document::hardline()
+    if matches!(style, Style::Control | Style::IfBody | Style::WhenBody) {
+        let leading = if style == Style::Control {
+            Document::hardline()
+        } else if gaps[start].is_line()
+            && (style == Style::WhenBody || input.tokens[start - 1].is_comment())
+        {
+            gap(gaps[start])
+        } else {
+            Document::line()
+        };
+        let body = leading
             .append(sequence(input, gaps, nested, start, end, false))
             .nest(4);
+        return if style == Style::WhenBody {
+            body.group()
+        } else {
+            body
+        };
+    }
+    if style == Style::If {
+        return sequence(input, gaps, nested, start, end, false).group();
+    }
+    if style == Style::Condition {
+        return condition(input, gaps, nested, start, end);
     }
     if matches!(style, Style::Supertypes | Style::Where) {
         lists::header(input, gaps, nested, region)
     } else {
         lists::delimited(input, gaps, nested, region)
     }
+}
+
+fn condition(input: &Input, gaps: &[Gap], nested: &[Region], start: usize, end: usize) -> Document {
+    let contents = sequence(
+        input,
+        gaps,
+        within(nested, start + 1, end - 1),
+        start + 1,
+        end - 1,
+        false,
+    );
+    let contents = if input.tokens[start + 1].is_comment() && gaps[start + 1].is_line() {
+        gap(gaps[start + 1]).append(contents).nest(4)
+    } else {
+        contents
+    };
+    let tail = if input.tokens[end - 2].is_comment() {
+        gap(gaps[end - 1])
+    } else {
+        Document::line_()
+    };
+    render::token(input.tokens[start].syntax.text())
+        .append(contents)
+        .append(tail)
+        .append(render::token(input.tokens[end - 1].syntax.text()))
+        .group()
 }
 
 fn expression(
@@ -227,6 +288,7 @@ fn gap(gap: Gap) -> Document {
     match gap {
         Gap::None => Document::nil(),
         Gap::Space => Document::space(),
+        Gap::SoftLine => Document::line(),
         Gap::Line => Document::hardline(),
         Gap::Blank => Document::hardline().append(Document::hardline()),
     }

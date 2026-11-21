@@ -139,7 +139,7 @@ fn callable_bodies_annotations_and_control_layout() {
         ("fun f()=apply {x->x+1}", "fun f() = apply { x -> x + 1 }\n"),
         (
             "fun f(){if(x)call() else other()}",
-            "fun f() {\n    if (x)\n        call()\n    else\n        other()\n}\n",
+            "fun f() {\n    if (x) call() else other()\n}\n",
         ),
         (
             "fun f(){when(x){1->a()\nelse->b()}}",
@@ -150,6 +150,42 @@ fn callable_bodies_annotations_and_control_layout() {
     ] {
         assert_eq!(checked(source), expected);
     }
+}
+
+#[test]
+fn kotlin_control_braces_and_clauses() {
+    assert_eq!(
+        checked(
+            "fun f()\n{\nif (ok)\n{ first() }\nelse\nif (ready)\n{ second() }\nelse\n{ third() }\ntry\n{ first() }\ncatch(e: Error)\n{ second() }\nfinally\n{ done() }\ndo\n{ first() }\nwhile (ok)\n}"
+        ),
+        "fun f() {\n    if (ok) {\n        first()\n    } else if (ready) {\n        second()\n    } else {\n        third()\n    }\n    try {\n        first()\n    } catch (e: Error) {\n        second()\n    } finally {\n        done()\n    }\n    do {\n        first()\n    } while (ok)\n}\n"
+    );
+    assert_eq!(
+        checked("fun f() {\nif (ok) // wait\nact()\nelse stop()\n}\nfun g() { catch(1) }"),
+        "fun f() {\n    if (ok) // wait\n        act()\n    else\n        stop()\n}\n\nfun g() {\n    catch(1)\n}\n"
+    );
+}
+
+#[test]
+fn kotlin_short_if_and_multiline_condition() {
+    assert_eq!(
+        checked("fun choose(ok:Boolean)=if (ok) 1 else 2"),
+        "fun choose(ok: Boolean) = if (ok) 1 else 2\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f() { if (firstLongConditionThatMustBeChecked && secondLongConditionThatMustBeChecked && thirdLongConditionThatMustBeChecked) { work() } }"
+        ),
+        "fun f() {\n    if (firstLongConditionThatMustBeChecked &&\n        secondLongConditionThatMustBeChecked &&\n        thirdLongConditionThatMustBeChecked\n    ) {\n        work()\n    }\n}\n"
+    );
+}
+
+#[test]
+fn kotlin_when_branch_continuations() {
+    assert_eq!(
+        checked("fun f(){when(x){ first -> start()\nsecond ->\n{ work() }\nelse ->\n finish()\n}}"),
+        "fun f() {\n    when (x) {\n        first -> start()\n\n        second -> {\n            work()\n        }\n\n        else ->\n            finish()\n    }\n}\n"
+    );
 }
 
 #[test]
