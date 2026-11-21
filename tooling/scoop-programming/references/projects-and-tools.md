@@ -147,13 +147,21 @@ scoop-lsp query symbols src/main.scoop
 
 type-definition、implementation、references 提供进一步导航。workspace-symbols 只查当前工作区源码声明；查库中尚未使用的名称仍从文档/库源码入手。capabilities 不加载项目，报告实际服务器能力。每次查询使用新会话，结束会回收服务器；缺少 lock 的初始化沿用前述 PM 规则。
 
-VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Peek Call Hierarchy` 查看调用方和被调用方。同一块内选中完整表达式或可独立执行的连续语句时，重构菜单可提供 `Extract Function`。
+VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Peek Call Hierarchy` 查看函数、方法、构造、默认表达式、访问器和运算符的调用关系。同一块内选中完整表达式或可独立执行的连续语句时，重构菜单可提供 `Extract Function`。
 
 `Scoop: Show Member Hierarchy` 查看方法和属性的直接上级或覆写。`Scoop: Go to Related Tests` 在 Test 配置内定位测试源码中的实际用法。对跳转关键字用「转到定义」可找到对应循环或 callable。
 
 重构菜单还支持内联字面量或稳定值初始化的局部 `val`、从完整类型选区引入透明 `typealias`，以及检查文件私有顶层函数能否安全删除。
 
-`Organize Imports` 删除未使用的普通精确导入。`Scoop: Move Declaration` 可在同一 Cone、同一 package 中移动顶层函数。`Scoop: Change Signature` 为文件私有函数调整参数顺序并保留调用处的求值顺序。
+选中符合条件的表达式时，`Extract Constant` 创建文件私有常量，`Extract Property` 创建类私有计算属性，`Extract Parameter` 为文件私有函数添加带默认值的形参。
+
+在普通文件私有函数的调用处，`Inline Function` 可展开表达式体或末尾返回值的块体，保留该处原有求值顺序。
+
+非泛型内部类或文件私有类的普通 final 方法可用于提取接口、提取父类，或在同文件的直接父子类之间上下移。重构菜单按实际签名和已有使用处判断动作是否可用。
+
+`Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。`Scoop: Move Declaration` 可移动普通顶层函数，包括按现有导入和依赖关系进行的跨 package 与跨 Cone 移动。`Scoop: Change Signature` 可为文件私有函数调整参数顺序、新增带默认值的形参、删除未使用形参或编辑默认值。既有显式实参保持求值顺序。
+
+方法换序可同步更新同文件内部或私有类型的实际重写链，直接调用文件私有函数引用的表达式也可以跟随换序。
 
 ## 测试和诊断
 

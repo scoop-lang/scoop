@@ -22,15 +22,23 @@ Run／Debug 后才调用普通构建入口。扩展不自动准备 sysroot；不
 
 在覆写的方法或属性名称上执行 `Scoop: Go to Super Declaration`，可打开被覆写的上级声明。在类型上执行 `Peek Type Hierarchy`，可逐层查看父类型和子类型。
 
-在函数、方法或调用上执行 `Peek Call Hierarchy`，可查看调用方和被调用方。同一调用方的多处调用会列在同一个层级项下。
+在函数、方法或调用上执行 `Peek Call Hierarchy`，可查看调用方和被调用方。层级也包含构造、默认表达式、访问器和运算符。可定位的动态函数值调用会列出值绑定，同一调用方的多处调用会归在一个层级项下。
 
 在方法或属性声明上执行 `Scoop: Show Member Hierarchy`，可在直接上级和覆写声明之间逐层导航。`Scoop: Go to Related Tests` 可在 Test 配置中查看所选符号在测试源码中的实际用法。对 `break`、`continue`、`return` 及其目标标签使用「转到定义」，可定位对应的循环或 callable。
 
 选中块内的完整表达式后，通过重构菜单选择 `Extract Local Variable`，可将表达式提取为同一块的 `val`。选择 `Extract Function` 可把完整表达式或可独立执行的连续语句提取为局部函数。
 
+选中常量表达式可用 `Extract Constant`。在普通类方法中可用 `Extract Property` 提取计算属性。在文件私有函数中，字面量和已绑定的形参读取可用 `Extract Parameter` 提取为带默认值的形参。
+
 在以字面量或稳定值初始化的局部 `val` 上，可用 `Inline Local Variable` 替换各处读取。选中完整的类型语法后可用 `Introduce Type Alias`。文件私有顶层函数可用 `Safe Delete Function`，有阻塞用法时可选择 `Show Safe Delete Usages` 查看位置。
 
-`Organize Imports` 删除未使用的普通文件头精确导入。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择同一 Cone、同一 package 的目标文件。在文件私有顶层函数上执行 `Scoop: Change Signature`，按提示输入参数编号的新排列。移动和换序支持预览后应用。
+在同文件普通私有函数的调用处，可用 `Inline Function` 展开该次调用。编辑保留该调用的求值条件、实参顺序和原函数声明。
+
+将光标放在内部类或文件私有类的名称、方法名称上，重构菜单可提供 `Extract Interface`、`Extract Superclass`、`Pull Members Up` 或 `Push Members Down`。移动要求目标类在同一文件，成员下移要求唯一直接子类。
+
+`Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择所选源码图内的目标文件，支持跨 package 及符合现有依赖关系的跨 Cone 移动。在文件私有顶层函数上执行 `Scoop: Change Signature`，可调整顺序、新增带默认值的形参、删除未用形参，或设置与清除默认值。移动和签名编辑支持预览。
+
+在内部类、文件私有类或接口的方法上执行 `Scoop: Change Signature`，可在同文件的重写链中联动换序。
 
 将完整工具包解压到 `~/.scoop` 后安装随包 VSIX：
 

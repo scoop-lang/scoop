@@ -1,5 +1,5 @@
 use super::*;
-use crate::imports::ImportLookupLayer;
+use crate::imports::{ImportLookupLayer, ImportSyntaxOrigin, ImportedTargetBinding};
 
 mod operators;
 
@@ -99,18 +99,7 @@ impl Lowerer {
                         .get(&name.text)
                         .into_iter()
                         .flat_map(|targets| targets.iter())
-                        .filter_map(|target| target.direct_binding())
-                        .map(|binding| hir::EditingImportSource::Dependency {
-                            import: Some(hir::SemanticSourceLocation {
-                                source: import.origin.source.clone(),
-                                span: import.origin.span,
-                            }),
-                            target: binding.target(),
-                            routes: binding
-                                .sources()
-                                .map(|source| source.route().clone())
-                                .collect(),
-                        })
+                        .map(|binding| star_import_source(&import.origin, binding))
                 })
                 .collect(),
             ImportLookupLayer::CurrentPackage(_) => file
@@ -135,5 +124,26 @@ impl Lowerer {
                 .map(|source| source.route().clone())
                 .collect(),
         }
+    }
+}
+
+fn star_import_source(
+    origin: &ImportSyntaxOrigin,
+    binding: &ImportedTargetBinding,
+) -> hir::EditingImportSource {
+    let source = hir::SemanticSourceLocation {
+        source: origin.source.clone(),
+        span: origin.span,
+    };
+    match binding.direct_binding() {
+        Some(binding) => hir::EditingImportSource::Dependency {
+            import: Some(source),
+            target: binding.target(),
+            routes: binding
+                .sources()
+                .map(|source| source.route().clone())
+                .collect(),
+        },
+        None => hir::EditingImportSource::Declaration(source),
     }
 }

@@ -131,16 +131,7 @@ impl DocumentQuery {
             }
             "scoop/changeSignature" => {
                 let params: structural_refactor::SignatureParams = params(request.params.clone())?;
-                Ok(Self {
-                    uri: params.position.text_document.uri,
-                    kind: QueryKind::StructuralRefactor(
-                        structural_refactor::RefactorQuery::ChangeSignature {
-                            position: params.position.position,
-                            order: params.order,
-                            revision: params.revision,
-                        },
-                    ),
-                })
+                params.into_query()
             }
             "textDocument/prepareRename" => {
                 let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;

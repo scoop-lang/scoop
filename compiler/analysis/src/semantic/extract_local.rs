@@ -168,14 +168,21 @@ impl SemanticSession {
         else {
             return Ok(None);
         };
-        if !preserves_bindings(&before, &after, &file.identity, &edit, &*check)? {
+        if !preserves_bindings(
+            &before,
+            &after,
+            &file.identity,
+            &edit,
+            &HashSet::new(),
+            &*check,
+        )? {
             return Ok(None);
         }
         Ok(Some(edit.source_edit))
     }
 }
 
-fn contains(outer: Span, inner: Span) -> bool {
+pub(super) fn contains(outer: Span, inner: Span) -> bool {
     outer.start <= inner.start && inner.end <= outer.end
 }
 
@@ -216,11 +223,12 @@ pub(in crate::semantic) fn bindings(
     Ok(Some(bindings))
 }
 
-fn preserves_bindings(
+pub(in crate::semantic) fn preserves_bindings(
     before: &EditingReferenceIndex,
     after: &EditingReferenceIndex,
     source: &scoop_identity::SourceIdentity,
     edit: &syntax::Extraction,
+    folded_operators: &HashSet<Span>,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<bool, ProjectAnalysisError> {
     let Some(expected) = bindings(
@@ -250,10 +258,17 @@ fn preserves_bindings(
         .iter()
         .map(|(origin, _)| origin)
         .collect::<HashSet<_>>();
-    Ok(actual
+    // The constant evaluator folds integer operator syntax without a callable occurrence.
+    let actual_positions = actual
+        .iter()
+        .map(|(origin, _)| origin)
+        .collect::<HashSet<_>>();
+    Ok(expected.difference(&actual).all(|(origin, _)| {
+        &origin.source == source
+            && folded_operators.contains(&origin.span)
+            && !actual_positions.contains(origin)
+    }) && actual
         .iter()
         .filter(|(origin, _)| positions.contains(origin))
-        .count()
-        == expected.len()
-        && expected.is_subset(&actual))
+        .all(|binding| expected.contains(binding)))
 }

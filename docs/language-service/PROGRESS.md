@@ -67,6 +67,24 @@ rename 要求所选项目的必要源码及语义分析完整。存在不可证�
 
 整理导入、同 Cone 同 package 的顶层函数移动及文件私有函数参数换序已接入。macOS Clippy、Ruff、TypeScript 检查、三项 release LSP fixture 和 VS Code Extension Host 通过。实际应用换序编辑前后分别以 release 编译并运行，显式实参与省略参数的默认表达式求值顺序一致。
 
+常量、计算属性和默认参数提取已接入。macOS Clippy、Ruff 和三项 release LSP fixture 通过。用例应用版本化编辑，并覆盖常量折叠、访问实例状态、方法局部变量与有副作用的表达式。
+
+单处函数内联已接入。macOS Clippy、Ruff 和定向 stdio 检查通过。用例覆盖命名实参和依赖早期形参的默认值、末尾返回、短路、提前返回及局部遮蔽。实际应用编辑前后的程序均以 release 编译并运行，输出一致。
+
+提取接口、提取父类及成员上下移已接入。macOS Clippy、Ruff 和定向 stdio 检查通过。应用编辑后核对接口实现与成员位置，实际运行验证接口分派、继承方法和构造调用。依赖原类状态或仍被父类静态类型引用的成员没有可用移动动作。
+
+调用层级已接入构造器、默认表达式、访问器、运算符和可定位的函数值调用。macOS Clippy、Ruff 与定向 stdio 检查通过，覆盖主次构造、委托、getter／setter、运算符 token、直接调用函数引用和动态函数值绑定。
+
+整理导入已覆盖星号和块级导入。macOS Clippy、Ruff 与定向 stdio 检查通过，验证使用中的星号导入和局部别名保留，公开重导出保持可见。
+
+签名编辑已接入新增带默认值的形参、删除未使用形参及设置或清除默认值。macOS Clippy、Ruff、VS Code 扩展构建与 TypeScript 检查、定向 stdio 检查通过。用例覆盖位置和命名实参、函数引用签名、使用中形参及省略实参的约束。
+
+同文件重写链和直接调用的函数引用可联动换序。macOS Clippy、Ruff、TypeScript 检查与定向 stdio 用例通过。实际应用编辑后，release 程序的接口调用、子类调用和原函数引用调用结果与编辑前一致。
+
+顶层函数移动已覆盖跨 package 和已有依赖关系内的跨 Cone 移动。定向 stdio 用例验证别名、公开重导出、命名实参及无法保留依赖的情况。实际应用编辑前后的多 Cone 程序均以 release 编译并运行，输出一致。
+
+最终 macOS ARM64 回归中，`scoop-analysis`、`scoop-hir-lower` 和 `scoop-lsp` 共通过 2,202 项 Rust 测试。三项正式 release LSP fixture、24 项 VS Code 扩展单元测试和实际 Extension Host 测试通过。fixture runner 规则测试通过 80 项，跳过 4 项平台相关用例。
+
 ## 合并 origin/main
 
 接入 `f3f8ace69` 的 M61 文本后端、Regex 与 M62 优化。上述公共基础全量验收截至 `0842bec3f`；本次合并的验证单独记录，不将此前结果视为合并后重新执行的全量。

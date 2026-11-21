@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use scoop_hir::{
-    EditingCallHierarchyDeclaration as Node, EditingSourceBodyOwner, SemanticSourceLocation,
-};
+use scoop_hir::{EditingCallHierarchyDeclaration as Node, SemanticSourceLocation};
 use scoop_source::Span;
 
 use super::*;
@@ -99,16 +97,34 @@ impl SemanticSession {
                 Err(_) => continue,
             };
             let bodies = if outgoing {
-                analysis
+                let primary = analysis
                     .call_hierarchy_body(&origin, check.clone())
-                    .map_err(|_| ProjectAnalysisError::Cancelled)?
-                    .into_iter()
-                    .collect()
+                    .map_err(|_| ProjectAnalysisError::Cancelled)?;
+                let mut bodies = Vec::new();
+                for body in analysis.source_bodies() {
+                    if check() {
+                        return Err(ProjectAnalysisError::Cancelled);
+                    }
+                    if primary
+                        .as_ref()
+                        .is_some_and(|primary| primary.id == body.id)
+                    {
+                        continue;
+                    }
+                    if body.origin.source == origin.source
+                        && let Some(owner) = analysis.call_hierarchy_owner(&body)
+                        && names_match(snapshot, project, &mut names, &owner.origin, &origin)?
+                    {
+                        bodies.push(body);
+                    }
+                }
+                bodies.extend(primary);
+                bodies
             } else {
                 analysis.source_bodies()
             };
             for body in bodies {
-                if !matches!(body.owner, EditingSourceBodyOwner::Callable(_)) {
+                if body.callee().is_none() {
                     continue;
                 }
                 let calls = analysis

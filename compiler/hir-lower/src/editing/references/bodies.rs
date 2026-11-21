@@ -145,19 +145,25 @@ impl ReferenceBuilder {
         source: &scoop_identity::SourceIdentity,
         call: &hir::EditingAppliedCall,
     ) {
-        let Some(callee) = call
-            .callee
-            .and_then(|callee| self.identities.callee(lowerer, callee))
-        else {
+        let Some(selected) = call.callee else {
+            return;
+        };
+        let Some(callee) = self.identities.callee(lowerer, selected) else {
             return;
         };
         for argument in &call.arguments {
             if let Some(span) = argument.name_span {
+                let target = Target::Parameter {
+                    callable: callee,
+                    index: argument.parameter as u32,
+                };
+                if let Some(definition) =
+                    lowerer.editing_callee_parameter_origin(selected, argument.parameter)
+                {
+                    self.definitions.entry(target).or_insert(definition);
+                }
                 self.record(
-                    Target::Parameter {
-                        callable: callee,
-                        index: argument.parameter as u32,
-                    },
+                    target,
                     hir::SemanticSourceLocation {
                         source: source.clone(),
                         span,

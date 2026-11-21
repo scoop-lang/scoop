@@ -37,8 +37,17 @@ pub struct EditingStaticCall {
 #[derive(Clone, Debug)]
 pub struct EditingCallHierarchyDeclaration {
     pub name: String,
-    pub method: bool,
+    pub kind: EditingCallHierarchyKind,
     pub origin: SemanticSourceLocation,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum EditingCallHierarchyKind {
+    Function,
+    Method,
+    Constructor,
+    Property,
+    Variable,
 }
 
 #[derive(Clone, Debug)]

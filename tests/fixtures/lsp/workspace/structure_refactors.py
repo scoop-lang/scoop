@@ -24,12 +24,19 @@ def check(peer, root):
                 "import test.support.ignored\n"
                 "import test.support.ignored as oldName\n"
                 "import test.support.*\n"
+                "import test.unused.*\n"
                 "public import scoop.time.Duration\n"
                 "\n"
                 "// Accompany the public declaration.\n"
                 "/// Preserve this documentation.\n"
                 "public fun moveMe(flag: Boolean): Boolean = passthrough(flag)\n"
                 "fun useMoved(): Boolean = moveMe(true)\n"
+                "fun useStar(): Boolean = onlyStar()\n"
+                "fun useBlock(flag: Boolean): Boolean {\n"
+                "    import test.support.echo as localEcho\n"
+                "    import test.support.ignored as unusedBlock\n"
+                "    return localEcho(flag)\n"
+                "}\n"
                 "fun location(): SourceLocation = currentSourceLocation()\n"
                 "private fun choose(first: Boolean, second: Boolean = false): Boolean = first && second\n"
                 "fun supplied(): Boolean = choose(true, false)\n"
@@ -44,7 +51,9 @@ def check(peer, root):
                 "package test.support\n"
                 "public fun echo(value: Boolean): Boolean = value\n"
                 "public fun ignored(): Boolean = false\n"
+                "public fun onlyStar(): Boolean = true\n"
             ),
+            "src/unused.scoop": "package test.unused\nfun other(): Boolean = false\n",
         },
     )
     case.clean()
@@ -65,10 +74,13 @@ def check(peer, root):
         },
     )
     assert organization["kind"] == "source.organizeImports"
-    case.apply(organization["edit"], 2)
+    case.apply(organization["edit"], 4)
     assert "import test.support.ignored" not in case.texts[source]
     assert "import test.support.echo as passthrough" in case.texts[source]
     assert "import test.support.*" in case.texts[source]
+    assert "import test.unused.*" not in case.texts[source]
+    assert "as localEcho" in case.texts[source]
+    assert "as unusedBlock" not in case.texts[source]
     assert "public import scoop.time.Duration" in case.texts[source]
 
     def move(anchor, name, target):
@@ -78,7 +90,7 @@ def check(peer, root):
         )
 
     assert move("fun location()", "location", destination) is None
-    assert move("fun moveMe(", "moveMe", support) is None
+    assert move("fun defaultDepends(", "defaultDepends", support) is None
     moved = move("fun moveMe(", "moveMe", destination)
     assert moved is not None
     case.apply(moved, 3)

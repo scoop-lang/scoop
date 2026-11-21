@@ -129,7 +129,7 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 类型层级通过 `textDocument/prepareTypeHierarchy` 选择名义类型，再用 `typeHierarchy/supertypes` 和 `typeHierarchy/subtypes` 展开直接父类型或子类型。别名展开到原类型，泛型应用归并到同一声明。展开保留发起时的项目配置，输入更新后重新打开层级。
 
-调用层级通过 `textDocument/prepareCallHierarchy` 从函数、方法或其调用进入。调用方与被调用方按同一对声明合并调用位置。虚调用显示静态绑定的成员，可再通过「转到实现」查看提供者。函数引用仍能在查找引用中定位。
+调用层级通过 `textDocument/prepareCallHierarchy` 从函数、方法、构造器、访问器或实际调用位置进入。调用方与被调用方按同一对声明合并调用位置。虚调用显示静态绑定的成员，可再通过「转到实现」查看提供者。构造委托、初始化正文和默认表达式的调用归入原声明。getter 和 setter 归入逻辑属性，运算符使用实际 token。直接调用函数引用会显示目标函数，可定位的动态函数值调用显示该值的声明。
 
 `scoop/memberHierarchy` 返回方法与属性的直接上级和直接覆写，保留抽象声明。`textDocument/documentHighlight` 给出同文件中实际绑定的用法。`scoop/relatedTests` 给出当前 Test 配置的测试源码引用。对 `break`、`continue`、`return` 及其目标标签使用「转到定义」，可定位前端选中的循环或 callable。
 
@@ -145,9 +145,17 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `Extract Function` 将块内的完整表达式或连续语句提取为局部函数。调用仍位于原选区，外部不可重新绑定的值按 Scoop 的局部函数规则捕获。需要写回外部局部变量、离开选区跳转或在选区外继续使用被移动声明时没有可用动作。
 
+`Extract Constant` 将通过常量检查的表达式提取成文件私有 `const val`。`Extract Property` 将方法中的表达式提取为类私有计算属性，在原使用处调用 getter。`Extract Parameter` 将普通文件私有函数中的字面量或已绑定的形参读取提取为带默认值的新形参，原调用继续有效。
+
 `Inline Local Variable` 将普通局部 `val` 的稳定初始化值替换到全部读取处，并检查每处类型和绑定。`Introduce Type Alias` 从完整类型选区声明透明别名，适用于文件内和局部类型语法。`Safe Delete Function` 检查文件私有顶层函数，返回版本化删除编辑或包含阻塞用法的源码位置。
 
-`source.organizeImports` 去除已确认未使用的普通文件头精确 import。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在同一 Cone 和 package 移动普通顶层函数。`scoop/prepareChangeSignature` 返回 `parameters` 和 `revision`，`scoop/changeSignature` 接收该 revision 与零基 `order` 排列。移动和参数换序返回版本化 workspace edit。
+`Inline Function` 在所选调用处展开同文件中的普通私有函数，支持表达式体和末尾返回值的块体。显式实参在原位置按源码顺序各求值一次，随后按声明顺序求值省略的默认实参。原声明及其他调用处保留。
+
+`Extract Interface` 从选中的普通 final 方法生成接口并保留原实现。`Extract Superclass` 将方法及其注释移动到新建的无状态父类。`Pull Members Up` 和 `Push Members Down` 沿同文件中的直接类继承关系移动方法。适用于非泛型内部类或文件私有类，编辑前会核对原有用法及移动正文的绑定。
+
+`source.organizeImports` 去除文件头和块内已确认未使用的普通精确导入与星号导入，保留公开重导出。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在所选配置中移动普通顶层函数。跨 package 更新实际绑定的导入、别名和公开重导出。跨 Cone 移动适用于已有依赖关系能维持合法用法的公开函数。
+
+`scoop/prepareChangeSignature` 返回 `parameters`、`revision` 和 `reorderOnly`。`scoop/changeSignature` 接收该 revision 与零基 `order` 排列，或接收 `edit`。编辑种类为 `addDefault`、`removeUnused`、`setDefault`。新增提供 `name`、`type`、`expression`，后两项提供零基 `parameter`，设置默认值还提供 `expression`，以 `null` 清除。方法换序覆盖同文件内部或私有类型的重写关系。文件私有函数的引用直接被调用时，可改写为等价的命名直接调用。服务端返回版本化 workspace edit。
 
 开发验证使用 `cargo test -p scoop-analysis -p scoop-lsp`；LSP 集成测试启动真实 `scoop-lsp` 进程，检查传输、状态变化和查询结果。运行时将 `TMPDIR` 指向仓库外工作目录，测试工作文件遵守同一设置。
 

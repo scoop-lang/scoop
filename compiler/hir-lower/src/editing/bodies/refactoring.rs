@@ -3,6 +3,30 @@ use hir::ImportedCallableSource;
 use scoop_identity::{CallableTemplateOrigin, SignatureTypeKey};
 
 impl DeclarationAnalysis {
+    pub fn expression_type_spelling(
+        &mut self,
+        body: hir::EditingSourceBodyId,
+        span: ast::Span,
+    ) -> Option<String> {
+        let V::Known(observed) = self.body_facts.get(&body)? else {
+            return None;
+        };
+        let V::Known(facts) = &observed.facts else {
+            return None;
+        };
+        let expression = facts
+            .expressions
+            .iter()
+            .find(|expression| expression.span == span)?;
+        match self
+            .describe_body_type(body, expression.context, expression.value_type)
+            .ok()?
+        {
+            V::Known(description) => Some(description.name),
+            V::Unavailable(_) => None,
+        }
+    }
+
     /// Compare checked types across source revisions without comparing arena ids.
     pub fn expression_type_for_edit(
         &mut self,
@@ -94,6 +118,48 @@ impl DeclarationAnalysis {
 
     pub fn is_source_location_call(&self, target: hir::EditingCallee) -> bool {
         self.editing_intrinsic(target) == Some(hir::IntrinsicFunctionKind::CurrentSourceLocation)
+    }
+
+    pub fn is_constant_integer_operator(&self, target: hir::EditingCallee, symbol: &str) -> bool {
+        use hir::{
+            IntegerDivRem::{Div, Rem},
+            IntegerIntrinsicKind::{ManagedOperation, NoGcOperation},
+            NoGcIntegerOperation::{Add, Mul, Sub, UnaryMinus, UnaryPlus},
+        };
+        matches!(
+            (self.editing_intrinsic(target), symbol),
+            (
+                Some(hir::IntrinsicFunctionKind::Integer(NoGcOperation {
+                    operation: Add | UnaryPlus,
+                    ..
+                })),
+                "+"
+            ) | (
+                Some(hir::IntrinsicFunctionKind::Integer(NoGcOperation {
+                    operation: Sub | UnaryMinus,
+                    ..
+                })),
+                "-"
+            ) | (
+                Some(hir::IntrinsicFunctionKind::Integer(NoGcOperation {
+                    operation: Mul,
+                    ..
+                })),
+                "*"
+            ) | (
+                Some(hir::IntrinsicFunctionKind::Integer(ManagedOperation {
+                    operation: Div,
+                    ..
+                })),
+                "/"
+            ) | (
+                Some(hir::IntrinsicFunctionKind::Integer(ManagedOperation {
+                    operation: Rem,
+                    ..
+                })),
+                "%"
+            )
+        )
     }
 
     pub fn is_relative_source_call(&self, target: hir::EditingCallee) -> bool {

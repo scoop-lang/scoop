@@ -13,6 +13,7 @@ import {
   scoopHome,
   serverCommand,
 } from "./server-settings.ts";
+import { chooseSignatureChange } from "./signature-refactor.ts";
 
 interface Service {
   client: LanguageClient;
@@ -271,38 +272,23 @@ export class ScoopLanguageServer {
     );
     const plan = await client.sendRequest<{
       parameters: string[];
+      reorderOnly: boolean;
       revision: number;
     } | null>("scoop/prepareChangeSignature", position);
     if (!plan) {
       await vscode.window.showInformationMessage(
-        "Select a private function declaration with two or more parameters.",
+        "Select a private function or an editable method declaration.",
       );
       return;
     }
-    const parseOrder = (input: string) =>
-      input.split(",").map((number) => Number(number.trim()) - 1);
-    const value = await vscode.window.showInputBox({
-      title: "Change Parameter Order",
-      prompt: plan.parameters
-        .map((name, index) => `${index + 1}. ${name}`)
-        .join(", "),
-      value: plan.parameters.map((_, index) => index + 1).join(", "),
-      validateInput: (input) => {
-        const order = parseOrder(input);
-        return order.length === plan.parameters.length &&
-          new Set(order).size === order.length &&
-          order.every(
-            (index) =>
-              Number.isInteger(index) && index >= 0 && index < order.length,
-          )
-          ? undefined
-          : "Enter each parameter number once.";
-      },
-    });
-    if (value === undefined || document.version !== version) return;
+    const change = await chooseSignatureChange(
+      plan.parameters,
+      plan.reorderOnly,
+    );
+    if (change === undefined || document.version !== version) return;
     const edit = await client.sendRequest<ProtocolWorkspaceEdit | null>(
       "scoop/changeSignature",
-      { ...position, revision: plan.revision, order: parseOrder(value) },
+      { ...position, revision: plan.revision, ...change },
     );
     if (document.version === version)
       await this.applyRefactoring(client, edit, "Change Signature");
