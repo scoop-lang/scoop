@@ -7,7 +7,9 @@ private class CollectionSource(
     private val keys: Array<SemanticItemKey>,
     private val labels: Array<String?>,
     public override val search: SemanticItemSearch = SemanticItemSearch(name = true),
-    private val unavailable: Long? = None
+    private val unavailable: Long? = None,
+    private val hierarchyLevel: Long? = None,
+    private val expanded: Boolean? = None
 ): SemanticCollectionSource {
     var descriptions = 0
     public override val count: Long get() = keys.size
@@ -26,7 +28,9 @@ private class CollectionSource(
             SemanticItemProperties(
                 name = labels[index],
                 automationId = Some(f"id-${index}"),
-                selected = Some(index == 1L)
+                selected = Some(index == 1L),
+                hierarchyLevel = hierarchyLevel,
+                expanded = expanded
             )
         )
     }
@@ -40,6 +44,35 @@ private fun item(result: SemanticItemResult): SemanticItem =
 
 @Test
 private class SemanticCollectionTest {
+    @Test
+    fun `selection keeps declared hierarchy metadata and invalid depth is rejected`() {
+        val key = SemanticItemKey.Text("group")
+        val source =
+            CollectionSource(
+                [key],
+                [Some("Group")],
+                hierarchyLevel = Some(3L),
+                expanded = Some(false)
+            )
+        val snapshot = SemanticCollectionSnapshot(source, Some(SemanticCollectionSelection([key])))
+        assertEquals(0, source.descriptions)
+        val props = item(snapshot.itemForKey(key)).properties
+        assertEquals(Some(3L), props.hierarchyLevel)
+        assertEquals(Some(false), props.expanded)
+        assertEquals(Some(true), props.selected)
+        assertEquals(None, SemanticItemProperties().hierarchyLevel)
+        assertEquals(Some(0L), SemanticItemProperties(hierarchyLevel = Some(0L)).hierarchyLevel)
+        assertEquals(
+            Some(Long.MAX_VALUE),
+            SemanticItemProperties(hierarchyLevel = Some(Long.MAX_VALUE)).hierarchyLevel
+        )
+        val invalid =
+            SemanticCollectionSnapshot(
+                CollectionSource([key], [Some("Group")], hierarchyLevel = Some(-1L))
+            )
+        assertFailsWith<IllegalArgumentException> { invalid.itemAt(0L) }
+    }
+
     @Test
     fun `snapshots keep stable typed keys and query only the requested data`() {
         val numeric = SemanticItemKey.Number(1L)

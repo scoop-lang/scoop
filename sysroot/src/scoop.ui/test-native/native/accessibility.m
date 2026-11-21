@@ -152,9 +152,32 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
   case 16:
     return [node
         isAccessibilitySelectorAllowed:@selector(setAccessibilityFocused:)];
+  case 17:
+    return [node isAccessibilityExpanded];
+  case 18:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(setAccessibilityExpanded:)];
   default:
     return 0;
   }
+}
+
+int64_t scoop_ui_ax_hierarchy_level(void *pointer) {
+  id node = (__bridge id)pointer;
+  return [node isAccessibilitySelectorAllowed:@selector(
+                                                  accessibilityDisclosureLevel)]
+             ? (int64_t)[node accessibilityDisclosureLevel]
+             : -1;
+}
+
+void *scoop_ui_ax_parent_node(void *pointer) {
+  id node = (__bridge id)pointer;
+  return (__bridge_retained void *)[node accessibilityParent];
+}
+
+int64_t scoop_ui_ax_row_count(void *pointer) {
+  id node = (__bridge id)pointer;
+  return (int64_t)[node accessibilityRowCount];
 }
 
 void *scoop_ui_ax_cell(void *pointer, int64_t row, int64_t column) {

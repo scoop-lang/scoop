@@ -67,6 +67,21 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             return nativeParent(pointer, expected.pointer) != 0
         }
     }
+    public fun parent(): NativeNode? {
+        @Unsafe
+        {
+            return when (nativeParentNode(pointer)) {
+                case Some(val value) -> Some(NativeNode(value))
+                case None -> None
+            }
+        }
+    }
+    public val rowCount: Long get() {
+        @Unsafe
+        {
+            return nativeRowCount(pointer)
+        }
+    }
     public fun text(field: Int, expected: String?): Boolean {
         @Unsafe
         {
@@ -92,6 +107,12 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
         @Unsafe
         {
             return nativeNumber(pointer)
+        }
+    }
+    public val hierarchyLevel: Long get() {
+        @Unsafe
+        {
+            return nativeHierarchyLevel(pointer)
         }
     }
     public val scrollPosition: Double get() {
@@ -297,6 +318,12 @@ private fun nativeChild(node: Ptr<Unit>, index: Long): Ptr<Unit>?
 @Extern(name = "scoop_ui_ax_parent")
 private fun nativeParent(node: Ptr<Unit>, parent: Ptr<Unit>): Int
 
+@Extern(name = "scoop_ui_ax_parent_node")
+private fun nativeParentNode(node: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_ui_ax_row_count")
+private fun nativeRowCount(node: Ptr<Unit>): Long
+
 @Extern(name = "scoop_ui_ax_cell")
 private fun nativeCell(node: Ptr<Unit>, row: Long, column: Long): Ptr<Unit>?
 
@@ -317,6 +344,9 @@ private fun nativeFlag(node: Ptr<Unit>, field: Int): Int
 
 @Extern(name = "scoop_ui_ax_number")
 private fun nativeNumber(node: Ptr<Unit>): Long
+
+@Extern(name = "scoop_ui_ax_hierarchy_level")
+private fun nativeHierarchyLevel(node: Ptr<Unit>): Long
 
 @Extern(name = "scoop_ui_ax_scroll_position")
 private fun nativeScrollPosition(pointer: Ptr<Unit>): Double

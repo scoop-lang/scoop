@@ -1,0 +1,443 @@
+package scoop.tests.ui.gridaccessibility
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.accessibility.*
+import scoop.window.native.*
+
+@Test
+private class NativeHierarchyTest {
+    @Test
+    fun `lazy table hierarchy actions use metadata without building or focusing rows`() {
+        runHierarchy(false)
+    }
+    @Test
+    fun `data collection hierarchy actions share the same mutation and retirement boundary`() {
+        runHierarchy(true)
+    }
+}
+
+private fun runHierarchy(dataOnly: Boolean) {
+    val probe = HierarchyProbe(dataOnly)
+    try {
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(probe.finished)
+        assertEquals(4, probe.changes)
+        assertEquals(5, probe.attempts)
+    } catch (error: Throwable) {
+        println(
+            f"hierarchy phase=${probe.phase}, changes=${probe.changes}, attempts=${probe.attempts}"
+        )
+        throw error
+    } finally {
+        probe.close()
+    }
+}
+
+private class HierarchyProbe(val dataOnly: Boolean): Closeable {
+    val items = state(HierarchyItems())
+    var phase = 0
+    var changes = 0
+    var attempts = 0
+    var reject = false
+    var finished = false
+    var scope: ComponentScope? = None
+    private var waiting = false
+    private var active: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var root: NativeNode? = None
+    private var table: NativeNode? = None
+    private var branch: NativeNode? = None
+    private var leaf: NativeNode? = None
+    private var replacement: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private val held = ArrayList<NativeNode>()
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
+                )
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop hierarchy semantics"
+                            size = LogicalSize(320.0, 200.0)
+                        }
+                    )
+                ui = host.attach(window, { mount -> HierarchyScene(this, mount) })
+                @Unsafe
+                {
+                    window.acquireNativeWindow().use {
+                        lease -> @Unsafe
+                        {
+                            when (lease.handle) {
+                                case AppKit(_, val pointer) -> root =
+                                    Some(keep(NativeNode(nativeRoot(pointer)!!)))
+                            }
+                        }
+                    }
+                }
+                calls =
+                    Some(
+                        NativeCalls(application.proxy(), { tag -> inspect(tag) }) {
+                            tag,
+                            result -> completed(tag, result)
+                        }
+                    )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"hierarchy timeout at ${phase}"))
+            else -> {}
+        }
+    }
+    fun expand(key: ViewKey, value: Boolean): SemanticActionResult {
+        assertEquals(ViewKey.Number(50000000L), key)
+        attempts += 1
+        if (reject)
+            return SemanticActionResult.Rejected
+        changes += 1
+        items.value =
+            HierarchyItems(
+                expanded = value,
+                reverse = items.value.reverse,
+                level = items.value.level
+            )
+        return SemanticActionResult.Completed
+    }
+    fun semantics(source: HierarchyItems): ItemSemantics =
+        ItemSemantics(
+            source,
+            { index -> Some(source.describe(index)) },
+            grid = Some(source.grid()),
+            setExpanded =
+                if (source.actions)
+                    Some { key, value -> expand(key, value) }
+                else
+                    None
+        )
+    fun accepted(source: HierarchyItems) {
+        if (finished || waiting || source !== items.value)
+            return
+        waiting = true
+        when (phase) {
+            case 1 -> calls!!.post(branch!!, phase, 14)
+            case 2 -> calls!!.post(branch!!, phase, 15)
+            case 3 -> calls!!.post(branch!!, phase, 14)
+            case 4 -> calls!!.post(branch!!, phase, 14)
+            case 5 -> calls!!.post(branch!!, phase, 14)
+            case 7 -> calls!!.post(leaf!!, phase, 14)
+            case 8 -> calls!!.post(branch!!, phase, 14)
+            case 9 -> calls!!.post(branch!!, phase, 14)
+            case 11 -> calls!!.post(branch!!, phase, 14)
+            case 12 -> calls!!.post(replacement!!, phase, 14)
+            else -> calls!!.post(root!!, phase, 20)
+        }
+    }
+    private fun inspect(tag: Int) {
+        assertEquals(phase, tag)
+        when (phase) {
+            case 0 -> {
+                table = Some(keep(root!!.find("hierarchy-table")!!))
+                assertEquals(100000000L, table!!.rowCount)
+                branch = Some(row(50000000L))
+                leaf = Some(row(50000001L))
+                assertEquals(3L, branch!!.hierarchyLevel)
+                assertEquals(4L, leaf!!.hierarchyLevel)
+                assertTrue(branch!!.flag(18))
+                assertFalse(branch!!.flag(17))
+                assertFalse(branch!!.flag(2))
+                assertFalse(branch!!.flag(4))
+                assertFalse(leaf!!.flag(18))
+                assertEquals(0, attempts)
+            }
+            case 1 -> {
+                assertTrue(branch!!.flag(17))
+                assertEquals(1, changes)
+                assertFalse(branch!!.flag(2))
+                assertFalse(branch!!.flag(4))
+            }
+            case 2 -> {
+                assertFalse(branch!!.flag(17))
+                assertEquals(2, changes)
+            }
+            case 3 -> {
+                assertFalse(branch!!.flag(18))
+                assertEquals(2, attempts)
+            }
+            case 4 -> {
+                assertFalse(branch!!.flag(18))
+                assertEquals(2, attempts)
+            }
+            case 5 -> {
+                assertFalse(branch!!.flag(18))
+                assertEquals(-1L, branch!!.hierarchyLevel)
+                assertEquals(2, attempts)
+            }
+            case 6 -> {
+                val again = row(49999999L)
+                assertTrue(branch!!.same(again))
+                assertEquals(0L, branch!!.hierarchyLevel)
+                assertTrue(branch!!.flag(18))
+            }
+            case 7 -> assertEquals(2, attempts)
+            case 8 -> {
+                assertFalse(branch!!.flag(17))
+                assertEquals(2, changes)
+                assertEquals(3, attempts)
+            }
+            case 9 -> {
+                assertTrue(branch!!.flag(17))
+                assertEquals(3, changes)
+                assertEquals(4, attempts)
+            }
+            case 10 -> assertFalse(branch!!.flag(0))
+            case 11 -> {
+                replacement = Some(row(50000000L))
+                assertFalse(branch!!.same(replacement!!))
+                assertFalse(branch!!.flag(18))
+                assertEquals(3, changes)
+                assertEquals(4, attempts)
+            }
+            case 12 -> {
+                assertTrue(replacement!!.flag(17))
+                assertEquals(4, changes)
+            }
+            case 13 -> {
+                assertFalse(replacement!!.flag(0))
+                assertFalse(replacement!!.flag(18))
+            }
+            else -> fail(Some("unexpected hierarchy phase"))
+        }
+    }
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(phase, tag)
+        // A void native setter returning does not prove that the application accepted it.
+        assertEquals(1, result)
+        waiting = false
+        phase += 1
+        when (phase) {
+            case 3 -> items.value = HierarchyItems(enabled = false)
+            case 4 -> items.value = HierarchyItems(actions = false)
+            case 5 -> items.value = HierarchyItems(branch = false, level = None)
+            case 6 -> items.value = HierarchyItems(reverse = true, level = Some(0L))
+            case 8 -> reject = true
+            case 9 -> reject = false
+            case 10 -> items.value = HierarchyItems(removed = true)
+            case 11 -> items.value = HierarchyItems()
+            case 13 -> {
+                ui!!.close()
+                waiting = true
+                calls!!.post(root!!, phase, 20)
+                return
+            }
+            case 14 -> {
+                finished = true
+                active!!.requestExit()
+                return
+            }
+            else -> {}
+        }
+        scope!!.requestFrame()
+    }
+    private fun keep(node: NativeNode): NativeNode {
+        held.add(node)
+        return node
+    }
+    private fun row(index: Long): NativeNode = keep(keep(table!!.cell(index, 0L)!!).parent()!!)
+    public override fun close() {
+        calls?.close()
+        for (node in held)
+            node.close()
+    }
+}
+
+private class HierarchyItems(
+    val expanded: Boolean = false,
+    val enabled: Boolean = true,
+    val actions: Boolean = true,
+    val branch: Boolean = true,
+    val level: Long? = Some(3L),
+    val reverse: Boolean = false,
+    val removed: Boolean = false
+): ItemSource {
+    public override val count: Long get() =
+        if (removed)
+            99999999L
+        else
+            100000000L
+    public override fun keyAt(index: Long): ViewKey {
+        val at =
+            if (reverse)
+                count - 1L - index
+            else
+                index
+        return ViewKey.Number(
+            if (removed && at >= 50000000L)
+                at + 1L
+            else
+                at
+        )
+    }
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(val value) -> {
+                if (value < 0L || value >= 100000000L || (removed && value == 50000000L))
+                    None
+                else {
+                    val index =
+                        if (removed && value > 50000000L)
+                            value - 1L
+                        else
+                            value
+                    Some(
+                        if (reverse)
+                            count - 1L - index
+                        else
+                            index
+                    )
+                }
+            }
+            else -> None
+        }
+    public override fun build(index: Long): View =
+        fail(Some("metadata and expansion must not build rows"))
+    fun describe(index: Long): SemanticItemProperties =
+        SemanticItemProperties(
+            enabled = enabled,
+            expanded =
+                if (branch && keyAt(index) == ViewKey.Number(50000000L))
+                    Some(expanded)
+                else
+                    None,
+            hierarchyLevel =
+                if (keyAt(index) == ViewKey.Number(50000000L))
+                    level
+                else
+                    Some(4L)
+        )
+    fun grid(): SemanticGrid =
+        SemanticGrid(
+            [SemanticGridColumn(SemanticItemKey.Text("value"))],
+            { _, _ -> Some(SemanticItemProperties(value = Some("cell"))) }
+        )
+}
+
+private class HierarchyScene(private val probe: HierarchyProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View {
+        val source = probe.items.value
+        return if (probe.dataOnly)
+            element(source, { props, mount -> HierarchyData(probe, props, mount) })
+        else
+            lazyElement(source, source, { props, mount -> HierarchyTable(probe, props, mount) })
+    }
+}
+
+private class HierarchyTable(
+    private val probe: HierarchyProbe,
+    private val props: Props<HierarchyItems>,
+    scope: ComponentScope
+): LazyElement<HierarchyItems>(scope) {
+    private val semantics = scope.semantics(SemanticRole.Table)
+    init {
+        probe.scope = Some(scope)
+    }
+    public override fun update(): UiInvalidation {
+        semantics.update(
+            SemanticProperties(
+                automationId = Some("hierarchy-table"),
+                table = Some(SemanticTableSize(props.value.count, 1L))
+            )
+        )
+        semantics.updateCollection(props.value, Some(probe.semantics(props.value)))
+        return UiInvalidation.Layout
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<HierarchyItems> =
+        LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 200.0))), props.value)
+    public override fun scene(context: SceneContext, source: HierarchyItems) {
+        context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted(source)
+        }
+    }
+}
+
+private class HierarchyDescriptions(private val source: HierarchyItems): SemanticCollectionSource {
+    public override val count: Long get() = source.count
+    public override val search: SemanticItemSearch get() = SemanticItemSearch()
+    public override fun keyAt(index: Long): SemanticItemKey =
+        when (source.keyAt(index)) {
+            case Number(val value) -> SemanticItemKey.Number(value)
+            else -> fail(Some("expected numeric hierarchy key"))
+        }
+    public override fun indexOfKey(key: SemanticItemKey): Long? =
+        when (key) {
+            case Number(val value) -> source.indexOfKey(ViewKey.Number(value))
+            case Text(_) -> None
+        }
+    public override fun describe(index: Long): SemanticItemProperties? =
+        Some(source.describe(index))
+}
+
+private class HierarchyData(
+    private val probe: HierarchyProbe,
+    private val props: Props<HierarchyItems>,
+    scope: ComponentScope
+): Element<HierarchyItems>(scope) {
+    private val semantics = scope.semantics(SemanticRole.Table)
+    init {
+        probe.scope = Some(scope)
+    }
+    public override fun update(): UiInvalidation {
+        val source = props.value
+        semantics.update(
+            SemanticProperties(
+                automationId = Some("hierarchy-table"),
+                table = Some(SemanticTableSize(source.count, 1L))
+            )
+        )
+        semantics.updateDataCollection(
+            SemanticCollectionSnapshot(HierarchyDescriptions(source), grid = Some(source.grid())),
+            SemanticCollectionActions(
+                setExpanded =
+                    if (source.actions)
+                        Some {
+                            key,
+                            value -> when (key) {
+                                case Number(val id) -> probe.expand(ViewKey.Number(id), value)
+                                case Text(_) -> SemanticActionResult.Unavailable
+                            }
+                        }
+                    else
+                        None
+            )
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        HierarchyItems
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 200.0))), props.value)
+    public override fun scene(context: SceneContext, source: HierarchyItems) {
+        context.semantics(semantics, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted(source)
+        }
+    }
+}

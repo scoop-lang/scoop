@@ -654,3 +654,9 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 - macOS 验证了 AppKit 拖动项的图像、热点和多文件表示，并实际将带自定义预览的 URL 拖入示例编辑框。
 - Linux 在 X11 的 1× 和 2× 缩放下读取了活动 GTK 图标的像素与热点，并将 URL 拖入独立 GTK 进程。在 Weston 中观察到 Wayland 拖动携带图标表面，并完成投放。
 - Windows 在交互桌面上验证了 Shell 拖动图像与 OLE 目标的进入、移动和投放。测试同时核对高 DPI 图像和独立的文本载荷。
+
+### 虚拟层级的深度与展开动作（2026-11-21）
+
+- Window 的 SemanticItemProperties 增加从零开始的 hierarchyLevel，集合动作增加 setExpanded。UI 的 ItemSemantics 与 updateDataCollection 都沿既有动作边界转发；AppKit 使用公开深度属性与展开 setter，离屏操作不自动挂载或聚焦。
+- Window 3 项集合模型测试通过；两个各 14 阶段的本机原生用例约 0.90／1.09 秒通过，一亿行来源不构建 View，覆盖拒绝、禁用、能力移除、重排、退休与同 key 重建。原 51 阶段双轴回归约 1.40 秒通过，三项均完整退出且无失败。测试按真实模型变化判断 setter 的效果，使用按行列访问和直接行数查询。
+- Window／UI 与原生 Cone 格式化、check、release 构建及 Objective-C 严格编译通过；规范、编程材料和 API 文档／符号查询已同步。原始报告与诊断采样放在仓库外，闭合后清理；本批只做本机 macOS aarch64 验证。

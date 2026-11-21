@@ -261,7 +261,8 @@ int64_t scoop_window_accessibility_collection_active(
 }
 void scoop_window_accessibility_collection_item(
     void *pointer, int64_t index, int64_t count, int64_t span, int32_t enabled,
-    int32_t selected, int32_t expanded, int32_t focusable) {
+    int32_t selected, int32_t expanded, int32_t focusable,
+    int64_t hierarchy_level) {
   auto &reply = *static_cast<Item *>(pointer);
   reply.index = index;
   reply.count = count;
@@ -270,6 +271,7 @@ void scoop_window_accessibility_collection_item(
   reply.selected = selected;
   reply.expanded = expanded;
   reply.focusable = focusable;
+  reply.hierarchyLevel = hierarchy_level;
 }
 void scoop_window_accessibility_collection_item_key(void *pointer, int32_t kind,
                                                     int64_t number,

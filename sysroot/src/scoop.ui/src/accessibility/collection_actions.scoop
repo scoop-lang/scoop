@@ -63,6 +63,13 @@ internal fun semanticCollectionActions(handle: SemanticsHandle): SemanticCollect
         when (handle.collectionItems?.grid ?: None) {
             case Some(_) -> Some(semanticGridActions(handle))
             case None -> None
+        },
+        when (handle.collectionItems?.setExpanded ?: None) {
+            case Some(val expand) -> Some {
+                key,
+                expanded -> handle.controller.perform(handle) { expand(itemViewKey(key), expanded) }
+            }
+            case None -> None
         }
     )
 }

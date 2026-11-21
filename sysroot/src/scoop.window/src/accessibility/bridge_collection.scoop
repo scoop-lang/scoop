@@ -163,7 +163,11 @@ private fun collectionActionBits(actions: SemanticCollectionActions): Int =
                 case None -> 0
             }
         ) +
-        gridActionBits(actions.grid)
+        gridActionBits(actions.grid) +
+        when (actions.setExpanded) {
+            case Some(_) -> 256
+            case None -> 0
+        }
 
 private fun gridActionBits(actions: SemanticGridActions?): Int {
     val grid = actions ?: return 0
@@ -229,7 +233,14 @@ private fun queryCollection(
     length: Long,
     reply: Ptr<Unit>?
 ): Int {
-    if ((operation >= 3 && operation <= 8) || (operation >= 12 && operation <= 15)) {
+    if (
+        (operation >= 3 && operation <= 8) ||
+            (operation >= 12 && operation <= 15) ||
+            operation ==
+            17 ||
+            operation ==
+            18
+    ) {
         val result =
             application.performAccessibility {
                 val key =
@@ -565,7 +576,8 @@ private fun writeCollectionItem(reply: Ptr<Unit>, item: SemanticItem) {
             if (props.focusable)
                 1
             else
-                0
+                0,
+            props.hierarchyLevel ?: -1L
         )
     }
     withCollectionKey(item.key) {
@@ -636,7 +648,8 @@ private fun nativeCollectionItem(
     enabled: Int,
     selected: Int,
     expanded: Int,
-    focusable: Int
+    focusable: Int,
+    hierarchyLevel: Long
 )
 
 @Extern(name = "scoop_window_accessibility_collection_item_key")

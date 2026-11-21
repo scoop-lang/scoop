@@ -65,7 +65,7 @@ struct Item {
   bool failed = false;
   std::optional<std::string> search;
   Key key;
-  int64_t index = -1, count = 0, span = 1;
+  int64_t index = -1, count = 0, span = 1, hierarchyLevel = -1;
   int32_t enabled = 1, selected = -1, expanded = -1, focusable = 0;
   std::array<std::optional<std::string>, 4> text;
 };

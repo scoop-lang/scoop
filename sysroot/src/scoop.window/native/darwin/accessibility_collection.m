@@ -209,6 +209,9 @@
 - (BOOL)isAccessibilityExpanded {
   return self.itemData.expanded == 1;
 }
+- (NSInteger)accessibilityDisclosureLevel {
+  return (NSInteger)self.itemData.hierarchyLevel;
+}
 - (NSArray *)accessibilityChildren {
   if (!self.isAccessibilityElement)
     return @[];
@@ -236,9 +239,11 @@
   int32_t flag = operation == 3   ? 1
                  : operation == 4 ? 2
                  : operation <= 6 ? 4
-                                  : 8;
+                 : operation <= 8 ? 8
+                                  : 256;
   if (!(self.collection.state.collectionActions & flag) ||
-      ((flag == 4) && !self.itemData.focusable))
+      ((flag == 4) && !self.itemData.focusable) ||
+      ((flag == 256) && self.itemData.expanded < 0))
     return NO;
   return [self.collection query:operation index:0 key:self.key
                           reply:nil] == 1 &&
@@ -281,6 +286,9 @@
 - (void)setAccessibilitySelected:(BOOL)selected {
   [self performItem:selected ? 7 : 8];
 }
+- (void)setAccessibilityExpanded:(BOOL)expanded {
+  [self performItem:expanded ? 17 : 18];
+}
 - (BOOL)isAccessibilityFocused {
   if (!self.isAccessibilityElement ||
       !self.collection.tree.view.window.isKeyWindow)
@@ -301,6 +309,8 @@
     return self.itemData && self.itemData.selected >= 0;
   if (selector == @selector(isAccessibilityExpanded))
     return self.itemData && self.itemData.expanded >= 0;
+  if (selector == @selector(accessibilityDisclosureLevel))
+    return self.itemData && self.itemData.hierarchyLevel >= 0;
   if (selector == @selector(accessibilityFrame))
     return [self.collection mountedRow:self.key].state.data.geometry != 0;
   if (selector == @selector(setAccessibilityFocused:) ||
@@ -312,8 +322,10 @@
   if (selector == @selector(setAccessibilitySelected:))
     return self.collection.state.selectionKind >= 0 &&
            (self.collection.state.collectionActions & 8);
-  if (selector == @selector(setAccessibilityExpanded:) ||
-      selector == @selector(setAccessibilityValue:))
+  if (selector == @selector(setAccessibilityExpanded:))
+    return self.isAccessibilityEnabled && self.itemData.expanded >= 0 &&
+           (self.collection.state.collectionActions & 256);
+  if (selector == @selector(setAccessibilityValue:))
     return NO;
   return [super isAccessibilitySelectorAllowed:selector];
 }
@@ -520,7 +532,8 @@ int64_t scoop_window_accessibility_collection_row(void *pointer, int64_t node,
 
 void scoop_window_accessibility_collection_item(
     void *pointer, int64_t index, int64_t count, int64_t span, int32_t enabled,
-    int32_t selected, int32_t expanded, int32_t focusable) {
+    int32_t selected, int32_t expanded, int32_t focusable,
+    int64_t hierarchy_level) {
   SWAccessibilityItemData *data = (__bridge SWAccessibilityItemData *)pointer;
   data.index = index;
   data.count = count;
@@ -529,6 +542,7 @@ void scoop_window_accessibility_collection_item(
   data.selected = selected;
   data.expanded = expanded;
   data.focusable = focusable;
+  data.hierarchyLevel = hierarchy_level;
 }
 void scoop_window_accessibility_collection_item_key(void *pointer, int32_t kind,
                                                     int64_t number,

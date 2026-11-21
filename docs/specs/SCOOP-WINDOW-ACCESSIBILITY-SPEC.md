@@ -120,7 +120,7 @@ AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible�
 
 `SemanticRole.List` 是逻辑集合容器。`SemanticItemKey` 以 Number(Long)／Text(String) 表达集合内稳定 key，区分数字和文本。`SemanticCollectionSource` 提供同一不可变快照的 count、keyAt、indexOfKey、describe 与 search；不从 View 构造函数推导元数据。`SemanticCollectionSnapshot(source)` 只保留描述源和已校验的实际 count，不枚举数据或创建每项对象。
 
-`SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected、expanded 与 focusable；可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded 的 None 表示没有该状态。focusable 缺省 false；只有数据源明确知道该项有真实聚焦目标时设为 true，不从名称或角色猜测。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
+`SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected、expanded、focusable 与可选 hierarchyLevel；可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded 的 None 表示没有该状态。hierarchyLevel 是从零开始的非负层级深度，None 表示未声明层级；不从条目位置推导深度。focusable 缺省 false；只有数据源明确知道该项有真实聚焦目标时设为 true，不从名称或角色猜测。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
 
 快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count、properties 与缺省为 1 的 span；普通条目的 span 为 1，表格单元格用它表达连续列跨度。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
 
@@ -141,6 +141,8 @@ AppKit 按被查询列解析到同一锚点代理，行子项只列出一次锚�
 ### 3.5 虚拟条目的明确操作
 
 `AccessibilityNode.collectionActions` 接受 `SemanticCollectionActions(realize, reveal, focus, setSelected)`，用于 List 或 Table。前两项是可选 `(SemanticItemKey) -> SemanticActionResult` 回调，focus 为可选 `(SemanticItemKey, Boolean) -> SemanticActionResult` 回调。能力随 collection 一同发布；动作重新按当前有效快照解析 key，经过相同 owner、模态、祖先 enabled／hidden 和退休边界。描述暂不可用或 key 已删除时返回 Unavailable，disabled 返回 Rejected；没有相应回调或条目未声明 focusable 时返回 Unsupported。
+
+可选 `SemanticCollectionActions.setExpanded` 接收 `(SemanticItemKey, Boolean)`，复用同一动作边界；只有当前条目明确声明 expanded 时可执行。它调用应用的实际展开模型，不隐式挂载、滚动或聚焦条目。AppKit 以公开 `setAccessibilityExpanded:` 映射展开／收起，以 `accessibilityDisclosureLevel` 发布声明的深度；setter 只在节点可用、已声明 expanded 且提供回调时公布。回调拒绝时保留原状态，旧代理不能操作后来重建的同 key 条目。
 
 表格可另传 `SemanticCollectionActions.grid = Some(SemanticGridActions(...))`：realize／reveal 回调接收行 key、列 key，focus 再接收 Boolean。每次调用同时检查当前行和列，单元格禁用或未声明 focusable 时沿相同结果规则处理。单元格动作不会降级为同一行的动作；列重排保留 key，删除后复用同 key 不复活旧代理。Realize 的 Completed 要求目标单元格及其语义子树已经发布，Reveal 和 Focus 仍分别等待真实可见几何与活动焦点。
 

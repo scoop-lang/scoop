@@ -23,4 +23,8 @@ scoop test . --release
 
 窗口需要可激活的本机桌面。这里直接调用 AppKit 的公开无障碍协议，不代替跨进程客户端或 VoiceOver 验收；本批仅验证本机 macOS。
 
+`NativeHierarchyTest` 另用两个各 14 阶段的 Application 验证 LazyElement 与 data collection 的层级描述和展开操作。一亿条记录只读取指定条目的深度／展开状态，测试来源的 build 一旦被调用即失败。公开 AppKit setter 经过实际模型，覆盖展开、收起、禁用、缺少动作或状态、应用拒绝、重排、删除后重用 key 及关闭；逐次核对模型变更，不能把 void setter 返回当作操作成功。这两项测试不要求系统焦点。
+
+2026-11-21：层级批次的 Window／UI 与本 Cone 格式化、check、release 构建通过；Window 3 项集合模型测试通过。两个层级 Application 分别约 0.90／1.09 秒完成，原 51 阶段双轴回归约 1.40 秒完成，均 failures 为空且 end／complete 齐全。行数使用公开 rowCount，目标行通过按行列访问的单元格取得父行，避免完整 children 查询枚举整个集合。Window／UI API 文档生成及 hierarchyLevel／setExpanded 查询通过；本批仅验证本机 macOS。
+
 2026-11-21：Portal 语义根修复后的格式化、check、release 构建及 51 阶段原生回归通过，约 1.27 秒，failures 为空并完整退出。新增窗口直接子项查询不枚举一亿行数据；菜单动作、关闭重开、行回收和原有几何／表头／跨度组合均通过。同一候选工具链下，`portal-modes` 的动态模态、嵌套优先级、编辑保留及中断关闭回归约 1.19 秒通过。
