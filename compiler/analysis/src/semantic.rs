@@ -14,6 +14,8 @@ mod dependencies;
 mod diagnostics;
 mod documentation;
 mod extract_alias;
+mod extract_declaration;
+pub use extract_declaration::DeclarationExtraction;
 mod extract_local;
 mod implementations;
 pub use implementations::{MemberHierarchy, MemberImplementationSearch, TypeImplementationSearch};

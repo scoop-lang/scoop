@@ -21,7 +21,7 @@ pub(super) enum ExtractionKind {
     FunctionStatements,
 }
 
-pub(super) struct Extraction {
+pub(in crate::semantic) struct Extraction {
     pub source_edit: SourceEdit,
     pub initializer: Span,
     pub replacement: Span,
@@ -200,6 +200,37 @@ impl Selection {
 }
 
 impl Extraction {
+    pub(in crate::semantic) fn declaration(
+        source: &SourceInput,
+        original: Span,
+        insertion: u32,
+        mut prefix: String,
+        suffix: &str,
+        name: &str,
+    ) -> Option<Self> {
+        let text = source.text.as_str();
+        let start = insertion as usize;
+        let initializer_start = u32::try_from(start + prefix.len()).ok()?;
+        prefix.push_str(text.get(original.start as usize..original.end as usize)?);
+        let initializer_end = u32::try_from(start + prefix.len()).ok()?;
+        prefix.push_str(suffix);
+        prefix.push_str(text.get(start..original.start as usize)?);
+        let use_start = u32::try_from(start + prefix.len()).ok()?;
+        prefix.push_str(name);
+        let use_end = u32::try_from(start + prefix.len()).ok()?;
+        Some(Self {
+            source_edit: SourceEdit {
+                source: source.version,
+                span: Span::new(insertion, original.end),
+                replacement: prefix,
+            },
+            initializer: Span::new(initializer_start, initializer_end),
+            replacement: Span::new(use_start, use_end),
+            original,
+            indented_lines: Vec::new(),
+        })
+    }
+
     pub fn map(&self, span: Span) -> Option<Span> {
         if contains(self.original, span) {
             let indentation_at = |offset, end: bool| {

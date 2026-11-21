@@ -145,6 +145,8 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `Extract Function` 将块内的完整表达式或连续语句提取为局部函数。调用仍位于原选区，外部不可重新绑定的值按 Scoop 的局部函数规则捕获。需要写回外部局部变量、离开选区跳转或在选区外继续使用被移动声明时没有可用动作。
 
+`Extract Constant` 将通过常量检查的表达式提取成文件私有 `const val`。`Extract Property` 将方法中的表达式提取为类私有计算属性，在原使用处调用 getter。`Extract Parameter` 将普通文件私有函数中的字面量或已绑定的形参读取提取为带默认值的新形参，原调用继续有效。
+
 `Inline Local Variable` 将普通局部 `val` 的稳定初始化值替换到全部读取处，并检查每处类型和绑定。`Introduce Type Alias` 从完整类型选区声明透明别名，适用于文件内和局部类型语法。`Safe Delete Function` 检查文件私有顶层函数，返回版本化删除编辑或包含阻塞用法的源码位置。
 
 `source.organizeImports` 去除已确认未使用的普通文件头精确 import。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在同一 Cone 和 package 移动普通顶层函数。`scoop/prepareChangeSignature` 返回 `parameters` 和 `revision`，`scoop/changeSignature` 接收该 revision 与零基 `order` 排列。移动和参数换序返回版本化 workspace edit。

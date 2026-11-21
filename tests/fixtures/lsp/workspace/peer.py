@@ -22,6 +22,7 @@ from diagnostics import check as check_diagnostics
 from do_while_recovery import check as check_do_while_recovery
 from documentation import check as check_documentation
 from exception_recovery import check as check_exception_recovery
+from extract_declarations import check as check_extract_declarations
 from extract_local import check as check_extract_local
 from file_headers import check as check_file_headers
 from for_recovery import check as check_for_recovery
@@ -464,6 +465,7 @@ def main():
         check_reexport_references(peer, root)
         check_rename(peer, root)
         check_extract_local(peer, root)
+        check_extract_declarations(peer, root)
         check_refactor_local(peer, root)
         check_structure_refactors(peer, root)
         check_rename_types(peer, root)

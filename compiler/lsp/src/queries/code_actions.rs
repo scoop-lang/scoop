@@ -4,8 +4,8 @@ use lsp_types::{
     OptionalVersionedTextDocumentIdentifier, Range, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
 use scoop_analysis::{
-    AnalysisSnapshot, Cancellation, ProjectAnalysisError, SafeDelete, SemanticSession, SourceId,
-    SourceInput, SyntaxFix,
+    AnalysisSnapshot, Cancellation, DeclarationExtraction, ProjectAnalysisError, SafeDelete,
+    SemanticSession, SourceId, SourceInput, SyntaxFix,
 };
 use scoop_source::{SourceEdit, Span};
 use serde::{Deserialize, Serialize};
@@ -49,16 +49,22 @@ enum Refactoring {
     ExtractVariable,
     ExtractFunction,
     ExtractTypeAlias,
+    ExtractConstant,
+    ExtractProperty,
+    ExtractParameter,
     InlineVariable,
     SafeDelete,
     OrganizeImports,
 }
 
 impl Refactoring {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 9] = [
         Self::ExtractVariable,
         Self::ExtractFunction,
         Self::ExtractTypeAlias,
+        Self::ExtractConstant,
+        Self::ExtractProperty,
+        Self::ExtractParameter,
         Self::InlineVariable,
         Self::SafeDelete,
         Self::OrganizeImports,
@@ -66,9 +72,12 @@ impl Refactoring {
 
     fn kind(self) -> CodeActionKind {
         match self {
-            Self::ExtractVariable | Self::ExtractFunction | Self::ExtractTypeAlias => {
-                CodeActionKind::REFACTOR_EXTRACT
-            }
+            Self::ExtractVariable
+            | Self::ExtractFunction
+            | Self::ExtractTypeAlias
+            | Self::ExtractConstant
+            | Self::ExtractProperty
+            | Self::ExtractParameter => CodeActionKind::REFACTOR_EXTRACT,
             Self::InlineVariable => CodeActionKind::REFACTOR_INLINE,
             Self::SafeDelete => CodeActionKind::REFACTOR_REWRITE,
             Self::OrganizeImports => CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
@@ -80,6 +89,9 @@ impl Refactoring {
             Self::ExtractVariable => "Extract Local Variable",
             Self::ExtractFunction => "Extract Function",
             Self::ExtractTypeAlias => "Introduce Type Alias",
+            Self::ExtractConstant => "Extract Constant",
+            Self::ExtractProperty => "Extract Property",
+            Self::ExtractParameter => "Extract Parameter",
             Self::InlineVariable => "Inline Local Variable",
             Self::SafeDelete => "Safe Delete Function",
             Self::OrganizeImports => "Organize Imports",
@@ -276,6 +288,23 @@ fn refactor(
             check,
         ))?
         .map(|edit| vec![edit]),
+        Refactoring::ExtractConstant
+        | Refactoring::ExtractProperty
+        | Refactoring::ExtractParameter => {
+            let kind = match target {
+                Refactoring::ExtractConstant => DeclarationExtraction::Constant,
+                Refactoring::ExtractProperty => DeclarationExtraction::Property,
+                _ => DeclarationExtraction::Parameter,
+            };
+            analysis_result(semantics.extract_declaration(
+                context.snapshot,
+                context.source_id,
+                range,
+                kind,
+                check,
+            ))?
+            .map(|edit| vec![edit])
+        }
         Refactoring::InlineVariable => analysis_result(semantics.inline_local(
             context.snapshot,
             context.source_id,

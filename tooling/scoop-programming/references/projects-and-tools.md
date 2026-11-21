@@ -153,6 +153,8 @@ VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Pee
 
 重构菜单还支持内联字面量或稳定值初始化的局部 `val`、从完整类型选区引入透明 `typealias`，以及检查文件私有顶层函数能否安全删除。
 
+选中符合条件的表达式时，`Extract Constant` 创建文件私有常量，`Extract Property` 创建类私有计算属性，`Extract Parameter` 为文件私有函数添加带默认值的形参。
+
 `Organize Imports` 删除未使用的普通精确导入。`Scoop: Move Declaration` 可在同一 Cone、同一 package 中移动顶层函数。`Scoop: Change Signature` 为文件私有函数调整参数顺序并保留调用处的求值顺序。
 
 ## 测试和诊断

@@ -17,10 +17,10 @@ pub use host::{AnalysisHost, AnalysisSnapshot, SnapshotEditError, SourceInput};
 pub use scoop_parser::identifier_spelling;
 pub use scoop_source::{Revision, SourceId, SourceVersion};
 pub use semantic::{
-    CallHierarchyDirection, CallHierarchyRelation, MemberHierarchy, MemberImplementationSearch,
-    ProjectAnalysisError, ReferenceSearch, RenameError, RenamePreparation, SafeDelete,
-    SemanticSession, TypeHierarchyDirection, TypeHierarchyNode, TypeHierarchyOrigin,
-    TypeImplementationSearch,
+    CallHierarchyDirection, CallHierarchyRelation, DeclarationExtraction, MemberHierarchy,
+    MemberImplementationSearch, ProjectAnalysisError, ReferenceSearch, RenameError,
+    RenamePreparation, SafeDelete, SemanticSession, TypeHierarchyDirection, TypeHierarchyNode,
+    TypeHierarchyOrigin, TypeImplementationSearch,
 };
 pub use symbols::{SourceSymbol, SymbolQueryError, WorkspaceSymbol};
 pub use syntax::{Fold, FoldKind, SyntaxPtr, folding_ranges, selection_ranges};

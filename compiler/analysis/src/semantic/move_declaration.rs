@@ -195,7 +195,7 @@ fn package_parts(package: &PackageSyntax) -> impl Iterator<Item = &str> {
         .map(|part| part.text.as_str())
 }
 
-fn attached_comments(input: &SourceInput, mut span: Span) -> Span {
+pub(super) fn attached_comments(input: &SourceInput, mut span: Span) -> Span {
     if let Ok(documentation) = input.documentation()
         && let Some(document) = documentation
             .documents

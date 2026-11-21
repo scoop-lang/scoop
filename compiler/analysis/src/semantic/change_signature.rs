@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use scoop_ast::{Decl, DeclaredVisibility, FunctionBody, FunctionDecl, VisibilitySyntax};
 use scoop_hir::{
-    EditingCallee, EditingReferenceTarget, EditingValue, SemanticCallable, SemanticSourceLocation,
+    EditingAppliedCall, EditingCallee, EditingReferenceIndex, EditingReferenceTarget, EditingValue,
+    SemanticCallable, SemanticSourceLocation,
 };
 use scoop_source::{SourceEdit, Span};
 
@@ -68,14 +69,6 @@ impl SemanticSession {
             source: file.identity.clone(),
             span: function.name.span,
         };
-        let Some(declared) = analysis
-            .functions()
-            .iter()
-            .find(|candidate| candidate.name_origin == origin)
-        else {
-            return Ok(None);
-        };
-        let callee = EditingCallee::Callable(SemanticCallable::Current(declared.function));
         let cancellation = check.clone();
         let before = analysis
             .reference_index(move || cancellation())
@@ -89,65 +82,39 @@ impl SemanticSession {
         {
             return Ok(None);
         }
-        let [target @ EditingReferenceTarget::Callable(_)] = before.targets_at(&origin) else {
+        let Some(calls) = checked_direct_calls(analysis, &before, &origin, check.clone())? else {
             return Ok(None);
         };
-        let mut call_names = HashSet::new();
         let mut call_edits = Vec::new();
-        for body in analysis.source_bodies() {
-            if body.origin.source != file.identity {
-                continue;
+        for call in calls {
+            let explicit = call
+                .arguments
+                .iter()
+                .map(|argument| argument.parameter)
+                .collect::<HashSet<_>>();
+            let missing = (0..order.len()).filter(|index| !explicit.contains(index));
+            if !missing.eq(order
+                .iter()
+                .copied()
+                .filter(|index| !explicit.contains(index)))
+            {
+                return Ok(None);
             }
-            let cancellation = check.clone();
-            let EditingValue::Known(calls) = analysis
-                .calls(body.id, move || cancellation())
-                .map_err(|_| ProjectAnalysisError::Cancelled)?
-            else {
-                continue;
-            };
-            for call in calls.iter().filter(|call| call.callee == Some(callee)) {
-                let Some(name) = call.callee_span else {
-                    return Ok(None);
-                };
-                if !call_names.insert(name) {
-                    continue;
-                }
-                let explicit = call
-                    .arguments
-                    .iter()
-                    .map(|argument| argument.parameter)
-                    .collect::<HashSet<_>>();
-                let missing = (0..order.len()).filter(|index| !explicit.contains(index));
-                if !missing.eq(order
-                    .iter()
-                    .copied()
-                    .filter(|index| !explicit.contains(index)))
-                {
+            for argument in &call.arguments {
+                if argument.trailing || argument.parameter >= function.params.len() {
                     return Ok(None);
                 }
-                for argument in &call.arguments {
-                    if argument.trailing || argument.parameter >= function.params.len() {
-                        return Ok(None);
-                    }
-                    if argument.name_span.is_none() {
-                        let name = scoop_parser::identifier_spelling(
-                            &function.params[argument.parameter].name.text,
-                        );
-                        call_edits.push(SourceEdit {
-                            source: input.version,
-                            span: Span::new(argument.span.start, argument.span.start),
-                            replacement: format!("{name} = "),
-                        });
-                    }
+                if argument.name_span.is_none() {
+                    let name = scoop_parser::identifier_spelling(
+                        &function.params[argument.parameter].name.text,
+                    );
+                    call_edits.push(SourceEdit {
+                        source: input.version,
+                        span: Span::new(argument.span.start, argument.span.start),
+                        replacement: format!("{name} = "),
+                    });
                 }
             }
-        }
-        if before.references_to(*target).any(|reference| {
-            !reference.is_declaration
-                && (reference.origin.source != file.identity
-                    || !call_names.contains(&reference.origin.span))
-        }) {
-            return Ok(None);
         }
         call_edits.sort_unstable_by_key(|edit| edit.span.start);
         let Some((signature, parameters)) = reorder(input, function, order, &call_edits) else {
@@ -212,6 +179,54 @@ impl SemanticSession {
             .filter(|(expected, actual)| expected.is_subset(actual))
             .map(|_| edits))
     }
+}
+
+pub(super) fn checked_direct_calls(
+    analysis: &mut DeclarationAnalysis,
+    references: &EditingReferenceIndex,
+    origin: &SemanticSourceLocation,
+    check: Rc<dyn Fn() -> bool>,
+) -> Result<Option<Vec<EditingAppliedCall>>, ProjectAnalysisError> {
+    let [target @ EditingReferenceTarget::Callable(_)] = references.targets_at(origin) else {
+        return Ok(None);
+    };
+    let Some(declared) = analysis
+        .functions()
+        .iter()
+        .find(|function| function.name_origin == *origin)
+    else {
+        return Ok(None);
+    };
+    let callee = EditingCallee::Callable(SemanticCallable::Current(declared.function));
+    let mut names = HashSet::new();
+    let mut direct = Vec::new();
+    for body in analysis.source_bodies() {
+        if body.origin.source != origin.source {
+            continue;
+        }
+        let cancellation = check.clone();
+        let EditingValue::Known(calls) = analysis
+            .calls(body.id, move || cancellation())
+            .map_err(|_| ProjectAnalysisError::Cancelled)?
+        else {
+            continue;
+        };
+        for call in calls.iter().filter(|call| call.callee == Some(callee)) {
+            let Some(name) = call.callee_span else {
+                return Ok(None);
+            };
+            if names.insert(name) {
+                direct.push(call.clone());
+            }
+        }
+    }
+    if references.references_to(*target).any(|reference| {
+        !reference.is_declaration
+            && (reference.origin.source != origin.source || !names.contains(&reference.origin.span))
+    }) {
+        return Ok(None);
+    }
+    Ok(Some(direct))
 }
 
 fn function_at(input: &SourceInput, selection: Span) -> Option<&FunctionDecl> {

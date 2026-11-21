@@ -67,6 +67,8 @@ rename 要求所选项目的必要源码及语义分析完整。存在不可证�
 
 整理导入、同 Cone 同 package 的顶层函数移动及文件私有函数参数换序已接入。macOS Clippy、Ruff、TypeScript 检查、三项 release LSP fixture 和 VS Code Extension Host 通过。实际应用换序编辑前后分别以 release 编译并运行，显式实参与省略参数的默认表达式求值顺序一致。
 
+常量、计算属性和默认参数提取已接入。macOS Clippy、Ruff 和三项 release LSP fixture 通过。用例应用版本化编辑，并覆盖常量折叠、访问实例状态、方法局部变量与有副作用的表达式。
+
 ## 合并 origin/main
 
 接入 `f3f8ace69` 的 M61 文本后端、Regex 与 M62 优化。上述公共基础全量验收截至 `0842bec3f`；本次合并的验证单独记录，不将此前结果视为合并后重新执行的全量。
