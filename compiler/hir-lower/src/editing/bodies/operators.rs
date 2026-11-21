@@ -11,13 +11,13 @@ impl Lowerer {
         if !self.observes_current_body() {
             return operation(self);
         }
-        let names = &mut self
-            .editing_body
-            .as_mut()
-            .expect("active query")
-            .callable_names;
+        let body = self.editing_body.as_mut().expect("active query");
+        let names = &mut body.callable_names;
         let previous = match source {
-            Some(source) => names.insert(call, source),
+            Some(source) => {
+                body.operator_names.insert(source);
+                names.insert(call, source)
+            }
             None => names.remove(&call),
         };
         let result = operation(self);

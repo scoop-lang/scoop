@@ -58,11 +58,9 @@ impl Lowerer {
             ..
         } = expression
         {
-            self.editing_body
-                .as_mut()
-                .expect("active query")
-                .callable_names
-                .insert(*span, *operator);
+            let body = self.editing_body.as_mut().expect("active query");
+            body.callable_names.insert(*span, *operator);
+            body.operator_names.insert(*operator);
             return;
         }
         if let ast::Expr::CallableReference { name, span, .. } = expression {
@@ -109,7 +107,9 @@ impl Lowerer {
         let Some(span) = span else {
             return;
         };
+        let is_operator = body.operator_names.contains(&span);
         let definition = self.editing_callee_origin(target);
+        let operator_context = is_operator.then(|| self.observe_body_context());
         let references = self
             .editing_body
             .as_mut()
@@ -122,7 +122,20 @@ impl Lowerer {
             span,
             target,
             definition,
+            operator_context,
         });
+    }
+
+    pub(crate) fn observe_literal_value_call(&mut self, call: ast::Span, reference: ast::Span) {
+        if !self.observes_current_body() {
+            return;
+        }
+        let body = self.editing_body.as_mut().expect("active query");
+        if let Some(&name) = body.callable_names.get(&reference)
+            && let Some([target]) = body.callables.get(&name).map(Vec::as_slice)
+        {
+            body.literal_value_calls.insert(call, (name, target.target));
+        }
     }
 
     pub(in crate::editing) fn editing_construction_name(

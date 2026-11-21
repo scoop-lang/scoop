@@ -22,7 +22,7 @@ Run／Debug 后才调用普通构建入口。扩展不自动准备 sysroot；不
 
 在覆写的方法或属性名称上执行 `Scoop: Go to Super Declaration`，可打开被覆写的上级声明。在类型上执行 `Peek Type Hierarchy`，可逐层查看父类型和子类型。
 
-在函数、方法或调用上执行 `Peek Call Hierarchy`，可查看调用方和被调用方。同一调用方的多处调用会列在同一个层级项下。
+在函数、方法或调用上执行 `Peek Call Hierarchy`，可查看调用方和被调用方。层级也包含构造、默认表达式、访问器和运算符。可定位的动态函数值调用会列出值绑定，同一调用方的多处调用会归在一个层级项下。
 
 在方法或属性声明上执行 `Scoop: Show Member Hierarchy`，可在直接上级和覆写声明之间逐层导航。`Scoop: Go to Related Tests` 可在 Test 配置中查看所选符号在测试源码中的实际用法。对 `break`、`continue`、`return` 及其目标标签使用「转到定义」，可定位对应的循环或 callable。
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from accessor_bodies import check as check_accessor_bodies
 from call_hierarchy import check as check_call_hierarchy
+from call_hierarchy_operations import check as check_call_hierarchy_operations
 from callable_arguments import check as check_callable_arguments
 from callable_literals import check as check_callable_literals
 from callable_values import check as check_callable_values
@@ -449,6 +450,7 @@ def main():
         check_type_hovers(peer, root)
         check_type_implementations(peer, root)
         check_call_hierarchy(peer, root)
+        check_call_hierarchy_operations(peer, root)
         check_member_implementations(peer, root)
         check_navigation_extras(peer, root, restore="test")
         check_recovered_classes(peer, root)

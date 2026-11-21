@@ -147,7 +147,7 @@ scoop-lsp query symbols src/main.scoop
 
 type-definition、implementation、references 提供进一步导航。workspace-symbols 只查当前工作区源码声明；查库中尚未使用的名称仍从文档/库源码入手。capabilities 不加载项目，报告实际服务器能力。每次查询使用新会话，结束会回收服务器；缺少 lock 的初始化沿用前述 PM 规则。
 
-VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Peek Call Hierarchy` 查看调用方和被调用方。同一块内选中完整表达式或可独立执行的连续语句时，重构菜单可提供 `Extract Function`。
+VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Peek Call Hierarchy` 查看函数、方法、构造、默认表达式、访问器和运算符的调用关系。同一块内选中完整表达式或可独立执行的连续语句时，重构菜单可提供 `Extract Function`。
 
 `Scoop: Show Member Hierarchy` 查看方法和属性的直接上级或覆写。`Scoop: Go to Related Tests` 在 Test 配置内定位测试源码中的实际用法。对跳转关键字用「转到定义」可找到对应循环或 callable。
 

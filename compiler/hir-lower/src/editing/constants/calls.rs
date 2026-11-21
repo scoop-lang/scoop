@@ -41,6 +41,7 @@ impl DeclarationAnalysis {
                 span,
                 target,
                 definition: self.lowerer.editing_callee_origin(target),
+                operator_context: None,
             })
         })))
     }

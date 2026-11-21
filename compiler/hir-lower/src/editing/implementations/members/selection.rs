@@ -124,7 +124,7 @@ impl DeclarationAnalysis {
         Ok(V::Known(targets))
     }
 
-    pub(super) fn property_declaration_at(
+    pub(in crate::editing) fn property_declaration_at(
         &self,
         source: &scoop_identity::SourceIdentity,
         span: ast::Span,

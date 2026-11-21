@@ -7,7 +7,7 @@ use scoop_analysis::{
     AnalysisSnapshot, CallHierarchyDirection, Cancellation, ProjectAnalysisError, ProjectInput,
     SemanticSession, SourceId,
 };
-use scoop_hir::EditingCallHierarchyDeclaration;
+use scoop_hir::{EditingCallHierarchyDeclaration, EditingCallHierarchyKind};
 use scoop_source::Span;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -166,10 +166,12 @@ fn item(
         })?;
     Ok(Some(CallHierarchyItem {
         name: declaration.name,
-        kind: if declaration.method {
-            SymbolKind::METHOD
-        } else {
-            SymbolKind::FUNCTION
+        kind: match declaration.kind {
+            EditingCallHierarchyKind::Function => SymbolKind::FUNCTION,
+            EditingCallHierarchyKind::Method => SymbolKind::METHOD,
+            EditingCallHierarchyKind::Constructor => SymbolKind::CONSTRUCTOR,
+            EditingCallHierarchyKind::Property => SymbolKind::PROPERTY,
+            EditingCallHierarchyKind::Variable => SymbolKind::VARIABLE,
         },
         detail: None,
         tags: None,

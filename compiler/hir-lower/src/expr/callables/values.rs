@@ -39,6 +39,8 @@ impl Lowerer {
             self.require_unsafe_operation(span, "calling a native function pointer");
         }
         let signature = self.function_types[function_type].clone();
+        let direct_reference =
+            matches!(callee.kind, hir::ExprKind::CallableReference(_)).then_some(callee.span);
         if let Some(argument) = args
             .iter()
             .find(|argument| matches!(argument.name, ast::CallArgumentName::Named(_)))
@@ -158,6 +160,9 @@ impl Lowerer {
             span,
             signature.parameters().copied().skip(bound_receiver_count),
         );
+        if let Some(reference) = direct_reference {
+            self.observe_literal_value_call(span, reference);
+        }
         let kind = match native_mode {
             Some(call_mode) => ExprKind::NativePointerCall {
                 callee: Box::new(callee),

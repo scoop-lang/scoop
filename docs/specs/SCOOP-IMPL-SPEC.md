@@ -2210,6 +2210,8 @@ lambda 与匿名函数的恢复记录只保留原 grammar 已完成的参数／r
 
 调用层级通过 `textDocument/prepareCallHierarchy` 选择源码函数或方法，或从已绑定的调用选择其声明。`callHierarchy/incomingCalls` 从原项目配置的已检查源码正文收集实际调用，`callHierarchy/outgoingCalls` 读取选中声明的正文。重载、泛型和虚调用使用正常绑定选中的声明，按一对声明合并调用位置。函数值的创建和函数引用不产生调用边。缺少可读源码的声明不返回编辑器层级项。展开使用准备项的项目配置和分析 revision。
 
+构造调用定位已绑定的构造声明，构造委托和初始化正文中的调用归于其拥有的构造器。默认表达式里的调用按默认值的定义位置归于所属声明。属性读写只在已选中的访问器有正文或抽象分派时形成访问器边，getter 和 setter 以逻辑属性归组。运算符调用使用实际 token 及绑定的普通 callable。直接调用可确定目标的函数引用时返回相应声明，其他可定位的函数值调用可返回该值的绑定。函数值绑定边不推断运行时实现。
+
 成员层级在方法或属性声明上通过 `scoop/memberHierarchy` 返回直接上级与直接覆写的位置。两种方向沿用该声明本身的覆盖关系，包含抽象声明。文件内用法高亮通过 `textDocument/documentHighlight` 查询当前文件的实际绑定。相关测试导航通过 `scoop/relatedTests` 返回当前 Test 项目配置中测试源码的实际引用位置。
 
 `textDocument/definition` 可从 `break`、`continue`、`return` 或它们的显式目标标签定位普通前端选中的循环或 callable。循环选取当前 callable 中的真实目标，源码位置取目标标签或循环关键字。返回按实际 callable 边界定位声明或显式标签。失败的控制流目标不返回位置。

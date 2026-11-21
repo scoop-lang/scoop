@@ -164,4 +164,5 @@ pub struct EditingCallableReference {
     pub span: Span,
     pub target: EditingCallee,
     pub definition: Option<SemanticSourceLocation>,
+    pub operator_context: Option<crate::SourceContextId>,
 }

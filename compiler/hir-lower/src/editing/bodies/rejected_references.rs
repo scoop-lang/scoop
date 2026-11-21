@@ -37,6 +37,7 @@ impl Lowerer {
             span,
             target: target.into(),
             definition: self.editing_callee_origin(target.into()),
+            operator_context: None,
         };
         self.editing_body
             .as_mut()

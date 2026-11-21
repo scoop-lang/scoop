@@ -129,7 +129,7 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 类型层级通过 `textDocument/prepareTypeHierarchy` 选择名义类型，再用 `typeHierarchy/supertypes` 和 `typeHierarchy/subtypes` 展开直接父类型或子类型。别名展开到原类型，泛型应用归并到同一声明。展开保留发起时的项目配置，输入更新后重新打开层级。
 
-调用层级通过 `textDocument/prepareCallHierarchy` 从函数、方法或其调用进入。调用方与被调用方按同一对声明合并调用位置。虚调用显示静态绑定的成员，可再通过「转到实现」查看提供者。函数引用仍能在查找引用中定位。
+调用层级通过 `textDocument/prepareCallHierarchy` 从函数、方法、构造器、访问器或实际调用位置进入。调用方与被调用方按同一对声明合并调用位置。虚调用显示静态绑定的成员，可再通过「转到实现」查看提供者。构造委托、初始化正文和默认表达式的调用归入原声明。getter 和 setter 归入逻辑属性，运算符使用实际 token。直接调用函数引用会显示目标函数，可定位的动态函数值调用显示该值的声明。
 
 `scoop/memberHierarchy` 返回方法与属性的直接上级和直接覆写，保留抽象声明。`textDocument/documentHighlight` 给出同文件中实际绑定的用法。`scoop/relatedTests` 给出当前 Test 配置的测试源码引用。对 `break`、`continue`、`return` 及其目标标签使用「转到定义」，可定位前端选中的循环或 callable。
 
