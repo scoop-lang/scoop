@@ -56,6 +56,10 @@ CONTROLTYPEID controlType(const State &value) {
     return data.has_range ? UIA_ThumbControlTypeId : UIA_SeparatorControlTypeId;
   case 28:
     return UIA_ListItemControlTypeId;
+  case 29:
+    return UIA_TreeControlTypeId;
+  case 30:
+    return UIA_TreeItemControlTypeId;
   default:
     return UIA_GroupControlTypeId;
   }
@@ -89,8 +93,8 @@ bool Node::supports(PATTERNID pattern, const State &value) {
   case UIA_InvokePatternId:
     return (d.actions & 1) != 0;
   case UIA_TogglePatternId:
-    return d.checked >= 0 &&
-           (d.role == 3 || d.role == 7 || d.role == 8 || d.role == 18);
+    return d.checked >= 0 && (d.role == 3 || d.role == 7 || d.role == 8 ||
+                              d.role == 18 || d.role == 30);
   case UIA_ValuePatternId:
     return d.role == 4 || ((d.actions & 4) != 0);
   case UIA_RangeValuePatternId:
@@ -102,13 +106,15 @@ bool Node::supports(PATTERNID pattern, const State &value) {
   case UIA_ExpandCollapsePatternId:
     return d.expanded >= 0;
   case UIA_ScrollPatternId:
-    return (d.role == 5 || d.role == 4 || d.role == 12 || d.role == 22) &&
+    return (d.role == 5 || d.role == 4 || d.role == 12 || d.role == 22 ||
+            d.role == 29) &&
            (scrollBar(1) || scrollBar(2));
   case UIA_ScrollItemPatternId:
     return (d.actions & 1024) != 0;
   case UIA_GridPatternId:
   case UIA_TablePatternId:
-    return d.role == 22;
+    return d.role == 22 ||
+           (d.role == 29 && (!value.columns.empty() || d.table_columns > 0));
   case UIA_GridItemPatternId:
   case UIA_TableItemPatternId:
     return d.cell_row >= 0 && d.cell_column >= 0 && d.row_span > 0 &&
@@ -309,7 +315,10 @@ HRESULT Node::GetPropertyValue(PROPERTYID property, VARIANT *result) {
                                              : OrientationType_None);
       break;
     case UIA_LevelPropertyId:
-      if (data.heading_level)
+      if (value->hierarchyLevel >= 0) {
+        if (value->hierarchyLevel < INT_MAX)
+          integer(static_cast<int>(value->hierarchyLevel + 1));
+      } else if (data.heading_level)
         integer(data.heading_level);
       break;
     case UIA_HeadingLevelPropertyId:
@@ -352,14 +361,20 @@ HRESULT Node::GetPropertyValue(PROPERTYID property, VARIANT *result) {
         }
       }
       break;
-    case UIA_PositionInSetPropertyId:
-      if (element->reference.kind == 1 && data.cell_row < INT_MAX)
-        integer(static_cast<int>(data.cell_row + 1));
+    case UIA_PositionInSetPropertyId: {
+      const auto index =
+          value->siblingIndex >= 0 ? value->siblingIndex : data.cell_row;
+      if (element->reference.kind == 1 && index >= 0 && index < INT_MAX)
+        integer(static_cast<int>(index + 1));
       break;
+    }
     case UIA_SizeOfSetPropertyId: {
       auto source = tree->state(element->reference.node);
-      if (element->reference.kind == 1 && source && source->count <= INT_MAX)
-        integer(static_cast<int>(source->count));
+      const auto count = value->siblingCount >= 0 ? value->siblingCount
+                         : source                 ? source->count
+                                                  : -1;
+      if (element->reference.kind == 1 && count >= 0 && count <= INT_MAX)
+        integer(static_cast<int>(count));
       break;
     }
     default:

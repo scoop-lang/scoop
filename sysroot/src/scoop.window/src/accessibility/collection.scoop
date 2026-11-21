@@ -4,20 +4,21 @@ import scoop.window.requireWindow
 import scoop.collections.HashSet
 
 /** Stable identity within one collection, independent of its current position. */
-public enum SemanticItemKey: Equals<SemanticItemKey>, Hash {
+public enum SemanticItemKey : Equals<SemanticItemKey>, Hash {
     Number(Long), Text(String)
-    public override operator fun equals(other: SemanticItemKey): Boolean =
-        when ((this, other)) {
-            case(Number(val left), Number(val right)) -> left == right
-            case(Text(val left), Text(val right)) -> left == right
-            else -> false
-        }
-    public override fun hash(): Long =
-        when (this) {
-            case Number(val value) -> value.hash()
-            case Text(val value) -> value.hash()
-        }
+    public override operator fun equals(other: SemanticItemKey): Boolean = when ((this, other)) {
+        case(Number(val left), Number(val right)) -> left == right
+        case(Text(val left), Text(val right)) -> left == right
+        else -> false
+    }
+    public override fun hash(): Long = when (this) {
+        case Number(val value) -> value.hash()
+        case Text(val value) -> value.hash()
+    }
 }
+
+/** Zero-based position in the current sibling set, independently of flattened row positions. */
+public struct SemanticItemPosition(val index: Long, val count: Long)
 
 /** Unknown text differs from known empty text; absent states are not advertised. */
 public struct SemanticItemProperties(
@@ -32,12 +33,24 @@ public struct SemanticItemProperties(
     /** Zero-based hierarchy depth; absent for collections without a hierarchy. */
     val hierarchyLevel: Long? = None,
     /** Excludes this item from selection without disabling reading or focus. */
-    val selectable: Boolean = true
+    val selectable: Boolean = true,
+    val parentKey: SemanticItemKey? = None,
+    val siblings: SemanticItemPosition? = None,
+    val checked: SemanticChecked? = None,
+    val busy: Boolean = false
 )
 
 private fun checkItemProperties(properties: SemanticItemProperties) {
     when (properties.hierarchyLevel) {
         case Some(val level) -> requireWindow(level >= 0L, "negative semantic hierarchy level")
+        case None -> {}
+    }
+    when (properties.siblings) {
+        case Some(val position) ->
+            requireWindow(
+                position.index >= 0L && position.index < position.count,
+                "semantic sibling position is out of range"
+            )
         case None -> {}
     }
 }
@@ -49,7 +62,8 @@ public struct SemanticCollectionActions(
     val focus: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None,
     val setSelected: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None,
     val grid: SemanticGridActions? = None,
-    val setExpanded: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None
+    val setExpanded: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None,
+    val setChecked: ((SemanticItemKey, Boolean) -> SemanticActionResult)? = None
 )
 
 /** An immutable selection snapshot whose size is proportional to the selection. */
@@ -105,26 +119,26 @@ public class SemanticCollectionSnapshot public constructor(
 ) {
     public val count: Long = source.count
     public val search: SemanticItemSearch = source.search
-    internal val hasSelection: Boolean get() =
-        when (selection) {
+    internal val hasSelection: Boolean
+        get() = when (selection) {
             case Some(_) -> true
             case None -> false
         }
     init {
         requireWindow(count >= 0L, "negative semantic collection count")
         when (selection) {
-            case Some(val value) -> for (key in value.keys)
-                requireWindow(
-                    indexOf(key) != None,
-                    "selected key is not in the collection snapshot"
-                )
+            case Some(val value) ->
+                for (key in value.keys)
+                    requireWindow(
+                        indexOf(key) != None,
+                        "selected key is not in the collection snapshot"
+                    )
             case None -> {}
         }
     }
 
     public fun itemAt(index: Long): SemanticItemResult {
-        if (index < 0L || index >= count)
-            return SemanticItemResult.NotFound
+        if (index < 0L || index >= count) return SemanticItemResult.NotFound
         val key = source.keyAt(index)
         requireWindow(
             source.indexOfKey(key) == Some(index),
@@ -151,106 +165,110 @@ public class SemanticCollectionSnapshot public constructor(
     private fun described(key: SemanticItemKey, index: Long): SemanticItemResult {
         val properties = source.describe(index) ?: return SemanticItemResult.Unavailable
         checkItemProperties(properties)
-        val selected =
-            if (!properties.selectable)
-                None
-            else
-                when (selection) {
-                    case Some(val value) -> Some(value.contains(key))
-                    case None -> properties.selected
-                }
-        val actual =
-            if (selected == properties.selected)
-                properties
-            else
-                SemanticItemProperties(
-                    properties.name,
-                    properties.description,
-                    properties.automationId,
-                    properties.value,
-                    properties.enabled,
-                    selected,
-                    properties.expanded,
-                    properties.focusable,
-                    properties.hierarchyLevel,
-                    properties.selectable
+        when (properties.parentKey) {
+            case Some(val parent) -> {
+                val position = indexOf(parent)
+                requireWindow(
+                    position != None && position!! < index,
+                    "semantic parent must precede its child in the same collection"
                 )
-        return SemanticItemResult.Found(
-            SemanticItem(
-                key,
-                index,
-                count,
-                actual,
-                hasCells = (grid?.hasCells ?: None)?.invoke(key) ?: true
+            }
+
+            case None -> {}
+        }
+        val selected = if (!properties.selectable)
+            None
+        else
+            when (selection) {
+                case Some(val value) -> Some(value.contains(key))
+                case None -> properties.selected
+            }
+        val actual = if (selected == properties.selected)
+            properties
+        else
+            SemanticItemProperties(
+                properties.name,
+                properties.description,
+                properties.automationId,
+                properties.value,
+                properties.enabled,
+                selected,
+                properties.expanded,
+                properties.focusable,
+                properties.hierarchyLevel,
+                properties.selectable,
+                properties.parentKey,
+                properties.siblings,
+                properties.checked,
+                properties.busy
             )
-        )
+        return SemanticItemResult
+            .Found(
+                SemanticItem(
+                    key,
+                    index,
+                    count,
+                    actual,
+                    hasCells = (grid?.hasCells ?: None)?.invoke(key) ?: true
+                )
+            )
     }
 
     public fun cellForKey(row: SemanticItemKey, column: SemanticItemKey): SemanticItemResult {
-        if (indexOf(row) == None)
-            return SemanticItemResult.NotFound
+        if (indexOf(row) == None) return SemanticItemResult.NotFound
         val table = grid ?: return SemanticItemResult.Unsupported
         val index = table.indexOf(column) ?: return SemanticItemResult.NotFound
-        if (!(table.hasCells?.invoke(row) ?: true))
-            return SemanticItemResult.NotFound
+        if (!(table.hasCells?.invoke(row) ?: true)) return SemanticItemResult.NotFound
         val span = table.resolveSpan(row, index)
         val properties = table.describe(row, span.column) ?: return SemanticItemResult.Unavailable
         checkItemProperties(properties)
-        return SemanticItemResult.Found(
-            SemanticItem(
-                table.columns[span.column].key,
-                span.column,
-                table.columns.size,
-                properties,
-                span.columnSpan
+        return SemanticItemResult
+            .Found(
+                SemanticItem(
+                    table.columns[span.column].key,
+                    span.column,
+                    table.columns.size,
+                    properties,
+                    span.columnSpan
+                )
             )
-        )
     }
 
     /** Used while publishing to retire covered columns and rows without cells. */
     internal fun cellSpanForIndex(row: SemanticItemKey, column: Long): SemanticGridSpan? {
-        if (indexOf(row) == None)
-            return None
+        if (indexOf(row) == None) return None
         val table = grid ?: return None
-        if (column < 0L || column >= table.columns.size)
-            return None
-        if (!(table.hasCells?.invoke(row) ?: true))
-            return None
+        if (column < 0L || column >= table.columns.size) return None
+        if (!(table.hasCells?.invoke(row) ?: true)) return None
         return Some(table.resolveSpan(row, column))
     }
 
     /** Searches after a key in this snapshot, without retaining a positional cursor. */
     public fun find(query: SemanticItemQuery, after: SemanticItemKey? = None): SemanticItemResult {
-        val supported =
-            when (query) {
-                case Name(_) -> search.name
-                case AutomationId(_) -> search.automationId
+        val supported = when (query) {
+            case Name(_) -> search.name
+            case AutomationId(_) -> search.automationId
+        }
+        if (!supported) return SemanticItemResult.Unsupported
+        val start = when (after) {
+            case None -> 0L
+            case Some(val key) -> (indexOf(key) ?: return SemanticItemResult.Unavailable) + 1L
+        }
+        for (index in start..<count) {
+            val item = when (itemAt(index)) {
+                case Found(val value) -> value
+                case NotFound -> return SemanticItemResult.NotFound
+                case Unavailable -> return SemanticItemResult.Unavailable
+                case Unsupported -> return SemanticItemResult.Unsupported
             }
-        if (!supported)
-            return SemanticItemResult.Unsupported
-        val start =
-            when (after) {
-                case None -> 0L
-                case Some(val key) -> (indexOf(key) ?: return SemanticItemResult.Unavailable) + 1L
-            }
-        for (index in start ..< count) {
-            val item =
-                when (itemAt(index)) {
-                    case Found(val value) -> value
-                    case NotFound -> return SemanticItemResult.NotFound
-                    case Unavailable -> return SemanticItemResult.Unavailable
-                    case Unsupported -> return SemanticItemResult.Unsupported
-                }
-            val matches =
-                when (query) {
-                    case Name(val expected) ->
+            val matches = when (query) {
+                case Name(val expected) ->
                     (item.properties.name ?: return SemanticItemResult.Unavailable) == expected
-                    case AutomationId(val expected) ->
+                case AutomationId(val expected) ->
                     (item.properties.automationId ?: return SemanticItemResult.Unavailable) ==
                         expected
-                }
-            if (matches)
-                return SemanticItemResult.Found(item)
+            }
+            if (matches) return SemanticItemResult.Found(item)
         }
         return SemanticItemResult.NotFound
     }

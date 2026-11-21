@@ -14,6 +14,8 @@
 
 ## 2. 属性与发布
 
+Tree／TreeItem 表达树容器和树项。Tree 可发布普通层级集合，也可同时提供 SemanticGrid 和表格尺寸，表示多列树；列、表头和单元格继续复用同一表格合同。AppKit 的 Tree 映射 Outline，TreeItem 映射 Row；Windows 映射 Tree／TreeItem，Linux GNU 映射 Tree／TreeItem，多列树仍保留表格能力。静态树项沿既有节点父子关系；惰性树项以同一集合中的稳定 key 表达层级，不为每个逻辑项创建实际控件。
+
 首批角色为 Group、Text、Button、Checkbox、TextField、ScrollArea、ScrollBar。SemanticProperties 保存 name、description、error、automationId、value、enabled、readOnly、protectedText、checked、hidden 与 ignored；名称、说明、错误、标识和值采用可选字符串，已知空字符串与未知值不同。checked 为可选 Off／On／Mixed。只有实际文本用途才设置 protectedText；受保护时不允许通过 value 发布明文，不因屏幕暂时显示正文而解除保护。hidden 排除整个节点子树但保留身份，恢复后使用原身份；ignored 仅忽略当前节点，保留后代并把它们接到最近未忽略的语义祖先；hidden 优先排除整个子树。忽略不退休身份、不改变实际键盘焦点，旧引用不能执行被忽略节点的动作；后代继续遵守祖先的 hidden／enabled。update 在改变原状态前检查这些规则。
 
 SemanticProperties.required 为 Boolean，默认 false，描述表单是否要求填写或选择；它不执行校验、不改变 enabled／readOnly 或文本内容。AppKit 通过公开的 NSAccessibilityRequiredAttribute／isAccessibilityRequired 读取该事实，客户端不能改写它。required 变化不改变节点身份、正文版本或几何，发布后发送适用的属性布局通知；隐藏／退休后的 selector 与其他只读属性遵守同一可访问性边界。
@@ -120,7 +122,9 @@ AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible�
 
 `SemanticRole.List` 是逻辑集合容器。`SemanticItemKey` 以 Number(Long)／Text(String) 表达集合内稳定 key，区分数字和文本。`SemanticCollectionSource` 提供同一不可变快照的 count、keyAt、indexOfKey、describe 与 search；不从 View 构造函数推导元数据。`SemanticCollectionSnapshot(source)` 只保留描述源和已校验的实际 count，不枚举数据或创建每项对象。
 
-`SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected、expanded、focusable 与可选 hierarchyLevel；可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded 的 None 表示没有该状态。hierarchyLevel 是从零开始的非负层级深度，None 表示未声明层级；不从条目位置推导深度。focusable 缺省 false；只有数据源明确知道该项有真实聚焦目标时设为 true，不从名称或角色猜测。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
+`SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected、expanded、focusable 与可选 hierarchyLevel；另提供 parentKey、siblings、checked 与 busy。可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded／checked 的 None 表示没有该状态。hierarchyLevel 是从零开始的非负层级深度，None 表示未声明层级；不从条目位置推导深度。parentKey 是同一集合中的已知逻辑父 key，None 表示没有声明父项，不能由当前挂载或屏幕位置猜测。siblings 使用 `SemanticItemPosition(index, count)` 表达当前同级中的零基位置与数量，要求 `0 <= index < count`，不以全展开集合的位置冒充；未提供时继续使用普通集合位置。checked 为 Off／On／Mixed，busy 默认 false。focusable 缺省 false；只有数据源明确知道该项有真实聚焦目标时设为 true，不从名称或角色猜测。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
+
+Tree 的数据顺序为当前可阅读展开行的先序，parentKey 必须指向本快照中位于当前项之前的父项。单项描述验证父 key 的普通引用及顺序即可，不为查询一项重新扫描或验证整棵树。读取已知父项、深度、同级位置、checked／busy 或查询多列单元格不触发加载或 View 构造。AppKit 沿 Outline 的 disclosedByRow／disclosedRows 显示父子关系，逻辑条目仍只拥有一份原生代理；披露、勾选与几何变化不会另建吸顶副本。UIA／AT-SPI 的惰性树项导航按同一 parentKey 返回父项和直接子项；多列行先列出单元格，再列出展开的直接子项。显式枚举子项允许读取对应展开范围的描述，不创建整棵树的代理。
 
 快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count、properties、缺省为 true 的 hasCells 与缺省为 1 的 span；普通条目的 span 为 1，表格单元格用它表达连续列跨度。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
 
@@ -132,7 +136,7 @@ AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；
 
 集合选择由同一发布快照的 `SemanticCollectionSelection(keys, multiple, required)` 描述。keys 只列属于该快照的已选稳定 key；原生查询不为取得选中项扫描整个集合。`SemanticItemProperties.selectable` 缺省 true，允许总计、说明等条目明确设为 false，同时保留其 enabled、focusable 和阅读能力。false 优先于 selected 和集合选择快照：该条目不发布 selected 状态，不出现在原生选中项列表中，选择／取消选择返回 Unsupported 且不调用业务回调。选择列表发布只检查已选 key 的描述，描述暂不可用的项也不发布；不会为检查可选性枚举整个集合或创建 View。`setSelected(key, value)` 经原业务选择入口确认采纳结果；没有选择模型时不声明 Selection 能力。AppKit 的选择 setter 只在该行可用、可选择且有选择模型和回调时公布。
 
-`SemanticGrid` 给 Table 集合提供稳定列 key、标题及可选实际表头引用，并通过 `(rowKey, columnIndex)` 查询轻量单元格描述。行身份仍属于集合，单元格身份由行 key 和列 key 组成；索引只表示当前坐标。查询不构造 cell View，未知描述返回 Unavailable；列或行删除永久退休对应旧代理。已挂载单元格用 `SemanticTableCell` 声明真实行列位置与跨度，`SemanticTableSize` 描述静态表格尺寸。窗口层不缓存第二份业务表格。Table 和 List 共用集合的发布、按需代理及明确操作边界。
+`SemanticGrid` 给 Table／Tree 集合提供稳定列 key、标题及可选实际表头引用，并通过 `(rowKey, columnIndex)` 查询轻量单元格描述。行身份仍属于集合，单元格身份由行 key 和列 key 组成；索引只表示当前坐标。查询不构造 cell View，未知描述返回 Unavailable；列或行删除永久退休对应旧代理。已挂载单元格用 `SemanticTableCell` 声明真实行列位置与跨度，`SemanticTableSize` 描述静态表格尺寸。窗口层不缓存第二份业务表格。Table、Tree 和 List 共用集合的发布、按需代理及明确操作边界。
 
 `SemanticGrid.hasCells = Some { rowKey -> Boolean }` 可明确表示详情、说明等结构行不属于列空间；省略时所有行均有单元格。该回调只读当前行 key，不读取各列描述、不创建 View。行查询返回的 `SemanticItem.hasCells` 保存同一快照中的结果；false 时 `cellForKey` 返回 NotFound，单元格动作不可用且不调用 span／describe 或业务动作。原生表格保留该行的正常身份、层级及行操作，子项来自已挂载的实际语义子树；离屏时没有伪造的单元格或子控件。它与 describe 暂不可用的 Unavailable 含义不同。发布中从有格改为无格永久退休已建立的旧单元格代理，随后恢复有格使用新代理；不枚举行列矩阵。
 
@@ -145,6 +149,8 @@ AppKit 按被查询列解析到同一锚点代理，行子项只列出一次锚�
 `AccessibilityNode.collectionActions` 接受 `SemanticCollectionActions(realize, reveal, focus, setSelected)`，用于 List 或 Table。前两项是可选 `(SemanticItemKey) -> SemanticActionResult` 回调，focus 为可选 `(SemanticItemKey, Boolean) -> SemanticActionResult` 回调。能力随 collection 一同发布；动作重新按当前有效快照解析 key，经过相同 owner、模态、祖先 enabled／hidden 和退休边界。描述暂不可用或 key 已删除时返回 Unavailable，disabled 返回 Rejected；没有相应回调或条目未声明 focusable 时返回 Unsupported。
 
 可选 `SemanticCollectionActions.setExpanded` 接收 `(SemanticItemKey, Boolean)`，复用同一动作边界；只有当前条目明确声明 expanded 时可执行。它调用应用的实际展开模型，不隐式挂载、滚动或聚焦条目。AppKit 以公开 `setAccessibilityExpanded:` 映射展开／收起，以 `accessibilityDisclosureLevel` 发布声明的深度；setter 只在节点可用、已声明 expanded 且提供回调时公布。回调拒绝时保留原状态，旧代理不能操作后来重建的同 key 条目。
+
+`SemanticCollectionActions.setChecked` 同样接收 `(SemanticItemKey, Boolean)`，只有声明 checked 的可用条目和真实回调可执行；Mixed 的 Toggle 请求为 On。原生查询读取当前快照，动作经原模型接受后更新，不因数据项尚未挂载而创建 Checkbox 或夺取焦点。AppKit 提供 Check／Uncheck 自定义动作及 checked 值，UIA／AT-SPI 使用对应切换能力；没有 checked 状态的普通行保持原 value。busy 不自动拒绝选择、折叠或业务允许的勾选，禁用仍由 enabled 与具体回调决定。
 
 表格可另传 `SemanticCollectionActions.grid = Some(SemanticGridActions(...))`：realize／reveal 回调接收行 key、列 key，focus 再接收 Boolean。每次调用同时检查当前行和列，单元格禁用或未声明 focusable 时沿相同结果规则处理。单元格动作不会降级为同一行的动作；列重排保留 key，删除后复用同 key 不复活旧代理。Realize 的 Completed 要求目标单元格及其语义子树已经发布，Reveal 和 Focus 仍分别等待真实可见几何与活动焦点。
 

@@ -74,7 +74,7 @@ HRESULT Node::get_ContainingGrid(IRawElementProviderSimple **result) {
       auto value = parent->state();
       if (!value)
         return UIA_E_ELEMENTNOTAVAILABLE;
-      if (value->data.role == 22) {
+      if ((value->data.role == 22 || value->data.role == 29)) {
         *result = simple(parent);
         return S_OK;
       }

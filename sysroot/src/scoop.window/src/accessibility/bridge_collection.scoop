@@ -6,7 +6,7 @@ import scoop.window.*
 internal class NativeCollectionQueries(
     private val application: ApplicationOwner,
     provider: AccessibilityProvider
-): Closeable {
+) : Closeable {
     private val callback = collectionCallback(application, provider)
 
     fun attach(pointer: Ptr<Unit>) {
@@ -20,26 +20,24 @@ internal class NativeCollectionQueries(
         @Unsafe
         {
             when (node.relationValues.activeDescendant) {
-                case Some(Item(val collection, val key)) -> withCollectionKey(key) {
-                    kind,
-                    number,
-                    bytes,
-                    length -> @Unsafe
-                    {
-                        checkNativeStatus(
-                            nativeCollectionActive(
-                                pointer,
-                                node.id.number,
-                                collection.number,
-                                kind,
-                                number,
-                                bytes,
-                                length
-                            ),
-                            "publish active collection item"
-                        )
+                case Some(Item(val collection, val key)) ->
+                    withCollectionKey(key) { kind, number, bytes, length ->
+                        @Unsafe
+                        {
+                            checkNativeStatus(
+                                nativeCollectionActive(
+                                    pointer,
+                                    node.id.number,
+                                    collection.number,
+                                    kind,
+                                    number,
+                                    bytes,
+                                    length
+                                ),
+                                "publish active collection item"
+                            )
+                        }
                     }
-                }
                 else -> {}
             }
             checkNativeStatus(
@@ -56,11 +54,8 @@ internal class NativeCollectionQueries(
             publishCollectionDetails(pointer, node)
             when (val key = node.itemKey) {
                 case Some(val value) -> {
-                    withCollectionKey(value) {
-                        kind,
-                        number,
-                        bytes,
-                        length -> @Unsafe
+                    withCollectionKey(value) { kind, number, bytes, length ->
+                        @Unsafe
                         {
                             checkNativeStatus(
                                 nativeCollectionRow(
@@ -76,31 +71,31 @@ internal class NativeCollectionQueries(
                         }
                     }
                 }
+
                 case None -> {}
             }
             when (node.properties.cell) {
-                case Some(val cell) -> when (cell.columnKey) {
-                    case Some(val key) -> withCollectionKey(key) {
-                        kind,
-                        number,
-                        bytes,
-                        length -> @Unsafe
-                        {
-                            checkNativeStatus(
-                                nativeCollectionCell(
-                                    pointer,
-                                    node.id.number,
-                                    kind,
-                                    number,
-                                    bytes,
-                                    length
-                                ),
-                                "publish semantic cell column"
-                            )
-                        }
+                case Some(val cell) ->
+                    when (cell.columnKey) {
+                        case Some(val key) ->
+                            withCollectionKey(key) { kind, number, bytes, length ->
+                                @Unsafe
+                                {
+                                    checkNativeStatus(
+                                        nativeCollectionCell(
+                                            pointer,
+                                            node.id.number,
+                                            kind,
+                                            number,
+                                            bytes,
+                                            length
+                                        ),
+                                        "publish semantic cell column"
+                                    )
+                                }
+                            }
+                        case None -> {}
                     }
-                    case None -> {}
-                }
                 case None -> {}
             }
         }
@@ -108,12 +103,14 @@ internal class NativeCollectionQueries(
 
     public override fun close() {
         val owned = callback
-        application.mailbox.postControl {
-            @Unsafe
-            {
-                releaseForeignCallback(owned)
+        application
+            .mailbox
+            .postControl {
+                @Unsafe
+                {
+                    releaseForeignCallback(owned)
+                }
             }
-        }
     }
 }
 
@@ -132,50 +129,56 @@ private class CollectionQueryStatus {
     var value = 4
 }
 
-private fun gridShapeFlags(grid: SemanticGrid?): Int =
+private fun gridShapeFlags(grid: SemanticGrid?): Int = (
+    when (grid?.span ?: None) {
+        case Some(_) -> 128
+        case None -> 0
+    }
+) +
     (
-        when (grid?.span ?: None) {
-            case Some(_) -> 128
+        when (grid?.hasCells ?: None) {
+            case Some(_) -> 512
             case None -> 0
         }
-    ) +
-        (
-            when (grid?.hasCells ?: None) {
-                case Some(_) -> 512
-                case None -> 0
-            }
-        )
+    )
 
-private fun collectionActionBits(actions: SemanticCollectionActions): Int =
+private fun collectionActionBits(actions: SemanticCollectionActions): Int = (
+    when (actions.realize) {
+        case Some(_) -> 1;
+        case None -> 0
+    }
+) +
     (
-        when (actions.realize) {
-            case Some(_) -> 1;
+        when (actions.reveal) {
+            case Some(_) -> 2;
             case None -> 0
         }
     ) +
-        (
-            when (actions.reveal) {
-                case Some(_) -> 2;
-                case None -> 0
-            }
-        ) +
-        (
-            when (actions.focus) {
-                case Some(_) -> 4;
-                case None -> 0
-            }
-        ) +
-        (
-            when (actions.setSelected) {
-                case Some(_) -> 8;
-                case None -> 0
-            }
-        ) +
-        gridActionBits(actions.grid) +
+    (
+        when (actions.focus) {
+            case Some(_) -> 4;
+            case None -> 0
+        }
+    ) +
+    (
+        when (actions.setSelected) {
+            case Some(_) -> 8;
+            case None -> 0
+        }
+    ) +
+    gridActionBits(actions.grid) +
+    (
         when (actions.setExpanded) {
             case Some(_) -> 256
             case None -> 0
         }
+    ) +
+    (
+        when (actions.setChecked) {
+            case Some(_) -> 1024
+            case None -> 0
+        }
+    )
 
 private fun gridActionBits(actions: SemanticGridActions?): Int {
     val grid = actions ?: return 0
@@ -210,7 +213,9 @@ ForeignCallback<(Ptr<Unit>, Long, Int, Long, Int, Long, Ptr<UInt8>?, Long, Ptr<U
                 number: Long,
                 bytes: Ptr<UInt8>?,
                 length: Long,
-                reply: Ptr<Unit>? -> queryCollection(
+                reply: Ptr<Unit>?
+                ->
+                queryCollection(
                     application,
                     provider,
                     owner,
@@ -241,19 +246,21 @@ private fun queryCollection(
     length: Long,
     reply: Ptr<Unit>?
 ): Int {
-    if (
-        (operation >= 3 && operation <= 8) ||
-            (operation >= 12 && operation <= 15) ||
-            operation ==
-            17 ||
-            operation ==
-            18
+    if ((operation >= 3 && operation <= 8) ||
+        (operation >= 12 && operation <= 15) ||
+        operation ==
+        17 ||
+        operation ==
+        18 ||
+        operation ==
+        19 ||
+        operation ==
+        20
     ) {
-        val result =
-            application.performAccessibility {
-                val key =
-                    collectionKey(kind, number, bytes, length) ?:
-                        return@performAccessibility SemanticActionResult.InvalidArgument
+        val result = application
+            .performAccessibility {
+                val key = collectionKey(kind, number, bytes, length) ?:
+                    return@performAccessibility SemanticActionResult.InvalidArgument
                 provider.performCollection(owner, key, operation, index)
             }
         return actionCode(result)
@@ -278,10 +285,7 @@ private fun queryCollection(
                 )
                 return 1
             }
-            return if (source.contains(key))
-                1
-            else
-                2
+            return if (source.contains(key)) 1 else 2
         } catch (error: Throwable) {
             application.recordFailure(error)
             application.beginExit()
@@ -289,89 +293,79 @@ private fun queryCollection(
         }
     }
     val status = CollectionQueryStatus()
-    val result =
-        application.performAccessibility {
+    val result = application
+        .performAccessibility {
             val source = provider.collectionSource(owner, false)
             when (source) {
                 case Some(val value) -> {
-                    val item =
-                        if (operation == 9 || operation == 10) {
-                            queryCollectionText(
-                                value,
-                                operation,
-                                index,
-                                kind,
-                                number,
-                                bytes,
-                                length,
-                                reply
-                            )
-                        } else
-                            if (operation == 11) {
-                                val key = collectionKey(kind, number, bytes, length)
-                                when ((key, value.grid)) {
-                                    case(Some(val row), Some(val grid)) -> if (
-                                        index >= 0L && index < grid.columns.size
-                                    )
-                                        value.cellForKey(row, grid.columns[index].key)
-                                    else
-                                        SemanticItemResult.NotFound
-                                    else -> SemanticItemResult.Unavailable
-                                }
-                            } else
-                                if (operation == 0)
-                                    value.itemAt(index)
-                                else {
-                                    val key = collectionKey(kind, number, bytes, length)
-                                    when (key) {
-                                        case Some(val actual) -> value.itemForKey(actual)
-                                        case None -> SemanticItemResult.Unavailable
-                                    }
-                                }
-                    status.value =
-                        when (item) {
-                            case Found(val found) -> when (reply) {
+                    val item = if (operation == 9 || operation == 10) {
+                        queryCollectionText(
+                            value,
+                            operation,
+                            index,
+                            kind,
+                            number,
+                            bytes,
+                            length,
+                            reply
+                        )
+                    } else if (operation == 11) {
+                        val key = collectionKey(kind, number, bytes, length)
+                        when ((key, value.grid)) {
+                            case(Some(val row), Some(val grid)) ->
+                                if (index >= 0L && index < grid.columns.size)
+                                    value.cellForKey(row, grid.columns[index].key)
+                                else
+                                    SemanticItemResult.NotFound
+                            else -> SemanticItemResult.Unavailable
+                        }
+                    } else if (operation == 0)
+                        value.itemAt(index)
+                    else {
+                        val key = collectionKey(kind, number, bytes, length)
+                        when (key) {
+                            case Some(val actual) -> value.itemForKey(actual)
+                            case None -> SemanticItemResult.Unavailable
+                        }
+                    }
+                    status.value = when (item) {
+                        case Found(val found) ->
+                            when (reply) {
                                 case Some(val target) -> {
                                     writeCollectionItem(target, found);
                                     1
                                 }
+
                                 case None -> 4
                             }
-                            case NotFound -> 2
-                            case Unavailable -> 3
-                            case Unsupported -> 5
-                        }
+                        case NotFound -> 2
+                        case Unavailable -> 3
+                        case Unsupported -> 5
+                    }
                 }
+
                 case None -> {}
             }
             SemanticActionResult.Completed
         }
-    return if (result == SemanticActionResult.Completed)
-        status.value
-    else
-        0
+    return if (result == SemanticActionResult.Completed) status.value else 0
 }
 
 private fun publishCollectionDetails(pointer: Ptr<Unit>, node: AccessibilityNode) {
     when (node.properties.selectionMode) {
-        case Some(val mode) -> @Unsafe
-        {
-            checkNativeStatus(
-                nativeCollectionSelection(
-                    pointer,
-                    node.id.number,
-                    if (mode == SemanticSelectionMode.Multiple)
-                        1
-                    else
-                        0,
-                    if (node.properties.required)
-                        1
-                    else
-                        0
-                ),
-                "publish static selection"
-            )
-        }
+        case Some(val mode) ->
+            @Unsafe
+            {
+                checkNativeStatus(
+                    nativeCollectionSelection(
+                        pointer,
+                        node.id.number,
+                        if (mode == SemanticSelectionMode.Multiple) 1 else 0,
+                        if (node.properties.required) 1 else 0
+                    ),
+                    "publish static selection"
+                )
+            }
         case None -> {}
     }
     val source = node.collectionValue ?: return
@@ -383,14 +377,8 @@ private fun publishCollectionDetails(pointer: Ptr<Unit>, node: AccessibilityNode
                     nativeCollectionSelection(
                         pointer,
                         node.id.number,
-                        if (selected.multiple)
-                            1
-                        else
-                            0,
-                        if (selected.required)
-                            1
-                        else
-                            0
+                        if (selected.multiple) 1 else 0,
+                        if (selected.required) 1 else 0
                     ),
                     "publish collection selection"
                 )
@@ -398,16 +386,13 @@ private fun publishCollectionDetails(pointer: Ptr<Unit>, node: AccessibilityNode
             for (key in selected.keys) {
                 when (source.itemForKey(key)) {
                     case Found(val item) -> {
-                        if (!item.properties.selectable)
-                            continue
+                        if (!item.properties.selectable) continue
                     }
+
                     else -> continue
                 }
-                withCollectionKey(key) {
-                    kind,
-                    number,
-                    bytes,
-                    length -> @Unsafe
+                withCollectionKey(key) { kind, number, bytes, length ->
+                    @Unsafe
                     {
                         checkNativeStatus(
                             nativeCollectionSelected(
@@ -424,55 +409,55 @@ private fun publishCollectionDetails(pointer: Ptr<Unit>, node: AccessibilityNode
                 }
             }
         }
+
         case None -> {}
     }
     when (source.grid) {
-        case Some(val grid) -> for (index in 0L ..< grid.columns.size) {
-            val column = grid.columns[index]
-            withCollectionKey(column.key) {
-                kind,
-                number,
-                bytes,
-                length -> @Unsafe
-                {
-                    checkNativeStatus(
-                        nativeCollectionColumn(
-                            pointer,
-                            node.id.number,
-                            index,
-                            kind,
-                            number,
-                            bytes,
-                            length,
-                            column.header?.number ?: 0L
-                        ),
-                        "publish semantic column"
-                    )
-                }
-            }
-            when (column.name) {
-                case Some(val name) -> @Unsafe
-                {
-                    name.withUtf8Bytes {
-                        bytes,
-                        length -> @Unsafe
-                        {
-                            checkNativeStatus(
-                                nativeCollectionColumnName(
-                                    pointer,
-                                    node.id.number,
-                                    index,
-                                    bytes,
-                                    length
-                                ),
-                                "publish semantic column name"
-                            )
-                        }
+        case Some(val grid) ->
+            for (index in 0L..<grid.columns.size) {
+                val column = grid.columns[index]
+                withCollectionKey(column.key) { kind, number, bytes, length ->
+                    @Unsafe
+                    {
+                        checkNativeStatus(
+                            nativeCollectionColumn(
+                                pointer,
+                                node.id.number,
+                                index,
+                                kind,
+                                number,
+                                bytes,
+                                length,
+                                column.header?.number ?: 0L
+                            ),
+                            "publish semantic column"
+                        )
                     }
                 }
-                case None -> {}
+                when (column.name) {
+                    case Some(val name) ->
+                        @Unsafe
+                        {
+                            name
+                                .withUtf8Bytes { bytes, length ->
+                                    @Unsafe
+                                    {
+                                        checkNativeStatus(
+                                            nativeCollectionColumnName(
+                                                pointer,
+                                                node.id.number,
+                                                index,
+                                                bytes,
+                                                length
+                                            ),
+                                            "publish semantic column name"
+                                        )
+                                    }
+                                }
+                        }
+                    case None -> {}
+                }
             }
-        }
         case None -> {}
     }
 }
@@ -532,10 +517,8 @@ private fun collectionKey(
     bytes: Ptr<UInt8>?,
     length: Long
 ): SemanticItemKey? {
-    if (kind == 0)
-        return Some(SemanticItemKey.Number(number))
-    if (kind != 1 || length < 0L)
-        return None
+    if (kind == 0) return Some(SemanticItemKey.Number(number))
+    if (kind != 1 || length < 0L) return None
     when (bytes) {
         case Some(val text) -> {
             @Unsafe
@@ -543,16 +526,15 @@ private fun collectionKey(
                 return Some(SemanticItemKey.Text(String.fromUtf8(text, length)))
             }
         }
-        case None -> return if (length == 0L)
-            Some(SemanticItemKey.Text(""))
-        else
-            None
+
+        case None -> return if (length == 0L) Some(SemanticItemKey.Text("")) else None
     }
 }
 
 private fun withCollectionKey(key: SemanticItemKey, block: (Int, Long, Ptr<UInt8>?, Long) -> Unit) {
     when (key) {
         case Number(val number) -> block(0, number, None, 0L)
+
         case Text(val text) -> {
             @Unsafe
             {
@@ -571,43 +553,43 @@ private fun writeCollectionItem(reply: Ptr<Unit>, item: SemanticItem) {
             item.index,
             item.count,
             item.span,
-            if (props.enabled)
-                1
-            else
-                0,
+            if (props.enabled) 1 else 0,
             when (props.selected) {
                 case None -> -1;
-                case Some(val value) -> if (value)
-                    1
-                else
-                    0
+                case Some(val value) -> if (value) 1 else 0
             },
             when (props.expanded) {
                 case None -> -1;
-                case Some(val value) -> if (value)
-                    1
-                else
-                    0
+                case Some(val value) -> if (value) 1 else 0
             },
-            if (props.focusable)
-                1
-            else
-                0,
+            if (props.focusable) 1 else 0,
             props.hierarchyLevel ?: -1L,
-            if (item.hasCells)
-                1
-            else
-                0
+            if (item.hasCells) 1 else 0,
+            when (props.checked) {
+                case Some(Off) -> 0
+                case Some(On) -> 1
+                case Some(Mixed) -> 2
+                case None -> -1
+            },
+            if (props.busy) 1 else 0,
+            props.siblings?.index ?: -1L,
+            props.siblings?.count ?: -1L
         )
     }
-    withCollectionKey(item.key) {
-        kind,
-        number,
-        bytes,
-        length -> @Unsafe
+    withCollectionKey(item.key) { kind, number, bytes, length ->
+        @Unsafe
         {
             nativeCollectionItemKey(reply, kind, number, bytes, length)
         }
+    }
+    when (props.parentKey) {
+        case Some(val parent) ->
+            withCollectionKey(parent) { kind, number, bytes, length ->
+                @Unsafe {
+                    nativeCollectionItemParent(reply, kind, number, bytes, length)
+                }
+            }
+        case None -> {}
     }
     collectionText(reply, 0, props.name)
     collectionText(reply, 1, props.description)
@@ -620,15 +602,16 @@ private fun collectionText(reply: Ptr<Unit>, field: Int, value: String?) {
         case Some(val text) -> {
             @Unsafe
             {
-                text.withUtf8Bytes {
-                    bytes,
-                    length -> @Unsafe
-                    {
-                        nativeCollectionItemText(reply, field, bytes, length)
+                text
+                    .withUtf8Bytes { bytes, length ->
+                        @Unsafe
+                        {
+                            nativeCollectionItemText(reply, field, bytes, length)
+                        }
                     }
-                }
             }
         }
+
         case None -> {}
     }
 }
@@ -670,11 +653,24 @@ private fun nativeCollectionItem(
     expanded: Int,
     focusable: Int,
     hierarchyLevel: Long,
-    hasCells: Int
+    hasCells: Int,
+    checked: Int,
+    busy: Int,
+    siblingIndex: Long,
+    siblingCount: Long
 )
 
 @Extern(name = "scoop_window_accessibility_collection_item_key")
 private fun nativeCollectionItemKey(
+    reply: Ptr<Unit>,
+    kind: Int,
+    number: Long,
+    text: Ptr<UInt8>?,
+    length: Long
+)
+
+@Extern(name = "scoop_window_accessibility_collection_item_parent")
+private fun nativeCollectionItemParent(
     reply: Ptr<Unit>,
     kind: Int,
     number: Long,
@@ -705,29 +701,20 @@ private fun queryCollectionText(
     @Unsafe
     {
         val query = nativeCollectionSearch(target)
-        if (query.length < 0L)
-            return SemanticItemResult.Unavailable
-        val text =
-            when (query.bytes) {
-                case Some(val value) -> String.fromUtf8(value, query.length)
-                case None -> if (query.length == 0L)
-                    ""
+        if (query.length < 0L) return SemanticItemResult.Unavailable
+        val text = when (query.bytes) {
+            case Some(val value) -> String.fromUtf8(value, query.length)
+            case None -> if (query.length == 0L) "" else return SemanticItemResult.Unavailable
+        }
+        val after = if (hasAfter == 0L) None else collectionKey(kind, number, bytes, length)
+        if (hasAfter != 0L && after == None) return SemanticItemResult.Unavailable
+        return source
+            .find(
+                if (operation == 9)
+                    SemanticItemQuery.Name(text)
                 else
-                    return SemanticItemResult.Unavailable
-            }
-        val after =
-            if (hasAfter == 0L)
-                None
-            else
-                collectionKey(kind, number, bytes, length)
-        if (hasAfter != 0L && after == None)
-            return SemanticItemResult.Unavailable
-        return source.find(
-            if (operation == 9)
-                SemanticItemQuery.Name(text)
-            else
-                SemanticItemQuery.AutomationId(text),
-            after
-        )
+                    SemanticItemQuery.AutomationId(text),
+                after
+            )
     }
 }

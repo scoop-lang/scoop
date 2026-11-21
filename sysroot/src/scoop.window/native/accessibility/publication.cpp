@@ -262,7 +262,8 @@ int64_t scoop_window_accessibility_collection_active(
 void scoop_window_accessibility_collection_item(
     void *pointer, int64_t index, int64_t count, int64_t span, int32_t enabled,
     int32_t selected, int32_t expanded, int32_t focusable,
-    int64_t hierarchy_level, int32_t has_cells) {
+    int64_t hierarchy_level, int32_t has_cells, int32_t checked, int32_t busy,
+    int64_t sibling_index, int64_t sibling_count) {
   auto &reply = *static_cast<Item *>(pointer);
   reply.index = index;
   reply.count = count;
@@ -273,6 +274,10 @@ void scoop_window_accessibility_collection_item(
   reply.focusable = focusable;
   reply.hierarchyLevel = hierarchy_level;
   reply.hasCells = has_cells;
+  reply.checked = checked;
+  reply.busy = busy;
+  reply.siblingIndex = sibling_index;
+  reply.siblingCount = sibling_count;
 }
 void scoop_window_accessibility_collection_item_key(void *pointer, int32_t kind,
                                                     int64_t number,
@@ -292,6 +297,18 @@ void scoop_window_accessibility_collection_item_text(void *pointer,
   auto &reply = *static_cast<Item *>(pointer);
   try {
     reply.text.at(field) = textValue(text, length);
+  } catch (...) {
+    reply.failed = true;
+  }
+}
+void scoop_window_accessibility_collection_item_parent(void *pointer,
+                                                       int32_t kind,
+                                                       int64_t number,
+                                                       const uint8_t *text,
+                                                       int64_t length) {
+  auto &reply = *static_cast<Item *>(pointer);
+  try {
+    reply.parentKey = keyValue(kind, number, text, length);
   } catch (...) {
     reply.failed = true;
   }

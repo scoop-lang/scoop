@@ -1,0 +1,143 @@
+package scoop.tests.ui.treeaccessibility
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class TreeScene(private val probe: TreeProbe, scope: ComponentScope) : Component(scope) {
+    public override fun render(): View {
+        val rows = probe.rows.value
+        return if (rows.dataOnly)
+            element(rows, { props, mount -> DataTree(probe, props, mount) })
+        else
+            lazyElement(rows, rows, { props, mount -> LazyTree(probe, props, mount) })
+    }
+}
+
+private class LazyTree(
+    private val probe: TreeProbe,
+    private val props: Props<TreeRows>,
+    scope: ComponentScope
+) : LazyElement<TreeRows>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Tree)
+    private val headers = Array<SemanticsHandle>(2L) { _ ->
+        scope.semantics(SemanticRole.ColumnHeader, Some(semantic))
+    }
+    init {
+        probe.scope = Some(scope)
+    }
+    public override fun update(): UiInvalidation {
+        val rows = props.value
+        for (index in 0L..<headers.size)
+            headers[index]
+                .update(
+                    SemanticProperties(
+                        name = Some(if (index == 0L) "Name" else "Kind"),
+                        hidden = !rows.columns
+                    )
+                )
+        semantic
+            .update(
+                SemanticProperties(
+                    automationId = Some("tree"),
+                    table = if (rows.columns) Some(SemanticTableSize(rows.count, 2L)) else None
+                )
+            )
+        semantic
+            .updateCollection(
+                rows,
+                Some(
+                    ItemSemantics(
+                        rows, { index -> rows.describe(index) }, grid = rows
+                            .grid(
+                                Array<SemanticNodeId>(headers.size) { index -> headers[index].id }
+                            ),
+                        setExpanded = Some { key, value -> probe.expand(key, value) },
+                        setChecked = Some { key, value -> probe.check(key, value) }
+                    )
+                )
+            )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<TreeRows> = LayoutResult(
+        LayoutMetrics(constraints.constrain(Size(320.0, 200.0))),
+        props.value
+    )
+    public override fun scene(context: SceneContext, rows: TreeRows) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) probe.accepted(rows)
+            }
+    }
+}
+
+private class DataTree(
+    private val probe: TreeProbe,
+    private val props: Props<TreeRows>,
+    scope: ComponentScope
+) : Element<TreeRows>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Tree)
+    private val headers = Array<SemanticsHandle>(2L) { _ ->
+        scope.semantics(SemanticRole.ColumnHeader, Some(semantic))
+    }
+    init {
+        probe.scope = Some(scope)
+    }
+    public override fun update(): UiInvalidation {
+        val rows = props.value
+        for (index in 0L..<headers.size)
+            headers[index]
+                .update(
+                    SemanticProperties(
+                        name = Some(if (index == 0L) "Name" else "Kind"),
+                        hidden = !rows.columns
+                    )
+                )
+        semantic
+            .update(
+                SemanticProperties(
+                    automationId = Some("tree"),
+                    table = if (rows.columns) Some(SemanticTableSize(rows.count, 2L)) else None
+                )
+            )
+        semantic
+            .updateDataCollection(
+                SemanticCollectionSnapshot(
+                    TreeDescriptions(rows),
+                    grid = rows
+                        .grid(Array<SemanticNodeId>(headers.size) { index -> headers[index].id })
+                ),
+                SemanticCollectionActions(
+                    setExpanded = Some { key, value ->
+                        when (key) {
+                            case Number(val number) -> probe.expand(ViewKey.Number(number), value);
+                            else -> SemanticActionResult.Unavailable
+                        }
+                    },
+                    setChecked = Some { key, value ->
+                        when (key) {
+                            case Number(val number) -> probe.check(ViewKey.Number(number), value);
+                            else -> SemanticActionResult.Unavailable
+                        }
+                    }
+                )
+            )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TreeRows
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 200.0))), props.value)
+    public override fun scene(context: SceneContext, rows: TreeRows) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) probe.accepted(rows)
+            }
+    }
+}

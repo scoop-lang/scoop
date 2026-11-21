@@ -65,8 +65,11 @@ struct Item {
   bool failed = false;
   std::optional<std::string> search;
   Key key;
+  std::optional<Key> parentKey;
   int64_t index = -1, count = 0, span = 1, hierarchyLevel = -1;
+  int64_t siblingIndex = -1, siblingCount = -1;
   int32_t enabled = 1, selected = -1, expanded = -1, focusable = 0;
+  int32_t checked = -1, busy = 0;
   int32_t hasCells = 1;
   std::array<std::optional<std::string>, 4> text;
 };
@@ -84,6 +87,8 @@ struct State {
   std::shared_ptr<Document> document;
   uint64_t documentRevision = 0, documentEpoch = 0;
   int64_t count = -1, activeCollection = 0;
+  int64_t hierarchyLevel = -1, siblingIndex = -1, siblingCount = -1;
+  std::optional<Key> parentKey;
   uint64_t collectionRevision = 0;
   int32_t collectionActions = 0, selectionKind = -1;
   bool selectionRequired = false;

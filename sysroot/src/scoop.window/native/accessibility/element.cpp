@@ -2,6 +2,28 @@
 #include <algorithm>
 
 namespace swax {
+namespace {
+// Explicit child enumeration reads metadata without allocating descendant
+// proxies.
+template <typename Visitor>
+void visitTreeChildren(const std::shared_ptr<Tree> &tree, int64_t node,
+                       const std::optional<Key> &parent, int64_t start,
+                       int64_t level, Visitor visit) {
+  auto source = tree->state(node);
+  if (!source)
+    return;
+  for (int64_t index = start; index < source->count; ++index) {
+    Item item;
+    if (tree->query(node, 0, index, {}, &item) != 1)
+      return;
+    if (parent && level >= 0 && item.hierarchyLevel >= 0 &&
+        item.hierarchyLevel <= level)
+      return;
+    if (item.parentKey == parent && !visit(item))
+      return;
+  }
+}
+} // namespace
 std::shared_ptr<const State> Element::state() {
   auto owner = tree.lock();
   if (!owner || retired)
@@ -55,15 +77,22 @@ std::shared_ptr<const State> Element::state() {
                                 reference.kind == 2 ? reference.column : Key{});
   auto result =
       mounted ? std::make_shared<State>(*mounted) : std::make_shared<State>();
-  result->data.role = reference.kind == 2 ? 23 : 28;
+  result->data.role = reference.kind == 2       ? 23
+                      : source->data.role == 29 ? 30
+                                                : 28;
   result->data.flags =
-      (result->data.flags & ~SWAXEnabled) |
+      (result->data.flags & ~(SWAXEnabled | SWAXBusy)) |
+      (data->busy ? SWAXBusy : 0) |
       (data->enabled && (!mounted || (mounted->data.flags & SWAXEnabled))
            ? SWAXEnabled
            : 0);
   result->data.actions = 0;
   result->data.anchor = result->data.cursor = -1;
-  result->data.checked = -1;
+  result->data.checked = data->checked;
+  result->hierarchyLevel = data->hierarchyLevel;
+  result->siblingIndex = data->siblingIndex;
+  result->siblingCount = data->siblingCount;
+  result->parentKey = data->parentKey;
   result->data.selected = data->selected;
   result->data.expanded = data->expanded;
   result->data.parent = reference.node;
@@ -79,6 +108,10 @@ std::shared_ptr<const State> Element::state() {
       result->data.actions |= 1024;
     if ((source->collectionActions & 8) && source->selectionKind >= 0)
       result->data.actions |= 16384;
+    if ((source->collectionActions & 256) && data->expanded >= 0)
+      result->data.actions |= 32768;
+    if ((source->collectionActions & 1024) && data->checked >= 0)
+      result->data.actions |= 2;
   }
   for (size_t index = 0; index < data->text.size(); ++index)
     result->text[index] = data->text[index];
@@ -99,6 +132,12 @@ ElementPtr Element::parent() {
     return {};
   if (reference.kind == 2)
     return owner->item(reference.node, reference.row);
+  if (reference.kind == 1) {
+    auto source = owner->state(reference.node);
+    auto value = state();
+    if (source && source->data.role == 29 && value && value->parentKey)
+      return owner->item(reference.node, *value->parentKey);
+  }
   if (reference.kind)
     return owner->actual(reference.node);
   auto value = owner->state(reference.node);
@@ -152,6 +191,24 @@ int64_t Element::childCount() {
   if (!owner || !value)
     return 0;
   auto source = owner->state(reference.node);
+  if (source->data.role == 29 && source->count >= 0 && reference.kind < 2) {
+    int64_t count = reference.kind == 1
+                        ? value->hasCells && !source->columns.empty()
+                              ? static_cast<int64_t>(source->columns.size())
+                              : static_cast<int64_t>(actualChildren().size())
+                        : 0;
+    if (reference.kind == 0 || value->data.expanded == 1)
+      visitTreeChildren(owner, reference.node,
+                        reference.kind == 1 ? std::optional<Key>(reference.row)
+                                            : std::nullopt,
+                        reference.kind == 1 ? value->data.cell_row + 1 : 0,
+                        reference.kind == 1 ? value->hierarchyLevel : -1,
+                        [&](const Item &) {
+                          ++count;
+                          return true;
+                        });
+    return count;
+  }
   if (reference.kind == 0 && source->count >= 0)
     return source->count;
   if (reference.kind == 1 && value->hasCells && !source->columns.empty())
@@ -166,6 +223,35 @@ ElementPtr Element::childAt(int64_t index) {
   if (!owner || !value)
     return {};
   auto source = owner->state(reference.node);
+  if (source->data.role == 29 && source->count >= 0 && reference.kind < 2) {
+    if (reference.kind == 1) {
+      if (value->hasCells && !source->columns.empty()) {
+        if (static_cast<uint64_t>(index) < source->columns.size())
+          return owner->cell(reference.node, reference.row,
+                             source->columns[index].key);
+        index -= static_cast<int64_t>(source->columns.size());
+      } else {
+        auto children = actualChildren();
+        if (static_cast<uint64_t>(index) < children.size())
+          return children[index];
+        index -= static_cast<int64_t>(children.size());
+      }
+    }
+    ElementPtr result;
+    if (reference.kind == 0 || value->data.expanded == 1)
+      visitTreeChildren(owner, reference.node,
+                        reference.kind == 1 ? std::optional<Key>(reference.row)
+                                            : std::nullopt,
+                        reference.kind == 1 ? value->data.cell_row + 1 : 0,
+                        reference.kind == 1 ? value->hierarchyLevel : -1,
+                        [&](const Item &item) {
+                          if (index-- > 0)
+                            return true;
+                          result = owner->item(reference.node, item.key);
+                          return false;
+                        });
+    return result;
+  }
   if (reference.kind == 0 && source->count >= 0)
     return index < source->count ? owner->itemAt(reference.node, index)
                                  : nullptr;
@@ -191,7 +277,37 @@ int64_t Element::columnIndex() const {
 int64_t Element::indexInParent() {
   if (reference.kind == 1) {
     auto value = state();
-    return value ? value->data.cell_row : -1;
+    auto owner = tree.lock();
+    auto source = owner ? owner->state(reference.node) : nullptr;
+    if (!value || !source)
+      return -1;
+    if (source->data.role != 29)
+      return value->data.cell_row;
+    auto container = parent();
+    if (!container)
+      return -1;
+    auto parentState = container->state();
+    if (!parentState)
+      return -1;
+    int64_t position =
+        container->reference.kind == 1
+            ? parentState->hasCells && !source->columns.empty()
+                  ? static_cast<int64_t>(source->columns.size())
+                  : static_cast<int64_t>(container->actualChildren().size())
+            : 0;
+    int64_t result = -1;
+    visitTreeChildren(owner, reference.node, value->parentKey,
+                      value->parentKey ? parentState->data.cell_row + 1 : 0,
+                      value->parentKey ? parentState->hierarchyLevel : -1,
+                      [&](const Item &item) {
+                        if (item.key == reference.row) {
+                          result = position;
+                          return false;
+                        }
+                        ++position;
+                        return true;
+                      });
+    return result;
   }
   if (reference.kind >= 2)
     return columnIndex();
@@ -262,6 +378,15 @@ int32_t Element::perform(int32_t action, const std::optional<std::string> &text,
     return owner->operate(reference.node, reference.row, 4);
   if (action == 15 || action == 16)
     return owner->operate(reference.node, reference.row, action == 15 ? 7 : 8);
+  if (action == 17 || action == 18)
+    return owner->operate(reference.node, reference.row, action);
+  if (action == 1) {
+    auto value = state();
+    if (!value || value->data.checked < 0)
+      return 3;
+    return owner->operate(reference.node, reference.row,
+                          value->data.checked == 1 ? 20 : 19);
+  }
   return 3;
 }
 int32_t Element::realize() {

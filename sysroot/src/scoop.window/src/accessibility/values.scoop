@@ -12,16 +12,18 @@ public class SemanticNodeId internal constructor(
     private val identity: SemanticIdentity,
     public val window: WindowId,
     internal val number: Long
-): Equals<SemanticNodeId>, Hash {
-    public override operator fun equals(other: SemanticNodeId): Boolean =
-        identity === other.identity && number == other.number
+) : Equals<SemanticNodeId>, Hash {
+    public override operator fun equals(other: SemanticNodeId): Boolean = identity ===
+        other.identity &&
+        number ==
+        other.number
     public override fun hash(): Long = number.hash()
 }
 
 /** Roles implemented by the initial native content provider. */
 public enum SemanticRole {
     Group, Text, Button, Checkbox, TextField, ScrollArea, ScrollBar, Switch, ToggleButton, RadioButton, RadioGroup, Image, List,
-    Link, Heading, Slider, ProgressBar, Menu, MenuItem, TabGroup, Tab, Dialog, Table, Cell, RowHeader, ColumnHeader, Disclosure, Separator, Row
+    Link, Heading, Slider, ProgressBar, Menu, MenuItem, TabGroup, Tab, Dialog, Table, Cell, RowHeader, ColumnHeader, Disclosure, Separator, Row, Tree, TreeItem
 }
 
 public enum SemanticSelectionMode {
@@ -91,25 +93,23 @@ public struct SemanticProperties(
                 )
                 checkTextRange(value!!.toByteArray(), selected.range)
             }
+
             case None -> {}
         }
     }
 }
 
 /** Ordered references in one active provider; they do not change parenthood or focus. */
-public enum SemanticDescendant: Equals<SemanticDescendant> {
+public enum SemanticDescendant : Equals<SemanticDescendant> {
     Node(SemanticNodeId), Item(SemanticNodeId, SemanticItemKey)
-    public override operator fun equals(other: SemanticDescendant): Boolean =
-        when ((this, other)) {
-            case(Node(val left), Node(val right)) -> left == right
-            case(Item(val left, val key), Item(val right, val otherKey)) -> left ==
-                right &&
-                key ==
-                otherKey
-            else -> false
-        }
-    internal val node: SemanticNodeId get() =
-        when (this) {
+    public override operator fun equals(other: SemanticDescendant): Boolean = when ((this, other)) {
+        case(Node(val left), Node(val right)) -> left == right
+        case(Item(val left, val key), Item(val right, val otherKey)) ->
+            left == right && key == otherKey
+        else -> false
+    }
+    internal val node: SemanticNodeId
+        get() = when (this) {
             case Node(val id) -> id
             case Item(val id, _) -> id
         }
@@ -123,19 +123,21 @@ public struct SemanticRelations(
     val activeDescendant: SemanticDescendant? = None,
     val rowHeaders: Array<SemanticNodeId> = [],
     val columnHeaders: Array<SemanticNodeId> = []
-): Equals<SemanticRelations> {
-    public override operator fun equals(other: SemanticRelations): Boolean =
-        sameSemanticIds(labelledBy, other.labelledBy) &&
-            sameSemanticIds(describedBy, other.describedBy) &&
-            sameSemanticIds(errorMessages, other.errorMessages) &&
-            sameSemanticIds(controls, other.controls) &&
-            activeDescendant ==
-            other.activeDescendant &&
-            sameSemanticIds(rowHeaders, other.rowHeaders) &&
-            sameSemanticIds(columnHeaders, other.columnHeaders)
+) : Equals<SemanticRelations> {
+    public override operator fun equals(other: SemanticRelations): Boolean = sameSemanticIds(
+        labelledBy,
+        other.labelledBy
+    ) &&
+        sameSemanticIds(describedBy, other.describedBy) &&
+        sameSemanticIds(errorMessages, other.errorMessages) &&
+        sameSemanticIds(controls, other.controls) &&
+        activeDescendant ==
+        other.activeDescendant &&
+        sameSemanticIds(rowHeaders, other.rowHeaders) &&
+        sameSemanticIds(columnHeaders, other.columnHeaders)
 
-    internal val references: Array<Array<SemanticNodeId>> get() =
-        [
+    internal val references: Array<Array<SemanticNodeId>>
+        get() = [
             labelledBy,
             describedBy,
             errorMessages,
@@ -150,13 +152,10 @@ public struct SemanticRelations(
 }
 
 internal fun sameSemanticIds(left: Array<SemanticNodeId>, right: Array<SemanticNodeId>): Boolean {
-    if (left === right)
-        return true
-    if (left.size != right.size)
-        return false
-    for (index in 0L ..< left.size)
-        if (left[index] != right[index])
-            return false
+    if (left === right) return true
+    if (left.size != right.size) return false
+    for (index in 0L..<left.size)
+        if (left[index] != right[index]) return false
     return true
 }
 
@@ -186,6 +185,7 @@ public struct SemanticGeometry(
                     "visible semantic geometry must be inside its bounds"
                 )
             }
+
             case None -> {}
         }
     }
@@ -228,90 +228,90 @@ public struct SemanticActions(
     val revealText: ((Utf8Range, SemanticTextScroll) -> SemanticActionResult)? = None
 ) {
     public val isEmpty: Boolean get() = capabilities == 0
-    internal val capabilities: Int get() {
-        var result = 0
-        when (invoke) {
-            case Some(_) -> result += 1;
-            case None -> {}
+    internal val capabilities: Int
+        get() {
+            var result = 0
+            when (invoke) {
+                case Some(_) -> result += 1;
+                case None -> {}
+            }
+            when (toggle) {
+                case Some(_) -> result += 2;
+                case None -> {}
+            }
+            when (setValue) {
+                case Some(_) -> result += 4;
+                case None -> {}
+            }
+            when (focus) {
+                case Some(_) -> result += 8;
+                case None -> {}
+            }
+            when (setSelection) {
+                case Some(_) -> result += 16;
+                case None -> {}
+            }
+            when (replaceText) {
+                case Some(_) -> result += 32;
+                case None -> {}
+            }
+            when (showContextMenu) {
+                case Some(_) -> result += 64;
+                case None -> {}
+            }
+            when (setScrollPosition) {
+                case Some(_) -> result += 128;
+                case None -> {}
+            }
+            when (scrollBackward) {
+                case Some(_) -> result += 256;
+                case None -> {}
+            }
+            when (scrollForward) {
+                case Some(_) -> result += 512;
+                case None -> {}
+            }
+            when (reveal) {
+                case Some(_) -> result += 1024;
+                case None -> {}
+            }
+            when (setNumber) {
+                case Some(_) -> result += 2048;
+                case None -> {}
+            }
+            when (increment) {
+                case Some(_) -> result += 4096;
+                case None -> {}
+            }
+            when (decrement) {
+                case Some(_) -> result += 8192;
+                case None -> {}
+            }
+            when (setSelected) {
+                case Some(_) -> result += 16384;
+                case None -> {}
+            }
+            when (setExpanded) {
+                case Some(_) -> result += 32768;
+                case None -> {}
+            }
+            when (dismiss) {
+                case Some(_) -> result += 65536;
+                case None -> {}
+            }
+            when (revealText) {
+                case Some(_) -> result += 131072;
+                case None -> {}
+            }
+            return result
         }
-        when (toggle) {
-            case Some(_) -> result += 2;
-            case None -> {}
-        }
-        when (setValue) {
-            case Some(_) -> result += 4;
-            case None -> {}
-        }
-        when (focus) {
-            case Some(_) -> result += 8;
-            case None -> {}
-        }
-        when (setSelection) {
-            case Some(_) -> result += 16;
-            case None -> {}
-        }
-        when (replaceText) {
-            case Some(_) -> result += 32;
-            case None -> {}
-        }
-        when (showContextMenu) {
-            case Some(_) -> result += 64;
-            case None -> {}
-        }
-        when (setScrollPosition) {
-            case Some(_) -> result += 128;
-            case None -> {}
-        }
-        when (scrollBackward) {
-            case Some(_) -> result += 256;
-            case None -> {}
-        }
-        when (scrollForward) {
-            case Some(_) -> result += 512;
-            case None -> {}
-        }
-        when (reveal) {
-            case Some(_) -> result += 1024;
-            case None -> {}
-        }
-        when (setNumber) {
-            case Some(_) -> result += 2048;
-            case None -> {}
-        }
-        when (increment) {
-            case Some(_) -> result += 4096;
-            case None -> {}
-        }
-        when (decrement) {
-            case Some(_) -> result += 8192;
-            case None -> {}
-        }
-        when (setSelected) {
-            case Some(_) -> result += 16384;
-            case None -> {}
-        }
-        when (setExpanded) {
-            case Some(_) -> result += 32768;
-            case None -> {}
-        }
-        when (dismiss) {
-            case Some(_) -> result += 65536;
-            case None -> {}
-        }
-        when (revealText) {
-            case Some(_) -> result += 131072;
-            case None -> {}
-        }
-        return result
-    }
 }
 
-internal fun actionCode(value: SemanticActionResult): Int =
-    when (value) {
-        case Completed -> 1
-        case InvalidArgument -> 2
-        case Unsupported -> 3
-        case Unavailable -> 4
-        case Rejected -> 5
-        case Busy -> 6
-    }
+internal fun actionCode(value: SemanticActionResult): Int = when (value) {
+    case Completed -> 1
+    case InvalidArgument -> 2
+    case Unsupported -> 3
+    case Unavailable -> 4
+    case Rejected -> 5
+    case Busy -> 6
+}
