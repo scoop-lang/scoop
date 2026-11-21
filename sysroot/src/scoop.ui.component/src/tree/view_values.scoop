@@ -76,7 +76,10 @@ public class TreeProps<T> public constructor(
     public val onActivate: (TreeActivation<T>) -> Unit = { _ -> },
     public val onDoubleClick: (TreeActivation<T>) -> Unit = { _ -> },
     public val onContextMenu: (TreeActivation<T>) -> Unit = { _ -> },
-    public val showHeader: Boolean = true
+    public val showHeader: Boolean = true,
+    public val drag: TreeDrag<T>? = None,
+    public val loadingIcon: ((TreeRow<T>) -> View)? = None,
+    public val titleFocusable: Boolean = false
 )
 
 public class TreeBuilder<T> internal constructor(
@@ -121,6 +124,9 @@ public class TreeBuilder<T> internal constructor(
     public var onDoubleClick: (TreeActivation<T>) -> Unit = { _ -> }
     public var onContextMenu: (TreeActivation<T>) -> Unit = { _ -> }
     public var showHeader: Boolean = true
+    public var drag: TreeDrag<T>? = None
+    public var loadingIcon: ((TreeRow<T>) -> View)? = None
+    public var titleFocusable: Boolean = false
     public var key: ViewKey = ViewKey.Position
     public fun sticky(configure: TreeStickyBuilder.() -> Unit) {
         val builder = TreeStickyBuilder(sticky)
@@ -132,7 +138,7 @@ public class TreeBuilder<T> internal constructor(
         showLines, showIcons, fullRow, directory, expandAction, enabled, scroll, horizontal,
         handle, anchor, retention, scrollbars, scrollbar, scrollbarBehavior, touchScroll,
         scrollPhysics, theme, fonts, focus, semantics, title, icon, switcher, onActivate,
-        onDoubleClick, onContextMenu, showHeader
+        onDoubleClick, onContextMenu, showHeader, drag, loadingIcon, titleFocusable
     )
 }
 

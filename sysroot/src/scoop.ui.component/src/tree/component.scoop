@@ -33,6 +33,8 @@ internal class TreePlan<T>(
         case Variable(val value) -> ItemExtent.Variable(value * appearance.density)
     }
     val source = TreeItems(this)
+    // Build the collection snapshot during render so offscreen state changes are observed.
+    val semantics = source.semantics()
     val restoreFocus: ViewKey? = controller.fallback(projection, columns)
     val controls = scrollControls(vertical, ScrollAxes.Vertical)
     val horizontalControls = scrollControls(horizontal, ScrollAxes.Horizontal)

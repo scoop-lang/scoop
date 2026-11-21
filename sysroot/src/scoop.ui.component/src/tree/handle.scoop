@@ -70,10 +70,15 @@ public class TreeHandle public constructor() {
     }
     public fun focusItem(key: ViewKey, expandAncestors: Boolean = false): Boolean {
         snapshot.checkMutation()
+        requireComponent(key != ViewKey.Position, "tree positioning requires an explicit key")
         return target?.focus(key, None, expandAncestors) ?: false
     }
     public fun focusCell(key: ViewKey, column: String, expandAncestors: Boolean = false): Boolean {
         snapshot.checkMutation()
+        requireComponent(
+            key != ViewKey.Position && column != "",
+            "tree cell positioning requires a key and column"
+        )
         return target?.focus(key, Some(column), expandAncestors) ?: false
     }
     private fun checkThread() {

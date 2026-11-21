@@ -1393,4 +1393,30 @@ KeepVisible 默认保留吸顶区下方第一实际阅读行的 key 和项内偏
 
 单列与多列都用 Tree 集合；后者附带原 SemanticGrid、真实表头和单元格坐标。describe 只读同一投影与 TreeState，发布 parentKey、hierarchyLevel、siblings、expanded、selected、checked 和 busy。未知／隐藏的选择 key 不进入当前集合快照，叶节点不公布展开动作。离屏展开、选择和勾选沿原模型，查询不调用标题或 cell 工厂。
 
-TreeColumn 可声明 `focusable = true`，表示该列数据项具有真实交互目标，供离屏语义使用；原生 Focus 仍须准备和解析实际目标，不能以声明代替成功聚焦。吸顶只更新原行及单元格的 Accepted 几何，保持原父子关系与逻辑阅读次序。
+隐式单列自定义标题可声明 `titleFocusable = true`，显式 TreeColumn 可声明 `focusable = true`，表示该列数据项具有真实交互目标，供离屏语义使用；原生 Focus 仍须准备和解析实际目标，不能以声明代替成功聚焦。吸顶只更新原行及单元格的 Accepted 几何，保持原父子关系与逻辑阅读次序。
+
+### 54.7 按需加载与任务寿命
+
+`TreeLoader<T>(scope: CoroutineScope, load: suspend (TreeNode<T>) -> Array<TreeNode<T>>)` 借用应用的 UI owner 作用域。`TreeState` 接受 loader、onLoad、onLoadError，提供 setLoader、loadStatus、loadingKeys、loadedKeys、loadChildren、retryLoad、cancelLoad 和 close。组件不持有调度器或网络客户端；加载与模型发布必须回到模型的创建线程；该 UI owner 作用域的关闭／取消也在同一线程执行。Leaf 与 Known 为已知状态，loadedKeys 仅枚举 Known 分支，不维护独立的“已完成”真相。
+
+采纳后的显式展开启动 Deferred 请求；初始／外部 Binding 的展开在普通更新边界同步。纯查询、勾选、render、测量和语义枚举不启动加载，查询临时打开的路径不改写展开状态。交互视图接入 Deferred 数据时必须提供 loader，纯模型允许尚未接入 loader。当前 key 的请求去重；失败保留 Throwable，并由 retryLoad 显式重试。取消恢复 Idle；关闭后不再启动任务。
+
+折叠保留在途请求，成功后发布 Known 子项并保持实际展开状态。替换数据保留引用未变节点的任务，取消已删除或被替换节点的任务与错误；替换 loader 或关闭取消全部任务。完成时同时核对节点引用和当前任务身份，旧结果不能覆盖新数据。成功发布后才通知 onLoad，失败不变成 Known；子项接入复用当前排序、勾选与投影。某个视图卸载不关闭外部 TreeState。
+
+勾选的逻辑状态和辅助技术动作归属原 TreeItem，行内可视 Checkbox 不重复发布第二份勾选语义。父行显示加载指示，并发布 busy；错误状态提供明确的重试动作及描述。空 Known 分支保留目录图标而没有展开动作。自定义 loadingIcon 复用同一父行位置，不产生伪业务子项。
+
+### 54.8 树拖放
+
+`TreeDrag<T>` 由 onDrop、allowDrop、enabled、expandDelay 和可选 content／onStart／onEnter／onOver／onLeave／onEnd 配置，经 TreeProps／TreeBuilder.drag 接入。默认传递节点文字及同模型的类型化 localData，拖动一节点及整棵子树；独立行内控件沿原输入消费规则处理。
+
+`TreeState.dropTarget(source, target, position)` 返回当前合法的 `TreeDrop<T>`，其中 position 为 Before／Inside／After，parent 和 before 使用稳定 key；before=None 表示追加。After 位于目标整个子树后的同级位置。拒绝自身／后代环、失效 key、禁用节点、不可拖动来源、叶节点 Inside 及无变化移动；排序期间拒绝 Before／After。Inside Deferred 只表达业务追加意图，不伪造数值索引。
+
+组件使用真实行高解析上下间隙和中部，按当前数据再次判断落点。多列不把非树列的 x 坐标解释为层级缩进。吸顶行保持相同来源、目标和业务回调。悬停 Inside 经一次性 deadline 展开，并沿普通加载路径取子项；正文上下边缘复用原 ScrollState 自动滚动，吸顶遮挡区不是上边缘热区。离开、失效、隐藏窗口或卸载撤销反馈与定时任务。
+
+只有 onDrop 的业务回调提交数据，组件不预先移动内部副本。`TreeData.moved(source, target, position)` 是已加载数据的纯更新便利方法，成功时保留未变化节点引用及来源子树；不合法或未知目的子项返回 None。业务可以将它与 replaceData 组合，也可以执行自己的 IO。
+
+### 54.9 外观与动效
+
+祖先背景不透明，正文与祖先在同一轨道和裁剪范围内绘制；吸顶区提供边界分隔。主题的密度、RTL、减少动画与默认文字样式共同生效。静态标题、错误描述和自定义内容保留原可访问性身份。
+
+展开箭头、选择和 hover 使用现有 Animatable；结构变更只对新出现或重排的实际挂载行过渡，折叠行立即退出输入与语义，不保留可点击的旧行副本。滚动新挂载行和吸顶位置不做追赶动画，减少动画立即收束；静止时不持续提交动画帧。

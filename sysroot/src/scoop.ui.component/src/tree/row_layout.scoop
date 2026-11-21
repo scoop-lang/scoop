@@ -1,6 +1,7 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.surface.*
 import scoop.ui.*
 import scoop.window.accessibility.*
 
@@ -15,14 +16,41 @@ internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope:
     Element<Unit>(scope) {
     // The row's main target lives outside this group; only F2 enters cell Tab order.
     private val group = scope.focusScope()
+    private val selected = scope.animation(if (props.value.selected) 1.0 else 0.0)
+    private val hovered = scope.animation(if (props.value.interaction.hovered) 1.0 else 0.0)
+    private val reveal = scope.animation(1.0)
+    private var previous = props.value.input.plan.projection
+    private var previousIndex = props.value.input.index
     public override fun onMount() {
         props.value.owner.cellGroup = Some(group)
+        when (props.value.input.plan.controller.presented) {
+            case Some(val old) ->
+                if (old.indexOfKey(props.value.input.row.key) == None) reveal.snapTo(0.0)
+            case None -> {}
+        }
     }
     public override fun onUnmount() {
         props.value.owner.cellGroup = None
     }
     public override fun update(): UiInvalidation {
-        props.value.owner.update();
+        val drawing = props.value
+        drawing.owner.update()
+        val input = drawing.input
+        val motion = input.plan.appearance.theme.tokens.motion
+        val enabled = input.plan.input.enabled && input.row.node.enabled
+        changeProgress(
+            selected,
+            if (drawing.selected) 1.0 else 0.0,
+            if (enabled) motion.resolve(motion.selection) else None
+        )
+        changeProgress(
+            hovered, if (drawing.interaction.hovered && enabled) 1.0 else 0.0,
+            if (enabled) motion.resolve(motion.hover) else None
+        )
+        if (previous !== input.plan.projection && previousIndex != input.index) reveal.snapTo(0.72)
+        previous = input.plan.projection
+        previousIndex = input.index
+        changeProgress(reveal, 1.0, if (enabled) motion.resolve(motion.selection) else None)
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -69,21 +97,19 @@ internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope:
         val plan = drawing.input.plan
         val palette = plan.appearance.theme.tokens.palette
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val selection = selected.value
+        val hover = hovered.value
         context
             .draw { paint ->
-                paint.canvas.drawRect(bounds, Paint(palette.background.background))
-                if (drawing.selected || drawing.interaction.hovered)
+                paint.canvas.drawRect(bounds, Paint(palette.background.background.withAlpha(1.0)))
+                if (hover > 0.0)
                     paint
                         .canvas
-                        .drawRect(
-                            bounds,
-                            Paint(
-                                if (drawing.selected)
-                                    palette.accent.background
-                                else
-                                    palette.muted.background.withAlpha(0.5)
-                            )
-                        )
+                        .drawRect(bounds, Paint(palette.muted.background.withAlpha(0.5 * hover)))
+                if (selection > 0.0)
+                    paint
+                        .canvas
+                        .drawRect(bounds, Paint(palette.accent.background.withAlpha(selection)))
                 if (drawing.interaction.focusVisible) {
                     val line = lowerBound(plan.appearance.density, 1.0)
                     paint.canvas.drawRect(Rect(0.0, 0.0, bounds.width, line), Paint(palette.ring))
@@ -95,12 +121,16 @@ internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope:
                         )
                 }
             }
-        if (plan.input.fullRow) context.place(drawing.owner.control.area, bounds)
+        if (plan.explicit || plan.input.fullRow || panelPresent(plan.input.drag))
+            context.place(drawing.owner.control.area, bounds)
         context
             .withState { clipped ->
-                clipped.clipRect(bounds);
+                clipped.clipRect(bounds)
+                clipped.saveLayer(reveal.value)
                 clipped.children()
+                clipped.restore()
             }
+        drawing.owner.drag?.scene(context, bounds)
     }
 }
 
@@ -214,7 +244,12 @@ private class TreeCellInk<T>(private val props: Props<TreeCellInput<T>>, scope: 
             case Some(val value) -> context.semantics(value, bounds);
             case None -> {}
         }
-        if (input.id == plan.treeColumn && !plan.input.fullRow)
+        if (input.id ==
+            plan.treeColumn &&
+            !plan.explicit &&
+            !plan.input.fullRow &&
+            !panelPresent(plan.input.drag)
+        )
             context.place(input.owner.control.area, content)
         if (input.id == plan.treeColumn && plan.input.showLines) treeLines(context, input.row)
         context

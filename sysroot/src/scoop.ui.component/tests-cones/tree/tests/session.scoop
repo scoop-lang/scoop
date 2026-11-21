@@ -33,10 +33,12 @@ private class TreeViewTest {
                 assertEquals(1, record.unmounts)
                 assertFalse(record.edit.isAttached)
             }
-        } catch (error: Exception) {
-            fail(Some(f"tree phase=${probe.phase}: " + (error.message ?: "unknown failure")))
+        } catch (error: Throwable) {
+            println(f"tree phase=${probe.phase}")
+            throw error
         } finally {
             probe.frames?.close()
+            probe.input?.close()
         }
     }
 }
@@ -56,17 +58,20 @@ internal class TreeProbe {
     val directionValue = state(LayoutDirection.Ltr)
     val records = HashMap<Long, TreeRecord>()
     val history = ArrayList<TreeRecord>()
+    var columnOrigin = TreeChangeOrigin.Programmatic
     val model = TreeState(
         makeData(),
         checking = TreeChecking.Cascade(),
         selection = TreeSelectionMode.Multiple,
-        initialExpandAll = true
+        initialExpandAll = true,
+        onColumnsChange = { event -> columnOrigin = event.origin }
     )
     val columns = makeColumns()
     val tail = FocusHandle()
     var window: Window? = None
     var active: ActiveApplication? = None
     var frames: FrameProbe? = None
+    var input: ViewProbe? = None
     var phase = 0
     var accepted = 0
     var waiting = false
@@ -170,6 +175,7 @@ internal class TreeProbe {
                     )
                 window = Some(native)
                 frames = Some(observeFrames(native))
+                input = Some(observeWindow(native))
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
                 host.attach(native, { scope -> TreeTestScene(this, scope) })
@@ -193,7 +199,7 @@ internal class TreeProbe {
                 }
 
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 22;
+                finished = phase == 32;
                 application.requestExit()
             }
 
@@ -218,6 +224,22 @@ internal class TreeProbe {
     private fun key(code: Int, shift: Boolean = false) {
         assertTrue(sendSurfaceKey(window!!, code, true, shift = shift))
         assertTrue(sendSurfaceKey(window!!, code, false, shift = shift))
+    }
+    private fun press(x: Double, y: Double, down: Boolean) {
+        assertTrue(moveSurfacePointer(window!!, x, y))
+        assertTrue(input!!.button(x, y, down))
+    }
+    private fun headerPress(x: Double, down: Boolean) {
+        val density = theme.current.value.tokens.typography.body.fontSize / 14.0
+        press(10.0 + x * density, 10.0 + 16.0 * density, down)
+    }
+    private fun headerMove(x: Double) {
+        val density = theme.current.value.tokens.typography.body.fontSize / 14.0
+        assertTrue(moveSurfacePointer(window!!, 10.0 + x * density, 10.0 + 16.0 * density))
+    }
+    private fun assertWidth(expected: Double) {
+        val actual = model.columnState.width("name")!!
+        assertTrue(actual > expected - 0.001 && actual < expected + 0.001, Some(f"width ${actual}"))
     }
     private fun advance() {
         when (phase) {
@@ -372,8 +394,48 @@ internal class TreeProbe {
 
             case 21 -> {
                 assertEquals(2, activations)
-                next { window!!.requestDestroy() }
+                next {
+                    directionValue.value = LayoutDirection.Ltr
+                    variable.value = false
+                    model.setSort(None)
+                    assertTrue(
+                        handle.scrollToCell(ViewKey.Number(0L), "name", ScrollAlignment.Start)
+                    )
+                }
             }
+
+            case 22 -> next { headerPress(236.0, true) }
+            case 23 -> next { headerMove(266.0) }
+
+            case 24 -> {
+                assertWidth(270.0)
+                assertEquals(TreeChangeOrigin.Pointer, columnOrigin)
+                next { key(53) }
+            }
+
+            case 25 -> {
+                assertEquals(None, model.columnState.width("name"))
+                assertEquals(TreeChangeOrigin.Keyboard, columnOrigin)
+                next { headerPress(266.0, false) }
+            }
+
+            case 26 -> next { key(124) }
+
+            case 27 -> {
+                assertWidth(250.0)
+                assertEquals(TreeChangeOrigin.Keyboard, columnOrigin)
+                next { headerPress(246.0, true) }
+            }
+
+            case 28 -> next { headerMove(276.0) }
+
+            case 29 -> {
+                assertWidth(280.0)
+                next { model.replaceColumns(None) }
+            }
+
+            case 30 -> next { headerPress(276.0, false) }
+            case 31 -> next { window!!.requestDestroy() }
 
             else -> {}
         }

@@ -25,6 +25,7 @@ internal class TreeScrollRequest(
 internal class TreeViewController<T> : TreeTarget {
     var ink: TreeInk<T>? = None
     var plan: TreePlan<T>? = None
+    var presented: TreeProjection<T>? = None
     val rows = HashMap<ViewKey, TreeMountedRow>()
     public override val active: Boolean get() = ink?.active ?: false
     public override val pending: Boolean
@@ -123,6 +124,18 @@ internal class TreeViewController<T> : TreeTarget {
     }
     public override fun focus(key: ViewKey, column: String?, expand: Boolean): Boolean {
         if (!prepare(key, column, expand)) return false
+        when (column) {
+            case Some(val id) -> {
+                val input = plan!!.input
+                val focusable = when (input.state.columns) {
+                    case Some(val definition) -> definition.find(id)?.focusable ?: false
+                    case None -> input.titleFocusable
+                }
+                if (!focusable) return false
+            }
+
+            case None -> {}
+        }
         when ((column, rows[key])) {
             case(Some(val id), Some(val row)) -> {
                 if (row.hasCell(id) && !row.focusCell(id)) return false

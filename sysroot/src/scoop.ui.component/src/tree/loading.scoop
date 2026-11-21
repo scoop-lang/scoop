@@ -1,0 +1,235 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.*
+
+private class TreeLoadRequest<T>(val node: TreeNode<T>) {
+    var job: Job? = None
+    var cancellation: Disposable? = None
+    fun dispose() {
+        cancellation?.dispose();
+        cancellation = None
+    }
+}
+
+internal class TreeLoading<T>(
+    initial: TreeLoader<T>?,
+    private val data: () -> TreeData<T>,
+    private val replace: (TreeData<T>) -> Unit,
+    private val check: () -> Unit,
+    private val onLoad: (TreeLoadEvent<T>) -> Unit,
+    private val onError: (TreeLoadError<T>) -> Unit
+) {
+    private val provider = state(initial)
+    private val revision = state(0uL)
+    private val requests = HashMap<ViewKey, TreeLoadRequest<T>>()
+    private val errors = HashMap<ViewKey, TreeLoadError<T>>()
+    private var closed = false
+    private var syncedData: TreeData<T>? = None
+    private var syncedKeys: Array<ViewKey>? = None
+    val loader: TreeLoader<T>? get() = provider.value
+    val loadingKeys: Array<ViewKey>
+        get() {
+            revision.value
+            val keys = ArrayList<ViewKey>()
+            for (entry in requests.entries)
+                keys.add(entry.key)
+            return keys.toArray()
+        }
+    fun status(key: ViewKey): TreeLoadStatus {
+        revision.value
+        val node = data().node(key) ?: return TreeLoadStatus.Idle
+        when (node.children) {
+            case Deferred -> {}
+            else -> return TreeLoadStatus.Loaded
+        }
+        if (panelPresent(requests[key])) return TreeLoadStatus.Loading
+        return when (errors[key]) {
+            case Some(val error) -> TreeLoadStatus.Failed(error.error)
+            case None -> TreeLoadStatus.Idle
+        }
+    }
+    fun setLoader(value: TreeLoader<T>?) {
+        check()
+        requireComponent(!closed, "tree loading is closed")
+        val same = when ((provider.value, value)) {
+            case(Some(val a), Some(val b)) -> a === b
+            case(None, None) -> true
+            else -> false
+        }
+        if (same) return
+        cancelAll()
+        provider.value = value
+        syncedData = None
+        syncedKeys = None
+    }
+    fun synchronize(keys: Array<ViewKey>, interactive: Boolean = false) {
+        check()
+        val current = data()
+        requireComponent(
+            !interactive || current.deferredKeys.size == 0L || panelPresent(loader),
+            "an interactive tree with deferred children requires a TreeLoader"
+        )
+        if (closed) return
+        val sameData = when (syncedData) {
+            case Some(val old) -> old === current;
+            case None -> false
+        }
+        val sameKeys = when (syncedKeys) {
+            case Some(val old) -> old === keys;
+            case None -> false
+        }
+        if (sameData && sameKeys) return
+        syncedData = Some(current)
+        syncedKeys = Some(keys)
+        for (key in keys)
+            start(key, false)
+    }
+    fun start(key: ViewKey, retry: Boolean): Boolean {
+        check()
+        if (closed) return false
+        val source = loader ?: return false
+        if (source.scope.job.isCancelled || source.scope.job.isCompleted) return false
+        val node = data().node(key) ?: return false
+        if (!node.enabled) return false
+        when (node.children) {
+            case Deferred -> {};
+            else -> return false
+        }
+        if (panelPresent(requests[key])) return true
+        if (panelPresent(errors[key]) && !retry) return false
+        errors.remove(key)
+        val request = TreeLoadRequest(node)
+        requests[key] = request
+        publish()
+        try {
+            val job = source.scope.launch { this @TreeLoading.execute(request, source) }
+            request.job = Some(job)
+            if (current(request)) {
+                val listener = job.invokeOnCancellation { _ -> retire(request) }
+                if (current(request)) request.cancellation = Some(listener) else listener.dispose()
+            }
+        } catch (error: Throwable) {
+            if (current(request)) {
+                requests.remove(key)
+                request.dispose()
+                publish()
+            }
+            throw error
+        }
+        return true
+    }
+    private suspend fun execute(request: TreeLoadRequest<T>, source: TreeLoader<T>) {
+        val children = try {
+            check()
+            ensureActive()
+            val value = source.load(request.node)
+            ensureActive()
+            check()
+            value
+        } catch (cancelled: CancellationException) {
+            retire(request)
+            return
+        } catch (error: Throwable) {
+            failed(request, error)
+            return
+        }
+        if (!current(request)) return
+        val next = try {
+            data().withChildren(request.node.key, TreeChildren.Known(children))
+        } catch (error: Throwable) {
+            failed(request, error)
+            return
+        }
+        requests.remove(request.node.key)
+        request.dispose()
+        publish()
+        replace(next)
+        onLoad(TreeLoadEvent(next.node(request.node.key)!!, children))
+    }
+    private fun current(request: TreeLoadRequest<T>): Boolean {
+        if (closed) return false
+        val pending = requests[request.node.key] ?: return false
+        val node = data().node(request.node.key) ?: return false
+        return pending === request && node === request.node
+    }
+    private fun retire(request: TreeLoadRequest<T>) {
+        check()
+        if (current(request)) {
+            requests.remove(request.node.key)
+            request.dispose()
+            publish()
+        }
+    }
+    private fun failed(request: TreeLoadRequest<T>, error: Throwable) {
+        check()
+        if (!current(request)) return
+        requests.remove(request.node.key)
+        request.dispose()
+        val failure = TreeLoadError(request.node, error)
+        errors[request.node.key] = failure
+        publish()
+        onError(failure)
+    }
+    /** A branch update preserves unrelated requests, while replaced node identities retire. */
+    fun reconcile(next: TreeData<T>) {
+        check()
+        val retired = ArrayList<TreeLoadRequest<T>>()
+        for (entry in requests.entries) {
+            val node = next.node(entry.key)
+            val same = when (node) {
+                case Some(val value) -> value === entry.value.node;
+                case None -> false
+            }
+            if (!same) retired.add(entry.value)
+        }
+        val forgotten = ArrayList<ViewKey>()
+        for (entry in errors.entries) {
+            val node = next.node(entry.key)
+            val same = when (node) {
+                case Some(val value) -> value === entry.value.node;
+                case None -> false
+            }
+            if (!same) forgotten.add(entry.key)
+        }
+        for (request in retired)
+            requests.remove(request.node.key)
+        for (key in forgotten)
+            errors.remove(key)
+        if (retired.size > 0L || forgotten.size > 0L) publish()
+        for (request in retired) {
+            request.dispose();
+            request.job?.cancel()
+        }
+    }
+    fun cancel(key: ViewKey): Boolean {
+        check()
+        val request = requests[key] ?: return false
+        requests.remove(key)
+        request.dispose()
+        publish()
+        request.job?.cancel()
+        return true
+    }
+    private fun cancelAll() {
+        val active = ArrayList<TreeLoadRequest<T>>()
+        for (entry in requests.entries)
+            active.add(entry.value)
+        requests.clear()
+        errors.clear()
+        publish()
+        for (request in active) {
+            request.dispose();
+            request.job?.cancel()
+        }
+    }
+    fun close() {
+        check()
+        if (closed) return
+        closed = true
+        cancelAll()
+    }
+    private fun publish() {
+        revision.value += 1uL
+    }
+}

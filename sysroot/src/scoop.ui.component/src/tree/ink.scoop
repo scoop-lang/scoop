@@ -11,6 +11,7 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
     private val collection = createComponentSemantics(scope, SemanticRole.Tree, control.semantics)
     private val focus = scope.lazyFocus(control.viewport)
     private val measurements = VirtualMeasurements()
+    private val dragArea = scope.createArea()
     private val typeahead = scope
         .typeahead(
             props.value.source,
@@ -18,6 +19,9 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
             { key -> props.value.controller.focus(key, None, false) },
             TypeaheadOptions(keyboard = false, matches = { text, query -> menuPrefix(text, query) })
         )
+    init {
+        dragArea.ignoreSelf = true
+    }
     private var handle: TreeHandle? = None
     private var updated: TreePlan<T>? = None
     private var committed: TreeReadingPosition<T>? = None
@@ -34,6 +38,33 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
     val gutter: Size get() = control.gutter
     fun bodyViewport(size: Size, direction: LayoutDirection): Rect = control
         .contentViewport(size, direction)
+    fun isSticky(key: ViewKey): Boolean {
+        val current = drawing ?: return false
+        for (row in current.pinning.rows)
+            if (current.plan.projection.keyAt(row.index) == key) return true
+        return false
+    }
+    fun dragDelta(point: Point): Double {
+        val frame = drawing ?: return 0.0
+        val local = dragArea.toLocal(point) ?: return 0.0
+        val viewport = control.contentViewport(frame.size, scope.layoutDirection)
+        val top = viewport.y + frame.pinning.height
+        val bottom = viewport.y + viewport.height
+        if (local.x <
+            viewport.x ||
+            local.x >=
+            viewport.x +
+            viewport.width ||
+            local.y <
+            top ||
+            local.y >=
+            bottom
+        )
+            return 0.0
+        val edge = upperBound(24.0 * frame.plan.appearance.density, (bottom - top) / 3.0)
+        val step = 12.0 * frame.plan.appearance.density
+        return if (local.y < top + edge) -step else if (local.y >= bottom - edge) step else 0.0
+    }
     fun type(text: String) {
         typeahead.push(text)
     }
@@ -71,6 +102,7 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
     }
     public override fun update(): UiInvalidation {
         val plan = props.value
+        if (plan.input.enabled) plan.input.state.synchronizeLoading(interactive = true)
         control.update()
         plan.controller.plan = Some(plan)
         plan.controller.ink = Some(this)
@@ -137,7 +169,7 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
                 value
                     .updateCollection(
                         plan.source,
-                        Some(plan.source.semantics()),
+                        Some(plan.semantics),
                         Some(control.viewport)
                     )
             }
@@ -184,6 +216,7 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
     }
     public override fun scene(context: SceneContext, frame: TreeFrame<T>) {
         val viewport = frame.layout.snapshot.viewport
+        context.place(dragArea, Rect(0.0, 0.0, context.size.width, context.size.height))
         when (collection) {
             case Some(val value) ->
                 context
@@ -239,6 +272,19 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
                             }
                 }
             )
+        if (frame.pinning.height > 0.0) {
+            val body = control.contentViewport(frame.size, context.layoutDirection)
+            val line = lowerBound(frame.plan.appearance.density, 1.0)
+            context
+                .draw { paint ->
+                    paint
+                        .canvas
+                        .drawRect(
+                            Rect(body.x, body.y + frame.pinning.height - line, body.width, line),
+                            Paint(frame.plan.appearance.theme.tokens.palette.border)
+                        )
+                }
+        }
         context
             .onFrameComplete { result ->
                 if (result.submission ==
@@ -251,6 +297,7 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
                 ) {
                     committed = Some(frame.reading)
                     drawing = Some(frame)
+                    frame.plan.controller.presented = Some(frame.plan.projection)
                     handle?.publish(frame.plan.controller, frame.reading.snapshot)
                     val same = when ((requested, frame.request)) {
                         case(Some(val current), Some(val accepted)) -> current === accepted;
@@ -269,6 +316,7 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
         handle?.unbind(props.value.controller)
         props.value.controller.ink = None
         props.value.controller.plan = None
+        props.value.controller.presented = None
         requested = None
         committed = None
         drawing = None

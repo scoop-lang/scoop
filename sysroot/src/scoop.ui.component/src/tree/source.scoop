@@ -22,10 +22,11 @@ internal class TreeItems<T>(val plan: TreePlan<T>) : ItemSource, NavigationSourc
         val selected = ArrayList<SemanticItemKey>()
         for (key in model.selectedKeys)
             if (indexOfKey(key) != None) selected.add(componentSemanticKey(key))
-        // These reads subscribe the collection update to check changes without constructing rows.
+        // The owning render subscribes to these reads without constructing offscreen rows.
         val checks = model.checkValue
         val checked = treeKeySet(checks.checkedKeys)
         val mixed = treeKeySet(checks.halfCheckedKeys)
+        val loading = treeKeySet(model.loadingKeys)
         return ItemSemantics(
             this,
             { index ->
@@ -41,6 +42,17 @@ internal class TreeItems<T>(val plan: TreePlan<T>) : ItemSource, NavigationSourc
                         else
                             None,
                         expanded = if (node.expandable) Some(row.expanded) else None,
+                        busy = loading.contains(node.key),
+                        description = when (model.loadStatus(node.key)) {
+                            case Failed(val error) ->
+                                Some(
+                                    if (error is Exception)
+                                        "Loading failed: " + (error.message ?: "unknown error")
+                                    else
+                                        "Loading failed"
+                                )
+                            else -> None
+                        },
                         hierarchyLevel = Some(row.depth),
                         parentKey = when (row.parent) {
                             case Some(val at) -> Some(componentSemanticKey(keyAt(at)));

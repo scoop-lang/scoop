@@ -20,8 +20,11 @@ public class TreeState<T> public constructor(
     private val onExpand: (TreeKeyChange<T>) -> Unit = { _ -> },
     private val onSelect: (TreeKeyChange<T>) -> Unit = { _ -> },
     onCheck: (TreeCheckChange<T>) -> Unit = { _ -> },
-    onColumnsChange: (TreeColumnChange<T>) -> Unit = { _ -> }
-) {
+    onColumnsChange: (TreeColumnChange<T>) -> Unit = { _ -> },
+    loader: TreeLoader<T>? = None,
+    onLoad: (TreeLoadEvent<T>) -> Unit = { _ -> },
+    onLoadError: (TreeLoadError<T>) -> Unit = { _ -> }
+) : Closeable {
     private val dataStore = state(data)
     private val expansion = expanded ?:
         state(
@@ -40,6 +43,10 @@ public class TreeState<T> public constructor(
         { dataStore.value },
         { dataStore.checkMutation() },
         onCheck
+    )
+    private val loading = TreeLoading(
+        loader, { dataStore.value }, { next -> replaceData(next) },
+        { dataStore.checkMutation() }, onLoad, onLoadError
     )
     private val range = TreeRangeSelection()
     private var expandedMemo: TreeKeySnapshot? = None
@@ -64,11 +71,36 @@ public class TreeState<T> public constructor(
     public val checkedKeys: Array<ViewKey> get() = checks.value.checkedKeys
     public val halfCheckedKeys: Array<ViewKey> get() = checks.value.halfCheckedKeys
     public val checkValue: TreeCheckValue get() = checks.value
+    public val loader: TreeLoader<T>? get() = loading.loader
+    public val loadingKeys: Array<ViewKey> get() = loading.loadingKeys
+    public val loadedKeys: Array<ViewKey> get() = data.loadedKeys
+    public fun loadStatus(key: ViewKey): TreeLoadStatus = loading.status(key)
+    public fun setLoader(value: TreeLoader<T>?) {
+        loading.setLoader(value)
+        synchronizeLoading()
+    }
+    public fun loadChildren(key: ViewKey): Boolean = loading.start(key, false)
+    public fun retryLoad(key: ViewKey): Boolean = loading.start(key, true)
+    public fun cancelLoad(key: ViewKey): Boolean = loading.cancel(key)
+    public override fun close() {
+        loading.close()
+    }
+    internal fun synchronizeLoading(interactive: Boolean = false) {
+        loading.synchronize(expandedKeys, interactive)
+    }
+    public fun dropTarget(
+        source: ViewKey,
+        target: ViewKey,
+        position: TreeDropPosition
+    ): TreeDrop<T>? = treeDrop(data, source, target, position, sort != None)
 
     /** Replaces loaded data without pruning application-owned expansion, selection or check keys. */
     public fun replaceData(value: TreeData<T>) {
         dataStore.checkMutation()
-        if (dataStore.value !== value) dataStore.value = value
+        if (dataStore.value !== value) {
+            loading.reconcile(value)
+            dataStore.value = value
+        }
     }
     public fun pathTo(key: ViewKey): Array<ViewKey>? = data.pathTo(key)
     public fun isExpanded(key: ViewKey): Boolean = expandedSnapshot().lookup.contains(key)
@@ -267,11 +299,15 @@ public class TreeState<T> public constructor(
     ): Boolean {
         dataStore.checkMutation()
         val before = expandedKeys
-        if (treeKeysEqual(before, keys)) return true
+        if (treeKeysEqual(before, keys)) {
+            synchronizeLoading()
+            return true
+        }
         expansion.value = keys
         val actual = expandedKeys
         if (!treeKeysEqual(before, actual))
             onExpand(TreeKeyChange(key, nodeAt(key), actual, origin))
+        synchronizeLoading()
         return treeKeysEqual(actual, keys)
     }
     private fun writeSelection(

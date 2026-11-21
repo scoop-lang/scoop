@@ -38,9 +38,15 @@ val content = tree(documentTree()) {
 
 默认虚拟模式需要显式 `height` 或父布局的有限高度；`virtualize = false` 适合自然高度的小树。`ItemExtent.Fixed` 约束整行，`Variable` 以全部可见列的实际最大高度更新尺寸索引。单列可用 `contentWidth` 指定横向宽度；多列直接使用列宽总和。表头、正文和吸顶祖先共享轨道，纵向滚动条保持在视口边缘。`title`、`icon`、`switcher` 只为所需行构造 View；`TreeNode.label` 继续承担键盘查找与无障碍名称。
 
-`directoryTree` 默认启用图标、整行命中、单击展开及祖先吸顶；`TreeExpandAction.DoubleClick` 改为双击展开。方向键沿树层级移动，Space 勾选或选择，Enter 激活；多列仍整行选择。F2 进入实际单元格控件，Escape 返回行，Tab 按真实控件顺序继续。`TreeColumn.focusable` 声明离屏单元格的聚焦能力，`semanticText` 提供无需构造 View 的文字；纯展示单元格不会生成额外焦点目标。
+`directoryTree` 默认启用图标、整行命中、单击展开及祖先吸顶；`TreeExpandAction.DoubleClick` 改为双击展开。方向键沿树层级移动，Space 勾选或选择，Enter 激活；多列仍整行选择。F2 进入实际单元格控件，Escape 返回行，Tab 按真实控件顺序继续。`TreeColumn.focusable`（隐式单列用 `titleFocusable`）声明离屏单元格的真实聚焦能力，`semanticText` 提供无需构造 View 的文字；纯展示单元格不会生成额外焦点目标。
 
 挂载后，`handle.scrollToItem(key, ScrollAlignment.Start)`、`scrollToCell(key, column)` 与 `focusItem`／`focusCell` 通过现有视口和真实焦点定位。`expandAncestors = true` 只展开数据中已知的路径，绑定拒绝则失败。`reading` 只发布最近 Accepted 帧的正文范围、阅读锚点和吸顶 key；`isPending` 表示请求仍在等待布局提交。吸顶移动同一惰性行，保持行内编辑状态、事件与语义身份。组合验收见 [Tree 实窗测试](tests-cones/tree/README.md)。
+
+Deferred 节点使用 `TreeLoader(scope, load)`：`scope` 是应用在 UI owner 线程使用和取消的协程作用域，`load` 返回类型化子项数组。可在 TreeState 构造时传入 `loader = Some(...)`，或在应用作用域就绪后调用 `setLoader`。显式展开被 Binding 采纳后才启动；同 key 去重，折叠不取消，失败由 `retryLoad(key)` 或父行重试按钮重新发起。`loadStatus`、`loadingKeys`、`loadedKeys` 来自当前请求和 Known 数据；空 Known 仍是目录。`onLoad` 在发布数据后通知，`onLoadError` 保留实际错误。替换节点或 loader 会取消旧请求，迟到结果不会覆盖新数据；`cancelLoad` 取消一个请求，状态归应用所有，由应用在其寿命结束时 `close()`，不随某个 View 卸载关闭。
+
+`drag = Some(TreeDrag(onDrop = ...))` 开启原生节点拖放。回调收到 source／target、Before／Inside／After，以及稳定的 parent／before key；`allowDrop` 可以进一步限制落点。组件拒绝环、禁用项、同位移动和排序中的 Before／After，悬停分支自动展开并沿同一路径加载，正文边缘复用现有滚动状态。业务在 `onDrop` 中执行 IO 或使用 `model.data.moved(source.key, target.key, position)` 获得新快照，再调用 `model.replaceData(next)` 并返回 true。Deferred 目的分支只有追加意图，`moved` 返回 None，由业务处理未知子项。没有第二份内部移动状态。
+
+加载图标可用 `loadingIcon` 覆盖；箭头、选择／hover 和实际挂载行的结构过渡遵循主题的减少动画设置。固定行高的默认文字单行省略，吸顶沿原行背景与列宽绘制。原生行为的独立验收见 [Tree 无障碍测试](tests-cones/tree-accessibility/README.md)。
 
 Input／Textarea／InputOtp 及其组合包装透传 `primarySelection` 和 `automaticTextReplacement`；后者默认 false。PreferSystem 文本菜单的 `systemServices` 默认 true，可单独关闭；受保护／遮蔽文本不发送到系统检查或 Services。Typography／SelectableStyledText 通过 `SelectableTextOptions.primarySelection` 配置选区导出。`TextTouchOptions.hapticFeedback=false` 关闭长按触觉请求。完整组合入口见[双窗口交互展示](examples/touch-input/README.md)，平台能力与限制见[文本服务核查](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
 

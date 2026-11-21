@@ -1,0 +1,21 @@
+package scoop.ui.component
+
+/** Uses the application's UI-owner coroutine scope; Tree owns no scheduler or IO service. */
+public class TreeLoader<T> public constructor(
+    public val scope: CoroutineScope,
+    public val load: suspend (TreeNode<T>) -> Array<TreeNode<T>>
+)
+
+public enum TreeLoadStatus {
+    Idle, Loading, Loaded, Failed(Throwable)
+}
+
+public class TreeLoadEvent<T> internal constructor(
+    public val node: TreeNode<T>,
+    public val children: Array<TreeNode<T>>
+)
+
+public class TreeLoadError<T> internal constructor(
+    public val node: TreeNode<T>,
+    public val error: Throwable
+)

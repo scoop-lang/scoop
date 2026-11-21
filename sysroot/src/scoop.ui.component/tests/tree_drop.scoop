@@ -1,0 +1,165 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class TreeDropTest {
+    @Test
+    fun `after refers to the whole subtree and moves retain descendant identities`() {
+        val data = dropTreeData()
+        val after = treeDrop(data, ViewKey.Number(5L), ViewKey.Number(2L), TreeDropPosition.After)!!
+        assertEquals(Some(ViewKey.Number(1L)), after.parent)
+        assertEquals(Some(ViewKey.Number(4L)), after.before)
+        val moved = data.moved(ViewKey.Number(5L), ViewKey.Number(2L), TreeDropPosition.After)!!
+        assertEquals(1L, moved.roots.size)
+        val model = TreeState(moved, initialExpandAll = true)
+        assertTrue(
+            treeKeysEqual(
+                [
+                    ViewKey.Number(1L),
+                    ViewKey.Number(2L),
+                    ViewKey.Number(3L),
+                    ViewKey.Number(5L),
+                    ViewKey.Number(4L)
+                ],
+                Array<ViewKey>(model.projection.count) { at -> model.projection.keyAt(at) }
+            )
+        )
+        assertSame(data.node(ViewKey.Number(2L))!!, moved.node(ViewKey.Number(2L))!!)
+        assertSame(data.node(ViewKey.Number(3L))!!, moved.node(ViewKey.Number(3L))!!)
+    }
+    @Test
+    fun `cycles noops disabled targets and sorted sibling moves are rejected`() {
+        val data = dropTreeData()
+        assertFalse(
+            panelPresent(
+                treeDrop(data, ViewKey.Number(1L), ViewKey.Number(3L), TreeDropPosition.Before)
+            )
+        )
+        assertFalse(
+            panelPresent(
+                treeDrop(data, ViewKey.Number(2L), ViewKey.Number(2L), TreeDropPosition.After)
+            )
+        )
+        assertFalse(
+            panelPresent(
+                treeDrop(data, ViewKey.Number(2L), ViewKey.Number(4L), TreeDropPosition.Before)
+            )
+        )
+        assertFalse(
+            panelPresent(
+                treeDrop(data, ViewKey.Number(4L), ViewKey.Number(2L), TreeDropPosition.After)
+            )
+        )
+        assertFalse(
+            panelPresent(
+                treeDrop(data, ViewKey.Number(4L), ViewKey.Number(1L), TreeDropPosition.Inside)
+            )
+        )
+        assertFalse(
+            panelPresent(
+                treeDrop(data, ViewKey.Number(5L), ViewKey.Number(4L), TreeDropPosition.Inside)
+            )
+        )
+        assertFalse(
+            panelPresent(
+                treeDrop(data, ViewKey.Number(99L), ViewKey.Number(1L), TreeDropPosition.Inside)
+            )
+        )
+        assertFalse(
+            panelPresent(
+                treeDrop(
+                    data,
+                    ViewKey.Number(5L),
+                    ViewKey.Number(2L),
+                    TreeDropPosition.Before,
+                    true
+                )
+            )
+        )
+        assertTrue(
+            panelPresent(
+                treeDrop(
+                    data,
+                    ViewKey.Number(5L),
+                    ViewKey.Number(2L),
+                    TreeDropPosition.Inside,
+                    true
+                )
+            )
+        )
+        val disabled = TreeData(
+            [
+                TreeNode(
+                    ViewKey.Number(1L),
+                    1L,
+                    "Disabled",
+                    TreeChildren.Known([]),
+                    enabled = false
+                ),
+                TreeNode(ViewKey.Number(5L), 5L, "Source")
+            ]
+        )
+        assertFalse(
+            panelPresent(
+                treeDrop(disabled, ViewKey.Number(5L), ViewKey.Number(1L), TreeDropPosition.Inside)
+            )
+        )
+    }
+    @Test
+    fun `moving to roots preserves a complete subtree and unknown children remain application owned`() {
+        val data = dropTreeData()
+        val moved = data.moved(ViewKey.Number(2L), ViewKey.Number(5L), TreeDropPosition.After)!!
+        assertEquals(3L, moved.roots.size)
+        assertEquals(ViewKey.Number(2L), moved.roots[2L].key)
+        assertTrue(
+            treeKeysEqual(
+                [ViewKey.Number(2L), ViewKey.Number(3L)],
+                moved.pathTo(ViewKey.Number(3L))!!
+            )
+        )
+        val deferred = TreeData(
+            [
+                TreeNode(ViewKey.Number(1L), 1L, "Remote", TreeChildren.Deferred),
+                TreeNode(ViewKey.Number(2L), 2L, "Local")
+            ]
+        )
+        val proposal = treeDrop(
+            deferred,
+            ViewKey.Number(2L),
+            ViewKey.Number(1L),
+            TreeDropPosition.Inside
+        )!!
+        assertEquals(Some(ViewKey.Number(1L)), proposal.parent)
+        assertEquals(None, proposal.before)
+        assertFalse(
+            panelPresent(
+                deferred.moved(ViewKey.Number(2L), ViewKey.Number(1L), TreeDropPosition.Inside)
+            )
+        )
+    }
+}
+
+private fun dropTreeData(): TreeData<Long> = TreeData(
+    [
+        TreeNode(
+            ViewKey.Number(1L),
+            1L,
+            "Root",
+            TreeChildren
+                .Known(
+                    [
+                        TreeNode(
+                            ViewKey.Number(2L),
+                            2L,
+                            "Branch",
+                            TreeChildren.Known([TreeNode(ViewKey.Number(3L), 3L, "Child")])
+                        ),
+                        TreeNode(ViewKey.Number(4L), 4L, "Sibling")
+                    ]
+                )
+        ),
+        TreeNode(ViewKey.Number(5L), 5L, "Other")
+    ]
+)

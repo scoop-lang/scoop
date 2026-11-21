@@ -10,7 +10,8 @@ import scoop.ui.style.*
 import scoop.window.*
 import scoop.ui.component.row as makeTreeRow
 import scoop.ui.component.frame as treeSlot
-import scoop.ui.component.button as treeButton
+import scoop.ui.component.spinner as treeSpinner
+import scoop.ui.component.label as treeLabel
 import scoop.ui.component.checkbox as treeCheckbox
 import scoop.ui.component.icon as treeIcon
 
@@ -29,6 +30,8 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
     var cellGroup: FocusScope? = None
     private var pointer: PointerState? = None
     private var clicks = 1
+    var inputOrigin = TreeChangeOrigin.Pointer
+    var drag: TreeDragControl<T>? = None
     public override val focused: Boolean get() = scope.input.activity.hasFocus
     public override val pending: Boolean
         get() {
@@ -57,14 +60,18 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
                             RoutedPhase.Target
                         )
                             when (event) {
+                                case Keyboard(_) -> inputOrigin = TreeChangeOrigin.Keyboard
+
                                 case Pointer(
                                     InputPointerEvent.Button(val value, _, _, val count)
                                 ) -> {
+                                    inputOrigin = TreeChangeOrigin.Pointer
                                     pointer = Some(value.state);
                                     clicks = count
                                 }
 
                                 case Contact(InputContactEvent.Began(val value)) -> {
+                                    inputOrigin = TreeChangeOrigin.Pointer
                                     pointer = Some(value.pointer);
                                     clicks = 1
                                 }
@@ -89,6 +96,8 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
         props.value.plan.controller.register(props.value.row.key, this)
     }
     public override fun onUnmount() {
+        drag?.close()
+        drag = None
         props.value.plan.controller.unregister(props.value.row.key, this)
     }
     fun update() {
@@ -96,6 +105,9 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
         val enabled = input.plan.input.enabled && input.row.node.enabled
         control.area.scope.enabled = enabled
         control.press.update(PressOptions(enabled, false), { activate() })
+        if (panelPresent(input.plan.input.drag) && !panelPresent(drag))
+            drag = Some(TreeDragControl(scope, control.area, { props.value }))
+        drag?.update()
         updateTabStop()
     }
     private fun updateTabStop() {
@@ -169,6 +181,8 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
         val plan = input.plan
         val row = input.row
         if (!plan.input.enabled || !row.node.enabled) return
+        if (plan.controller.ink?.isSticky(row.key) ?: false)
+            plan.controller.scroll(row.key, None, ScrollAlignment.Start, false)
         treeSelect(plan, row.key, pointer?.modifiers, TreeChangeOrigin.Pointer)
         val activation = TreeActivation(row.node, TreeChangeOrigin.Pointer, pointer)
         plan.input.onActivate(activation)
@@ -187,7 +201,10 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
         val interaction = control.press.interaction
         val content = ArrayList<View>()
         if (!plan.explicit)
-            content.add(treeCell(input, this, 0L, "title", treeTitle(input), AxisAlignment.Start))
+            content
+                .add(
+                    treeCell(input, this, 0L, "title", treeTitle(input, this), AxisAlignment.Start)
+                )
         else
             for (index in 0L..<plan.columns.size) {
                 val column = plan.columns[index]
@@ -196,7 +213,7 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
                         treeCell(
                             input, this, index, column.id,
                             if (column.id == plan.treeColumn)
-                                treeTitle(input, Some(column.cell(row.node)))
+                                treeTitle(input, this, Some(column.cell(row.node)))
                             else
                                 column.cell(row.node), column.alignment
                         )
@@ -210,7 +227,11 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
     }
 }
 
-private fun <T> treeTitle(input: TreeRowInput<T>, custom: View? = None): View {
+private fun <T> treeTitle(
+    input: TreeRowInput<T>,
+    owner: TreeRowView<T>,
+    custom: View? = None
+): View {
     val row = input.row
     val plan = input.plan
     val options = plan.input
@@ -228,7 +249,9 @@ private fun <T> treeTitle(input: TreeRowInput<T>, custom: View? = None): View {
                         .style {
                             this.weight = Some(if (row.matched) 500 else 400)
                             this.color = Some(
-                                if (row.matched)
+                                if (!options.enabled || !row.node.enabled)
+                                    plan.appearance.theme.tokens.palette.muted.foreground
+                                else if (row.matched)
                                     plan.appearance.theme.tokens.palette.primary.background
                                 else
                                     plan.appearance.body.color
@@ -246,31 +269,48 @@ private fun <T> treeTitle(input: TreeRowInput<T>, custom: View? = None): View {
                     this.height = Some(1.0)
                 }
             )
+        val status = options.state.loadStatus(row.key)
+        val failed = when (status) {
+            case Failed(_) -> true;
+            else -> false
+        }
+        val loading = when (status) {
+            case Loading -> true;
+            else -> false
+        }
         val disclosure = if (!row.node.expandable)
             empty()
         else
-            treeButton(
-                when (options.switcher) {
-                    case Some(val build) -> build(row)
-                    case None ->
-                        navigationIcon(
-                            if (row.expanded) NavigationGlyph.Down else NavigationGlyph.End,
-                            14.0 * density,
-                            plan.appearance.theme.tokens.palette.muted.foreground
-                        )
-                },
-                { options.state.setExpanded(row.key, !row.expanded, TreeChangeOrigin.Pointer) }
-            ) {
-                this.enabled = options.enabled && row.node.enabled
-                this.variant = ButtonVariant.Ghost
-                this.size = ButtonSize.IconSm
-                this.theme = options.theme
-                this.focus = FocusOptions(tabStop = false)
-                this.semantics = ComponentSemantics(
-                    name = Some((if (row.expanded) "Collapse " else "Expand ") + row.node.label)
-                )
-                this.style { this.surface { this.padding = Some(Insets.all(0.0)) } }
-            }
+            treeActionButton(
+                if (loading)
+                    when (options.loadingIcon) {
+                        case Some(val build) -> build(row)
+                        case None ->
+                            treeSpinner {
+                                this.size = Some(14.0 * density);
+                                this.theme = options.theme
+                            }
+                    }
+                else if (failed)
+                    treeLabel("↻") {
+                        this.theme = options.theme;
+                        this.fonts = Some(plan.appearance.fonts)
+                    }
+                else
+                    when (options.switcher) {
+                        case Some(val build) -> build(row);
+                        case None -> treeArrow(input)
+                    },
+                (if (failed) "Retry loading " else if (row.expanded) "Collapse " else "Expand ") +
+                    row.node.label,
+                options.enabled && row.node.enabled, options.theme,
+                { origin ->
+                    if (failed)
+                        options.state.retryLoad(row.key)
+                    else
+                        options.state.setExpanded(row.key, !row.expanded, origin)
+                }
+            )
         this
             .add(
                 treeSlot(disclosure) {
@@ -291,7 +331,7 @@ private fun <T> treeTitle(input: TreeRowInput<T>, custom: View? = None): View {
                                 .setChecked(
                                     row.key,
                                     next == CheckState.Checked,
-                                    TreeChangeOrigin.Pointer
+                                    owner.inputOrigin
                                 )
                         }
                     )
@@ -300,7 +340,10 @@ private fun <T> treeTitle(input: TreeRowInput<T>, custom: View? = None): View {
                     this.theme = options.theme
                     this.focus = FocusOptions(tabStop = false)
                     this.style { this.padding = Some(Insets.all(0.0)) }
-                    this.semantics = ComponentSemantics(name = Some("Check " + row.node.label))
+                    this.semantics = ComponentSemantics(
+                        name = Some("Check " + row.node.label),
+                        ignored = true
+                    )
                 }
             this
                 .add(
@@ -318,10 +361,10 @@ private fun <T> treeTitle(input: TreeRowInput<T>, custom: View? = None): View {
                 else
                     Some(
                         treeIcon(
-                            if (row.node.expandable) {
-                                folderIcon
-                            } else
-                                fileIcon
+                            when (row.node.children) {
+                                case Leaf -> fileIcon;
+                                else -> folderIcon
+                            }
                         ) {
                             this.size = 16.0 * density;
                             this.theme = options.theme

@@ -53,10 +53,14 @@ public class TreeData<T> public constructor(public val roots: Array<TreeNode<T>>
     internal val records: Array<TreeRecord<T>> get() = indexed.records
     internal val rootIndices: Array<Long> get() = indexed.roots
     public val count: Long get() = records.size
+    public val loadedKeys: Array<ViewKey> get() = indexed.loaded
+    internal val deferredKeys: Array<ViewKey> get() = indexed.deferred
 
     private fun index(): TreeIndex<T> {
         val rows = ArrayList<TreeRecordBuilder<T>>()
         val rootIds = ArrayList<Long>()
+        val loaded = ArrayList<ViewKey>()
+        val deferred = ArrayList<ViewKey>()
         val stack = ArrayList<TreeDataCursor<T>>()
         stack.add(TreeDataCursor(roots, None, 0L))
         while (stack.size > 0L) {
@@ -90,9 +94,17 @@ public class TreeData<T> public constructor(public val roots: Array<TreeNode<T>>
                 case None -> rootIds.add(index)
             }
             when (node.children) {
-                case Known(val children) ->
+                case Known(val children) -> {
+                    loaded.add(node.key)
                     stack.add(TreeDataCursor(children, Some(index), cursor.depth + 1L))
-                else -> rows[index].end = index + 1L
+                }
+
+                case Deferred -> {
+                    deferred.add(node.key)
+                    rows[index].end = index + 1L
+                }
+
+                case Leaf -> rows[index].end = index + 1L
             }
         }
         val records = Array<TreeRecord<T>>(rows.size) { index ->
@@ -107,7 +119,7 @@ public class TreeData<T> public constructor(public val roots: Array<TreeNode<T>>
                 row.end
             )
         }
-        return TreeIndex(records, rootIds.toArray())
+        return TreeIndex(records, rootIds.toArray(), loaded.toArray(), deferred.toArray())
     }
 
     public fun indexOfKey(key: ViewKey): Long? = keyed[key]
@@ -169,7 +181,12 @@ public class TreeData<T> public constructor(public val roots: Array<TreeNode<T>>
     }
 }
 
-private class TreeIndex<T>(val records: Array<TreeRecord<T>>, val roots: Array<Long>)
+private class TreeIndex<T>(
+    val records: Array<TreeRecord<T>>,
+    val roots: Array<Long>,
+    val loaded: Array<ViewKey>,
+    val deferred: Array<ViewKey>
+)
 
 private class TreeRecordBuilder<T>(
     val node: TreeNode<T>,
