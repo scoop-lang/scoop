@@ -23,10 +23,15 @@ internal class TreeTestScene(private val probe: TreeProbe, scope: ComponentScope
                         this.showIcons = true
                         this.showLines = true
                         this.fullRow = true
-                        this.itemExtent = if (probe.variable.value)
-                            ItemExtent.Variable(32.0)
-                        else
-                            ItemExtent.Fixed(28.0)
+                        this.drag = probe.drag.value
+                        this.itemExtent = when (probe.drag.value) {
+                            case Some(_) -> ItemExtent.Fixed(56.0)
+                            case None ->
+                                if (probe.variable.value)
+                                    ItemExtent.Variable(32.0)
+                                else
+                                    ItemExtent.Fixed(28.0)
+                        }
                         this.onActivate = { _ -> probe.activations += 1 }
                     },
                     probe.directionValue.value

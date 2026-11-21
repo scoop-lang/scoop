@@ -11,6 +11,7 @@ import scoop.window.*
 internal class TreeDragControl<T>(
     private val scope: ComponentScope,
     private val area: InputArea,
+    private val source: DragSource,
     private val read: () -> TreeRowInput<T>
 ) : Closeable {
     private val hover = state<TreeDrop<T>?>(None)
@@ -28,8 +29,6 @@ internal class TreeDragControl<T>(
         { value, point -> drop(value, point) },
         { leave() }
     )
-    private val source = scope
-        .dragSource(area, DragSourceOptions(enabled = false)) { value -> prepare(value) }
     private val target = scope.dropTarget(area, handlers, false)
     val position: TreeDropPosition? get() = hover.value?.position
     private val activity = scope

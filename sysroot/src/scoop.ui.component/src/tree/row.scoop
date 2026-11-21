@@ -25,7 +25,11 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
     Component(scope),
     TreeMountedRow {
     public override val main = FocusHandle()
-    val control = PressControl(scope, PressOptions(), FocusOptions(Some(main)), { activate() })
+    val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area, FocusOptions(Some(main)))
+    // Keep drag admission ahead of Press, including when drag is enabled after mounting.
+    private val source = scope.dragSource(area, DragSourceOptions(enabled = false)) { _ -> None }
+    private val press = scope.press(area, PressOptions()) { activate() }
     val cells = HashMap<String, TreeCellTarget>()
     var cellGroup: FocusScope? = None
     private var pointer: PointerState? = None
@@ -47,11 +51,11 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
             return None
         }
     init {
-        control.area.scope.defaultAction = { context, event -> handle(context, event) }
+        scope.routeChildren(area)
+        area.scope.defaultAction = { context, event -> handle(context, event) }
         scope
             .resource {
-                control
-                    .area
+                area
                     .scope
                     .addEventHandler { context, event ->
                         if (context.phase ==
@@ -103,15 +107,15 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
     fun update() {
         val input = props.value
         val enabled = input.plan.input.enabled && input.row.node.enabled
-        control.area.scope.enabled = enabled
-        control.press.update(PressOptions(enabled, false), { activate() })
+        area.scope.enabled = enabled
+        press.update(PressOptions(enabled, false), { activate() })
         if (panelPresent(input.plan.input.drag) && !panelPresent(drag))
-            drag = Some(TreeDragControl(scope, control.area, { props.value }))
+            drag = Some(TreeDragControl(scope, area, source, { props.value }))
         drag?.update()
         updateTabStop()
     }
     private fun updateTabStop() {
-        control.focus.options = FocusOptions(
+        focus.options = FocusOptions(
             Some(main),
             props.value.plan.input.focus.tabStop && (!focused || main.hasFocus)
         )
@@ -198,7 +202,7 @@ internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: 
         val plan = input.plan
         val row = input.row
         val selected = plan.input.state.isSelected(row.key)
-        val interaction = control.press.interaction
+        val interaction = press.interaction
         val content = ArrayList<View>()
         if (!plan.explicit)
             content

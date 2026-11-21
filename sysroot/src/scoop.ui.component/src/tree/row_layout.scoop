@@ -122,7 +122,7 @@ internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope:
                 }
             }
         if (plan.explicit || plan.input.fullRow || panelPresent(plan.input.drag))
-            context.place(drawing.owner.control.area, bounds)
+            context.place(drawing.owner.area, bounds)
         context
             .withState { clipped ->
                 clipped.clipRect(bounds)
@@ -250,7 +250,7 @@ private class TreeCellInk<T>(private val props: Props<TreeCellInput<T>>, scope: 
             !plan.input.fullRow &&
             !panelPresent(plan.input.drag)
         )
-            context.place(input.owner.control.area, content)
+            context.place(input.owner.area, content)
         if (input.id == plan.treeColumn && plan.input.showLines) treeLines(context, input.row)
         context
             .withState { clipped ->

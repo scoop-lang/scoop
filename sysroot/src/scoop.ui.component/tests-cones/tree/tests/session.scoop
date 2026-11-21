@@ -1,16 +1,19 @@
 package scoop.tests.ui.tree
 
 import scoop.collections.HashMap
+import scoop.graphics.Point
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
 import scoop.test.*
 import scoop.tests.surface.*
+import scoop.tests.window.postDragInput
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.ui.style.macos.macosTheme
 import scoop.window.*
+import scoop.window.native.*
 
 @Test
 private class TreeViewTest {
@@ -55,6 +58,8 @@ internal class TreeProbe {
     val horizontal = ScrollState()
     val theme = ThemeSource(macosTheme())
     val variable = state(false)
+    val drag = state<TreeDrag<Long>?>(None)
+    var dragStarts = 0
     val directionValue = state(LayoutDirection.Ltr)
     val records = HashMap<Long, TreeRecord>()
     val history = ArrayList<TreeRecord>()
@@ -106,7 +111,8 @@ internal class TreeProbe {
                     ViewKey.Number(0L),
                     0L,
                     "Workspace",
-                    TreeChildren.Known(children.toArray())
+                    TreeChildren.Known(children.toArray()),
+                    checkable = false
                 ),
                 TreeNode(ViewKey.Number(20000L), 20000L, "Other")
             ]
@@ -198,8 +204,16 @@ internal class TreeProbe {
                     )
                 }
 
+            case Window(_, WindowEvent.Pointer(PointerEvent.Moved(_))) ->
+                if (phase == 38) {
+                    assertEquals(1, dragStarts)
+                    assertEquals(3, activations)
+                    // Retire the prepared source before the OS starts its modal session.
+                    window!!.requestDestroy()
+                }
+
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 32;
+                finished = phase == 38;
                 application.requestExit()
             }
 
@@ -228,6 +242,19 @@ internal class TreeProbe {
     private fun press(x: Double, y: Double, down: Boolean) {
         assertTrue(moveSurfacePointer(window!!, x, y))
         assertTrue(input!!.button(x, y, down))
+    }
+    private fun nativeDrag(kind: Int) {
+        @Unsafe {
+            window!!
+                .acquireNativeWindow()
+                .use { lease ->
+                    @Unsafe {
+                        when (lease.handle) {
+                            case AppKit(_, val view) -> postDragInput(view, kind)
+                        }
+                    }
+                }
+        }
     }
     private fun headerPress(x: Double, down: Boolean) {
         val density = theme.current.value.tokens.typography.body.fontSize / 14.0
@@ -404,38 +431,67 @@ internal class TreeProbe {
                 }
             }
 
-            case 22 -> next { headerPress(236.0, true) }
-            case 23 -> next { headerMove(266.0) }
+            case 22 -> next { assertTrue(sendSurfaceScroll(window!!, 150.0, 75.0, -3, 0)) }
 
-            case 24 -> {
+            case 23 -> {
+                assertTrue(horizontal.offset.x > 0.0)
+                assertEquals(0.0, vertical.offset.y)
+                next { horizontal.scrollTo(Point(0.0, 0.0)) }
+            }
+
+            case 24 -> next { headerPress(236.0, true) }
+            case 25 -> next { headerMove(266.0) }
+
+            case 26 -> {
                 assertWidth(270.0)
                 assertEquals(TreeChangeOrigin.Pointer, columnOrigin)
                 next { key(53) }
             }
 
-            case 25 -> {
+            case 27 -> {
                 assertEquals(None, model.columnState.width("name"))
                 assertEquals(TreeChangeOrigin.Keyboard, columnOrigin)
                 next { headerPress(266.0, false) }
             }
 
-            case 26 -> next { key(124) }
+            case 28 -> next { key(124) }
 
-            case 27 -> {
+            case 29 -> {
                 assertWidth(250.0)
                 assertEquals(TreeChangeOrigin.Keyboard, columnOrigin)
                 next { headerPress(246.0, true) }
             }
 
-            case 28 -> next { headerMove(276.0) }
+            case 30 -> next { headerMove(276.0) }
 
-            case 29 -> {
+            case 31 -> {
                 assertWidth(280.0)
                 next { model.replaceColumns(None) }
             }
 
-            case 30 -> next { headerPress(276.0, false) }
-            case 31 -> next { window!!.requestDestroy() }
+            case 32 -> next { headerPress(276.0, false) }
+            case 33 ->
+                next {
+                    drag.value = Some(
+                        TreeDrag<Long>(
+                            { _ -> false },
+                            onStart = { node, _ ->
+                                assertEquals(ViewKey.Number(0L), node.key)
+                                dragStarts += 1
+                            }
+                        )
+                    )
+                }
+            case 34 -> next { press(150.0, 45.0, true) }
+            case 35 -> next { press(150.0, 45.0, false) }
+
+            case 36 -> {
+                assertEquals(3, activations)
+                assertEquals(0, dragStarts)
+                next { nativeDrag(0) }
+            }
+
+            case 37 -> next { nativeDrag(1) }
 
             else -> {}
         }
