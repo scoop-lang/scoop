@@ -1,0 +1,44 @@
+package scoop.asyncio
+
+@CLayout
+internal struct NativePtyWait(val status: Long, val error: Int)
+
+@Extern(name = "scoop_io_pty_associate")
+internal fun nativePtyAssociate(loop: Ptr<Unit>, pty: Ptr<Unit>): NativeIoStatus
+
+@Extern(name = "scoop_io_pty_transfer")
+internal fun nativePtyTransfer(
+    loop: Ptr<Unit>,
+    pty: Ptr<Unit>,
+    id: Long,
+    bytes: Ptr<Byte>?,
+    count: Long,
+    writing: Boolean
+): Int
+
+@Extern(name = "scoop_io_pty_watch")
+internal fun nativePtyWatch(loop: Ptr<Unit>, pty: Ptr<Unit>, id: Long): NativeIoStatus
+
+@Extern(name = "scoop_io_pty_cancel")
+internal fun nativePtyCancel(loop: Ptr<Unit>, id: Long)
+
+@Extern(name = "scoop_platform_pty_try_wait")
+internal fun nativePtyTryWait(pty: Ptr<Unit>): NativePtyWait
+
+@Extern(name = "scoop_io_pty_resize")
+internal fun nativePtyResize(
+    loop: Ptr<Unit>,
+    pty: Ptr<Unit>,
+    id: Long,
+    columns: Int,
+    rows: Int
+): Int
+
+@Extern(name = "scoop_io_pty_end_console")
+internal fun nativePtyEndConsole(loop: Ptr<Unit>, pty: Ptr<Unit>, id: Long): Int
+
+@Extern(name = "scoop_io_pty_close_output")
+internal fun nativePtyCloseOutput(pty: Ptr<Unit>): NativeIoStatus
+
+@Extern(name = "scoop_io_pty_close")
+internal fun nativePtyClose(loop: Ptr<Unit>, pty: Ptr<Unit>, id: Long): Int

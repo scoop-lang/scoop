@@ -96,6 +96,21 @@ when = { os = ["darwin", "linux"] }
 path = "native/common/work.c"
 
 [[native.sources]]
+path = "native/common/pty_work.c"
+
+[[native.sources]]
+path = "native/darwin/pty.c"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/linux/pty.c"
+when = { os = "linux" }
+
+[[native.sources]]
+path = "native/windows/pty.c"
+when = { os = "windows" }
+
+[[native.sources]]
 path = "native/windows/loop.c"
 when = { os = "windows" }
 

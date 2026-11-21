@@ -1,0 +1,35 @@
+//! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.asyncio.*
+import scoop.platform.fs.Path
+import scoop.platform.process.*
+import scoop.platform.system.*
+import scoop.text.contains
+
+fun main() {
+    val windows = operatingSystem == OperatingSystem.Windows
+    val shell = command(Path.fromString(if (windows) "cmd.exe" else "sh")) {
+        val arguments = if (windows)
+            ["/d", "/c", "echo hello-from-pty"]
+        else
+            ["-c", "printf 'hello-from-pty\\n'"]
+        for (argument in arguments)
+            arg(OsString.fromString(argument))
+    }
+    val loop = eventLoop()
+    loop
+        .run {
+            loop
+                .spawnPty(shell, 80L, 24L, searchPath = true)
+                .useAsync { pty ->
+                    val output = String.fromUtf8(pty.readAllBytes())
+                    val status = pty.wait()
+                    if (!output.contains("hello-from-pty") || status != ExitStatus.Exited(0))
+                        throw IllegalStateException(
+                            Some("unexpected pseudoterminal output or exit")
+                        )
+                    println("hello-from-pty")
+                }
+        }
+}

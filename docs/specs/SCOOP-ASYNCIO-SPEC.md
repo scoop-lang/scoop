@@ -417,3 +417,15 @@ Win32／IOCP 与 Winsock 错误分别保留真实 domain 和完整 32 位 code�
 | TcpConnectOptions | `tcpConnectOptions(configure: TcpConnectOptionsBuilder.() -> Unit = {})`；resolutionDelay: Duration = Duration.milliseconds(50L)；attemptDelay: Duration = Duration.milliseconds(250L)；maxConcurrentAttempts: Long = 2L；resolveTimeout: Duration? = None；connectTimeout: Duration? = None；onEvent: ((TcpConnectEvent) -> Unit)? = None |
 
 表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
+
+## 12. 子进程伪终端
+
+`EventLoop.spawnPty(command: Command, columns: Long, rows: Long, searchPath: Boolean = false): AsyncPty` 挂起启动并取得归属该 loop 的伪终端。参数和启动错误遵循[平台伪终端规范](SCOOP-PLATFORM-SPEC.md#114-子进程伪终端)。启动在阻塞池执行。取消已经开始的启动时，等实际结果，清理迟到取得的端点并回收直接子进程。
+
+`AsyncPty` 实现 `AsyncByteStream` 和 `AsyncCloseable`。允许一笔读与一笔写并行，按既有缓冲区借用、短传输和取消合同提交已知字节。正长度的读返回零表示输出达到 EOF，挂断前仍可读取已缓冲的输出。Linux master 读到 slave 挂断对应的 EIO、Windows 输出管道断开，映射到 EOF。
+
+`resize(columns, rows)` 和 `wait(): ExitStatus` 都可挂起。resize 串行，可与读写并行。wait 可重复并共享一次回收的退出状态，取消单次等待只撤销本次等待。进程退出状态和输出 EOF 独立可观察。调用方在 wait 期间继续读取，保留子进程关闭终端前仍在系统缓冲中的输出。Windows 观察到直接子进程退出后在 worker 发起 ConPTY 关闭，同时继续读取。Unix 其他仍持有 slave 的进程可以继续写。
+
+`close()` 幂等。关闭拒绝新操作，取消读写和控制请求，等待真实完成并结束仍存活的直接子进程。Windows 停止排空后，等在途读完成即可关闭宿主输出端，让已经开始的 ConPTY 关闭继续推进。显式关闭可放弃未读取输出。loop 收尾复用同一路径。
+
+Darwin 使用 libdispatch 的 fd 和进程就绪源。Linux 用 io_uring poll 监听 master 和 pidfd。Windows 的宿主字节端点使用 IOCP，进程退出用 thread-pool wait。创建和可能阻塞的控制操作在阻塞池执行，进程等待与字节传输走后端的就绪通知。

@@ -1,0 +1,345 @@
+package scoop.asyncio
+
+import scoop.concurrent.AsyncMutex
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.process.ExitStatus
+import scoop.platform.process.requirePtySize
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
+
+private enum PtyPhase {
+    Open, Closing, Closed
+}
+
+private enum PtyConsole {
+    Active, Ending, Ended
+}
+
+internal class PtyEndpoint(val loop: LoopOwner, val pointer: Ptr<Unit>) : AsyncPty, LoopResource {
+    private val gate = IoLock()
+    private var phase = PtyPhase.Open
+    private var directions = 0
+    private val reader = PtyTransfer(this, false)
+    private val writer = PtyTransfer(this, true)
+    private val resizeLock = AsyncMutex()
+
+    // These controls and completions run on the owner.
+    private val exit = PtyExitWaiters(loop)
+    private var watcher: CallbackOperation? = None
+    private var resizeOperation: CallbackOperation? = None
+    private var console = PtyConsole.Active
+    private var outputDetached = false
+    private var finalizing = false
+    private var closeFailure: Throwable? = None
+    private val closeWaiters = ArrayList<(Throwable?) -> Unit>()
+
+    val isClosing: Boolean get() = gate.withLock { phase != PtyPhase.Open }
+
+    fun acquire(writing: Boolean) {
+        val bit = direction(writing)
+        gate
+            .withLock {
+                if (phase != PtyPhase.Open) throw IoClosedException()
+                if ((directions and bit) != 0)
+                    throw IllegalStateException(Some("I/O direction is busy"))
+                directions = directions or bit
+            }
+    }
+
+    fun release(writing: Boolean) {
+        val closing = gate
+            .withLock {
+                directions = directions and direction(writing).inv()
+                phase == PtyPhase.Closing
+            }
+        if (closing) loop.post { advanceClose() }
+    }
+
+    fun activate() {
+        @Unsafe
+        {
+            val status = nativePtyAssociate(loop.nativePointer(), pointer)
+            if (status.code != 0) throw backendFailure("associate pseudoterminal", status)
+        }
+        watchExit()
+    }
+
+    public override suspend fun readInto(buffer: NativeByteBuffer, count: Long): Long =
+        suspendCoroutine(reader.prepare(buffer, count, loop.requireJob()))
+
+    public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long =
+        suspendCoroutine(writer.prepare(buffer, count, loop.requireJob()))
+
+    public override suspend fun flush() {
+        loop.requireJob()
+        acquire(true)
+        release(true)
+    }
+
+    public override suspend fun wait(): ExitStatus = exit.await(loop.requireJob()) { isClosing }
+
+    public override suspend fun resize(columns: Long, rows: Long) {
+        val job = loop.requireJob()
+        requirePtySize(columns, rows)
+        resizeLock.withLock { this @PtyEndpoint.performResize(columns.toInt(), rows.toInt(), job) }
+    }
+
+    private suspend fun performResize(columns: Int, rows: Int, job: Job): Unit = suspendCoroutine<
+        Unit
+    > { continuation ->
+        loop
+            .post {
+                if (isClosing || console != PtyConsole.Active) {
+                    continuation.resumeWithException(IoClosedException())
+                    return@post
+                }
+                val operation = CallbackOperation(
+                    loop, loop.nextOperation(),
+                    { native, id ->
+                        @Unsafe
+                        {
+                            return@CallbackOperation nativeStatus(
+                                id, nativePtyResize(native, pointer, id, columns, rows)
+                            )
+                        }
+                    },
+                    { native, id ->
+                        @Unsafe {
+                            nativeWorkCancel(native, id)
+                        }
+                    },
+                    { event, selected ->
+                        resizeOperation = None
+                        finishUnit(
+                            continuation,
+                            completionFailure("resize pseudoterminal", event.result, selected)
+                        )
+                        advanceControl()
+                    }
+                )
+                resizeOperation = Some(operation)
+                operation.subscribe(job)
+                loop.submit(operation)
+            }
+    }
+
+    private fun watchExit() {
+        val operation = CallbackOperation(
+            loop, loop.nextOperation(),
+            { native, id ->
+                @Unsafe
+                {
+                    return@CallbackOperation nativeStatus(id, nativePtyWatch(native, pointer, id))
+                }
+            },
+            { native, id ->
+                @Unsafe {
+                    nativePtyCancel(native, id)
+                }
+            },
+            { event, selected -> recordExit(event.result, selected) }
+        )
+        watcher = Some(operation)
+        loop.submit(operation)
+    }
+
+    private fun recordExit(result: IoResult, selected: Throwable?) {
+        watcher = None
+        if (isClosing) {
+            advanceClose()
+            return
+        }
+        when (completionFailure("watch pseudoterminal child", result, selected)) {
+            case Some(val failure) -> exit.publish(PtyExit.Failure(failure))
+
+            case None -> {
+                val observed = observeChild()
+                if (observed.status == -2L) {
+                    watchExit()
+                    return
+                }
+                val windows = operatingSystem == OperatingSystem.Windows
+                if (observed.status < 0L) {
+                    val status = NativeIoStatus(if (windows) 9 else 5, observed.error)
+                    exit
+                        .publish(
+                            PtyExit.Failure(backendFailure("wait for pseudoterminal child", status))
+                        )
+                } else {
+                    val status = if (windows || observed.status < 256L)
+                        ExitStatus.Exited(observed.status.toInt())
+                    else
+                        ExitStatus.Signaled((observed.status - 256L).toInt())
+                    exit.publish(PtyExit.Status(status))
+                }
+            }
+        }
+        advanceControl()
+    }
+
+    private fun observeChild(): NativePtyWait {
+        @Unsafe
+        {
+            return nativePtyTryWait(pointer)
+        }
+    }
+
+    private fun advanceControl() {
+        if (isClosing) {
+            advanceClose()
+            return
+        }
+        if (operatingSystem !=
+            OperatingSystem.Windows ||
+            console !=
+            PtyConsole.Active ||
+            operationPending(resizeOperation)
+        )
+            return
+        when (exit.result) {
+            case Some(PtyExit.Status(_)) -> endConsole()
+            case _ -> {}
+        }
+    }
+
+    private fun endConsole() {
+        console = PtyConsole.Ending
+        loop
+            .submit(
+                CallbackOperation(
+                    loop, loop.nextOperation(),
+                    { native, id ->
+                        @Unsafe
+                        {
+                            return@CallbackOperation nativeStatus(
+                                id,
+                                nativePtyEndConsole(native, pointer, id)
+                            )
+                        }
+                    },
+                    { _, _ -> },
+                    { event, selected ->
+                        console = PtyConsole.Ended
+                        when (completionFailure("end pseudoconsole", event.result, selected)) {
+                            case Some(val failure) -> {
+                                recordCloseFailure(failure)
+                                closeFromLoop()
+                            }
+
+                            case None -> advanceClose()
+                        }
+                    }
+                )
+            )
+    }
+
+    public override suspend fun close() {
+        if (gate.withLock { phase == PtyPhase.Closed }) return
+        loop.requireJob(false)
+        suspendCoroutine<Unit> { continuation ->
+            loop.post { closeOnLoop { failure -> finishUnit(continuation, failure) } }
+        }
+    }
+
+    fun closeOnLoop(waiter: (Throwable?) -> Unit) {
+        val previous = gate
+            .withLock {
+                val old = phase
+                if (old == PtyPhase.Open) phase = PtyPhase.Closing
+                old
+            }
+        if (previous == PtyPhase.Closed) {
+            loop.enqueueReady { waiter(None) }
+            return
+        }
+        closeWaiters.add(waiter)
+        if (previous == PtyPhase.Closing) return
+        val closed = IoClosedException()
+        reader.requestFailure(closed)
+        writer.requestFailure(closed)
+        watcher?.requestFailure(closed)
+        resizeOperation?.requestFailure(closed)
+        when (exit.result) {
+            case None -> exit.publish(PtyExit.Failure(closed))
+            case Some(_) -> {}
+        }
+        advanceClose()
+    }
+
+    private fun advanceClose() {
+        if (finalizing || !isClosing) return
+        val busy = gate.withLock { directions }
+        if (!outputDetached && (busy and direction(false)) == 0) {
+            outputDetached = true
+            @Unsafe
+            {
+                val status = nativePtyCloseOutput(pointer)
+                if (status.code != 0)
+                    recordCloseFailure(backendFailure("close pseudoterminal output", status))
+            }
+        }
+        if (busy !=
+            0 ||
+            operationPending(watcher) ||
+            operationPending(resizeOperation) ||
+            console ==
+            PtyConsole.Ending
+        )
+            return
+        finalizing = true
+        loop
+            .submit(
+                CallbackOperation(
+                    loop, loop.nextOperation(),
+                    { native, id ->
+                        @Unsafe
+                        {
+                            return@CallbackOperation nativeStatus(
+                                id,
+                                nativePtyClose(native, pointer, id)
+                            )
+                        }
+                    },
+                    { _, _ -> },
+                    { event, selected ->
+                        when (completionFailure("close pseudoterminal", event.result, selected)) {
+                            case Some(val error) -> recordCloseFailure(error)
+                            case None -> {}
+                        }
+                        reader.closeSlot()
+                        writer.closeSlot()
+                        gate.withLock { phase = PtyPhase.Closed }
+                        loop.forget(this)
+                        for (waiter in closeWaiters)
+                            loop.enqueueReady { waiter(closeFailure) }
+                        closeWaiters.clear()
+                    }
+                )
+            )
+    }
+
+    private fun recordCloseFailure(error: Throwable) {
+        closeFailure = Some(
+            when (closeFailure) {
+                case Some(val primary) -> ResourceUseException(primary, error)
+                case None -> error
+            }
+        )
+    }
+
+    public override fun closeFromLoop() {
+        closeOnLoop { failure ->
+            when (failure) {
+                case Some(val error) -> loop.cleanupFailed(error)
+                case None -> {}
+            }
+        }
+    }
+}
+
+private fun direction(writing: Boolean): Int = if (writing) 2 else 1
+
+private fun operationPending(operation: CallbackOperation?): Boolean = when (operation) {
+    case Some(_) -> true
+    case None -> false
+}

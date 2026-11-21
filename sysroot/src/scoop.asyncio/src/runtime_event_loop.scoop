@@ -7,6 +7,7 @@ import scoop.time.Duration
 import scoop.platform.net.*
 import scoop.platform.system.OsString
 import scoop.platform.fs.*
+import scoop.platform.process.Command
 
 // One public service binding; resources retain one of its physical reactor owners.
 internal class RuntimeEventLoop private constructor(count: Int): EventLoop, Closeable {
@@ -96,6 +97,12 @@ internal class RuntimeEventLoop private constructor(count: Int): EventLoop, Clos
     public override suspend fun openFile(path: Path, options: OpenOptions): AsyncFile =
         openFileOnLoop(owner(), path, options)
     public override suspend fun openTty(): AsyncTty = openTtyOnLoop(owner())
+    public override suspend fun spawnPty(
+        command: Command,
+        columns: Long,
+        rows: Long,
+        searchPath: Boolean
+    ): AsyncPty = spawnPtyOnLoop(owner(), command, columns, rows, searchPath)
     public override suspend fun metadata(path: Path, followLinks: Boolean): FileMetadata =
         metadataOnLoop(owner(), path, followLinks)
     public override suspend fun moveFile(

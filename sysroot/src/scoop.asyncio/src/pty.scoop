@@ -1,0 +1,64 @@
+package scoop.asyncio
+
+import scoop.platform.process.Command
+import scoop.platform.process.ExitStatus
+import scoop.platform.process.spawnPtyNative
+
+/** An owned asynchronous pseudoterminal with a single merged child output stream. */
+public interface AsyncPty : AsyncByteStream, AsyncCloseable {
+    /** Changes the terminal cell dimensions. May run while reading or writing. */
+    public suspend fun resize(columns: Long, rows: Long)
+
+    /** Waits for the direct child. Keep reading concurrently to retain its terminal output. */
+    public suspend fun wait(): ExitStatus
+
+    /** Ends the session and reaps its direct child, discarding unread output if necessary. */
+    public override suspend fun close()
+}
+
+internal suspend fun spawnPtyOnLoop(
+    loop: LoopOwner,
+    command: Command,
+    columns: Long,
+    rows: Long,
+    searchPath: Boolean
+): AsyncPty {
+    val job = loop.requireJob()
+    val pointer = loop
+        .executor
+        .blocking {
+            @Unsafe
+            {
+                return@blocking command.spawnPtyNative(columns, rows, searchPath)
+            }
+        }
+    return suspendCoroutine<AsyncPty> { continuation ->
+        loop
+            .post {
+                val pty = PtyEndpoint(loop, pointer)
+                loop.retain(pty)
+                val failure = try {
+                    job.ensureActive()
+                    pty.activate()
+                    None
+                } catch (error: Throwable) {
+                    Some(error)
+                }
+                when (failure) {
+                    case Some(val error) ->
+                        pty
+                            .closeOnLoop { cleanup ->
+                                continuation
+                                    .resumeWithException(
+                                        when (cleanup) {
+                                            case Some(val secondary) ->
+                                                ResourceUseException(error, secondary)
+                                            case None -> error
+                                        }
+                                    )
+                            }
+                    case None -> continuation.resume(pty)
+                }
+            }
+    }
+}

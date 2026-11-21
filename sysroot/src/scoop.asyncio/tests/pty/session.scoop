@@ -1,0 +1,200 @@
+package scoop.asyncio
+
+import scoop.bytes.ByteArrayBuilder
+import scoop.platform.env.executablePath
+import scoop.platform.fs.Path
+import scoop.platform.io.standardInput
+import scoop.platform.io.readLine
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.process.*
+import scoop.platform.system.*
+import scoop.test.*
+import scoop.text.contains
+
+@Test
+private class AsyncPtyTest {
+    @Test
+    fun exchangeResizeAndWait() {
+        val loop = eventLoop()
+        loop
+            .run {
+                val scope = this
+                loop
+                    .spawnPty(child("exchange"), 37L, 19L)
+                    .useAsync { pty ->
+                        pty.readMarker("ready-37x19")
+                        val wait = scope.async { pty.wait() }
+                        val read = scope.async { pty.readAllBytes() }
+                        yieldCoroutine()
+                        pty.resize(59L, 21L)
+                        pty.send("terminus\r")
+                        assertEquals(ExitStatus.Exited(7), wait.await())
+                        assertTrue(String.fromUtf8(read.await()).contains("tail-59x21-terminus"))
+                        assertEquals(ExitStatus.Exited(7), pty.wait())
+                    }
+            }
+    }
+
+    @Test
+    fun cancellingReadAndWaitKeepsSessionUsable() {
+        val loop = eventLoop()
+        loop
+            .run {
+                val scope = this
+                loop
+                    .spawnPty(child("exchange"), 37L, 19L)
+                    .useAsync { pty ->
+                        pty.readMarker("ready-37x19")
+                        val wait = scope.async { pty.wait() }
+                        val read = scope.async { pty.readAllBytes() }
+                        yieldCoroutine()
+                        wait.cancel()
+                        read.cancel()
+                        expectFailure<CancellationException> { wait.await() }
+                        expectFailure<CancellationException> { read.await() }
+                        pty.send("again\r")
+                        assertTrue(String.fromUtf8(pty.readAllBytes()).contains("tail-37x19-again"))
+                        assertEquals(ExitStatus.Exited(7), pty.wait())
+                    }
+            }
+    }
+
+    @Test
+    fun concurrentCloseCancelsPendingReadAndWait() {
+        val loop = eventLoop()
+        loop
+            .run {
+                val scope = this
+                val pty = loop.spawnPty(child("exchange"), 37L, 19L)
+                pty.readMarker("ready-37x19")
+                val pending = scope
+                    .async {
+                        expectFailure<IoClosedException> { pty.readAllBytes() }
+                        Unit
+                    }
+                val waiting = scope
+                    .async {
+                        expectFailure<IoClosedException> { pty.wait() }
+                        Unit
+                    }
+                yieldCoroutine()
+                val close = scope.async { pty.close() }
+                pty.close()
+                close.await()
+                pending.await()
+                waiting.await()
+                pty.close()
+            }
+    }
+
+    @Test
+    fun observesImmediateExitInAsyncRuntime() {
+        asyncRuntime { workers = 2 }
+            .run {
+                val scope = this
+                currentEventLoop()
+                    .spawnPty(child("immediate"), 37L, 19L)
+                    .useAsync { pty ->
+                        val output = scope.async { pty.readAllBytes() }
+                        assertEquals(ExitStatus.Exited(9), pty.wait())
+                        assertTrue(String.fromUtf8(output.await()).contains("immediate-tail"))
+                    }
+            }
+    }
+
+    @Test
+    fun rejectsInvalidLaunchAndCloseAtLoopExit() {
+        val loop = eventLoop()
+        loop
+            .run {
+                val command = child("exchange")
+                expectFailure<IllegalArgumentException> { loop.spawnPty(command, 0L, 19L) }
+                val invalid = command(executablePath()) { stdin = Stdio.Pipe }
+                expectFailure<IllegalArgumentException> { loop.spawnPty(invalid, 37L, 19L) }
+                val missing = command(Path.fromString("missing-scoop-pty-child"))
+                val error = expectFailure<PlatformException> { loop.spawnPty(missing, 37L, 19L) }
+                assertEquals(PlatformErrorKind.NotFound, error.kind)
+                loop.spawnPty(command, 37L, 19L).readMarker("ready-37x19")
+            }
+    }
+}
+
+private fun child(selector: String): Command = command(executablePath()) {
+    removeEnv(OsString.fromString("SCOOP_TEST_RUN_DIR"))
+    env(OsString.fromString("SCOOP_TEST_NOCAPTURE"), OsString.fromString("1"))
+    arg(OsString.fromString("--scoop-test-filter-ignored"))
+    arg(OsString.fromString("PtyChildProbe::" + selector))
+}
+
+private suspend fun <E : Throwable> expectFailure(block: suspend () -> Unit): E {
+    val caught = try {
+        block()
+        None
+    } catch (error: Throwable) {
+        Some(error)
+    }
+    return assertFailsWith<E> {
+        when (caught) {
+            case Some(val error) -> throw error
+            case None -> {}
+        }
+    }
+}
+
+private suspend fun AsyncPty.send(text: String) {
+    val bytes = text.toByteArray()
+    val buffer = NativeByteBuffer.allocate(bytes.size)
+    try {
+        buffer.writeBytes(bytes)
+        writeFully(buffer)
+    } finally {
+        buffer.close()
+    }
+}
+
+private suspend fun AsyncPty.readMarker(marker: String) {
+    val collected = ByteArrayBuilder()
+    val buffer = NativeByteBuffer.allocate(512L)
+    try {
+        while (true) {
+            buffer.clear()
+            val count = readInto(buffer)
+            if (count == 0L) throw IllegalStateException(Some("PTY ended before " + marker))
+            collected.append(buffer.readBytes(count))
+            if (String.fromUtf8(collected.toByteArray()).contains(marker)) return
+        }
+    } finally {
+        buffer.close()
+    }
+}
+
+@Test
+private class PtyChildProbe {
+    @Test
+    @Ignore("Launched by AsyncPtyTest")
+    fun exchange() {
+        println("ready-" + size())
+        val text = standardInput.readLine()!!
+        println("tail-" + size() + "-" + text)
+        exit(7)
+    }
+
+    @Test
+    @Ignore("Launched by AsyncPtyTest")
+    fun immediate() {
+        println("immediate-tail")
+        exit(9)
+    }
+
+    private fun size(): String {
+        @Unsafe
+        {
+            val value = probeSize()
+            assertTrue(value > 0L)
+            return f"${value shr 32L}x${value and 4294967295L}"
+        }
+    }
+}
+
+@Extern(name = "scoop_test_pty_child_size")
+private fun probeSize(): Long

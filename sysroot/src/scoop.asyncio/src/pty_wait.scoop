@@ -1,0 +1,76 @@
+package scoop.asyncio
+
+import scoop.platform.process.ExitStatus
+
+internal enum PtyExit {
+    Status(ExitStatus),
+    Failure(Throwable)
+}
+
+// Membership and result selection are serialized by the owner.
+internal class PtyExitWaiters(private val loop: LoopOwner) {
+    private var outcome: PtyExit? = None
+    val result: PtyExit? get() = outcome
+    private var waiters = ArrayList<PtyWaiter>()
+
+    suspend fun await(job: Job, closing: () -> Boolean): ExitStatus = suspendCoroutine<ExitStatus> {
+        continuation
+        ->
+        loop
+            .post {
+                val waiter = PtyWaiter(continuation)
+                val available = if (closing())
+                    Some(PtyExit.Failure(IoClosedException()))
+                else
+                    result
+                when (available) {
+                    case Some(val exit) -> notify(waiter, exit)
+
+                    case None -> {
+                        waiters.add(waiter)
+                        waiter.registration = Some(
+                            job
+                                .invokeOnCancellation { error ->
+                                    loop.post { cancel(waiter, error) }
+                                }
+                        )
+                    }
+                }
+            }
+    }
+
+    fun publish(exit: PtyExit) {
+        outcome = Some(exit)
+        val pending = waiters
+        waiters = ArrayList<PtyWaiter>()
+        for (waiter in pending)
+            notify(waiter, exit)
+    }
+
+    private fun cancel(waiter: PtyWaiter, error: Throwable) {
+        var index = 0L
+        while (index < waiters.size) {
+            if (waiters[index] === waiter) {
+                waiters.removeAt(index)
+                notify(waiter, PtyExit.Failure(error))
+                return
+            }
+            index += 1L
+        }
+    }
+
+    private fun notify(waiter: PtyWaiter, exit: PtyExit) {
+        waiter.registration?.dispose()
+        loop
+            .enqueueReady {
+                when (exit) {
+                    case Status(val status) -> waiter.continuation.resume(status)
+                    case Failure(val failure) -> waiter.continuation.resumeWithException(failure)
+                }
+            }
+    }
+}
+
+private class PtyWaiter(val continuation: Continuation<ExitStatus>) {
+    var registration: Disposable? = None
+}

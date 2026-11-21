@@ -1,0 +1,50 @@
+package scoop.asyncio
+
+internal class PtyTransfer(private val pty: PtyEndpoint, writing: Boolean) :
+    ByteTransfer(pty.loop, writing) {
+    private var eof = false
+
+    protected override fun acquire() {
+        pty.acquire(writing)
+    }
+
+    protected override fun release() {
+        pty.release(writing)
+    }
+
+    protected override fun closing(): Boolean = pty.isClosing
+
+    protected override fun start(pointer: Ptr<Unit>): IoStart {
+        if (eof) return IoStart.Finished(NativeEvent(id, IoResult.Eof))
+        @Unsafe
+        {
+            return nativeStatus(
+                id,
+                nativePtyTransfer(
+                    pointer,
+                    pty.pointer,
+                    id,
+                    borrowed.pointer(),
+                    borrowed.length,
+                    writing
+                )
+            )
+        }
+    }
+
+    protected override fun cancelRequest(pointer: Ptr<Unit>) {
+        @Unsafe
+        {
+            nativePtyCancel(pointer, id)
+        }
+    }
+
+    protected override fun failure(result: IoResult, selected: Throwable?): Throwable? {
+        when (result) {
+            case Eof -> eof = true
+            case _ -> {}
+        }
+        val operation = if (writing) "pseudoterminal write" else "pseudoterminal read"
+        return completionFailure(operation, result, selected)
+    }
+}

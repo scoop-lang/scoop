@@ -4,6 +4,7 @@ import scoop.time.Duration
 import scoop.platform.net.*
 import scoop.platform.system.OsString
 import scoop.platform.fs.*
+import scoop.platform.process.Command
 
 /**
  * The suspending filesystem, timer, resolver, TCP, UDP, and TTY service installed for a structured
@@ -40,6 +41,13 @@ public interface EventLoop {
      * Opens an owned asynchronous terminal handle.
      */
     public suspend fun openTty(): AsyncTty
+    /** Launches a child on an owned pseudoterminal using cell dimensions. */
+    public suspend fun spawnPty(
+        command: Command,
+        columns: Long,
+        rows: Long,
+        searchPath: Boolean = false
+    ): AsyncPty
     /**
      * Queries filesystem metadata, optionally following symbolic links.
      */
