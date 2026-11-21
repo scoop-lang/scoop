@@ -226,6 +226,7 @@ impl QueryKind {
             | Self::Definition(p)
             | Self::TypeDefinition(p)
             | Self::Implementation(p)
+            | Self::SuperDeclarations(p)
             | Self::CodeActions(p)
             | Self::References(p) => Some(&p.document),
             Self::Symbols(d) | Self::Diagnostics(d) => Some(d),
@@ -241,6 +242,7 @@ impl QueryKind {
             Self::Definition(_) => "definition",
             Self::TypeDefinition(_) => "type-definition",
             Self::Implementation(_) => "implementation",
+            Self::SuperDeclarations(_) => "super-declarations",
             Self::References(_) => "references",
             Self::Symbols(_) => "symbols",
             Self::Diagnostics(_) => "diagnostics",
@@ -258,6 +260,7 @@ impl QueryKind {
             Self::Definition(p) => ("textDocument/definition", Some(p)),
             Self::TypeDefinition(p) => ("textDocument/typeDefinition", Some(p)),
             Self::Implementation(p) => ("textDocument/implementation", Some(p)),
+            Self::SuperDeclarations(p) => ("scoop/superDeclarations", Some(p)),
             Self::References(p) => ("textDocument/references", Some(p)),
             Self::CodeActions(p) => {
                 let point = json!({"line": p.line - 1, "character": p.column - 1});

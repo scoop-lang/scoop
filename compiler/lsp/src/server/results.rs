@@ -32,9 +32,13 @@ impl Server {
                 {
                     return self.schedule_request(&id, output);
                 }
-                let result = if matches!(&pending.query, Query::Document(query) if matches!(query.kind, crate::queries::QueryKind::Rename { .. }))
-                {
-                    result.and_then(|value| self.rename_versions(value))
+                let result = if matches!(&pending.query, Query::Document(query) if matches!(query.kind,
+                crate::queries::QueryKind::Rename { .. }
+                | crate::queries::QueryKind::StructuralRefactor(
+                    crate::queries::structural_refactor::RefactorQuery::Move { .. }
+                    | crate::queries::structural_refactor::RefactorQuery::ChangeSignature { .. }
+                ))) {
+                    result.and_then(|value| self.edit_versions(value))
                 } else {
                     result
                 };
@@ -92,10 +96,7 @@ impl Server {
         }
     }
 
-    fn rename_versions(
-        &self,
-        value: serde_json::Value,
-    ) -> Result<serde_json::Value, ResponseError> {
+    fn edit_versions(&self, value: serde_json::Value) -> Result<serde_json::Value, ResponseError> {
         if value.is_null() {
             return Ok(value);
         }

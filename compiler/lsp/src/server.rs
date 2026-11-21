@@ -130,7 +130,11 @@ impl Server {
                 let (settings, result) = crate::initialize::initialize(params);
                 self.settings = settings;
                 self.initialized = true;
-                queries::json(result)
+                let mut result = queries::json(result)?;
+                // lsp-types 0.97 supports the requests, and omits the provider
+                // field from its ServerCapabilities model.
+                result["capabilities"]["typeHierarchyProvider"] = true.into();
+                Ok(result)
             });
             Message::Response(Response {
                 id: request.id,

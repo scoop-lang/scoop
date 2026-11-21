@@ -9,15 +9,24 @@ impl Lowerer {
                 path.last().expect("a type path is non-empty").span
             }
             ast::TypeRefKind::AppliedMember { name, .. } => name.span,
-            ast::TypeRefKind::Unit => syntax.span,
-            ast::TypeRefKind::Tuple(_)
+            ast::TypeRefKind::Unit
+            | ast::TypeRefKind::Tuple(_)
             | ast::TypeRefKind::Function(_)
-            | ast::TypeRefKind::Nullable(_) => return,
+            | ast::TypeRefKind::Nullable(_) => syntax.span,
         };
-        self.observe_type_application_name(span, ty);
+        self.observe_type_application_spans(span, syntax.span, ty);
     }
 
     pub(crate) fn observe_type_application_name(&mut self, span: ast::Span, ty: hir::TypeId) {
+        self.observe_type_application_spans(span, span, ty);
+    }
+
+    fn observe_type_application_spans(
+        &mut self,
+        name_span: ast::Span,
+        full_span: ast::Span,
+        ty: hir::TypeId,
+    ) {
         if !self.observes_types() {
             return;
         }
@@ -29,13 +38,56 @@ impl Lowerer {
                 .expect("body type observation")
                 .types
         });
+        if name_span != full_span {
+            observation
+                .applications
+                .insert((self.current_file, name_span), (ty, name.clone()));
+        }
         observation
             .applications
-            .insert((self.current_file, span), (ty, name));
+            .insert((self.current_file, full_span), (ty, name));
     }
 }
 
 impl DeclarationAnalysis {
+    pub fn resolved_type_key_for_edit(
+        &self,
+        ty: hir::TypeId,
+    ) -> Option<scoop_identity::SignatureTypeKey> {
+        let mut parameters = self
+            .lowerer
+            .editing_type_definitions
+            .iter()
+            .filter_map(|(target, origin)| match target {
+                TypeTarget::Parameter(parameter) => Some((*parameter, origin)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        parameters.sort_unstable_by(|(_, left), (_, right)| {
+            (&left.source, left.span.start, left.span.end).cmp(&(
+                &right.source,
+                right.span.start,
+                right.span.end,
+            ))
+        });
+        let binders = parameters
+            .into_iter()
+            .enumerate()
+            .map(|(index, (parameter, _))| hir::HirSignatureBinder {
+                parameter,
+                depth: 0,
+                index: index as u32,
+            })
+            .collect::<Vec<_>>();
+        crate::persistent_types::SignatureTypeMapper::new(
+            &self.lowerer,
+            self.lowerer.nominal_identities.as_ref()?,
+            self.lowerer.query_core_types(),
+        )
+        .map(ty, &binders)
+        .ok()
+    }
+
     pub fn type_definition(
         &mut self,
         ty: hir::TypeId,

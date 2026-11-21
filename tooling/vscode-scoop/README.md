@@ -2,7 +2,7 @@
 
 为 `.scoop` 文件提供 `scoop-lsp` 语言服务和 Tree-sitter 编辑功能。
 - LSP：实时诊断、成员补全、悬停文档、签名帮助、定义／类型定义／实现跳转、文档与
-  工作区符号、引用、重命名、选择范围和缺失标点的快速修复。
+  工作区符号、引用、类型与调用层级、重命名、提取局部变量和函数、选择范围和快速修复。
 - Tree-sitter：语法高亮、代码折叠、输入时缩进以及文档／选区重新缩进。重新缩进
   只调整行首空白，保留 raw 字符串和块注释内部文本，遵守空格／tab 设置。
 - CodeLens：在顶层 `main` 和测试容器的 `@Test` 方法上显示 Run／Debug，支持限定注解名、
@@ -19,6 +19,18 @@ Run／Debug 后才调用普通构建入口。扩展不自动准备 sysroot；不
 未保存的新文件仍有 LSP 语法诊断和结构查询。
 
 ## 安装和配置
+
+在覆写的方法或属性名称上执行 `Scoop: Go to Super Declaration`，可打开被覆写的上级声明。在类型上执行 `Peek Type Hierarchy`，可逐层查看父类型和子类型。
+
+在函数、方法或调用上执行 `Peek Call Hierarchy`，可查看调用方和被调用方。同一调用方的多处调用会列在同一个层级项下。
+
+在方法或属性声明上执行 `Scoop: Show Member Hierarchy`，可在直接上级和覆写声明之间逐层导航。`Scoop: Go to Related Tests` 可在 Test 配置中查看所选符号在测试源码中的实际用法。对 `break`、`continue`、`return` 及其目标标签使用「转到定义」，可定位对应的循环或 callable。
+
+选中块内的完整表达式后，通过重构菜单选择 `Extract Local Variable`，可将表达式提取为同一块的 `val`。选择 `Extract Function` 可把完整表达式或可独立执行的连续语句提取为局部函数。
+
+在以字面量或稳定值初始化的局部 `val` 上，可用 `Inline Local Variable` 替换各处读取。选中完整的类型语法后可用 `Introduce Type Alias`。文件私有顶层函数可用 `Safe Delete Function`，有阻塞用法时可选择 `Show Safe Delete Usages` 查看位置。
+
+`Organize Imports` 删除未使用的普通文件头精确导入。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择同一 Cone、同一 package 的目标文件。在文件私有顶层函数上执行 `Scoop: Change Signature`，按提示输入参数编号的新排列。移动和换序支持预览后应用。
 
 将完整工具包解压到 `~/.scoop` 后安装随包 VSIX：
 

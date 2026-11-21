@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 
 from accessor_bodies import check as check_accessor_bodies
+from call_hierarchy import check as check_call_hierarchy
 from callable_arguments import check as check_callable_arguments
 from callable_literals import check as check_callable_literals
 from callable_values import check as check_callable_values
@@ -21,6 +22,7 @@ from diagnostics import check as check_diagnostics
 from do_while_recovery import check as check_do_while_recovery
 from documentation import check as check_documentation
 from exception_recovery import check as check_exception_recovery
+from extract_local import check as check_extract_local
 from file_headers import check as check_file_headers
 from for_recovery import check as check_for_recovery
 from import_failures import check as check_import_failures
@@ -30,6 +32,7 @@ from installed_sources import location
 from late_declarations import check as check_late_declarations
 from local_function_recovery import check as check_local_function_recovery
 from member_implementations import check as check_member_implementations
+from navigation_extras import check as check_navigation_extras
 from nominal_failures import check as check_nominal_failures
 from operator_references import check as check_operator_references
 from property_references import check as check_property_references
@@ -40,6 +43,7 @@ from recovered_interfaces import check as check_recovered_interfaces
 from recovered_objects import check as check_recovered_objects
 from recovered_structs import check as check_recovered_structs
 from reexport_references import check as check_reexport_references
+from refactor_local import check as check_refactor_local
 from references import check as check_references
 from rename import check as check_rename
 from rename_bodies import check as check_rename_bodies
@@ -53,6 +57,7 @@ from source_dependencies import check as check_source_dependencies
 from static_calls import check as check_static_calls
 from static_constants import check as check_static_constants
 from static_variants import check as check_static_variants
+from structure_refactors import check as check_structure_refactors
 from subscript_references import check as check_subscript_references
 from type_definitions import check as check_type_definitions
 from type_hovers import check as check_type_hovers
@@ -201,7 +206,16 @@ def main():
                         "didChangeWatchedFiles": {"dynamicRegistration": True},
                         "workspaceEdit": {"documentChanges": True},
                     },
-                    "textDocument": {"documentSymbol": {"hierarchicalDocumentSymbolSupport": True}},
+                    "textDocument": {
+                        "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
+                        "codeAction": {
+                            "codeActionLiteralSupport": {
+                                "codeActionKind": {"valueSet": ["quickfix", "refactor"]}
+                            },
+                            "dataSupport": True,
+                            "resolveSupport": {"properties": ["edit"]},
+                        },
+                    },
                 },
             },
         )
@@ -209,6 +223,13 @@ def main():
         assert initialized["capabilities"]["definitionProvider"]
         assert initialized["capabilities"]["referencesProvider"]
         assert initialized["capabilities"]["renameProvider"]["prepareProvider"]
+        assert initialized["capabilities"]["experimental"]["scoopSuperDeclarations"]
+        assert initialized["capabilities"]["typeHierarchyProvider"]
+        assert initialized["capabilities"]["callHierarchyProvider"]
+        assert (
+            "refactor.extract"
+            in initialized["capabilities"]["codeActionProvider"]["codeActionKinds"]
+        )
         assert initialized["capabilities"]["completionProvider"]["triggerCharacters"] == ["."]
         assert initialized["capabilities"]["signatureHelpProvider"]["triggerCharacters"] == [
             "(",
@@ -424,7 +445,9 @@ def main():
         check_type_definitions(peer, root, sysroot)
         check_type_hovers(peer, root)
         check_type_implementations(peer, root)
+        check_call_hierarchy(peer, root)
         check_member_implementations(peer, root)
+        check_navigation_extras(peer, root, restore="test")
         check_recovered_classes(peer, root)
         check_recovered_enums(peer, root)
         check_recovered_objects(peer, root)
@@ -440,6 +463,9 @@ def main():
         check_file_headers(peer, root)
         check_reexport_references(peer, root)
         check_rename(peer, root)
+        check_extract_local(peer, root)
+        check_refactor_local(peer, root)
+        check_structure_refactors(peer, root)
         check_rename_types(peer, root)
         check_rename_members(peer, root)
         check_rename_exports(peer, root)

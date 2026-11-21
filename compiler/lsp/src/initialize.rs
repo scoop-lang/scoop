@@ -109,14 +109,29 @@ pub(crate) fn initialize(params: InitializeParams) -> (Settings, InitializeResul
             implementation_provider: Some(lsp_types::ImplementationProviderCapability::Simple(
                 true,
             )),
+            call_hierarchy_provider: Some(true.into()),
+            experimental: Some(serde_json::json!({
+                "scoopSuperDeclarations": true,
+                "scoopRelatedTests": true,
+                "scoopMemberHierarchy": true,
+                "scoopMoveDeclaration": versioned_edits,
+                "scoopChangeSignature": versioned_edits,
+            })),
             references_provider: Some(OneOf::Left(true)),
+            document_highlight_provider: Some(OneOf::Left(true)),
             rename_provider: versioned_edits.then_some(OneOf::Right(lsp_types::RenameOptions {
                 prepare_provider: Some(true),
                 work_done_progress_options: Default::default(),
             })),
             code_action_provider: code_actions.then(|| {
                 lsp_types::CodeActionProviderCapability::Options(lsp_types::CodeActionOptions {
-                    code_action_kinds: Some(vec![lsp_types::CodeActionKind::QUICKFIX]),
+                    code_action_kinds: Some(vec![
+                        lsp_types::CodeActionKind::QUICKFIX,
+                        lsp_types::CodeActionKind::REFACTOR_EXTRACT,
+                        lsp_types::CodeActionKind::REFACTOR_INLINE,
+                        lsp_types::CodeActionKind::REFACTOR_REWRITE,
+                        lsp_types::CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
+                    ]),
                     resolve_provider: Some(code_action_resolve),
                     ..Default::default()
                 })

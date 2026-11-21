@@ -23,6 +23,37 @@ struct ReferenceBuilder {
 }
 
 impl DeclarationAnalysis {
+    /// Checked uses and the source import selected for each use.
+    pub fn file_import_uses(
+        &self,
+        source: &scoop_identity::SourceIdentity,
+    ) -> impl Iterator<Item = (&hir::SemanticSourceLocation, &hir::SemanticSourceLocation)> {
+        self.resolved_import_uses
+            .iter()
+            .filter_map(move |(usage, import)| (&usage.source == source).then_some((usage, import)))
+    }
+
+    pub fn body_reference_index(
+        &mut self,
+        body: &hir::EditingSourceBody,
+        is_cancelled: Rc<dyn Fn() -> bool>,
+    ) -> Result<Option<hir::EditingReferenceIndex>, EditingCancelled> {
+        let mut builder = ReferenceBuilder::default();
+        builder.body(self, body, &is_cancelled)?;
+        if !builder.unavailable.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(hir::EditingReferenceIndex::new(
+            builder.occurrences,
+            builder.definitions,
+            Vec::new(),
+            true,
+            builder.aliases,
+            Vec::new(),
+            Vec::new(),
+        )))
+    }
+
     pub fn reference_index(
         &mut self,
         is_cancelled: impl Fn() -> bool + 'static,
@@ -151,6 +182,21 @@ impl DeclarationAnalysis {
             if check() {
                 return Err(EditingCancelled);
             }
+            let mut import_uses = Vec::new();
+            for (usage, imports) in &builder.import_uses {
+                if check() {
+                    return Err(EditingCancelled);
+                }
+                for import in imports {
+                    let declaration = match import {
+                        hir::EditingImportSource::Declaration(declaration) => Some(declaration),
+                        hir::EditingImportSource::Dependency { import, .. } => import.as_ref(),
+                    };
+                    if let Some(declaration) = declaration {
+                        import_uses.push((usage.clone(), declaration.clone()));
+                    }
+                }
+            }
             builder.imports(&mut self.lowerer, &check)?;
             builder
                 .unavailable
@@ -164,6 +210,7 @@ impl DeclarationAnalysis {
                 builder.export_references,
                 builder.reexports,
             ));
+            self.resolved_import_uses = import_uses;
         }
         Ok(self
             .reference_index

@@ -35,6 +35,20 @@ pub struct EditingStaticCall {
 }
 
 #[derive(Clone, Debug)]
+pub struct EditingCallHierarchyDeclaration {
+    pub name: String,
+    pub method: bool,
+    pub origin: SemanticSourceLocation,
+}
+
+#[derive(Clone, Debug)]
+pub struct EditingCallHierarchyEdge {
+    pub caller: EditingCallHierarchyDeclaration,
+    pub callee: EditingCallHierarchyDeclaration,
+    pub site: SemanticSourceLocation,
+}
+
+#[derive(Clone, Debug)]
 pub struct EditingAppliedParameter {
     pub name: Option<String>,
     pub value_type: TypeId,

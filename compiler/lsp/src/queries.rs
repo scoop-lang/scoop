@@ -9,22 +9,25 @@ use serde_json::Value;
 
 use crate::{convert, initialize::Settings};
 
+pub(crate) mod call_hierarchy;
 pub(crate) mod code_actions;
 mod completion;
 mod definition;
 mod hover;
 mod implementation;
-mod references;
+pub(crate) mod references;
 mod rename;
 mod semantic;
 mod signature_help;
+pub(crate) mod structural_refactor;
 mod symbols;
 mod type_definition;
+pub(crate) mod type_hierarchy;
 mod workspace_symbols;
 pub(crate) use completion::completion;
 pub(crate) use definition::definition;
 pub(crate) use hover::hover;
-pub(crate) use implementation::implementation;
+pub(crate) use implementation::{implementation, member_hierarchy, super_declarations};
 pub(crate) use references::references;
 pub(crate) use rename::{prepare_rename, rename};
 pub(crate) use semantic::cancelled;
@@ -39,10 +42,16 @@ pub(crate) enum QueryKind {
     Definition(Position),
     TypeDefinition(Position),
     Implementation(Position),
+    SuperDeclarations(Position),
+    MemberHierarchy(Position),
+    TypeHierarchy(type_hierarchy::HierarchyQuery),
+    CallHierarchy(call_hierarchy::CallQuery),
     References {
         position: Position,
         include_declaration: bool,
     },
+    UsageLocations(Position, references::UsageView),
+    StructuralRefactor(structural_refactor::RefactorQuery),
     PrepareRename(Position),
     Rename {
         position: Position,
@@ -101,6 +110,38 @@ impl Query {
 impl DocumentQuery {
     fn from_request(request: &Request) -> Result<Self, ResponseError> {
         match request.method.as_str() {
+            "scoop/moveDeclaration" => {
+                let params: structural_refactor::MoveParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.position.text_document.uri,
+                    kind: QueryKind::StructuralRefactor(structural_refactor::RefactorQuery::Move {
+                        position: params.position.position,
+                        target_uri: params.target_uri,
+                    }),
+                })
+            }
+            "scoop/prepareChangeSignature" => {
+                let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document.uri,
+                    kind: QueryKind::StructuralRefactor(
+                        structural_refactor::RefactorQuery::PrepareSignature(params.position),
+                    ),
+                })
+            }
+            "scoop/changeSignature" => {
+                let params: structural_refactor::SignatureParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.position.text_document.uri,
+                    kind: QueryKind::StructuralRefactor(
+                        structural_refactor::RefactorQuery::ChangeSignature {
+                            position: params.position.position,
+                            order: params.order,
+                            revision: params.revision,
+                        },
+                    ),
+                })
+            }
             "textDocument/prepareRename" => {
                 let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
                 Ok(Self {
@@ -126,6 +167,18 @@ impl DocumentQuery {
                         position: params.text_document_position.position,
                         include_declaration: params.context.include_declaration,
                     },
+                })
+            }
+            "textDocument/documentHighlight" | "scoop/relatedTests" => {
+                let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
+                let view = if request.method == "textDocument/documentHighlight" {
+                    references::UsageView::File
+                } else {
+                    references::UsageView::Tests
+                };
+                Ok(Self {
+                    uri: params.text_document.uri,
+                    kind: QueryKind::UsageLocations(params.position, view),
                 })
             }
             "textDocument/codeAction" => {
@@ -209,6 +262,72 @@ impl DocumentQuery {
                 Ok(Self {
                     uri: params.text_document_position_params.text_document.uri,
                     kind: QueryKind::Implementation(params.text_document_position_params.position),
+                })
+            }
+            "textDocument/prepareTypeHierarchy" => {
+                let params: lsp_types::TypeHierarchyPrepareParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document_position_params.text_document.uri,
+                    kind: QueryKind::TypeHierarchy(type_hierarchy::HierarchyQuery::Prepare(
+                        params.text_document_position_params.position,
+                    )),
+                })
+            }
+            "typeHierarchy/supertypes" | "typeHierarchy/subtypes" => {
+                let direction = if request.method == "typeHierarchy/supertypes" {
+                    scoop_analysis::TypeHierarchyDirection::Super
+                } else {
+                    scoop_analysis::TypeHierarchyDirection::Sub
+                };
+                let params: lsp_types::TypeHierarchySubtypesParams =
+                    params(request.params.clone())?;
+                let data = type_hierarchy::ItemData::from_item(params.item)?;
+                Ok(Self {
+                    uri: data.anchor.clone(),
+                    kind: QueryKind::TypeHierarchy(type_hierarchy::HierarchyQuery::Expand {
+                        data,
+                        direction,
+                    }),
+                })
+            }
+            "scoop/superDeclarations" => {
+                let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document.uri,
+                    kind: QueryKind::SuperDeclarations(params.position),
+                })
+            }
+            "scoop/memberHierarchy" => {
+                let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document.uri,
+                    kind: QueryKind::MemberHierarchy(params.position),
+                })
+            }
+            "textDocument/prepareCallHierarchy" => {
+                let params: lsp_types::CallHierarchyPrepareParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document_position_params.text_document.uri,
+                    kind: QueryKind::CallHierarchy(call_hierarchy::CallQuery::Prepare(
+                        params.text_document_position_params.position,
+                    )),
+                })
+            }
+            "callHierarchy/incomingCalls" | "callHierarchy/outgoingCalls" => {
+                let direction = if request.method == "callHierarchy/incomingCalls" {
+                    scoop_analysis::CallHierarchyDirection::Incoming
+                } else {
+                    scoop_analysis::CallHierarchyDirection::Outgoing
+                };
+                let params: lsp_types::CallHierarchyIncomingCallsParams =
+                    params(request.params.clone())?;
+                let data = call_hierarchy::CallItemData::from_item(params.item)?;
+                Ok(Self {
+                    uri: data.anchor.clone(),
+                    kind: QueryKind::CallHierarchy(call_hierarchy::CallQuery::Expand {
+                        data,
+                        direction,
+                    }),
                 })
             }
             _ => Err(convert::error(

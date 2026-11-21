@@ -2120,7 +2120,7 @@ LSP 的导入 code action 将上述路径转换为同版语法头中的普通 im
 
 M63中项目成员、workspace继承和精确依赖绑定统一来自独立PM的本地数据模型，见[包管理规范7](SCOOP-PACKAGE-SPEC.md#7-pm-与构建-driver-的接口)。analysis/LSP不自行解释第二套版本规则；初始化缺失的 lock 时使用既有 PM resolve，之后离线读取 metadata，不在每次编辑或补全时下载依赖。本地缺少锁定源码时提示执行fetch。编辑buffer仍由语言服务覆盖对应source，不能通过重写全局共享源码cache实现编辑态。
 
-**命令行查询。** `scoop-lsp query` 为已有 LSP 提供一次性 CLI 客户端；默认入口及 `--stdio` 继续运行语言服务器。查询通过配套服务器的标准 LSP 请求/通知复用 analysis 与原前端，不另建语义引擎或符号索引。入口包括 hover、signature、completion、definition、type-definition、implementation、references、symbols、workspace-symbols、diagnostics、code-actions 和 capabilities。项目、目标、production/test purpose、sysroot、直接依赖及编辑正文使用同一语言服务合同；查询不编译产物或准备系统库。命令及输出见[语言服务 CLI](../language-service/CLI.md)。
+**命令行查询。** `scoop-lsp query` 为已有 LSP 提供一次性 CLI 客户端；默认入口及 `--stdio` 继续运行语言服务器。查询通过配套服务器的 LSP 请求/通知复用 analysis 与原前端，不另建语义引擎或符号索引。入口包括 hover、signature、completion、definition、type-definition、implementation、super-declarations、references、symbols、workspace-symbols、diagnostics、code-actions 和 capabilities。项目、目标、production/test purpose、sysroot、直接依赖及编辑正文使用同一语言服务合同；查询不编译产物或准备系统库。命令及输出见[语言服务 CLI](../language-service/CLI.md)。
 
 CLI 查询位置为一基行列，列默认计 Unicode 标量，也可显式选择 UTF-8/UTF-16；通过原 LSP 编码协商转换，不复制位置算法。换行遵循 LSP 的 LF/CRLF/CR 规则。JSON 保留 LSP 结果中的零基 range，显式报告 positionEncoding 和 rangeBase；人类位置显示为一基。磁盘正文可由显式 stdin buffer 覆盖，仅参与本次会话，不写回源码。输出区分 ok、empty 与携带错误诊断或服务器分析问题的 partial；源程序错误作为数据返回，不冒充完整语义结果，也不丢弃已可确定的事实。协议/输入读取失败退出 1，用法错误退出 2，错误写 stderr；成功查询（包括 empty/partial）退出 0。code-actions 在指定位置读取实际语法修复及导入动作，返回已经展开的编辑；本次打开的 buffer 版本为 1，调用方应用前须按普通编辑流程确认正文未变，CLI 不应用编辑。完成后 shutdown/exit 并回收本次服务器进程。
 
@@ -2201,6 +2201,28 @@ lambda 与匿名函数的恢复记录只保留原 grammar 已完成的参数／r
 重命名消费同一引用索引与原声明来源：精确名称通过原 lexer 识别，构造名称选择原类型／透明别名，property 与构造参数等共享声明 token 的实际目标一并处理。无 alias 的导出转发沿原 binding 路径联动，显式 alias 构成拼写边界；方法和 logical property 的重写关系使用原实现索引。需要修改的声明必须有项目源码，所需语法、声明和正文分析不完整时不返回部分编辑。运算符 token、隐式调用名称或构造委派关键字不能替换为普通标识符。
 
 编辑结果携带原 SourceVersion 和精确 UTF-8 Span。冲突检查将这些编辑应用到私有不可变快照，复用未变化的源码与依赖输入，运行普通分析，并按原声明来源经位置映射比较绑定；不以“没有新诊断”代替捕获／遮蔽检查，不以 FQN 或显示名对应编辑前后的实体。私有分析不发布到当前宿主、不取消原快照，不复用可能与后续真实 revision 混淆的候选语义缓存。失败或取消丢弃候选；LSP 在仍有效的快照上将结果转换为带各文档实际版本的批量编辑。
+
+上级声明查询从方法或 logical property 的声明名称出发，读取该声明在普通覆盖计算中使用的上级成员，按实际继承关系保留各路径最近的声明。抽象覆写和默认接口成员均可作为结果，属性访问器和主构造属性参数定位到原属性声明。仅在其他类型的 conformance 中被选为继承实现的成员不获得该 conformance 的上级边。查询读取已完成的声明事实，使用同一项目依赖视图，仅将有可读源码的声明返回为位置。`scoop/superDeclarations` 消费 `TextDocumentPositionParams` 并返回 `Location[]`，服务器通过 `experimental.scoopSuperDeclarations` 声明能力。VS Code 和 `scoop-lsp query super-declarations` 复用该请求。
+
+提取局部变量的 `refactor.extract` 动作消费同版完整表达式的非空选区。当前块内的插入点需要保留条件、求值顺序、词法绑定和 smart cast。首批覆盖局部初始化式、return 的完整值，以及在原语句执行开始即求值的直接调用实参。源位置或条件求值等依赖无法在插入点保留时不返回编辑。新 `val` 使用当前作用域可解析的原上下文类型和可用名称；候选在原使用位置仍选择原绑定与重载。动作沿原文保留注释和换行，按需要组合相同起点的替换。延迟解析检查来源文本与项目分析 revision，按客户端能力发送版本化编辑。
+
+类型层级通过 `textDocument/prepareTypeHierarchy` 选择绑定的名义声明，透明别名沿实际类型应用展开，泛型应用归并到原声明。`typeHierarchy/supertypes` 和 `typeHierarchy/subtypes` 每次读取直接声明边。类读取基类和直接接口，接口读取直接父接口，值类型和 object 读取声明的实现边。条件接口按其声明所在的名义类型提供层级入口，具体应用是否满足条件仍由常规类型检查决定。子类型在原项目配置的源码 Cone 中查找，结果按类型身份归并，只返回可定位源码的声明。层级项记录发起文档和分析 revision，展开继续使用原项目，过期项要求重新准备。
+
+调用层级通过 `textDocument/prepareCallHierarchy` 选择源码函数或方法，或从已绑定的调用选择其声明。`callHierarchy/incomingCalls` 从原项目配置的已检查源码正文收集实际调用，`callHierarchy/outgoingCalls` 读取选中声明的正文。重载、泛型和虚调用使用正常绑定选中的声明，按一对声明合并调用位置。函数值的创建和函数引用不产生调用边。缺少可读源码的声明不返回编辑器层级项。展开使用准备项的项目配置和分析 revision。
+
+成员层级在方法或属性声明上通过 `scoop/memberHierarchy` 返回直接上级与直接覆写的位置。两种方向沿用该声明本身的覆盖关系，包含抽象声明。文件内用法高亮通过 `textDocument/documentHighlight` 查询当前文件的实际绑定。相关测试导航通过 `scoop/relatedTests` 返回当前 Test 项目配置中测试源码的实际引用位置。
+
+`textDocument/definition` 可从 `break`、`continue`、`return` 或它们的显式目标标签定位普通前端选中的循环或 callable。循环选取当前 callable 中的真实目标，源码位置取目标标签或循环关键字。返回按实际 callable 边界定位声明或显式标签。失败的控制流目标不返回位置。
+
+提取函数通过 `refactor.extract` 将同一块中的完整表达式或连续语句移入新的局部 `fun`，在原选区执行一次调用。表达式使用原位置可解析的结果类型，连续语句必须能在原选区末尾继续执行。正文中的读取在调用内保留原求值位置；局部函数捕获使用普通语言规则。外层可变局部、离开选区的控制流、在选区外使用的局部声明、以及会改变源位置或清理边界的选区没有可用编辑。以私有候选快照核对被移入的绑定、调用和结果类型，复用局部提取的分析 revision 与版本化编辑约定。
+
+内联局部 `val` 通过 `refactor.inline` 处理普通局部绑定的字面量或稳定不可重新绑定值初始化式。一次动作替换该绑定的全部读取并移除声明，候选快照检查各替换位置的原类型和既有绑定。引入类型别名通过 `refactor.extract` 在合法声明位置为完整类型选区声明透明 `typealias`，用别名替换同一选区，以原类型身份检查展开结果。
+
+安全删除通过 `refactor.rewrite` 检查文件私有普通顶层函数。删除前要求该文件中的引用事实完整，包括直接调用、函数引用和默认表达式。可执行 Cone 的 `main` 作为入口位置阻止删除。存在阻塞用法时返回展示对应源码位置的命令，引用为空时返回带版本的声明删除编辑。
+
+`source.organizeImports` 使用已检查的查找结果去除未使用的文件头普通精确导入，包括显式 alias。公开重导出、星号和块级导入保留。候选编辑须保留当前文件中其余绑定。
+
+`scoop/moveDeclaration` 在同一配置、Cone 与 package 的两个已有源码文件间移动普通顶层函数。编辑携带声明文档和注释及所需的文件级导入，并验证移动后原用法、可见性、源位置和相对资源读取的约束。`scoop/prepareChangeSignature` 返回普通文件私有函数的参数顺序，`scoop/changeSignature` 接收该准备项和完整参数排列。已有直接调用按照已检查的参数绑定补写命名实参，显式求值继续按原源码顺序。默认表达式继续使用原绑定，已省略参数的默认求值次序必须保持。函数引用或缺失调用事实阻止改签名。移动和签名编辑以同版 `WorkspaceEdit` 返回。
 
 import 的目标名或 alias 名称导航读取已解析绑定的原声明来源，重载集合可有多个定义；此读取不要求建立整个 Cone 的正文引用索引。命名实参导航使用成功调用的真实 callee 与形参序号，当前声明和依赖接口都取各自原参数位置，不按名称重新配对。无源码依赖只保留已知语义来源，位置是否可供编辑器打开由宿主的实际源码输入决定。
 

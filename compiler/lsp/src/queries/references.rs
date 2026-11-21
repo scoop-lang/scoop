@@ -1,5 +1,5 @@
 use lsp_server::{ErrorCode, ResponseError};
-use lsp_types::Position;
+use lsp_types::{DocumentHighlight, Position};
 use scoop_analysis::{
     AnalysisSnapshot, Cancellation, ProjectAnalysisError, SemanticSession, SourceId,
 };
@@ -7,6 +7,83 @@ use serde_json::Value;
 
 use super::semantic;
 use crate::{convert, initialize::Settings};
+
+#[derive(Clone, Copy)]
+pub(crate) enum UsageView {
+    File,
+    Tests,
+}
+
+pub(crate) fn usage_locations(
+    snapshot: &AnalysisSnapshot,
+    source: SourceId,
+    position: Position,
+    view: UsageView,
+    settings: Settings,
+    semantics: &mut SemanticSession,
+    cancellation: &Cancellation,
+) -> Result<Value, ResponseError> {
+    let Some(cursor) = semantic::cursor(snapshot, source, position, settings)? else {
+        return Ok(serde_json::json!([]));
+    };
+    let requested = cancellation.clone();
+    let check = move || requested.check().is_err();
+    let result =
+        match view {
+            UsageView::File => semantics.document_references(snapshot, source, cursor.span, check),
+            UsageView::Tests => semantics.references(snapshot, source, cursor.span, check),
+        }
+        .map_err(|error| match error {
+            ProjectAnalysisError::Cancelled
+            | ProjectAnalysisError::Declarations(
+                scoop_analysis::DeclarationAnalysisError::Cancelled,
+            ) => semantic::cancelled(),
+            _ => convert::error(
+                ErrorCode::RequestFailed,
+                "reference analysis is unavailable",
+            ),
+        })?;
+
+    let mut locations = Vec::new();
+    for reference in result.into_iter().flat_map(|search| search.occurrences) {
+        cancellation.check().map_err(|_| semantic::cancelled())?;
+        if matches!(view, UsageView::Tests)
+            && (reference.is_declaration
+                || !cursor
+                    .project
+                    .source_file(&reference.origin.source)
+                    .is_some_and(|file| file.role == scoop_identity::SourceRole::Test))
+        {
+            continue;
+        }
+        let location = if reference.is_declaration {
+            convert::definition_location(snapshot, cursor.project, &reference.origin, settings)?
+        } else {
+            convert::location(snapshot, cursor.project, &reference.origin, settings)?
+        };
+        locations.extend(location);
+    }
+    locations.sort_by(|left, right| {
+        (left.uri.as_str(), left.range.start, left.range.end).cmp(&(
+            right.uri.as_str(),
+            right.range.start,
+            right.range.end,
+        ))
+    });
+    locations.dedup();
+    match view {
+        UsageView::File => super::json(
+            locations
+                .into_iter()
+                .map(|location| DocumentHighlight {
+                    range: location.range,
+                    kind: None,
+                })
+                .collect::<Vec<_>>(),
+        ),
+        UsageView::Tests => super::json(locations),
+    }
+}
 
 pub(crate) fn references(
     snapshot: &AnalysisSnapshot,

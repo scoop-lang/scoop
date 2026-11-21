@@ -18,6 +18,27 @@ impl SemanticSession {
         span: Span,
         is_cancelled: impl Fn() -> bool + 'static,
     ) -> Result<Option<ReferenceSearch>, ProjectAnalysisError> {
+        self.references_in_scope(snapshot, source, span, false, is_cancelled)
+    }
+
+    pub fn document_references(
+        &mut self,
+        snapshot: &AnalysisSnapshot,
+        source: SourceId,
+        span: Span,
+        is_cancelled: impl Fn() -> bool + 'static,
+    ) -> Result<Option<ReferenceSearch>, ProjectAnalysisError> {
+        self.references_in_scope(snapshot, source, span, true, is_cancelled)
+    }
+
+    fn references_in_scope(
+        &mut self,
+        snapshot: &AnalysisSnapshot,
+        source: SourceId,
+        span: Span,
+        file_only: bool,
+        is_cancelled: impl Fn() -> bool + 'static,
+    ) -> Result<Option<ReferenceSearch>, ProjectAnalysisError> {
         snapshot.check_cancelled()?;
         let Some(project) = snapshot.workspace.project_for_source(source) else {
             return Ok(None);
@@ -100,7 +121,8 @@ impl SemanticSession {
         };
         for (&cone, input) in &project.cones {
             if input.source().is_none()
-                || (cone != current && targets.iter().all(|target| target.is_local()))
+                || (cone != current
+                    && (file_only || targets.iter().all(|target| target.is_local())))
             {
                 continue;
             }
@@ -118,9 +140,14 @@ impl SemanticSession {
             result.declarations_available &= index.declarations_available;
             for &target in &targets {
                 if cone == current || !target.is_local() {
-                    result
-                        .occurrences
-                        .extend(index.references_to(target).cloned());
+                    result.occurrences.extend(
+                        index
+                            .references_to(target)
+                            .filter(|reference| {
+                                !file_only || reference.origin.source == file.identity
+                            })
+                            .cloned(),
+                    );
                 }
             }
         }

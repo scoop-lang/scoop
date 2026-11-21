@@ -7,17 +7,29 @@ use scoop_identity::ConeIdentity;
 
 use crate::{AnalysisSnapshot, Cancelled, DeclarationAnalysisError, SourceId};
 
+mod call_hierarchy;
+pub use call_hierarchy::{CallHierarchyDirection, CallHierarchyRelation};
+mod change_signature;
 mod dependencies;
 mod diagnostics;
 mod documentation;
+mod extract_alias;
+mod extract_local;
 mod implementations;
-pub use implementations::{MemberImplementationSearch, TypeImplementationSearch};
+pub use implementations::{MemberHierarchy, MemberImplementationSearch, TypeImplementationSearch};
+mod inline_local;
+mod move_declaration;
+mod organize_imports;
 mod project;
 mod references;
 pub use references::ReferenceSearch;
 mod rename;
 pub use rename::{RenameError, RenamePreparation};
+mod safe_delete;
+pub use safe_delete::SafeDelete;
 mod sources;
+mod type_hierarchy;
+pub use type_hierarchy::{TypeHierarchyDirection, TypeHierarchyNode, TypeHierarchyOrigin};
 
 #[derive(Clone, Debug)]
 pub enum ProjectAnalysisError {
@@ -56,6 +68,16 @@ pub struct SemanticSession {
 }
 
 impl SemanticSession {
+    fn for_edits(&self) -> Self {
+        Self {
+            projects: self
+                .projects
+                .iter()
+                .map(project::ProjectSemantics::for_edits)
+                .collect(),
+        }
+    }
+
     /// Current input hosts remain shared as additional bodies are queried on demand.
     pub fn compiler_inputs(
         &self,

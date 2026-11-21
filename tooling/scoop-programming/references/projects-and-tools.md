@@ -131,6 +131,7 @@ scoop-lsp query hover src/main.scoop --line 8 --column 12 --format json
 scoop-lsp query signature src/main.scoop --line 8 --column 20
 scoop-lsp query completion src/main.scoop --line 9 --column 10
 scoop-lsp query definition src/main.scoop --line 8 --column 12
+scoop-lsp query super-declarations src/main.scoop --line 8 --column 12
 scoop-lsp query diagnostics src/main.scoop --format json
 scoop-lsp query code-actions src/main.scoop --line 8 --column 12 --format json
 scoop-lsp query symbols src/main.scoop
@@ -145,6 +146,14 @@ scoop-lsp query symbols src/main.scoop
 `code-actions` 返回已展开的语法/import 编辑。多个 import 路径需要根据实际意图选择；没有动作时继续查看诊断及 API 声明。编辑中的版本 1 仅表示本次临时 buffer，应用前确认正文未变，按 positionEncoding 的零基范围编辑，再执行 `scoop check`。命令不自动修改文件，也不将普通值自动包装为 Some。
 
 type-definition、implementation、references 提供进一步导航。workspace-symbols 只查当前工作区源码声明；查库中尚未使用的名称仍从文档/库源码入手。capabilities 不加载项目，报告实际服务器能力。每次查询使用新会话，结束会回收服务器；缺少 lock 的初始化沿用前述 PM 规则。
+
+VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Peek Call Hierarchy` 查看调用方和被调用方。同一块内选中完整表达式或可独立执行的连续语句时，重构菜单可提供 `Extract Function`。
+
+`Scoop: Show Member Hierarchy` 查看方法和属性的直接上级或覆写。`Scoop: Go to Related Tests` 在 Test 配置内定位测试源码中的实际用法。对跳转关键字用「转到定义」可找到对应循环或 callable。
+
+重构菜单还支持内联字面量或稳定值初始化的局部 `val`、从完整类型选区引入透明 `typealias`，以及检查文件私有顶层函数能否安全删除。
+
+`Organize Imports` 删除未使用的普通精确导入。`Scoop: Move Declaration` 可在同一 Cone、同一 package 中移动顶层函数。`Scoop: Change Signature` 为文件私有函数调整参数顺序并保留调用处的求值顺序。
 
 ## 测试和诊断
 

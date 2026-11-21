@@ -448,6 +448,9 @@ impl Lowerer {
                 trap_on_none: *trap_on_none,
             },
         };
+        if matches!(context.evaluation, InstantiationEvaluation::Concrete(_)) {
+            self.observe_default_source_location(&kind, context.statement_span);
+        }
         hir::Expr {
             kind,
             ty: self.instantiate_method_ty(source.ty, &context.bindings),

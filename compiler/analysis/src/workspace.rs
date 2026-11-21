@@ -126,6 +126,16 @@ pub struct ProjectInput {
 }
 
 impl ProjectInput {
+    pub(crate) fn source_file_by_id(&self, source: SourceId) -> Option<&ProjectSource> {
+        self.source_cone(source)
+            .and_then(|(_, cone)| cone.sources.iter().find(|file| file.source == source))
+            .or_else(|| {
+                self.artifact_sources
+                    .values()
+                    .find(|file| file.source == source)
+            })
+    }
+
     /// Navigation attachments do not become source dependency inputs.
     pub fn source_file(&self, identity: &SourceIdentity) -> Option<&ProjectSource> {
         self.cones

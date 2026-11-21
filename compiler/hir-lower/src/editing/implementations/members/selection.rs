@@ -31,19 +31,7 @@ impl DeclarationAnalysis {
         {
             return Ok(V::Known(Vec::new()));
         }
-        let property = self
-            .lowerer
-            .property_name_spans
-            .iter()
-            .find_map(|(&property, &name)| {
-                (name == span
-                    && self
-                        .lowerer
-                        .property_definition_file(property)
-                        .is_some_and(|file| self.lowerer.source_identity(file) == source))
-                .then_some(property)
-            });
-        if let Some(property) = property {
+        if let Some(property) = self.property_declaration_at(source, span) {
             return Ok(V::Known(
                 identities
                     .current_property(&mut self.lowerer, property)
@@ -134,6 +122,24 @@ impl DeclarationAnalysis {
             return Err(EditingCancelled);
         }
         Ok(V::Known(targets))
+    }
+
+    pub(super) fn property_declaration_at(
+        &self,
+        source: &scoop_identity::SourceIdentity,
+        span: ast::Span,
+    ) -> Option<hir::PropertyId> {
+        self.lowerer
+            .property_name_spans
+            .iter()
+            .find_map(|(&property, &name)| {
+                (name == span
+                    && self
+                        .lowerer
+                        .property_definition_file(property)
+                        .is_some_and(|file| self.lowerer.source_identity(file) == source))
+                .then_some(property)
+            })
     }
 }
 

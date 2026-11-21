@@ -88,6 +88,8 @@ def main():
     assert type_definition["result"]["uri"] == source.as_uri(), type_definition
     implementations, _ = at("implementation", 2, "Valued")
     assert implementations["result"], implementations
+    parents, _ = at("super-declarations", 7, "value")
+    assert parents["result"][0]["range"]["start"]["line"] == 3, parents
 
     signature, _ = at(
         "signature",

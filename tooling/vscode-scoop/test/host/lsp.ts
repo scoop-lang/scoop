@@ -61,7 +61,7 @@ export async function runLanguageServerTests() {
   await write(manifestUri, manifestText);
   const apiUri = vscode.Uri.joinPath(project, "src/api.scoop");
   const apiText =
-    "package editor\n/// Returns the supplied flag.\npublic fun choose(flag: Boolean): Boolean = flag\n";
+    "package editor\n/// Returns the supplied flag.\npublic fun choose(flag: Boolean): Boolean = flag\ninterface Marker { fun readMarker(): Boolean }\n";
   await write(apiUri, apiText);
   const diskUri = vscode.Uri.joinPath(project, "src/disk.scoop");
   const diskText =
@@ -70,7 +70,7 @@ export async function runLanguageServerTests() {
   const useUri = vscode.Uri.joinPath(project, "src/use.scoop");
   await write(
     useUri,
-    "package editor\nfun use(): Boolean = choose(true)\nfun inspect(𐐀flag: Boolean): String = 𐐀flag.toString()\nfun fromDisk(): Boolean = diskFlag(true)\n",
+    "package editor\nfun use(): Boolean = choose(true)\nfun inspect(𐐀flag: Boolean): String = 𐐀flag.toString()\nfun fromDisk(): Boolean = diskFlag(true)\nclass Marked : Marker { override fun readMarker(): Boolean = true }\nfun extract(flag: Boolean): Boolean { return choose(flag) }\nprivate fun used(): Boolean = true\nfun usePrivate(): Boolean = used()\n",
   );
   const document = await vscode.workspace.openTextDocument(useUri);
   await vscode.window.showTextDocument(document);
@@ -174,6 +174,103 @@ export async function runLanguageServerTests() {
   assert.ok(selections?.[0].parent);
 
   const api = await vscode.workspace.openTextDocument(apiUri);
+  const hierarchy = await vscode.commands.executeCommand<
+    vscode.TypeHierarchyItem[]
+  >("vscode.prepareTypeHierarchy", useUri, at(document, "Marked"));
+  assert.equal(hierarchy?.length, 1);
+  assert.equal(hierarchy?.[0].name, "Marked");
+  const supertypes = await vscode.commands.executeCommand<
+    vscode.TypeHierarchyItem[]
+  >("vscode.provideSupertypes", hierarchy?.[0]);
+  assert.deepEqual(
+    supertypes?.map((item) => item.name),
+    ["Marker"],
+  );
+  const calls = await vscode.commands.executeCommand<
+    vscode.CallHierarchyItem[]
+  >("vscode.prepareCallHierarchy", useUri, at(document, "use()"));
+  assert.deepEqual(
+    calls?.map((item) => item.name),
+    ["use"],
+  );
+  const outgoing = await vscode.commands.executeCommand<
+    vscode.CallHierarchyOutgoingCall[]
+  >("vscode.provideOutgoingCalls", calls?.[0]);
+  assert.deepEqual(
+    outgoing?.map((call) => call.to.name),
+    ["choose"],
+  );
+  const editor = await vscode.window.showTextDocument(document);
+  const member = at(document, "override fun ", true);
+  editor.selection = new vscode.Selection(member, member);
+  await vscode.commands.executeCommand("scoop.goToSuperDeclaration");
+  await eventually(
+    () =>
+      vscode.window.activeTextEditor?.document.uri.toString() ===
+        apiUri.toString() &&
+      vscode.window.activeTextEditor.selection.active.line ===
+        at(api, "readMarker").line,
+    "navigation to an overridden declaration",
+  );
+  const memberEditor = await vscode.window.showTextDocument(document);
+  memberEditor.selection = new vscode.Selection(member, member);
+  await vscode.commands.executeCommand("scoop.showMemberHierarchy");
+  await eventually(
+    () =>
+      vscode.window.activeTextEditor?.document.uri.toString() ===
+        apiUri.toString() &&
+      vscode.window.activeTextEditor.selection.active.line ===
+        at(api, "readMarker").line,
+    "navigation through the member hierarchy",
+  );
+  await vscode.window.showTextDocument(document);
+  const extraction = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+    "vscode.executeCodeActionProvider",
+    useUri,
+    new vscode.Range(
+      at(document, "choose(flag)"),
+      at(document, "choose(flag)", true),
+    ),
+    vscode.CodeActionKind.RefactorExtract.value,
+  );
+  const extracted = extraction?.find(
+    (action) => action.title === "Extract Local Variable",
+  );
+  const extractedFunction = extraction?.find(
+    (action) => action.title === "Extract Function",
+  );
+  assert.match(
+    extractedFunction?.edit?.get(useUri)[0]?.newText ?? "",
+    /fun extractedFunction\(\): Boolean = choose\(flag\)/,
+  );
+  assert.ok(extracted?.edit);
+  assert.ok(await vscode.workspace.applyEdit(extracted.edit));
+  assert.match(
+    document.getText(),
+    /val extracted: Boolean = choose\(flag\); return extracted/,
+  );
+  const privateDeclaration = at(document, "private fun ", true);
+  const deletion = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+    "vscode.executeCodeActionProvider",
+    useUri,
+    new vscode.Range(privateDeclaration, privateDeclaration),
+    vscode.CodeActionKind.RefactorRewrite.value,
+  );
+  const usages = deletion?.find(
+    (action) => action.title === "Show Safe Delete Usages",
+  )?.command;
+  assert.ok(usages);
+  await vscode.commands.executeCommand(
+    usages.command,
+    ...(usages.arguments ?? []),
+  );
+  await eventually(
+    () =>
+      vscode.window.activeTextEditor?.selection.active.line ===
+      at(document, "fun usePrivate()").line,
+    "navigation to a use that blocks safe deletion",
+  );
+
   const rename = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
     "vscode.executeDocumentRenameProvider",
     useUri,
@@ -190,7 +287,13 @@ export async function runLanguageServerTests() {
     () =>
       vscode.languages
         .getDiagnostics(useUri)
-        .some((item) => /Boolean/.test(item.message)),
+        .some(
+          (item) =>
+            /Boolean/.test(item.message) ||
+            item.relatedInformation?.some((note) =>
+              /Boolean/.test(note.message),
+            ),
+        ),
     "type diagnostic for an unsaved edit",
   );
   await replace(document, 'selectFlag("wrong")', "selectFlag(true)");

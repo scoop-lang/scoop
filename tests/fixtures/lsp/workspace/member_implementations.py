@@ -28,6 +28,13 @@ def check(peer, root):
         "public override val flag: Boolean get() = false }\n"
         "fun callMember(value: Protocol<Boolean>): Boolean = value.choose(value.flag)\n"
         "fun boundMember(value: Protocol<Boolean>): (Boolean) -> Boolean = value::choose\n"
+        "interface Left { fun combined(): Boolean }\n"
+        "interface Right { fun combined(): Boolean }\n"
+        "class Joined : Left, Right { override fun combined(): Boolean = true }\n"
+        "interface Borrowed { fun inherited(): Boolean }\n"
+        "open class Root { open fun inherited(): Boolean = true }\n"
+        "open class Provider : Root() { override fun inherited(): Boolean = false }\n"
+        "class Leaf : Provider(), Borrowed {}\n"
     )
     for file, text in [(provider, library), (path, source)]:
         file.write_text(text)
@@ -43,9 +50,9 @@ def check(peer, root):
             },
         )
 
-    def query(file, text, line, name):
+    def query(file, text, line, name, method="textDocument/implementation"):
         return peer.request(
-            "textDocument/implementation",
+            method,
             {
                 "textDocument": {"uri": file.as_uri()},
                 "position": {"line": line, "character": text.splitlines()[line].index(name)},
@@ -90,6 +97,42 @@ def check(peer, root):
     verify(query(provider, library, 10, "flag"), [properties[2]])
     verify(query(path, source, 4, "choose"), [methods[2]])
     verify(query(path, source, 4, "flag"), [properties[2]])
+    super_method = "scoop/superDeclarations"
+    verify(
+        query(path, source, 4, "choose", super_method), [location(provider, library, 9, "choose")]
+    )
+    verify(query(path, source, 4, "flag", super_method), [location(provider, library, 10, "flag")])
+    verify(
+        query(path, source, 6, "choose", super_method), [location(provider, library, 1, "choose")]
+    )
+    verify(
+        query(provider, library, 3, "choose", super_method),
+        [location(provider, library, 1, "choose")],
+    )
+    assert query(provider, library, 1, "choose", super_method) == []
+    verify(
+        query(path, source, 12, "combined", super_method),
+        [location(path, source, 10, "combined"), location(path, source, 11, "combined")],
+    )
+    verify(
+        query(path, source, 15, "inherited", super_method),
+        [location(path, source, 14, "inherited")],
+    )
+    hierarchy = "scoop/memberHierarchy"
+    root_members = query(provider, library, 1, "choose", hierarchy)
+    assert root_members["parents"] == []
+    verify(
+        root_members["children"],
+        [methods[0], location(provider, library, 5, "choose"), methods[3]],
+    )
+    middle_members = query(provider, library, 7, "choose", hierarchy)
+    verify(middle_members["parents"], [location(provider, library, 5, "choose")])
+    verify(middle_members["children"], [location(provider, library, 9, "choose")])
+    abstract_member = query(provider, library, 10, "flag", hierarchy)
+    verify(abstract_member["parents"], [properties[1]])
+    verify(abstract_member["children"], [properties[2]])
+    inherited = query(path, source, 13, "inherited", hierarchy)
+    assert inherited == {"parents": [], "children": []}, inherited
 
     updated = source.replace("class Concrete(", "abstract class Concrete(").replace(
         "public override fun choose(localValue: Boolean): Boolean = localValue", ""

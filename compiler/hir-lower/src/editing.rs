@@ -8,6 +8,7 @@ use crate::{CoreProtocolInput, Lowerer, SourceKind, SourceProvider};
 
 pub(crate) mod availability;
 mod bodies;
+mod call_hierarchy;
 mod callables;
 pub(crate) mod candidates;
 pub(crate) mod constants;
@@ -45,6 +46,8 @@ pub struct DeclarationAnalysis {
     pub(crate) body_facts:
         std::collections::HashMap<hir::EditingSourceBodyId, hir::EditingValue<ObservedBody>>,
     pub(crate) reference_index: Option<hir::EditingReferenceIndex>,
+    pub(crate) resolved_import_uses:
+        Vec<(hir::SemanticSourceLocation, hir::SemanticSourceLocation)>,
     pub(crate) type_references: Vec<hir::EditingTypeReference>,
     pub(crate) type_applications: Vec<hir::EditingTypeApplication>,
     pub(crate) constant_references: Vec<hir::EditingConstantReference>,
@@ -53,7 +56,11 @@ pub struct DeclarationAnalysis {
     pub(crate) type_implementations: Option<
         std::collections::HashMap<hir::SourceNominalId, Vec<hir::EditingTypeImplementation>>,
     >,
+    pub(crate) direct_type_children:
+        Option<std::collections::HashMap<hir::SourceNominalId, Vec<hir::SourceNominalId>>>,
     pub(crate) member_implementations: Option<hir::EditingMemberImplementationIndex>,
+    pub(crate) member_override_relations:
+        Option<Vec<(hir::SemanticSourceLocation, hir::SemanticSourceLocation)>>,
     pub(crate) documentation: Option<std::sync::Arc<hir::SemanticDocumentation>>,
 }
 

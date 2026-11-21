@@ -70,13 +70,16 @@ impl Lowerer {
                     body_inputs: Default::default(),
                     body_facts: Default::default(),
                     reference_index: None,
+                    resolved_import_uses: Default::default(),
                     type_references: Vec::new(),
                     type_applications: Vec::new(),
                     constant_references: Vec::new(),
                     static_variant_references: Vec::new(),
                     static_calls: Vec::new(),
                     type_implementations: None,
+                    direct_type_children: None,
                     member_implementations: None,
+                    member_override_relations: None,
                     documentation: None,
                 });
             }
@@ -164,13 +167,16 @@ impl Lowerer {
             body_inputs,
             body_facts: Default::default(),
             reference_index: None,
+            resolved_import_uses: Default::default(),
             type_references,
             type_applications,
             constant_references: constants.references,
             static_variant_references: constants.variants,
             static_calls: constants.calls,
             type_implementations: None,
+            direct_type_children: None,
             member_implementations: None,
+            member_override_relations: None,
             documentation,
         })
     }

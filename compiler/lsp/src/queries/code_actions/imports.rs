@@ -63,7 +63,7 @@ pub(super) fn action(
     super::action(
         context,
         title,
-        repair.edit,
+        [repair.edit],
         Repair::Import {
             path: repair.path,
             start: repair.diagnostic.start,

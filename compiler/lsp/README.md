@@ -125,6 +125,14 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `textDocument/implementation` 查询声明阶段已知的名义类型关系：接口返回子接口和实现类型，class 返回子类，包含间接继承、抽象类型与 object。精确 import alias 沿原绑定选中目标，透明别名沿完整应用展开；泛型实例合并到原声明。当前项目各源码 Cone 的结果一起返回，修改继承或关闭 buffer 后同步更新，声明上的查询不检查无关正文。
 
+`scoop/superDeclarations` 从覆写方法或属性的声明名称返回最近的上级声明位置。可通过 `scoop-lsp query super-declarations` 或 VS Code 的 `Scoop: Go to Super Declaration` 调用。
+
+类型层级通过 `textDocument/prepareTypeHierarchy` 选择名义类型，再用 `typeHierarchy/supertypes` 和 `typeHierarchy/subtypes` 展开直接父类型或子类型。别名展开到原类型，泛型应用归并到同一声明。展开保留发起时的项目配置，输入更新后重新打开层级。
+
+调用层级通过 `textDocument/prepareCallHierarchy` 从函数、方法或其调用进入。调用方与被调用方按同一对声明合并调用位置。虚调用显示静态绑定的成员，可再通过「转到实现」查看提供者。函数引用仍能在查找引用中定位。
+
+`scoop/memberHierarchy` 返回方法与属性的直接上级和直接覆写，保留抽象声明。`textDocument/documentHighlight` 给出同文件中实际绑定的用法。`scoop/relatedTests` 给出当前 Test 配置的测试源码引用。对 `break`、`continue`、`return` 及其目标标签使用「转到定义」，可定位前端选中的循环或 callable。
+
 方法与 logical property 的实现导航复用实际重写和接口选择，抽象中间声明保持连接，返回具体声明自身、默认实现和继承提供方的源码位置。getter／setter 合并到原 property，构造参数属性仍指向原参数名称；只有部分 accessor 提供默认实现时保留该来源。调用与绑定方法引用沿普通绑定选中目标，重载和泛型声明保持原身份；预编译中间层沿已有 slot 与 property 引用读取。待生成方法和内部 adapter 不产生导航结果。
 
 客户端支持 `workspace.workspaceEdit.documentChanges` 时，提供 `textDocument/prepareRename` 与 `textDocument/rename`。改名使用原声明、引用和重写关系，区分重载、局部遮蔽、透明类型别名与显式 import alias；构造名称随对应类型改名，同一名称 token 上的 property 和构造参数共同更新。无 alias 的转导出沿实际 binding 路径联动，显式 alias 的拼写独立保留。名称支持 Unicode 和反引号，关键字会使用合法转义形式。
@@ -132,6 +140,14 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 当前 rename 检查所选项目全部源码 Cone 的语法、声明、正文引用及成员关系；缺少必要源码或存在分析失败时明确拒绝，不返回部分修改。运算符、隐式名称和构造委派关键字不能当成标识符替换。候选编辑只在独立快照中沿普通前端分析，并按原声明来源比较前后绑定，避免无类型错误的局部捕获；成功后返回带各打开文档当前 version 的多文件编辑，关闭文件使用 `null` version。候选不修改当前文档或磁盘，取消和实际输入更新继续沿共同快照机制处理。
 
 客户端同时支持 code action literal 和版本化编辑时，提供缺失右括号、逗号等固定标点的 quickfix；返回的 TextDocumentEdit 带实际文档 version。名称、类型与表达式缺失不生成猜测内容。支持 resolve 的客户端还可重新取得同版修复；原文变化后旧动作返回 ContentModified，原文未变而客户端 version 更新时返回最新 version。未实现的能力不在初始化中声明。
+
+`refactor.extract` 支持在同一块内把选中的完整初始化式、return 值或首个可提前求值的直接实参提取为 `val`。候选沿实际绑定和上下文类型核对编辑，保留求值次序，更新源码或项目后旧动作失效。
+
+`Extract Function` 将块内的完整表达式或连续语句提取为局部函数。调用仍位于原选区，外部不可重新绑定的值按 Scoop 的局部函数规则捕获。需要写回外部局部变量、离开选区跳转或在选区外继续使用被移动声明时没有可用动作。
+
+`Inline Local Variable` 将普通局部 `val` 的稳定初始化值替换到全部读取处，并检查每处类型和绑定。`Introduce Type Alias` 从完整类型选区声明透明别名，适用于文件内和局部类型语法。`Safe Delete Function` 检查文件私有顶层函数，返回版本化删除编辑或包含阻塞用法的源码位置。
+
+`source.organizeImports` 去除已确认未使用的普通文件头精确 import。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在同一 Cone 和 package 移动普通顶层函数。`scoop/prepareChangeSignature` 返回 `parameters` 和 `revision`，`scoop/changeSignature` 接收该 revision 与零基 `order` 排列。移动和参数换序返回版本化 workspace edit。
 
 开发验证使用 `cargo test -p scoop-analysis -p scoop-lsp`；LSP 集成测试启动真实 `scoop-lsp` 进程，检查传输、状态变化和查询结果。运行时将 `TMPDIR` 指向仓库外工作目录，测试工作文件遵守同一设置。
 

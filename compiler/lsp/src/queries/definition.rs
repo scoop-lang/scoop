@@ -56,6 +56,21 @@ pub(crate) fn definition(
         )?);
     }
     if let Some(function) = semantic::body(analysis, &cursor, snapshot, cancellation)? {
+        let revision = snapshot.clone();
+        let request = cancellation.clone();
+        if let Some(target) = analysis
+            .control_flow_target(&function, cursor.span, move || {
+                request.check().is_err() || revision.check_cancelled().is_err()
+            })
+            .map_err(|_| semantic::cancelled())?
+        {
+            return super::json(convert::location(
+                snapshot,
+                cursor.project,
+                &target,
+                settings,
+            )?);
+        }
         let parameter = match analysis.source_body_signature(&function) {
             Some(EditingValue::Known(signature)) => signature
                 .parameters

@@ -147,6 +147,32 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                         semantics,
                         &cancellation,
                     ),
+                    QueryKind::MemberHierarchy(position) => queries::member_hierarchy(
+                        &work.snapshot,
+                        source_id,
+                        position,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
+                    QueryKind::TypeHierarchy(kind) => queries::type_hierarchy::run(
+                        &work.snapshot,
+                        source_id,
+                        &query.uri,
+                        kind,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
+                    QueryKind::CallHierarchy(kind) => queries::call_hierarchy::run(
+                        &work.snapshot,
+                        source_id,
+                        &query.uri,
+                        kind,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
                     QueryKind::References {
                         position,
                         include_declaration,
@@ -155,6 +181,25 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                         source_id,
                         position,
                         include_declaration,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
+                    QueryKind::UsageLocations(position, view) => {
+                        queries::references::usage_locations(
+                            &work.snapshot,
+                            source_id,
+                            position,
+                            view,
+                            work.settings,
+                            semantics,
+                            &cancellation,
+                        )
+                    }
+                    QueryKind::StructuralRefactor(kind) => queries::structural_refactor::run(
+                        &work.snapshot,
+                        source_id,
+                        kind,
                         work.settings,
                         semantics,
                         &cancellation,
@@ -185,6 +230,14 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                         &cancellation,
                     ),
                     QueryKind::Implementation(position) => queries::implementation(
+                        &work.snapshot,
+                        source_id,
+                        position,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
+                    QueryKind::SuperDeclarations(position) => queries::super_declarations(
                         &work.snapshot,
                         source_id,
                         position,

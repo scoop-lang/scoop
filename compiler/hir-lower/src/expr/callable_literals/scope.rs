@@ -68,6 +68,7 @@ impl Lowerer {
             path: definition_path.clone(),
             role,
         });
+        self.observe_literal_target(label.map_or(span, |label| label.span));
         self.push_suspension_context(if is_suspend {
             SuspensionContext::SuspendFunction
         } else {
