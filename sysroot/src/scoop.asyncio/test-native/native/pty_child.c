@@ -4,6 +4,7 @@
 #include "../../../scoop.platform/native/windows_api.h"
 #else
 #include <errno.h>
+#include <signal.h>
 #include <sys/ioctl.h>
 #include <time.h>
 #include <unistd.h>
@@ -28,6 +29,27 @@ int64_t scoop_test_pty_child_size(void) {
 }
 
 #ifndef _WIN32
+static void pty_window_changed(int signal) {
+    (void)signal;
+    const char marker[] = "signal-winch";
+    (void)write(STDOUT_FILENO, marker, sizeof(marker) - 1);
+}
+
+int32_t scoop_test_pty_child_signals(void) {
+    struct sigaction resize = {.sa_handler = pty_window_changed};
+    struct sigaction interrupt = {.sa_handler = SIG_DFL};
+    sigemptyset(&resize.sa_mask);
+    sigemptyset(&interrupt.sa_mask);
+    if (tcgetpgrp(STDIN_FILENO) != getpgrp() || sigaction(SIGWINCH, &resize, NULL) < 0 ||
+        sigaction(SIGINT, &interrupt, NULL) < 0)
+        return 26;
+    const char ready[] = "signal-ready";
+    if (write(STDOUT_FILENO, ready, sizeof(ready) - 1) != (ssize_t)sizeof(ready) - 1)
+        return 27;
+    for (;;)
+        pause();
+}
+
 int32_t scoop_test_pty_child_close_then_wait(const char *release) {
     // Opening /dev/tty can retain the Darwin slave until the child exits.
     if (close(STDIN_FILENO) < 0 || close(STDOUT_FILENO) < 0 || close(STDERR_FILENO) < 0)

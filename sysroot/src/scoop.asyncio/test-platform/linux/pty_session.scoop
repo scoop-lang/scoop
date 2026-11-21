@@ -1,0 +1,42 @@
+package scoop.asyncio
+
+import scoop.platform.process.ExitStatus
+import scoop.platform.process.command
+import scoop.platform.fs.Path
+import scoop.platform.system.OsString
+import scoop.test.*
+import scoop.text.contains
+
+@Test
+private class AsyncPtyLinuxTest {
+    @Test
+    fun childExitDoesNotEndOutputFromAnInheritedSlave() {
+        val child = command(Path.fromString("/bin/sh")) {
+            arg(OsString.fromString("-c"))
+            arg(OsString.fromString(descendantProbe))
+        }
+        val loop = eventLoop()
+        loop
+            .run {
+                val scope = this
+                loop
+                    .spawnPty(child, 40L, 20L)
+                    .useAsync { pty ->
+                        val output = scope.async { pty.readAllBytes() }
+                        assertEquals(ExitStatus.Exited(25), pty.wait())
+                        assertFalse(output.isCompleted)
+                        pty.send("still-connected\r")
+                        assertTrue(
+                            String.fromUtf8(output.await()).contains("after-exit:still-connected")
+                        )
+                    }
+            }
+    }
+}
+
+private val descendantProbe = """
+trap '' HUP
+exec 3<&0
+( IFS= read -r line; printf 'after-exit:%s' "$line" ) <&3 &
+exit 25
+"""

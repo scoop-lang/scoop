@@ -6,7 +6,6 @@ import scoop.platform.fs.*
 import scoop.platform.process.*
 import scoop.platform.system.OsString
 import scoop.test.*
-import scoop.text.contains
 
 @Test
 private class AsyncPtyUnixTest {
@@ -16,14 +15,14 @@ private class AsyncPtyUnixTest {
         loop
             .run {
                 loop
-                    .spawnPty(unixPtyCommand(signalProbe), 40L, 20L)
+                    .spawnPty(unixPtyProbe("signals"), 40L, 20L)
                     .useAsync { pty ->
                         pty.readMarker("signal-ready")
                         pty.resize(60L, 25L)
                         pty.readMarker("signal-winch")
                         pty.send("\u0003")
-                        assertTrue(String.fromUtf8(pty.readAllBytes()).contains("signal-int"))
-                        assertEquals(ExitStatus.Exited(23), pty.wait())
+                        pty.readAllBytes()
+                        assertEquals(ExitStatus.Signaled(2), pty.wait())
                     }
             }
     }
@@ -38,7 +37,7 @@ private class AsyncPtyUnixTest {
                 .run {
                     val scope = this
                     loop
-                        .spawnPty(eofFirstChild(release), 40L, 20L)
+                        .spawnPty(unixPtyProbe("eofFirst", Some(release)), 40L, 20L)
                         .useAsync { pty ->
                             val child = scope.async { pty.wait() }
                             assertEquals(0L, pty.readAllBytes().size)
@@ -53,32 +52,29 @@ private class AsyncPtyUnixTest {
     }
 }
 
-internal fun unixPtyCommand(script: String): Command = command(
-    Path.fromString("/bin/sh")
-) {
-    arg(OsString.fromString("-c"))
-    arg(OsString.fromString(script))
-}
-
-private val signalProbe = """
-trap 'printf signal-winch' WINCH
-trap 'printf signal-int; exit 23' INT
-printf signal-ready
-while IFS= read -r ignored; do :; done
-"""
-
 private val releaseVariable = OsString.fromString("SCOOP_PTY_EOF_RELEASE")
 
-private fun eofFirstChild(release: Path): Command = command(executablePath()) {
+private fun unixPtyProbe(selector: String, release: Path? = None): Command = command(
+    executablePath()
+) {
     removeEnv(OsString.fromString("SCOOP_TEST_RUN_DIR"))
     env(OsString.fromString("SCOOP_TEST_NOCAPTURE"), OsString.fromString("1"))
-    env(releaseVariable, release.toOsString())
+    if (release != None) env(releaseVariable, release!!.toOsString())
     arg(OsString.fromString("--scoop-test-filter-ignored"))
-    arg(OsString.fromString("PtyUnixChildProbe::eofFirst"))
+    arg(OsString.fromString("PtyUnixChildProbe::" + selector))
 }
 
 @Test
 private class PtyUnixChildProbe {
+    @Test
+    @Ignore("Launched by AsyncPtyUnixTest")
+    fun signals() {
+        @Unsafe
+        {
+            exit(probeSignals())
+        }
+    }
+
     @Test
     @Ignore("Launched by AsyncPtyUnixTest")
     fun eofFirst() {
@@ -95,6 +91,9 @@ private class PtyUnixChildProbe {
         }
     }
 }
+
+@Extern(name = "scoop_test_pty_child_signals")
+private fun probeSignals(): Int
 
 @Extern(name = "scoop_test_pty_child_close_then_wait")
 private fun closeThenWait(release: Ptr<Byte>): Int
