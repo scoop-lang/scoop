@@ -16,8 +16,8 @@ internal class ScrollReveal(
     val horizontal: Boolean = true,
     val vertical: Boolean = true
 ) {
-    val area: Rect get() =
-        region ?:
+    val area: Rect
+        get() = region ?:
             Rect(
                 layout.snapshot.padding.left,
                 layout.snapshot.padding.top,
@@ -25,24 +25,29 @@ internal class ScrollReveal(
                 layout.snapshot.visibleSize.height
             )
     val windowBounds: Rect get() = geometry.toWindow(area)
-    val visibleBounds: Rect? get() =
-        when (geometry.visibleBounds) {
+    val visibleBounds: Rect?
+        get() = when (geometry.visibleBounds) {
             case Some(val visible) -> intersectReveal(windowBounds, visible)
             case None -> None
         }
-    fun constrain(value: Rect, axes: ScrollAxes): ScrollReveal =
-        ScrollReveal(
-            viewport,
-            state,
-            layout,
-            geometry,
-            Some(intersectReveal(area, value) ?: Rect(0.0, 0.0, 0.0, 0.0)),
-            horizontal && axes.horizontal,
-            vertical && axes.vertical
-        )
-    val active: Boolean get() =
-        viewport.matches(state, layout.binding) && area.width > 0.0 && area.height > 0.0
+    fun constrain(value: Rect, axes: ScrollAxes): ScrollReveal = ScrollReveal(
+        viewport,
+        state,
+        layout,
+        geometry,
+        Some(intersectReveal(area, value) ?: Rect(0.0, 0.0, 0.0, 0.0)),
+        horizontal && axes.horizontal,
+        vertical && axes.vertical
+    )
+    val active: Boolean
+        get() = viewport.matches(state, layout.binding) && area.width > 0.0 && area.height > 0.0
     val current: Boolean get() = active && state.requestRevision == layout.revision
+
+    fun project(rect: Rect): Rect? {
+        val local = localReveal(geometry, rect) ?: return None
+        val clipped = projectReveal(local, area, horizontal, vertical) ?: return None
+        return Some(geometry.toWindow(clipped))
+    }
 
     fun local(window: Rect): Rect? {
         val rect = localReveal(geometry, window) ?: return None
@@ -64,30 +69,26 @@ internal class ScrollReveal(
         horizontal: ScrollAlignment = ScrollAlignment.Nearest,
         vertical: ScrollAlignment = ScrollAlignment.Nearest
     ): Boolean {
-        if (
-            (this.horizontal && layout.overscroll.x != 0.0) ||
-                (this.vertical && layout.overscroll.y != 0.0)
+        if ((this.horizontal && layout.overscroll.x != 0.0) ||
+            (this.vertical && layout.overscroll.y != 0.0)
         )
             return true
         val snapshot = layout.snapshot
         val wanted = revealedOffset(rect, horizontal, vertical)
-        val visible =
-            when (
-                intersectReveal(
-                    rect,
-                    Rect(
-                        snapshot.offset.x + area.x - snapshot.padding.left,
-                        snapshot.offset.y + area.y - snapshot.padding.top,
-                        area.width,
-                        area.height
-                    )
-                )
-            ) {
-                case Some(_) -> true
-                case None -> false
-            }
-        if (!visible)
-            return wanted != snapshot.offset
+        val visible = when (intersectReveal(
+            rect,
+            Rect(
+                snapshot.offset.x + area.x - snapshot.padding.left,
+                snapshot.offset.y + area.y - snapshot.padding.top,
+                area.width,
+                area.height
+            )
+        )
+        ) {
+            case Some(_) -> true
+            case None -> false
+        }
+        if (!visible) return wanted != snapshot.offset
         // Bounds come from the renderer's floating-point transforms.
         val tolerance = max(1.0, max(snapshot.viewport.width, snapshot.viewport.height)) * 0.000001
         return abs(wanted.x - snapshot.offset.x) >
@@ -127,10 +128,7 @@ internal class RevealAttempt(private val keyboard: KeyboardReveal? = None) {
     fun retainFor(node: MountedNode) {
         var index = 0L
         while (index < moves.size) {
-            if (moves[index].viewport.contains(node))
-                index += 1L
-            else
-                moves.removeAt(index)
+            if (moves[index].viewport.contains(node)) index += 1L else moves.removeAt(index)
         }
     }
     fun positionItem(viewport: ScrollViewport) {
@@ -143,25 +141,23 @@ internal class RevealAttempt(private val keyboard: KeyboardReveal? = None) {
             }
         moves.add(RevealMove(viewport, state, viewport.bindingRevision, revision))
     }
-    val isCurrent: Boolean get() {
-        for (move in moves)
-            if (
-                !move.viewport.matches(move.state, move.binding) ||
+    val isCurrent: Boolean
+        get() {
+            for (move in moves)
+                if (!move.viewport.matches(move.state, move.binding) ||
                     move.state.requestRevision !=
                     move.revision
-            )
-                return false
-        return true
-    }
+                )
+                    return false
+            return true
+        }
     fun advance(scene: FocusScene, area: InputArea, region: Rect? = None): RevealProgress {
-        if (!isCurrent)
-            return RevealProgress.Cancelled
-        val rect =
-            when (region) {
-                case Some(val value) -> area.toWindow(value)
-                case None -> area.windowBounds
-            } ?:
-                return RevealProgress.Unavailable
+        if (!isCurrent) return RevealProgress.Cancelled
+        val rect = when (region) {
+            case Some(val value) -> area.toWindow(value)
+            case None -> area.windowBounds
+        } ?:
+            return RevealProgress.Unavailable
         return advance(scene.path(area), rect, area.canFocus)
     }
     fun advance(
@@ -171,47 +167,31 @@ internal class RevealAttempt(private val keyboard: KeyboardReveal? = None) {
         horizontal: ScrollAlignment = ScrollAlignment.Nearest,
         vertical: ScrollAlignment = ScrollAlignment.Nearest
     ): RevealProgress {
-        if (!(keyboard?.active ?: true))
-            return RevealProgress.Cancelled
-        if (!isCurrent)
-            return RevealProgress.Cancelled
+        if (!(keyboard?.active ?: true)) return RevealProgress.Cancelled
+        if (!isCurrent) return RevealProgress.Cancelled
         var rect = bounds
-        if (rect.width <= 0.0 || rect.height <= 0.0)
-            return RevealProgress.Unavailable
+        if (rect.width <= 0.0 || rect.height <= 0.0) return RevealProgress.Unavailable
         var index = route.size
         while (index > 0L) {
             index -= 1L
             val boundary = route[index]
-            if (!boundary.active)
-                return RevealProgress.Unavailable
+            if (!boundary.active) return RevealProgress.Unavailable
             if (keyboard?.prepare(boundary, rect) ?: false) {
                 remember(boundary, boundary.state.requestRevision)
                 return RevealProgress.Moved
             }
             val local = boundary.local(rect) ?: return RevealProgress.Unavailable
-            if (!boundary.current)
-                return RevealProgress.Waiting
-            val h =
-                if (index == route.size - 1L)
-                    horizontal
-                else
-                    ScrollAlignment.Nearest
-            val v =
-                if (index == route.size - 1L)
-                    vertical
-                else
-                    ScrollAlignment.Nearest
+            if (!boundary.current) return RevealProgress.Waiting
+            val h = if (index == route.size - 1L) horizontal else ScrollAlignment.Nearest
+            val v = if (index == route.size - 1L) vertical else ScrollAlignment.Nearest
             if (boundary.needsMove(local, h, v)) {
                 val revision = boundary.state.position(boundary.revealedOffset(local, h, v))
                 remember(boundary, revision)
                 return RevealProgress.Moved
             }
-            rect = intersectReveal(rect, boundary.windowBounds) ?: return RevealProgress.Unavailable
+            rect = boundary.project(rect) ?: return RevealProgress.Unavailable
         }
-        return if (visible)
-            RevealProgress.Ready
-        else
-            RevealProgress.Unavailable
+        return if (visible) RevealProgress.Ready else RevealProgress.Unavailable
     }
     private fun remember(boundary: ScrollReveal, revision: ULong) {
         for (move in moves)
@@ -224,19 +204,18 @@ internal class RevealAttempt(private val keyboard: KeyboardReveal? = None) {
 }
 
 internal fun localReveal(geometry: CanvasGeometry, rect: Rect): Rect? {
-    val points =
-        [
-            Point(rect.x, rect.y),
-            Point(rect.x + rect.width, rect.y),
-            Point(rect.x, rect.y + rect.height),
-            Point(rect.x + rect.width, rect.y + rect.height)
-        ]
+    val points = [
+        Point(rect.x, rect.y),
+        Point(rect.x + rect.width, rect.y),
+        Point(rect.x, rect.y + rect.height),
+        Point(rect.x + rect.width, rect.y + rect.height)
+    ]
     val first = geometry.toLocal(points[0L]) ?: return None
     var left = first.x
     var right = first.x
     var top = first.y
     var bottom = first.y
-    for (index in 1L ..< points.size) {
+    for (index in 1L..<points.size) {
         val point = geometry.toLocal(points[index]) ?: return None
         left = min(left, point.x)
         right = max(right, point.x)
@@ -251,6 +230,29 @@ internal fun intersectReveal(a: Rect, b: Rect): Rect? {
     val top = max(a.y, b.y)
     val right = min(a.x + a.width, b.x + b.width)
     val bottom = min(a.y + a.height, b.y + b.height)
+    return if (right > left && bottom > top)
+        Some(Rect(left, top, right - left, bottom - top))
+    else
+        None
+}
+
+/** An orthogonal ancestor still needs the target extent on this boundary's inactive axis. */
+internal fun projectReveal(
+    rect: Rect,
+    region: Rect,
+    horizontal: Boolean,
+    vertical: Boolean
+): Rect? {
+    val left = if (horizontal) max(rect.x, region.x) else rect.x
+    val right = if (horizontal)
+        min(rect.x + rect.width, region.x + region.width)
+    else
+        rect.x + rect.width
+    val top = if (vertical) max(rect.y, region.y) else rect.y
+    val bottom = if (vertical)
+        min(rect.y + rect.height, region.y + region.height)
+    else
+        rect.y + rect.height
     return if (right > left && bottom > top)
         Some(Rect(left, top, right - left, bottom - top))
     else
