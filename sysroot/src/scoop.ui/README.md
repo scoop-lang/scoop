@@ -122,6 +122,8 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 `SemanticsReference` 持有实际挂载节点的可观察 id，可通过 `handle.bindReference` 或 `bindReferences` 绑定；重复绑定同一节点不会通知读取者，真实绑定、解绑或关闭会更新其身份。把这些 id 用于 `SemanticRelations`，即可让标签、说明、错误、controls、activeDescendant 和表头随真实目标更新。文本宿主沿同一文档维护保留范围，并把行内动作与替代文字对应到实际语义子对象；显露文字使用 Accepted 文本布局与原滚动视口，不另设编辑模型。
 
+树的 LazyElement 使用 `scope.semantics(SemanticRole.Tree)` 与 `updateCollection(source, Some(ItemSemantics(...)))`。在 describe 中发布 parentKey、hierarchyLevel、siblings、checked 和 busy；用 setExpanded／setChecked 回调写入原数据模型。多列 Tree 直接使用同一 ItemSemantics.grid，行、单元格和表头不另建一棵语义树。无实际 View 的模型集合使用 updateDataCollection 的对应入口；本地用例见[树语义测试](tests-cones/tree-accessibility/README.md)。
+
 登记工厂共用于 AppKit、Windows UIA 和 Linux AT-SPI。三平台构建、外部客户端与读屏器的验证范围分别记录于[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)，实现存在不等于已完成平台验收。接口见 [UI 无障碍规范](../../../docs/specs/SCOOP-UI-ACCESSIBILITY-SPEC.md)，定向用例见 [逻辑更新与原生动作](tests-cones/accessibility/README.md)、[内容合并](tests-cones/accessibility-content/README.md)、[文本读取与编辑](tests-cones/accessibility-text/README.md)和[实窗场景](tests-cones/accessibility-scene/README.md)。
 
 自定义滚动条可在同一挂载创建 ScrollBar 节点，并在正常 update 以及视口 Accepted 完成回调之后调用 `semantic.updateScrollBar(viewport, SemanticOrientation.Vertical, lineStep = 40.0)`；方向从 `scoop.window.accessibility` 导入，扩展函数位于 scoop.ui。文本编辑器的同名重载从 scoop.ui.text 导入，首参数为 TextEditHost，继续借用其原视口。范围来自真实 Accepted 快照，尚无范围或零范围时忽略条节点。动作沿原 ScrollState 的 User 请求，连续写入保留另一轴的待处理位置；换绑后旧回调不可操作新状态。滚动请求登记与位置呈现分别处理，视觉自动隐藏不移除逻辑能力。

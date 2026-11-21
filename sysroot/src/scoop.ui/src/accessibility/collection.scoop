@@ -10,33 +10,36 @@ public class ItemSemantics public constructor(
     public val selection: SemanticCollectionSelection? = None,
     public val setSelected: ((ViewKey, Boolean) -> SemanticActionResult)? = None,
     public val grid: SemanticGrid? = None,
-    public val setExpanded: ((ViewKey, Boolean) -> SemanticActionResult)? = None
+    public val setExpanded: ((ViewKey, Boolean) -> SemanticActionResult)? = None,
+    public val setChecked: ((ViewKey, Boolean) -> SemanticActionResult)? = None
 )
 
 private class LazySemanticSource(
     private val source: ItemSource,
     private val items: ItemSemantics?
-): SemanticCollectionSource {
+) : SemanticCollectionSource {
     public override val count: Long get() = evaluateUi<Long>(None) { source.count }
     public override val search: SemanticItemSearch get() = items?.search ?: SemanticItemSearch()
-    public override fun keyAt(index: Long): SemanticItemKey =
-        evaluateUi<SemanticItemKey>(None) { semanticItemKey(source.keyAt(index)) }
-    public override fun indexOfKey(key: SemanticItemKey): Long? =
-        evaluateUi<Long?>(None) {
-            source.indexOfKey(
+    public override fun keyAt(index: Long): SemanticItemKey = evaluateUi<SemanticItemKey>(None) {
+        semanticItemKey(source.keyAt(index))
+    }
+    public override fun indexOfKey(key: SemanticItemKey): Long? = evaluateUi<Long?>(None) {
+        source
+            .indexOfKey(
                 when (key) {
                     case Number(val value) -> ViewKey.Number(value)
                     case Text(val value) -> ViewKey.Text(value)
                 }
             )
+    }
+    public override fun describe(index: Long): SemanticItemProperties? = evaluateUi<
+        SemanticItemProperties?
+    >(None) {
+        when (items) {
+            case Some(val value) -> value.describe(index)
+            case None -> Some(SemanticItemProperties())
         }
-    public override fun describe(index: Long): SemanticItemProperties? =
-        evaluateUi<SemanticItemProperties?>(None) {
-            when (items) {
-                case Some(val value) -> value.describe(index)
-                case None -> Some(SemanticItemProperties())
-            }
-        }
+    }
 }
 
 /** Data-only semantics for an existing drawing, such as a chart, without a lazy view tree. */
@@ -47,48 +50,47 @@ public fun SemanticsHandle.updateDataCollection(
     checkOpen()
     checkSemanticsMutation()
     when (owner.lazyItems) {
-        case Some(_) -> throw IllegalArgumentException(
-            Some("lazy elements must use updateCollection")
-        );
+        case Some(_) ->
+            throw IllegalArgumentException(
+                Some("lazy elements must use updateCollection")
+            );
         case None -> {}
     }
     resource.collection = Some(snapshot)
-    resource.collectionActions =
-        SemanticCollectionActions(
-            when (actions.realize) {
-                case Some(val action) -> Some { key -> controller.perform(this) { action(key) } };
-                case None -> None
-            },
-            when (actions.reveal) {
-                case Some(val action) -> Some { key -> controller.perform(this) { action(key) } };
-                case None -> None
-            },
-            when (actions.focus) {
-                case Some(val action) -> Some {
-                    key,
-                    value -> controller.perform(this) { action(key, value) }
-                };
-                case None -> None
-            },
-            when (actions.setSelected) {
-                case Some(val action) -> Some {
-                    key,
-                    value -> controller.perform(this) { action(key, value) }
-                };
-                case None -> None
-            },
-            when (actions.grid) {
-                case Some(val grid) -> Some(wrappedGridActions(this, grid))
-                case None -> None
-            },
-            when (actions.setExpanded) {
-                case Some(val action) -> Some {
-                    key,
-                    value -> controller.perform(this) { action(key, value) }
-                }
-                case None -> None
-            }
-        )
+    resource.collectionActions = SemanticCollectionActions(
+        when (actions.realize) {
+            case Some(val action) -> Some { key -> controller.perform(this) { action(key) } };
+            case None -> None
+        },
+        when (actions.reveal) {
+            case Some(val action) -> Some { key -> controller.perform(this) { action(key) } };
+            case None -> None
+        },
+        when (actions.focus) {
+            case Some(val action) ->
+                Some { key, value -> controller.perform(this) { action(key, value) } };
+            case None -> None
+        },
+        when (actions.setSelected) {
+            case Some(val action) ->
+                Some { key, value -> controller.perform(this) { action(key, value) } };
+            case None -> None
+        },
+        when (actions.grid) {
+            case Some(val grid) -> Some(wrappedGridActions(this, grid))
+            case None -> None
+        },
+        when (actions.setExpanded) {
+            case Some(val action) ->
+                Some { key, value -> controller.perform(this) { action(key, value) } }
+            case None -> None
+        },
+        when (actions.setChecked) {
+            case Some(val action) ->
+                Some { key, value -> controller.perform(this) { action(key, value) } }
+            case None -> None
+        }
+    )
     controller.changed()
 }
 
@@ -101,150 +103,133 @@ public fun SemanticsHandle.updateCollection(
     checkOpen()
     checkSemanticsMutation()
     requireUi(
-        role == SemanticRole.List || role == SemanticRole.Table,
-        "lazy collection requires a list or table role"
+        role == SemanticRole.List || role == SemanticRole.Table || role == SemanticRole.Tree,
+        "lazy collection requires a list, table or tree role"
     )
-    val lazy =
-        owner.lazyItems ?:
-            throw IllegalArgumentException(Some("collection semantics require a lazy element"))
+    val lazy = owner.lazyItems ?:
+        throw IllegalArgumentException(Some("collection semantics require a lazy element"))
     requireUi(lazy.uses(source), "semantic collection source differs from the lazy source")
     when (viewport) {
-        case Some(val value) -> requireUi(
-            value.contains(owner),
-            "semantic collection viewport must belong to this mount or an ancestor"
-        )
+        case Some(val value) ->
+            requireUi(
+                value.contains(owner),
+                "semantic collection viewport must belong to this mount or an ancestor"
+            )
         case None -> {}
     }
     when (items) {
-        case Some(val value) -> requireUi(
-            value.source === source,
-            "item semantics must describe the same item source snapshot"
-        )
+        case Some(val value) ->
+            requireUi(
+                value.source === source,
+                "item semantics must describe the same item source snapshot"
+            )
         case None -> {}
     }
     when (owner.lazySemantics) {
-        case Some(val current) -> requireUi(
-            current === this,
-            "a lazy element already has collection semantics"
-        )
+        case Some(val current) ->
+            requireUi(
+                current === this,
+                "a lazy element already has collection semantics"
+            )
         case None -> owner.lazySemantics = Some(this)
     }
-    val sameItems =
-        when ((collectionItems, items)) {
-            case(Some(val before), Some(val after)) -> before === after
-            case(None, None) -> true
-            else -> false
-        }
-    val sameViewport =
-        when ((collectionViewport, viewport)) {
-            case(Some(val before), Some(val after)) -> before === after
-            case(None, None) -> true
-            else -> false
-        }
+    val sameItems = when ((collectionItems, items)) {
+        case(Some(val before), Some(val after)) -> before === after
+        case(None, None) -> true
+        else -> false
+    }
+    val sameViewport = when ((collectionViewport, viewport)) {
+        case(Some(val before), Some(val after)) -> before === after
+        case(None, None) -> true
+        else -> false
+    }
     when (collectionSource) {
-        case Some(val before) -> if (before === source && sameItems && sameViewport)
-            return
+        case Some(val before) -> if (before === source && sameItems && sameViewport) return
         case None -> {}
     }
-    resource.collection =
-        Some(
-            SemanticCollectionSnapshot(
-                LazySemanticSource(source, items),
-                selection =
-                    when (items) {
-                        case Some(val value) -> value.selection;
-                        case None -> None
-                    },
-                grid =
-                    when (items) {
-                        case Some(val value) -> readonlyGrid(value.grid);
-                        case None -> None
-                    }
-            )
+    resource.collection = Some(
+        SemanticCollectionSnapshot(
+            LazySemanticSource(source, items),
+            selection = when (items) {
+                case Some(val value) -> value.selection;
+                case None -> None
+            },
+            grid = when (items) {
+                case Some(val value) -> readonlyGrid(value.grid);
+                case None -> None
+            }
         )
+    )
     collectionSource = Some(source)
     collectionItems = items
-    if (!sameViewport)
-        controller.cancelCollectionReveal(this)
+    if (!sameViewport) controller.cancelCollectionReveal(this)
     collectionViewport = viewport
     resource.collectionActions = semanticCollectionActions(this)
     lazy.bindSemantics(this)
     controller.changed()
 }
 
-private fun readonlyGrid(grid: SemanticGrid?): SemanticGrid? =
-    when (grid) {
-        case Some(val value) -> Some(
+private fun readonlyGrid(grid: SemanticGrid?): SemanticGrid? = when (grid) {
+    case Some(val value) ->
+        Some(
             SemanticGrid(
                 value.columns,
-                {
-                    row,
-                    column -> evaluateUi<SemanticItemProperties?>(None) {
-                        value.describe(row, column)
-                    }
+                { row, column ->
+                    evaluateUi<SemanticItemProperties?>(None) { value.describe(row, column) }
                 },
-                span =
-                    when (value.span) {
-                        case Some(val resolve) -> Some {
-                            row,
-                            column -> evaluateUi<SemanticGridSpan>(None) { resolve(row, column) }
+                span = when (value.span) {
+                    case Some(val resolve) ->
+                        Some { row, column ->
+                            evaluateUi<SemanticGridSpan>(None) { resolve(row, column) }
                         }
-                        case None -> None
-                    },
-                hasCells =
-                    when (value.hasCells) {
-                        case Some(val contains) -> Some {
-                            row -> evaluateUi<Boolean>(None) { contains(row) }
-                        }
-                        case None -> None
-                    }
+                    case None -> None
+                },
+                hasCells = when (value.hasCells) {
+                    case Some(val contains) ->
+                        Some { row -> evaluateUi<Boolean>(None) { contains(row) } }
+                    case None -> None
+                }
             )
         )
-        case None -> None
-    }
+    case None -> None
+}
 
 private fun wrappedGridActions(
     table: SemanticsHandle,
     actions: SemanticGridActions
-): SemanticGridActions =
-    SemanticGridActions(
-        when (actions.realize) {
-            case Some(val action) -> Some {
-                row,
-                column -> table.controller.perform(table) { action(row, column) }
+): SemanticGridActions = SemanticGridActions(
+    when (actions.realize) {
+        case Some(val action) ->
+            Some { row, column -> table.controller.perform(table) { action(row, column) } }
+        case None -> None
+    },
+    when (actions.reveal) {
+        case Some(val action) ->
+            Some { row, column -> table.controller.perform(table) { action(row, column) } }
+        case None -> None
+    },
+    when (actions.focus) {
+        case Some(val action) ->
+            Some { row, column, focused ->
+                table.controller.perform(table) { action(row, column, focused) }
             }
-            case None -> None
-        },
-        when (actions.reveal) {
-            case Some(val action) -> Some {
-                row,
-                column -> table.controller.perform(table) { action(row, column) }
-            }
-            case None -> None
-        },
-        when (actions.focus) {
-            case Some(val action) -> Some {
-                row,
-                column,
-                focused -> table.controller.perform(table) { action(row, column, focused) }
-            }
-            case None -> None
-        }
-    )
+        case None -> None
+    }
+)
 
-internal fun semanticItemKey(key: ViewKey): SemanticItemKey =
-    when (key) {
-        case Number(val value) -> SemanticItemKey.Number(value)
-        case Text(val value) -> SemanticItemKey.Text(value)
-        case Position -> throw IllegalArgumentException(
+internal fun semanticItemKey(key: ViewKey): SemanticItemKey = when (key) {
+    case Number(val value) -> SemanticItemKey.Number(value)
+    case Text(val value) -> SemanticItemKey.Text(value)
+    case Position ->
+        throw IllegalArgumentException(
             Some("semantic items require explicit keys")
         )
-    }
+}
 
 internal fun bindLazyItemSemantics(entry: LazyItemEntry, parent: SemanticsHandle) {
     when (entry.node.semanticItem) {
-        case Some(val current) -> if (current.active && sameSemantics(current.parent, Some(parent)))
-            return
+        case Some(val current) ->
+            if (current.active && sameSemantics(current.parent, Some(parent))) return
         case None -> {}
     }
     val row = parent.controller.create(entry.node, SemanticRole.Group, Some(parent))

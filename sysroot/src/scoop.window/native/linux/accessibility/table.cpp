@@ -8,7 +8,7 @@ ElementPtr containingTable(const ElementPtr &element) {
     auto state = parent->state();
     if (!state)
       return {};
-    if (state->data.role == 22)
+    if ((state->data.role == 22 || state->data.role == 29))
       return parent;
     parent = parent->parent();
   }
@@ -48,10 +48,12 @@ static ElementPtr row(const ElementPtr &table, int64_t index) {
       auto value = child ? child->state() : nullptr;
       if (!value)
         continue;
-      if (value->data.role == 28 && value->data.cell_row == index)
+      if ((value->data.role == 28 || value->data.role == 30) &&
+          value->data.cell_row == index)
         return child;
-      if (value->data.role != 22 &&
-          (value->data.role == 0 || value->data.role == 28))
+      if ((value->data.role != 22 && value->data.role != 29) &&
+          (value->data.role == 0 ||
+           (value->data.role == 28 || value->data.role == 30)))
         if (auto result = find(child))
           return result;
     }

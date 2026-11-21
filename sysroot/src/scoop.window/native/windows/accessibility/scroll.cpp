@@ -13,7 +13,9 @@ ElementPtr Node::scrollBar(int orientation) {
   auto node = tree->state(element->reference.node);
   if (!current || !node)
     return {};
-  if ((node->data.role == 12 || node->data.role == 22) && node->data.parent) {
+  if ((node->data.role == 12 || node->data.role == 22 ||
+       node->data.role == 29) &&
+      node->data.parent) {
     auto parent = tree->state(node->data.parent);
     if (parent && parent->data.role == 5)
       node = parent;

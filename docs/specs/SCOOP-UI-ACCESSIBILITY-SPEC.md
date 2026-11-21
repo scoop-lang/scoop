@@ -104,13 +104,15 @@ grapheme 范围使用语义正文的原边界；词、视觉行和逻辑行从�
 
 ### 6.1 Lazy 集合的数据描述
 
-`ItemSemantics(source, describe, search)` 把同一 ItemSource 快照与数据级描述函数、明确支持的名称／automationId 查找结合。`SemanticsHandle.updateCollection(source, items, viewport)` 用于 LazyElement 自身的 List 节点；items 的 source 必须是相同对象。可选 viewport 指定该 Lazy 挂载或同根祖先实际拥有的活动 ScrollViewport，用于远处条目的显露；兄弟和其他根的视口拒绝。Realize／Reveal／Focus 继续使用实际挂载和 Accepted 的祖先滚动路径，不从估算位置创建另一条滚动路径。没有描述源时仍提供真实 count、稳定 key、位置与集合身份，名称未知，不宣称支持属性搜索。
+`ItemSemantics(source, describe, search)` 把同一 ItemSource 快照与数据级描述函数、明确支持的名称／automationId 查找结合。`SemanticsHandle.updateCollection(source, items, viewport)` 用于 LazyElement 自身的 List／Table／Tree 节点；items 的 source 必须是相同对象。Tree 允许同时带 grid，表达同一组层级行的多列内容。可选 viewport 指定该 Lazy 挂载或同根祖先实际拥有的活动 ScrollViewport，用于远处条目的显露；兄弟和其他根的视口拒绝。Realize／Reveal／Focus 继续使用实际挂载和 Accepted 的祖先滚动路径，不从估算位置创建另一条滚动路径。没有描述源时仍提供真实 count、稳定 key、位置与集合身份，名称未知，不宣称支持属性搜索。
 
 查询通过只读 UI evaluation 执行 count／keyAt／indexOfKey／describe，不收集依赖，不调用 build；State、滚动、焦点和语义写入遵守现有 evaluation 禁止修改的合同。正常数据更新同时替换集合快照，不等下一次滚动。元数据与具体 View 寿命分离：仅已实现行有 Group 资源和真实子节点，回收时退休它们；逻辑条目代理由 Window 的集合投影持有。该 Group 的 Accepted 几何使用真实行布局及同一裁剪／滚动变换，未呈现行没有可点击坐标。
 
 VirtualList 提供可选 itemSemantics，并默认绑定自身实际 ScrollViewport；已有 ScrollArea、ScrollBar 和行内控件继续使用自身语义，不重复业务选择状态。普通元数据查询不会触发 Realize／Reveal／Focus。
 
 层级行通过 `SemanticItemProperties.hierarchyLevel` 声明从零开始的深度，通过 expanded 区分可展开行与普通叶项。`ItemSemantics.setExpanded` 接受稳定 ViewKey 与目标 Boolean，经现有 owner 动作边界调用应用模型；离屏行同样可执行，不要求 build 或取得焦点。`updateDataCollection` 对应的 `SemanticCollectionActions.setExpanded` 使用相同包装与资源寿命。原生能力随当前快照更新，禁用、删除、卸载及旧代理仍由 Window 的统一边界处理。
+
+Tree 描述同时使用 parentKey 和 `siblings = Some(SemanticItemPosition(index, count))` 表达逻辑父项与当前同级位置；checked 和 busy 读取同一业务模型，不从已挂载 Checkbox 或加载图标反查。`ItemSemantics.setChecked(key, value)` 沿原模型写入并返回实际结果，updateDataCollection 对应的 setChecked 使用相同动作包装。查询不准备离屏内容，叶节点不发布 expanded；吸顶只更新同一行的 Accepted 几何，不增加第二份 TreeItem。多列 Tree 的 grid 与表头、行、单元格仍使用 §6.3 的同一准备和显露路径。
 
 同一集合中的总计、说明等不可选择项通过 `SemanticItemProperties(selectable = false)` 明确声明。它们仍可启用、朗读和聚焦，但集合的选择快照不为其补上 selected 状态，也不调用 setSelected。Lazy 集合和 updateDataCollection 使用相同合同；能力随当前描述更新，普通查询不执行 build。
 

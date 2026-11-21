@@ -10,13 +10,13 @@ public fun NativeNode.trait(field: Int): Long {
 public fun NativeNode.roleCount(role: String): Long {
     @Unsafe
     {
-        return role.withUtf8Bytes {
-            bytes,
-            length -> @Unsafe
-            {
-                return@withUtf8Bytes nativeRoleCount(pointer, bytes, length)
+        return role
+            .withUtf8Bytes { bytes, length ->
+                @Unsafe
+                {
+                    return@withUtf8Bytes nativeRoleCount(pointer, bytes, length)
+                }
             }
-        }
     }
 }
 
@@ -31,7 +31,7 @@ public class NativeTextAnchor public constructor(
     node: NativeNode,
     start: Long,
     end: Long
-): Closeable {
+) : Closeable {
     private val pointer: Ptr<Unit> = retainRange(node, start, end)
     public fun matches(start: Long, end: Long): Boolean {
         @Unsafe
@@ -72,3 +72,19 @@ private fun nativeRangeMatches(range: Ptr<Unit>, start: Long, end: Long): Int
 
 @Extern(name = "scoop_ui_ax_release_range")
 private fun nativeRangeRelease(range: Ptr<Unit>)
+
+public fun NativeNode.disclosedByRow(): NativeNode? = nativeDisclosureNode(this, -1L)
+
+public fun NativeNode.disclosedRow(index: Long): NativeNode? = nativeDisclosureNode(this, index)
+
+private fun nativeDisclosureNode(node: NativeNode, index: Long): NativeNode? {
+    @Unsafe {
+        return when (nativeDisclosure(node.pointer, index)) {
+            case Some(val pointer) -> Some(NativeNode(pointer))
+            case None -> None
+        }
+    }
+}
+
+@Extern(name = "scoop_ui_ax_disclosure")
+private fun nativeDisclosure(node: Ptr<Unit>, index: Long): Ptr<Unit>?

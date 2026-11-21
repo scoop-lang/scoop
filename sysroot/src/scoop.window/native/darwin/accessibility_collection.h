@@ -4,11 +4,13 @@
 #import "accessibility.h"
 
 @interface SWAccessibilityItemData : NSObject
-@property(nonatomic, copy) id key;
+@property(nonatomic, copy) id key, parentKey;
 @property(nonatomic, strong) NSData *search;
 @property(nonatomic, copy) NSString *name, *help, *identifier, *value;
-@property(nonatomic) int64_t index, count, span, hierarchyLevel;
-@property(nonatomic) int32_t enabled, selected, expanded, focusable, hasCells;
+@property(nonatomic) int64_t index, count, span, hierarchyLevel, siblingIndex,
+    siblingCount;
+@property(nonatomic) int32_t enabled, selected, expanded, focusable, hasCells,
+    checked, busy;
 @end
 
 @interface SWAccessibilityColumnData : NSObject

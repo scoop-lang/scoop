@@ -1,0 +1,94 @@
+package scoop.tests.ui.treeaccessibility
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class TreeRows(
+    val round: Int = 0,
+    val expanded: Boolean = true,
+    val checked: SemanticChecked? = Some(SemanticChecked.Mixed),
+    val enabled: Boolean = true,
+    val removed: Boolean = false
+) : ItemSource {
+    val dataOnly: Boolean get() = round >= 2
+    val columns: Boolean get() = round == 1 || round == 2
+    public override val count: Long get() = if (removed) 1L else if (expanded) 3L else 2L
+    val search: SemanticItemSearch get() = SemanticItemSearch(name = true)
+    fun number(index: Long): Long = if (removed)
+        3L
+    else if (expanded || index == 0L) index + 1L else 3L
+    fun position(key: Long): Long? = when (key) {
+        case 1L -> if (removed) None else Some(0L)
+        case 2L -> if (removed || !expanded) None else Some(1L)
+        case 3L -> Some(count - 1L)
+        else -> None
+    }
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(number(index))
+    public override fun indexOfKey(key: ViewKey): Long? = when (key) {
+        case Number(val value) -> position(value)
+        else -> None
+    }
+    public override fun build(index: Long): View = fail(
+        Some("tree metadata must not construct a row")
+    )
+    fun describe(index: Long): SemanticItemProperties? {
+        val key = number(index)
+        return Some(
+            SemanticItemProperties(
+                name = Some(if (key == 1L) "Branch" else if (key == 2L) "Child" else "Other"),
+                value = if (key == 2L) Some("leaf value") else None,
+                enabled = enabled,
+                expanded = if (key == 1L) Some(expanded) else None,
+                hierarchyLevel = Some(if (key == 2L) 1L else 0L),
+                parentKey = if (key == 2L) Some(SemanticItemKey.Number(1L)) else None,
+                siblings = Some(
+                    SemanticItemPosition(
+                        if (key == 3L && !removed) 1L else 0L,
+                        if (key == 2L || removed) 1L else 2L
+                    )
+                ),
+                checked = if (key == 1L) checked else None,
+                busy = key == 1L
+            )
+        )
+    }
+    fun grid(headers: Array<SemanticNodeId>): SemanticGrid? = if (!columns)
+        None
+    else
+        Some(
+            SemanticGrid(
+                [
+                    SemanticGridColumn(
+                        SemanticItemKey.Text("name"),
+                        Some("Name"),
+                        Some(headers[0L])
+                    ),
+                    SemanticGridColumn(
+                        SemanticItemKey.Text("kind"),
+                        Some("Kind"),
+                        Some(headers[1L])
+                    )
+                ],
+                { _, column ->
+                    Some(
+                        SemanticItemProperties(
+                            value = Some(if (column == 0L) "Tree label" else "Folder")
+                        )
+                    )
+                }
+            )
+        )
+}
+
+internal class TreeDescriptions(private val rows: TreeRows) : SemanticCollectionSource {
+    public override val count: Long get() = rows.count
+    public override val search: SemanticItemSearch get() = rows.search
+    public override fun keyAt(index: Long): SemanticItemKey = SemanticItemKey
+        .Number(rows.number(index))
+    public override fun indexOfKey(key: SemanticItemKey): Long? = when (key) {
+        case Number(val value) -> rows.position(value)
+        else -> None
+    }
+    public override fun describe(index: Long): SemanticItemProperties? = rows.describe(index)
+}

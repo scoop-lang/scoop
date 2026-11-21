@@ -8,59 +8,62 @@ import scoop.window.accessibility.native.NativeSemanticTextGeometry
 public fun Window.createAccessibilityProvider(): AccessibilityProvider {
     owner.requireOpen()
     when (owner.accessibility) {
-        case Some(_) -> throw IllegalStateException(
-            Some("window already has an accessibility provider")
-        )
+        case Some(_) ->
+            throw IllegalStateException(
+                Some("window already has an accessibility provider")
+            )
         case None -> {}
     }
     val provider = AccessibilityProvider(owner)
     val application = owner.application
     @Unsafe
     {
-        val callback =
-            foreignCallback<
-                (Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong, Double) -> Int
-            >(
-                {
-                    number: Long,
-                    action: Int,
-                    bytes: Ptr<UInt8>?,
-                    length: Long,
-                    anchor: Long,
-                    cursor: Long,
-                    revision: ULong,
-                    position: Double -> actionCode(
-                        application.performAccessibility {
-                            val value =
-                                if (action == 2 || action == 6)
-                                    actionText(bytes, length)
-                                else
-                                    None
-                            provider.perform(
-                                number,
-                                action,
-                                value,
-                                Utf8Selection(anchor, cursor),
-                                revision,
-                                position
-                            )
+        val callback = foreignCallback<
+            (Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong, Double) -> Int
+        >(
+            {
+                number: Long,
+                action: Int,
+                bytes: Ptr<UInt8>?,
+                length: Long,
+                anchor: Long,
+                cursor: Long,
+                revision: ULong,
+                position: Double
+                ->
+                actionCode(
+                    application
+                        .performAccessibility {
+                            val value = if (action == 2 || action == 6)
+                                actionText(bytes, length)
+                            else
+                                None
+                            provider
+                                .perform(
+                                    number,
+                                    action,
+                                    value,
+                                    Utf8Selection(anchor, cursor),
+                                    revision,
+                                    position
+                                )
                         }
-                    )
-                },
-                0,
-                ForeignCallbackMode.Reusable
-            )
+                )
+            },
+            0,
+            ForeignCallbackMode.Reusable
+        )
         val collections = NativeCollectionQueries(application, provider)
         try {
-            val pointer =
-                created(
-                    nativeAccessibilityCreate(owner.pointer!!, callback.function, callback.context),
-                    "create accessibility provider"
-                )
-            collections.attach(pointer)
-            provider.bind(
-                NativeAccessibilityProjection(application, pointer, callback, collections)
+            val pointer = created(
+                nativeAccessibilityCreate(owner.pointer!!, callback.function, callback.context),
+                "create accessibility provider"
             )
+            collections.attach(pointer)
+            provider
+                .bind(
+                    NativeAccessibilityProjection(application, pointer, callback, collections)
+                )
             owner.accessibility = Some(provider)
             return provider
         } catch (error: Throwable) {
@@ -79,10 +82,8 @@ private fun actionText(bytes: Ptr<UInt8>?, length: Long): String? {
                 return Some(String.fromUtf8(text, length))
             }
         }
-        case None -> return if (length == 0L)
-            Some("")
-        else
-            None
+
+        case None -> return if (length == 0L) Some("") else None
     }
 }
 
@@ -93,7 +94,7 @@ private class NativeAccessibilityProjection(
         (Ptr<Unit>, Long, Int, Ptr<UInt8>?, Long, Long, Long, ULong, Double) -> Int
     >,
     private val collections: NativeCollectionQueries
-): AccessibilityProjection {
+) : AccessibilityProjection {
     public override fun publish(
         changed: Collection<AccessibilityNode>,
         removed: Array<Long>,
@@ -116,17 +117,23 @@ private class NativeAccessibilityProjection(
                     )
                     collections.publish(pointer, node)
                     when (val hit = node.hit) {
-                        case Some(val value) -> checkNativeStatus(
-                            nativeAccessibilityHit(pointer, node.id.number, value.native),
-                            "publish accessibility hit geometry"
-                        )
+                        case Some(val value) ->
+                            checkNativeStatus(
+                                nativeAccessibilityHit(pointer, node.id.number, value.native),
+                                "publish accessibility hit geometry"
+                            )
                         case None -> {}
                     }
                     when (val geometry = node.textGeometry) {
-                        case Some(val value) -> checkNativeStatus(
-                            nativeAccessibilityTextGeometry(pointer, node.id.number, value.native),
-                            "publish accessibility text geometry"
-                        )
+                        case Some(val value) ->
+                            checkNativeStatus(
+                                nativeAccessibilityTextGeometry(
+                                    pointer,
+                                    node.id.number,
+                                    value.native
+                                ),
+                                "publish accessibility text geometry"
+                            )
                         case None -> {}
                     }
                     text(node.id.number, 0, node.resolvedName)
@@ -176,14 +183,13 @@ private class NativeAccessibilityProjection(
                         else -> {}
                     }
                     for (source in node.referrers.values)
-                        if (
-                            source.active &&
-                                source.properties.name ==
-                                None &&
-                                source.relationValues.labelledBy.size ==
-                                1L &&
-                                source.relationValues.labelledBy[0L] ==
-                                node.id
+                        if (source.active &&
+                            source.properties.name ==
+                            None &&
+                            source.relationValues.labelledBy.size ==
+                            1L &&
+                            source.relationValues.labelledBy[0L] ==
+                            node.id
                         )
                             relation(node.id.number, 2, source.id.number)
                 }
@@ -193,8 +199,7 @@ private class NativeAccessibilityProjection(
                 )
                 committed = true
             } finally {
-                if (!committed)
-                    nativeAccessibilityAbort(pointer)
+                if (!committed) nativeAccessibilityAbort(pointer)
             }
         }
     }
@@ -213,20 +218,28 @@ private class NativeAccessibilityProjection(
         @Unsafe
         {
             when (value) {
-                case Some(val string) -> string.withUtf8Bytes {
-                    bytes,
-                    length -> @Unsafe
-                    {
-                        checkNativeStatus(
-                            nativeAccessibilityText(pointer, number, field, Some(bytes), length),
-                            "publish accessibility text"
-                        )
-                    }
-                }
-                case None -> checkNativeStatus(
-                    nativeAccessibilityText(pointer, number, field, None, -1L),
-                    "clear accessibility text"
-                )
+                case Some(val string) ->
+                    string
+                        .withUtf8Bytes { bytes, length ->
+                            @Unsafe
+                            {
+                                checkNativeStatus(
+                                    nativeAccessibilityText(
+                                        pointer,
+                                        number,
+                                        field,
+                                        Some(bytes),
+                                        length
+                                    ),
+                                    "publish accessibility text"
+                                )
+                            }
+                        }
+                case None ->
+                    checkNativeStatus(
+                        nativeAccessibilityText(pointer, number, field, None, -1L),
+                        "clear accessibility text"
+                    )
             }
         }
     }
@@ -241,22 +254,19 @@ private class NativeAccessibilityProjection(
     public override fun announce(number: Long, text: String, priority: SemanticLive) {
         @Unsafe
         {
-            text.withUtf8Bytes {
-                bytes,
-                length -> @Unsafe
-                {
-                    nativeAccessibilityAnnounce(
-                        pointer,
-                        number,
-                        bytes,
-                        length,
-                        if (priority == SemanticLive.Assertive)
-                            2
-                        else
-                            1
-                    )
+            text
+                .withUtf8Bytes { bytes, length ->
+                    @Unsafe
+                    {
+                        nativeAccessibilityAnnounce(
+                            pointer,
+                            number,
+                            bytes,
+                            length,
+                            if (priority == SemanticLive.Assertive) 2 else 1
+                        )
+                    }
                 }
-            }
         }
     }
 
@@ -267,29 +277,29 @@ private class NativeAccessibilityProjection(
         }
         val owned = callback
         collections.close()
-        application.mailbox.postControl {
-            @Unsafe
-            {
-                releaseForeignCallback(owned)
+        application
+            .mailbox
+            .postControl {
+                @Unsafe
+                {
+                    releaseForeignCallback(owned)
+                }
             }
-        }
     }
 }
 
 private fun describe(node: AccessibilityNode): NativeSemanticNode {
     val value = node.properties
-    val orientation =
-        when (value.scroll) {
-            case Some(val scroll) -> Some(scroll.orientation);
-            case None -> value.orientation
-        }
-    val bounds =
-        node.placement?.bounds ?: LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(0.0, 0.0))
-    val visible =
-        when (val geometry = node.placement) {
-            case Some(val placed) -> placed.visibleBounds
-            case None -> None
-        }
+    val orientation = when (value.scroll) {
+        case Some(val scroll) -> Some(scroll.orientation);
+        case None -> value.orientation
+    }
+    val bounds = node.placement?.bounds ?:
+        LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(0.0, 0.0))
+    val visible = when (val geometry = node.placement) {
+        case Some(val placed) -> placed.visibleBounds
+        case None -> None
+    }
     val visibleRect = visible ?: LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(0.0, 0.0))
     return NativeSemanticNode(
         node.id.number,
@@ -330,6 +340,8 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             case Disclosure -> 26
             case Separator -> 27
             case Row -> 28
+            case Tree -> 29
+            case TreeItem -> 30
         },
         flag(value.enabled) +
             2 *
@@ -402,14 +414,10 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
     )
 }
 
-private fun optionalFlag(value: Boolean?): Int =
-    when (value) {
-        case Some(val actual) -> if (actual)
-            1
-        else
-            0
-        case None -> -1
-    }
+private fun optionalFlag(value: Boolean?): Int = when (value) {
+    case Some(val actual) -> if (actual) 1 else 0
+    case None -> -1
+}
 
 @CLayout
 private struct NativeSemanticNode(

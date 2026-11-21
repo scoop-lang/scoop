@@ -89,6 +89,9 @@ int32_t scoop_ui_ax_text(void *pointer, int32_t field, const uint8_t *bytes,
   case 6:
     value = [node accessibilitySubrole];
     break;
+  case 7:
+    value = [node accessibilityValueDescription];
+    break;
   default:
     return 0;
   }
@@ -410,6 +413,17 @@ void scoop_ui_ax_post(void *pointer, void *element, int32_t tag, int32_t action,
       }
       case 20:
         result = 1;
+        break;
+      case 21:
+        result = 0;
+        for (NSAccessibilityCustomAction *action in
+             [node accessibilityCustomActions]) {
+          if ([action.name isEqualToString:@"Check"] ||
+              [action.name isEqualToString:@"Uncheck"]) {
+            result = performCustomAction(action);
+            break;
+          }
+        }
         break;
       default:
         result = -1;
