@@ -8,6 +8,7 @@ use crate::{CoreProtocolInput, Lowerer, SourceKind, SourceProvider};
 
 pub(crate) mod availability;
 mod bodies;
+mod call_hierarchy;
 mod callables;
 pub(crate) mod candidates;
 pub(crate) mod constants;

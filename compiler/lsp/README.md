@@ -129,6 +129,8 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 类型层级通过 `textDocument/prepareTypeHierarchy` 选择名义类型，再用 `typeHierarchy/supertypes` 和 `typeHierarchy/subtypes` 展开直接父类型或子类型。别名展开到原类型，泛型应用归并到同一声明。展开保留发起时的项目配置，输入更新后重新打开层级。
 
+调用层级通过 `textDocument/prepareCallHierarchy` 从函数、方法或其调用进入。调用方与被调用方按同一对声明合并调用位置。虚调用显示静态绑定的成员，可再通过「转到实现」查看提供者。函数引用仍能在查找引用中定位。
+
 方法与 logical property 的实现导航复用实际重写和接口选择，抽象中间声明保持连接，返回具体声明自身、默认实现和继承提供方的源码位置。getter／setter 合并到原 property，构造参数属性仍指向原参数名称；只有部分 accessor 提供默认实现时保留该来源。调用与绑定方法引用沿普通绑定选中目标，重载和泛型声明保持原身份；预编译中间层沿已有 slot 与 property 引用读取。待生成方法和内部 adapter 不产生导航结果。
 
 客户端支持 `workspace.workspaceEdit.documentChanges` 时，提供 `textDocument/prepareRename` 与 `textDocument/rename`。改名使用原声明、引用和重写关系，区分重载、局部遮蔽、透明类型别名与显式 import alias；构造名称随对应类型改名，同一名称 token 上的 property 和构造参数共同更新。无 alias 的转导出沿实际 binding 路径联动，显式 alias 的拼写独立保留。名称支持 Unicode 和反引号，关键字会使用合法转义形式。

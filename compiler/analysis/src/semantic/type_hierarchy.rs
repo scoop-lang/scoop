@@ -75,20 +75,7 @@ impl SemanticSession {
         let Some((current, _)) = project.source_cone(origin.context) else {
             return Ok(Vec::new());
         };
-        let file = project
-            .source_cone(origin.source)
-            .and_then(|(_, cone)| {
-                cone.sources
-                    .iter()
-                    .find(|file| file.source == origin.source)
-            })
-            .or_else(|| {
-                project
-                    .artifact_sources
-                    .values()
-                    .find(|file| file.source == origin.source)
-            });
-        let Some(file) = file else {
+        let Some(file) = project.source_file_by_id(origin.source) else {
             return Ok(Vec::new());
         };
         let location = SemanticSourceLocation {

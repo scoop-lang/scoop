@@ -186,6 +186,20 @@ export async function runLanguageServerTests() {
     supertypes?.map((item) => item.name),
     ["Marker"],
   );
+  const calls = await vscode.commands.executeCommand<
+    vscode.CallHierarchyItem[]
+  >("vscode.prepareCallHierarchy", useUri, at(document, "use()"));
+  assert.deepEqual(
+    calls?.map((item) => item.name),
+    ["use"],
+  );
+  const outgoing = await vscode.commands.executeCommand<
+    vscode.CallHierarchyOutgoingCall[]
+  >("vscode.provideOutgoingCalls", calls?.[0]);
+  assert.deepEqual(
+    outgoing?.map((call) => call.to.name),
+    ["choose"],
+  );
   const editor = await vscode.window.showTextDocument(document);
   const member = at(document, "override fun ", true);
   editor.selection = new vscode.Selection(member, member);

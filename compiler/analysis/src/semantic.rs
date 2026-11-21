@@ -7,6 +7,8 @@ use scoop_identity::ConeIdentity;
 
 use crate::{AnalysisSnapshot, Cancelled, DeclarationAnalysisError, SourceId};
 
+mod call_hierarchy;
+pub use call_hierarchy::{CallHierarchyDirection, CallHierarchyRelation};
 mod dependencies;
 mod diagnostics;
 mod documentation;

@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 
 from accessor_bodies import check as check_accessor_bodies
+from call_hierarchy import check as check_call_hierarchy
 from callable_arguments import check as check_callable_arguments
 from callable_literals import check as check_callable_literals
 from callable_values import check as check_callable_values
@@ -221,6 +222,7 @@ def main():
         assert initialized["capabilities"]["renameProvider"]["prepareProvider"]
         assert initialized["capabilities"]["experimental"]["scoopSuperDeclarations"]
         assert initialized["capabilities"]["typeHierarchyProvider"]
+        assert initialized["capabilities"]["callHierarchyProvider"]
         assert (
             "refactor.extract"
             in initialized["capabilities"]["codeActionProvider"]["codeActionKinds"]
@@ -440,6 +442,7 @@ def main():
         check_type_definitions(peer, root, sysroot)
         check_type_hovers(peer, root)
         check_type_implementations(peer, root)
+        check_call_hierarchy(peer, root)
         check_member_implementations(peer, root)
         check_recovered_classes(peer, root)
         check_recovered_enums(peer, root)

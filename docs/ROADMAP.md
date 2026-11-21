@@ -1005,7 +1005,7 @@ iOS、Android、HarmonyOS 及 Scoop native-app 的 framework/JNI/Node-API 输出
 - 已按[公共基础设计](language-service/DESIGN.md)交付保留全部源码的 CST、缺失／错误语法和完整 AST 适配；错误文件仍可查询，成功编译继续要求完整 HIR。
 - 文档同步、诊断、结构查询、项目输入、编辑态语义、导航／receiver 成员补全／签名帮助、引用与实现索引、版本化重命名和固定标点修复均已交付，完整范围与验收见[实施记录](language-service/PROGRESS.md)。
 - 当前按文件重解析、按实际受影响 Cone 保守失效，已按实测优化正文定位与成员候选计算，见[性能记录](language-service/PERFORMANCE.md)。格式库与 CLI 按[fmt/check 设计](fmt-check/DESIGN.md)推进，LSP formatting 接入仍独立安排。局部重解析、正文级增量分析、semanticTokens 和 inlayHint 另行排期。
-- 导航与重构扩展已交付转到上级声明、类型层级、提取局部 `val` 和提取函数。后续调用层级及其他重构的范围和验收见[导航与重构实施方案](language-service/NAVIGATION-AND-REFACTORING.md)。
+- 导航与重构扩展已交付转到上级声明、类型与调用层级、提取局部 `val` 和提取函数。后续功能的范围和验收见[导航与重构实施方案](language-service/NAVIGATION-AND-REFACTORING.md)。
 
 ### M54 明确后续的客户端能力
 

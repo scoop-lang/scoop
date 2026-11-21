@@ -9,6 +9,7 @@ use serde_json::Value;
 
 use crate::{convert, initialize::Settings};
 
+pub(crate) mod call_hierarchy;
 pub(crate) mod code_actions;
 mod completion;
 mod definition;
@@ -42,6 +43,7 @@ pub(crate) enum QueryKind {
     Implementation(Position),
     SuperDeclarations(Position),
     TypeHierarchy(type_hierarchy::HierarchyQuery),
+    CallHierarchy(call_hierarchy::CallQuery),
     References {
         position: Position,
         include_declaration: bool,
@@ -245,6 +247,32 @@ impl DocumentQuery {
                 Ok(Self {
                     uri: params.text_document.uri,
                     kind: QueryKind::SuperDeclarations(params.position),
+                })
+            }
+            "textDocument/prepareCallHierarchy" => {
+                let params: lsp_types::CallHierarchyPrepareParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document_position_params.text_document.uri,
+                    kind: QueryKind::CallHierarchy(call_hierarchy::CallQuery::Prepare(
+                        params.text_document_position_params.position,
+                    )),
+                })
+            }
+            "callHierarchy/incomingCalls" | "callHierarchy/outgoingCalls" => {
+                let direction = if request.method == "callHierarchy/incomingCalls" {
+                    scoop_analysis::CallHierarchyDirection::Incoming
+                } else {
+                    scoop_analysis::CallHierarchyDirection::Outgoing
+                };
+                let params: lsp_types::CallHierarchyIncomingCallsParams =
+                    params(request.params.clone())?;
+                let data = call_hierarchy::CallItemData::from_item(params.item)?;
+                Ok(Self {
+                    uri: data.anchor.clone(),
+                    kind: QueryKind::CallHierarchy(call_hierarchy::CallQuery::Expand {
+                        data,
+                        direction,
+                    }),
                 })
             }
             _ => Err(convert::error(

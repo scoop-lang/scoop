@@ -109,6 +109,7 @@ pub(crate) fn initialize(params: InitializeParams) -> (Settings, InitializeResul
             implementation_provider: Some(lsp_types::ImplementationProviderCapability::Simple(
                 true,
             )),
+            call_hierarchy_provider: Some(true.into()),
             experimental: Some(serde_json::json!({ "scoopSuperDeclarations": true })),
             references_provider: Some(OneOf::Left(true)),
             rename_provider: versioned_edits.then_some(OneOf::Right(lsp_types::RenameOptions {
