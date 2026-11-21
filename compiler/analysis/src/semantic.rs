@@ -19,6 +19,7 @@ pub use extract_declaration::DeclarationExtraction;
 mod extract_local;
 mod implementations;
 pub use implementations::{MemberHierarchy, MemberImplementationSearch, TypeImplementationSearch};
+mod inline_function;
 mod inline_local;
 mod move_declaration;
 mod organize_imports;

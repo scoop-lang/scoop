@@ -182,7 +182,7 @@ impl SemanticSession {
     }
 }
 
-fn contains(outer: Span, inner: Span) -> bool {
+pub(super) fn contains(outer: Span, inner: Span) -> bool {
     outer.start <= inner.start && inner.end <= outer.end
 }
 

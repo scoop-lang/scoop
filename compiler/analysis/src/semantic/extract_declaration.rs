@@ -169,7 +169,7 @@ impl SemanticSession {
     }
 }
 
-fn complete_references(
+pub(super) fn complete_references(
     analysis: &mut DeclarationAnalysis,
     source: &scoop_identity::SourceIdentity,
     check: Rc<dyn Fn() -> bool>,

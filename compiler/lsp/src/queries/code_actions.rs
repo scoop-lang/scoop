@@ -53,12 +53,13 @@ enum Refactoring {
     ExtractProperty,
     ExtractParameter,
     InlineVariable,
+    InlineFunction,
     SafeDelete,
     OrganizeImports,
 }
 
 impl Refactoring {
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 10] = [
         Self::ExtractVariable,
         Self::ExtractFunction,
         Self::ExtractTypeAlias,
@@ -66,6 +67,7 @@ impl Refactoring {
         Self::ExtractProperty,
         Self::ExtractParameter,
         Self::InlineVariable,
+        Self::InlineFunction,
         Self::SafeDelete,
         Self::OrganizeImports,
     ];
@@ -78,7 +80,7 @@ impl Refactoring {
             | Self::ExtractConstant
             | Self::ExtractProperty
             | Self::ExtractParameter => CodeActionKind::REFACTOR_EXTRACT,
-            Self::InlineVariable => CodeActionKind::REFACTOR_INLINE,
+            Self::InlineVariable | Self::InlineFunction => CodeActionKind::REFACTOR_INLINE,
             Self::SafeDelete => CodeActionKind::REFACTOR_REWRITE,
             Self::OrganizeImports => CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
         }
@@ -93,6 +95,7 @@ impl Refactoring {
             Self::ExtractProperty => "Extract Property",
             Self::ExtractParameter => "Extract Parameter",
             Self::InlineVariable => "Inline Local Variable",
+            Self::InlineFunction => "Inline Function",
             Self::SafeDelete => "Safe Delete Function",
             Self::OrganizeImports => "Organize Imports",
         }
@@ -311,6 +314,13 @@ fn refactor(
             range,
             check,
         ))?,
+        Refactoring::InlineFunction => analysis_result(semantics.inline_function(
+            context.snapshot,
+            context.source_id,
+            range,
+            check,
+        ))?
+        .map(|edit| vec![edit]),
         Refactoring::OrganizeImports => {
             analysis_result(semantics.organize_imports(context.snapshot, context.source_id, check))?
         }
