@@ -312,6 +312,23 @@ pub(in crate::semantic) fn enclosing_statement(
         })
 }
 
+pub(in crate::semantic) fn argument_value_span(
+    root: &SyntaxNode,
+    argument: &scoop_hir::EditingCallArgument,
+) -> Option<Span> {
+    let Some(label) = argument.name_span else {
+        return Some(argument.span);
+    };
+    let node = root
+        .token_at_offset(label.start.into())
+        .right_biased()?
+        .parent_ancestors()
+        .find(|node| node.kind() == K::Argument && contains(node_span(node), argument.span))?;
+    node.children()
+        .find(|child| child.kind() == K::Expression)
+        .map(|value| node_span(&value))
+}
+
 pub(in crate::semantic) fn fresh_name(root: &SyntaxNode, stem: &str) -> Option<String> {
     let names = root
         .descendants_with_tokens()

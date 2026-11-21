@@ -159,7 +159,7 @@ VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Pee
 
 非泛型内部类或文件私有类的普通 final 方法可用于提取接口、提取父类，或在同文件的直接父子类之间上下移。重构菜单按实际签名和已有使用处判断动作是否可用。
 
-`Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。`Scoop: Move Declaration` 可在同一 Cone、同一 package 中移动顶层函数。`Scoop: Change Signature` 为文件私有函数调整参数顺序并保留调用处的求值顺序。
+`Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。`Scoop: Move Declaration` 可在同一 Cone、同一 package 中移动顶层函数。`Scoop: Change Signature` 可为文件私有函数调整参数顺序、新增带默认值的形参、删除未使用形参或编辑默认值。既有显式实参保持求值顺序。
 
 ## 测试和诊断
 

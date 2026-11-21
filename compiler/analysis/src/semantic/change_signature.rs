@@ -12,6 +12,9 @@ use super::inline_local::updated_span;
 use super::*;
 use crate::{SnapshotEditError, SourceInput};
 
+mod parameters;
+pub use parameters::ParameterChange;
+
 impl SemanticSession {
     pub fn prepare_change_signature(
         &self,
@@ -241,7 +244,7 @@ fn function_at(input: &SourceInput, selection: Span) -> Option<&FunctionDecl> {
                 return None;
             };
             (inside(function.name.span, selection)
-                && function.params.len() > 1
+                && function.name.text != "main"
                 && function.receiver_ty.is_none()
                 && function.annotations.is_empty()
                 && !matches!(function.body, FunctionBody::None)

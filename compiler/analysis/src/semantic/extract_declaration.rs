@@ -306,7 +306,8 @@ impl ExtractionSite {
 }
 
 fn ordinary_private(function: &FunctionDecl) -> bool {
-    function.annotations.is_empty()
+    function.name.text != "main"
+        && function.annotations.is_empty()
         && function.receiver_ty.is_none()
         && matches!(
             function.visibility,

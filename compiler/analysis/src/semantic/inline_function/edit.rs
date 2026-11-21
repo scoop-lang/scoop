@@ -11,7 +11,7 @@ use crate::SourceInput;
 
 use super::super::extract_local::{
     contains,
-    syntax::{fresh_name, node_span},
+    syntax::{argument_value_span, fresh_name},
 };
 use super::super::inline_local::updated_span;
 
@@ -71,22 +71,7 @@ impl InlineEdit {
             if std::mem::replace(has_argument.get_mut(argument.parameter)?, true) {
                 return None;
             }
-            let value = if let Some(label) = argument.name_span {
-                let node = input
-                    .root
-                    .token_at_offset(label.start.into())
-                    .right_biased()?
-                    .parent_ancestors()
-                    .find(|node| {
-                        node.kind() == K::Argument && contains(node_span(node), argument.span)
-                    })?;
-                let value = node
-                    .children()
-                    .find(|child| child.kind() == K::Expression)?;
-                node_span(&value)
-            } else {
-                argument.span
-            };
+            let value = argument_value_span(input.root, argument)?;
             edit.argument(
                 &input,
                 &next,

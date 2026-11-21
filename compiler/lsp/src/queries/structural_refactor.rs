@@ -1,7 +1,8 @@
 use lsp_server::{ErrorCode, ResponseError};
 use lsp_types::{Position, TextDocumentPositionParams, Uri};
 use scoop_analysis::{
-    AnalysisSnapshot, Cancellation, ProjectAnalysisError, SemanticSession, SourceId,
+    AnalysisSnapshot, Cancellation, ParameterChange, ProjectAnalysisError, SemanticSession,
+    SourceId,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -18,9 +19,15 @@ pub(crate) enum RefactorQuery {
     PrepareSignature(Position),
     ChangeSignature {
         position: Position,
-        order: Vec<usize>,
+        operation: SignatureOperation,
         revision: u64,
     },
+}
+
+#[derive(Clone)]
+pub(crate) enum SignatureOperation {
+    Order(Vec<usize>),
+    Parameters(ParameterChange),
 }
 
 #[derive(Deserialize)]
@@ -35,8 +42,70 @@ pub(crate) struct MoveParams {
 pub(crate) struct SignatureParams {
     #[serde(flatten)]
     pub position: TextDocumentPositionParams,
-    pub order: Vec<usize>,
+    pub order: Option<Vec<usize>>,
+    pub edit: Option<ParameterEdit>,
     pub revision: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub(crate) enum ParameterEdit {
+    AddDefault {
+        name: String,
+        #[serde(rename = "type")]
+        ty: String,
+        expression: String,
+    },
+    RemoveUnused {
+        parameter: usize,
+    },
+    SetDefault {
+        parameter: usize,
+        expression: Option<String>,
+    },
+}
+
+impl SignatureParams {
+    pub(crate) fn into_query(self) -> Result<super::DocumentQuery, ResponseError> {
+        let operation = match (self.order, self.edit) {
+            (Some(order), None) => SignatureOperation::Order(order),
+            (None, Some(edit)) => SignatureOperation::Parameters(match edit {
+                ParameterEdit::AddDefault {
+                    name,
+                    ty,
+                    expression,
+                } => ParameterChange::AddDefault {
+                    name,
+                    ty,
+                    expression,
+                },
+                ParameterEdit::RemoveUnused { parameter } => {
+                    ParameterChange::RemoveUnused { parameter }
+                }
+                ParameterEdit::SetDefault {
+                    parameter,
+                    expression,
+                } => ParameterChange::SetDefault {
+                    parameter,
+                    expression,
+                },
+            }),
+            _ => {
+                return Err(convert::error(
+                    ErrorCode::InvalidParams,
+                    "supply one signature edit",
+                ));
+            }
+        };
+        Ok(super::DocumentQuery {
+            uri: self.position.text_document.uri,
+            kind: super::QueryKind::StructuralRefactor(RefactorQuery::ChangeSignature {
+                position: self.position.position,
+                operation,
+                revision: self.revision,
+            }),
+        })
+    }
 }
 
 pub(crate) fn run(
@@ -76,7 +145,9 @@ pub(crate) fn run(
             }));
         }
         RefactorQuery::ChangeSignature {
-            order, revision, ..
+            operation,
+            revision,
+            ..
         } => {
             if revision != snapshot.revision.0 {
                 return Err(convert::error(
@@ -84,7 +155,14 @@ pub(crate) fn run(
                     "signature context changed",
                 ));
             }
-            semantics.change_signature(snapshot, source, cursor.span, &order, check)
+            match operation {
+                SignatureOperation::Order(order) => {
+                    semantics.change_signature(snapshot, source, cursor.span, &order, check)
+                }
+                SignatureOperation::Parameters(change) => {
+                    semantics.change_parameters(snapshot, source, cursor.span, &change, check)
+                }
+            }
         }
         RefactorQuery::Move { target_uri, .. } => {
             let Some(path) = file_path(&target_uri)? else {
