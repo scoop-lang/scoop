@@ -8,18 +8,16 @@ import scoop.surface.InputArea
 private class FocusPlacement(val area: InputArea, val path: Array<ScrollReveal>)
 
 /** Keeps only the scroll paths and independent geometry of one submitted scene. */
-internal class FocusScene: Closeable {
+internal class FocusScene : Closeable {
     private val placements = ArrayList<FocusPlacement>()
     private val boundaries = ArrayList<ScrollReveal>()
 
     fun place(area: InputArea, path: Array<ScrollReveal>) {
-        if (path.size > 0L)
-            placements.add(FocusPlacement(area, path))
+        if (path.size > 0L) placements.add(FocusPlacement(area, path))
     }
     fun path(area: InputArea): Array<ScrollReveal> {
         for (placement in placements)
-            if (placement.area === area)
-                return placement.path
+            if (placement.area === area) return placement.path
         return []
     }
     fun capture(viewport: ScrollViewport, layout: ScrollLayout, canvas: Canvas): ScrollReveal {
@@ -27,11 +25,10 @@ internal class FocusScene: Closeable {
         val size = snapshot.visibleSize
         @Unsafe
         {
-            val geometry =
-                captureGeometry(
-                    canvas,
-                    Rect(snapshot.padding.left, snapshot.padding.top, size.width, size.height)
-                )
+            val geometry = captureGeometry(
+                canvas,
+                Rect(snapshot.padding.left, snapshot.padding.top, size.width, size.height)
+            )
             val boundary = ScrollReveal(viewport, viewport.state, layout, geometry)
             boundaries.add(boundary)
             return boundary
@@ -39,19 +36,16 @@ internal class FocusScene: Closeable {
     }
     fun canReveal(area: InputArea): Boolean {
         var rect = area.windowBounds ?: return false
-        if (rect.width <= 0.0 || rect.height <= 0.0)
-            return false
+        if (rect.width <= 0.0 || rect.height <= 0.0) return false
         val route = path(area)
         var index = route.size
         while (index > 0L) {
             index -= 1L
             val boundary = route[index]
-            if (!boundary.active)
-                return false
+            if (!boundary.active) return false
             val local = boundary.local(rect) ?: return false
-            if (!boundary.current || boundary.needsMove(local))
-                return true
-            rect = intersectReveal(rect, boundary.windowBounds) ?: return false
+            if (!boundary.current || boundary.needsMove(local)) return true
+            rect = boundary.project(rect) ?: return false
         }
         return false
     }

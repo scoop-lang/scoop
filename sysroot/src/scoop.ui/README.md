@@ -166,6 +166,8 @@ Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可�
 
 自绘 Element 可用 `scope.focusTarget(area, FocusOptions(Some(handle)))` 登记可聚焦区域。FocusHandle 提供 hasFocus、isFocusActive、isAttached、isPending 和 requestFocus；它查询 Surface 的现有焦点状态。已经显露的目标立即聚焦，滚动内容中的目标先逐层显露，等待首次或恢复放置的目标在 Accepted 后兑现；新的焦点请求会取消旧请求。关闭或更换外部 handle 会解除登记，不能在 render／measure／scene／draw 中请求焦点。
 
+`withScrollReveal` 的单轴边界只在自己负责的方向上收窄向外传播的目标范围，另一方向由外层视口继续显露。固定纵向正文与共享水平滚动组合时，FocusScope、Tab 和直接聚焦都能到达横向离屏控件；完成仍取决于实际 Accepted 可见区域。实窗覆盖见[正交视口测试](tests-cones/orthogonal-reveal/README.md)。
+
 FocusOptions 的 order 默认 0，同值使用当前逻辑挂载顺序，tabStop=false 才退出 Tab。`scope.focusScope(FocusScopeOptions(loop = true))` 建立组内循环；普通 scope 在边界让父继续，窗口根循环。FocusScope.requestFocus 按 defaultFocus、首个 Tab 目标、fallback 选择。Tab 和 KeyNavigation 可以选择滚动内容内尚需显露的已放置目标；禁用、未放置或不能显露的目标被跳过，Tab 的异步显露失败会继续本次有限遍历。已聚焦目标仅被滚动裁剪时保持当前会话。
 
 FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域外请求立即失败，也不会作为等待首次放置的 pending 留到边界关闭后执行。已知窗口的 pending 和被拒绝的显式请求同样推进 Surface.focusRevision，新的请求会取消旧的自动聚焦或恢复意图。

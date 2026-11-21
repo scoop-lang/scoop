@@ -1,0 +1,186 @@
+package scoop.tests.ui.orthogonal
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class OrthogonalRevealTest {
+    @Test
+    fun `group and target focus reveal both axes through a stationary vertical viewport`() {
+        val probe = RevealProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }
+            .use { host -> Application().run(host) }
+        assertTrue(probe.finished)
+        assertTrue(probe.frames < 18)
+    }
+}
+
+private class RevealProbe {
+    val horizontal = ScrollState()
+    val vertical = ScrollState()
+    val target = FocusHandle()
+    var group: FocusScope? = None
+    var window: Window? = None
+    var ready = false
+    var waiting = false
+    var frames = 0
+    var phase = 0
+    var finished = false
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native = active
+                    .createWindow(
+                        windowAttributes {
+                            this.title = "Scoop orthogonal focus"
+                            this.size = LogicalSize(220.0, 150.0)
+                        }
+                    )
+                window = Some(native)
+                native.requestFocus()
+                host.attach(native, { scope -> RevealRoot(this, scope) })
+                active
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(15L))
+                    )
+            }
+
+            case AboutToWait ->
+                if (ready &&
+                    !waiting &&
+                    window!!.isFocused &&
+                    !target.isPending &&
+                    !(group?.isPending ?: false)
+                ) {
+                    waiting = true
+                    active
+                        .proxy()
+                        .post { application ->
+                            waiting = false
+                            if (target.isPending || (group?.isPending ?: false)) return@post
+                            ready = false
+                            when (phase) {
+                                case 0 -> {
+                                    phase = 1;
+                                    assertTrue(group!!.requestFocus())
+                                }
+
+                                case 1 -> {
+                                    assertTrue(target.hasFocus)
+                                    assertTrue(horizontal.offset.x > 0.0)
+                                    assertTrue(vertical.offset.y > 0.0)
+                                    phase = 2
+                                    target.clearFocus()
+                                    horizontal.scrollTo(Point(0.0, 0.0))
+                                    vertical.scrollTo(Point(0.0, 0.0))
+                                }
+
+                                case 2 -> {
+                                    phase = 3;
+                                    assertTrue(target.requestFocus())
+                                }
+
+                                case 3 -> {
+                                    assertTrue(target.hasFocus)
+                                    assertTrue(horizontal.offset.x > 0.0)
+                                    assertTrue(vertical.offset.y > 0.0)
+                                    finished = true
+                                    application.requestExit()
+                                }
+
+                                else -> {}
+                            }
+                        }
+                }
+            case NewEvents(StartCause.Deadline) ->
+                fail(Some(f"orthogonal reveal timed out at ${phase}"))
+            else -> {}
+        }
+    }
+}
+
+private class RevealRoot(private val probe: RevealProbe, scope: ComponentScope) : Component(scope) {
+    public override fun render(): View = element(
+        { mount -> HorizontalReveal(probe, mount) },
+        [element({ mount -> VerticalReveal(probe, mount) })]
+    )
+}
+
+private class HorizontalReveal(private val probe: RevealProbe, scope: ComponentScope) :
+    Element<ScrollLayout>(scope) {
+    private val viewport = scope.scrollViewport(probe.horizontal)
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
+        val layout = viewport.layout(Size(220.0, 150.0), Size(520.0, 150.0))
+        context.measureChild(0L, Constraints.tight(Size(220.0, 150.0)))
+        context.placeChild(0L, Point(layout.snapshot.offset.x, 0.0))
+        return LayoutResult(LayoutMetrics(Size(220.0, 150.0)), layout)
+    }
+    public override fun scene(context: SceneContext, layout: ScrollLayout) {
+        viewport
+            .present(
+                context,
+                layout,
+                Some { content ->
+                    content
+                        .withScrollReveal(
+                            viewport,
+                            Rect(0.0, 0.0, 220.0, 150.0),
+                            ScrollAxes.Horizontal
+                        ) { inner -> inner.children() }
+                }
+            )
+    }
+}
+
+private class VerticalReveal(private val probe: RevealProbe, scope: ComponentScope) :
+    Element<ScrollLayout>(scope) {
+    private val viewport = scope.scrollViewport(probe.vertical)
+    private val area = scope.createArea(focusable = true)
+    private val target = scope.focusTarget(area, FocusOptions(Some(probe.target)))
+    private val group = scope.focusScope()
+    init {
+        probe.group = Some(group)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > = LayoutResult(
+        LayoutMetrics(Size(220.0, 150.0)),
+        viewport.layout(Size(220.0, 150.0), Size(220.0, 400.0))
+    )
+    public override fun scene(context: SceneContext, layout: ScrollLayout) {
+        viewport
+            .present(
+                context,
+                layout,
+                Some { content ->
+                    content
+                        .withScrollReveal(
+                            viewport,
+                            Rect(0.0, 30.0, 220.0, 120.0),
+                            ScrollAxes.Vertical
+                        ) { inner ->
+                            inner
+                                .place(
+                                    area,
+                                    Rect(430.0 - probe.horizontal.offset.x, 250.0, 60.0, 25.0)
+                                )
+                            inner.draw { paint -> paint.canvas.clear(Color.White) }
+                        }
+                }
+            )
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) {
+                    probe.frames += 1
+                    probe.ready = true
+                }
+            }
+    }
+}
