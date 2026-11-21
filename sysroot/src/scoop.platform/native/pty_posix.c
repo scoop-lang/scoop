@@ -10,8 +10,11 @@
 #ifdef __APPLE__
 #include <libproc.h>
 #elif defined(__linux__)
-#include <linux/close_range.h>
 #include <sys/syscall.h>
+// Some libc development environments omit the Linux UAPI header for this syscall.
+#ifndef CLOSE_RANGE_CLOEXEC
+#define CLOSE_RANGE_CLOEXEC (1U << 2)
+#endif
 #endif
 
 /* Fork must leave the parent's stdio layout intact, even when a stream is closed. */
