@@ -210,7 +210,7 @@ python3 scripts/install_toolchain.py
 python3 scripts/install_toolchain.py --install-dir "$HOME/.scoop-dev" --jobs 6
 ```
 
-默认安装根为 `~/.scoop`。脚本优先使用所选安装根 `bin` 中的 `scoop-install`，也可复用 `~/.scoop/bin` 或 `PATH` 中的安装器。构建成功后，安装器把本地版本设为默认，并沿用原默认工具链的目标和可选组件。空安装根首次安装使用宿主默认目标。旧版本仍可通过 `scoop-install` 选择。
+默认安装根为 `~/.scoop`。脚本优先使用所选安装根 `bin` 中的 `scoop-install`，也可复用 `~/.scoop/bin` 或 `PATH` 中的安装器。首次安装使用宿主默认目标，更新时继承原默认工具链已安装的目标和 vendor 选择。脚本为每个已选目标一并安装该目标提供的 GUI 包，其中包含 `scoop.ui`、`scoop.ui.component` 等适用的 `.slib` 和 Skia 等原生链接库。所选组件安装成功后，新版本才成为默认工具链。旧版本仍可通过 `scoop-install` 选择。
 
 脚本沿用上节的完整打包流程与构建依赖。可传入 `--work-dir`、`--download-dir`、`--llvm-prefix`、`--debugger-prefix` 等打包选项复用已有构建资源。每次生成独立的本地版本，归档和 manifest 默认留在 `tmp/dist`，可用 `--output-dir` 改位置。后续为本地版本追加目标或组件时仍需这些文件。可用 `--skip-docs` 暂缓生成离线 API 文档，之后用 `scoop-install docs` 补齐。
 
