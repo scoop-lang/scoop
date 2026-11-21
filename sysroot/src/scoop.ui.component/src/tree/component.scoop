@@ -1,0 +1,120 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.accessibility.*
+
+internal class TreePlan<T>(
+    val input: TreeProps<T>,
+    val appearance: TableAppearance,
+    val controller: TreeViewController<T>,
+    val vertical: ScrollState,
+    val horizontal: ScrollState,
+    previous: TreePlan<T>?
+) {
+    val projection = input.state.projection
+    val columnState = input.state.columnState
+    val columns = columnState.visibleColumns
+    val explicit = panelPresent(columnState.columns)
+    val treeColumn = columnState.columns?.treeColumn ?: "title"
+    val headers: Array<SemanticsReference> = Array<SemanticsReference>(columns.size) { index ->
+        var reference: SemanticsReference? = None
+        when (previous) {
+            case Some(val old) ->
+                for (at in 0L..<old.columns.size)
+                    if (old.columns[at].id == columns[index].id) reference = Some(old.headers[at])
+            case None -> {}
+        }
+        reference ?: SemanticsReference()
+    }
+    val tracks = makeTracks()
+    val extent = when (input.itemExtent) {
+        case Fixed(val value) -> ItemExtent.Fixed(value * appearance.density)
+        case Variable(val value) -> ItemExtent.Variable(value * appearance.density)
+    }
+    val source = TreeItems(this)
+    val restoreFocus: ViewKey? = controller.fallback(projection, columns)
+    val controls = scrollControls(vertical, ScrollAxes.Vertical)
+    val horizontalControls = scrollControls(horizontal, ScrollAxes.Horizontal)
+
+    private fun makeTracks(): TableTracks {
+        if (!explicit)
+            return TableTracks([TableColumnSize(minimum = 0.0)], [0.0], appearance.density)
+        requireComponent(
+            !panelPresent(input.contentWidth),
+            "explicit tree columns determine content width"
+        )
+        val sizes = Array<TableColumnSize>(columns.size) { index ->
+            val column = columns[index]
+            when (columnState.width(column.id)) {
+                case Some(val value) ->
+                    TableColumnSize(
+                        GridTrack.Fixed(value),
+                        column.size.minimum,
+                        column.size.maximum,
+                        column.size.samples
+                    )
+                case None -> column.size
+            }
+        }
+        return TableTracks(
+            sizes,
+            appearance
+                .natural(sizes, Array<String>(columns.size) { at -> columns[at].header }, 32.0),
+            appearance.density
+        )
+    }
+    private fun scrollControls(state: ScrollState, axes: ScrollAxes): ScrollControlProps =
+        ScrollControlProps(
+            state, axes, 40.0 * appearance.density, ScrollChain.Chain, input.scrollbars,
+            input.scrollbar, input.enabled, FocusOptions(tabStop = false), PaintCachePolicy.None,
+            appearance.theme, scrollbarBehavior = input.scrollbarBehavior,
+            touchScroll = input.touchScroll, scrollPhysics = input.scrollPhysics
+        )
+    fun columnIndex(id: String): Long? {
+        if (!explicit) return if (id == treeColumn) Some(0L) else None
+        for (index in 0L..<columns.size)
+            if (columns[index].id == id) return Some(index)
+        return None
+    }
+}
+
+/** One lazy row mount is shared by the body and sticky ancestor presentation. */
+public class Tree<T> public constructor(
+    private val props: Props<TreeProps<T>>,
+    scope: ComponentScope
+) : Component(scope) {
+    private val themes = ThemeAccess(scope)
+    private val vertical = ScrollState()
+    private val horizontal = ScrollState()
+    private val controller = TreeViewController<T>()
+    private var plan: TreePlan<T>? = None
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        nonnegative(input.indent, "invalid tree indent")
+        nonnegative(input.overscan, "invalid tree overscan")
+        itemEstimate(input.itemExtent)
+        val next = TreePlan(
+            input,
+            TableAppearance(
+                themes.read(input.theme),
+                input.fonts ?: scope.defaultFonts,
+                input.theme,
+                scope.layoutDirection
+            ),
+            controller, input.scroll ?: vertical, input.horizontal ?: horizontal, plan
+        )
+        plan = Some(next)
+        val body = lazyElement(
+            next.source,
+            next,
+            { value, mount -> TreeInk(value, mount) },
+            retention = input.retention,
+            key = ViewKey.Text("body")
+        )
+        return element(next, { value, mount -> TreeRoot(value, mount) }, [treeHeader(next), body])
+    }
+}

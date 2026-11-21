@@ -15,7 +15,9 @@ public class TreeColumn<T> public constructor(
     public val resizable: Boolean = true,
     public val compare: ((T, T) -> Int)? = None,
     public val semanticText: ((TreeNode<T>) -> String)? = None,
-    public val headerView: View? = None
+    public val headerView: View? = None,
+    /** Declares an offscreen cell's focus capability; focus still requires a real mounted target. */
+    public val focusable: Boolean = false
 ) {
     init {
         requireComponent(id != "", "tree column id must not be empty")

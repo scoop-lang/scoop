@@ -1,0 +1,286 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class TreeRowDrawing<T>(
+    val input: TreeRowInput<T>,
+    val owner: TreeRowView<T>,
+    val selected: Boolean,
+    val interaction: InteractionState
+)
+
+internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    // The row's main target lives outside this group; only F2 enters cell Tab order.
+    private val group = scope.focusScope()
+    public override fun onMount() {
+        props.value.owner.cellGroup = Some(group)
+    }
+    public override fun onUnmount() {
+        props.value.owner.cellGroup = None
+    }
+    public override fun update(): UiInvalidation {
+        props.value.owner.update();
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val plan = props.value.input.plan
+        val widths = plan.tracks.resolve(constraints.maxWidth ?: constraints.minWidth)
+        val count = if (plan.explicit) plan.columns.size else 1L
+        val sizes = ArrayList<Size>()
+        var height = 24.0 * plan.appearance.density
+        for (index in 0L..<count) {
+            val value = context
+                .measureChild(
+                    index,
+                    Constraints(
+                        widths.values[index],
+                        Some(widths.values[index]),
+                        maxHeight = constraints.maxHeight
+                    )
+                )
+            sizes.add(value.size)
+            height = lowerBound(height, value.size.height)
+        }
+        val size = constraints.constrain(Size(widths.total, height))
+        var x = 0.0
+        for (index in 0L..<count) {
+            context
+                .placeChild(
+                    index,
+                    Point(
+                        if (context.layoutDirection == LayoutDirection.Rtl)
+                            widths.total - x - sizes[index].width
+                        else
+                            x,
+                        lowerBound((size.height - sizes[index].height) / 2.0, 0.0)
+                    )
+                )
+            x += widths.values[index]
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        val drawing = props.value
+        val plan = drawing.input.plan
+        val palette = plan.appearance.theme.tokens.palette
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context
+            .draw { paint ->
+                paint.canvas.drawRect(bounds, Paint(palette.background.background))
+                if (drawing.selected || drawing.interaction.hovered)
+                    paint
+                        .canvas
+                        .drawRect(
+                            bounds,
+                            Paint(
+                                if (drawing.selected)
+                                    palette.accent.background
+                                else
+                                    palette.muted.background.withAlpha(0.5)
+                            )
+                        )
+                if (drawing.interaction.focusVisible) {
+                    val line = lowerBound(plan.appearance.density, 1.0)
+                    paint.canvas.drawRect(Rect(0.0, 0.0, bounds.width, line), Paint(palette.ring))
+                    paint
+                        .canvas
+                        .drawRect(
+                            Rect(0.0, lowerBound(bounds.height - line, 0.0), bounds.width, line),
+                            Paint(palette.ring)
+                        )
+                }
+            }
+        if (plan.input.fullRow) context.place(drawing.owner.control.area, bounds)
+        context
+            .withState { clipped ->
+                clipped.clipRect(bounds);
+                clipped.children()
+            }
+    }
+}
+
+internal class TreeCellInput<T>(
+    val row: TreeRowInput<T>,
+    val owner: TreeRowView<T>,
+    val column: Long,
+    val id: String,
+    val content: View,
+    val alignment: AxisAlignment
+)
+
+internal fun <T> treeCell(
+    row: TreeRowInput<T>,
+    owner: TreeRowView<T>,
+    column: Long,
+    id: String,
+    content: View,
+    alignment: AxisAlignment
+): View = component(
+    TreeCellInput(row, owner, column, id, content, alignment),
+    { value, scope -> TreeCellView(value, scope) },
+    ViewKey.Text(id)
+)
+
+private class TreeCellView<T>(private val props: Props<TreeCellInput<T>>, scope: ComponentScope) :
+    Component(scope) {
+    private val target = TreeCellTarget(scope, scope.focusScope())
+    public override fun onMount() {
+        props.value.owner.cells[props.value.id] = target
+    }
+    public override fun onUnmount() {
+        props.value.owner.cells.remove(props.value.id)
+    }
+    public override fun render(): View = element(
+        props.value,
+        { value, mount -> TreeCellInk(value, mount) },
+        [props.value.content]
+    )
+}
+
+private class TreeCellInk<T>(private val props: Props<TreeCellInput<T>>, scope: ComponentScope) :
+    Element<Rect>(scope) {
+    private val semantics = createComponentSemantics(scope, SemanticRole.Cell)
+    init {
+        scope.routeSemanticsChildren(semantics)
+    }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        val plan = input.row.plan
+        val row = input.row.row
+        semantics
+            ?.update(
+                SemanticProperties(
+                    ignored = !plan.explicit,
+                    cell = if (plan.explicit)
+                        Some(
+                            SemanticTableCell(
+                                input.row.index,
+                                input.column,
+                                columnKey = Some(SemanticItemKey.Text(input.id))
+                            )
+                        )
+                    else
+                        None
+                ),
+                relations = SemanticRelations(
+                    columnHeaders = if (plan.explicit)
+                        semanticIds(plan.headers[input.column].id)
+                    else
+                        []
+                )
+            )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Rect
+    > {
+        val input = props.value
+        val density = input.row.plan.appearance.density
+        val padding = 4.0 * density
+        val child = context
+            .measureChild(
+                0L,
+                Constraints(
+                    maxWidth = insetMaximum(constraints.maxWidth, padding * 2.0),
+                    maxHeight = insetMaximum(constraints.maxHeight, padding * 2.0)
+                )
+            )
+        val size = constraints
+            .constrain(Size(child.size.width + padding * 2.0, child.size.height + padding * 2.0))
+        val origin = alignedOrigin(
+            Rect(
+                padding,
+                padding,
+                lowerBound(size.width - padding * 2.0, 0.0),
+                lowerBound(size.height - padding * 2.0, 0.0)
+            ),
+            child.size,
+            Alignment(input.alignment, AxisAlignment.Center),
+            context.layoutDirection
+        )
+        context.placeChild(0L, origin)
+        return LayoutResult(LayoutMetrics(size), Rect(origin.x, 0.0, child.size.width, size.height))
+    }
+    public override fun scene(context: SceneContext, content: Rect) {
+        val input = props.value
+        val plan = input.row.plan
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        when (semantics) {
+            case Some(val value) -> context.semantics(value, bounds);
+            case None -> {}
+        }
+        if (input.id == plan.treeColumn && !plan.input.fullRow)
+            context.place(input.owner.control.area, content)
+        if (input.id == plan.treeColumn && plan.input.showLines) treeLines(context, input.row)
+        context
+            .withState { clipped ->
+                clipped.clipRect(bounds);
+                clipped.children()
+            }
+    }
+}
+
+private fun <T> treeLines(context: SceneContext, input: TreeRowInput<T>) {
+    val plan = input.plan
+    val row = input.row
+    val step = plan.input.indent * plan.appearance.density
+    val height = context.size.height
+    val direction = context.layoutDirection
+    val width = context.size.width
+    context
+        .draw { paint ->
+            val color = Paint(plan.appearance.theme.tokens.palette.border)
+            var at = row.parent
+            while (at != None) {
+                val ancestor = plan.projection.rowAt(at!!)
+                if (!ancestor.lastSibling) {
+                    val distance = 4.0 *
+                        plan.appearance.density +
+                        ancestor.depth.toDouble() *
+                        step +
+                        10.0 *
+                        plan.appearance.density
+                    val x = if (direction == LayoutDirection.Rtl) width - distance else distance
+                    paint.canvas.drawRect(Rect(x, 0.0, plan.appearance.density, height), color)
+                }
+                at = ancestor.parent
+            }
+            if (row.depth > 0L) {
+                val distance = 4.0 *
+                    plan.appearance.density +
+                    row.depth.toDouble() *
+                    step -
+                    step +
+                    10.0 *
+                    plan.appearance.density
+                val x = if (direction == LayoutDirection.Rtl) width - distance else distance
+                paint
+                    .canvas
+                    .drawRect(
+                        Rect(
+                            x,
+                            0.0,
+                            plan.appearance.density,
+                            if (row.lastSibling) height / 2.0 else height
+                        ),
+                        color
+                    )
+                paint
+                    .canvas
+                    .drawRect(
+                        Rect(
+                            if (direction == LayoutDirection.Rtl) x - step else x,
+                            height / 2.0,
+                            step,
+                            plan.appearance.density
+                        ),
+                        color
+                    )
+            }
+        }
+}

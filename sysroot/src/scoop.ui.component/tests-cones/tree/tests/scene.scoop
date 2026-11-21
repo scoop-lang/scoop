@@ -1,0 +1,89 @@
+package scoop.tests.ui.tree
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal class TreeTestScene(private val probe: TreeProbe, scope: ComponentScope) :
+    Component(scope) {
+    public override fun render(): View {
+        val probe = this.probe
+        return element(
+            { mount -> TreeTestPanel(probe, mount) },
+            [
+                direction(
+                    tree(probe.model) {
+                        this.height = Some(220.0)
+                        this.handle = Some(probe.handle)
+                        this.scroll = Some(probe.vertical)
+                        this.horizontal = Some(probe.horizontal)
+                        this.theme = Some(probe.theme)
+                        this.sticky { this.enabled = true }
+                        this.showIcons = true
+                        this.showLines = true
+                        this.fullRow = true
+                        this.itemExtent = if (probe.variable.value)
+                            ItemExtent.Variable(32.0)
+                        else
+                            ItemExtent.Fixed(28.0)
+                        this.onActivate = { _ -> probe.activations += 1 }
+                    },
+                    probe.directionValue.value
+                ),
+                button("After tree", {}) {
+                    this.focus = FocusOptions(Some(probe.tail));
+                    this.theme = Some(probe.theme)
+                }
+            ]
+        )
+    }
+}
+
+private class TreeTestPanel(private val probe: TreeProbe, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(310.0, 220.0)))
+        context.measureChild(1L, Constraints.tight(Size(130.0, 32.0)))
+        context.placeChild(0L, Point(10.0, 10.0))
+        context.placeChild(1L, Point(10.0, 242.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(340.0, 290.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) probe.accepted += 1
+            }
+    }
+}
+
+internal class TreeTitleTrace(
+    private val props: Props<TreeRecord>,
+    private val probe: TreeProbe,
+    scope: ComponentScope
+) : Component(scope) {
+    public override fun onMount() {
+        props.value.mounts += 1
+    }
+    public override fun onUnmount() {
+        props.value.unmounts += 1
+    }
+    public override fun render(): View = frame(
+        label(f"Row ${props.value.key}") { this.theme = Some(this @TreeTitleTrace.probe.theme) }
+    ) {
+        this.height = Some(
+            if (this @TreeTitleTrace.probe.variable.value &&
+                this @TreeTitleTrace.props.value.key %
+                3L ==
+                0L
+            )
+                40.0
+            else
+                18.0
+        )
+    }
+}

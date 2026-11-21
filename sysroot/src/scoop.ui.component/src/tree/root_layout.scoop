@@ -1,0 +1,150 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal class TreeViewportInput(val contentWidth: Double, val horizontalOffset: Double)
+
+internal class TreeRootFrame(val layout: ScrollLayout)
+
+/** Horizontal scrolling moves header and row content while leaving the body viewport in place. */
+internal class TreeRoot<T>(private val props: Props<TreePlan<T>>, scope: ComponentScope) :
+    Element<TreeRootFrame>(scope) {
+    private val control = ScrollControl(scope) { props.value.horizontalControls }
+    public override fun update(): UiInvalidation {
+        control.update();
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TreeRootFrame
+    > {
+        val plan = props.value
+        val input = plan.input
+        when (input.width) {
+            case Some(val value) -> nonnegative(value, "invalid tree width");
+            case None -> {}
+        }
+        when (input.height) {
+            case Some(val value) -> nonnegative(value, "invalid tree height");
+            case None -> {}
+        }
+        val width = constraints
+            .constrain(Size(input.width ?: constraints.maxWidth ?: constraints.minWidth, 0.0))
+            .width
+        val maximumHeight: Double? = when (input.height) {
+            case Some(_) -> input.height;
+            case None -> constraints.maxHeight
+        }
+        requireComponent(
+            !input.virtualize || panelPresent(maximumHeight),
+            "virtual tree requires a finite height"
+        )
+        val verticalGutter = plan.controller.ink?.gutter ?: Size(0.0, 0.0)
+        val available = lowerBound(width - verticalGutter.width, 0.0)
+        when (input.contentWidth) {
+            case Some(val value) -> nonnegative(value, "invalid tree content width");
+            case None -> {}
+        }
+        val widths = plan.tracks.resolve(lowerBound(available, input.contentWidth ?: 0.0))
+        val header = context
+            .measureChild(
+                0L,
+                Constraints(widths.total, Some(widths.total), maxHeight = maximumHeight)
+            )
+        val bodyLimit: Double? = when (maximumHeight) {
+            case Some(val value) ->
+                Some(lowerBound(value - header.size.height - control.gutter.height, 0.0));
+            case None -> None
+        }
+        val estimatedHeight = bodyLimit ?:
+            (plan.projection.count.toDouble() * itemEstimate(plan.extent))
+        val preliminary = control
+            .layout(
+                Size(width, header.size.height + estimatedHeight),
+                Size(widths.total + verticalGutter.width, header.size.height + estimatedHeight)
+            )
+        val request: TreeScrollRequest? = when (plan.controller.ink) {
+            case Some(val ink) -> ink.requestValue
+            case None -> None
+        }
+        val offset = treeHorizontalOffset(plan, widths, preliminary.snapshot, request)
+        val layoutInput = LayoutInput(TreeViewportInput(widths.total, offset))
+        val body = context
+            .measureChild(
+                1L,
+                Constraints(
+                    width,
+                    Some(width),
+                    if (panelPresent(bodyLimit)) bodyLimit!! else 0.0,
+                    bodyLimit
+                ),
+                layoutInput
+            )
+        val size = constraints
+            .constrain(Size(width, header.size.height + body.size.height + control.gutter.height))
+        val viewport = control.contentViewport(size, context.layoutDirection)
+        val layout = control
+            .layout(
+                Size(viewport.width, viewport.height),
+                Size(widths.total + verticalGutter.width, viewport.height),
+                Some(ScrollAdjustment(plan.horizontal.requestRevision, Point(offset, 0.0)))
+            )
+        val bodyRect = plan.controller.ink!!.bodyViewport(body.size, context.layoutDirection)
+        context.placeChild(0L, Point(bodyRect.x - layout.snapshot.padding.left, 0.0))
+        context
+            .placeChild(
+                1L,
+                Point(layout.snapshot.offset.x - layout.snapshot.padding.left, header.size.height)
+            )
+        return LayoutResult(LayoutMetrics(size), TreeRootFrame(layout))
+    }
+    public override fun scene(context: SceneContext, frame: TreeRootFrame) {
+        control
+            .scene(
+                context,
+                frame.layout,
+                children = { content ->
+                    content
+                        .withScrollReveal(
+                            control.viewport,
+                            Rect(
+                                0.0,
+                                0.0,
+                                frame.layout.snapshot.viewport.width,
+                                frame.layout.snapshot.viewport.height
+                            ),
+                            ScrollAxes.Horizontal
+                        ) { inner -> inner.children() }
+                }
+            )
+    }
+}
+
+private fun <T> treeHorizontalOffset(
+    plan: TreePlan<T>,
+    widths: TableWidths,
+    snapshot: ScrollSnapshot,
+    request: TreeScrollRequest?
+): Double {
+    val current = request ?: return snapshot.offset.x
+    if (current.horizontalRevision != plan.horizontal.requestRevision) return snapshot.offset.x
+    val column = current.column ?: return snapshot.offset.x
+    val at = plan.columnIndex(column) ?: return snapshot.offset.x
+    var start = 0.0
+    for (index in 0L..<at)
+        start += widths.values[index]
+    if (plan.appearance.direction == LayoutDirection.Rtl)
+        start = widths.total - start - widths.values[at]
+    val end = start + widths.values[at]
+    val view = snapshot.visibleSize.width
+    val offset = when (current.alignment) {
+        case Start -> start
+        case End -> end - view
+        case Center -> (start + end - view) / 2.0
+        case Nearest ->
+            if (start < snapshot.offset.x)
+                start
+            else if (end > snapshot.offset.x + view) end - view else snapshot.offset.x
+    }
+    return upperBound(lowerBound(offset, 0.0), snapshot.maximum.x)
+}

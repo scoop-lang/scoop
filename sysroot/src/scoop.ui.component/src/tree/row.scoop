@@ -1,0 +1,344 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.icons.lucide.file as fileIcon
+import scoop.icons.lucide.folder as folderIcon
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+import scoop.ui.component.row as makeTreeRow
+import scoop.ui.component.frame as treeSlot
+import scoop.ui.component.button as treeButton
+import scoop.ui.component.checkbox as treeCheckbox
+import scoop.ui.component.icon as treeIcon
+
+internal class TreeRowInput<T>(val plan: TreePlan<T>, val index: Long) {
+    val row: TreeRow<T> get() = plan.projection.rowAt(index)
+}
+
+internal class TreeCellTarget(val scope: ComponentScope, val focus: FocusScope)
+
+internal class TreeRowView<T>(private val props: Props<TreeRowInput<T>>, scope: ComponentScope) :
+    Component(scope),
+    TreeMountedRow {
+    public override val main = FocusHandle()
+    val control = PressControl(scope, PressOptions(), FocusOptions(Some(main)), { activate() })
+    val cells = HashMap<String, TreeCellTarget>()
+    var cellGroup: FocusScope? = None
+    private var pointer: PointerState? = None
+    private var clicks = 1
+    public override val focused: Boolean get() = scope.input.activity.hasFocus
+    public override val pending: Boolean
+        get() {
+            if (main.isPending || (cellGroup?.isPending ?: false)) return true
+            for (entry in cells.entries)
+                if (entry.value.focus.isPending) return true
+            return false
+        }
+    public override val focusedColumn: String?
+        get() {
+            for (entry in cells.entries)
+                if (entry.value.scope.input.activity.hasFocus) return Some(entry.key)
+            return None
+        }
+    init {
+        control.area.scope.defaultAction = { context, event -> handle(context, event) }
+        scope
+            .resource {
+                control
+                    .area
+                    .scope
+                    .addEventHandler { context, event ->
+                        if (context.phase ==
+                            RoutedPhase.Capture ||
+                            context.phase ==
+                            RoutedPhase.Target
+                        )
+                            when (event) {
+                                case Pointer(
+                                    InputPointerEvent.Button(val value, _, _, val count)
+                                ) -> {
+                                    pointer = Some(value.state);
+                                    clicks = count
+                                }
+
+                                case Contact(InputContactEvent.Began(val value)) -> {
+                                    pointer = Some(value.pointer);
+                                    clicks = 1
+                                }
+
+                                else -> {}
+                            }
+                    }
+            }
+        scope
+            .resource {
+                scope
+                    .input
+                    .observeActivity {
+                        if (scope.isMounted) {
+                            updateTabStop();
+                            scope.requestFrame()
+                        }
+                    }
+            }
+    }
+    public override fun onMount() {
+        props.value.plan.controller.register(props.value.row.key, this)
+    }
+    public override fun onUnmount() {
+        props.value.plan.controller.unregister(props.value.row.key, this)
+    }
+    fun update() {
+        val input = props.value
+        val enabled = input.plan.input.enabled && input.row.node.enabled
+        control.area.scope.enabled = enabled
+        control.press.update(PressOptions(enabled, false), { activate() })
+        updateTabStop()
+    }
+    private fun updateTabStop() {
+        control.focus.options = FocusOptions(
+            Some(main),
+            props.value.plan.input.focus.tabStop && (!focused || main.hasFocus)
+        )
+    }
+    public override fun focusCell(column: String): Boolean = cells[column]?.focus?.requestFocus() ?:
+        false
+    public override fun hasCell(column: String): Boolean = panelPresent(cells[column])
+    public override fun enter(): Boolean = cellGroup?.requestFocus() ?: false
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        val input = props.value
+        if (!input.plan.input.enabled || !input.row.node.enabled) return
+        when (event) {
+            case Keyboard(val key) -> {
+                if (key.logicalKey ==
+                    LogicalKey.Named(NamedKey.Escape) &&
+                    key.state ==
+                    ElementState.Pressed &&
+                    !main.hasFocus
+                ) {
+                    context.consume();
+                    main.requestFocus(FocusOrigin.Keyboard)
+                } else if (main.hasFocus) {
+                    if (treeKeyboard(input.plan, input.index, key))
+                        context.consume()
+                    else if (key.state ==
+                        ElementState.Pressed &&
+                        !key.synthetic &&
+                        !key.modifiers.control &&
+                        !key.modifiers.superKey &&
+                        !key.modifiers.alt
+                    )
+                        when (key.logicalKey) {
+                            case Character(val text) -> {
+                                input.plan.controller.ink?.type(text);
+                                context.consume()
+                            }
+
+                            else -> {}
+                        }
+                }
+            }
+
+            case Pointer(
+                InputPointerEvent.Button(val value, val button, ElementState.Pressed, _)
+            ) -> {
+                if (isContextMenuClick(button, value.state.modifiers)) {
+                    context.consume()
+                    main.requestFocus(FocusOrigin.Pointer)
+                    input
+                        .plan
+                        .input
+                        .onContextMenu(
+                            TreeActivation(
+                                input.row.node,
+                                TreeChangeOrigin.Pointer,
+                                Some(value.state)
+                            )
+                        )
+                }
+            }
+
+            else -> {}
+        }
+    }
+    private fun activate() {
+        val input = props.value
+        val plan = input.plan
+        val row = input.row
+        if (!plan.input.enabled || !row.node.enabled) return
+        treeSelect(plan, row.key, pointer?.modifiers, TreeChangeOrigin.Pointer)
+        val activation = TreeActivation(row.node, TreeChangeOrigin.Pointer, pointer)
+        plan.input.onActivate(activation)
+        if (clicks == 2) plan.input.onDoubleClick(activation)
+        if (plan.input.expandAction ==
+            TreeExpandAction.Click ||
+            (plan.input.expandAction == TreeExpandAction.DoubleClick && clicks == 2)
+        )
+            plan.input.state.setExpanded(row.key, !row.expanded, TreeChangeOrigin.Pointer)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val plan = input.plan
+        val row = input.row
+        val selected = plan.input.state.isSelected(row.key)
+        val interaction = control.press.interaction
+        val content = ArrayList<View>()
+        if (!plan.explicit)
+            content.add(treeCell(input, this, 0L, "title", treeTitle(input), AxisAlignment.Start))
+        else
+            for (index in 0L..<plan.columns.size) {
+                val column = plan.columns[index]
+                content
+                    .add(
+                        treeCell(
+                            input, this, index, column.id,
+                            if (column.id == plan.treeColumn)
+                                treeTitle(input, Some(column.cell(row.node)))
+                            else
+                                column.cell(row.node), column.alignment
+                        )
+                    )
+            }
+        return element(
+            TreeRowDrawing(input, this, selected, interaction),
+            { value, mount -> TreeRowInk(value, mount) },
+            content.toArray()
+        )
+    }
+}
+
+private fun <T> treeTitle(input: TreeRowInput<T>, custom: View? = None): View {
+    val row = input.row
+    val plan = input.plan
+    val options = plan.input
+    val density = plan.appearance.density
+    val slot = 20.0 * density
+    val title = when (options.title) {
+        case Some(val build) -> build(row)
+        case None ->
+            custom ?:
+                label(row.node.label) {
+                    this.theme = options.theme
+                    this.fonts = Some(plan.appearance.fonts)
+                    this.settings = Some(plan.appearance.paragraph)
+                    this
+                        .style {
+                            this.weight = Some(if (row.matched) 500 else 400)
+                            this.color = Some(
+                                if (row.matched)
+                                    plan.appearance.theme.tokens.palette.primary.background
+                                else
+                                    plan.appearance.body.color
+                            )
+                        }
+                }
+    }
+    return makeTreeRow {
+        this.spacing = 0.0
+        this.alignment = CrossAlignment.Center
+        this
+            .add(
+                treeSlot(empty()) {
+                    this.width = Some(row.depth.toDouble() * options.indent * density);
+                    this.height = Some(1.0)
+                }
+            )
+        val disclosure = if (!row.node.expandable)
+            empty()
+        else
+            treeButton(
+                when (options.switcher) {
+                    case Some(val build) -> build(row)
+                    case None ->
+                        navigationIcon(
+                            if (row.expanded) NavigationGlyph.Down else NavigationGlyph.End,
+                            14.0 * density,
+                            plan.appearance.theme.tokens.palette.muted.foreground
+                        )
+                },
+                { options.state.setExpanded(row.key, !row.expanded, TreeChangeOrigin.Pointer) }
+            ) {
+                this.enabled = options.enabled && row.node.enabled
+                this.variant = ButtonVariant.Ghost
+                this.size = ButtonSize.IconSm
+                this.theme = options.theme
+                this.focus = FocusOptions(tabStop = false)
+                this.semantics = ComponentSemantics(
+                    name = Some((if (row.expanded) "Collapse " else "Expand ") + row.node.label)
+                )
+                this.style { this.surface { this.padding = Some(Insets.all(0.0)) } }
+            }
+        this
+            .add(
+                treeSlot(disclosure) {
+                    this.width = Some(slot);
+                    this.height = Some(slot)
+                }
+            )
+        if (treeCheckingEnabled(options.state.checking)) {
+            val check = if (!row.node.checkable)
+                empty()
+            else
+                treeCheckbox(
+                    binding(
+                        { options.state.checkState(row.key) },
+                        { next ->
+                            options
+                                .state
+                                .setChecked(
+                                    row.key,
+                                    next == CheckState.Checked,
+                                    TreeChangeOrigin.Pointer
+                                )
+                        }
+                    )
+                ) {
+                    this.enabled = options.enabled && row.node.canCheck
+                    this.theme = options.theme
+                    this.focus = FocusOptions(tabStop = false)
+                    this.style { this.padding = Some(Insets.all(0.0)) }
+                    this.semantics = ComponentSemantics(name = Some("Check " + row.node.label))
+                }
+            this
+                .add(
+                    treeSlot(check) {
+                        this.width = Some(slot);
+                        this.height = Some(slot)
+                    }
+                )
+        }
+        val decoration: View? = when (options.icon) {
+            case Some(val build) -> build(row)
+            case None ->
+                if (!options.showIcons)
+                    None
+                else
+                    Some(
+                        treeIcon(
+                            if (row.node.expandable) {
+                                folderIcon
+                            } else
+                                fileIcon
+                        ) {
+                            this.size = 16.0 * density;
+                            this.theme = options.theme
+                        }
+                    )
+        }
+        when (decoration) {
+            case Some(val view) ->
+                this
+                    .add(
+                        treeSlot(view) {
+                            this.width = Some(slot);
+                            this.height = Some(slot)
+                        }
+                    );
+            case None -> {}
+        }
+        this.item(title) { this.shrink = 1.0 }
+    }
+}

@@ -1,0 +1,97 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal fun <T> treeHeader(plan: TreePlan<T>): View {
+    if (!plan.explicit || !plan.input.showHeader) return empty()
+    val input = plan.input
+    val model = input.state
+    val cells = ArrayList<TableCellProps>()
+    val views = ArrayList<View>()
+    for (index in 0L..<plan.columns.size) {
+        val column = plan.columns[index]
+        val title = column.header +
+            when (plan.columnState.sorting) {
+                case Some(val order) ->
+                    if (order.column == column.id) {
+                        if (order.direction == TableSortDirection.Ascending) " ↑" else " ↓"
+                    } else
+                        ""
+                case None -> ""
+            }
+        val caption = when (column.headerView) {
+            case Some(val view) -> view
+            case None -> plan.appearance.content(tableText(title), header = true)
+        }
+        val content = if (!column.sortable)
+            caption
+        else
+            button(caption, { model.toggleSort(column.id, TreeChangeOrigin.Pointer) }) {
+                this.variant = ButtonVariant.Ghost
+                this.size = ButtonSize.Sm
+                this.enabled = input.enabled
+                this.theme = input.theme
+                this.semantics = ComponentSemantics(name = Some(title))
+                this.style { this.surface { this.padding = Some(Insets.all(0.0)) } }
+            }
+        val cell = TableCellProps(
+            PanelContent.Custom(content),
+            alignment = column.alignment,
+            header = true,
+            semantics = ComponentSemantics(name = Some(title))
+        )
+        cells.add(cell)
+        val view = plan
+            .appearance
+            .cell(
+                cell,
+                ViewKey.Text(column.id),
+                semantics = Some(basicCellSemantics(cell, reference = Some(plan.headers[index])))
+            )
+        views
+            .add(
+                if (!column.resizable)
+                    view
+                else
+                    element(
+                        TableResizeInput(
+                            binding(
+                                { model.columnState.width(column.id) },
+                                { width ->
+                                    when (width) {
+                                        case Some(val value) ->
+                                            model
+                                                .resizeColumn(
+                                                    column.id,
+                                                    value,
+                                                    TreeChangeOrigin.Pointer
+                                                );
+                                        case None ->
+                                            model
+                                                .resetColumnWidth(
+                                                    column.id,
+                                                    TreeChangeOrigin.Pointer
+                                                )
+                                    }
+                                }
+                            ),
+                            column.size,
+                            plan.appearance.theme,
+                            input.enabled,
+                            ComponentSemantics(name = Some("Resize " + column.header))
+                        ),
+                        { value, scope -> TableResizeHeader(value, scope) }, [view], ViewKey
+                            .Text(column.id)
+                    )
+            )
+    }
+    return tableRowView(
+        TableRowProps(cells.toArray(), TableSection.Header),
+        plan.tracks,
+        plan.appearance,
+        ViewKey.Text("header"),
+        prepared = Some(views.toArray())
+    )
+}

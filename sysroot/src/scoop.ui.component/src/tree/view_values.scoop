@@ -1,0 +1,153 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.KeyEvent
+import scoop.window.PointerState
+
+public enum TreeExpandAction {
+    Switcher, Click, DoubleClick
+}
+
+/** Whole ancestor rows share the body's actual height limit. */
+public class TreeSticky public constructor(
+    public val enabled: Boolean = false,
+    public val maxRows: Long = 7L,
+    public val maxHeightRatio: Double = 0.4
+) {
+    init {
+        requireComponent(maxRows >= 0L, "negative sticky tree row limit")
+        requireComponent(
+            maxHeightRatio.isFinite() && maxHeightRatio >= 0.0 && maxHeightRatio <= 1.0,
+            "invalid sticky tree height ratio"
+        )
+    }
+}
+
+public class TreeStickyBuilder internal constructor(value: TreeSticky) {
+    public var enabled: Boolean = value.enabled
+    public var maxRows: Long = value.maxRows
+    public var maxHeightRatio: Double = value.maxHeightRatio
+    internal fun snapshot(): TreeSticky = TreeSticky(enabled, maxRows, maxHeightRatio)
+}
+
+/** Activation is independent of whether a controlled selection binding accepted a change. */
+public class TreeActivation<T> internal constructor(
+    public val node: TreeNode<T>,
+    public val origin: TreeChangeOrigin,
+    public val pointer: PointerState? = None,
+    public val keyboard: KeyEvent? = None
+)
+
+public class TreeProps<T> public constructor(
+    public val state: TreeState<T>,
+    public val width: Double? = None,
+    public val height: Double? = None,
+    public val contentWidth: Double? = None,
+    public val virtualize: Boolean = true,
+    public val itemExtent: ItemExtent = ItemExtent.Fixed(28.0),
+    public val overscan: Double = 56.0,
+    public val sticky: TreeSticky = TreeSticky(),
+    public val indent: Double = 20.0,
+    public val showLines: Boolean = false,
+    public val showIcons: Boolean = false,
+    public val fullRow: Boolean = false,
+    public val directory: Boolean = false,
+    public val expandAction: TreeExpandAction = TreeExpandAction.Switcher,
+    public val enabled: Boolean = true,
+    public val scroll: ScrollState? = None,
+    public val horizontal: ScrollState? = None,
+    public val handle: TreeHandle? = None,
+    public val anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
+    public val retention: ItemRetention = ItemRetention.Dispose,
+    public val scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    public val scrollbar: ScrollbarOptions = scrollbarOptions(),
+    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    public val touchScroll: TouchScrollOptions = TouchScrollOptions(),
+    public val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions(),
+    public val theme: ThemeSource? = None,
+    public val fonts: FontCollection? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val semantics: ComponentSemantics = ComponentSemantics(),
+    public val title: ((TreeRow<T>) -> View)? = None,
+    public val icon: ((TreeRow<T>) -> View?)? = None,
+    public val switcher: ((TreeRow<T>) -> View)? = None,
+    public val onActivate: (TreeActivation<T>) -> Unit = { _ -> },
+    public val onDoubleClick: (TreeActivation<T>) -> Unit = { _ -> },
+    public val onContextMenu: (TreeActivation<T>) -> Unit = { _ -> },
+    public val showHeader: Boolean = true
+)
+
+public class TreeBuilder<T> internal constructor(
+    private val model: TreeState<T>,
+    directory: Boolean
+) {
+    public var width: Double? = None
+    public var height: Double? = None
+    public var contentWidth: Double? = None
+    public var virtualize: Boolean = true
+    public var itemExtent: ItemExtent = ItemExtent.Fixed(28.0)
+    public var overscan: Double = 56.0
+    public var sticky: TreeSticky = TreeSticky(directory)
+    public var indent: Double = 20.0
+    public var showLines: Boolean = false
+    public var showIcons: Boolean = directory
+    public var fullRow: Boolean = directory
+    public var directory: Boolean = directory
+    public var expandAction: TreeExpandAction = if (directory)
+        TreeExpandAction.Click
+    else
+        TreeExpandAction.Switcher
+    public var enabled: Boolean = true
+    public var scroll: ScrollState? = None
+    public var horizontal: ScrollState? = None
+    public var handle: TreeHandle? = None
+    public var anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible
+    public var retention: ItemRetention = ItemRetention.Dispose
+    public var scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto
+    public var scrollbar: ScrollbarOptions = scrollbarOptions()
+    public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+    public var touchScroll: TouchScrollOptions = TouchScrollOptions()
+    public var scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
+    public var theme: ThemeSource? = None
+    public var fonts: FontCollection? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var semantics: ComponentSemantics = ComponentSemantics()
+    public var title: ((TreeRow<T>) -> View)? = None
+    public var icon: ((TreeRow<T>) -> View?)? = None
+    public var switcher: ((TreeRow<T>) -> View)? = None
+    public var onActivate: (TreeActivation<T>) -> Unit = { _ -> }
+    public var onDoubleClick: (TreeActivation<T>) -> Unit = { _ -> }
+    public var onContextMenu: (TreeActivation<T>) -> Unit = { _ -> }
+    public var showHeader: Boolean = true
+    public var key: ViewKey = ViewKey.Position
+    public fun sticky(configure: TreeStickyBuilder.() -> Unit) {
+        val builder = TreeStickyBuilder(sticky)
+        builder.configure()
+        sticky = builder.snapshot()
+    }
+    internal fun snapshot(): TreeProps<T> = TreeProps(
+        model, width, height, contentWidth, virtualize, itemExtent, overscan, sticky, indent,
+        showLines, showIcons, fullRow, directory, expandAction, enabled, scroll, horizontal,
+        handle, anchor, retention, scrollbars, scrollbar, scrollbarBehavior, touchScroll,
+        scrollPhysics, theme, fonts, focus, semantics, title, icon, switcher, onActivate,
+        onDoubleClick, onContextMenu, showHeader
+    )
+}
+
+public fun <T> tree(state: TreeState<T>, configure: TreeBuilder<T>.() -> Unit = {}): View =
+    makeTree(state, false, configure)
+
+public fun <T> directoryTree(state: TreeState<T>, configure: TreeBuilder<T>.() -> Unit = {}): View =
+    makeTree(state, true, configure)
+
+private fun <T> makeTree(
+    state: TreeState<T>,
+    directory: Boolean,
+    configure: TreeBuilder<T>.() -> Unit
+): View {
+    val builder = TreeBuilder(state, directory)
+    builder.configure()
+    return component(builder.snapshot(), { props, scope -> Tree(props, scope) }, builder.key)
+}

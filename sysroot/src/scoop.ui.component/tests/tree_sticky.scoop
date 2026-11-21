@@ -1,0 +1,99 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+private fun stickyData(): TreeProjection<Int> = TreeState(
+    TreeData(
+        [
+            treeTestNode(
+                0L,
+                TreeChildren
+                    .Known(
+                        [
+                            treeTestNode(
+                                1L,
+                                TreeChildren
+                                    .Known([treeTestNode(2L), treeTestNode(3L), treeTestNode(4L)])
+                            ),
+                            treeTestNode(
+                                5L,
+                                TreeChildren.Known([treeTestNode(6L), treeTestNode(7L)])
+                            )
+                        ]
+                    )
+            ),
+            treeTestNode(8L, TreeChildren.Known([treeTestNode(9L)]))
+        ]
+    ),
+    initialExpandAll = true
+)
+    .projection
+
+@Test
+private class TreeStickyTest {
+    @Test
+    fun `sticky ancestry changes at branch boundaries and respects whole row limits`() {
+        val rows = stickyData()
+        val extents = ItemExtentIndex(rows.count, ItemExtent.Fixed(20.0))
+        val options = TreeSticky(true)
+        assertEquals(0L, treePinning(rows, extents, 0.0, 100.0, options).rows.size)
+        val nested = treePinning(rows, extents, 30.0, 100.0, options)
+        assertEquals(2L, nested.rows.size)
+        assertEquals(0L, nested.rows[0L].index)
+        assertEquals(1L, nested.rows[1L].index)
+        assertEquals(40.0, nested.height)
+        val pushed = treePinning(rows, extents, 70.0, 100.0, options)
+        assertEquals(2L, pushed.rows.size)
+        assertEquals(1L, pushed.rows[1L].index)
+        assertEquals(10.0, pushed.rows[1L].y)
+        assertEquals(30.0, pushed.height)
+        val next = treePinning(rows, extents, 100.0, 100.0, options)
+        assertEquals(5L, next.rows[1L].index)
+        val outerPush = treePinning(rows, extents, 150.0, 100.0, options)
+        assertEquals(1L, outerPush.rows.size)
+        assertEquals(-10.0, outerPush.rows[0L].y)
+        assertEquals(10.0, outerPush.height)
+        assertEquals(
+            1L,
+            treePinning(rows, extents, 30.0, 100.0, TreeSticky(true, maxRows = 1L)).rows.size
+        )
+        assertEquals(
+            1L,
+            treePinning(rows, extents, 30.0, 100.0, TreeSticky(true, maxHeightRatio = 0.3))
+                .rows
+                .size
+        )
+        assertEquals(0L, treePinning(rows, extents, 30.0, 40.0, options).rows.size)
+    }
+
+    @Test
+    fun `variable heights and changed ancestor size preserve the reading key offset`() {
+        val rows = stickyData()
+        val extents = ItemExtentIndex(rows.count, ItemExtent.Variable(20.0))
+        extents.record(0L, 30.0)
+        extents.record(1L, 25.0)
+        val options = TreeSticky(true, maxHeightRatio = 0.6)
+        val offset = treeAnchoredOffset(rows, extents, 3L, 5.0, 100.0, options, 25.0, 40.0)
+        val pins = treePinning(rows, extents, offset, 100.0, options)
+        assertEquals(55.0, pins.height)
+        assertEquals(extents.prefix(3L) + 5.0, offset + pins.height)
+        extents.record(0L, 35.0)
+        val updated = treeAnchoredOffset(
+            rows,
+            extents,
+            3L,
+            5.0,
+            100.0,
+            options,
+            offset,
+            pins.height
+        )
+        assertEquals(
+            extents.prefix(3L) + 5.0,
+            updated + treePinning(rows, extents, updated, 100.0, options).height
+        )
+        assertFailsWith<IllegalArgumentException> { TreeSticky(true, maxRows = -1L) }
+        assertFailsWith<IllegalArgumentException> { TreeSticky(true, maxHeightRatio = 1.1) }
+    }
+}

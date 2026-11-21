@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`TreeData<T>`、`TreeState<T>` 提供与挂载无关的树模型：显式唯一 `ViewKey`、已知／待加载子项、展开投影、单／多选、级联／独立勾选及 Unicode 查询。`TreeColumns<T>(columns, treeColumn)` 把同一节点分成多列，树列可位于任意位置；`TreeColumnState<T>` 将定义、隐藏列、宽度覆盖和同级排序作为一次原子更新。当前模型可单独使用，Tree 的界面入口仍在实施，进度见[Tree 实施记录](../../../docs/ui/tree/PROGRESS.md)。
+`tree(model) { ... }` 与 `directoryTree(model) { ... }` 使用同一套树模型、惰性行和多列布局。`TreeData<T>`、`TreeState<T>` 提供显式唯一 `ViewKey`、已知／待加载子项、展开投影、单／多选、级联／独立勾选及 Unicode 查询。`TreeColumns<T>(columns, treeColumn)` 把同一节点分成多列，树列可位于任意位置；`TreeColumnState<T>` 将定义、隐藏列、宽度覆盖和同级排序作为一次原子更新。各能力的验收进度见[Tree 实施记录](../../../docs/ui/tree/PROGRESS.md)。
 
 ```kotlin
 import scoop.ui.ViewKey
@@ -21,6 +21,26 @@ fun documentTree(): TreeState<String> = TreeState(
 `projection` 只展平当前可见行；展开和查询变化重建投影，选择、勾选、调宽与显隐继续复用它。`TreeQuery(text, TreeQueryMode.Filter)` 暂时保留命中及祖先并展开路径，清除查询恢复原展开值；不会加载 `TreeChildren.Deferred`。`setExpanded(keys, expandAncestors = true)` 在明确更新时补齐祖先。`setExpanded(key, expanded)`、`select`、`setChecked` 读取 Binding 实际采纳的值后再通知；未知恢复 key 保留到数据接入，删除节点不擅自改写外部选择。级联勾选在 disabled、不可勾选或停用 Checkbox 的节点处停止传播，其后代仍可独立交互；独立勾选用 `TreeChecking.Independent(TreeCheckValue(...))` 同时保存 checked／halfChecked，两组不可重叠。
 
 多列用 `TreeColumn(id, header, cell, size, compare)`，`cell` 接收 `TreeNode<T>`，`compare` 接收两个业务值；只排序同级兄弟，同值保持来源顺序。`setColumnVisible` 不允许隐藏树列，`resizeColumn` 将逻辑宽度限制在 `TableColumnSize` 范围，`resetColumnWidth` 恢复定义。`replaceColumns` 按 ID 保留仍有效的列状态，删除无效排序并约束旧宽度；受控模式通过单一 `Binding<TreeColumnState<T>>` 整体采纳或拒绝。模型测试见 `tests/tree_*.scoop`，覆盖深树、大数据、受控拒绝、勾选边界、过滤与范围选择组合。
+
+```kotlin
+val handle = TreeHandle()
+val content = tree(documentTree()) {
+    this.height = Some(360.0)
+    this.handle = Some(handle)
+    this.showLines = true
+    this.sticky {
+        this.enabled = true
+        this.maxRows = 7L
+        this.maxHeightRatio = 0.4
+    }
+}
+```
+
+默认虚拟模式需要显式 `height` 或父布局的有限高度；`virtualize = false` 适合自然高度的小树。`ItemExtent.Fixed` 约束整行，`Variable` 以全部可见列的实际最大高度更新尺寸索引。单列可用 `contentWidth` 指定横向宽度；多列直接使用列宽总和。表头、正文和吸顶祖先共享轨道，纵向滚动条保持在视口边缘。`title`、`icon`、`switcher` 只为所需行构造 View；`TreeNode.label` 继续承担键盘查找与无障碍名称。
+
+`directoryTree` 默认启用图标、整行命中、单击展开及祖先吸顶；`TreeExpandAction.DoubleClick` 改为双击展开。方向键沿树层级移动，Space 勾选或选择，Enter 激活；多列仍整行选择。F2 进入实际单元格控件，Escape 返回行，Tab 按真实控件顺序继续。`TreeColumn.focusable` 声明离屏单元格的聚焦能力，`semanticText` 提供无需构造 View 的文字；纯展示单元格不会生成额外焦点目标。
+
+挂载后，`handle.scrollToItem(key, ScrollAlignment.Start)`、`scrollToCell(key, column)` 与 `focusItem`／`focusCell` 通过现有视口和真实焦点定位。`expandAncestors = true` 只展开数据中已知的路径，绑定拒绝则失败。`reading` 只发布最近 Accepted 帧的正文范围、阅读锚点和吸顶 key；`isPending` 表示请求仍在等待布局提交。吸顶移动同一惰性行，保持行内编辑状态、事件与语义身份。组合验收见 [Tree 实窗测试](tests-cones/tree/README.md)。
 
 Input／Textarea／InputOtp 及其组合包装透传 `primarySelection` 和 `automaticTextReplacement`；后者默认 false。PreferSystem 文本菜单的 `systemServices` 默认 true，可单独关闭；受保护／遮蔽文本不发送到系统检查或 Services。Typography／SelectableStyledText 通过 `SelectableTextOptions.primarySelection` 配置选区导出。`TextTouchOptions.hapticFeedback=false` 关闭长按触觉请求。完整组合入口见[双窗口交互展示](examples/touch-input/README.md)，平台能力与限制见[文本服务核查](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
 

@@ -1,0 +1,125 @@
+package scoop.ui.component
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.ui.*
+import scoop.window.accessibility.SemanticNodeId
+
+public class TreeReadingSnapshot internal constructor(
+    public val visible: VirtualRange,
+    public val anchor: VirtualReadingAnchor?,
+    public val stickyKeys: Array<ViewKey>,
+    public val bodyHeight: Double,
+    public val offset: Double,
+    public val atEnd: Boolean
+)
+
+internal interface TreeTarget {
+    val active: Boolean
+    val pending: Boolean
+    fun scroll(key: ViewKey, column: String?, alignment: ScrollAlignment, expand: Boolean): Boolean
+    fun focus(key: ViewKey, column: String?, expand: Boolean): Boolean
+}
+
+/** Requests use the mounted tree's existing scroll and focus resources. */
+public class TreeHandle public constructor() {
+    private val thread = currentThreadId()
+    private var target: TreeTarget? = None
+    private val snapshot = state<TreeReadingSnapshot?>(None)
+    internal val semanticTarget = SemanticsReference()
+    public val semanticId: SemanticNodeId?
+        get() {
+            checkThread();
+            return semanticTarget.id
+        }
+    public val isAttached: Boolean
+        get() {
+            checkThread();
+            return target?.active ?: false
+        }
+    public val isPending: Boolean
+        get() {
+            checkThread();
+            return target?.pending ?: false
+        }
+    public val reading: TreeReadingSnapshot?
+        get() {
+            checkThread();
+            return snapshot.value
+        }
+    public fun scrollToItem(
+        key: ViewKey,
+        alignment: ScrollAlignment = ScrollAlignment.Nearest,
+        expandAncestors: Boolean = false
+    ): Boolean {
+        snapshot.checkMutation()
+        requireComponent(key != ViewKey.Position, "tree positioning requires an explicit key")
+        return target?.scroll(key, None, alignment, expandAncestors) ?: false
+    }
+    public fun scrollToCell(
+        key: ViewKey,
+        column: String,
+        alignment: ScrollAlignment = ScrollAlignment.Nearest,
+        expandAncestors: Boolean = false
+    ): Boolean {
+        snapshot.checkMutation()
+        requireComponent(
+            key != ViewKey.Position && column != "",
+            "tree cell positioning requires a key and column"
+        )
+        return target?.scroll(key, Some(column), alignment, expandAncestors) ?: false
+    }
+    public fun focusItem(key: ViewKey, expandAncestors: Boolean = false): Boolean {
+        snapshot.checkMutation()
+        return target?.focus(key, None, expandAncestors) ?: false
+    }
+    public fun focusCell(key: ViewKey, column: String, expandAncestors: Boolean = false): Boolean {
+        snapshot.checkMutation()
+        return target?.focus(key, Some(column), expandAncestors) ?: false
+    }
+    private fun checkThread() {
+        requireComponent(currentThreadId() == thread, "tree handle used from another thread")
+    }
+    internal fun bind(next: TreeTarget) {
+        checkThread()
+        when (target) {
+            case Some(val old) ->
+                requireComponent(old === next || !old.active, "tree handle already has a target");
+            case None -> {}
+        }
+        target = Some(next)
+    }
+    internal fun unbind(owner: TreeTarget) {
+        checkThread()
+        when (target) {
+            case Some(val current) ->
+                if (current === owner) {
+                    target = None;
+                    snapshot.value = None
+                };
+            case None -> {}
+        }
+    }
+    internal fun publish(owner: TreeTarget, value: TreeReadingSnapshot) {
+        checkThread()
+        val current = target ?: return
+        if (current !== owner || !owner.active) return
+        when (snapshot.value) {
+            case Some(val old) ->
+                if (old.visible ==
+                    value.visible &&
+                    old.anchor ==
+                    value.anchor &&
+                    treeKeysEqual(old.stickyKeys, value.stickyKeys) &&
+                    old.bodyHeight ==
+                    value.bodyHeight &&
+                    old.offset ==
+                    value.offset &&
+                    old.atEnd ==
+                    value.atEnd
+                )
+                    return
+            case None -> {}
+        }
+        snapshot.value = Some(value)
+    }
+}

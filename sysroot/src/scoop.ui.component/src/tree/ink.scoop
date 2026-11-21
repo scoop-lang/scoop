@@ -1,0 +1,276 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: ComponentScope) :
+    LazyElement<TreeFrame<T>>(scope) {
+    private val control = ScrollControl(scope) { props.value.controls }
+    private val collection = createComponentSemantics(scope, SemanticRole.Tree, control.semantics)
+    private val focus = scope.lazyFocus(control.viewport)
+    private val measurements = VirtualMeasurements()
+    private val typeahead = scope
+        .typeahead(
+            props.value.source,
+            { props.value.controller.focusedKey() },
+            { key -> props.value.controller.focus(key, None, false) },
+            TypeaheadOptions(keyboard = false, matches = { text, query -> menuPrefix(text, query) })
+        )
+    private var handle: TreeHandle? = None
+    private var updated: TreePlan<T>? = None
+    private var committed: TreeReadingPosition<T>? = None
+    private var drawing: TreeFrame<T>? = None
+    private var requested: TreeScrollRequest? = None
+    val active: Boolean get() = scope.isMounted
+    val pending: Boolean get() = active && (panelPresent(requestValue) || focus.isPending)
+    val requestValue: TreeScrollRequest?
+        get() = when (requested) {
+            case Some(val value) ->
+                if (value.revision == props.value.vertical.requestRevision) Some(value) else None
+            case None -> None
+        }
+    val gutter: Size get() = control.gutter
+    fun bodyViewport(size: Size, direction: LayoutDirection): Rect = control
+        .contentViewport(size, direction)
+    fun type(text: String) {
+        typeahead.push(text)
+    }
+    fun page(index: Long, forward: Boolean): Long {
+        val current = drawing ?: return index
+        val extents = current.extents
+        val step = lowerBound(current.reading.snapshot.bodyHeight, itemEstimate(props.value.extent))
+        val next = extents
+            .indexAt(lowerBound(extents.prefix(index) + if (forward) step else -step, 0.0))
+        return if (next < extents.count) next else extents.count - 1L
+    }
+    fun request(
+        key: ViewKey,
+        column: String?,
+        alignment: ScrollAlignment,
+        focusItem: Boolean
+    ): Boolean {
+        if (!active) return false
+        val plan = props.value
+        val revision = plan.vertical.beginLayoutRequest()
+        val horizontalRevision = if (column != None)
+            plan.horizontal.beginLayoutRequest()
+        else
+            plan.horizontal.requestRevision
+        if (!active || plan.vertical.requestRevision != revision) return false
+        requested = Some(
+            TreeScrollRequest(key, column, alignment, revision, horizontalRevision, focusItem)
+        )
+        scope.requestLayout()
+        return true
+    }
+    public override fun onMount() {
+        props.value.controller.ink = Some(this);
+        scope.routeSemanticsChildren(collection)
+    }
+    public override fun update(): UiInvalidation {
+        val plan = props.value
+        control.update()
+        plan.controller.plan = Some(plan)
+        plan.controller.ink = Some(this)
+        focus.options = LazyFocusOptions(
+            ItemNavigation.Roving(),
+            NavigationLayout.Vertical,
+            plan.input.focus.order
+        )
+        val changed = when (updated) {
+            case Some(val old) -> old !== plan;
+            case None -> true
+        }
+        if (changed) {
+            typeahead
+                .update(
+                    plan.source,
+                    { plan.controller.focusedKey() },
+                    { key -> plan.controller.focus(key, None, false) },
+                    Some(
+                        TypeaheadOptions(
+                            enabled = plan.input.enabled,
+                            keyboard = false,
+                            matches = { text, query -> menuPrefix(text, query) }
+                        )
+                    )
+                )
+            when (updated) {
+                case Some(val old) ->
+                    if (old.vertical !== plan.vertical) {
+                        committed = None;
+                        requested = None
+                    };
+                case None -> {}
+            }
+            updated = Some(plan)
+        }
+        val sameHandle = when ((handle, plan.input.handle)) {
+            case(Some(val a), Some(val b)) -> a === b;
+            case(None, None) -> true;
+            else -> false
+        }
+        if (!sameHandle) {
+            plan.input.handle?.bind(plan.controller);
+            handle?.unbind(plan.controller);
+            handle = plan.input.handle
+        }
+        when (collection) {
+            case Some(val value) -> {
+                val references = ArrayList<SemanticsReference>()
+                when (handle) {
+                    case Some(val target) -> references.add(target.semanticTarget);
+                    case None -> {}
+                }
+                when (plan.input.semantics.reference) {
+                    case Some(val target) -> references.add(target);
+                    case None -> {}
+                }
+                value.bindReferences(references.toArray())
+                value
+                    .update(
+                        plan.input.semantics.properties(enabled = plan.input.enabled),
+                        relations = plan.input.semantics.relations
+                    )
+                value
+                    .updateCollection(
+                        plan.source,
+                        Some(plan.source.semantics()),
+                        Some(control.viewport)
+                    )
+            }
+
+            case None -> {}
+        }
+        if (changed)
+            when (plan.restoreFocus) {
+                case Some(val key) -> request(key, None, ScrollAlignment.Nearest, true);
+                case None -> {}
+            }
+        return UiInvalidation.Layout
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<TreeFrame<T>> {
+        val plan = props.value
+        val request = when (focus.pendingItem) {
+            case Some(val key) ->
+                Some(
+                    TreeScrollRequest(
+                        key,
+                        None,
+                        ScrollAlignment.Nearest,
+                        plan.vertical.requestRevision,
+                        plan.horizontal.requestRevision,
+                        false
+                    )
+                )
+            case None -> requestValue
+        }
+        val frame = TreeLayout(
+            context,
+            constraints,
+            plan,
+            control,
+            measurements,
+            committed,
+            request
+        )
+            .measure()
+        return LayoutResult(LayoutMetrics(frame.size), frame)
+    }
+    public override fun scene(context: SceneContext, frame: TreeFrame<T>) {
+        val viewport = frame.layout.snapshot.viewport
+        when (collection) {
+            case Some(val value) ->
+                context
+                    .semantics(value, control.contentViewport(frame.size, context.layoutDirection));
+            case None -> {}
+        }
+        control
+            .scene(
+                context,
+                frame.layout,
+                Point(0.0, frame.layout.snapshot.offset.y),
+                { content ->
+                    val shift = frame.layout.overscroll.y + frame.layout.snapshot.padding.top
+                    val left = -frame.layout.snapshot.padding.left - frame.layout.overscroll.x
+                    val body = Rect(
+                        0.0,
+                        frame.pinning.height,
+                        viewport.width,
+                        lowerBound(viewport.height - frame.pinning.height, 0.0)
+                    )
+                    content
+                        .withScrollReveal(control.viewport, body, ScrollAxes.Vertical) { normal ->
+                            normal
+                                .withState { clipped ->
+                                    clipped
+                                        .clipRect(
+                                            Rect(left, body.y - shift, body.width, body.height)
+                                        )
+                                    for (index in frame.regular)
+                                        clipped.item(frame.plan.projection.keyAt(index))
+                                }
+                        }
+                    for (row in frame.pinning.rows)
+                        content
+                            .withScrollReveal(
+                                control.viewport,
+                                Rect(0.0, row.top, viewport.width, row.bottom - row.top),
+                                ScrollAxes.Vertical
+                            ) { sticky ->
+                                sticky
+                                    .withState { clipped ->
+                                        clipped
+                                            .clipRect(
+                                                Rect(
+                                                    left,
+                                                    row.top - shift,
+                                                    viewport.width,
+                                                    row.bottom - row.top
+                                                )
+                                            )
+                                        clipped.item(frame.plan.projection.keyAt(row.index))
+                                    }
+                            }
+                }
+            )
+        context
+            .onFrameComplete { result ->
+                if (result.submission ==
+                    FrameSubmission.Accepted &&
+                    active &&
+                    props.value ===
+                    frame.plan &&
+                    frame.reading.revision ==
+                    props.value.vertical.requestRevision
+                ) {
+                    committed = Some(frame.reading)
+                    drawing = Some(frame)
+                    handle?.publish(frame.plan.controller, frame.reading.snapshot)
+                    val same = when ((requested, frame.request)) {
+                        case(Some(val current), Some(val accepted)) -> current === accepted;
+                        else -> false
+                    }
+                    if (same && frame.requestDone) {
+                        val completed = requested!!
+                        requested = None
+                        frame.plan.controller.finishFocus(completed)
+                    }
+                    if (frame.recheck) scope.requestLayout()
+                }
+            }
+    }
+    public override fun onUnmount() {
+        handle?.unbind(props.value.controller)
+        props.value.controller.ink = None
+        props.value.controller.plan = None
+        requested = None
+        committed = None
+        drawing = None
+    }
+}

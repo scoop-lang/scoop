@@ -1365,3 +1365,32 @@ TreeSelectionMode 为 None／Single／Multiple，Single 的恢复值最多一个
 级联向下传播勾选意图、向上汇总：enabled=false、checkable=false、checkboxEnabled=false 均为传播边界，排除该分支且不穿透其后代；边界自身的外部值照常显示。没有可参与子项时保留自身意图，不从空集自动选中。取消子项须同时移除祖先的全选 key，后续读取不能从旧父 key 重新选回。用户操作只更新相关子树和祖先的勾选结果，序列输出允许按结果数量物化；外部完整值或数据变化允许 O(N) 重算。过滤不改变基础树的勾选范围。
 
 Deferred 父项的 checked key 保存分支意图，不发起加载；后续以 withChildren／replaceData 接入的可传播子项继承最新意图，再汇总三态。独立模式只改目标 key，Mixed 的用户激活转为 Checked。变化通知携实际 resolved checked／halfChecked 值；被拒绝的勾选不改缓存结果或通知成功。
+
+
+### 54.4 Tree 视图、共享轨道与交互
+
+`tree(state) { ... }` 和 `directoryTree(state) { ... }` 使用同一 Tree／TreeProps／TreeBuilder。目录入口默认单击展开、目录／文件图标、整行命中和祖先吸顶；普通入口默认仅展开器展开，其他预设可覆盖。选择、勾选和展开动作仍只写入 TreeState。`TreeExpandAction` 的 Switcher／Click／DoubleClick 决定标题激活是否展开；展开器总能独立操作，点 Checkbox 不选择行。
+
+width／height 指组件外部尺寸。virtualize 默认 true，需要有限的 height 或父约束；关闭虚拟化可使用自然高度，此时没有独立纵向溢出就不吸顶。固定行高裁剪到相同行高，可变行高取全部可见列内容的最大高度。ItemExtent 的数值、indent 和行留白按主题文字密度缩放。显式列模式使用同一 TableTracks 解析的列宽，不按每行内容重新计算；Auto 仅使用列标题、samples 和树列槽位等明确的自然宽度输入。隐式单列可显式指定 contentWidth；显式列不能同时指定 contentWidth。
+
+表头保持在纵向正文之外，showHeader=false 隐藏视觉表头但保留列名称与操作。排序和调宽分别调用 TreeState 的同级排序与宽度 Binding。表头、正文、吸顶行共享横向 ScrollState；纵向滚动条始终位于物理视口边缘。RTL 只改变逻辑列和树缩进的方向，不改变上下导航。隐藏列不构建单元格，列 id 与节点 key 保持独立身份。
+
+Tree 默认一个正文 Tab 入口。上下、Home／End 和 PageUp／PageDown 导航当前展开行，左右按阅读方向展开／进入子项、折叠／返回父项；导航跳过不可用行。Space 优先勾选，否则切换选择；Enter 激活节点。Primary／Shift 选择沿当前投影执行，多选目录的普通激活替换选择，Primary 切换，Shift 扩展连续范围。输入仅在行主焦点目标处理，行内编辑器可消费自己的按键。Typeahead 读取已加载的展开标签，不构造或加载候选。
+
+F2 进入当前行已有的首个交互子目标；Escape 从未消费该键的行内控件返回主行。行内 Tab 沿可见列及实际子目标继续，越过该行后返回外部 Tab 顺序。隐藏正在聚焦的列、折叠或删除当前行，在正常更新／Accepted 收尾中回到同一行、存活祖先或邻近行；render／measure／scene 不修改焦点。
+
+### 54.5 祖先吸顶与阅读位置
+
+`TreeSticky(enabled = false, maxRows = 7, maxHeightRatio = 0.4)` 描述吸顶策略。父项自然位置滚出对应顶部槽位且当前展开子树仍占据阅读位置时，沿外层到内层保留能容纳的完整行；高度上限以扣除表头后的正文视口计算，不足一行不吸顶。接近子树末端时该祖先被边界向上推离，其可见区域不会覆盖其他已固定祖先。
+
+同一行只有一份挂载、状态、焦点、菜单、单元格和语义身份。Lazy 布局为普通行、吸顶祖先和活动项各放置一次；场景通过 `SceneContext.item(key)` 分区呈现，每个已放置项只呈现一次。吸顶不增加内容高度或滚动范围，也不写入 ScrollPadding.top。正文的 clip 和 `withScrollReveal` 扣除实际被祖先遮挡的区域，吸顶行使用自己的可见槽位。
+
+KeepVisible 默认保留吸顶区下方第一实际阅读行的 key 和项内偏移。节点插入、行高或列宽变化时结合新吸顶高度重新求阅读位置；用户的新滚动／定位意图优先。目标消失时沿存活祖先或邻近位置回退。Discarded 帧不发布阅读快照、吸顶几何或成功定位状态。
+
+`TreeHandle` 绑定一个实际挂载，提供按 key 的 scrollToItem／focusItem、按节点与列 id 的单元格显露／聚焦，以及最近 Accepted 的阅读快照。可显式 expandAncestors；拒绝的受控展开、未知节点、隐藏列不会伪造成功。焦点请求先准备目标行，再使用真实焦点资源；静态内容可以显露，不产生虚构的输入目标。
+
+### 54.6 Tree 的逻辑语义
+
+单列与多列都用 Tree 集合；后者附带原 SemanticGrid、真实表头和单元格坐标。describe 只读同一投影与 TreeState，发布 parentKey、hierarchyLevel、siblings、expanded、selected、checked 和 busy。未知／隐藏的选择 key 不进入当前集合快照，叶节点不公布展开动作。离屏展开、选择和勾选沿原模型，查询不调用标题或 cell 工厂。
+
+TreeColumn 可声明 `focusable = true`，表示该列数据项具有真实交互目标，供离屏语义使用；原生 Focus 仍须准备和解析实际目标，不能以声明代替成功聚焦。吸顶只更新原行及单元格的 Accepted 几何，保持原父子关系与逻辑阅读次序。

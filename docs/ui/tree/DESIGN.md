@@ -42,12 +42,12 @@
 | `VirtualList`／`ItemExtentIndex` | 复用尺寸索引、阅读锚点和定位算法；当前 VirtualList 没有祖先吸顶的布局入口 |
 | `ScrollControl`／`ScrollViewport` | 复用滚轮、触摸、惯性和滚动条；纵向树视口保留唯一状态，表头／正文共享外层水平视口 |
 | `TableTracks`／`TableColumnSize`／`tableColumnResize` | 复用固定／比例／样本自动列宽及现有调宽手柄；Tree 只补树列、列状态与同级排序 |
-| `SceneContext.withScrollReveal` | 已能把正文显露区域限定在吸顶区下方，无须新增滚动状态或显露接口 |
+| `SceneContext.withScrollReveal` | 正文显露扣除吸顶区；[PR #192](https://github.com/scoop-lang/scoop/pull/192) 使单轴边界保留另一轴的目标范围，支持固定纵向正文与共享水平滚动 |
 | `SceneContext.item`／`children` | [PR #189](https://github.com/scoop-lang/scoop/pull/189) 已提供按已布局条目逐项呈现，与整体呈现互斥；正文／吸顶可使用不同 clip 和显露区域 |
 | `LazyFocus`／`ItemNavigation`／`Typeahead` | 复用真实焦点、按 key 准备和输入基础；补树形左右键与范围选择策略 |
 | `Checkbox`／`CheckState`／主题 | 复用三态视觉、交互和主题来源；级联规则属于 Tree 模型 |
 | `dragSource`／`dropTarget` | 复用真实输入与系统会话；Tree 计算层级落点和自动展开 |
-| `ItemSemantics`／`SemanticGrid` | 已有深度、展开、表头／单元格关系及按 key 动作；还需树形角色、父子／同级关系及离屏勾选能力 |
+| `ItemSemantics`／`SemanticGrid` | [PR #190](https://github.com/scoop-lang/scoop/pull/190) 已补充树形角色、父子／同级关系及离屏勾选；复用原 grid 准备、显露与焦点路径 |
 
 实现放在 `sysroot/src/scoop.ui.component/src/tree/`，按数据、状态、列、同级排序、展开投影、勾选、加载、布局、行、吸顶、导航、拖放和语义拆分。`tree(state) { ... }` 与 `directoryTree(state) { ... }` 使用同一组件及模型，两者都接受相同的列配置；不维护两套树，也不另建一份 TreeTable 实现。
 
