@@ -3,6 +3,52 @@ use crate::defaults::DefaultOverrideSource;
 use hir::{PropertyReference, SemanticCallable, SemanticProperty, SemanticSourceLocation};
 
 impl DeclarationAnalysis {
+    /// Nearest parent and overriding declaration pairs from this source Cone.
+    pub fn member_override_relations(
+        &mut self,
+        check: impl Fn() -> bool,
+    ) -> Result<&[(SemanticSourceLocation, SemanticSourceLocation)], EditingCancelled> {
+        if !self.declarations_ready {
+            return Ok(&[]);
+        }
+        if self.member_override_relations.is_none() {
+            let mut pairs = Vec::new();
+            for function in &self.functions {
+                if check() {
+                    return Err(EditingCancelled);
+                }
+                for parent in self
+                    .lowerer
+                    .method_super_declarations(function.function, &check)?
+                {
+                    pairs.push((parent, function.name_origin.clone()));
+                }
+            }
+            for (property, declaration) in self.lowerer.properties.iter() {
+                if check() {
+                    return Err(EditingCancelled);
+                }
+                if !declaration.is_override {
+                    continue;
+                }
+                let Some(child) = self
+                    .lowerer
+                    .editing_property_origin(SemanticProperty::Current(property))
+                else {
+                    continue;
+                };
+                for parent in self.lowerer.property_super_declarations(property, &check)? {
+                    pairs.push((parent, child.clone()));
+                }
+            }
+            self.member_override_relations = Some(pairs);
+        }
+        Ok(self
+            .member_override_relations
+            .as_deref()
+            .unwrap_or_default())
+    }
+
     pub fn super_declarations(
         &mut self,
         source: &scoop_identity::SourceIdentity,

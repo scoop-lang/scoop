@@ -147,6 +147,14 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                         semantics,
                         &cancellation,
                     ),
+                    QueryKind::MemberHierarchy(position) => queries::member_hierarchy(
+                        &work.snapshot,
+                        source_id,
+                        position,
+                        work.settings,
+                        semantics,
+                        &cancellation,
+                    ),
                     QueryKind::TypeHierarchy(kind) => queries::type_hierarchy::run(
                         &work.snapshot,
                         source_id,
@@ -177,6 +185,17 @@ fn run(work: Work, semantics: &mut SemanticSession) -> Completed {
                         semantics,
                         &cancellation,
                     ),
+                    QueryKind::UsageLocations(position, view) => {
+                        queries::references::usage_locations(
+                            &work.snapshot,
+                            source_id,
+                            position,
+                            view,
+                            work.settings,
+                            semantics,
+                            &cancellation,
+                        )
+                    }
                     QueryKind::PrepareRename(position) => queries::prepare_rename(
                         &work.snapshot,
                         source_id,

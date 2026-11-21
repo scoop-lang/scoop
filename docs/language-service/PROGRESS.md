@@ -63,6 +63,8 @@ rename 要求所选项目的必要源码及语义分析完整。存在不可证�
 
 第三批重构接入局部内联、引入透明类型别名和文件私有函数安全删除。正式 LSP fixture 应用版本化编辑，并检查可变绑定、泛型参数、默认表达式引用和阻塞位置。VS Code Extension Host 执行阻塞用法的跳转命令。macOS Clippy、Ruff、TypeScript 检查、三项 release LSP fixture 和扩展宿主验收通过。
 
+后续导航接入成员层级、文件内用法高亮、Test 配置的实际引用以及控制流目标跳转。macOS Clippy、Ruff、TypeScript 检查、三项 release LSP fixture 和 VS Code Extension Host 通过。fixture 覆盖直接抽象覆写、同名遮蔽、配置切换与有标签的循环和返回。
+
 ## 合并 origin/main
 
 接入 `f3f8ace69` 的 M61 文本后端、Regex 与 M62 优化。上述公共基础全量验收截至 `0842bec3f`；本次合并的验证单独记录，不将此前结果视为合并后重新执行的全量。

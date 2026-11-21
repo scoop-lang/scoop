@@ -4,13 +4,22 @@ use super::*;
 pub(crate) struct ActiveLoop {
     target: hir::LoopId,
     label: Option<String>,
+    origin: ast::Span,
 }
 
 impl Lowerer {
     pub(super) fn lower_loop(&mut self, source: &ast::While) -> Option<hir::StatementKind> {
         let incoming = self.smart_casts.clone();
         let target = self.fresh_loop();
-        self.push_loop(target, source.label.as_ref());
+        let keyword = match source.loop_kind {
+            hir::LoopKind::While => 5,
+            hir::LoopKind::DoWhile => 2,
+        };
+        self.push_loop(
+            target,
+            source.label.as_ref(),
+            ast::Span::new(source.span.start, source.span.start + keyword),
+        );
         let mut condition_setup = Vec::new();
         let (body, cond) = match source.loop_kind {
             hir::LoopKind::While => {
@@ -76,10 +85,16 @@ impl Lowerer {
             .any(|target| target.label.as_deref() == Some(name))
     }
 
-    pub(crate) fn push_loop(&mut self, target: hir::LoopId, label: Option<&ast::Ident>) {
+    pub(crate) fn push_loop(
+        &mut self,
+        target: hir::LoopId,
+        label: Option<&ast::Ident>,
+        keyword: ast::Span,
+    ) {
         self.loop_targets.push(ActiveLoop {
             target,
             label: label.map(|label| label.text.clone()),
+            origin: label.map_or(keyword, |label| label.span),
         });
     }
 
@@ -96,15 +111,10 @@ impl Lowerer {
         label: Option<&ast::Ident>,
         span: Span,
     ) -> Option<hir::StatementKind> {
-        let target = self
-            .loop_targets
-            .iter()
-            .rev()
-            .find(|loop_| {
-                label.is_none_or(|label| loop_.label.as_deref() == Some(label.text.as_str()))
-            })
-            .map(|loop_| loop_.target);
-        let Some(target) = target else {
+        let target = self.loop_targets.iter().rev().find(|loop_| {
+            label.is_none_or(|label| loop_.label.as_deref() == Some(label.text.as_str()))
+        });
+        let Some(active) = target else {
             let keyword = kind.keyword();
             match label {
                 Some(label) => self.error(
@@ -123,6 +133,13 @@ impl Lowerer {
             }
             return None;
         };
+        let target = active.target;
+        let origin = active.origin;
+        self.observe_control_target(
+            ast::Span::new(span.start, span.start + kind.keyword().len() as u32),
+            label,
+            origin,
+        );
         Some(match kind {
             ast::LoopJumpKind::Break => hir::StatementKind::Break { target },
             ast::LoopJumpKind::Continue => hir::StatementKind::Continue { target },

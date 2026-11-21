@@ -17,7 +17,7 @@ pub use host::{AnalysisHost, AnalysisSnapshot, SnapshotEditError, SourceInput};
 pub use scoop_parser::identifier_spelling;
 pub use scoop_source::{Revision, SourceId, SourceVersion};
 pub use semantic::{
-    CallHierarchyDirection, CallHierarchyRelation, MemberImplementationSearch,
+    CallHierarchyDirection, CallHierarchyRelation, MemberHierarchy, MemberImplementationSearch,
     ProjectAnalysisError, ReferenceSearch, RenameError, RenamePreparation, SafeDelete,
     SemanticSession, TypeHierarchyDirection, TypeHierarchyNode, TypeHierarchyOrigin,
     TypeImplementationSearch,

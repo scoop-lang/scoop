@@ -47,7 +47,13 @@ pub(crate) fn implementation(
             .map(|implementation| implementation.origin)
             .collect()
     };
-    declaration_locations(snapshot, cursor.project, origins, settings, cancellation)
+    super::json(declaration_locations(
+        snapshot,
+        cursor.project,
+        origins,
+        settings,
+        cancellation,
+    )?)
 }
 
 pub(crate) fn super_declarations(
@@ -70,7 +76,47 @@ pub(crate) fn super_declarations(
             cancellation.check().is_err() || snapshot.check_cancelled().is_err()
         })
         .map_err(|_| semantic::cancelled())?;
-    declaration_locations(snapshot, cursor.project, origins, settings, cancellation)
+    super::json(declaration_locations(
+        snapshot,
+        cursor.project,
+        origins,
+        settings,
+        cancellation,
+    )?)
+}
+
+pub(crate) fn member_hierarchy(
+    snapshot: &AnalysisSnapshot,
+    source: SourceId,
+    position: Position,
+    settings: Settings,
+    semantics: &mut SemanticSession,
+    cancellation: &Cancellation,
+) -> Result<Value, ResponseError> {
+    let Some(cursor) = semantic::cursor(snapshot, source, position, settings)? else {
+        return Ok(serde_json::json!({ "parents": [], "children": [] }));
+    };
+    let requested = cancellation.clone();
+    let result = semantics
+        .member_hierarchy(snapshot, source, cursor.span, move || {
+            requested.check().is_err()
+        })
+        .map_err(analysis_error)?;
+    let parents = declaration_locations(
+        snapshot,
+        cursor.project,
+        result.parents,
+        settings,
+        cancellation,
+    )?;
+    let children = declaration_locations(
+        snapshot,
+        cursor.project,
+        result.children,
+        settings,
+        cancellation,
+    )?;
+    Ok(serde_json::json!({ "parents": parents, "children": children }))
 }
 
 fn declaration_locations(
@@ -79,7 +125,7 @@ fn declaration_locations(
     origins: Vec<scoop_hir::SemanticSourceLocation>,
     settings: Settings,
     cancellation: &Cancellation,
-) -> Result<Value, ResponseError> {
+) -> Result<Vec<Location>, ResponseError> {
     let mut locations = Vec::new();
     for origin in origins {
         cancellation.check().map_err(|_| semantic::cancelled())?;
@@ -104,7 +150,7 @@ fn declaration_locations(
             ))
     });
     locations.dedup();
-    super::json(locations)
+    Ok(locations)
 }
 
 fn analysis_error(error: ProjectAnalysisError) -> ResponseError {

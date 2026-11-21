@@ -149,6 +149,8 @@ type-definition、implementation、references 提供进一步导航。workspace-
 
 VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Peek Call Hierarchy` 查看调用方和被调用方。同一块内选中完整表达式或可独立执行的连续语句时，重构菜单可提供 `Extract Function`。
 
+`Scoop: Show Member Hierarchy` 查看方法和属性的直接上级或覆写。`Scoop: Go to Related Tests` 在 Test 配置内定位测试源码中的实际用法。对跳转关键字用「转到定义」可找到对应循环或 callable。
+
 重构菜单还支持内联字面量或稳定值初始化的局部 `val`、从完整类型选区引入透明 `typealias`，以及检查文件私有顶层函数能否安全删除。
 
 ## 测试和诊断

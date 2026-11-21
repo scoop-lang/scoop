@@ -15,7 +15,7 @@ mod documentation;
 mod extract_alias;
 mod extract_local;
 mod implementations;
-pub use implementations::{MemberImplementationSearch, TypeImplementationSearch};
+pub use implementations::{MemberHierarchy, MemberImplementationSearch, TypeImplementationSearch};
 mod inline_local;
 mod project;
 mod references;

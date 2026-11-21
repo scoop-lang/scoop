@@ -212,6 +212,17 @@ export async function runLanguageServerTests() {
         at(api, "readMarker").line,
     "navigation to an overridden declaration",
   );
+  const memberEditor = await vscode.window.showTextDocument(document);
+  memberEditor.selection = new vscode.Selection(member, member);
+  await vscode.commands.executeCommand("scoop.showMemberHierarchy");
+  await eventually(
+    () =>
+      vscode.window.activeTextEditor?.document.uri.toString() ===
+        apiUri.toString() &&
+      vscode.window.activeTextEditor.selection.active.line ===
+        at(api, "readMarker").line,
+    "navigation through the member hierarchy",
+  );
   await vscode.window.showTextDocument(document);
   const extraction = await vscode.commands.executeCommand<vscode.CodeAction[]>(
     "vscode.executeCodeActionProvider",

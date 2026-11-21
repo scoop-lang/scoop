@@ -12,7 +12,69 @@ pub struct MemberImplementationSearch {
     pub declarations_available: bool,
 }
 
+#[derive(Default)]
+pub struct MemberHierarchy {
+    pub parents: Vec<SemanticSourceLocation>,
+    pub children: Vec<SemanticSourceLocation>,
+}
+
 impl SemanticSession {
+    pub fn member_hierarchy(
+        &mut self,
+        snapshot: &AnalysisSnapshot,
+        source: SourceId,
+        span: Span,
+        is_cancelled: impl Fn() -> bool + 'static,
+    ) -> Result<MemberHierarchy, ProjectAnalysisError> {
+        let mut result = MemberHierarchy::default();
+        let Some(project) = snapshot.workspace.project_for_source(source) else {
+            return Ok(result);
+        };
+        let (current, input) = project.source_cone(source).expect("selected source Cone");
+        let file = input
+            .sources
+            .iter()
+            .find(|file| file.source == source)
+            .expect("selected source file");
+        let revision = snapshot.clone();
+        let check: Rc<dyn Fn() -> bool> =
+            Rc::new(move || is_cancelled() || revision.check_cancelled().is_err());
+        let analysis = self
+            .project_declarations(snapshot, project, current, check.clone())
+            .map_err(Clone::clone)?;
+        result.parents = analysis
+            .super_declarations(&file.identity, span, || check())
+            .map_err(|_| ProjectAnalysisError::Cancelled)?;
+        for (&cone, input) in &project.cones {
+            if check() {
+                return Err(ProjectAnalysisError::Cancelled);
+            }
+            if input.source().is_none() {
+                continue;
+            }
+            let analysis = match self.project_declarations(snapshot, project, cone, check.clone()) {
+                Ok(analysis) => analysis,
+                Err(error) if error.is_cancelled() => return Err(ProjectAnalysisError::Cancelled),
+                Err(_) => continue,
+            };
+            let pairs = analysis
+                .member_override_relations(|| check())
+                .map_err(|_| ProjectAnalysisError::Cancelled)?;
+            for (parent, child) in pairs {
+                if check() {
+                    return Err(ProjectAnalysisError::Cancelled);
+                }
+                if parent.source == file.identity
+                    && super::super::call_hierarchy::name_origin(snapshot, project, parent)?
+                        .is_some_and(|parent| parent.span == span)
+                {
+                    result.children.push(child.clone());
+                }
+            }
+        }
+        Ok(result)
+    }
+
     pub fn member_implementations(
         &mut self,
         snapshot: &AnalysisSnapshot,

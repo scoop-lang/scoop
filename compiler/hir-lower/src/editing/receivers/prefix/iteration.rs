@@ -27,7 +27,11 @@ impl<F: Fn() -> bool> PrefixQuery<'_, F> {
         });
         let result = if prepared.is_some() {
             let target = lowerer.fresh_loop();
-            lowerer.push_loop(target, for_loop.label.as_ref());
+            lowerer.push_loop(
+                target,
+                for_loop.label.as_ref(),
+                ast::Span::new(for_loop.span.start, for_loop.span.start + 3),
+            );
             let result = self.control_body_contents(lowerer, for_loop.block, for_loop.body, true);
             lowerer.pop_loop(target);
             lowerer.pop_scope();

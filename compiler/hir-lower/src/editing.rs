@@ -57,6 +57,8 @@ pub struct DeclarationAnalysis {
     pub(crate) direct_type_children:
         Option<std::collections::HashMap<hir::SourceNominalId, Vec<hir::SourceNominalId>>>,
     pub(crate) member_implementations: Option<hir::EditingMemberImplementationIndex>,
+    pub(crate) member_override_relations:
+        Option<Vec<(hir::SemanticSourceLocation, hir::SemanticSourceLocation)>>,
     pub(crate) documentation: Option<std::sync::Arc<hir::SemanticDocumentation>>,
 }
 

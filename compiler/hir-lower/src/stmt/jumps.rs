@@ -40,6 +40,7 @@ impl Lowerer {
         out: &mut Vec<hir::Statement>,
     ) -> Option<()> {
         self.check_return_context(label, span)?;
+        self.observe_return_target(span, label);
         if self.return_inference.is_some() {
             let value = match value {
                 Some(source) => {

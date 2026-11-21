@@ -118,6 +118,21 @@ def check(peer, root):
         query(path, source, 15, "inherited", super_method),
         [location(path, source, 14, "inherited")],
     )
+    hierarchy = "scoop/memberHierarchy"
+    root_members = query(provider, library, 1, "choose", hierarchy)
+    assert root_members["parents"] == []
+    verify(
+        root_members["children"],
+        [methods[0], location(provider, library, 5, "choose"), methods[3]],
+    )
+    middle_members = query(provider, library, 7, "choose", hierarchy)
+    verify(middle_members["parents"], [location(provider, library, 5, "choose")])
+    verify(middle_members["children"], [location(provider, library, 9, "choose")])
+    abstract_member = query(provider, library, 10, "flag", hierarchy)
+    verify(abstract_member["parents"], [properties[1]])
+    verify(abstract_member["children"], [properties[2]])
+    inherited = query(path, source, 13, "inherited", hierarchy)
+    assert inherited == {"parents": [], "children": []}, inherited
 
     updated = source.replace("class Concrete(", "abstract class Concrete(").replace(
         "public override fun choose(localValue: Boolean): Boolean = localValue", ""

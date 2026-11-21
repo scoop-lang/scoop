@@ -51,6 +51,9 @@ pub(super) fn cursor(
             scoop_syntax::SyntaxKind::Ident
                 | scoop_syntax::SyntaxKind::EscapedIdent
                 | scoop_syntax::SyntaxKind::KwThis
+                | scoop_syntax::SyntaxKind::KwBreak
+                | scoop_syntax::SyntaxKind::KwContinue
+                | scoop_syntax::SyntaxKind::KwReturn
                 | scoop_syntax::SyntaxKind::Plus
                 | scoop_syntax::SyntaxKind::Minus
                 | scoop_syntax::SyntaxKind::Star

@@ -15,7 +15,7 @@ mod completion;
 mod definition;
 mod hover;
 mod implementation;
-mod references;
+pub(crate) mod references;
 mod rename;
 mod semantic;
 mod signature_help;
@@ -26,7 +26,7 @@ mod workspace_symbols;
 pub(crate) use completion::completion;
 pub(crate) use definition::definition;
 pub(crate) use hover::hover;
-pub(crate) use implementation::{implementation, super_declarations};
+pub(crate) use implementation::{implementation, member_hierarchy, super_declarations};
 pub(crate) use references::references;
 pub(crate) use rename::{prepare_rename, rename};
 pub(crate) use semantic::cancelled;
@@ -42,12 +42,14 @@ pub(crate) enum QueryKind {
     TypeDefinition(Position),
     Implementation(Position),
     SuperDeclarations(Position),
+    MemberHierarchy(Position),
     TypeHierarchy(type_hierarchy::HierarchyQuery),
     CallHierarchy(call_hierarchy::CallQuery),
     References {
         position: Position,
         include_declaration: bool,
     },
+    UsageLocations(Position, references::UsageView),
     PrepareRename(Position),
     Rename {
         position: Position,
@@ -131,6 +133,18 @@ impl DocumentQuery {
                         position: params.text_document_position.position,
                         include_declaration: params.context.include_declaration,
                     },
+                })
+            }
+            "textDocument/documentHighlight" | "scoop/relatedTests" => {
+                let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
+                let view = if request.method == "textDocument/documentHighlight" {
+                    references::UsageView::File
+                } else {
+                    references::UsageView::Tests
+                };
+                Ok(Self {
+                    uri: params.text_document.uri,
+                    kind: QueryKind::UsageLocations(params.position, view),
                 })
             }
             "textDocument/codeAction" => {
@@ -247,6 +261,13 @@ impl DocumentQuery {
                 Ok(Self {
                     uri: params.text_document.uri,
                     kind: QueryKind::SuperDeclarations(params.position),
+                })
+            }
+            "scoop/memberHierarchy" => {
+                let params: lsp_types::TextDocumentPositionParams = params(request.params.clone())?;
+                Ok(Self {
+                    uri: params.text_document.uri,
+                    kind: QueryKind::MemberHierarchy(params.position),
                 })
             }
             "textDocument/prepareCallHierarchy" => {

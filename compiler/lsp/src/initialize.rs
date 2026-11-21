@@ -110,8 +110,13 @@ pub(crate) fn initialize(params: InitializeParams) -> (Settings, InitializeResul
                 true,
             )),
             call_hierarchy_provider: Some(true.into()),
-            experimental: Some(serde_json::json!({ "scoopSuperDeclarations": true })),
+            experimental: Some(serde_json::json!({
+                "scoopSuperDeclarations": true,
+                "scoopRelatedTests": true,
+                "scoopMemberHierarchy": true,
+            })),
             references_provider: Some(OneOf::Left(true)),
+            document_highlight_provider: Some(OneOf::Left(true)),
             rename_provider: versioned_edits.then_some(OneOf::Right(lsp_types::RenameOptions {
                 prepare_provider: Some(true),
                 work_done_progress_options: Default::default(),

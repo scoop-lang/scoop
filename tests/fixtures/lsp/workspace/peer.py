@@ -32,6 +32,7 @@ from installed_sources import location
 from late_declarations import check as check_late_declarations
 from local_function_recovery import check as check_local_function_recovery
 from member_implementations import check as check_member_implementations
+from navigation_extras import check as check_navigation_extras
 from nominal_failures import check as check_nominal_failures
 from operator_references import check as check_operator_references
 from property_references import check as check_property_references
@@ -445,6 +446,7 @@ def main():
         check_type_implementations(peer, root)
         check_call_hierarchy(peer, root)
         check_member_implementations(peer, root)
+        check_navigation_extras(peer, root, restore="test")
         check_recovered_classes(peer, root)
         check_recovered_enums(peer, root)
         check_recovered_objects(peer, root)

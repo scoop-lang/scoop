@@ -3,6 +3,7 @@ use super::*;
 use hir::{EditingUnavailable as U, EditingValue as V};
 
 mod calls;
+mod control_flow;
 mod imports;
 mod observations;
 mod operators;

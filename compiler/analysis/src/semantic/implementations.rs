@@ -3,7 +3,7 @@ use scoop_hir::{EditingTypeImplementation, EditingValue as V};
 use scoop_source::Span;
 
 mod members;
-pub use members::MemberImplementationSearch;
+pub use members::{MemberHierarchy, MemberImplementationSearch};
 
 #[derive(Debug)]
 pub struct TypeImplementationSearch {

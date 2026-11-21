@@ -45,7 +45,23 @@ export class ScoopLanguageServer {
         this.output.show(),
       ),
       vscode.commands.registerCommand("scoop.goToSuperDeclaration", () =>
-        this.goToSuperDeclaration(),
+        this.goToLocations(
+          "scoop/superDeclarations",
+          "scoopSuperDeclarations",
+          "Go to Super Declaration",
+          "No overridden declaration with available source.",
+        ),
+      ),
+      vscode.commands.registerCommand("scoop.goToRelatedTests", () =>
+        this.goToLocations(
+          "scoop/relatedTests",
+          "scoopRelatedTests",
+          "Go to Related Tests",
+          "No test usage in the current configuration.",
+        ),
+      ),
+      vscode.commands.registerCommand("scoop.showMemberHierarchy", () =>
+        this.showMemberHierarchy(),
       ),
       vscode.commands.registerCommand(
         "scoop.showSafeDeleteUsages",
@@ -94,25 +110,29 @@ export class ScoopLanguageServer {
     );
   }
 
-  private async goToSuperDeclaration() {
+  private async goToLocations(
+    method: string,
+    capability: string,
+    label: string,
+    empty: string,
+  ) {
     const editor = vscode.window.activeTextEditor;
     if (editor?.document.languageId !== "scoop") return;
     const { document, selection } = editor;
     const client = this.clientFor(document.uri);
     if (
       !client?.isRunning() ||
-      !client.initializeResult?.capabilities.experimental
-        ?.scoopSuperDeclarations
+      !client.initializeResult?.capabilities.experimental?.[capability]
     ) {
       await vscode.window.showInformationMessage(
-        "The active Scoop language server does not provide Go to Super Declaration.",
+        `The active Scoop language server does not provide ${label}.`,
       );
       return;
     }
     const version = document.version;
     const position = selection.active;
     const locations = await client.sendRequest<ProtocolLocation[]>(
-      "scoop/superDeclarations",
+      method,
       client.code2ProtocolConverter.asTextDocumentPositionParams(
         document,
         position,
@@ -131,7 +151,65 @@ export class ScoopLanguageServer {
         client.protocol2CodeConverter.asLocation(location),
       ),
       "peek",
-      "No overridden declaration with available source.",
+      empty,
+    );
+  }
+
+  private async showMemberHierarchy() {
+    const editor = vscode.window.activeTextEditor;
+    if (editor?.document.languageId !== "scoop") return;
+    const { document, selection } = editor;
+    const client = this.clientFor(document.uri);
+    if (
+      !client?.isRunning() ||
+      !client.initializeResult?.capabilities.experimental?.scoopMemberHierarchy
+    ) {
+      await vscode.window.showInformationMessage(
+        "The active Scoop language server does not provide Member Hierarchy.",
+      );
+      return;
+    }
+    const version = document.version;
+    const result = await client.sendRequest<{
+      parents: ProtocolLocation[];
+      children: ProtocolLocation[];
+    }>(
+      "scoop/memberHierarchy",
+      client.code2ProtocolConverter.asTextDocumentPositionParams(
+        document,
+        selection.active,
+      ),
+    );
+    const choices = [
+      { label: "Direct Super Declarations", locations: result.parents },
+      { label: "Direct Overrides", locations: result.children },
+    ].filter((choice) => choice.locations.length > 0);
+    if (!choices.length) {
+      await vscode.window.showInformationMessage(
+        "No member hierarchy with available source.",
+      );
+      return;
+    }
+    const choice =
+      choices.length === 1
+        ? choices[0]
+        : await vscode.window.showQuickPick(choices, {
+            placeHolder: "Choose a direction in the member hierarchy",
+          });
+    if (
+      !choice ||
+      document.version !== version ||
+      vscode.window.activeTextEditor !== editor
+    )
+      return;
+    await vscode.commands.executeCommand(
+      "editor.action.goToLocations",
+      document.uri,
+      selection.active,
+      choice.locations.map((location) =>
+        client.protocol2CodeConverter.asLocation(location),
+      ),
+      "peek",
     );
   }
 

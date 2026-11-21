@@ -78,6 +78,7 @@ impl Lowerer {
                     type_implementations: None,
                     direct_type_children: None,
                     member_implementations: None,
+                    member_override_relations: None,
                     documentation: None,
                 });
             }
@@ -173,6 +174,7 @@ impl Lowerer {
             type_implementations: None,
             direct_type_children: None,
             member_implementations: None,
+            member_override_relations: None,
             documentation,
         })
     }

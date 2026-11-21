@@ -24,6 +24,8 @@ Run／Debug 后才调用普通构建入口。扩展不自动准备 sysroot；不
 
 在函数、方法或调用上执行 `Peek Call Hierarchy`，可查看调用方和被调用方。同一调用方的多处调用会列在同一个层级项下。
 
+在方法或属性声明上执行 `Scoop: Show Member Hierarchy`，可在直接上级和覆写声明之间逐层导航。`Scoop: Go to Related Tests` 可在 Test 配置中查看所选符号在测试源码中的实际用法。对 `break`、`continue`、`return` 及其目标标签使用「转到定义」，可定位对应的循环或 callable。
+
 选中块内的完整表达式后，通过重构菜单选择 `Extract Local Variable`，可将表达式提取为同一块的 `val`。选择 `Extract Function` 可把完整表达式或可独立执行的连续语句提取为局部函数。
 
 在以字面量或稳定值初始化的局部 `val` 上，可用 `Inline Local Variable` 替换各处读取。选中完整的类型语法后可用 `Introduce Type Alias`。文件私有顶层函数可用 `Safe Delete Function`，有阻塞用法时可选择 `Show Safe Delete Usages` 查看位置。

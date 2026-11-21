@@ -11,7 +11,11 @@ impl<F: Fn() -> bool> PrefixQuery<'_, F> {
         let incoming = lowerer.facts_without_mutable_bindings(lowerer.smart_casts.clone());
         lowerer.with_smart_casts(incoming.clone(), |lowerer| {
             let target = lowerer.fresh_loop();
-            lowerer.push_loop(target, do_while.label.as_ref());
+            lowerer.push_loop(
+                target,
+                do_while.label.as_ref(),
+                ast::Span::new(do_while.start, do_while.start + 2),
+            );
             lowerer.push_scope();
             let result = match &do_while.part {
                 ast::RecoveredDoWhilePart::Body(body) => {

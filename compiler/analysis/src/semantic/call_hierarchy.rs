@@ -165,7 +165,7 @@ fn names_match(
     Ok(matches)
 }
 
-fn name_origin(
+pub(super) fn name_origin(
     snapshot: &AnalysisSnapshot,
     project: &ProjectInput,
     origin: &SemanticSourceLocation,

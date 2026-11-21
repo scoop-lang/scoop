@@ -23,7 +23,11 @@ impl Lowerer {
             let binding =
                 self.lower_irrefutable_binding_from_subject(&source.pattern, element, false)?;
             body.extend(binding);
-            self.push_loop(target, source.label.as_ref());
+            self.push_loop(
+                target,
+                source.label.as_ref(),
+                Span::new(source.span.start, source.span.start + 3),
+            );
             for statement in &source.body.statements {
                 self.lower_statement(statement, &mut body);
             }

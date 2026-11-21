@@ -12,7 +12,11 @@ impl<F: Fn() -> bool> PrefixQuery<'_, F> {
             lowerer.facts_without_mutable_bindings(lowerer.smart_casts.clone()),
             |lowerer| {
                 let target = lowerer.fresh_loop();
-                lowerer.push_loop(target, while_loop.label.as_ref());
+                lowerer.push_loop(
+                    target,
+                    while_loop.label.as_ref(),
+                    ast::Span::new(while_loop.start, while_loop.start + 5),
+                );
                 let condition = if available {
                     let before = lowerer.diagnostics.len();
                     let result =
@@ -47,7 +51,11 @@ impl<F: Fn() -> bool> PrefixQuery<'_, F> {
             lowerer.facts_without_mutable_bindings(lowerer.smart_casts.clone()),
             |lowerer| {
                 let target = lowerer.fresh_loop();
-                lowerer.push_loop(target, label);
+                lowerer.push_loop(
+                    target,
+                    label,
+                    ast::Span::new(operand.statement_start, operand.statement_start + 5),
+                );
                 let result =
                     self.expression(lowerer, operand.block, operand.expression_start, true);
                 lowerer.pop_loop(target);
