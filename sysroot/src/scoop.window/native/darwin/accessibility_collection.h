@@ -8,7 +8,7 @@
 @property(nonatomic, strong) NSData *search;
 @property(nonatomic, copy) NSString *name, *help, *identifier, *value;
 @property(nonatomic) int64_t index, count, span, hierarchyLevel;
-@property(nonatomic) int32_t enabled, selected, expanded, focusable;
+@property(nonatomic) int32_t enabled, selected, expanded, focusable, hasCells;
 @end
 
 @interface SWAccessibilityColumnData : NSObject
@@ -39,6 +39,7 @@
 @end
 
 @interface SWAccessibilityVirtualItem (Grid)
+- (BOOL)hasGridCells;
 - (NSArray *)gridCells;
 - (id)cellForKey:(id)key;
 - (void)refreshCells;

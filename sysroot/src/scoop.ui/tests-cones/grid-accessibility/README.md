@@ -32,3 +32,7 @@ scoop test . --release
 单行可选性复用这两个 Application 的真实集合：普通行与不可选择项共享选择快照，逐项核对 selected 属性、setter 和原生已选行列表。可选性切换保留身份，不可选择项仍 enabled；缺少动作、禁用、缺少选择模型、业务拒绝、删除重建及关闭均不能误调选择回调。测试仍只查询少量 key，build 一旦被调用即失败。
 
 2026-11-21：单行可选性批次完成 Window 的 4 项集合模型测试；Lazy 与 data collection 两项 25 阶段 AppKit 回归分别约 1.00／1.06 秒通过，failures 为空且 end／complete 齐全。相关 Cone 格式化、check 与 release 构建通过，Window API 文档生成及 selectable 查询通过。本批仅验证本机 macOS，原始报告在合并后清理。
+
+`StructuralRowsTest` 使用 `SemanticGrid.hasCells` 混合普通行与无列单元格的详情行。原生按区间读取单行，避免完整 children 枚举一亿项；离屏详情无子控件，挂载后暴露真实按钮与嵌套静态表格，按钮沿原动作执行。普通行改成详情行会退休旧单元格，恢复普通行产生新代理；回收和关闭后实际子节点失效。回调中的 UI State 写入被只读边界拒绝。
+
+2026-11-21：结构行批次的 Window／UI、本 Cone 格式化与 check 通过；Window 9 项集合／单元格模型测试通过。结构行 5 阶段原生回归约 1.04 秒、原有 51 阶段双轴回归约 1.55 秒通过，均 failures 为空且完整退出。共享 C++ 投影通过本机语法检查，Window／UI API 文档生成及 hasCells 查询通过；本批不计作其他平台或 VoiceOver 验收。

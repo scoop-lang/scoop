@@ -122,7 +122,7 @@ AppKit 使用公开的 `NSAccessibilityCustomAction` 提供“Scroll to Visible�
 
 `SemanticItemProperties` 提供 name、description、automationId、value、enabled、selected、expanded、focusable 与可选 hierarchyLevel；可选文本的 None 是未知，Some("") 是已知空文本，selected／expanded 的 None 表示没有该状态。hierarchyLevel 是从零开始的非负层级深度，None 表示未声明层级；不从条目位置推导深度。focusable 缺省 false；只有数据源明确知道该项有真实聚焦目标时设为 true，不从名称或角色猜测。`describe(index)` 的 None 表示该项描述当前不可用。实际 count 不包含尚未加载、尚无 key 的远端数据。
 
-快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count、properties 与缺省为 1 的 span；普通条目的 span 为 1，表格单元格用它表达连续列跨度。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
+快照的 itemAt／itemForKey 返回 Found(SemanticItem)／NotFound／Unavailable；`find(SemanticItemQuery, after)` 另可返回 Unsupported。SemanticItem 含 key、从零开始的 index、count、properties、缺省为 true 的 hasCells 与缺省为 1 的 span；普通条目的 span 为 1，表格单元格用它表达连续列跨度。Name／AutomationId 查找仅在 SemanticItemSearch 对应能力明确开启时执行，使用精确字符串匹配和当前快照的轻量描述；after 是排除的稳定 key，不是旧 index。未知 after、途中不可用的描述或被查询的未知属性返回 Unavailable，不能假报 NotFound。明确的全量查询可以有线性数据成本，但不执行 build。
 
 `AccessibilityNode.collection` 暂存一个可选快照，用于 List 或 Table；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生并缓存轻量条目代理，不预建 count 个对象或完整子 ID 数组。发布数据变化时只复核已经产生的代理 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
 
@@ -133,6 +133,8 @@ AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；
 集合选择由同一发布快照的 `SemanticCollectionSelection(keys, multiple, required)` 描述。keys 只列属于该快照的已选稳定 key；原生查询不为取得选中项扫描整个集合。`SemanticItemProperties.selectable` 缺省 true，允许总计、说明等条目明确设为 false，同时保留其 enabled、focusable 和阅读能力。false 优先于 selected 和集合选择快照：该条目不发布 selected 状态，不出现在原生选中项列表中，选择／取消选择返回 Unsupported 且不调用业务回调。选择列表发布只检查已选 key 的描述，描述暂不可用的项也不发布；不会为检查可选性枚举整个集合或创建 View。`setSelected(key, value)` 经原业务选择入口确认采纳结果；没有选择模型时不声明 Selection 能力。AppKit 的选择 setter 只在该行可用、可选择且有选择模型和回调时公布。
 
 `SemanticGrid` 给 Table 集合提供稳定列 key、标题及可选实际表头引用，并通过 `(rowKey, columnIndex)` 查询轻量单元格描述。行身份仍属于集合，单元格身份由行 key 和列 key 组成；索引只表示当前坐标。查询不构造 cell View，未知描述返回 Unavailable；列或行删除永久退休对应旧代理。已挂载单元格用 `SemanticTableCell` 声明真实行列位置与跨度，`SemanticTableSize` 描述静态表格尺寸。窗口层不缓存第二份业务表格。Table 和 List 共用集合的发布、按需代理及明确操作边界。
+
+`SemanticGrid.hasCells = Some { rowKey -> Boolean }` 可明确表示详情、说明等结构行不属于列空间；省略时所有行均有单元格。该回调只读当前行 key，不读取各列描述、不创建 View。行查询返回的 `SemanticItem.hasCells` 保存同一快照中的结果；false 时 `cellForKey` 返回 NotFound，单元格动作不可用且不调用 span／describe 或业务动作。原生表格保留该行的正常身份、层级及行操作，子项来自已挂载的实际语义子树；离屏时没有伪造的单元格或子控件。它与 describe 暂不可用的 Unavailable 含义不同。发布中从有格改为无格永久退休已建立的旧单元格代理，随后恢复有格使用新代理；不枚举行列矩阵。
 
 跨列集合可传 `SemanticGrid.span = Some { rowKey, columnIndex -> SemanticGridSpan(column, columnSpan) }`。缺省每列独立；回调给出包含被查询列的锚点索引和正跨度，同一跨度内所有列须返回同一范围。范围不能超出当前 columns，查询时检查负值、零跨度、溢出、当前边界及包含关系，不枚举行列矩阵。`cellForKey` 返回锚点的 key、index、span 和 describe 元数据；describe 只读取锚点。行列重排或跨列关系变化通过新快照发布。此能力只跨列，不合并不同行。
 

@@ -190,6 +190,13 @@ private fun readonlyGrid(grid: SemanticGrid?): SemanticGrid? =
                             column -> evaluateUi<SemanticGridSpan>(None) { resolve(row, column) }
                         }
                         case None -> None
+                    },
+                hasCells =
+                    when (value.hasCells) {
+                        case Some(val contains) -> Some {
+                            row -> evaluateUi<Boolean>(None) { contains(row) }
+                        }
+                        case None -> None
                     }
             )
         )

@@ -71,6 +71,7 @@ std::shared_ptr<const State> Element::state() {
   result->data.cell_column = reference.kind == 2 ? column : -1;
   result->data.row_span = result->data.column_span = 1;
   result->data.table_rows = result->data.table_columns = -1;
+  result->hasCells = data->hasCells != 0;
   if (reference.kind == 1) {
     if ((source->collectionActions & 4) && data->focusable)
       result->data.actions |= 8;
@@ -153,7 +154,7 @@ int64_t Element::childCount() {
   auto source = owner->state(reference.node);
   if (reference.kind == 0 && source->count >= 0)
     return source->count;
-  if (reference.kind == 1 && !source->columns.empty())
+  if (reference.kind == 1 && value->hasCells && !source->columns.empty())
     return static_cast<int64_t>(source->columns.size());
   return static_cast<int64_t>(actualChildren().size());
 }
@@ -168,7 +169,7 @@ ElementPtr Element::childAt(int64_t index) {
   if (reference.kind == 0 && source->count >= 0)
     return index < source->count ? owner->itemAt(reference.node, index)
                                  : nullptr;
-  if (reference.kind == 1 && !source->columns.empty())
+  if (reference.kind == 1 && value->hasCells && !source->columns.empty())
     return static_cast<uint64_t>(index) < source->columns.size()
                ? owner->cell(reference.node, reference.row,
                              source->columns[index].key)

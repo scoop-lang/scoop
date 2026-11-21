@@ -20,7 +20,9 @@ public struct SemanticGridActions(
 public class SemanticGrid public constructor(
     public val columns: Array<SemanticGridColumn>,
     public val describe: (SemanticItemKey, Long) -> SemanticItemProperties?,
-    public val span: ((SemanticItemKey, Long) -> SemanticGridSpan)? = None
+    public val span: ((SemanticItemKey, Long) -> SemanticGridSpan)? = None,
+    /** False for full-row content that is outside this grid's column space. */
+    public val hasCells: ((SemanticItemKey) -> Boolean)? = None
 ) {
     private val indices = HashMap<SemanticItemKey, Long>()
     init {

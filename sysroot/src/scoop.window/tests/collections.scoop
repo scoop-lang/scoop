@@ -159,6 +159,101 @@ private class CellDescriptions {
 @Test
 private class SemanticGridTest {
     @Test
+    fun `structural rows have no cells and skip descriptions spans and actions`() {
+        val data = SemanticItemKey.Number(1L)
+        val detail = SemanticItemKey.Number(2L)
+        val column = SemanticItemKey.Text("value")
+        val source = CollectionSource([data, detail], [Some("Data"), Some("Detail")])
+        val descriptions = CellDescriptions()
+        val spans = CellDescriptions()
+        val shapes = CellDescriptions()
+        val actions = CellDescriptions()
+        val grid =
+            SemanticGrid(
+                [SemanticGridColumn(column)],
+                {
+                    _, _ ->
+                    descriptions.count += 1
+                    Some(SemanticItemProperties(focusable = true))
+                },
+                span =
+                    Some {
+                        _, at ->
+                        spans.count += 1;
+                        SemanticGridSpan(at)
+                    },
+                hasCells =
+                    Some {
+                        key ->
+                        shapes.count += 1;
+                        key != detail
+                    }
+            )
+        val snapshot = SemanticCollectionSnapshot(source, grid = Some(grid))
+        assertEquals(0, shapes.count)
+        assertEquals(SemanticItemResult.NotFound, snapshot.cellForKey(detail, column))
+        assertEquals(None, snapshot.cellSpanForIndex(detail, 0L))
+        assertEquals(0, descriptions.count)
+        assertEquals(0, spans.count)
+        assertEquals(0, source.descriptions)
+        val operations =
+            SemanticGridActions(
+                realize =
+                    Some {
+                        _, _ ->
+                        actions.count += 1
+                        SemanticActionResult.Completed
+                    }
+            )
+        assertEquals(
+            SemanticActionResult.Unavailable,
+            performGridCell(snapshot, Some(operations), detail, 0L, 12)
+        )
+        assertEquals(0, actions.count)
+        assertFalse(item(snapshot.itemForKey(detail)).hasCells)
+        assertTrue(item(snapshot.itemForKey(data)).hasCells)
+        assertTrue(item(snapshot.cellForKey(data, column)).hasCells)
+        assertEquals(1, descriptions.count)
+        assertEquals(1, spans.count)
+        val before = shapes.count
+        assertEquals(
+            SemanticItemResult.NotFound,
+            snapshot.cellForKey(SemanticItemKey.Number(99L), column)
+        )
+        assertEquals(
+            SemanticItemResult.NotFound,
+            snapshot.cellForKey(detail, SemanticItemKey.Text("absent"))
+        )
+        assertEquals(before, shapes.count)
+    }
+
+    @Test
+    fun `absent cells differ from temporarily unavailable cell descriptions`() {
+        val data = SemanticItemKey.Number(1L)
+        val detail = SemanticItemKey.Number(2L)
+        val column = SemanticItemKey.Text("value")
+        val source = CollectionSource([data, detail], [None, None], unavailable = Some(1L))
+        val grid =
+            SemanticGrid(
+                [SemanticGridColumn(column)],
+                { _, _ -> None },
+                hasCells = Some { key -> key != detail }
+            )
+        val snapshot = SemanticCollectionSnapshot(source, grid = Some(grid))
+        assertEquals(SemanticItemResult.Unavailable, snapshot.cellForKey(data, column))
+        assertEquals(SemanticItemResult.NotFound, snapshot.cellForKey(detail, column))
+        assertEquals(0, source.descriptions)
+        assertEquals(SemanticItemResult.Unavailable, snapshot.itemForKey(detail))
+        val dense =
+            SemanticCollectionSnapshot(
+                source,
+                grid = Some(SemanticGrid([SemanticGridColumn(column)], { _, _ -> None }))
+            )
+        assertTrue(item(dense.itemForKey(data)).hasCells)
+        assertEquals(SemanticItemResult.Unavailable, dense.cellForKey(detail, column))
+    }
+
+    @Test
     fun `covered columns share metadata and actions with their anchor`() {
         val row = SemanticItemKey.Number(9L)
         val columns = Array(4L) { index -> SemanticGridColumn(SemanticItemKey.Number(index)) }

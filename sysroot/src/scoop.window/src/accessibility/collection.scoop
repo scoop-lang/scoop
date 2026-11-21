@@ -89,7 +89,8 @@ public struct SemanticItem(
     val index: Long,
     val count: Long,
     val properties: SemanticItemProperties,
-    val span: Long = 1L
+    val span: Long = 1L,
+    val hasCells: Boolean = true
 )
 
 public enum SemanticItemResult {
@@ -174,7 +175,15 @@ public class SemanticCollectionSnapshot public constructor(
                     properties.hierarchyLevel,
                     properties.selectable
                 )
-        return SemanticItemResult.Found(SemanticItem(key, index, count, actual))
+        return SemanticItemResult.Found(
+            SemanticItem(
+                key,
+                index,
+                count,
+                actual,
+                hasCells = (grid?.hasCells ?: None)?.invoke(key) ?: true
+            )
+        )
     }
 
     public fun cellForKey(row: SemanticItemKey, column: SemanticItemKey): SemanticItemResult {
@@ -182,6 +191,8 @@ public class SemanticCollectionSnapshot public constructor(
             return SemanticItemResult.NotFound
         val table = grid ?: return SemanticItemResult.Unsupported
         val index = table.indexOf(column) ?: return SemanticItemResult.NotFound
+        if (!(table.hasCells?.invoke(row) ?: true))
+            return SemanticItemResult.NotFound
         val span = table.resolveSpan(row, index)
         val properties = table.describe(row, span.column) ?: return SemanticItemResult.Unavailable
         checkItemProperties(properties)
@@ -196,12 +207,14 @@ public class SemanticCollectionSnapshot public constructor(
         )
     }
 
-    /** Used only while publishing to retire an existing covered column identity. */
+    /** Used while publishing to retire covered columns and rows without cells. */
     internal fun cellSpanForIndex(row: SemanticItemKey, column: Long): SemanticGridSpan? {
         if (indexOf(row) == None)
             return None
         val table = grid ?: return None
         if (column < 0L || column >= table.columns.size)
+            return None
+        if (!(table.hasCells?.invoke(row) ?: true))
             return None
         return Some(table.resolveSpan(row, column))
     }
