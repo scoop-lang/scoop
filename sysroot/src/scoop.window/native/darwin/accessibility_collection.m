@@ -320,7 +320,8 @@
   if (selector == @selector(accessibilityCustomActions))
     return (self.collection.state.collectionActions & 3) != 0;
   if (selector == @selector(setAccessibilitySelected:))
-    return self.collection.state.selectionKind >= 0 &&
+    return self.isAccessibilityEnabled && self.itemData.selected >= 0 &&
+           self.collection.state.selectionKind >= 0 &&
            (self.collection.state.collectionActions & 8);
   if (selector == @selector(setAccessibilityExpanded:))
     return self.isAccessibilityEnabled && self.itemData.expanded >= 0 &&
