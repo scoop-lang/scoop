@@ -1,0 +1,130 @@
+package scoop.tests.ui.itemscenes
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.InputArea
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class LazyItemScenesTest {
+    @Test
+    fun `split lazy scenes move existing rows with shared clipping focus and presentation rules`() {
+        val probe = ItemSceneProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }
+            .use { host -> Application().run(host) }
+        assertTrue(probe.finished)
+        assertEquals(4, probe.builds)
+        assertEquals(4, probe.mounts)
+        assertEquals(4, probe.unmounts)
+        for (area in probe.areas)
+            assertTrue(area!!.isClosed)
+    }
+}
+
+internal class ItemSceneProbe {
+    val areas = MutableArray<InputArea?>(4L) { _ -> None }
+    val order = ArrayList<Long>()
+    val scroll = ScrollState()
+    var scope: ComponentScope? = None
+    var saved: SceneContext? = None
+    var window: Window? = None
+    var application: ActiveApplication? = None
+    var builds = 0
+    var mounts = 0
+    var unmounts = 0
+    var phase = 0
+    var inScene = false
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                application = Some(active)
+                active
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(30L))
+                    )
+                val native = active
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop split lazy scenes"
+                            size = LogicalSize(240.0, 160.0)
+                        }
+                    )
+                window = Some(native)
+                host.attach(native, { mount -> SplitItemScene(this, mount) })
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+            }
+
+            case NewEvents(StartCause.Deadline) ->
+                fail(Some(f"split item scenes timeout: ${phase}"))
+            else -> {}
+        }
+    }
+    fun accepted(ticket: Int) {
+        if (ticket != phase) return
+        assertFailsWith<IllegalStateException> { saved!!.item(ViewKey.Number(0L)) }
+        assertEquals(4, builds)
+        assertEquals(4, mounts)
+        assertEquals(0, unmounts)
+        assertEquals(Point(0.0, 240.0), scroll.maximum)
+        assertEquals(0.0, scroll.snapshot.padding.top)
+        when (phase) {
+            case 0 -> {
+                assertEquals(4L, order.size)
+                for (index in 0L..<4L)
+                    assertEquals(index, order[index])
+                assertEquals(Some(Rect(0.0, 0.0, 100.0, 24.0)), areas[0L]!!.visibleBounds)
+                assertTrue(areas[0L]!!.requestFocus())
+                phase = 1
+                scope!!.requestFrame()
+            }
+
+            case 1 -> {
+                assertTrue(areas[0L]!!.hasFocus)
+                assertEquals(Some(Rect(20.0, 0.0, 100.0, 24.0)), areas[0L]!!.visibleBounds)
+                assertEquals(4L, order.size)
+                assertEquals(1L, order[0L])
+                assertEquals(0L, order[3L])
+                phase = 2
+                scope!!.requestLayout()
+            }
+
+            case 2 -> {
+                assertTrue(areas[0L]!!.hasFocus)
+                assertEquals(None, areas[3L]!!.visibleBounds)
+                assertEquals(3L, order.size)
+                assertEquals(0L, order[2L])
+                phase = 3
+                scroll.scrollTo(Point(0.0, 40.0))
+            }
+
+            case 3 -> {
+                assertEquals(Point(0.0, 40.0), scroll.offset)
+                assertTrue(areas[0L]!!.hasFocus)
+                assertEquals(Some(Rect(20.0, 0.0, 100.0, 24.0)), areas[0L]!!.visibleBounds)
+                assertEquals(None, areas[1L]!!.visibleBounds)
+                assertEquals(Some(Rect(0.0, 40.0, 100.0, 24.0)), areas[2L]!!.visibleBounds)
+                phase = 4
+                scope!!.requestFrame()
+            }
+
+            case 4 -> {
+                assertEquals(None, areas[0L]!!.visibleBounds)
+                assertEquals(Some(Rect(0.0, 0.0, 100.0, 24.0)), areas[1L]!!.visibleBounds)
+                assertEquals(3L, order.size)
+                for (index in 0L..<3L)
+                    assertEquals(index, order[index])
+                finished = true
+                phase = 5
+                application!!.requestExit()
+            }
+
+            else -> {}
+        }
+    }
+}

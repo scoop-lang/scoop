@@ -1,0 +1,23 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+
+/** Indexes only this selected layout, never the source or other trial results. */
+internal class ItemScenes(private val children: Array<LazyLayoutItem>) {
+    private val keyed = HashMap<ViewKey, Long>()
+    private val presented = MutableArray<Boolean>(children.size) { _ -> false }
+    init {
+        for (index in 0L..<children.size)
+            keyed[children[index].entry.key] = index
+    }
+    fun take(key: ViewKey): Long {
+        requireUi(key != ViewKey.Position, "item presentation requires an explicit key")
+        val index = keyed[key] ?:
+            throw IllegalArgumentException(Some("item is not in the selected layout"))
+        requireUi(children[index].placed, "item was not placed in the selected layout")
+        if (presented[index]) throw IllegalStateException(Some("item was already presented"))
+        presented[index] = true
+        return index
+    }
+    fun contains(index: Long): Boolean = presented[index]
+}

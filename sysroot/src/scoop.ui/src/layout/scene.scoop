@@ -12,6 +12,7 @@ import scoop.ui.text.NativeTextSource
 
 internal class ScenePass {
     var presentedChildren = false
+    var presentedItems: ItemScenes? = None
     var cacheable = true
     val paintKeys = ArrayList<PaintKey>()
     val scrolls = ArrayList<ScrollViewport>()
@@ -31,30 +32,35 @@ public class SceneContext internal constructor(
     private val recorder: SceneRecorder? = None
 ) {
     private val extent = layout.metrics.size
-    public val layoutDirection: LayoutDirection get() {
-        checkActive();
-        return node.layoutDirection
-    }
+    public val layoutDirection: LayoutDirection
+        get() {
+            checkActive();
+            return node.layoutDirection
+        }
     private var active = true
     private var borrowed = false
-    public val size: Size get() {
-        checkActive()
-        return extent
-    }
-    public val time: MonotonicInstant get() {
-        checkActive()
-        observeFrameTime()
-        return frame.time
-    }
-    public val overlayLayout: OverlayLayout? get() {
-        checkActive()
-        pass.cacheable = false
-        return overlay
-    }
-    internal val retainsTextDrawing: Boolean get() {
-        checkActive()
-        return epochs.size > 0L || paintCache != PaintCachePolicy.None
-    }
+    public val size: Size
+        get() {
+            checkActive()
+            return extent
+        }
+    public val time: MonotonicInstant
+        get() {
+            checkActive()
+            observeFrameTime()
+            return frame.time
+        }
+    public val overlayLayout: OverlayLayout?
+        get() {
+            checkActive()
+            pass.cacheable = false
+            return overlay
+        }
+    internal val retainsTextDrawing: Boolean
+        get() {
+            checkActive()
+            return epochs.size > 0L || paintCache != PaintCachePolicy.None
+        }
     /** Text contact targets follow this frame's enclosing viewport clips. */
     internal fun textHandleBounds(bounds: Rect): Rect? {
         checkActive()
@@ -113,10 +119,8 @@ public class SceneContext internal constructor(
     }
     private fun checkActive() {
         node.root.checkThread()
-        if (!active)
-            throw IllegalStateException(Some("scene context has ended"))
-        if (borrowed)
-            throw IllegalStateException(Some("scene context has an active child scope"))
+        if (!active) throw IllegalStateException(Some("scene context has ended"))
+        if (borrowed) throw IllegalStateException(Some("scene context has an active child scope"))
     }
     /** Runs a pixel-only block with an independent Canvas lifetime and save stack. */
     public fun draw(block: (PaintContext) -> Unit) {
@@ -124,15 +128,16 @@ public class SceneContext internal constructor(
         pass.cacheable = false
         borrowed = true
         try {
-            frame.canvas.withState {
-                canvas ->
-                val context = PaintContext(node.root, canvas, extent, frame.time)
-                try {
-                    block(context)
-                } finally {
-                    context.end()
+            frame
+                .canvas
+                .withState { canvas ->
+                    val context = PaintContext(node.root, canvas, extent, frame.time)
+                    try {
+                        block(context)
+                    } finally {
+                        context.end()
+                    }
                 }
-            }
         } finally {
             borrowed = false
         }
@@ -160,16 +165,16 @@ public class SceneContext internal constructor(
         borrowed = true
         try {
             val reads = FrameReads(node, frame.time)
-            val layer =
-                node.paintLayers.draw(
+            val layer = node
+                .paintLayers
+                .draw(
                     frame.canvas,
                     key,
                     PaintLayerInput(extent, bounds, revision, samplingOutset, composition),
                     paintCache,
                     Some(frame.time),
                     Some(reads)
-                ) {
-                    canvas ->
+                ) { canvas ->
                     val context = PaintContext(node.root, canvas, extent, frame.time)
                     try {
                         evaluateUi<Unit>(None, Some(reads)) { block(context) }
@@ -186,6 +191,7 @@ public class SceneContext internal constructor(
                     pass.layers.add(value)
                     recorder?.add(SceneCommand.Drawing(value))
                 }
+
                 case None -> pass.cacheable = false
             }
         } finally {
@@ -222,9 +228,8 @@ public class SceneContext internal constructor(
         checkActive()
         checkScrollRect(region)
         var found = -1L
-        for (index in 0L ..< scrollPath.size)
-            if (scrollPath[index].viewport === viewport)
-                found = index
+        for (index in 0L..<scrollPath.size)
+            if (scrollPath[index].viewport === viewport) found = index
         requireUi(found >= 0L, "reveal viewport is not in the actual scene path")
         val boundary = scrollPath[found]
         requireUi(
@@ -233,13 +238,9 @@ public class SceneContext internal constructor(
         )
         val replacement = boundary.constrain(region, axes)
         val selected = found
-        val path =
-            Array<ScrollReveal>(scrollPath.size) {
-                index -> if (index == selected)
-                    replacement
-                else
-                    scrollPath[index]
-            }
+        val path = Array<ScrollReveal>(scrollPath.size) { index ->
+            if (index == selected) replacement else scrollPath[index]
+        }
         pass.cacheable = false
         return withPath(path, paintCache, block)
     }
@@ -259,21 +260,17 @@ public class SceneContext internal constructor(
     ) {
         checkActive()
         val boundary = node.root.focus.captureScroll(viewport, layout, frame.canvas)
-        val path =
-            Array<ScrollReveal>(scrollPath.size + 1L) {
-                index -> if (index < scrollPath.size)
-                    scrollPath[index]
-                else
-                    boundary
-            }
-        withPath<Unit>(path, viewport.paintCache) {
-            child ->
+        val path = Array<ScrollReveal>(scrollPath.size + 1L) { index ->
+            if (index < scrollPath.size) scrollPath[index] else boundary
+        }
+        withPath<Unit>(path, viewport.paintCache) { child ->
             val snapshot = layout.snapshot
             child.clipRect(Rect(0.0, 0.0, snapshot.viewport.width, snapshot.viewport.height))
-            child.translate(
-                origin.x - layout.presentationOffset.x + snapshot.padding.left,
-                origin.y - layout.presentationOffset.y + snapshot.padding.top
-            )
+            child
+                .translate(
+                    origin.x - layout.presentationOffset.x + snapshot.padding.left,
+                    origin.y - layout.presentationOffset.y + snapshot.padding.top
+                )
             block(child)
         }
     }
@@ -284,15 +281,13 @@ public class SceneContext internal constructor(
     ): T {
         borrowed = true
         try {
-            return frame.withState {
-                childFrame ->
-                val commands =
-                    when (recorder) {
+            return frame
+                .withState { childFrame ->
+                    val commands = when (recorder) {
                         case Some(_) -> Some(SceneRecorder())
                         case None -> None
                     }
-                val child =
-                    SceneContext(
+                    val child = SceneContext(
                         node,
                         childFrame,
                         layout,
@@ -303,20 +298,21 @@ public class SceneContext internal constructor(
                         epochs,
                         commands
                     )
-                try {
-                    val result = block(child)
-                    when (commands) {
-                        case Some(val value) -> recorder?.add(SceneCommand.Scope(value.finish()))
-                        case None -> {}
+                    try {
+                        val result = block(child)
+                        when (commands) {
+                            case Some(val value) ->
+                                recorder?.add(SceneCommand.Scope(value.finish()))
+                            case None -> {}
+                        }
+                        result
+                    } catch (error: Throwable) {
+                        pass.cacheable = false
+                        throw error
+                    } finally {
+                        child.end()
                     }
-                    result
-                } catch (error: Throwable) {
-                    pass.cacheable = false
-                    throw error
-                } finally {
-                    child.end()
                 }
-            }
         } finally {
             borrowed = false
         }
@@ -396,9 +392,32 @@ public class SceneContext internal constructor(
     public fun children(order: Array<Long>) {
         presentChildren(Some(order), None)
     }
-    internal fun presentChildren(order: Array<Long>?, epoch: SceneEpoch?) {
+    /** Presents one placed LazyElement item under this scope's transform and clip.
+     * Every placed item must be presented once; cannot be mixed with children().
+     * Looks up only the selected layout, without building or measuring any item.
+     */
+    public fun item(key: ViewKey) {
         checkActive()
         if (pass.presentedChildren)
+            throw IllegalStateException(Some("children were already presented"))
+        val items = pass.presentedItems ?:
+            when (layout.body) {
+                case Lazy(_, val selected) -> ItemScenes(selected)
+                else ->
+                    throw IllegalStateException(Some("item presentation requires a LazyElement"))
+            }
+        val index = items.take(key)
+        pass.presentedItems = Some(items)
+        pass.cacheable = false
+        presentChild(index, epochs)
+    }
+    internal fun presentChildren(order: Array<Long>?, epoch: SceneEpoch?) {
+        checkActive()
+        val partial = when (pass.presentedItems) {
+            case Some(_) -> true
+            case None -> false
+        }
+        if (pass.presentedChildren || partial)
             throw IllegalStateException(Some("children were already presented"))
         when (order) {
             case Some(val value) -> {
@@ -416,26 +435,26 @@ public class SceneContext internal constructor(
                     visited[index] = true
                 }
             }
+
             case None -> {}
         }
         pass.presentedChildren = true
         recorder?.add(SceneCommand.Children(order, epoch))
-        val childEpochs =
-            when (epoch) {
-                case Some(val value) -> Array<SceneEpoch>(epochs.size + 1L) {
-                    index -> if (index < epochs.size)
-                        epochs[index]
-                    else
-                        value
+        val childEpochs = when (epoch) {
+            case Some(val value) ->
+                Array<SceneEpoch>(epochs.size + 1L) { index ->
+                    if (index < epochs.size) epochs[index] else value
                 }
-                case None -> epochs
-            }
+            case None -> epochs
+        }
         try {
             when (order) {
-                case Some(val value) -> for (index in value)
-                    presentChild(index, childEpochs)
-                case None -> for (index in 0L ..< layout.children.size)
-                    presentChild(index, childEpochs)
+                case Some(val value) ->
+                    for (index in value)
+                        presentChild(index, childEpochs)
+                case None ->
+                    for (index in 0L..<layout.children.size)
+                        presentChild(index, childEpochs)
             }
         } catch (error: Throwable) {
             pass.cacheable = false
@@ -446,29 +465,37 @@ public class SceneContext internal constructor(
         val child = layout.children[index]
         val placed = child.origin != None
         if (child.node.participatesInFrame != placed)
-            node.root.addCompletion(child.node) {
-                completion -> if (completion.submission == FrameSubmission.Accepted)
-                    child.node.setFrameParticipation(placed)
-            }
+            node
+                .root
+                .addCompletion(child.node) { completion ->
+                    if (completion.submission == FrameSubmission.Accepted)
+                        child.node.setFrameParticipation(placed)
+                }
         when (child.origin) {
-            case Some(val origin) -> child.result!!.scene(
-                frame,
-                origin,
-                overlay,
-                scrollPath,
-                paintCache,
-                childEpochs
-            )
+            case Some(val origin) ->
+                child
+                    .result!!
+                    .scene(
+                        frame,
+                        origin,
+                        overlay,
+                        scrollPath,
+                        paintCache,
+                        childEpochs
+                    )
             case None -> child.node.clearPaintSubtree()
         }
     }
     internal fun finish() {
         if (!pass.presentedChildren) {
-            for (child in layout.children)
-                if (child.origin != None)
+            for (index in 0L..<layout.children.size)
+                if (layout.children[index].origin !=
+                    None &&
+                    !(pass.presentedItems?.contains(index) ?: false)
+                )
                     throw IllegalStateException(Some("placed children must be presented"))
-            for (index in 0L ..< layout.children.size)
-                presentChild(index, epochs)
+            for (index in 0L..<layout.children.size)
+                if (layout.children[index].origin == None) presentChild(index, epochs)
         }
         node.paintLayers.retain(pass.paintKeys)
     }

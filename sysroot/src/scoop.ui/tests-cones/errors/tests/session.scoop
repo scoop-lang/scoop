@@ -49,8 +49,7 @@ internal class FailureRecord(val mode: FailureMode) {
             reason
         )
         overlayCloses += 1
-        if (mode == FailureMode.ModalClose)
-            throw primary
+        if (mode == FailureMode.ModalClose) throw primary
     }
 }
 
@@ -89,52 +88,51 @@ private class UiFailureTest {
     }
 }
 
-internal class FailureHarness: ApplicationHandler {
-    val records: Array<FailureRecord> =
-        [
-            FailureRecord(FailureMode.Factory),
-            FailureRecord(FailureMode.Render),
-            FailureRecord(FailureMode.Mount),
-            FailureRecord(FailureMode.Update),
-            FailureRecord(FailureMode.DuplicateKey),
-            FailureRecord(FailureMode.DuplicateInstance),
-            FailureRecord(FailureMode.RetiredComponent),
-            FailureRecord(FailureMode.RetiredElement),
-            FailureRecord(FailureMode.RetiredLazy),
-            FailureRecord(FailureMode.PortalHandle),
-            FailureRecord(FailureMode.PortalCycle),
-            FailureRecord(FailureMode.ModalMount),
-            FailureRecord(FailureMode.ModalClose),
-            FailureRecord(FailureMode.MissingMeasure),
-            FailureRecord(FailureMode.Measure),
-            FailureRecord(FailureMode.MissingPaint),
-            FailureRecord(FailureMode.Paint),
-            FailureRecord(FailureMode.FrameComplete),
-            FailureRecord(FailureMode.LazyBuild),
-            FailureRecord(FailureMode.LazyMount),
-            FailureRecord(FailureMode.LazyMeasure),
-            FailureRecord(FailureMode.LazyMissingPaint),
-            FailureRecord(FailureMode.LazyMissingPinned),
-            FailureRecord(FailureMode.LateUpdate)
-        ]
+internal class FailureHarness : ApplicationHandler {
+    val records: Array<FailureRecord> = [
+        FailureRecord(FailureMode.Factory),
+        FailureRecord(FailureMode.Render),
+        FailureRecord(FailureMode.Mount),
+        FailureRecord(FailureMode.Update),
+        FailureRecord(FailureMode.DuplicateKey),
+        FailureRecord(FailureMode.DuplicateInstance),
+        FailureRecord(FailureMode.RetiredComponent),
+        FailureRecord(FailureMode.RetiredElement),
+        FailureRecord(FailureMode.RetiredLazy),
+        FailureRecord(FailureMode.PortalHandle),
+        FailureRecord(FailureMode.PortalCycle),
+        FailureRecord(FailureMode.ModalMount),
+        FailureRecord(FailureMode.ModalClose),
+        FailureRecord(FailureMode.MissingMeasure),
+        FailureRecord(FailureMode.Measure),
+        FailureRecord(FailureMode.MissingPaint),
+        FailureRecord(FailureMode.Paint),
+        FailureRecord(FailureMode.FrameComplete),
+        FailureRecord(FailureMode.LazyBuild),
+        FailureRecord(FailureMode.LazyMount),
+        FailureRecord(FailureMode.LazyMeasure),
+        FailureRecord(FailureMode.LazyMissingPaint),
+        FailureRecord(FailureMode.LazyMissingItem),
+        FailureRecord(FailureMode.LazyMissingPinned),
+        FailureRecord(FailureMode.LateUpdate)
+    ]
     var index = 0L
     private var resumed = false
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> resumed = true
-            case NewEvents(StartCause.Deadline) -> fail(
-                Some("UI failure test deadline at case " + index.toString())
-            )
+            case NewEvents(StartCause.Deadline) ->
+                fail(
+                    Some("UI failure test deadline at case " + index.toString())
+                )
             else -> {}
         }
         val record = records[index]
         when (record.host) {
-            case None -> record.host =
-                Some(
-                    UiHost {
-                        host,
-                        active,
-                        _ -> if (resumed) {
+            case None ->
+                record.host = Some(
+                    UiHost { host, active, _ ->
+                        if (resumed) {
                             if (!record.started)
                                 start(host, active, record)
                             else
@@ -147,8 +145,7 @@ internal class FailureHarness: ApplicationHandler {
         try {
             record.host!!.onEvent(application, event)
         } catch (error: Throwable) {
-            if (record.mode == FailureMode.LateUpdate)
-                throw error
+            if (record.mode == FailureMode.LateUpdate) throw error
             verifyFailure(record, error)
             assertTrue(record.host!!.isClosed)
             record.window!!.requestDestroy()
@@ -156,18 +153,17 @@ internal class FailureHarness: ApplicationHandler {
         }
     }
     private fun start(host: UiHost, application: ActiveApplication, record: FailureRecord) {
-        val visible =
-            when (record.mode) {
-                case MissingMeasure -> true
-                case Measure -> true
-                case MissingPaint -> true
-                case Paint -> true
-                case FrameComplete -> true
-                case ModalClose -> true
-                else -> record.mode.isLazy
-            }
-        val native =
-            application.createWindow(
+        val visible = when (record.mode) {
+            case MissingMeasure -> true
+            case Measure -> true
+            case MissingPaint -> true
+            case Paint -> true
+            case FrameComplete -> true
+            case ModalClose -> true
+            else -> record.mode.isLazy
+        }
+        val native = application
+            .createWindow(
                 windowAttributes {
                     this.title = "Scoop UI failure"
                     this.size = LogicalSize(160.0, 100.0)
@@ -176,32 +172,33 @@ internal class FailureHarness: ApplicationHandler {
             )
         record.started = true
         record.window = Some(native)
-        if (visible)
-            native.setWindowLevel(WindowLevel.AlwaysOnTop)
+        if (visible) native.setWindowLevel(WindowLevel.AlwaysOnTop)
         record.view = Some(observeWindow(native))
-        application.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(8L))
-        )
-        when (record.mode) {
-            case Factory -> host.attach<FailureRoot>(
-                native,
-                {
-                    mount ->
-                    record.factoryFonts = Some(mount.defaultFonts)
-                    record.partialScope = Some(mount)
-                    record.partialArea = Some(mount.createArea(focusable = true))
-                    mount.resource { FailureImage(record, "factory") }
-                    throw record.primary
-                }
+        application
+            .setControlFlow(
+                ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(8L))
             )
+        when (record.mode) {
+            case Factory ->
+                host
+                    .attach<FailureRoot>(
+                        native,
+                        { mount ->
+                            record.factoryFonts = Some(mount.defaultFonts)
+                            record.partialScope = Some(mount)
+                            record.partialArea = Some(mount.createArea(focusable = true))
+                            mount.resource { FailureImage(record, "factory") }
+                            throw record.primary
+                        }
+                    )
             case RetiredComponent -> reuseRetired(host, application, native, record)
             case RetiredElement -> reuseRetired(host, application, native, record)
             case RetiredLazy -> reuseRetired(host, application, native, record)
             else -> host.attach(native, { mount -> FailureRoot(record, scope = mount) })
         }
         if (record.mode == FailureMode.LateUpdate) {
-            val second =
-                application.createWindow(
+            val second = application
+                .createWindow(
                     windowAttributes {
                         this.title = "Scoop UI failure companion"
                         this.visible = false
@@ -232,15 +229,13 @@ private fun verifyFailure(record: FailureRecord, error: Throwable) {
         case PortalHandle -> assertTrue(error is IllegalArgumentException)
         case PortalCycle -> assertTrue(error is IllegalStateException)
         case LazyMissingPaint -> assertTrue(error is IllegalStateException)
+        case LazyMissingItem -> assertTrue(error is IllegalStateException)
         case LazyMissingPinned -> assertTrue(error is IllegalStateException)
         else -> assertTrue(containsFailure(error, record.primary))
     }
     if (record.mode.isLazy) {
         assertEquals(
-            if (record.mode == FailureMode.LazyBuild)
-                1L
-            else
-                2L,
+            if (record.mode == FailureMode.LazyBuild) 1L else 2L,
             record.lazyItems.size
         )
         assertEquals(1, record.rootMounts)
@@ -249,23 +244,19 @@ private fun verifyFailure(record: FailureRecord, error: Throwable) {
         for (item in record.lazyItems) {
             assertTrue(item.area!!.isClosed)
             assertEquals(
-                if (record.mode == FailureMode.LazyMount && item.index == 1L)
-                    0
-                else
-                    1,
+                if (record.mode == FailureMode.LazyMount && item.index == 1L) 0 else 1,
                 item.unmounts
             )
         }
     }
-    if (
+    if (record.mode ==
+        FailureMode.PortalHandle ||
         record.mode ==
-            FailureMode.PortalHandle ||
-            record.mode ==
-            FailureMode.PortalCycle ||
-            record.mode ==
-            FailureMode.ModalMount ||
-            record.mode ==
-            FailureMode.ModalClose
+        FailureMode.PortalCycle ||
+        record.mode ==
+        FailureMode.ModalMount ||
+        record.mode ==
+        FailureMode.ModalClose
     ) {
         assertEquals(1, record.overlayCloses)
         assertFalse(record.overlay.isAttached)
@@ -282,15 +273,14 @@ private fun verifyFailure(record: FailureRecord, error: Throwable) {
         assertEquals("dispose root", record.log[0L])
         assertEquals("close root", record.log[1L])
     }
-    if (
+    if (record.mode ==
+        FailureMode.Render ||
         record.mode ==
-            FailureMode.Render ||
-            record.mode ==
-            FailureMode.Factory ||
-            record.mode ==
-            FailureMode.DuplicateKey ||
-            record.mode ==
-            FailureMode.DuplicateInstance
+        FailureMode.Factory ||
+        record.mode ==
+        FailureMode.DuplicateKey ||
+        record.mode ==
+        FailureMode.DuplicateInstance
     ) {
         assertEquals(0, record.rootMounts)
         assertEquals(0, record.rootUnmounts)
@@ -305,8 +295,7 @@ private fun verifyFailure(record: FailureRecord, error: Throwable) {
 }
 
 private fun containsFailure(error: Throwable, expected: Throwable): Boolean {
-    if (error === expected)
-        return true
+    if (error === expected) return true
     if (error is ResourceUseException)
         return containsFailure(error.primaryFailure, expected) ||
             containsFailure(error.cleanupFailure, expected)
@@ -314,8 +303,7 @@ private fun containsFailure(error: Throwable, expected: Throwable): Boolean {
 }
 
 private fun failureCount(error: Throwable, expected: Throwable): Int {
-    if (error === expected)
-        return 1
+    if (error === expected) return 1
     if (error is ResourceUseException)
         return failureCount(error.primaryFailure, expected) +
             failureCount(error.cleanupFailure, expected)
