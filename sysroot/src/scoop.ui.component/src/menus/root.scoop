@@ -196,10 +196,7 @@ internal class MenuRoot(private val scope: ComponentScope, private val read: () 
                 case Context(val view) -> semanticContent(
                     view,
                     SemanticRole.Group,
-                    SemanticProperties(
-                        enabled = input.options.enabled,
-                        expanded = Some(open.value)
-                    ),
+                    SemanticProperties(expanded = Some(open.value)),
                     SemanticActions(
                         showContextMenu = Some { semanticOpen(true) },
                         setExpanded = Some { value -> semanticOpen(value) }
@@ -293,6 +290,7 @@ public fun dropdownMenu(
     configure: DropdownMenuBuilder.() -> Unit = {}
 ): View = makeDropdownMenu(open, content, configure)
 
+/** Adds context-menu entry points without changing the enabled state of the wrapped content. */
 public fun contextMenu(
     content: View,
     menu: MenuContent,

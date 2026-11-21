@@ -136,7 +136,12 @@ internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentSc
                         )
                     onSelectionChanged = { _, _ -> probe.typographyChanges += 1 }
                 },
-                fieldSemanticsView(probe.fields),
+                contextMenu(
+                    fieldSemanticsView(probe.fields),
+                    menu {
+                        item(ViewKey.Text("inspect-fields"), "Inspect", { probe.outerClicks += 1 })
+                    }
+                ) { enabled = false },
                 scrollArea(label("Scrollable content")) {
                     state = Some(probe.scrollState)
                     width = Some(160.0)
