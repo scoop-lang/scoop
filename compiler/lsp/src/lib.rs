@@ -8,3 +8,4 @@ mod worker;
 mod workspace;
 
 pub use server::run_stdio;
+pub use workspace::WorkspacePurpose;

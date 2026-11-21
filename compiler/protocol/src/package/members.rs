@@ -1,5 +1,18 @@
 use super::*;
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PackageLockedPurposesV1 {
+    pub version: u32,
+    pub purposes: BTreeMap<String, Vec<CompilationPurpose>>,
+}
+
+impl PackageLockedPurposesV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        validate::version(self.version)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PackageMembersV1 {

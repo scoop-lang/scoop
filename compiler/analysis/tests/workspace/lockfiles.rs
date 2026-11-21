@@ -74,7 +74,7 @@ fn initial_workspace_lock_covers_all_members_and_configurations() {
     let mut testing = production.clone();
     testing.name = "linux-tests".into();
     testing.target = scoop_toolchain::select_target("x86_64-unknown-linux-gnu").unwrap();
-    testing.purpose = CompilationPurpose::Test;
+    testing.purpose = Some(CompilationPurpose::Test);
     let configurations = [production, testing];
     let mut host = AnalysisHost::default();
     let mut loader = WorkspaceLoader::default();
@@ -98,6 +98,73 @@ fn initial_workspace_lock_covers_all_members_and_configurations() {
     for member in ["app", "core", "other"] {
         assert!(!root.join(member).join("Cone.lock").exists());
     }
+}
+
+#[test]
+fn automatic_workspace_uses_each_members_locked_purposes() {
+    let directory = tempfile::tempdir_in(std::env::temp_dir().canonicalize().unwrap()).unwrap();
+    let root = directory.path();
+    let mut configuration = workspace(root);
+    let app_manifest = root.join("app/Cone.toml");
+    let text = std::fs::read_to_string(&app_manifest).unwrap();
+    std::fs::write(
+        app_manifest,
+        text + "[test-dependencies]\n 'test:other' = {path = '../other'}\n",
+    )
+    .unwrap();
+    let tests = write(root, "app/tests/check.scoop", "fun check() {}\n");
+    let mut app = configuration.clone();
+    app.root = root.join("app");
+    resolve(&app);
+    app.purpose = Some(CompilationPurpose::Test);
+    resolve(&app);
+    app.root = root.join("other");
+    resolve(&app);
+
+    configuration.purpose = None;
+    let lockfile = root.join("Cone.lock");
+    let before = contents_and_modified(&lockfile);
+    let mut host = AnalysisHost::default();
+    let mut loader = WorkspaceLoader::default();
+    let inputs = loader.load(
+        &mut host,
+        std::slice::from_ref(&configuration),
+        &BTreeSet::new(),
+        Some(configuration.name.clone()),
+    );
+    assert!(inputs.diagnostics.is_empty(), "{:?}", inputs.diagnostics);
+    assert_eq!(inputs.projects.len(), 3);
+    for (file, owner, purpose) in [
+        (
+            root.join("app/src/value.scoop"),
+            "app",
+            CompilationPurpose::Production,
+        ),
+        (tests, "app", CompilationPurpose::Test),
+        (
+            root.join("other/src/other.scoop"),
+            "other",
+            CompilationPurpose::Test,
+        ),
+        (
+            root.join("core/src/core.scoop"),
+            "app",
+            CompilationPurpose::Production,
+        ),
+    ] {
+        let source = host.file_source(&file).unwrap();
+        let project = inputs.project_for_source(source).unwrap();
+        assert_eq!(project.configuration.root, root.join(owner));
+        assert_eq!(project.purpose, purpose);
+    }
+    let refreshed = loader.load(
+        &mut host,
+        std::slice::from_ref(&configuration),
+        &BTreeSet::new(),
+        Some(configuration.name.clone()),
+    );
+    assert_eq!(refreshed, inputs);
+    assert_eq!(contents_and_modified(&lockfile), before);
 }
 
 #[test]

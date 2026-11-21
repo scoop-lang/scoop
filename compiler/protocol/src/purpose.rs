@@ -3,7 +3,9 @@
 use scoop_wire::cbor::{Decoder, Encoder};
 use scoop_wire::{WireDecode, WireEncode, WireError};
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum CompilationPurpose {
     #[default]

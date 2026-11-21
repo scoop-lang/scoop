@@ -1,8 +1,49 @@
 use scoop_pm::lockfile::{Lockfile, Purpose};
+use scoop_protocol::{CompilationPurpose, package::PackageLockedPurposesV1};
+use std::{collections::BTreeMap, path::Path};
 
 use super::*;
 
 mod why;
+
+#[derive(Args)]
+pub(super) struct LockedPurposesArgs {
+    lockfile: PathBuf,
+    #[arg(long)]
+    target: String,
+}
+
+pub(super) fn locked_purposes(args: LockedPurposesArgs) -> PmResult<()> {
+    let target = scoop_toolchain::select_target(&args.target)
+        .map_err(|error| PmError::new(error.code(), error.to_string()))?;
+    let triple = target.target().contract().canonical_triple();
+    let mut purposes = BTreeMap::<_, Vec<_>>::new();
+    for resolution in read_lockfile(&args.lockfile)?.resolutions {
+        if resolution.target == triple {
+            purposes
+                .entry(resolution.root)
+                .or_default()
+                .push(match resolution.purpose {
+                    Purpose::Production => CompilationPurpose::Production,
+                    Purpose::Test => CompilationPurpose::Test,
+                });
+        }
+    }
+    for purposes in purposes.values_mut() {
+        purposes.sort_by_key(|purpose| *purpose == CompilationPurpose::Test);
+    }
+    let result = PackageLockedPurposesV1 {
+        version: PACKAGE_PROTOCOL_VERSION,
+        purposes,
+    };
+    println!(
+        "{}",
+        serde_json::to_string(&result).map_err(|error| {
+            PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string())
+        })?
+    );
+    Ok(())
+}
 
 #[derive(Args)]
 pub(super) struct DepsArgs {
@@ -36,16 +77,7 @@ pub(super) fn execute(args: DepsArgs) -> PmResult<()> {
         .lockfile
         .map(|path| cwd.join(path))
         .unwrap_or_else(|| workspace.root.join("Cone.lock"));
-    let lock = Lockfile::read(&path)?.ok_or_else(|| {
-        PmError::new(
-            scoop_source::DiagnosticCode::E2111,
-            format!("{} does not exist", path.display()),
-        )
-        .with_help(
-            scoop_source::DiagnosticCode::H2101,
-            "resolve dependencies first".to_string(),
-        )
-    })?;
+    let lock = read_lockfile(&path)?;
     let target = match args.target {
         Some(target) => target,
         None => scoop_toolchain::host_target_triple()
@@ -110,4 +142,17 @@ pub(super) fn execute(args: DepsArgs) -> PmResult<()> {
         }
     }
     Ok(())
+}
+
+fn read_lockfile(path: &Path) -> PmResult<Lockfile> {
+    Lockfile::read(path)?.ok_or_else(|| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2111,
+            format!("{} does not exist", path.display()),
+        )
+        .with_help(
+            scoop_source::DiagnosticCode::H2101,
+            "resolve dependencies first",
+        )
+    })
 }

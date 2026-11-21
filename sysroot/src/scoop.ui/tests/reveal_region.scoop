@@ -6,9 +6,25 @@ import scoop.test.*
 @Test
 private class ScrollRevealRegionTest {
     @Test
+    fun `axis projection leaves an orthogonal offscreen target for its ancestor`() {
+        val region = Rect(0.0, 32.0, 200.0, 168.0)
+        val right = Rect(400.0, 24.0, 80.0, 40.0)
+        assertEquals(Some(Rect(400.0, 32.0, 80.0, 32.0)), projectReveal(right, region, false, true))
+        assertEquals(None, projectReveal(right, region, true, true))
+        assertEquals(None, projectReveal(Rect(400.0, 240.0, 80.0, 40.0), region, false, true))
+        assertEquals(
+            Some(Rect(10.0, 260.0, 80.0, 40.0)),
+            projectReveal(Rect(10.0, 260.0, 80.0, 40.0), region, true, false)
+        )
+        assertEquals(Some(right), projectReveal(right, region, false, false))
+    }
+    @Test
     fun `center cells reveal between fixed columns and below the header`() {
-        val snapshot =
-            ScrollSnapshot(Point(0.0, 0.0), Size(640.0, 320.0), Size(27000.0, 2800000032.0))
+        val snapshot = ScrollSnapshot(
+            Point(0.0, 0.0),
+            Size(640.0, 320.0),
+            Size(27000.0, 2800000032.0)
+        )
         assertEquals(
             Point(22040.0, 1399740.0),
             scrollRegionOffset(
@@ -37,8 +53,11 @@ private class ScrollRevealRegionTest {
     }
     @Test
     fun `frozen cells retain the disabled axis and obey the real extent`() {
-        val snapshot =
-            ScrollSnapshot(Point(12340.0, 0.0), Size(640.0, 320.0), Size(27000.0, 10000.0))
+        val snapshot = ScrollSnapshot(
+            Point(12340.0, 0.0),
+            Size(640.0, 320.0),
+            Size(27000.0, 10000.0)
+        )
         assertEquals(
             Point(12340.0, 9680.0),
             scrollRegionOffset(
@@ -79,13 +98,12 @@ private class ScrollRevealRegionTest {
                 ScrollAlignment.Nearest
             )
         )
-        val padded =
-            ScrollSnapshot(
-                Point(20.0, 30.0),
-                Size(100.0, 80.0),
-                Size(212.0, 314.0),
-                ScrollPadding(left = 12.0, bottom = 14.0)
-            )
+        val padded = ScrollSnapshot(
+            Point(20.0, 30.0),
+            Size(100.0, 80.0),
+            Size(212.0, 314.0),
+            ScrollPadding(left = 12.0, bottom = 14.0)
+        )
         val rect = Rect(90.0, 90.0, 20.0, 20.0)
         for (
             alignment in [

@@ -149,7 +149,11 @@ fn purpose_target_and_input_failures_are_explicit() {
         "app/tests/local.scoop",
         "package test.editor\nfun testOnly(): Int = 9\n",
     );
-    let production = query(root, &["workspace-symbols", "testOnly"], None);
+    let production = query(
+        root,
+        &["workspace-symbols", "testOnly", "--purpose", "production"],
+        None,
+    );
     assert_eq!(production["status"], "empty");
     let tests = query(
         root,

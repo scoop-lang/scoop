@@ -224,11 +224,12 @@
         "scoop.purpose": {
           "type": "string",
           "enum": [
+            "auto",
             "production",
             "test"
           ],
-          "default": "production",
-          "description": "Analyze production sources or include the root Cone tests.",
+          "default": "auto",
+          "description": "Use each Cone's locked production and test views, or select a single compilation purpose.",
           "scope": "window"
         },
         "scoop.artifactSearchRoots": {
@@ -273,6 +274,7 @@
               "purpose": {
                 "type": "string",
                 "enum": [
+                  "auto",
                   "production",
                   "test"
                 ]

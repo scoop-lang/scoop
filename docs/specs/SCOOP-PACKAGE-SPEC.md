@@ -349,7 +349,9 @@ LSP 使用同一已展开数据模型。加载项目时，先通过 PM 的 membe
 
 `members --overlays-stdin` 与 `metadata --offline --overlays-stdin` 为编辑器接收未保存的清单文本。stdin 是版本 10 JSON：`version` 与 `manifests` 数组，每项含无损绝对 host `path` 及 UTF-8 `text`；路径必须指向 `Cone.toml` 且不重复。PM 对这些本地 workspace/path/Git 清单使用同一解析、继承和锁定匹配规则，关闭 buffer 后恢复磁盘输入。覆盖文本不写回清单、lock、共享源码或持久准备记录；未覆盖的输入继续复用既有缓存。metadata 的此模式强制离线，只接受现有锁定选择；新增或改变依赖导致 lock 不适用时提示保存后 resolve。成员发现仍可在无 lock 时工作，新增但未保存的成员清单沿普通本地路径参与发现。原路径与覆盖文本保留给诊断，不生成临时源码树。
 
-LSP 在 workspace 根打开时发现全部成员，并为各成员独立取得所选 target/purpose 的锁定图；显式成员目录只选择该成员。同一次加载发现 lock 缺失时，共用该 lock 的各成员和配置都执行上述初始化，不因第一个成员创建了文件而漏掉其余记录。某成员解析失败、缺少适用记录或本地依赖时，仅该成员的依赖语义不可用，本地源码、语法诊断和 workspace 符号仍可使用，不能以猜测的版本或空依赖图冒充已解析项目。首次 lock 只依据磁盘清单生成；未保存文本继续仅作为随后 members/metadata 的覆盖输入，不写入 lock。已安装系统库的源码导航也使用 members 提供的源码选择，不为导航解析依赖。`Cone.lock` 与清单、源码和产物共同参与文件监听；已有 lock 的依赖准备仍由用户显式 resolve/fetch/build 触发。LSP 的 `packageManager` 默认取实际 scoop-lsp 同目录的 scoop-pm，`packageCacheDir` 与 `lockfile` 可显式配置，均沿配置根解析相对路径。
+LSP 在 workspace 根打开时发现全部成员，显式成员目录只选择该成员。`purpose` 默认为 `auto`，从已有 lock 为各成员独立加载当前 target 下已记录的 production 和 test 图。`scoop-pm locked-purposes <lockfile> --target <target>` 返回 `version` 及由成员相对路径映射到用途列表的 `purposes`。编辑器据此选择 metadata 请求，成员的实际配置与依赖由 `metadata --offline` 提供。默认模式下，只作为其他已加载图的源码依赖使用的成员可以使用该图中的生产输入。显式选择 `production` 或 `test` 时要求对应的独立记录。
+
+同一次加载发现 lock 缺失时，共用该 lock 的各成员和配置都执行初始化。`auto` 此时初始化 production 图。实际记录无法加载时报告该记录的问题。缺少适用记录及可用源码依赖输入的成员同样报告诊断。本地源码、语法诊断和 workspace 符号仍可使用，其他成员的图独立加载。首次 lock 只依据磁盘清单生成，未保存文本仅作为随后 members/metadata 的覆盖输入。已安装系统库的源码导航也使用 members 提供的源码选择。`Cone.lock` 与清单、源码和产物共同参与文件监听。已有 lock 的依赖准备仍由显式 resolve/fetch/build 触发。LSP 的 `packageManager` 默认取实际 scoop-lsp 同目录的 scoop-pm，`packageCacheDir` 与 `lockfile` 可显式配置，均沿配置根解析相对路径。
 
 `members --json` 的格式 10 同样由 `scoop-protocol` 定义：返回 workspace root、所有成员的 coordinate/kind/相对路径/本地目录/清单路径、selected 标记、生产/测试 SourceSelection 及第 2 节的 metadata/bundle；本地路径使用无损 host path 载体。formatter 消费所选成员的源码集合，clean 使用 workspace root 定位统一 target；两者不调用 prepare，不创建或读取 lock。JSON 失败默认使用与 prepare 相同的结构化诊断记录，也可显式选择文本诊断。`fmt` 支持 `--workspace` 和可重复 `-p`，成员选择只接受一个 workspace 输入；多个显式文件仍可合并格式化。显式 `.scoop` 文件模式独立于 PM。
 
@@ -460,6 +462,7 @@ Swift 原生库第一阶段实现后，源码包同样包含 `native.swift.packa
 | `scoop pm fetch` | 按现有 lock 获取所选闭包；相当于只准备依赖的 locked 模式，不编译 |
 | `scoop pm update [--package group:name] [--precise value]` | 对所选解析单位更新版本/ref，显示 lock 的变化 |
 | `scoop pm deps [--why group:name] [--json]` | 只读现有精确图和本地约束说明；缺少适用lock则提示resolve，不隐式更新 |
+| `scoop pm locked-purposes <lockfile> --target <target>` | 供编辑器用 JSON 读取已有 lock 在指定目标下的成员用途 |
 | `scoop pm metadata [--offline]` | 按locked规则返回第7节的数据，不改写lock；offline时也不下载，缺少必需来源则提示fetch |
 | `scoop pm package [--list] [--check]` | 下一阶段：生成或检查源码包 |
 

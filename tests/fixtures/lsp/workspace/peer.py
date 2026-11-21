@@ -385,7 +385,7 @@ def main():
         )
         peer.notify(
             "workspace/didChangeConfiguration",
-            {"settings": {"scoop": {**options, "target": other}}},
+            {"settings": {"scoop": {**options, "target": other, "purpose": "production"}}},
         )
         symbols()
         unresolved = peer.diagnostics[manifest]["diagnostics"][0]

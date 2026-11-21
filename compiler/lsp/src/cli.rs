@@ -10,6 +10,8 @@ use std::{io::Write, path::PathBuf};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::json;
 
+use scoop_lsp::WorkspacePurpose;
+
 #[derive(Parser)]
 #[command(name = "scoop-lsp", version = scoop_toolchain::VERSION, about = "Scoop language server and one-shot source queries", args_conflicts_with_subcommands = true)]
 struct Cli {
@@ -37,8 +39,9 @@ struct Query {
     /// Target triple used to select conditional sources and dependencies.
     #[arg(long, global = true)]
     target: Option<String>,
-    #[arg(long, global = true, value_enum, default_value = "production")]
-    purpose: Purpose,
+    /// Analyze locked purposes automatically, or select a single compilation purpose.
+    #[arg(long, global = true, value_enum, default_value_t = WorkspacePurpose::default())]
+    purpose: WorkspacePurpose,
     /// Companion PM executable; defaults to scoop-pm beside this server.
     #[arg(long, global = true)]
     package_manager: Option<PathBuf>,
@@ -58,12 +61,6 @@ struct Query {
     format: Format,
     #[command(subcommand)]
     kind: QueryKind,
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-enum Purpose {
-    Production,
-    Test,
 }
 
 #[derive(Clone, Copy, ValueEnum)]

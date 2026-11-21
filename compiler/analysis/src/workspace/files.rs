@@ -7,7 +7,7 @@ use std::{
 
 use scoop_identity::ConeIdentity;
 use scoop_manifest::LoadedConeManifest;
-use scoop_protocol::package::ExpandedConeInputV1;
+use scoop_protocol::{CompilationPurpose, package::ExpandedConeInputV1};
 use scoop_source::{SourceId, SourceText};
 
 use super::LoadError;
@@ -36,7 +36,7 @@ impl FileStamp {
 #[derive(Default)]
 pub(super) struct FileInputs {
     disk: HashMap<PathBuf, (FileStamp, SourceText)>,
-    manifests: HashMap<(String, ConeIdentity, PathBuf), ManifestInput>,
+    manifests: HashMap<(String, ConeIdentity, CompilationPurpose, PathBuf), ManifestInput>,
 }
 
 struct ManifestInput {
@@ -77,12 +77,13 @@ impl FileInputs {
         host: &mut AnalysisHost,
         configuration: &str,
         root: ConeIdentity,
+        purpose: CompilationPurpose,
         config: ExpandedConeInputV1,
     ) -> Result<Arc<LoadedConeManifest>, LoadError> {
         let path = config.manifest_path.to_path_buf().map_err(|error| {
             LoadError::new(scoop_source::DiagnosticCode::E2502, PathBuf::new(), error)
         })?;
-        let key = (configuration.to_owned(), root, path.clone());
+        let key = (configuration.to_owned(), root, purpose, path.clone());
         host.set_file_text(path.clone(), SourceText::new(config.manifest_text.clone()));
         if let Some(previous) = self.manifests.get(&key)
             && previous.config == config

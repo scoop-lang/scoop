@@ -27,6 +27,97 @@ def run(args):
     return result.stdout.strip()
 
 
+def check_mixed_purposes(server, package_manager, root, sysroot, target, cache):
+    write(
+        root,
+        "Cone.toml",
+        'schema = 1\n[workspace]\nmembers = ["app", "checks", "support"]\ndefault-members = ["app"]\n',
+    )
+    write(root, "app/Cone.toml", manifest("app"))
+    write(root, "app/src/app.scoop", "fun application(): Boolean = true\n")
+    write(
+        root,
+        "checks/Cone.toml",
+        manifest("checks") + '[test-dependencies]\n"test:support" = {path = "../support"}\n',
+    )
+    write(root, "checks/src/package.scoop", "package checks\n")
+    text = "package checks\nimport support.answer\nfun testScenario(): Boolean = answer()\n"
+    source = write(root, "checks/tests/scenario.scoop", text)
+    write(root, "support/Cone.toml", manifest("support"))
+    support = write(
+        root, "support/src/answer.scoop", "package support\npublic fun answer(): Boolean = true\n"
+    )
+    for purpose, member in (("production", "app"), ("test", "checks")):
+        run(
+            [
+                package_manager,
+                "resolve",
+                str(root),
+                "--offline",
+                "-p",
+                f"test:{member}",
+                "--purpose",
+                purpose,
+                "--target",
+                target,
+                "--sysroot",
+                sysroot,
+                "--package-cache-dir",
+                str(cache),
+            ]
+        )
+    lock = root / "Cone.lock"
+    before = (lock.read_bytes(), lock.stat().st_mtime_ns)
+    options = {
+        "target": target,
+        "sysroot": sysroot,
+        "packageManager": package_manager,
+        "packageCacheDir": str(cache),
+    }
+    peer = Peer(server, package_manager, sysroot, target, cache)
+    try:
+        peer.request(
+            "initialize",
+            {
+                "processId": None,
+                "capabilities": {},
+                "workspaceFolders": [{"name": "mixed", "uri": root.as_uri()}],
+                "initializationOptions": options,
+            },
+        )
+        peer.notify("initialized", {})
+        symbols = peer.request("workspace/symbol", {"query": "testScenario"})
+        assert [item["location"]["uri"] for item in symbols] == [source.as_uri()], symbols
+        assert not peer.diagnostics, peer.diagnostics
+
+        params = {
+            "textDocument": {"uri": source.as_uri()},
+            "position": {"line": 2, "character": text.splitlines()[2].index("answer")},
+        }
+        definition = peer.request("textDocument/definition", params)
+        assert definition["uri"] == support.as_uri(), definition
+
+        peer.notify(
+            "workspace/didChangeConfiguration",
+            {"settings": {"scoop": {**options, "purpose": "production"}}},
+        )
+        assert peer.request("textDocument/definition", params) is None
+        error = peer.diagnostics[(root / "checks/Cone.toml").as_uri()]["diagnostics"][0]
+        assert error["code"] == "E2111" and "no locked resolution" in error["message"], error
+
+        peer.notify("workspace/didChangeConfiguration", {"settings": {"scoop": options}})
+        assert peer.request("textDocument/definition", params) == definition
+        assert all(not entry["diagnostics"] for entry in peer.diagnostics.values()), (
+            peer.diagnostics
+        )
+        assert (lock.read_bytes(), lock.stat().st_mtime_ns) == before
+        peer.finish()
+    finally:
+        if peer.process.poll() is None:
+            peer.process.kill()
+            peer.process.wait(timeout=10)
+
+
 def main():
     server, package_manager, directory, sysroot, target = sys.argv[1:]
     work = Path(directory)
@@ -196,6 +287,9 @@ def main():
         if peer.process.poll() is None:
             peer.process.kill()
             peer.process.wait(timeout=10)
+    check_mixed_purposes(
+        server, package_manager, (work / "mixed").resolve(), sysroot, target, cache
+    )
     print("locked workspace inputs passed")
 
 

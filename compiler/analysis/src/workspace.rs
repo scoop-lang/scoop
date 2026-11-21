@@ -24,7 +24,8 @@ pub struct ProjectConfiguration {
     pub name: String,
     pub root: PathBuf,
     pub target: ValidatedLirTargetSelection,
-    pub purpose: CompilationPurpose,
+    /// None selects the purposes recorded for each member in the lockfile.
+    pub purpose: Option<CompilationPurpose>,
     pub sysroot: PathBuf,
     pub artifact_search_roots: Vec<PathBuf>,
     pub package_manager: PathBuf,
@@ -117,6 +118,7 @@ impl ConeInput {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectInput {
     pub configuration: ProjectConfiguration,
+    pub purpose: CompilationPurpose,
     pub root: ConeIdentity,
     pub cones: BTreeMap<ConeIdentity, ConeInput>,
     pub artifact_sources: BTreeMap<SourceIdentity, ProjectSource>,
@@ -175,11 +177,19 @@ pub struct LocalMemberInput {
 impl WorkspaceInputs {
     /// The selected configuration owns semantic results; text can be shared.
     pub fn project_for_source(&self, source: SourceId) -> Option<&ProjectInput> {
-        let mut candidates = self
-            .projects
-            .iter()
-            .filter(|project| project.source_cone(source).is_some());
+        let candidates = self.projects.iter().filter_map(|project| {
+            let (cone, _) = project.source_cone(source)?;
+            Some((project, cone == project.root))
+        });
         if let Some(active) = &self.active_configuration {
+            let selected = preferred_project(
+                candidates
+                    .clone()
+                    .filter(|(project, _)| project.configuration.name == *active),
+            );
+            if let Some((project, true)) = selected {
+                return Some(project);
+            }
             if self.unresolved_members.iter().any(|member| {
                 member.configuration == *active
                     && member.sources.iter().any(|file| file.source == source)
@@ -197,14 +207,11 @@ impl WorkspaceInputs {
             {
                 return None;
             }
-            if let Some(project) = candidates
-                .clone()
-                .find(|project| project.configuration.name == *active)
-            {
+            if let Some((project, _)) = selected {
                 return Some(project);
             }
         }
-        candidates.next()
+        preferred_project(candidates).map(|(project, _)| project)
     }
 
     pub(crate) fn unresolved_for_source(&self, source: SourceId) -> Option<&LocalMemberInput> {
@@ -236,6 +243,25 @@ impl WorkspaceInputs {
         }
         candidates.next()
     }
+}
+
+fn preferred_project<'a>(
+    mut candidates: impl Iterator<Item = (&'a ProjectInput, bool)>,
+) -> Option<(&'a ProjectInput, bool)> {
+    let first = candidates.next()?;
+    let mut best = first;
+    for candidate in std::iter::once(first).chain(
+        candidates
+            .take_while(|(project, _)| project.configuration.name == first.0.configuration.name),
+    ) {
+        if candidate.1 && candidate.0.complete {
+            return Some(candidate);
+        }
+        if (candidate.1, candidate.0.complete) > (best.1, best.0.complete) {
+            best = candidate;
+        }
+    }
+    Some(best)
 }
 
 #[derive(Clone, Debug)]
