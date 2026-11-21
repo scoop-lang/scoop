@@ -130,7 +130,7 @@ AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；
 
 跨进程 AX 引用不会替应用保留提供方的 Objective-C 对象。AppKit 按需保留已经导出的行、单元格和列代理，直至对应逻辑实体退休或 provider 关闭，不能在返回属性数组后立即释放。代理对集合、行和树的反向引用不形成所有权环；退休时撤销缓存并发布适用的销毁通知。未查询项目仍不创建代理，显式枚举全部数据可以产生相应数量的轻量代理，但不能构造全部 View。
 
-集合选择由同一发布快照的 `SemanticCollectionSelection(keys, multiple, required)` 描述。keys 只列实际选中且属于该快照的稳定 key；原生查询不为取得选中项扫描整个集合。`setSelected(key, value)` 经原业务选择入口确认采纳结果；没有选择模型时不声明 Selection 能力。
+集合选择由同一发布快照的 `SemanticCollectionSelection(keys, multiple, required)` 描述。keys 只列属于该快照的已选稳定 key；原生查询不为取得选中项扫描整个集合。`SemanticItemProperties.selectable` 缺省 true，允许总计、说明等条目明确设为 false，同时保留其 enabled、focusable 和阅读能力。false 优先于 selected 和集合选择快照：该条目不发布 selected 状态，不出现在原生选中项列表中，选择／取消选择返回 Unsupported 且不调用业务回调。选择列表发布只检查已选 key 的描述，描述暂不可用的项也不发布；不会为检查可选性枚举整个集合或创建 View。`setSelected(key, value)` 经原业务选择入口确认采纳结果；没有选择模型时不声明 Selection 能力。AppKit 的选择 setter 只在该行可用、可选择且有选择模型和回调时公布。
 
 `SemanticGrid` 给 Table 集合提供稳定列 key、标题及可选实际表头引用，并通过 `(rowKey, columnIndex)` 查询轻量单元格描述。行身份仍属于集合，单元格身份由行 key 和列 key 组成；索引只表示当前坐标。查询不构造 cell View，未知描述返回 Unavailable；列或行删除永久退休对应旧代理。已挂载单元格用 `SemanticTableCell` 声明真实行列位置与跨度，`SemanticTableSize` 描述静态表格尺寸。窗口层不缓存第二份业务表格。Table 和 List 共用集合的发布、按需代理及明确操作边界。
 

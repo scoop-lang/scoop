@@ -112,6 +112,8 @@ VirtualList 提供可选 itemSemantics，并默认绑定自身实际 ScrollViewp
 
 层级行通过 `SemanticItemProperties.hierarchyLevel` 声明从零开始的深度，通过 expanded 区分可展开行与普通叶项。`ItemSemantics.setExpanded` 接受稳定 ViewKey 与目标 Boolean，经现有 owner 动作边界调用应用模型；离屏行同样可执行，不要求 build 或取得焦点。`updateDataCollection` 对应的 `SemanticCollectionActions.setExpanded` 使用相同包装与资源寿命。原生能力随当前快照更新，禁用、删除、卸载及旧代理仍由 Window 的统一边界处理。
 
+同一集合中的总计、说明等不可选择项通过 `SemanticItemProperties(selectable = false)` 明确声明。它们仍可启用、朗读和聚焦，但集合的选择快照不为其补上 selected 状态，也不调用 setSelected。Lazy 集合和 updateDataCollection 使用相同合同；能力随当前描述更新，普通查询不执行 build。
+
 ### 6.2 Lazy 条目操作与暂时保留
 
 集合默认提供 Realize：经正常 owner 动作边界按 key 调用既有 LazyChildren 准备、挂载和语义发布，临时保留实例直到同步回调结束。仅创建所请求的行，不改变滚动位置或焦点；尚无 Accepted 场景时几何仍不可用。回调结束后恢复普通回收规则，不因原生代理或子对象被保留而固定整个 View。

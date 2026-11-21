@@ -157,9 +157,22 @@ int32_t scoop_ui_ax_flag(void *pointer, int32_t field) {
   case 18:
     return [node
         isAccessibilitySelectorAllowed:@selector(setAccessibilityExpanded:)];
+  case 19:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(isAccessibilitySelected)];
+  case 20:
+    return [node
+        isAccessibilitySelectorAllowed:@selector(setAccessibilitySelected:)];
+  case 21:
+    return [node isAccessibilitySelected];
   default:
     return 0;
   }
+}
+
+int64_t scoop_ui_ax_selected_count(void *pointer) {
+  id node = (__bridge id)pointer;
+  return (int64_t)[node accessibilitySelectedRows].count;
 }
 
 int64_t scoop_ui_ax_hierarchy_level(void *pointer) {

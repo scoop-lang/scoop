@@ -30,7 +30,9 @@ public struct SemanticItemProperties(
     val expanded: Boolean? = None,
     val focusable: Boolean = false,
     /** Zero-based hierarchy depth; absent for collections without a hierarchy. */
-    val hierarchyLevel: Long? = None
+    val hierarchyLevel: Long? = None,
+    /** Excludes this item from selection without disabling reading or focus. */
+    val selectable: Boolean = true
 )
 
 private fun checkItemProperties(properties: SemanticItemProperties) {
@@ -148,21 +150,30 @@ public class SemanticCollectionSnapshot public constructor(
     private fun described(key: SemanticItemKey, index: Long): SemanticItemResult {
         val properties = source.describe(index) ?: return SemanticItemResult.Unavailable
         checkItemProperties(properties)
+        val selected =
+            if (!properties.selectable)
+                None
+            else
+                when (selection) {
+                    case Some(val value) -> Some(value.contains(key))
+                    case None -> properties.selected
+                }
         val actual =
-            when (selection) {
-                case Some(val selected) -> SemanticItemProperties(
+            if (selected == properties.selected)
+                properties
+            else
+                SemanticItemProperties(
                     properties.name,
                     properties.description,
                     properties.automationId,
                     properties.value,
                     properties.enabled,
-                    Some(selected.contains(key)),
+                    selected,
                     properties.expanded,
                     properties.focusable,
-                    properties.hierarchyLevel
+                    properties.hierarchyLevel,
+                    properties.selectable
                 )
-                case None -> properties
-            }
         return SemanticItemResult.Found(SemanticItem(key, index, count, actual))
     }
 

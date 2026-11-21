@@ -9,7 +9,9 @@ private class CollectionSource(
     public override val search: SemanticItemSearch = SemanticItemSearch(name = true),
     private val unavailable: Long? = None,
     private val hierarchyLevel: Long? = None,
-    private val expanded: Boolean? = None
+    private val expanded: Boolean? = None,
+    private val selectable: Boolean = true,
+    private val focusable: Boolean = false
 ): SemanticCollectionSource {
     var descriptions = 0
     public override val count: Long get() = keys.size
@@ -30,7 +32,9 @@ private class CollectionSource(
                 automationId = Some(f"id-${index}"),
                 selected = Some(index == 1L),
                 hierarchyLevel = hierarchyLevel,
-                expanded = expanded
+                expanded = expanded,
+                selectable = selectable,
+                focusable = focusable
             )
         )
     }
@@ -44,6 +48,26 @@ private fun item(result: SemanticItemResult): SemanticItem =
 
 @Test
 private class SemanticCollectionTest {
+    @Test
+    fun `nonselectable items keep reading and focus without selection state`() {
+        val key = SemanticItemKey.Text("total")
+        val source = CollectionSource([key], [Some("Total")], selectable = false, focusable = true)
+        val selected = SemanticCollectionSnapshot(source, Some(SemanticCollectionSelection([key])))
+        val unselected = SemanticCollectionSnapshot(source, Some(SemanticCollectionSelection([])))
+        val plain = SemanticCollectionSnapshot(source)
+        assertEquals(0, source.descriptions)
+        for (snapshot in [selected, unselected, plain]) {
+            val properties = item(snapshot.itemForKey(key)).properties
+            assertEquals(Some("Total"), properties.name)
+            assertTrue(properties.enabled)
+            assertTrue(properties.focusable)
+            assertFalse(properties.selectable)
+            assertEquals(None, properties.selected)
+        }
+        assertEquals(3, source.descriptions)
+        assertTrue(SemanticItemProperties().selectable)
+    }
+
     @Test
     fun `selection keeps declared hierarchy metadata and invalid depth is rejected`() {
         val key = SemanticItemKey.Text("group")

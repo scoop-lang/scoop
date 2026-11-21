@@ -387,7 +387,14 @@ private fun publishCollectionDetails(pointer: Ptr<Unit>, node: AccessibilityNode
                     "publish collection selection"
                 )
             }
-            for (key in selected.keys)
+            for (key in selected.keys) {
+                when (source.itemForKey(key)) {
+                    case Found(val item) -> {
+                        if (!item.properties.selectable)
+                            continue
+                    }
+                    else -> continue
+                }
                 withCollectionKey(key) {
                     kind,
                     number,
@@ -407,6 +414,7 @@ private fun publishCollectionDetails(pointer: Ptr<Unit>, node: AccessibilityNode
                         )
                     }
                 }
+            }
         }
         case None -> {}
     }
