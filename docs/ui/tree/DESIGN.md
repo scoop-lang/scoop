@@ -43,7 +43,7 @@
 | `ScrollControl`／`ScrollViewport` | 复用滚轮、触摸、惯性和滚动条；纵向树视口保留唯一状态，表头／正文共享外层水平视口 |
 | `TableTracks`／`TableColumnSize`／`tableColumnResize` | 复用固定／比例／样本自动列宽及现有调宽手柄；Tree 只补树列、列状态与同级排序 |
 | `SceneContext.withScrollReveal` | 已能把正文显露区域限定在吸顶区下方，无须新增滚动状态或显露接口 |
-| `SceneContext.children` | 当前只支持全部子项的一次呈现及完整重排；需补按已布局条目分别呈现，以应用正文／吸顶的不同 clip 和显露区域 |
+| `SceneContext.item`／`children` | [PR #189](https://github.com/scoop-lang/scoop/pull/189) 已提供按已布局条目逐项呈现，与整体呈现互斥；正文／吸顶可使用不同 clip 和显露区域 |
 | `LazyFocus`／`ItemNavigation`／`Typeahead` | 复用真实焦点、按 key 准备和输入基础；补树形左右键与范围选择策略 |
 | `Checkbox`／`CheckState`／主题 | 复用三态视觉、交互和主题来源；级联规则属于 Tree 模型 |
 | `dragSource`／`dropTarget` | 复用真实输入与系统会话；Tree 计算层级落点和自动展开 |
