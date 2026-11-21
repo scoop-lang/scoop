@@ -988,7 +988,7 @@ post-install 使用 POSIX shell／PowerShell 和配套 `scoop`／`scoopc`，只�
 
 GitHub Release workflow 对版本 tag 构建 macOS AArch64、Windows x64 与 Linux GNU x64 三个宿主 job，各产出本宿主的 `scoop-<version>-bin-<host>.tar.xz` 和该 host 发行目标的 `scoop-<version>-lib-base-<target>.tar.xz`／`scoop-<version>-lib-gui-<target>.tar.xz`，另发布全局一份的 `scoop-<version>-sources.tar.xz` 与 `scoop-<version>-vendor.tar.xz`；同一 release 的附件列表即以版本命名的完整组件集合。安装验收在另外解压的目录合并解压组件包、执行 post-install 并实际编译运行程序，验收产物不进入归档。官网 shell／PowerShell bootstrap 下载独立的 `scoop-install`，并转交版本、target 与组件选择参数。安装器按固定 manifest 将所选组件安装到 `~/.scoop/toolchains/<version>-<host>`，生成命令代理并调用 post-install；bootstrap 成功后幂等地将 `~/.scoop/bin` 加入相应 shell rc 或用户 PATH。安装与发布不进入编译器或 PM 的命令实现。
 
-`scripts/install_toolchain.py` 使用现有打包入口从当前源码生成独立的本地版本，构建成功后把生成的 manifest 交给 `scoop-install`。安装根默认为 `~/.scoop`，可用 `--install-dir` 指定。已有默认工具链时沿用安装器的更新规则，保留目标、可选组件选择与旧版本，并切换默认版本。首次安装采用安装器的默认组件选择。归档与 manifest 留在打包输出目录，供后续追加目标或组件使用。
+`scripts/install_toolchain.py` 使用现有打包入口从当前源码生成独立的本地版本，构建成功后把生成的 manifest 交给 `scoop-install`。安装根默认为 `~/.scoop`，可用 `--install-dir` 指定。首次安装选择宿主默认目标。更新继承原默认工具链已安装的目标和 vendor 选择，并保留旧版本。脚本为每个已选目标安装新 manifest 提供的 GUI 组件，组件安装成功后切换默认版本。归档与 manifest 留在打包输出目录，供后续追加目标或组件使用。
 
 仓库的 `tooling/scoop-programming/` 保存面向 AI 的 Scoop 编程 skill，包含 `SKILL.md`、界面元数据与按需阅读的参考资料。完整打包入口将该目录原样复制到 bin 组件包的 `tooling/scoop-programming/`，在 `share/scoop/toolchain.toml` 的 `programming_skill` 字段记录安装根相对路径。skill 使用配套的 `scoop example`、CLI、离线 API 文档及库源码指导程序开发，不另行复制示例库或实现编译入口；打包及普通命令不自动安装、注册 skill，也不修改 AI 工具的用户配置。
 

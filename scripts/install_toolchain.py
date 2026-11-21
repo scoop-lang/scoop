@@ -15,13 +15,56 @@ from package_toolchain import argument_parser, build_package
 from target_catalog import current_host
 
 
-def install_command(install_dir):
+def default_toolchain(install_dir):
     try:
         with (install_dir / "settings.toml").open("rb") as source:
-            settings = tomllib.load(source)
+            return tomllib.load(source).get("default")
     except FileNotFoundError:
-        settings = {}
-    return ["update"] if "default" in settings else ["toolchain", "install"]
+        return None
+
+
+def install_package(installer, install_dir, args, manifest):
+    with manifest.open("rb") as source:
+        release = tomllib.load(source)
+    command = [installer, "--home", install_dir, "--host", args.host]
+    package = [args.version, "--manifest", manifest]
+    install = [*command, "toolchain", "install", *package]
+    docs_options = ["--skip-docs"] if args.skip_docs else []
+
+    current = default_toolchain(install_dir)
+    if current is None:
+        target = release["hosts"][args.host]["default-target"]
+        if "gui" in release["targets"][target]:
+            install += ["--component", "gui"]
+        return subprocess.run([*install, *docs_options]).returncode
+
+    result = subprocess.run(
+        [*command, "target", "list", "--installed", "--toolchain", current],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    if result.returncode:
+        return result.returncode
+    targets = [line.removesuffix(" (installed)") for line in result.stdout.splitlines()]
+    gui_targets = [target for target in targets if "gui" in release["targets"].get(target, {})]
+    if gui_targets:
+        # Stage the GUI targets before update carries over the old selection and activates it.
+        all_targets_staged = gui_targets == targets
+        result = subprocess.run(
+            [
+                *install,
+                "--target",
+                ",".join(gui_targets),
+                "--component",
+                "gui",
+                *(docs_options if all_targets_staged else ["--skip-docs"]),
+            ]
+        )
+        if result.returncode:
+            return result.returncode
+        if all_targets_staged:
+            docs_options = ["--skip-docs"]
+    return subprocess.run([*command, "update", *package, *docs_options]).returncode
 
 
 def local_dependencies(args):
@@ -70,21 +113,7 @@ def main(argv=None):
     args.version = f"{release['version']}.local.{datetime.now(UTC):%Y%m%d%H%M%S%f}"
     local_dependencies(args)
     manifest = build_package(parser, args)
-
-    command = [
-        installer,
-        "--home",
-        install_dir,
-        "--host",
-        args.host,
-        *install_command(install_dir),
-        args.version,
-        "--manifest",
-        manifest,
-    ]
-    if args.skip_docs:
-        command.append("--skip-docs")
-    return subprocess.run(command).returncode
+    return install_package(installer, install_dir, args, manifest)
 
 
 if __name__ == "__main__":
