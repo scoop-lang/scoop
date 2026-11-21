@@ -393,9 +393,13 @@ Element<L>.scene 接收 SceneContext 与最终选中的布局数据 L；context 
 
 场景操作在同一个实际帧内提交和消费。它们不持有跨帧借用，Path／滤镜在同步调用时按 graphics 合同使用；不要求元素为装配另外复制原生资源。跨帧绘制记录／图像缓存另按其拥有关系持有资源；显式场景缓存边界按第 7.2.2 节复用稳定的局部操作。
 
-`SceneContext.children()` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。有已放置子项时必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪，输入父关系由挂载作用域确定。
+`SceneContext.children()` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。使用整体呈现时，有已放置子项必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪，输入父关系由挂载作用域确定。
 
 `SceneContext.children(order: Array<Long>)` 指定这一遍的子项呈现顺序，order 必须是全部直接子项索引的完整排列，包含本次未放置的子项；未放置项仍跳过。长度、重复或越界错误在任何子项呈现前报告参数错误，失败后仍可提供有效排列。两个重载共用一次呈现计数及 withState 的借用规则。此顺序只影响场景／绘图和重叠命中，不改变逻辑 children、挂载身份、事件父关系或 FocusScope 的 Tab 顺序。
+
+`SceneContext.item(key: ViewKey)` 为 LazyElement 提供逐项呈现：key 必须显式且对应最终选中布局中已测量、已放置的条目，位置仍取该布局的 placeItem 结果，再应用调用处的场景变换与 clip。它只查这份布局，不调用 ItemSource、build、挂载或测量，不接受试测过但最终未选中的项。Position、未知或未放置 key 报参数错误；普通 Element 调用报状态错误。有效调用选择逐项模式，与 children 的两个整体重载互斥；同一个已放置条目在本帧必须恰好呈现一次，重复或结束时遗漏报状态错误。参数失败不消耗呈现资格，未放置项在场景收尾沿原规则撤销帧参与和绘制缓存。
+
+逐项模式的已呈现集合与 withState／withScrollReveal 等子场景共享；正文、吸顶或冻结区可以分别裁剪、平移同一批条目，但不能复制某条目的呈现。逻辑挂载、输入父关系、Tab 顺序及语义身份均保持不变，几何与帧参与仍仅在 Accepted 发布。使用 item 的当前元素场景不缓存命令，其条目自身的场景／绘图缓存仍可使用；逐项查找只为实际选中子项建立索引，不扫描 source 或未选中数据。
 
 `SceneContext.withState<T>(block: (SceneContext) -> T): T` 继承 size、time 及同一子项呈现计数，隔离变换／clip／图层状态；子作用域内拒绝使用父 context。draw 回调期间同样不能使用外层 SceneContext，即使通过闭包取得引用也会报状态错误。正常或异常退出均恢复 Canvas 保存层级，结束子 context，未配对的内部 save／saveLayer 不会污染调用方。
 
@@ -431,7 +435,7 @@ ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后�
 
 缓存保存值类型的变换、矩形裁剪、矩形输入放置、锚点、子项顺序、隔离作用域和已拥有的有限 Drawing 引用；不保存 SceneContext、FrameContext 或借用 Canvas，也不复制整棵布局树。每帧将局部操作装配到当前祖先变换、clip、图层顺序及当前输入收集器，子项仍按最终选中的结果呈现。输入、焦点、编辑与锚点不能复用上一帧的已提交几何作为本帧候选；Accepted／Discarded 的发布边界不变。禁用资格取当前区域状态，隐藏或卸载移除相应记录。
 
-需要同步借用 Path／ImageFilter、执行任意 draw、读取 overlayLayout、时间或动画、呈现滚动视口，或登记 onFrameComplete 的节点继续执行 scene；其稳定子项仍可独立复用。raw draw 的目标变换、clip、像素混合和资源使用不变；框架不把任意绘图闭包保存到后续帧。一次性帧完成回调从不进入场景缓存，滚动、caret、输入显露与动画帧参与仍登记当前帧所需工作。有限 drawLayer 的记录、像素命中和 scene 回调跳过分别验收。
+需要同步借用 Path／ImageFilter、执行任意 draw、读取 overlayLayout、时间或动画、呈现滚动视口、通过 item 逐项呈现，或登记 onFrameComplete 的节点继续执行 scene；其稳定子项仍可独立复用。raw draw 的目标变换、clip、像素混合和资源使用不变；框架不把任意绘图闭包保存到后续帧。一次性帧完成回调从不进入场景缓存，滚动、caret、输入显露与动画帧参与仍登记当前帧所需工作。有限 drawLayer 的记录、像素命中和 scene 回调跳过分别验收。
 
 ### 7.3 输入与焦点接入
 
@@ -796,7 +800,7 @@ ScrollPan 使用同一接触最近 100 ms 的真实位置和 InputTime.mark 估�
 
 `LazyElement<L>(scope)` 与 Element<L>(scope) 同为持有构造作用域的公开抽象基类，公开 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`、`scene(SceneContext, L)`、onMount()、`update(): UiInvalidation` 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
 
-LazyMeasureContext 公开 time、layoutDirection、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量，同一轮的相同有效约束复用完整结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
+LazyMeasureContext 公开 time、layoutDirection、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量，同一轮的相同有效约束复用完整结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。也可按 §7.2 的互斥规则用 item(key) 分别呈现最终布局中的每个已放置项，适用于祖先吸顶等需要独立变换、裁剪的布局。
 
 LazyElement 的每份布局结果分别保存已测项、所选子结果和放置。普通根或 Portal 选择最终结果后才沿该结果检查 pinned 项、选择 retention 集合并收尾；帧参与资格仍等 Accepted 发布。A→B→A 直接选择 A 保存的集合，不能继续使用 B 的最后一次试测。中间探测准备过的同 key 挂载继续复用，不提前 trim，也不发布滚动修正、scene、锚点或 frame completion。失败布局不以临时测量撤销先前的交互归属。最终收尾仍沿现有关闭／卸载规则执行。
 

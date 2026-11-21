@@ -8,20 +8,16 @@ import scoop.time.Duration
 import scoop.ui.text.*
 import scoop.test.*
 
-internal class LayoutResultSource(private val probe: LayoutResultProbe): ItemSource {
+internal class LayoutResultSource(private val probe: LayoutResultProbe) : ItemSource {
     public override val count: Long get() = 100000000L
     public override fun keyAt(index: Long): ViewKey {
         assertTrue(index >= 0L && index < 3L)
         return ViewKey.Number(index)
     }
-    public override fun indexOfKey(key: ViewKey): Long? =
-        when (key) {
-            case Number(val index) -> if (index >= 0L && index < count)
-                Some(index)
-            else
-                None
-            else -> None
-        }
+    public override fun indexOfKey(key: ViewKey): Long? = when (key) {
+        case Number(val index) -> if (index >= 0L && index < count) Some(index) else None
+        else -> None
+    }
     public override fun build(index: Long): View {
         val record = LayoutItemRecord(index)
         probe.items.add(record)
@@ -32,18 +28,14 @@ internal class LayoutResultSource(private val probe: LayoutResultProbe): ItemSou
 internal class LayoutResultLazy(
     private val probe: LayoutResultProbe,
     scope: ComponentScope
-): LazyElement<Long>(scope) {
+) : LazyElement<Long>(scope) {
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
     ): LayoutResult<Long> {
         probe.current!!.lazyCalls += 1
-        val first =
-            if (constraints.minWidth == 160.0)
-                0L
-            else
-                1L
-        for (index in first ..< first + 2L) {
+        val first = if (constraints.minWidth == 160.0) 0L else 1L
+        for (index in first..<first + 2L) {
             context.measureItem(index, Constraints.tight(Size(40.0, 20.0)))
             context.placeItem(index, Point(0.0, (index - first).toDouble() * 20.0))
         }
@@ -51,7 +43,10 @@ internal class LayoutResultLazy(
     }
     public override fun scene(context: SceneContext, first: Long) {
         assertEquals(0L, first)
-        context.children()
+        // The last trial also measured row 2, but the selected A result does not contain it.
+        assertFailsWith<IllegalArgumentException> { context.item(ViewKey.Number(2L)) }
+        context.item(ViewKey.Number(0L))
+        context.withState { child -> child.item(ViewKey.Number(1L)) }
     }
 }
 
@@ -59,7 +54,7 @@ private class LayoutResultItem(
     private val probe: LayoutResultProbe,
     private val item: LayoutItemRecord,
     scope: ComponentScope
-): Element<LayoutRecord>(scope) {
+) : Element<LayoutRecord>(scope) {
     public override fun onMount() {
         item.mounts += 1
     }
@@ -86,14 +81,14 @@ private class LayoutResultItem(
 internal class LayoutResultEditor(
     private val probe: LayoutResultProbe,
     scope: ComponentScope
-): Element<TextEditMeasurement>(scope) {
+) : Element<TextEditMeasurement>(scope) {
     private var host: TextEditHost? = None
     public override fun onMount() {
         val fonts = scope.resource { FontCollection() }
         val text = textStyle { fontSize = 14.0 }
         val state = TextEditorState("alpha beta gamma delta epsilon")
-        val editor =
-            scope.resource {
+        val editor = scope
+            .resource {
                 TextEditHost(
                     scope,
                     state,

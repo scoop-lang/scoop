@@ -1,0 +1,176 @@
+package scoop.tests.ui.itemscenes
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+
+internal class SplitItemScene(private val probe: ItemSceneProbe, scope: ComponentScope) :
+    Component(
+        scope
+    ) {
+    private val source = SplitItemSource(probe)
+    public override fun render(): View = cachedScene(
+        lazyElement(source, { mount -> SplitItemLayout(probe, mount) })
+    )
+}
+
+private class SplitItemSource(private val probe: ItemSceneProbe) : ItemSource {
+    public override val count: Long
+        get() {
+            assertFalse(probe.inScene)
+            return 100000000L
+        }
+    public override fun keyAt(index: Long): ViewKey {
+        assertFalse(probe.inScene)
+        assertTrue(index < 4L)
+        return ViewKey.Number(index)
+    }
+    public override fun indexOfKey(key: ViewKey): Long? {
+        assertFalse(probe.inScene)
+        return when (key) {
+            case Number(val index) -> if (index >= 0L && index < 100000000L) Some(index) else None
+            else -> None
+        }
+    }
+    public override fun build(index: Long): View {
+        assertFalse(probe.inScene)
+        probe.builds += 1
+        return element({ mount -> SplitItemRow(probe, index, mount) })
+    }
+}
+
+private struct SplitItemMeasurement(val scroll: ScrollLayout, val unplaced: Boolean)
+
+private class SplitItemLayout(
+    private val probe: ItemSceneProbe,
+    scope: ComponentScope
+) : LazyElement<SplitItemMeasurement>(scope) {
+    private val viewport = scope.scrollViewport(probe.scroll)
+    public override fun onMount() {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<SplitItemMeasurement> {
+        assertFalse(probe.inScene)
+        val size = constraints.constrain(Size(240.0, 160.0))
+        val unplaced = probe.phase >= 2
+        for (index in 0L..<4L) {
+            context.measureItem(index, Constraints.tight(Size(100.0, 24.0)))
+            if (index != 3L || !unplaced)
+                context.placeItem(index, Point(0.0, index.toDouble() * 40.0))
+        }
+        return LayoutResult(
+            LayoutMetrics(size),
+            SplitItemMeasurement(viewport.layout(size, Size(size.width, 400.0)), unplaced)
+        )
+    }
+    public override fun scene(context: SceneContext, layout: SplitItemMeasurement) {
+        probe.inScene = true
+        probe.order.clear()
+        probe.saved = Some(context)
+        val phase = probe.phase
+        try {
+            assertFailsWith<IllegalArgumentException> { context.item(ViewKey.Position) }
+            assertFailsWith<IllegalArgumentException> { context.item(ViewKey.Number(999L)) }
+            context
+                .draw { paint ->
+                    paint.canvas.clear(Color.White)
+                    assertFailsWith<IllegalStateException> { context.item(ViewKey.Number(0L)) }
+                }
+            viewport
+                .present(
+                    context,
+                    layout.scroll,
+                    Some { content ->
+                        assertFailsWith<IllegalStateException> { context.item(ViewKey.Number(0L)) }
+                        if (phase == 0 || phase == 4) {
+                            // Invalid item arguments do not choose the partial presentation mode.
+                            content.children()
+                            assertFailsWith<IllegalStateException> {
+                                content.item(ViewKey.Number(0L))
+                            }
+                        } else {
+                            val offset = layout.scroll.presentationOffset.y
+                            content
+                                .withScrollReveal<Unit>(
+                                    viewport,
+                                    Rect(
+                                        0.0,
+                                        24.0,
+                                        contextSize(layout).width,
+                                        contextSize(layout).height - 24.0
+                                    )
+                                ) { body ->
+                                    body.clipRect(Rect(0.0, offset + 24.0, 240.0, 136.0))
+                                    body.item(ViewKey.Number(1L))
+                                    body.item(ViewKey.Number(2L))
+                                    if (layout.unplaced)
+                                        assertFailsWith<IllegalArgumentException> {
+                                            body.item(ViewKey.Number(3L))
+                                        }
+                                    else
+                                        body.item(ViewKey.Number(3L))
+                                }
+                            content
+                                .withState { sticky ->
+                                    sticky.translate(20.0, offset)
+                                    sticky.clipRect(Rect(0.0, 0.0, 100.0, 24.0))
+                                    sticky.item(ViewKey.Number(0L))
+                                    assertFailsWith<IllegalStateException> {
+                                        sticky.item(ViewKey.Number(0L))
+                                    }
+                                }
+                            assertFailsWith<IllegalStateException> {
+                                content.item(ViewKey.Number(1L))
+                            }
+                            assertFailsWith<IllegalStateException> { content.children() }
+                            assertFailsWith<IllegalStateException> {
+                                content.children([0L, 1L, 2L, 3L])
+                            }
+                        }
+                    }
+                )
+            context
+                .onFrameComplete { frame ->
+                    if (frame.submission == FrameSubmission.Accepted) probe.accepted(phase)
+                }
+        } finally {
+            probe.inScene = false
+        }
+    }
+    private fun contextSize(layout: SplitItemMeasurement): Size = layout.scroll.snapshot.viewport
+}
+
+private class SplitItemRow(
+    private val probe: ItemSceneProbe,
+    private val index: Long,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    private val area = scope.createArea(focusable = true)
+    public override fun onMount() {
+        assertFalse(probe.inScene)
+        probe.mounts += 1
+        probe.areas[index] = Some(area)
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        assertFalse(probe.inScene)
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 24.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        probe.order.add(index)
+        assertFailsWith<IllegalStateException> { context.item(ViewKey.Number(index)) }
+        context.place(area, Rect(0.0, 0.0, 100.0, 24.0))
+        context
+            .draw { paint ->
+                paint.canvas.drawRect(Rect(0.0, 0.0, 100.0, 24.0), Paint(Color.Black))
+            }
+    }
+}
