@@ -48,6 +48,8 @@ Deferred 节点使用 `TreeLoader(scope, load)`：`scope` 是应用在 UI owner 
 
 加载图标可用 `loadingIcon` 覆盖；箭头、选择／hover 和实际挂载行的结构过渡遵循主题的减少动画设置。固定行高的默认文字单行省略，吸顶沿原行背景与列宽绘制。原生行为的独立验收见 [Tree 无障碍测试](tests-cones/tree-accessibility/README.md)。
 
+可运行的完整展示位于 [UI Components Demo 的 Tree 页面](examples/shadcn/README.md)，页面与数据代码见 [tree.scoop](examples/shadcn/src/tree.scoop) 和 [tree_model.scoop](examples/shadcn/src/tree_model.scoop)。包含 180 个组件文件、单列／多列切换、三层祖先吸顶、查询、勾选、异步失败重试、真实拖放及行内 Inspect 操作。
+
 Input／Textarea／InputOtp 及其组合包装透传 `primarySelection` 和 `automaticTextReplacement`；后者默认 false。PreferSystem 文本菜单的 `systemServices` 默认 true，可单独关闭；受保护／遮蔽文本不发送到系统检查或 Services。Typography／SelectableStyledText 通过 `SelectableTextOptions.primarySelection` 配置选区导出。`TextTouchOptions.hapticFeedback=false` 关闭长按触觉请求。完整组合入口见[双窗口交互展示](examples/touch-input/README.md)，平台能力与限制见[文本服务核查](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
 
 直接触摸的剩余入口共用 UI 行为：Tooltip／HoverCard 的 `longPress` 默认启用且可配置，图表短按选中数据，侧栏隐藏动作可长按显示，候选列表、输入外边距及组合输入保留普通点击与滚动竞争。Input／Textarea 的 `inputPurpose`、`softwareKeyboard` 同时提供 Props 与 builder；OTP 默认按 Digits 模式提示数字键盘。软键盘的实际遮挡由文本宿主沿原滚动路径处理，不改变选区。用法见[触摸输入示例](examples/touch-input/README.md)；实际设备行为仍需对应平台验收。

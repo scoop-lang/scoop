@@ -109,7 +109,7 @@ internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope:
                 if (selection > 0.0)
                     paint
                         .canvas
-                        .drawRect(bounds, Paint(palette.accent.background.withAlpha(selection)))
+                        .drawRect(bounds, Paint(palette.muted.background.withAlpha(selection)))
                 if (drawing.interaction.focusVisible) {
                     val line = lowerBound(plan.appearance.density, 1.0)
                     paint.canvas.drawRect(Rect(0.0, 0.0, bounds.width, line), Paint(palette.ring))

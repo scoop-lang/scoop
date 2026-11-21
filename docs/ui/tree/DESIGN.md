@@ -1,8 +1,8 @@
 # Tree 与父节点吸顶设计
 
-设计日期：2026-11-21；多列补充：2026-11-22。状态：实施中，实际交付见[实施记录](PROGRESS.md)。目标是在 `scoop.ui.component` 增加通用 Tree 和目录树入口，对齐 Ant Design Tree／DirectoryTree 的功能，提供同一组件的单列／多列模式，并支持 VS Code 树视图的 Sticky Scroll（滚动时保留当前分支的祖先行）。
+设计日期：2026-11-21；多列补充：2026-11-22。状态：组件与 Demo 已实现，验证范围及限制见[实施记录](PROGRESS.md)。`scoop.ui.component` 提供通用 Tree 和目录树入口，对齐 Ant Design Tree／DirectoryTree 的功能，支持同一组件的单列／多列模式及 VS Code 树视图的 Sticky Scroll（滚动时保留当前分支的祖先行）。
 
-本文中的新类型和方法在对应批次交付前均为拟议接口。实施各批次前，先把相应合同纳入 [组件规范](../../specs/SCOOP-UI-COMPONENT-SPEC.md)、[UI 规范](../../specs/SCOOP-UI-SPEC.md)和无障碍规范，再修改实现、调用方与编程材料。当前行为仍以现行 spec 为准。本次按用户要求只在本地 macOS 验证；公共接口保持平台无关，不将跨平台运行验收作为本次完成条件。
+公开接口和行为已纳入[组件规范](../../specs/SCOOP-UI-COMPONENT-SPEC.md)、[UI 规范](../../specs/SCOOP-UI-SPEC.md)和无障碍规范；本文说明其设计取舍，精确签名以规范与公开声明为准。可运行示例见 [UI Components Demo 的 Tree 页面](../../../sysroot/src/scoop.ui.component/examples/shadcn/README.md)。本次按用户要求只在本地 macOS 验证；公共接口保持平台无关，不将跨平台运行验收作为本次完成条件。
 
 ## 1. 功能范围与参考边界
 
@@ -61,7 +61,7 @@ Tree 使用自己的 `LazyElement<TreeLayout>`，在同一 Cone 内复用 `Scrol
 
 ### 3.1 数据快照
 
-建议先提供具体的 `TreeData<T>` 与 `TreeNode<T>`，用不可变节点数组构成多根树。一个节点包含：
+`TreeData<T>` 与 `TreeNode<T>` 用不可变节点数组构成多根树。一个节点包含：
 
 - 显式、全树唯一的 `ViewKey`，以及类型化业务值 `T`。
 - 用于默认标题、Typeahead 和无障碍名称的文字；自定义 View 不被反向解析为文字。
@@ -88,7 +88,7 @@ Tree 使用自己的 `LazyElement<TreeLayout>`，在同一 Cone 内复用 `Scrol
 
 ### 3.3 入口示意
 
-以下为拟议调用形状，不是当前可编译示例；精确签名随实施批次进入 spec。
+基本调用如下，`data` 为应用构造的 `TreeData<T>`；完整程序见组件 README 与 Demo。
 
 ```kotlin
 val state = TreeState(
@@ -142,12 +142,12 @@ tree(state) {
 
 列配置是不可变快照，显隐、宽度覆盖和排序属于独立状态，通过 `replaceColumns`、`setColumnVisible`、`resizeColumn`、`setSort` 等动作更新；需要外部控制时使用普通 Binding。`replaceColumns` 保留同 ID 的有效宽度／显隐状态，新限制收敛原宽度，删除列时清理对应列状态。未知列、重复 ID 或缺失树列在接入时报告；试图隐藏树列保持原状态。删除当前排序列或移除其比较能力时，在该次明确更新中结束对应排序。
 
-配置多列的拟议调用形状如下，`columns` 为应用已经构造的类型化列数组；仍使用同一个组件入口：
+配置多列的调用如下，`columns` 为应用已经构造的类型化列数组；仍使用同一个组件入口：
 
 ```kotlin
 val state = TreeState(
     data,
-    columns = TreeColumns(columns, treeColumn = "name"),
+    columns = Some(TreeColumns(columns, treeColumn = "name")),
     selection = TreeSelectionMode.Multiple
 )
 
@@ -300,7 +300,7 @@ Independent 下只更新当前 key，允许应用给出独立 Mixed 状态。用
 
 正文先绘制，吸顶背景及外层祖先随后覆盖，滚动条沿既有前景顺序呈现。背景使用不透明主题表面，不能让后方文字穿透；阴影／分隔线只表示区域边界。正文的绘制与命中同时裁掉遮挡区，不能只在视觉上覆盖而仍点击后面的行。
 
-现有 `children()`／`children(order)` 只提供一次完整呈现，不能让两组行分别进入正文和吸顶的裁剪／显露路径。为该实际消费者补拟议的 `SceneContext.item(key)`：仅用于 LazyElement 当前最终布局中已放置的条目，按显式 key 找到原布局结果，在调用处沿当前 clip、场景顺序及滚动路径呈现。它不构建、测量、重新放置条目，也不发起滚动。
+`children()`／`children(order)` 提供一次完整呈现；Tree 使用新增的 `SceneContext.item(key)`，使正文和吸顶分别进入各自的裁剪／显露路径。该入口仅用于 LazyElement 当前最终布局中已放置的条目，按显式 key 找到原布局结果，在调用处沿当前 clip、场景顺序及滚动路径呈现。它不构建、测量、重新放置条目，也不发起滚动。
 
 逐项模式与原完整呈现模式互斥；同一布局中的已放置项须各呈现一次，重复或缺失按本轮场景正确性报告。`withState`／`withScrollReveal` 共用这一份呈现记录，Discarded 不发布候选几何。Tree 据此先呈现正文项，再呈现吸顶项；不需要把同一 key 挂到第二棵树。
 
@@ -348,7 +348,7 @@ KeepVisible 保存吸顶区下方第一个实际阅读行及项内偏移，几�
 
 ### 9.3 无障碍
 
-需要为现有 Window 语义增加 Tree／TreeItem，并使 UI 的惰性集合允许 Tree 角色。数据描述提供 parent key、零基 hierarchyLevel、同级 index／count、expanded、selected、checked／mixed、busy 和真实可执行动作；同级数量不能使用展开后全列表的 count 冒充。
+Window 语义已增加 Tree／TreeItem，UI 的惰性集合接受 Tree 角色。数据描述提供 parent key、零基 hierarchyLevel、同级 index／count、expanded、selected、checked／mixed、busy 和真实可执行动作；同级数量不能使用展开后全列表的 count 冒充。
 
 显式列模式发布树形表格语义，复用现有 `SemanticGrid`、行、单元格、列头及按行列 key 的 Realize／Reveal／Focus，并补齐树层级能力。逻辑展开关系和整行选择归属于节点行，单元格通过列 ID 关联表头，树列提供层级展示与原节点动作；不会每增加一列就增加一个可选择树节点。当前可见列决定显示列位置／数量，隐藏列退出阅读树，列 ID 保持其稳定身份。原生 provider 按平台的层级表格能力投影，不以数个独立 List 代替。
 
@@ -394,4 +394,4 @@ KeepVisible 保存吸顶区下方第一个实际阅读行及项内偏移，几�
 
 纯模型、错误路径和公开消费者行为使用所属 Cone 的 `scoop.test`；必要的真实窗口、输入与 native accessibility 使用现有 UI 测试方式。仅编译诊断、链接或必须外部进程控制的合同进入 fixture。普通验证使用 release 和共享缓存，不复制 sysroot，也不以 GC stress 代替 UI 行为验收。
 
-文档、声明注释、示例、API 索引和 programming skill 按[同步工作流](../../scoop-programming/UPDATE-WORKFLOW.md)随实际可用写法更新。本草案不把拟议 API 写成已支持能力；记录只保留验证范围、结果及限制，原始日志放在仓库外。
+文档、声明注释、示例、API 索引和 programming skill 按[同步工作流](../../scoop-programming/UPDATE-WORKFLOW.md)随实际可用写法更新。实施记录只保留验证范围、结果及限制，原始日志放在仓库外。

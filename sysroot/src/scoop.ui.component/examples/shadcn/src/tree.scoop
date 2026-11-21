@@ -1,0 +1,178 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as treeExampleColumn
+import scoop.ui.component.frame as treeExampleFrame
+
+internal class TreeExamples(
+    private val model: TreeExamplesModel,
+    private val source: ThemeSource,
+    scope: ComponentScope
+) : Component(scope) {
+    public override fun onMount() {
+        model.start()
+    }
+    public override fun onUnmount() {
+        model.stop()
+    }
+    public override fun render(): View {
+        val model = this.model
+        val source = this.source
+        val palette = source.current.value.tokens.palette
+        val content = directoryTree(model.tree) {
+            this.height = Some(360.0)
+            this.handle = Some(model.handle)
+            this.sticky { this.enabled = model.sticky.value }
+            this.showLines = model.lines.value
+            this.title = Some { row -> treeExampleText(row.node.label, row.matched) }
+            this.itemExtent = if (model.variable.value)
+                ItemExtent.Variable(36.0)
+            else
+                ItemExtent.Fixed(36.0)
+            this.drag = Some(model.drag)
+            this.theme = Some(source)
+            this.onActivate = { event -> model.inspected.value = Some(event.node.key) }
+            this.semantics = ComponentSemantics(
+                name = Some("Workspace files"),
+                automationId = Some("gallery-tree")
+            )
+        }
+        return treeExampleColumn {
+            this.add(panelHeading("Tree"))
+            this
+                .typography(
+                    "Explore 180 component files. Ancestor rows stay visible as you scroll; columns share the same tree, selection and checks.",
+                    TypographyRole.Muted
+                )
+            this
+                .input(model.filter) {
+                    this.placeholder = "Find a file or folder…"
+                    this.onEdited = { _ -> model.query() }
+                    this.semantics = ComponentSemantics(name = Some("Find tree nodes"))
+                }
+            this
+                .wrap {
+                    this
+                        .button(
+                            if (model.multipleColumns) "Multi-column" else "Single-column",
+                            { model.toggleColumns() }
+                        ) { this.variant = ButtonVariant.Outline }
+                    this
+                        .button(
+                            if (model.sticky.value) "Sticky on" else "Sticky off",
+                            { model.sticky.value = !model.sticky.value }
+                        ) { this.variant = ButtonVariant.Outline }
+                    this
+                        .button(
+                            if (model.lines.value) "Lines on" else "Lines off",
+                            { model.lines.value = !model.lines.value }
+                        ) { this.variant = ButtonVariant.Outline }
+                    this
+                        .button(
+                            if (model.variable.value) "Variable rows" else "Fixed rows",
+                            { model.variable.value = !model.variable.value }
+                        ) { this.variant = ButtonVariant.Outline }
+                    this
+                        .button(
+                            if (model.narrow.value) "Full width" else "Narrow",
+                            { model.narrow.value = !model.narrow.value }
+                        ) { this.variant = ButtonVariant.Outline }
+                    this
+                        .button("Details column", { model.toggleDetails() }) {
+                            this.enabled = model.multipleColumns
+                            this.variant = ButtonVariant.Outline
+                        }
+                    this
+                        .button(
+                            if (model.highlightOnly.value)
+                                "Highlight matches"
+                            else
+                                "Filter matches",
+                            {
+                                model.highlightOnly.value = !model.highlightOnly.value;
+                                model.query()
+                            }
+                        ) { this.variant = ButtonVariant.Outline }
+                    this.spacing = 8.0;
+                    this.lineSpacing = 8.0
+                }
+            this
+                .wrap {
+                    this
+                        .button("Jump to file 60", { model.jump() }) {
+                            this.variant = ButtonVariant.Secondary
+                        }
+                    this
+                        .button("Collapse branches", { model.collapse() }) {
+                            this.variant = ButtonVariant.Outline
+                        }
+                    this
+                        .button("Expand loaded", { model.expand() }) {
+                            this.variant = ButtonVariant.Outline
+                        }
+                    this
+                        .button("Load Remote", { model.remote() }) {
+                            this.variant = ButtonVariant.Outline
+                        }
+                    this
+                        .button("Clear sort", { model.tree.setSort(None) }) {
+                            this.variant = ButtonVariant.Outline
+                        }
+                    this
+                        .button("Reset tree", { model.reset() }) {
+                            this.variant = ButtonVariant.Outline
+                        }
+                    this.spacing = 8.0;
+                    this.lineSpacing = 8.0
+                }
+            this
+                .item(
+                    treeExampleFrame(content) {
+                        this.width = Some(if (model.narrow.value) 430.0 else 780.0)
+                        this.padding = Some(Insets.all(1.0))
+                        style { this.border(Some(Border.all(1.0, palette.border))) }
+                    }
+                ) { this.align = Some(CrossAlignment.Start) }
+            this
+                .typography(
+                    f"${model.tree.selectedKeys.size} selected · ${
+                        model.tree.checkedKeys.size
+                    } checked · ${model.requests.value} load attempts · ${model.moves.value} moves",
+                    TypographyRole.Small
+                )
+            this.typography(model.notice.value, TypographyRole.Muted)
+            when (model.inspected.value) {
+                case Some(val key) ->
+                    when (model.tree.data.node(key)) {
+                        case Some(val node) ->
+                            this
+                                .label(
+                                    "Inspector: " +
+                                        node.label +
+                                        " · " +
+                                        node.value.kind +
+                                        " · " +
+                                        treeExampleSize(node.value)
+                                )
+                        case None -> {}
+                    }
+                case None ->
+                    this
+                        .typography(
+                            "Use Inspect in a row, or press F2 to enter its action. Escape returns to tree navigation.",
+                            TypographyRole.Muted
+                        )
+            }
+            this
+                .typography(
+                    "Select with Primary / Shift, check a parent to include its children, and drag nodes to reorder or move them. Sorting disables before / after moves; inside moves remain available.",
+                    TypographyRole.Muted
+                )
+            this.spacing = 12.0
+            this.alignment = CrossAlignment.Stretch
+        }
+    }
+}
