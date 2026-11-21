@@ -5,9 +5,15 @@ use crate::{
 };
 use scoop_syntax::SyntaxKind as K;
 
+mod lists;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Style {
     List,
+    Arguments,
+    Parameters,
+    Supertypes,
+    Where,
     Block,
     Lambda,
     Control,
@@ -45,7 +51,11 @@ fn regions(input: &Input) -> Vec<Region> {
                     _ => Style::Block,
                 }
             } else {
-                Style::List
+                match (kind, parent) {
+                    (K::LParen, K::ArgumentList) => Style::Arguments,
+                    (K::LParen, K::ParameterList) => Style::Parameters,
+                    _ => Style::List,
+                }
             };
             stack.push((index, style));
         } else if matches!(
@@ -64,6 +74,13 @@ fn regions(input: &Input) -> Vec<Region> {
         }
     }
     for &(kind, start, end, _) in &input.nodes {
+        if let Some(style) = match kind {
+            K::SupertypeList => Some(Style::Supertypes),
+            K::WhereClause => Some(Style::Where),
+            _ => None,
+        } {
+            regions.push(Region { start, end, style });
+        }
         if kind == K::Expression && start > 0 && input.tokens[start - 1].kind() == K::Equal {
             regions.push(Region {
                 start,
@@ -115,7 +132,8 @@ fn sequence(
     while index < end {
         if (leading || index != start)
             && !regions.get(cursor).is_some_and(|r| {
-                r.start == index && matches!(r.style, Style::Control | Style::Continuation)
+                r.start == index
+                    && matches!(r.style, Style::Control | Style::Continuation | Style::Where)
             })
         {
             docs.push(gap(gaps[index]));
@@ -152,87 +170,11 @@ fn delimited(input: &Input, gaps: &[Gap], nested: &[Region], region: &Region) ->
             .append(sequence(input, gaps, nested, start, end, false))
             .nest(4);
     }
-    let open = render::token(input.tokens[start].syntax.text());
-    let close = render::token(input.tokens[end - 1].syntax.text());
-    if end == start + 2 {
-        return open.append(close);
-    }
-    let multiline_lambda = style == Style::Lambda
-        && input
-            .nodes
-            .iter()
-            .filter(|&&(kind, s, e, parent)| {
-                kind == K::Statement
-                    && parent == Some(K::LambdaExpr)
-                    && s > start
-                    && e < end
-                    && !nested.iter().any(|region| {
-                        region.style == Style::Lambda && s > region.start && e < region.end
-                    })
-            })
-            .count()
-            > 1;
-    let block = style == Style::Block || multiline_lambda;
-    let edge = if block {
-        Document::hardline()
-    } else if style == Style::Lambda {
-        Document::line()
+    if matches!(style, Style::Supertypes | Style::Where) {
+        lists::header(input, gaps, nested, region)
     } else {
-        Document::line_()
-    };
-    let mut pieces = Vec::new();
-    let mut item_start = start + 1;
-    let mut nested_cursor = 0;
-    let mut index = item_start;
-    while index < end - 1 {
-        if let Some(child) = nested
-            .get(nested_cursor)
-            .filter(|child| child.start == index)
-        {
-            index = child.end;
-            nested_cursor +=
-                1 + nested[nested_cursor + 1..].partition_point(|r| r.start < child.end);
-            continue;
-        }
-        if !block && input.tokens[index].kind() == K::Comma && index + 1 < end - 1 {
-            let children = within(nested, item_start, index + 1);
-            pieces.push(sequence(
-                input,
-                gaps,
-                children,
-                item_start,
-                index + 1,
-                false,
-            ));
-            pieces.push(
-                if input.tokens[index + 1].is_comment() || input.tokens[index].is_comment() {
-                    gap(gaps[index + 1])
-                } else {
-                    Document::line()
-                },
-            );
-            item_start = index + 1;
-        }
-        index += 1;
+        lists::delimited(input, gaps, nested, region)
     }
-    pieces.push(sequence(
-        input,
-        gaps,
-        within(nested, item_start, end - 1),
-        item_start,
-        end - 1,
-        false,
-    ));
-    let tail = if input.tokens[end - 2].is_comment() {
-        gap(gaps[end - 1])
-    } else {
-        edge.clone()
-    };
-    let result = open
-        .append(edge.append(Document::concat(pieces)).nest(4))
-        .append(tail)
-        .append(close);
-    if block { result } else { result.group() }
 }
 
 fn expression(

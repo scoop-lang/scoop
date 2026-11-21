@@ -9,6 +9,12 @@ pub(crate) enum Gap {
     Blank,
 }
 
+impl Gap {
+    pub fn is_line(self) -> bool {
+        matches!(self, Self::Line | Self::Blank)
+    }
+}
+
 pub(crate) fn gaps(input: &Input) -> Vec<Gap> {
     let mut gaps = vec![Gap::None; input.tokens.len()];
     for (index, gap) in gaps.iter_mut().enumerate().skip(1) {
@@ -145,6 +151,9 @@ fn between(left: &Token, right: &Token) -> Gap {
         return None;
     }
     if lp == K::BinaryOperator || rp == K::BinaryOperator {
+        return Space;
+    }
+    if r == K::Colon && rp == K::SupertypeList {
         return Space;
     }
     // Other newlines can terminate return operands, infix calls, and when-arm bodies.

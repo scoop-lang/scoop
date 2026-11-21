@@ -98,6 +98,42 @@ fn lists_break_at_unicode_scalar_width() {
 }
 
 #[test]
+fn multiline_parameters_and_argument_groups() {
+    assert_eq!(
+        checked("fun f(\na:Int,b:Int\n){\nplot(x=10,y=10,\nwidth=100,height=100,\nfill=true)\n}"),
+        "fun f(\n    a: Int,\n    b: Int\n) {\n    plot(\n        x = 10, y = 10,\n        width = 100, height = 100,\n        fill = true\n    )\n}\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f() {\ncall(\nfirstCoordinateWithALongDescriptiveName, secondCoordinateWithAnEvenLongerDescriptiveNameThanTheFirst,\nthird)\n}"
+        ),
+        "fun f() {\n    call(\n        firstCoordinateWithALongDescriptiveName,\n        secondCoordinateWithAnEvenLongerDescriptiveNameThanTheFirst,\n        third\n    )\n}\n"
+    );
+}
+
+#[test]
+fn multiline_supertypes_and_constraints() {
+    assert_eq!(
+        checked("class C : Base(),\nFirst,\nSecond {}"),
+        "class C : Base(),\n    First,\n    Second {}\n"
+    );
+    assert_eq!(
+        checked(
+            "class Implementor : FirstTypeNameThatIsVeryLongIndeed(), SecondTypeNameThatIsJustAsLongAsFirstType, ThirdTypeNameThatIsQuiteLongToo {}"
+        ),
+        "class Implementor :\n    FirstTypeNameThatIsVeryLongIndeed(),\n    SecondTypeNameThatIsJustAsLongAsFirstType,\n    ThirdTypeNameThatIsQuiteLongToo {}\n"
+    );
+    assert_eq!(
+        checked("fun <T> f(x:T):T where T:First,\nT:Second=x"),
+        "fun <T> f(x: T): T\n    where T : First,\n          T : Second = x\n"
+    );
+    assert_eq!(
+        checked("class Box<T>\n: First, Second\nwhere T:Reference {}"),
+        "class Box<T> : First, Second\n    where T : Reference {}\n"
+    );
+}
+
+#[test]
 fn callable_bodies_annotations_and_control_layout() {
     for (source, expected) in [
         ("fun f()=apply {x->x+1}", "fun f() = apply { x -> x + 1 }\n"),
