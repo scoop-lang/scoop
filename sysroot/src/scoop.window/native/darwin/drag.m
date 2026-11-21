@@ -5,6 +5,7 @@ typedef int32_t (*SWDragCallback)(void *, int32_t, int32_t);
 @interface SWDragSource : NSObject <NSDraggingSource>
 @property(nonatomic, strong) SWWindow *owner;
 @property(nonatomic, strong) NSEvent *event;
+@property(nonatomic, strong) NSEvent *press;
 @property(nonatomic, strong) NSMutableArray<NSDraggingItem *> *items;
 @property(nonatomic, strong) NSDraggingSession *session;
 @property(nonatomic, strong) NSImage *preview;
@@ -73,6 +74,7 @@ static BOOL available(SWDragSource *source) {
     self.owner.application.dragSource = nil;
   self.owner = nil;
   self.event = nil;
+  self.press = nil;
   self.items = nil;
   self.preview = nil;
   self.session = nil;
@@ -87,11 +89,11 @@ SWResult scoop_window_drag_create(void *pointer, void *input, int32_t effects,
   NSEvent *event = delivery.nativeInput;
   if (!callback || effects <= 0 || effects > 7)
     return (SWResult){NULL, -8};
-  if (!event || delivery.header.window != owner.identity ||
+  if (!event || !delivery.dragPress ||
+      delivery.header.window != owner.identity ||
       event.window != owner.window ||
       (event.type != NSEventTypeLeftMouseDown &&
-       event.type != NSEventTypeLeftMouseDragged) ||
-      ![owner.view.pressedButtons containsObject:@0])
+       event.type != NSEventTypeLeftMouseDragged))
     return (SWResult){NULL, -4};
   if (owner.application.dragSource)
     return (SWResult){NULL, -5};
@@ -100,6 +102,7 @@ SWResult scoop_window_drag_create(void *pointer, void *input, int32_t effects,
   if (!available(source))
     return (SWResult){NULL, -4};
   source.event = event;
+  source.press = delivery.dragPress;
   source.effects = effects;
   source.initialEffects = effects;
   source.items = [NSMutableArray new];
@@ -155,7 +158,8 @@ int64_t scoop_window_drag_ready(void *pointer) {
     return -8;
   source.ready = YES;
   source.owner.application.dragSource = source;
-  [source.owner.view.pressedButtons removeAllObjects];
+  if (source.owner.view.leftPress == source.press)
+    [source.owner.view.pressedButtons removeAllObjects];
   return 0;
 }
 
@@ -200,6 +204,13 @@ int64_t scoop_window_drag_start(void *pointer) {
   if (source.closed || !source.ready || source.active || !available(source))
     return -4;
   SWView *view = source.owner.view;
+  if (view.leftPress != source.press) {
+    [source releaseData];
+    if (source.callback)
+      source.callback(source.context, 1, 0);
+    return 0;
+  }
+  view.leftPress = nil;
   NSPoint point = [view convertPoint:source.event.locationInWindow
                             fromView:nil];
   sw_drag_item_images(source.items, source.preview, source.hotSpot, point);

@@ -21,6 +21,8 @@ static void pointer(SWView *view, NSEvent *native, SWPointerKind kind) {
   sw_modifiers(view, native.modifierFlags);
   if (kind == SWPointerPressed || kind == SWPointerReleased) {
     NSNumber *button = @(native.buttonNumber);
+    if (native.buttonNumber == 0)
+      view.leftPress = kind == SWPointerPressed ? native : nil;
     if (kind == SWPointerReleased &&
         ![view.pressedButtons containsObject:button])
       return;
@@ -59,11 +61,14 @@ static void pointer(SWView *view, NSEvent *native, SWPointerKind kind) {
       (kind == SWPointerMoved && native.type == NSEventTypeLeftMouseDragged &&
        [view.pressedButtons containsObject:@0]))
     event.nativeInput = native;
+  if (event.nativeInput)
+    event.dragPress = view.leftPress;
   [view.owner.application enqueue:event];
 }
 
 @implementation SWView (Pointer)
 - (void)cancelPointer:(int32_t)reason {
+  self.leftPress = nil;
   [self cancelGestures];
   if (!self.pressedButtons.count)
     return;
