@@ -32,6 +32,8 @@ private fun runHierarchy(dataOnly: Boolean) {
         assertTrue(probe.finished)
         assertEquals(4, probe.changes)
         assertEquals(5, probe.attempts)
+        assertEquals(4, probe.selectionAttempts)
+        assertEquals(3, probe.selectionChanges)
     } catch (error: Throwable) {
         println(
             f"hierarchy phase=${probe.phase}, changes=${probe.changes}, attempts=${probe.attempts}"
@@ -47,6 +49,8 @@ private class HierarchyProbe(val dataOnly: Boolean): Closeable {
     var phase = 0
     var changes = 0
     var attempts = 0
+    var selectionAttempts = 0
+    var selectionChanges = 0
     var reject = false
     var finished = false
     var scope: ComponentScope? = None
@@ -118,6 +122,12 @@ private class HierarchyProbe(val dataOnly: Boolean): Closeable {
         ItemSemantics(
             source,
             { index -> Some(source.describe(index)) },
+            selection = source.selection(),
+            setSelected =
+                if (source.actions)
+                    Some { key, value -> select(key, value) }
+                else
+                    None,
             grid = Some(source.grid()),
             setExpanded =
                 if (source.actions)
@@ -125,6 +135,15 @@ private class HierarchyProbe(val dataOnly: Boolean): Closeable {
                 else
                     None
         )
+    fun select(key: ViewKey, value: Boolean): SemanticActionResult {
+        assertEquals(ViewKey.Number(50000000L), key)
+        selectionAttempts += 1
+        if (reject)
+            return SemanticActionResult.Rejected
+        selectionChanges += 1
+        items.value = HierarchyItems(selected = value)
+        return SemanticActionResult.Completed
+    }
     fun accepted(source: HierarchyItems) {
         if (finished || waiting || source !== items.value)
             return
@@ -140,6 +159,17 @@ private class HierarchyProbe(val dataOnly: Boolean): Closeable {
             case 9 -> calls!!.post(branch!!, phase, 14)
             case 11 -> calls!!.post(branch!!, phase, 14)
             case 12 -> calls!!.post(replacement!!, phase, 14)
+            case 13 -> calls!!.post(leaf!!, phase, 16)
+            case 14 -> calls!!.post(replacement!!, phase, 16)
+            case 15 -> calls!!.post(replacement!!, phase, 17)
+            case 16 -> calls!!.post(replacement!!, phase, 17)
+            case 17 -> calls!!.post(replacement!!, phase, 17)
+            case 18 -> calls!!.post(replacement!!, phase, 17)
+            case 19 -> calls!!.post(replacement!!, phase, 17)
+            case 20 -> calls!!.post(replacement!!, phase, 16)
+            case 21 -> calls!!.post(replacement!!, phase, 16)
+            case 22 -> calls!!.post(replacement!!, phase, 16)
+            case 23 -> calls!!.post(replacement!!, phase, 16)
             else -> calls!!.post(root!!, phase, 20)
         }
     }
@@ -159,6 +189,11 @@ private class HierarchyProbe(val dataOnly: Boolean): Closeable {
                 assertFalse(branch!!.flag(4))
                 assertFalse(leaf!!.flag(18))
                 assertEquals(0, attempts)
+                assertTrue(branch!!.flag(19))
+                assertTrue(branch!!.flag(20))
+                assertFalse(leaf!!.flag(19))
+                assertFalse(leaf!!.flag(20))
+                assertEquals(0L, table!!.selectedCount)
             }
             case 1 -> {
                 assertTrue(branch!!.flag(17))
@@ -213,8 +248,81 @@ private class HierarchyProbe(val dataOnly: Boolean): Closeable {
                 assertEquals(4, changes)
             }
             case 13 -> {
+                assertEquals(0, selectionAttempts)
+                assertFalse(leaf!!.flag(19))
+                assertFalse(leaf!!.flag(20))
+                assertEquals(0L, table!!.selectedCount)
+            }
+            case 14 -> {
+                assertEquals(1, selectionAttempts)
+                assertEquals(1, selectionChanges)
+                assertTrue(replacement!!.flag(21))
+                assertEquals(1L, table!!.selectedCount)
+            }
+            case 15 -> {
+                assertEquals(1, selectionAttempts)
+                assertTrue(replacement!!.same(row(50000000L)))
+                assertTrue(replacement!!.flag(1))
+                assertFalse(replacement!!.flag(19))
+                assertFalse(replacement!!.flag(20))
+                assertFalse(replacement!!.flag(21))
+                assertEquals(0L, table!!.selectedCount)
+            }
+            case 16 -> {
+                assertEquals(1, selectionAttempts)
+                assertTrue(replacement!!.flag(19))
+                assertFalse(replacement!!.flag(20))
+                assertTrue(replacement!!.flag(21))
+                assertEquals(1L, table!!.selectedCount)
+            }
+            case 17 -> {
+                assertEquals(1, selectionAttempts)
+                assertFalse(replacement!!.flag(1))
+                assertFalse(replacement!!.flag(20))
+                assertEquals(1L, table!!.selectedCount)
+            }
+            case 18 -> {
+                assertEquals(1, selectionAttempts)
+                assertFalse(replacement!!.flag(19))
+                assertFalse(replacement!!.flag(20))
+                assertEquals(0L, table!!.selectedCount)
+            }
+            case 19 -> {
+                assertEquals(2, selectionAttempts)
+                assertEquals(2, selectionChanges)
+                assertFalse(replacement!!.flag(21))
+                assertEquals(0L, table!!.selectedCount)
+            }
+            case 20 -> {
+                assertEquals(3, selectionAttempts)
+                assertEquals(2, selectionChanges)
+                assertFalse(replacement!!.flag(21))
+                assertEquals(0L, table!!.selectedCount)
+            }
+            case 21 -> {
+                assertEquals(4, selectionAttempts)
+                assertEquals(3, selectionChanges)
+                assertTrue(replacement!!.flag(21))
+                assertEquals(1L, table!!.selectedCount)
+            }
+            case 22 -> {
+                assertEquals(4, selectionAttempts)
+                assertFalse(replacement!!.flag(0))
+                assertFalse(replacement!!.flag(20))
+                assertEquals(0L, table!!.selectedCount)
+            }
+            case 23 -> {
+                assertEquals(4, selectionAttempts)
+                val fresh = row(50000000L)
+                assertFalse(replacement!!.same(fresh))
+                assertFalse(replacement!!.flag(20))
+                assertTrue(fresh.flag(20))
+                assertEquals(0L, table!!.selectedCount)
+            }
+            case 24 -> {
                 assertFalse(replacement!!.flag(0))
                 assertFalse(replacement!!.flag(18))
+                assertFalse(replacement!!.flag(20))
             }
             else -> fail(Some("unexpected hierarchy phase"))
         }
@@ -234,13 +342,22 @@ private class HierarchyProbe(val dataOnly: Boolean): Closeable {
             case 9 -> reject = false
             case 10 -> items.value = HierarchyItems(removed = true)
             case 11 -> items.value = HierarchyItems()
-            case 13 -> {
+            case 15 -> items.value = HierarchyItems(selected = true, selectable = false)
+            case 16 -> items.value = HierarchyItems(selected = true, actions = false)
+            case 17 -> items.value = HierarchyItems(selected = true, enabled = false)
+            case 18 -> items.value = HierarchyItems(selected = true, selectionModel = false)
+            case 19 -> items.value = HierarchyItems(selected = true)
+            case 20 -> reject = true
+            case 21 -> reject = false
+            case 22 -> items.value = HierarchyItems(removed = true)
+            case 23 -> items.value = HierarchyItems()
+            case 24 -> {
                 ui!!.close()
                 waiting = true
                 calls!!.post(root!!, phase, 20)
                 return
             }
-            case 14 -> {
+            case 25 -> {
                 finished = true
                 active!!.requestExit()
                 return
@@ -268,7 +385,10 @@ private class HierarchyItems(
     val branch: Boolean = true,
     val level: Long? = Some(3L),
     val reverse: Boolean = false,
-    val removed: Boolean = false
+    val removed: Boolean = false,
+    val selectable: Boolean = true,
+    val selected: Boolean = false,
+    val selectionModel: Boolean = true
 ): ItemSource {
     public override val count: Long get() =
         if (removed)
@@ -319,12 +439,27 @@ private class HierarchyItems(
                     Some(expanded)
                 else
                     None,
+            selectable = selectable && keyAt(index) == ViewKey.Number(50000000L),
             hierarchyLevel =
                 if (keyAt(index) == ViewKey.Number(50000000L))
                     level
                 else
                     Some(4L)
         )
+    fun selection(): SemanticCollectionSelection? =
+        if (!selectionModel)
+            None
+        else
+            Some(
+                SemanticCollectionSelection(
+                    // Retained nonselectable keys must not appear in native selected rows.
+                    if (selected && !removed)
+                        [SemanticItemKey.Number(50000000L), SemanticItemKey.Number(50000001L)]
+                    else
+                        [SemanticItemKey.Number(50000001L)],
+                    multiple = true
+                )
+            )
     fun grid(): SemanticGrid =
         SemanticGrid(
             [SemanticGridColumn(SemanticItemKey.Text("value"))],
@@ -413,8 +548,23 @@ private class HierarchyData(
             )
         )
         semantics.updateDataCollection(
-            SemanticCollectionSnapshot(HierarchyDescriptions(source), grid = Some(source.grid())),
+            SemanticCollectionSnapshot(
+                HierarchyDescriptions(source),
+                selection = source.selection(),
+                grid = Some(source.grid())
+            ),
             SemanticCollectionActions(
+                setSelected =
+                    if (source.actions)
+                        Some {
+                            key,
+                            value -> when (key) {
+                                case Number(val id) -> probe.select(ViewKey.Number(id), value)
+                                case Text(_) -> SemanticActionResult.Unavailable
+                            }
+                        }
+                    else
+                        None,
                 setExpanded =
                     if (source.actions)
                         Some {

@@ -269,6 +269,8 @@ public class AccessibilityProvider internal constructor(
             return SemanticActionResult.Rejected
         if ((operation == 5 || operation == 6) && !item.properties.focusable)
             return SemanticActionResult.Unsupported
+        if ((operation == 7 || operation == 8) && !item.properties.selectable)
+            return SemanticActionResult.Unsupported
         if ((operation == 17 || operation == 18) && item.properties.expanded == None)
             return SemanticActionResult.Unsupported
         val actions = node.itemActions

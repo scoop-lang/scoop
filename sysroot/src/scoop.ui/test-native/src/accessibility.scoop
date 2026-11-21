@@ -82,6 +82,12 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
             return nativeRowCount(pointer)
         }
     }
+    public val selectedCount: Long get() {
+        @Unsafe
+        {
+            return nativeSelectedCount(pointer)
+        }
+    }
     public fun text(field: Int, expected: String?): Boolean {
         @Unsafe
         {
@@ -323,6 +329,9 @@ private fun nativeParentNode(node: Ptr<Unit>): Ptr<Unit>?
 
 @Extern(name = "scoop_ui_ax_row_count")
 private fun nativeRowCount(node: Ptr<Unit>): Long
+
+@Extern(name = "scoop_ui_ax_selected_count")
+private fun nativeSelectedCount(node: Ptr<Unit>): Long
 
 @Extern(name = "scoop_ui_ax_cell")
 private fun nativeCell(node: Ptr<Unit>, row: Long, column: Long): Ptr<Unit>?
