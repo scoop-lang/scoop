@@ -83,6 +83,8 @@ rename 要求所选项目的必要源码及语义分析完整。存在不可证�
 
 顶层函数移动已覆盖跨 package 和已有依赖关系内的跨 Cone 移动。定向 stdio 用例验证别名、公开重导出、命名实参及无法保留依赖的情况。实际应用编辑前后的多 Cone 程序均以 release 编译并运行，输出一致。
 
+最终 macOS ARM64 回归中，`scoop-analysis`、`scoop-hir-lower` 和 `scoop-lsp` 共通过 2,202 项 Rust 测试。三项正式 release LSP fixture、24 项 VS Code 扩展单元测试和实际 Extension Host 测试通过。fixture runner 规则测试通过 80 项，跳过 4 项平台相关用例。
+
 ## 合并 origin/main
 
 接入 `f3f8ace69` 的 M61 文本后端、Regex 与 M62 优化。上述公共基础全量验收截至 `0842bec3f`；本次合并的验证单独记录，不将此前结果视为合并后重新执行的全量。
