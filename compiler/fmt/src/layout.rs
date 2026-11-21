@@ -5,6 +5,7 @@ use crate::{
 };
 use scoop_syntax::SyntaxKind as K;
 
+mod accessors;
 mod expressions;
 mod lists;
 
@@ -22,6 +23,8 @@ enum Style {
     IfBody,
     Condition,
     WhenBody,
+    Accessor,
+    InlineGetter,
     Expression,
     Continuation,
 }
@@ -80,6 +83,9 @@ fn regions(input: &Input) -> Vec<Region> {
         }
     }
     for &(kind, start, end, parent) in &input.nodes {
+        if kind == K::PropertyDecl {
+            accessors::regions(input, start, end, &mut regions);
+        }
         if let Some(style) = match kind {
             K::SupertypeList => Some(Style::Supertypes),
             K::WhereClause => Some(Style::Where),
@@ -116,7 +122,11 @@ fn regions(input: &Input) -> Vec<Region> {
             region.start,
             std::cmp::Reverse(region.end),
             match region.style {
-                Style::Control | Style::IfBody | Style::WhenBody => 0,
+                Style::Control
+                | Style::IfBody
+                | Style::WhenBody
+                | Style::Accessor
+                | Style::InlineGetter => 0,
                 Style::Continuation => 1,
                 Style::If => 2,
                 Style::Expression => 3,
@@ -149,6 +159,8 @@ fn sequence(
                             | Style::WhenBody
                             | Style::Continuation
                             | Style::Where
+                            | Style::Accessor
+                            | Style::InlineGetter
                     )
             })
         {
@@ -177,6 +189,19 @@ fn delimited(input: &Input, gaps: &[Gap], nested: &[Region], region: &Region) ->
     }
     if style == Style::Expression {
         return expressions::expression(input, gaps, nested, start, end);
+    }
+    if matches!(style, Style::Accessor | Style::InlineGetter) {
+        let leading = if gaps[start].is_line() {
+            gap(gaps[start])
+        } else if style == Style::Accessor {
+            Document::hardline()
+        } else {
+            Document::line()
+        };
+        return leading
+            .append(sequence(input, gaps, nested, start, end, false))
+            .nest(4)
+            .group();
     }
     if matches!(style, Style::Control | Style::IfBody | Style::WhenBody) {
         let leading = if style == Style::Control {

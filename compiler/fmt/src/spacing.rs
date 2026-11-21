@@ -155,6 +155,14 @@ fn between(left: &Token, right: &Token) -> Gap {
     if left.is_navigation() && matches!(r, K::Ident | K::EscapedIdent) && rp == K::Expression {
         return None;
     }
+    if r == K::LParen
+        && rp == K::PropertyDecl
+        && lp == K::PropertyDecl
+        && l == K::Ident
+        && matches!(left.syntax.text(), "get" | "set")
+    {
+        return None;
+    }
     if lp == K::BinaryOperator
         && rp == K::BinaryOperator
         && left.syntax.parent() == right.syntax.parent()

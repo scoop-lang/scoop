@@ -245,6 +245,26 @@ fn kotlin_multiline_lambda_signatures() {
 }
 
 #[test]
+fn kotlin_property_accessor_indentation() {
+    assert_eq!(
+        checked(
+            "val small:Int get ()=1\nval separate:Int\nget()=2\nval complex:Int get(){work();return 3}"
+        ),
+        "val small: Int get() = 1\n\nval separate: Int\n    get() = 2\n\nval complex: Int\n    get() {\n        work();\n        return 3\n    }\n"
+    );
+    assert_eq!(
+        checked(
+            "class C{var value:Int=0\nget(){return field}\n/** setter */\n@Mark private set (content){field=content}\nval get:Int=get()}"
+        ),
+        "class C {\n    var value: Int = 0\n        get() {\n            return field\n        }\n        /** setter */\n        @Mark private set(content) {\n            field = content\n        }\n    val get: Int = get()\n}\n"
+    );
+    assert_eq!(
+        checked("val computed = 0 get 1"),
+        "val computed = 0 get 1\n"
+    );
+}
+
+#[test]
 fn long_expressions_and_comments_keep_grammar_boundaries() {
     for source in [
         "fun f() = veryLongValueName + anotherLongValueName + yetAnotherLongValueName + finalLongValueName + lastLongValueName",
