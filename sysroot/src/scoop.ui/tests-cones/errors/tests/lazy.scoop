@@ -5,30 +5,26 @@ import scoop.surface.*
 import scoop.test.*
 import scoop.ui.*
 
-internal val FailureMode.isLazy: Boolean get() =
-    when (this) {
+internal val FailureMode.isLazy: Boolean
+    get() = when (this) {
         case LazyBuild -> true
         case LazyMount -> true
         case LazyMeasure -> true
         case LazyMissingPaint -> true
+        case LazyMissingItem -> true
         case LazyMissingPinned -> true
         else -> false
     }
 
-internal class LazyFailureSource(private val record: FailureRecord): ItemSource {
+internal class LazyFailureSource(private val record: FailureRecord) : ItemSource {
     public override val count = 100000000L
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
-    public override fun indexOfKey(key: ViewKey): Long? =
-        when (key) {
-            case Number(val index) -> if (index >= 0L && index < count)
-                Some(index)
-            else
-                None
-            else -> None
-        }
+    public override fun indexOfKey(key: ViewKey): Long? = when (key) {
+        case Number(val index) -> if (index >= 0L && index < count) Some(index) else None
+        else -> None
+    }
     public override fun build(index: Long): View {
-        if (index == 1L && record.mode == FailureMode.LazyBuild)
-            throw record.primary
+        if (index == 1L && record.mode == FailureMode.LazyBuild) throw record.primary
         return element({ mount -> LazyFailureItem(record, index, scope = mount) })
     }
 }
@@ -36,32 +32,33 @@ internal class LazyFailureSource(private val record: FailureRecord): ItemSource 
 internal class LazyFailureContainer(
     private val record: FailureRecord,
     scope: ComponentScope
-): LazyElement<Unit>(scope) {
+) : LazyElement<Unit>(scope) {
     public override fun onMount() {}
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
     ): LayoutResult<Unit> {
         record.lazyContext = Some(context)
-        for (index in 0L ..< 2L) {
-            if (index == 0L && record.lazySkip)
-                continue
+        for (index in 0L..<2L) {
+            if (index == 0L && record.lazySkip) continue
             context.measureItem(index, Constraints.tight(Size(40.0, 30.0)))
             context.placeItem(index, Point(index.toDouble() * 45.0, 0.0))
         }
         return LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 60.0))), Unit)
     }
     public override fun scene(context: SceneContext, measured: Unit) {
-        if (record.mode != FailureMode.LazyMissingPaint)
-            context.children()
+        if (record.mode == FailureMode.LazyMissingItem)
+            context.item(ViewKey.Number(0L))
+        else if (record.mode != FailureMode.LazyMissingPaint) context.children()
         if (record.mode == FailureMode.LazyMissingPinned && !record.lazySkip)
-            context.onFrameComplete {
-                frame -> if (frame.submission == FrameSubmission.Accepted) {
-                    assertTrue(record.lazyItems[0L].area!!.requestFocus())
-                    record.lazySkip = true
-                    scope.requestLayout()
+            context
+                .onFrameComplete { frame ->
+                    if (frame.submission == FrameSubmission.Accepted) {
+                        assertTrue(record.lazyItems[0L].area!!.requestFocus())
+                        record.lazySkip = true
+                        scope.requestLayout()
+                    }
                 }
-            }
     }
 }
 
@@ -69,7 +66,7 @@ internal class LazyFailureItem(
     private val record: FailureRecord,
     val index: Long,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     var area: InputArea? = None
     var unmounts = 0
     private var resource: FailureImage? = None
@@ -79,14 +76,12 @@ internal class LazyFailureItem(
     public override fun onMount() {
         resource = Some(scope.resource { FailureImage(record, "lazy " + index.toString()) })
         area = Some(scope.createArea(focusable = true))
-        if (index == 1L && record.mode == FailureMode.LazyMount)
-            throw record.primary
+        if (index == 1L && record.mode == FailureMode.LazyMount) throw record.primary
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
-        if (index == 1L && record.mode == FailureMode.LazyMeasure)
-            throw record.primary
+        if (index == 1L && record.mode == FailureMode.LazyMeasure) throw record.primary
         return LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 30.0))), Unit)
     }
     public override fun scene(context: SceneContext, measured: Unit) {

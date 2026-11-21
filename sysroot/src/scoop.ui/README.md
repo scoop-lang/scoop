@@ -275,6 +275,8 @@ ParagraphHost 只拥有 Paragraph／TextLayout，不拥有字体或子组件。�
 
 `SceneContext.children(order)` 可按完整子项索引排列呈现场景，例如 Absolute 的同层 zIndex；排列先检查完整性、重复和边界，再呈现已放置项。它与无参 children 共用一次呈现和借用规则，逻辑挂载、路由及 Tab 顺序保持不变。
 
+LazyElement 也可用 `SceneContext.item(key)` 将最终布局的每个已放置条目分别呈现，例如正文和吸顶区采用不同的 `withState` 变换／clip，正文再用 `withScrollReveal` 扣除被遮挡的顶部。key 使用 ItemSource 的稳定身份，位置取当前选中布局的 placeItem 结果；调用不 build 或 measure。逐项模式与两个 children 重载互斥，同一条目不可重复，也不可遗漏已放置项。普通 Element、Position、未知和未放置 key 均被拒绝；试测结果不等于最终可呈现结果。条目原来的状态、输入、焦点和语义身份不变。使用 item 的容器每帧执行 scene，条目自己的绘图／场景缓存仍有效。组合与错误收尾见 [item-scenes 测试](tests-cones/item-scenes/README.md)及 [layout-results 测试](tests-cones/layout-results/tests/layout_result_items.scoop)。
+
 `scope.keyNavigation(NavigationOptions(items, ...))` 将一组 FocusHandle 接入方向键与 Home／End。Horizontal／Vertical 按成员数组顺序，Grid 按 NavigationItem 的 row／column；横向映射复用 TextDirection。默认 roving 让组中仅一个有效成员进入 Tab，返回组时根据 Surface 的真实聚焦历史选择，鼠标和直接程序请求保持一致。配置可整体更新，重复成员、跨组句柄及重复网格位置报告错误。该助手只移动焦点，Enter／Space 和选择语义仍由控件处理；主题示例的主题／明暗按钮提供了实际接入。
 
 [自绘 Counter](examples/custom/README.md) 只使用框架及下层公开接口，实现点击、Path 绘制、状态和宽度动画，不依赖控件库。
