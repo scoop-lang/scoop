@@ -44,6 +44,7 @@ typedef struct {
 @property(nonatomic) SWContactData contact;
 @property(nonatomic) int64_t modifiers;
 @property(nonatomic, strong) NSEvent *nativeInput;
+@property(nonatomic, strong) NSEvent *dragPress;
 @property(nonatomic, strong) NSData *text;
 @property(nonatomic, strong) NSArray<SWTextEdit *> *edits;
 @property(nonatomic, strong) NSArray<NSNumber *> *commands;
@@ -75,6 +76,7 @@ typedef struct {
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWEvent *> *pressedKeys;
 @property(nonatomic, strong) NSMutableSet<NSNumber *> *pressedButtons;
+@property(nonatomic, strong) NSEvent *leftPress;
 @property(nonatomic) NSEventModifierFlags modifiers;
 @property(nonatomic) BOOL functionHeld;
 @property(nonatomic) SWGestureSequence magnifyInput, rotateInput;
