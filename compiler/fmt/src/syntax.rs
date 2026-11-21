@@ -31,6 +31,10 @@ impl Token {
         matches!(self.kind(), K::DotDot | K::DotDotLess) && self.parent_kind() == K::BinaryOperator
     }
 
+    pub fn is_navigation(&self) -> bool {
+        matches!(self.kind(), K::Dot | K::QuestionDot) && self.parent_kind() == K::Expression
+    }
+
     pub fn newlines(&self) -> usize {
         self.before
             .replace("\r\n", "\n")
@@ -83,9 +87,9 @@ impl Input {
             .map(|node| {
                 let Range { start, end } = token_range(&tokens, &node);
                 if node.kind() == K::Expression
-                    && node
-                        .children()
-                        .any(|child| child.kind() == K::BinaryOperator)
+                    && node.children_with_tokens().any(|child| {
+                        matches!(child.kind(), K::BinaryOperator | K::Dot | K::QuestionDot)
+                    })
                 {
                     expressions.push((start, end));
                 }

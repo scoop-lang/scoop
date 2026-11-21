@@ -174,6 +174,9 @@ fn between(left: &Token, right: &Token) -> Gap {
     if l == K::Colon && lp == K::Annotation || r == K::Colon && rp == K::Annotation {
         return None;
     }
+    if left.is_navigation() && matches!(r, K::Ident | K::EscapedIdent) && rp == K::Expression {
+        return None;
+    }
     if lp == K::BinaryOperator
         && rp == K::BinaryOperator
         && left.syntax.parent() == right.syntax.parent()

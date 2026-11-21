@@ -189,6 +189,44 @@ fn kotlin_when_branch_continuations() {
 }
 
 #[test]
+fn kotlin_chained_call_continuations() {
+    assert_eq!(
+        checked("fun f(){ return api.\nread()?.decode() }\nval value = api\n.read()\n?.decode()"),
+        "fun f() {\n    return api\n        .read()\n        ?.decode()\n}\n\nval value = api\n    .read()\n    ?.decode()\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f(){ return connection.obtainAVeryLongFirstMethodName().obtainAVeryLongSecondMethodName().obtainAVeryLongThirdMethodName() }"
+        ),
+        "fun f() {\n    return connection\n        .obtainAVeryLongFirstMethodName()\n        .obtainAVeryLongSecondMethodName()\n        .obtainAVeryLongThirdMethodName()\n}\n"
+    );
+    assert_eq!(
+        checked("fun f()=cell.{value:1}.read()"),
+        "fun f() = cell.{value: 1}.read()\n"
+    );
+}
+
+#[test]
+fn expression_heads_stay_after_equals_when_the_first_line_fits() {
+    assert_eq!(
+        checked("fun f()=when(x){1->first()\nelse->other()}\nval value=setup{first();second()}"),
+        "fun f() = when (x) {\n    1 -> first()\n    else -> other()\n}\n\nval value = setup {\n    first();\n    second()\n}\n"
+    );
+    assert_eq!(
+        checked(
+            "fun f() = call(firstLongArgumentNameThatMakesTheCallTakeMoreThanOneLine, secondLongArgumentNameThatMakesTheCallTakeMoreThanOneLine)"
+        ),
+        "fun f() = call(\n    firstLongArgumentNameThatMakesTheCallTakeMoreThanOneLine,\n    secondLongArgumentNameThatMakesTheCallTakeMoreThanOneLine\n)\n"
+    );
+    assert_eq!(
+        checked(
+            "val aDescriptivePropertyNameThatLeavesInsufficientSpaceForItsInitializer=anEquallyDescriptiveInitializerName"
+        ),
+        "val aDescriptivePropertyNameThatLeavesInsufficientSpaceForItsInitializer =\n    anEquallyDescriptiveInitializerName\n"
+    );
+}
+
+#[test]
 fn long_expressions_and_comments_keep_grammar_boundaries() {
     for source in [
         "fun f() = veryLongValueName + anotherLongValueName + yetAnotherLongValueName + finalLongValueName + lastLongValueName",

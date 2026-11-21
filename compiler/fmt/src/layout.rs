@@ -5,6 +5,7 @@ use crate::{
 };
 use scoop_syntax::SyntaxKind as K;
 
+mod expressions;
 mod lists;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -172,13 +173,10 @@ fn sequence(
 fn delimited(input: &Input, gaps: &[Gap], nested: &[Region], region: &Region) -> Document {
     let Region { start, end, style } = *region;
     if style == Style::Continuation {
-        return Document::line()
-            .append(sequence(input, gaps, nested, start, end, false))
-            .nest(4)
-            .group();
+        return expressions::continuation(sequence(input, gaps, nested, start, end, false));
     }
     if style == Style::Expression {
-        return expression(input, gaps, nested, start, end);
+        return expressions::expression(input, gaps, nested, start, end);
     }
     if matches!(style, Style::Control | Style::IfBody | Style::WhenBody) {
         let leading = if style == Style::Control {
@@ -236,46 +234,6 @@ fn condition(input: &Input, gaps: &[Gap], nested: &[Region], start: usize, end: 
         .append(tail)
         .append(render::token(input.tokens[end - 1].syntax.text()))
         .group()
-}
-
-fn expression(
-    input: &Input,
-    gaps: &[Gap],
-    nested: &[Region],
-    start: usize,
-    end: usize,
-) -> Document {
-    let mut pieces = Vec::new();
-    let mut cursor = 0;
-    let mut index = start;
-    let mut item = start;
-    while index < end {
-        if let Some(child) = nested.get(cursor).filter(|child| child.start == index) {
-            index = child.end;
-            cursor += 1 + nested[cursor + 1..].partition_point(|region| region.start < child.end);
-            continue;
-        }
-        let last_operator_token = input.tokens[index].parent_kind() == K::BinaryOperator
-            && !input.tokens[index].is_range_operator()
-            && (index + 1 == end
-                || input.tokens[index].operator() != input.tokens[index + 1].operator());
-        index += 1;
-        if last_operator_token {
-            let part = sequence(input, gaps, within(nested, item, index), item, index, false);
-            pieces.push(if item == start {
-                part
-            } else {
-                Document::line().append(part).nest(4)
-            });
-            item = index;
-        }
-    }
-    let part = sequence(input, gaps, within(nested, item, end), item, end, false);
-    if item == start {
-        return part;
-    }
-    pieces.push(Document::line().append(part).nest(4));
-    Document::concat(pieces).group()
 }
 
 fn within(regions: &[Region], start: usize, end: usize) -> &[Region] {
