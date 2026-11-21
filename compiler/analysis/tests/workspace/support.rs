@@ -40,7 +40,7 @@ pub fn setup_without_lock(root: &Path) -> ProjectConfiguration {
         name: "app".into(),
         root: root.join("app"),
         target: scoop_toolchain::select_target("aarch64-apple-darwin").unwrap(),
-        purpose: CompilationPurpose::Production,
+        purpose: Some(CompilationPurpose::Production),
         sysroot: root.join("sysroot"),
         artifact_search_roots: Vec::new(),
         package_manager: std::env::current_exe()
@@ -63,7 +63,7 @@ pub fn resolve(configuration: &ProjectConfiguration) {
         .arg("--target")
         .arg(configuration.target.target().contract().canonical_triple())
         .arg("--purpose")
-        .arg(if configuration.purpose == CompilationPurpose::Test {
+        .arg(if configuration.purpose == Some(CompilationPurpose::Test) {
             "test"
         } else {
             "production"

@@ -9,7 +9,7 @@ use lsp_types::{DiagnosticSeverity, LogMessageParams, PublishDiagnosticsParams};
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use super::{Document, Purpose, Query, QueryKind, client::Client};
+use super::{Document, Query, QueryKind, client::Client};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -57,7 +57,7 @@ pub(super) fn execute(query: &Query) -> QueryResult<Output> {
         "initializationOptions": {
             "target": query.target,
             "sysroot": absolute_option(&query.sysroot)?,
-            "purpose": match query.purpose { Purpose::Production => "production", Purpose::Test => "test" },
+            "purpose": query.purpose,
             "packageManager": absolute_option(&query.package_manager)?,
             "packageCacheDir": absolute_option(&query.package_cache_dir)?,
             "lockfile": absolute_option(&query.lockfile)?,

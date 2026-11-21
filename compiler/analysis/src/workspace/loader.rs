@@ -1,5 +1,7 @@
 use std::{collections::BTreeSet, path::PathBuf};
 
+use scoop_protocol::{CompilationPurpose, package::PackageMemberV1};
+
 use super::{
     LoadError, LocalMemberInput, ProjectConfiguration, ProjectDiagnostic, WorkspaceInputs,
     artifacts::ArtifactInputs, files::FileInputs, graph::ProjectBuilder, normalize_path,
@@ -77,66 +79,123 @@ impl WorkspaceLoader {
             })?;
         if initialize_lockfile {
             // All members and configurations in this load need their own lock records.
-            missing_lockfiles.insert(lockfile);
+            missing_lockfiles.insert(lockfile.clone());
         }
-        for member in members
+        let mut selected = members
             .members
             .iter()
             .filter(|member| all || member.selected)
-        {
+            .collect::<Vec<_>>();
+        let locked_purposes = if configuration.purpose.is_none() && !initialize_lockfile {
+            match package.locked_purposes(&lockfile) {
+                Ok(purposes) => Some(purposes),
+                Err(error) => {
+                    self.report(host, overlays, configuration, error, inputs);
+                    for member in selected {
+                        self.keep_local_member(host, overlays, configuration, member, true, inputs);
+                    }
+                    return Ok(());
+                }
+            }
+        } else {
+            None
+        };
+        if let Some(purposes) = &locked_purposes {
+            // Load actual root graphs before checking for dependency-only members.
+            selected.sort_by_key(|member| !purposes.contains_key(&member.path));
+        }
+        let first_project = inputs.projects.len();
+        let default_purpose = [configuration.purpose.unwrap_or_default()];
+        for member in selected {
             let directory = member.directory.to_path_buf().map_err(|error| {
                 LoadError::new(scoop_source::DiagnosticCode::E2502, root, error)
             })?;
             let mut member_configuration = configuration.clone();
-            member_configuration.root = directory.clone();
-            let result = package
-                .load_member(&directory, &member.coordinate, initialize_lockfile)
-                .and_then(|mut prepared| {
-                    if prepared.resolutions.len() != 1
-                        || prepared.resolutions[0].coordinate != member.coordinate
-                    {
-                        return Err(LoadError::new(
-                            scoop_source::DiagnosticCode::E2502,
-                            &directory,
-                            "package manager returned a different member selection",
-                        ));
-                    }
-                    ProjectBuilder::load(
-                        self,
-                        host,
-                        overlays,
-                        member_configuration.clone(),
-                        prepared.resolutions.remove(0),
+            member_configuration.root = directory;
+            let locked = locked_purposes
+                .as_ref()
+                .and_then(|purposes| purposes.get(&member.path));
+            let without_root = locked_purposes.is_some() && locked.is_none();
+            if without_root
+                && inputs.projects[first_project..].iter().any(|project| {
+                    project.complete
+                        && project
+                            .cones
+                            .values()
+                            .filter_map(|cone| cone.source())
+                            .any(|cone| {
+                                cone.manifest.real_root() == member_configuration.root
+                                    && cone.manifest.coordinate() == &member.coordinate
+                            })
+                })
+            {
+                continue;
+            }
+
+            let mut failed_purpose = None;
+            for &purpose in locked.map(Vec::as_slice).unwrap_or(&default_purpose) {
+                let result = package
+                    .load_member(
+                        &member_configuration.root,
+                        member,
+                        purpose,
+                        initialize_lockfile,
                     )
-                });
-            match result {
-                Ok((project, errors)) => {
-                    inputs.projects.push(project);
-                    for error in errors {
+                    .and_then(|resolution| {
+                        ProjectBuilder::load(
+                            self,
+                            host,
+                            overlays,
+                            member_configuration.clone(),
+                            resolution,
+                        )
+                    });
+                match result {
+                    Ok((project, errors)) => {
+                        inputs.projects.push(project);
+                        for error in errors {
+                            self.report(host, overlays, &member_configuration, error, inputs);
+                        }
+                    }
+                    Err(error) => {
+                        failed_purpose = Some(purpose);
                         self.report(host, overlays, &member_configuration, error, inputs);
                     }
                 }
-                Err(error) => {
-                    self.report(host, overlays, &member_configuration, error, inputs);
-                    match self.files.member_sources(
-                        host,
-                        overlays,
-                        member,
-                        &member_configuration,
-                        configuration.purpose == scoop_protocol::CompilationPurpose::Test,
-                    ) {
-                        Ok(sources) => inputs.unresolved_members.push(LocalMemberInput {
-                            configuration: configuration.name.clone(),
-                            sources,
-                        }),
-                        Err(error) => {
-                            self.report(host, overlays, &member_configuration, error, inputs)
-                        }
-                    }
-                }
+            }
+            if let Some(purpose) = failed_purpose {
+                self.keep_local_member(
+                    host,
+                    overlays,
+                    &member_configuration,
+                    member,
+                    without_root || purpose == CompilationPurpose::Test,
+                    inputs,
+                );
             }
         }
         Ok(())
+    }
+
+    fn keep_local_member(
+        &mut self,
+        host: &mut AnalysisHost,
+        overlays: &BTreeSet<PathBuf>,
+        configuration: &ProjectConfiguration,
+        member: &PackageMemberV1,
+        include_tests: bool,
+        inputs: &mut WorkspaceInputs,
+    ) {
+        match self
+            .files
+            .member_sources(host, overlays, member, configuration, include_tests)
+        {
+            Ok(sources) => inputs.unresolved_members.push(LocalMemberInput {
+                configuration: configuration.name.clone(),
+                sources,
+            }),
+            Err(error) => self.report(host, overlays, configuration, error, inputs),
+        }
     }
 
     fn report(

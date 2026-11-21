@@ -122,7 +122,7 @@ fn targets_purposes_and_unsaved_files_share_text_but_keep_project_membership() {
     let mut testing = production.clone();
     testing.name = "linux-tests".into();
     testing.target = scoop_toolchain::select_target("x86_64-unknown-linux-gnu").unwrap();
-    testing.purpose = CompilationPurpose::Test;
+    testing.purpose = Some(CompilationPurpose::Test);
     resolve(&testing);
     let mut host = AnalysisHost::default();
     let extra = root.join("app/src/unsaved.scoop");

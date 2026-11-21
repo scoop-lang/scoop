@@ -42,6 +42,8 @@ enum Command {
     Remove(edit::EditArgs),
     /// Read exact dependency graphs from Cone.lock without fetching or updating.
     Deps(deps::DepsArgs),
+    /// List locked compilation purposes for a target as versioned JSON.
+    LockedPurposes(deps::LockedPurposesArgs),
     /// Return the locked local project model as versioned JSON without updating Cone.lock.
     Metadata(metadata::MetadataArgs),
     /// Resolve selected dependency graphs and prepare their source packages.
@@ -81,7 +83,7 @@ pub fn run() -> Result<(), (PmError, bool)> {
         Some(DiagnosticFormat::Human) => false,
         Some(DiagnosticFormat::Json) => true,
         None => {
-            matches!(&cli.command, Command::Prepare)
+            matches!(&cli.command, Command::Prepare | Command::LockedPurposes(_))
                 || matches!(&cli.command, Command::Members(args) if args.members.json)
                 || matches!(&cli.command, Command::Metadata(args) if args.json())
         }
@@ -96,6 +98,7 @@ fn execute(cli: Cli) -> PmResult<()> {
         Command::Add(args) => edit::add(args),
         Command::Remove(args) => edit::remove(args),
         Command::Deps(args) => deps::execute(args),
+        Command::LockedPurposes(args) => deps::locked_purposes(args),
         Command::Metadata(args) => metadata::execute(args),
         Command::Resolve(args) => resolve::execute(args, false, None, None),
         Command::Fetch(args) => resolve::execute(args, true, None, None),

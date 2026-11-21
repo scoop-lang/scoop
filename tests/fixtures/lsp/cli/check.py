@@ -165,8 +165,9 @@ def main():
         timeout=60,
     )
     assert resolved.returncode == 0, resolved.stderr
-    tests = query("diagnostics", "tests/local.scoop", "--purpose", "test")
+    tests = query("diagnostics", "tests/local.scoop")
     assert tests["status"] == "empty", tests
+    assert query("workspace-symbols", "CliTests")["result"][0]["name"] == "CliTests"
 
     run = subprocess.run(
         [*base, "hover", "src/value.scoop", "--line", str(identity_line + 1), "--column", "6"],

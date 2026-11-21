@@ -67,7 +67,7 @@ code --install-extension "$HOME"/.scoop/tooling/scoop-language-support-*.vsix
 | `scoop.server.path`         | 空；按上述顺序发现服务器，修改后自动重启                                                                                                    |
 | `scoop.sysroot`             | 空；沿服务端默认规则选取，显式相对路径基于 Cone 根                                                                                          |
 | `scoop.target`              | 空；服务端宿主 target triple                                                                                                                |
-| `scoop.purpose`             | `production`；`test` 同时分析根 Cone 的测试输入                                                                                             |
+| `scoop.purpose`             | `auto`，使用各成员已有的生产及测试锁定图；`production` 或 `test` 可显式选定一种用途                                                         |
 | `scoop.artifactSearchRoots` | `[]`；额外预编译依赖搜索目录                                                                                                                |
 | `scoop.packageManager`      | 空；使用 scoop-lsp 同目录的 scoop-pm                                                                                                        |
 | `scoop.packageCacheDir`     | 空；沿 PM 的共享源码缓存规则                                                                                                                |
