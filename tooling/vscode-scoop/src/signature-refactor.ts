@@ -16,7 +16,10 @@ export async function chooseSignatureChange(
   const operations: (vscode.QuickPickItem & { operation: Operation })[] = [];
   if (parameters.length > 1)
     operations.push({ label: "Reorder Parameters", operation: "order" });
-  operations.push({ label: "Add Defaulted Parameter", operation: "addDefault" });
+  operations.push({
+    label: "Add Defaulted Parameter",
+    operation: "addDefault",
+  });
   if (parameters.length > 0) {
     operations.push(
       { label: "Remove Unused Parameter", operation: "removeUnused" },
@@ -34,13 +37,18 @@ export async function chooseSignatureChange(
       if (name === undefined) return;
       const type = await requiredInput("New Parameter Type");
       if (type === undefined) return;
-      const expression = await requiredInput("New Parameter Default Expression");
+      const expression = await requiredInput(
+        "New Parameter Default Expression",
+      );
       if (expression === undefined) return;
       return { edit: { kind: "addDefault", name, type, expression } };
     }
     case "removeUnused":
     case "setDefault": {
-      const items = parameters.map((label, parameter) => ({ label, parameter }));
+      const items = parameters.map((label, parameter) => ({
+        label,
+        parameter,
+      }));
       const selected = await vscode.window.showQuickPick(items, {
         title: "Select Parameter",
       });
@@ -54,7 +62,11 @@ export async function chooseSignatureChange(
       });
       if (expression === undefined) return;
       return {
-        edit: { kind: "setDefault", parameter, expression: expression.trim() || null },
+        edit: {
+          kind: "setDefault",
+          parameter,
+          expression: expression.trim() || null,
+        },
       };
     }
   }

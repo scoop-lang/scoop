@@ -169,11 +169,14 @@ pub(crate) fn run(
             let Some(path) = file_path(&target_uri)? else {
                 return Ok(Value::Null);
             };
-            let (_, cone) = cursor
+            let Some(target) = cursor
                 .project
-                .source_cone(source)
-                .expect("selected source Cone");
-            let Some(target) = cone.sources.iter().find(|file| file.path == path) else {
+                .cones
+                .values()
+                .filter_map(scoop_analysis::ConeInput::source)
+                .flat_map(|cone| &cone.sources)
+                .find(|file| file.path == path)
+            else {
                 return Ok(Value::Null);
             };
             semantics.move_declaration(snapshot, source, target.source, cursor.span, check)

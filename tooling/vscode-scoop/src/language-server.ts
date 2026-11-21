@@ -281,7 +281,10 @@ export class ScoopLanguageServer {
       );
       return;
     }
-    const change = await chooseSignatureChange(plan.parameters, plan.reorderOnly);
+    const change = await chooseSignatureChange(
+      plan.parameters,
+      plan.reorderOnly,
+    );
     if (change === undefined || document.version !== version) return;
     const edit = await client.sendRequest<ProtocolWorkspaceEdit | null>(
       "scoop/changeSignature",

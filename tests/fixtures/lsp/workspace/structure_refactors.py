@@ -90,7 +90,7 @@ def check(peer, root):
         )
 
     assert move("fun location()", "location", destination) is None
-    assert move("fun moveMe(", "moveMe", support) is None
+    assert move("fun defaultDepends(", "defaultDepends", support) is None
     moved = move("fun moveMe(", "moveMe", destination)
     assert moved is not None
     case.apply(moved, 3)

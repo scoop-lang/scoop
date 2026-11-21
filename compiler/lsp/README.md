@@ -153,7 +153,7 @@ import 语法完整但目标无法解析时，成功的导入项仍保留，同�
 
 `Extract Interface` 从选中的普通 final 方法生成接口并保留原实现。`Extract Superclass` 将方法及其注释移动到新建的无状态父类。`Pull Members Up` 和 `Push Members Down` 沿同文件中的直接类继承关系移动方法。适用于非泛型内部类或文件私有类，编辑前会核对原有用法及移动正文的绑定。
 
-`source.organizeImports` 去除文件头和块内已确认未使用的普通精确导入与星号导入，保留公开重导出。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在同一 Cone 和 package 移动普通顶层函数。
+`source.organizeImports` 去除文件头和块内已确认未使用的普通精确导入与星号导入，保留公开重导出。`scoop/moveDeclaration` 接收已有目标文件的 `targetUri`，在所选配置中移动普通顶层函数。跨 package 更新实际绑定的导入、别名和公开重导出。跨 Cone 移动适用于已有依赖关系能维持合法用法的公开函数。
 
 `scoop/prepareChangeSignature` 返回 `parameters`、`revision` 和 `reorderOnly`。`scoop/changeSignature` 接收该 revision 与零基 `order` 排列，或接收 `edit`。编辑种类为 `addDefault`、`removeUnused`、`setDefault`。新增提供 `name`、`type`、`expression`，后两项提供零基 `parameter`，设置默认值还提供 `expression`，以 `null` 清除。方法换序覆盖同文件内部或私有类型的重写关系。文件私有函数的引用直接被调用时，可改写为等价的命名直接调用。服务端返回版本化 workspace edit。
 

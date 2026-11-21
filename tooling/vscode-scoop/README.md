@@ -36,7 +36,7 @@ Run／Debug 后才调用普通构建入口。扩展不自动准备 sysroot；不
 
 将光标放在内部类或文件私有类的名称、方法名称上，重构菜单可提供 `Extract Interface`、`Extract Superclass`、`Pull Members Up` 或 `Push Members Down`。移动要求目标类在同一文件，成员下移要求唯一直接子类。
 
-`Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择同一 Cone、同一 package 的目标文件。在文件私有顶层函数上执行 `Scoop: Change Signature`，可调整顺序、新增带默认值的形参、删除未用形参，或设置与清除默认值。移动和签名编辑支持预览。
+`Organize Imports` 删除文件头和块内未使用的普通精确导入与星号导入，保留公开重导出。在普通顶层函数上执行 `Scoop: Move Declaration`，可选择所选源码图内的目标文件，支持跨 package 及符合现有依赖关系的跨 Cone 移动。在文件私有顶层函数上执行 `Scoop: Change Signature`，可调整顺序、新增带默认值的形参、删除未用形参，或设置与清除默认值。移动和签名编辑支持预览。
 
 在内部类、文件私有类或接口的方法上执行 `Scoop: Change Signature`，可在同文件的重写链中联动换序。
 

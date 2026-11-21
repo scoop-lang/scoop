@@ -24,18 +24,20 @@ from do_while_recovery import check as check_do_while_recovery
 from documentation import check as check_documentation
 from exception_recovery import check as check_exception_recovery
 from extract_declarations import check as check_extract_declarations
-from inline_functions import check as check_inline_functions
-from member_refactors import check as check_member_refactors
 from extract_local import check as check_extract_local
 from file_headers import check as check_file_headers
 from for_recovery import check as check_for_recovery
 from import_failures import check as check_import_failures
 from import_references import check as check_import_references
 from incomplete_signatures import check as check_incomplete_signatures
+from inline_functions import check as check_inline_functions
 from installed_sources import location
 from late_declarations import check as check_late_declarations
 from local_function_recovery import check as check_local_function_recovery
 from member_implementations import check as check_member_implementations
+from member_refactors import check as check_member_refactors
+from move_contexts import check as check_move_contexts
+from move_contexts import check_reexport as check_move_reexport
 from navigation_extras import check as check_navigation_extras
 from nominal_failures import check as check_nominal_failures
 from operator_references import check as check_operator_references
@@ -56,14 +58,14 @@ from rename_members import check as check_rename_members
 from rename_types import check as check_rename_types
 from rename_versions import check as check_rename_versions
 from runtime_initializers import check as check_runtime_initializers
+from signature_parameters import check as check_signature_parameters
+from signature_parameters import check_methods as check_signature_methods
 from signatures import check as check_signatures
 from source_dependencies import check as check_source_dependencies
 from static_calls import check as check_static_calls
 from static_constants import check as check_static_constants
 from static_variants import check as check_static_variants
 from structure_refactors import check as check_structure_refactors
-from signature_parameters import check as check_signature_parameters
-from signature_parameters import check_methods as check_signature_methods
 from subscript_references import check as check_subscript_references
 from type_definitions import check as check_type_definitions
 from type_hovers import check as check_type_hovers
@@ -476,6 +478,8 @@ def main():
         check_member_refactors(peer, root)
         check_refactor_local(peer, root)
         check_structure_refactors(peer, root)
+        check_move_contexts(peer, root)
+        check_move_reexport(peer, root)
         check_signature_parameters(peer, root)
         check_signature_methods(peer, root)
         check_rename_types(peer, root)

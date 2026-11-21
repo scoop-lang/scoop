@@ -1,7 +1,12 @@
 use std::collections::HashSet;
 
-use scoop_ast::{Decl, FunctionBody, ImportSyntax, PackageSyntax, SourceFile};
-use scoop_hir::{EditingReferenceTarget, EditingValue, SemanticSourceLocation};
+use scoop_ast::{
+    Decl, DeclaredVisibility, FunctionBody, ImportSyntax, PackageSyntax, SourceFile,
+    VisibilitySyntax,
+};
+use scoop_hir::{
+    EditingCallee, EditingReferenceTarget, EditingValue, SemanticCallable, SemanticSourceLocation,
+};
 use scoop_source::{SourceEdit, Span};
 use scoop_syntax::SyntaxKind;
 
@@ -9,6 +14,8 @@ use super::extract_local::bindings;
 use super::inline_local::{removal_span, updated_span};
 use super::*;
 use crate::{SnapshotEditError, SourceInput};
+
+mod relocation;
 
 impl SemanticSession {
     pub fn move_declaration(
@@ -26,12 +33,9 @@ impl SemanticSession {
             return Ok(None);
         };
         let (cone, _) = project.source_cone(source).expect("selected source Cone");
-        if project
-            .source_cone(destination)
-            .is_none_or(|(other, _)| other != cone)
-        {
+        let Some((target_cone, _)) = project.source_cone(destination) else {
             return Ok(None);
-        }
+        };
         let file = project.source_file_by_id(source).expect("selected source");
         let target = project
             .source_file_by_id(destination)
@@ -49,9 +53,8 @@ impl SemanticSession {
         ) else {
             return Ok(None);
         };
-        if package_parts(&from.package).ne(package_parts(&to.package)) {
-            return Ok(None);
-        }
+        let changes_context =
+            target_cone != cone || package_parts(&from.package).ne(package_parts(&to.package));
         let Some(function) = from.declarations.iter().find_map(|declaration| {
             let Decl::Function(function) = declaration else {
                 return None;
@@ -64,6 +67,19 @@ impl SemanticSession {
         }) else {
             return Ok(None);
         };
+        if changes_context
+            && (function.name.text == "main"
+                || target_cone != cone
+                    && !matches!(
+                        function.visibility,
+                        VisibilitySyntax::Explicit {
+                            visibility: DeclaredVisibility::Public,
+                            ..
+                        }
+                    ))
+        {
+            return Ok(None);
+        }
 
         let revision = snapshot.clone();
         let check: Rc<dyn Fn() -> bool> =
@@ -75,30 +91,42 @@ impl SemanticSession {
             source: file.identity.clone(),
             span: function.name.span,
         };
-        let Some(body) = analysis
-            .call_hierarchy_body(&name, check.clone())
-            .map_err(|_| ProjectAnalysisError::Cancelled)?
-        else {
-            return Ok(None);
-        };
-        let cancellation = check.clone();
-        let EditingValue::Known(calls) = analysis
-            .calls(body.id, move || cancellation())
-            .map_err(|_| ProjectAnalysisError::Cancelled)?
-        else {
-            return Ok(None);
-        };
-        let callees = calls
+        let Some(declared) = analysis
+            .functions()
             .iter()
-            .filter_map(|call| call.callee)
-            .collect::<Vec<_>>();
-        if callees.into_iter().any(|callee| {
-            analysis.is_source_location_call(callee)
-                || (file.path.parent() != target.path.parent()
-                    && analysis.is_relative_source_call(callee))
-        }) || analysis.has_source_location_default(body.id, function.span)
-        {
+            .find(|declared| declared.name_origin == name)
+        else {
             return Ok(None);
+        };
+        let owner = EditingCallee::Callable(SemanticCallable::Current(declared.function));
+        let bodies = analysis
+            .source_bodies()
+            .into_iter()
+            .filter(|body| body.callee() == Some(owner))
+            .collect::<Vec<_>>();
+        if bodies.is_empty() {
+            return Ok(None);
+        }
+        for body in bodies {
+            let cancellation = check.clone();
+            let EditingValue::Known(calls) = analysis
+                .calls(body.id, move || cancellation())
+                .map_err(|_| ProjectAnalysisError::Cancelled)?
+            else {
+                return Ok(None);
+            };
+            let callees = calls
+                .iter()
+                .filter_map(|call| call.callee)
+                .collect::<Vec<_>>();
+            if callees.into_iter().any(|callee| {
+                analysis.is_source_location_call(callee)
+                    || (file.path.parent() != target.path.parent()
+                        && analysis.is_relative_source_call(callee))
+            }) || analysis.has_source_location_default(body.id, function.span)
+            {
+                return Ok(None);
+            }
         }
         let cancellation = check.clone();
         let before = analysis
@@ -116,8 +144,23 @@ impl SemanticSession {
             })
             .collect::<HashSet<_>>();
         let moved = attached_comments(input, function.span);
+        if changes_context {
+            return self.relocate_function(
+                snapshot,
+                project,
+                relocation::FunctionMove {
+                    from: (file, input, from),
+                    to: (target, output, to),
+                    name,
+                    name_text: &function.name.text,
+                    moved,
+                    imports: import_spans,
+                },
+                check,
+            );
+        }
         let Some((destination_start, inserts)) =
-            destination_edits(input, from, output, to, moved, &import_spans)
+            destination_edits(input, from, output, to, moved, &import_spans, &[])
         else {
             return Ok(None);
         };
@@ -264,6 +307,7 @@ fn destination_edits(
     to: &SourceFile,
     moved: Span,
     required: &HashSet<Span>,
+    extra: &[String],
 ) -> Option<(u32, Vec<SourceEdit>)> {
     let old = input.text.as_str();
     let text = output.text.as_str();
@@ -285,36 +329,22 @@ fn destination_edits(
             additions.push_str(newline);
         }
     }
+    for import in extra {
+        if imports.insert(import.as_str()) {
+            additions.push_str(import);
+            additions.push_str(newline);
+        }
+    }
     let end = u32::try_from(text.len()).ok()?;
     let mut edits = Vec::new();
-    let header = to
-        .imports
-        .last()
-        .map(|import| import_spans(import).0.end)
-        .or_else(|| match &to.package {
-            PackageSyntax::RootPackage => None,
-            PackageSyntax::QualifiedPackage { span, .. } => Some(span.end),
-        });
     let mut append = String::new();
     let mut earlier = 0;
-    if !additions.is_empty() {
-        let offset = header.map_or(0, |end| {
-            let rest = &text[end as usize..];
-            let line_break = rest.find(['\r', '\n']).unwrap_or(rest.len());
-            end + line_break as u32
-        });
-        if offset != 0 {
-            additions.insert_str(0, newline);
-        }
-        if offset == end {
-            append.push_str(&additions);
+    if let Some(edit) = import_insertion(output, to, additions) {
+        if edit.span.start == end {
+            append.push_str(&edit.replacement);
         } else {
-            earlier = additions.len();
-            edits.push(SourceEdit {
-                source: output.version,
-                span: Span::new(offset, offset),
-                replacement: additions,
-            });
+            earlier = edit.replacement.len();
+            edits.push(edit);
         }
     }
     append.push_str(newline);
@@ -328,4 +358,36 @@ fn destination_edits(
         replacement: append,
     });
     Some((start, edits))
+}
+
+fn import_insertion(
+    input: &SourceInput,
+    file: &SourceFile,
+    mut additions: String,
+) -> Option<SourceEdit> {
+    if additions.is_empty() {
+        return None;
+    }
+    let text = input.text.as_str();
+    let header = file
+        .imports
+        .last()
+        .map(|import| import_spans(import).0.end)
+        .or(match &file.package {
+            PackageSyntax::RootPackage => None,
+            PackageSyntax::QualifiedPackage { span, .. } => Some(span.end),
+        });
+    let offset = header.map_or(0, |end| {
+        let rest = &text[end as usize..];
+        let line_break = rest.find(['\r', '\n']).unwrap_or(rest.len());
+        end + line_break as u32
+    });
+    if offset != 0 {
+        additions.insert_str(0, if text.contains("\r\n") { "\r\n" } else { "\n" });
+    }
+    Some(SourceEdit {
+        source: input.version,
+        span: Span::new(offset, offset),
+        replacement: additions,
+    })
 }
