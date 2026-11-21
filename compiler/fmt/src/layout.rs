@@ -175,7 +175,7 @@ fn sequence(
             index = region.end;
             cursor = nested_end;
         } else {
-            docs.push(render::token(input.tokens[index].syntax.text()));
+            docs.push(render::source_token(&input.tokens[index]));
             index += 1;
         }
     }

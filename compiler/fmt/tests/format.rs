@@ -86,6 +86,16 @@ fn comments_strings_and_newlines_are_verbatim() {
 }
 
 #[test]
+fn kotlin_plain_line_comment_spacing() {
+    assert_eq!(
+        checked(
+            "//! dep: scoop:scoop.json:0.1.0\n//中文 说明\n///docs\nfun f(){\nwork()//retry   later\n//  preformatted\n//&delimiter\n/*raw text*/\n}"
+        ),
+        "//! dep: scoop:scoop.json:0.1.0\n// 中文 说明\n///docs\nfun f() {\n    work() // retry   later\n    //  preformatted\n    //&delimiter\n    /*raw text*/\n}\n"
+    );
+}
+
+#[test]
 fn lists_break_at_unicode_scalar_width() {
     let name = "参数".repeat(10);
     let source = format!("fun f({name}: Int, {name}b: Int, {name}c: Int) {{}}");
