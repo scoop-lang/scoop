@@ -48,7 +48,9 @@ fun main() {
 
 content 可实现 `onFrameComplete(FrameCompletion)`，读取该帧的 time、窗口内容区 size 和 Accepted／Discarded 结果。回调位于 Canvas／frame 借用结束后；Accepted 时输入几何已发布，可请求焦点或下一帧。没有进入 paint、绘制异常或窗口关闭时不发通知，资源仍在 close 中释放。它不表示 GPU 已完成，也不会自行续订帧。
 
-macOS 上以 `SCOOP_SURFACE_FPS=1` 启动应用，可在 stderr 查看每个窗口实际呈现的帧率。`scoop-surface-fps` 样本使用 Metal 回执时间，`frames / seconds` 为该区间的 `fps`。样本的 `start` 和 `end` 可用于判断区间是否跨过静止期。窗口静止时探针随呈现停采，关闭时输出累计有效回执数 `presented_total`、无有效时间的回执数 `without_time_total` 和 `last_presented`。
+macOS 应用在附着窗口前调用 `scoop.surface.configureFpsReportingFromEnvironment()`，并以 `SCOOP_SURFACE_FPS=1` 启动，即可在 stderr 查看每个窗口实际呈现的帧率。未调用时环境变量无效。每次调用读取当前值，设置适用于随后附着的窗口。
+
+`scoop-surface-fps` 样本使用 Metal 回执时间，`frames / seconds` 为该区间的 `fps`。样本的 `start` 和 `end` 可用于判断区间是否跨过静止期。窗口静止时探针随呈现停采，关闭时输出累计有效回执数 `presented_total`、无有效时间的回执数 `without_time_total` 和 `last_presented`。
 
 关闭 SurfaceWindow 只卸载绘制层，Window 可继续存在或重新 attach。关闭 Window 或 Application 则由 SurfaceHost 自动退休 Surface 资源。SurfaceHost 事件处理器、paint 或输入回调内关闭先进入 Closing，整个业务回调和 Canvas 借用结束后，依次关闭 content、renderer 和 lease；不会在回调内等待自己。内容清理失败仍继续释放其余窗口与底层资源，并沿 Application 的既有异常通路传播。
 
@@ -106,7 +108,7 @@ macOS／Linux 可用 `ShortcutScope(input, bindings)` 在作用域内登记快�
 
 验证使用以下普通测试 Cone：
 
-- 本 Cone 的 tests：动画的确定性采样；实际 Skia 离屏几何上的区域命中、传播、拖动、焦点、IME 会话和关闭；两个真实窗口的按需重绘、空闲、隐藏／最小化恢复、resize、输入宿主保留及重新 attach。`--filter Animation` 和 `--filter Input` 可分别运行不需要桌面的测试；`--filter SurfaceHostTest` 运行真实窗口测试。
+- 本 Cone 的 tests：动画的确定性采样；实际 Skia 离屏几何上的区域命中、传播、拖动、焦点、IME 会话和关闭；两个真实窗口的按需重绘、空闲、隐藏／最小化恢复、resize、输入宿主保留及重新 attach。`--filter Animation` 和 `--filter Input` 可分别运行不需要桌面的测试；`--filter SurfaceHostTest` 运行真实窗口测试。`--filter SurfaceFpsReportingTest` 在独立 macOS 进程验证 FPS 的显式配置和真实呈现输出。
 - `tests-cones/animation-deadlines`：隐藏窗口的有限完成、可见窗口中关闭动画帧需求、真实 display link 停止、恢复采样，以及完成回调内关闭 Surface；只运行 macOS 定向用例。
 - `tests-cones/asyncio`：原生 modal／menu 循环下的帧与 I/O，Windows 还覆盖系统移动／缩放循环，以及根取消后的 Surface 收尾。
 - `tests-cones/content`：附着失败及错误线程的所有权边界、回调内关闭、原生关闭、重新附着、从未绘制的隐藏内容和退出收尾。

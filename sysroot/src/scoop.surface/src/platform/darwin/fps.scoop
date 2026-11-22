@@ -1,0 +1,15 @@
+package scoop.surface
+
+/**
+ * Reads SCOOP_SURFACE_FPS for future macOS Surface attachments.
+ * The exact value "1" enables stderr reporting. Existing attachments keep their settings.
+ */
+public fun configureFpsReportingFromEnvironment() {
+    @Unsafe
+    {
+        macConfigureFpsReportingFromEnvironment()
+    }
+}
+
+@Extern(name = "scoop_surface_metal_configure_fps_reporting_from_environment")
+private fun macConfigureFpsReportingFromEnvironment()

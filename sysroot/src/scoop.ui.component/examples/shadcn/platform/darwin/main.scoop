@@ -1,7 +1,9 @@
 package scoop.examples.ui.shadcn
 
+import scoop.surface.configureFpsReportingFromEnvironment
 import scoop.ui.style.macos.macosSystemPalette
 
 fun main() {
+    configureFpsReportingFromEnvironment()
     runGallery(GalleryModel(Some({ mode -> macosSystemPalette(mode) })))
 }

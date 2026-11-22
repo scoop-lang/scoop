@@ -25,7 +25,7 @@ Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、
 SCOOP_SYSROOT="$PWD/sysroot" target/release/scoop run sysroot/src/scoop.ui.component/examples/shadcn --release
 ```
 
-macOS 上可在同一命令前加 `SCOOP_SURFACE_FPS=1` 查看实际呈现帧率。Button 页可供静止对照，Spinner 或 Skeleton 页可测连续动画。输出字段见 [Surface README](../../../scoop.surface/README.md)。
+Gallery 的 macOS 入口在附着窗口前调用 `configureFpsReportingFromEnvironment()`。在同一命令前加 `SCOOP_SURFACE_FPS=1` 即可查看实际呈现帧率。Button 页可供静止对照，Spinner 或 Skeleton 页可测连续动画。输出字段见 [Surface README](../../../scoop.surface/README.md)。
 
 顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。切换主题、方向和页面保留应用模型；搜索不修改控件状态。此轮只在 macOS 验证。
 

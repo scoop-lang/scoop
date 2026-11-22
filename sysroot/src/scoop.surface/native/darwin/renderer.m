@@ -4,6 +4,8 @@
 #import <QuartzCore/CAMetalDisplayLink.h>
 #import <QuartzCore/CATransaction.h>
 #include <math.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -178,6 +180,14 @@ typedef struct {
 }
 @end
 
+static atomic_bool fpsReportingEnabled = false;
+
+void scoop_surface_metal_configure_fps_reporting_from_environment(void) {
+  const char *fps = getenv("SCOOP_SURFACE_FPS");
+  atomic_store_explicit(&fpsReportingEnabled, fps && strcmp(fps, "1") == 0,
+                        memory_order_relaxed);
+}
+
 void *scoop_surface_metal_host_create(void) {
   @autoreleasepool {
     @try {
@@ -213,8 +223,7 @@ void *scoop_surface_metal_surface_create(void *hostPointer, void *viewPointer,
       surface.previousWantsLayer = view.wantsLayer;
       surface.callback = callback;
       surface.context = context;
-      const char *fps = getenv("SCOOP_SURFACE_FPS");
-      if (fps && strcmp(fps, "1") == 0)
+      if (atomic_load_explicit(&fpsReportingEnabled, memory_order_relaxed))
         surface.fpsProbe = [[SSUMetalFpsProbe alloc]
             initWithWindowNumber:view.window.windowNumber];
       surface.layer = [CAMetalLayer layer];
