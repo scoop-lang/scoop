@@ -16,13 +16,12 @@ private class UiSemanticSceneTest {
     fun `accepted cached scenes publish clipping geometry and actual focus`() {
         val probe = SemanticSceneProbe()
         try {
-            UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application().run(host)
-            }
+            UiHost { host, active, event -> probe.event(host, active, event) }
+                .use { host -> Application().run(host) }
             assertTrue(probe.finished)
             assertEquals(1, probe.leafMounts)
             assertTrue(probe.pathScenes > 1)
-            assertTrue(probe.discarded == 0 || probe.discarded == 1)
+            assertEquals(1, probe.discarded)
             assertTrue(probe.semantic!!.isClosed)
         } finally {
             probe.close()
@@ -30,7 +29,7 @@ private class UiSemanticSceneTest {
     }
 }
 
-internal class SemanticSceneProbe: Closeable {
+internal class SemanticSceneProbe : Closeable {
     var root: ComponentScope? = None
     var semantic: SemanticsHandle? = None
     var pathSemantic: SemanticsHandle? = None
@@ -49,6 +48,8 @@ internal class SemanticSceneProbe: Closeable {
     var leafMounts = 0
     var discardNext = false
     var discarded = 0
+    var includeLate = false
+    var lateSemantic: SemanticsHandle? = None
     var finished = false
     private var phase = 0
     private var active: ActiveApplication? = None
@@ -65,11 +66,12 @@ internal class SemanticSceneProbe: Closeable {
         when (event) {
             case Resumed -> {
                 active = Some(application)
-                application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
-                )
-                val native =
-                    application.createWindow(
+                application
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
+                    )
+                val native = application
+                    .createWindow(
                         windowAttributes {
                             title = "Scoop semantic scene"
                             size = LogicalSize(240.0, 120.0)
@@ -81,40 +83,41 @@ internal class SemanticSceneProbe: Closeable {
                 {
                     val held = native.acquireNativeWindow()
                     lease = Some(held)
-                    view =
-                        Some(
-                            when (held.handle) {
-                                case AppKit(_, val pointer) -> pointer
-                            }
-                        )
+                    view = Some(
+                        when (held.handle) {
+                            case AppKit(_, val pointer) -> pointer
+                        }
+                    )
                 }
-                calls =
-                    Some(
-                        NativeCalls(application.proxy()) {
-                            tag, result ->
-                            assertEquals(0, tag)
-                            assertEquals(1, result)
-                            assertTrue(focus!!.isFocusActive)
-                            assertTrue(reference!!.flag(4))
-                            target!!.close()
-                            application.proxy().post {
-                                _ ->
+                calls = Some(
+                    NativeCalls(application.proxy()) { tag, result ->
+                        assertEquals(0, tag)
+                        assertEquals(1, result)
+                        assertTrue(focus!!.isFocusActive)
+                        assertTrue(reference!!.flag(4))
+                        target!!.close()
+                        application
+                            .proxy()
+                            .post { _ ->
                                 assertFalse(reference!!.flag(4))
                                 offset = 20.0
                                 phase = 1
                                 root!!.requestFrame()
                             }
-                        }
-                    )
+                    }
+                )
                 native.requestFocus()
             }
+
             case Window(_, WindowEvent.Closing) -> {
                 lease?.close();
                 lease = None
             }
-            case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"semantic scene timed out at ${phase}")
-            )
+
+            case NewEvents(StartCause.Deadline) ->
+                fail(
+                    Some(f"semantic scene timed out at ${phase}")
+                )
             else -> {}
         }
     }
@@ -136,13 +139,16 @@ internal class SemanticSceneProbe: Closeable {
                 phase = -1
                 calls!!.post(reference!!, 0, 2)
             }
+
             case - 1 -> {}
+
             case 1 -> {
                 checkBounds(50.0, 50.0)
                 assertEquals(1, leafScenes)
                 clipWidth = 50.0
                 next()
             }
+
             case 2 -> {
                 checkBounds(50.0, 20.0)
                 assertEquals(1, leafScenes)
@@ -150,6 +156,7 @@ internal class SemanticSceneProbe: Closeable {
                 clipWidth = 240.0
                 next()
             }
+
             case 3 -> {
                 checkBounds(50.0, 50.0)
                 assertTrue(reference!!.flag(0))
@@ -157,6 +164,7 @@ internal class SemanticSceneProbe: Closeable {
                 phase += 1
                 root!!.requestLayout()
             }
+
             case 4 -> {
                 assertEquals(None, semantic!!.geometry)
                 assertEquals(None, pathSemantic!!.geometry)
@@ -169,12 +177,14 @@ internal class SemanticSceneProbe: Closeable {
                 phase += 1
                 root!!.requestLayout()
             }
+
             case 5 -> {
                 checkBounds(50.0, 50.0)
                 // Accepted readmission invalidates the previous inactive scene once.
                 phase = -3
                 root!!.requestFrame()
             }
+
             case - 3 -> {
                 checkBounds(50.0, 50.0)
                 scenesBefore = leafScenes
@@ -183,33 +193,41 @@ internal class SemanticSceneProbe: Closeable {
                 assertEquals(None, semantic!!.geometry)
                 window!!.setVisible(false)
                 phase = -2
-                active!!.proxy().post {
-                    _ ->
-                    assertEquals(before, frames)
-                    assertEquals(None, semantic!!.geometry)
-                    assertTrue(reference!!.text(0, Some("Changed")))
-                    assertFalse(reference!!.flag(2))
-                    assertTrue(reference!!.hit(view!!, 75.0, 30.0, None))
-                    phase = 6
-                    window!!.setVisible(true)
-                    root!!.requestFrame()
-                }
+                active!!
+                    .proxy()
+                    .post { _ ->
+                        assertEquals(before, frames)
+                        assertEquals(None, semantic!!.geometry)
+                        assertTrue(reference!!.text(0, Some("Changed")))
+                        assertFalse(reference!!.flag(2))
+                        assertTrue(reference!!.hit(view!!, 75.0, 30.0, None))
+                        phase = 6
+                        window!!.setVisible(true)
+                        root!!.requestFrame()
+                    }
             }
+
             case - 2 -> fail(Some("hidden semantic update requested a frame"))
+
             case 6 -> {
                 checkBounds(50.0, 50.0)
                 assertEquals(scenesBefore, leafScenes)
                 offset = 40.0
                 discardNext = true
+                includeLate = true
+                root!!.requestLayout()
                 next()
             }
+
             case 7 -> {
+                checkLate(true)
                 checkBounds(70.0, 50.0)
                 assertEquals(identity, Some(semantic!!.id))
                 assertTrue(reference!!.frame(view!!, 70.0, 20.0, 50.0, 20.0))
                 reverse = true
                 next()
             }
+
             case 8 -> {
                 checkBounds(70.0, 50.0)
                 assertTrue(pathReference!!.hit(view!!, 75.0, 25.0, pathReference))
@@ -217,8 +235,15 @@ internal class SemanticSceneProbe: Closeable {
                 phase = 9
                 active!!.requestExit()
             }
+
             else -> {}
         }
+    }
+
+    fun checkLate(accepted: Boolean) {
+        val native = tree!!.find("late")!!
+        native.use { node -> assertTrue(node.text(0, Some("Late item"))) }
+        assertEquals(accepted, lateSemantic!!.geometry != None)
     }
 
     private fun checkBounds(x: Double, visible: Double) {
@@ -232,26 +257,22 @@ internal class SemanticSceneProbe: Closeable {
             geometry.visibleBounds
         )
         assertTrue(
-            tree!!.hit(
-                view!!,
-                x + 5.0,
-                25.0,
-                if (reverse)
-                    reference
-                else
-                    pathReference
-            )
+            tree!!
+                .hit(
+                    view!!,
+                    x + 5.0,
+                    25.0,
+                    if (reverse) reference else pathReference
+                )
         )
         assertTrue(
-            tree!!.hit(
-                view!!,
-                x + 25.0,
-                30.0,
-                if (visible > 25.0)
-                    reference
-                else
-                    tree
-            )
+            tree!!
+                .hit(
+                    view!!,
+                    x + 25.0,
+                    30.0,
+                    if (visible > 25.0) reference else tree
+                )
         )
         assertTrue(tree!!.hit(view!!, x + visible + 1.0, 30.0, tree))
         assertTrue(reference!!.hit(view!!, x + 5.0, 25.0, reference))
