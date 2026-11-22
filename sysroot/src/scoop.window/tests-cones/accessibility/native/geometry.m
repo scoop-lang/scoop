@@ -45,4 +45,22 @@ int32_t scoop_ax_geometry_hit(void *pointer, int32_t source, double x, double y,
   return [node accessibilityHitTest:point] == target ? 0 : __LINE__;
 }
 
+int32_t scoop_ax_geometry_moved_back(void *pointer) {
+  SWGeometryProbe *probe = (__bridge SWGeometryProbe *)pointer;
+  NSView *view = probe.view;
+  id back = probe.nodes[2];
+  NSRect frame = [view convertRect:NSMakeRect(115, 10, 160, 100) toView:nil];
+  NSPoint activation = [view convertPoint:NSMakePoint(130, 20) toView:nil];
+  if (!NSEqualRects([back accessibilityFrame],
+                    [view.window convertRectToScreen:frame]))
+    return __LINE__;
+  if (!NSEqualPoints([back accessibilityActivationPoint],
+                     [view.window convertPointToScreen:activation]))
+    return __LINE__;
+  return [[back accessibilityTitle] isEqualToString:@"hit-back"] &&
+                 [back isAccessibilityRequired]
+             ? 0
+             : __LINE__;
+}
+
 void scoop_ax_geometry_close(void *pointer) { CFRelease(pointer); }

@@ -37,6 +37,75 @@
     _itemCount = -1;
   return self;
 }
+
+- (SWAccessibilityState *)stateWithGeometry:
+    (const SWAccessibilityGeometryUpdate *)update {
+  SWAccessibilityState *state = [SWAccessibilityState new];
+  if (!state)
+    return nil;
+  state->_geometryOnly = YES;
+  state->_data = _data;
+  state->_data.scene_order = update->scene_order;
+  state->_data.geometry = update->geometry;
+  state->_data.visible = update->visible;
+  state->_data.x = update->x;
+  state->_data.y = update->y;
+  state->_data.width = update->width;
+  state->_data.height = update->height;
+  state->_data.visible_x = update->visible_x;
+  state->_data.visible_y = update->visible_y;
+  state->_data.visible_width = update->visible_width;
+  state->_data.visible_height = update->visible_height;
+  state->_data.activation = update->activation;
+  state->_data.activation_x = update->activation_x;
+  state->_data.activation_y = update->activation_y;
+  if (update->hit) {
+    state->_hit =
+        [[SWAccessibilityHitGeometry alloc] initWithValue:*update->hit];
+    if (!state->_hit)
+      return nil;
+  }
+  if (update->text) {
+    state->_textGeometry =
+        [[SWAccessibilityTextGeometry alloc] initWithValue:*update->text];
+    if (!state->_textGeometry)
+      return nil;
+  }
+
+  // Published logical fields are immutable. Share them with the previous
+  // snapshot.
+  state->_selection = _selection;
+  state->_name = _name;
+  state->_help = _help;
+  state->_error = _error;
+  state->_identifier = _identifier;
+  state->_value = _value;
+  state->_url = _url;
+  state->_labels = _labels;
+  state->_controls = _controls;
+  state->_titleFor = _titleFor;
+  state->_descriptions = _descriptions;
+  state->_errors = _errors;
+  state->_rowHeaders = _rowHeaders;
+  state->_columnHeaders = _columnHeaders;
+  state->_activeNode = _activeNode;
+  state->_activeCollection = _activeCollection;
+  state->_textChildren = _textChildren;
+  state->_activeKey = _activeKey;
+  [state setTextDocument:_textDocument
+                revision:_documentRevision
+                   epoch:_documentEpoch];
+  state->_itemCount = _itemCount;
+  state->_collectionRevision = _collectionRevision;
+  state->_collectionActions = _collectionActions;
+  state->_itemKey = _itemKey;
+  state->_cellColumnKey = _cellColumnKey;
+  state->_selectionKind = _selectionKind;
+  state->_selectionRequired = _selectionRequired;
+  state->_selectedKeys = _selectedKeys;
+  state->_gridColumns = _gridColumns;
+  return state;
+}
 @end
 
 @implementation SWAccessibilityTextGeometry
@@ -149,6 +218,33 @@ int64_t scoop_window_accessibility_put(void *pointer,
       state.selectedKeys = [NSMutableArray new];
       state.gridColumns = [NSMutableArray new];
       tree.pending[@(data.number)] = state;
+      return 0;
+    } @catch (NSException *exception) {
+      return 1;
+    }
+  }
+}
+
+int64_t scoop_window_accessibility_stage_geometry(
+    void *pointer, const SWAccessibilityGeometryUpdate *updates,
+    int64_t count) {
+  @autoreleasepool {
+    @try {
+      SWAccessibilityTree *tree = (__bridge SWAccessibilityTree *)pointer;
+      if (!tree.pending || tree.closed)
+        return -4;
+      for (int64_t index = 0; index < count; ++index) {
+        const SWAccessibilityGeometryUpdate *update = &updates[index];
+        NSNumber *number = @(update->number);
+        SWAccessibilityState *previous = tree.published[number];
+        if (!previous || tree.pending[number] ||
+            [tree.removed containsObject:number])
+          return -4;
+        SWAccessibilityState *state = [previous stateWithGeometry:update];
+        if (!state)
+          return 1;
+        tree.pending[number] = state;
+      }
       return 0;
     } @catch (NSException *exception) {
       return 1;
@@ -370,6 +466,22 @@ childIndex(NSDictionary<NSNumber *, SWAccessibilityState *> *states) {
   return result;
 }
 
+static void notifyGeometry(id node, SWAccessibilityState *old,
+                           SWAccessibilityState *next) {
+  SWAccessibilityData before = old.data;
+  SWAccessibilityData after = next.data;
+  if (before.geometry != after.geometry || before.visible != after.visible ||
+      (old.textGeometry == nil) != (next.textGeometry == nil))
+    NSAccessibilityPostNotification(node,
+                                    NSAccessibilityLayoutChangedNotification);
+  else if (after.geometry) {
+    if (before.x != after.x || before.y != after.y)
+      NSAccessibilityPostNotification(node, NSAccessibilityMovedNotification);
+    if (before.width != after.width || before.height != after.height)
+      NSAccessibilityPostNotification(node, NSAccessibilityResizedNotification);
+  }
+}
+
 static void notify(id node, SWAccessibilityState *old,
                    SWAccessibilityState *next) {
   if (!same(old.name, next.name))
@@ -419,18 +531,7 @@ static void notify(id node, SWAccessibilityState *old,
          ((old.data.flags ^ next.data.flags) & SWAXCursorUpstream)))))
     NSAccessibilityPostNotification(
         node, NSAccessibilitySelectedTextChangedNotification);
-  if (old.data.geometry != next.data.geometry ||
-      old.data.visible != next.data.visible ||
-      (old.textGeometry == nil) != (next.textGeometry == nil))
-    NSAccessibilityPostNotification(node,
-                                    NSAccessibilityLayoutChangedNotification);
-  else if (next.data.geometry) {
-    if (old.data.x != next.data.x || old.data.y != next.data.y)
-      NSAccessibilityPostNotification(node, NSAccessibilityMovedNotification);
-    if (old.data.width != next.data.width ||
-        old.data.height != next.data.height)
-      NSAccessibilityPostNotification(node, NSAccessibilityResizedNotification);
-  }
+  notifyGeometry(node, old, next);
 }
 
 static NSArray<NSNumber *> *
@@ -492,8 +593,12 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
         id target = value.itemKey ? [tree.collections[@(value.data.parent)]
                                         cachedItemForKey:value.itemKey]
                                   : [tree element:number.longLongValue];
-        if (old && target)
-          notify(target, old, value);
+        if (old && target) {
+          if (value.geometryOnly)
+            notifyGeometry(target, old, value);
+          else
+            notify(target, old, value);
+        }
       }
       for (NSNumber *number in removed) {
         SWAccessibilityNode *node = tree.elements[number];

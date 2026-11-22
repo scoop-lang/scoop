@@ -95,8 +95,11 @@ private class NativeAccessibilityProjection(
     >,
     private val collections: NativeCollectionQueries
 ) : AccessibilityProjection {
+    private val geometryPublisher = platformAccessibilityGeometryPublisher()
+
     public override fun publish(
         changed: Collection<AccessibilityNode>,
+        geometry: Collection<AccessibilityNode>,
         removed: Array<Long>,
         focused: Long
     ) {
@@ -110,88 +113,16 @@ private class NativeAccessibilityProjection(
                         nativeAccessibilityRemove(pointer, number),
                         "remove accessibility node"
                     )
-                for (node in changed) {
-                    checkNativeStatus(
-                        nativeAccessibilityPut(pointer, describe(node)),
-                        "publish accessibility node"
-                    )
-                    collections.publish(pointer, node)
-                    when (val hit = node.hit) {
-                        case Some(val value) ->
-                            checkNativeStatus(
-                                nativeAccessibilityHit(pointer, node.id.number, value.native),
-                                "publish accessibility hit geometry"
-                            )
-                        case None -> {}
+                for (node in changed)
+                    publishNode(node)
+                if (geometry.size > 0L) {
+                    val batch = geometryPublisher
+                    when (batch) {
+                        case Some(val stage) -> stage(pointer, geometry)
+                        case None ->
+                            for (node in geometry)
+                                publishNode(node)
                     }
-                    when (val geometry = node.textGeometry) {
-                        case Some(val value) ->
-                            checkNativeStatus(
-                                nativeAccessibilityTextGeometry(
-                                    pointer,
-                                    node.id.number,
-                                    value.native
-                                ),
-                                "publish accessibility text geometry"
-                            )
-                        case None -> {}
-                    }
-                    text(node.id.number, 0, node.resolvedName)
-                    text(node.id.number, 1, node.resolvedDescription)
-                    text(node.id.number, 2, node.properties.automationId)
-                    text(node.id.number, 3, node.properties.value)
-                    text(node.id.number, 4, node.resolvedError)
-                    text(node.id.number, 5, node.properties.url)
-                    checkNativeStatus(
-                        nativeAccessibilityDocument(
-                            pointer,
-                            node.id.number,
-                            when (node.documentValue) {
-                                case Some(val value) -> value.pointer;
-                                case None -> None
-                            },
-                            node.documentRevision,
-                            node.documentEpoch
-                        ),
-                        "publish semantic text document"
-                    )
-                    for (child in node.textChildValues)
-                        checkNativeStatus(
-                            nativeAccessibilityTextChild(
-                                pointer,
-                                node.id.number,
-                                child.node.number,
-                                child.range.start,
-                                child.range.end
-                            ),
-                            "publish semantic text child"
-                        )
-                    for (id in node.relationValues.labelledBy)
-                        relation(node.id.number, 0, id.number)
-                    for (id in node.relationValues.controls)
-                        relation(node.id.number, 1, id.number)
-                    for (id in node.relationValues.describedBy)
-                        relation(node.id.number, 3, id.number)
-                    for (id in node.relationValues.errorMessages)
-                        relation(node.id.number, 4, id.number)
-                    for (id in node.relationValues.rowHeaders)
-                        relation(node.id.number, 5, id.number)
-                    for (id in node.relationValues.columnHeaders)
-                        relation(node.id.number, 6, id.number)
-                    when (node.relationValues.activeDescendant) {
-                        case Some(Node(val id)) -> relation(node.id.number, 7, id.number)
-                        else -> {}
-                    }
-                    for (source in node.referrers.values)
-                        if (source.active &&
-                            source.properties.name ==
-                            None &&
-                            source.relationValues.labelledBy.size ==
-                            1L &&
-                            source.relationValues.labelledBy[0L] ==
-                            node.id
-                        )
-                            relation(node.id.number, 2, source.id.number)
                 }
                 checkNativeStatus(
                     nativeAccessibilityCommit(pointer, focused),
@@ -201,6 +132,93 @@ private class NativeAccessibilityProjection(
             } finally {
                 if (!committed) nativeAccessibilityAbort(pointer)
             }
+        }
+    }
+
+    private fun publishNode(node: AccessibilityNode) {
+        @Unsafe
+        {
+            checkNativeStatus(
+                nativeAccessibilityPut(pointer, describe(node)),
+                "publish accessibility node"
+            )
+            collections.publish(pointer, node)
+            when (val hit = node.hit) {
+                case Some(val value) ->
+                    checkNativeStatus(
+                        nativeAccessibilityHit(pointer, node.id.number, value.native),
+                        "publish accessibility hit geometry"
+                    )
+                case None -> {}
+            }
+            when (val geometry = node.textGeometry) {
+                case Some(val value) ->
+                    checkNativeStatus(
+                        nativeAccessibilityTextGeometry(
+                            pointer,
+                            node.id.number,
+                            value.native
+                        ),
+                        "publish accessibility text geometry"
+                    )
+                case None -> {}
+            }
+            text(node.id.number, 0, node.resolvedName)
+            text(node.id.number, 1, node.resolvedDescription)
+            text(node.id.number, 2, node.properties.automationId)
+            text(node.id.number, 3, node.properties.value)
+            text(node.id.number, 4, node.resolvedError)
+            text(node.id.number, 5, node.properties.url)
+            checkNativeStatus(
+                nativeAccessibilityDocument(
+                    pointer,
+                    node.id.number,
+                    when (node.documentValue) {
+                        case Some(val value) -> value.pointer;
+                        case None -> None
+                    },
+                    node.documentRevision,
+                    node.documentEpoch
+                ),
+                "publish semantic text document"
+            )
+            for (child in node.textChildValues)
+                checkNativeStatus(
+                    nativeAccessibilityTextChild(
+                        pointer,
+                        node.id.number,
+                        child.node.number,
+                        child.range.start,
+                        child.range.end
+                    ),
+                    "publish semantic text child"
+                )
+            for (id in node.relationValues.labelledBy)
+                relation(node.id.number, 0, id.number)
+            for (id in node.relationValues.controls)
+                relation(node.id.number, 1, id.number)
+            for (id in node.relationValues.describedBy)
+                relation(node.id.number, 3, id.number)
+            for (id in node.relationValues.errorMessages)
+                relation(node.id.number, 4, id.number)
+            for (id in node.relationValues.rowHeaders)
+                relation(node.id.number, 5, id.number)
+            for (id in node.relationValues.columnHeaders)
+                relation(node.id.number, 6, id.number)
+            when (node.relationValues.activeDescendant) {
+                case Some(Node(val id)) -> relation(node.id.number, 7, id.number)
+                else -> {}
+            }
+            for (source in node.referrers.values)
+                if (source.active &&
+                    source.properties.name ==
+                    None &&
+                    source.relationValues.labelledBy.size ==
+                    1L &&
+                    source.relationValues.labelledBy[0L] ==
+                    node.id
+                )
+                    relation(node.id.number, 2, source.id.number)
         }
     }
 

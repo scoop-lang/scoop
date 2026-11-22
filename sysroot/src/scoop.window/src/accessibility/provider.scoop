@@ -5,7 +5,12 @@ import scoop.window.*
 
 /** The platform projection owns no writable application state. */
 internal interface AccessibilityProjection : Closeable {
-    fun publish(changed: Collection<AccessibilityNode>, removed: Array<Long>, focused: Long)
+    fun publish(
+        changed: Collection<AccessibilityNode>,
+        geometry: Collection<AccessibilityNode>,
+        removed: Array<Long>,
+        focused: Long
+    )
     fun retire(number: Long)
     fun announce(number: Long, text: String, priority: SemanticLive)
 }
@@ -16,6 +21,7 @@ public class AccessibilityProvider internal constructor(
 ) : Closeable {
     private val nodes = HashMap<Long, AccessibilityNode>()
     private val pending = HashMap<Long, AccessibilityNode>()
+    private val pendingGeometry = HashMap<Long, AccessibilityNode>()
     private val removed = ArrayList<Long>()
     private val announcements = HashMap<Long, SemanticAnnouncement>()
     internal val roots = ArrayList<AccessibilityNode>()
@@ -118,7 +124,15 @@ public class AccessibilityProvider internal constructor(
     }
 
     internal fun changed(node: AccessibilityNode) {
-        if (node.active) pending[node.id.number] = node
+        if (node.active) {
+            pendingGeometry.remove(node.id.number)
+            pending[node.id.number] = node
+        }
+    }
+
+    internal fun geometryChanged(node: AccessibilityNode) {
+        if (node.active && !pending.containsKey(node.id.number))
+            pendingGeometry[node.id.number] = node
     }
 
     internal fun lookup(id: SemanticNodeId): AccessibilityNode? {
@@ -143,6 +157,7 @@ public class AccessibilityProvider internal constructor(
         removeChild(node)
         node.parentNode = None
         pending.remove(node.id.number)
+        pendingGeometry.remove(node.id.number)
         nodes.remove(node.id.number)
         removed.add(node.id.number)
         when (val current = focus) {
@@ -158,7 +173,16 @@ public class AccessibilityProvider internal constructor(
     /** Publishes only staged changes. A native getter never observes a partial publication. */
     public fun publish() {
         checkOpen()
-        if (pending.size == 0L && removed.size == 0L && !focusChanged && announcements.size == 0L)
+        if (pending.size ==
+            0L &&
+            pendingGeometry.size ==
+            0L &&
+            removed.size ==
+            0L &&
+            !focusChanged &&
+            announcements.size ==
+            0L
+        )
             return
         publishing = true
         try {
@@ -181,13 +205,20 @@ public class AccessibilityProvider internal constructor(
                     }
                 }
             }
-            projection!!.publish(pending.values, removed.toArray(), focus?.id?.number ?: 0L)
+            projection!!
+                .publish(
+                    pending.values,
+                    pendingGeometry.values,
+                    removed.toArray(),
+                    focus?.id?.number ?: 0L
+                )
             for (node in pending.values) {
                 node.publishedCollection = node.collectionValue
                 node.publishedMessage = node.announcementText
                 node.hasPublished = true
             }
             pending.clear()
+            pendingGeometry.clear()
             removed.clear()
             focusChanged = false
             val delivered = ArrayList<Long>()
@@ -424,6 +455,7 @@ public class AccessibilityProvider internal constructor(
         }
         nodes.clear()
         pending.clear()
+        pendingGeometry.clear()
         announcements.clear()
         removed.clear()
         roots.clear()

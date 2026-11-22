@@ -67,6 +67,16 @@ internal fun checkHitGeometry(tree: AccessibilityProvider, view: Ptr<Unit>) {
             tree.publish()
             expectHit(probe, 30.0, 30.0, 2)
             expectHit(probe, 95.0, 95.0, 2)
+            installRectangle(back, Rect(115.0, 10.0, 160.0, 100.0), 4L)
+            back.activationPoint = Some(LogicalPosition(130.0, 20.0))
+            installRectangle(label, Rect(190.0, 90.0, 10.0, 10.0), 2L)
+            expectHit(probe, 15.0, 15.0, 2)
+            expectHit(probe, 230.0, 15.0, 0)
+            tree.publish()
+            expectHit(probe, 15.0, 15.0, 0)
+            expectHit(probe, 230.0, 15.0, 2)
+            assertEquals(0, nativeMovedBack(probe))
+            installRectangle(back, Rect(10.0, 10.0, 160.0, 100.0), 4L)
             installRectangle(label, Rect(90.0, 90.0, 10.0, 10.0), 5L)
             front.update(hitProperties("hit-front", hidden = true))
             tree.publish()
@@ -196,3 +206,6 @@ private fun nativeGeometryHit(
 
 @Extern(name = "scoop_ax_geometry_close")
 private fun nativeGeometryClose(probe: Ptr<Unit>)
+
+@Extern(name = "scoop_ax_geometry_moved_back")
+private fun nativeMovedBack(probe: Ptr<Unit>): Int

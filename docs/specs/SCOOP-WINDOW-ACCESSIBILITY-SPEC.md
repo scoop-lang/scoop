@@ -34,6 +34,8 @@ node.contentLabels 是单独保存的有序内容标签 ID 数组，默认空，
 
 创建、修改和重排先修改 managed 状态，publish() 在正常 owner 更新完成后原子发布本批差量；未变节点不重复序列化和验证，单纯替换相同能力的 handler 不更新 native 属性。原生 getter 只读取已发布投影，不调用 Scoop handler 或布局。原生准备失败保留上一份投影，差量仍待处理；已经原子提交的结果不因随后平台通知失败回滚，错误按普通 native 操作失败报告。退休立即禁止旧对象动作，结构变更在 publish 时统一通知；新节点发布前不进入原生树。几何合法性在设置 geometry 的边界检查，失败保留原值。
 
+AppKit 对已发布节点的纯几何更新复用现有逻辑属性、文本和关系，并在同一事务中批量替换边界、可见区域、命中、场景顺序、激活点和文本范围几何。同轮有逻辑变化的节点以完整记录发布。完成提交后，原生查询和几何通知使用本轮接受的差量。
+
 focused 属性保存当前实际获得键盘焦点的活动节点或 None。它不代表辅助技术阅读位置，也不因为 Focus 请求已排队就改变。publish 先发布属性、结构和实际焦点，再发送适用的结构／值／焦点通知；无差量时不通知、不请求帧。几何仍由调用方使用匹配的 Accepted 场景提供，provider 不替调用方启动绘制。
 
 node.geometry 保存值型 bounds／visibleBounds；只赋矩形不提供精确命中。原生 renderer 可使用 `@Unsafe node.setGeometry(geometry: SemanticGeometry, hitTest: NativeSemanticHitTest, order: Long = 0L)` 同时登记匹配几何、命中快照和实际场景顺序。NativeSemanticHitTest 位于 `scoop.window.accessibility.native`，是 context、retain、release、contains 的 CLayout 值；后三者分别为 FunPtr<(Ptr<Unit>) -> Unit>、同签名释放函数和 FunPtr<(Ptr<Unit>, Double, Double) -> Int>。调用方提供成套的原生只读实现，contains 接收窗口逻辑坐标并返回 1／0，函数不回调 Scoop、进入 UI 状态或抛出跨 ABI 异常。
