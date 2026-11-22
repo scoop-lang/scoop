@@ -1,6 +1,6 @@
 use super::*;
 use scoop_process::CommandExt;
-use scoop_toolchain::LinkMode;
+use scoop_toolchain::{LinkMode, LinuxFinalLinkProfile};
 use scoop_wire::sha256;
 
 pub(super) fn find(
@@ -10,7 +10,7 @@ pub(super) fn find(
 ) -> Result<LibraryResolution, LinkError> {
     match profile {
         ValidatedFinalLinkProfile::Darwin(_) => darwin(key, profile, observed),
-        ValidatedFinalLinkProfile::Linux(linux) => linux_library(key, profile, linux.mode()),
+        ValidatedFinalLinkProfile::Linux(linux) => linux_library(key, profile, linux),
         ValidatedFinalLinkProfile::Windows(windows) => {
             super::windows::system(key, profile, windows, observed)
         }
@@ -117,9 +117,11 @@ fn darwin(
 fn linux_library(
     key: &NativeLinkRequirementKey,
     profile: &ValidatedFinalLinkProfile,
-    mode: LinkMode,
+    linux: &LinuxFinalLinkProfile,
 ) -> Result<LibraryResolution, LinkError> {
-    let static_library = mode == LinkMode::Static || key.kind() == NativeLibraryKind::StaticArchive;
+    let elf = linux.elf_inputs();
+    let static_library =
+        elf.mode == LinkMode::Static || key.kind() == NativeLibraryKind::StaticArchive;
     let directory = tempfile::Builder::new()
         .prefix("scoop-system-library-")
         .tempdir()
@@ -145,7 +147,7 @@ fn linux_library(
             NativeLibraryKind::Framework => {
                 return Err(error(
                     scoop_source::DiagnosticCode::E2301,
-                    "framework libraries are not supported by the Linux target",
+                    "framework libraries require a Mach-O target",
                 ));
             }
         })
@@ -203,10 +205,7 @@ fn linux_library(
             continue;
         };
         let file = super::read_bytes(path, bytes, kind, profile, true)?;
-        if scoop_target_data::definition(profile.target().id())
-            .expect("validated final-link target")
-            .native_environment
-            == scoop_target_data::NativeEnvironment::LinuxMusl
+        if !elf.compatibility_providers.is_empty()
             && file.bytes.as_ref() == b"!<arch>\n"
             && matches!(file.content, NativeContent::System)
         {

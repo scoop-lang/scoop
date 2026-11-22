@@ -1,4 +1,4 @@
-use super::elf::GnuElfLinkPlan;
+use super::elf::{GNU_ELF_LINKER_SYMBOLS, GnuElfLinkPlan};
 use super::*;
 use crate::linux_target::{LinuxLibc, LinuxTarget};
 use scoop_process::CommandExt;
@@ -87,8 +87,17 @@ impl LinuxFinalLinkProfile {
     pub fn linker_driver(&self) -> &Path {
         &self.data.linker
     }
-    pub fn input_paths(&self) -> impl Iterator<Item = &Path> {
-        self.data.inputs.iter().map(PathBuf::as_path)
+    pub fn elf_inputs(&self) -> ElfLinkInputs<'_> {
+        ElfLinkInputs {
+            mode: self.mode(),
+            system_paths: &self.data.inputs,
+            compatibility_providers: match self.target.libc {
+                LinuxLibc::Gnu => &[],
+                LinuxLibc::Musl => &["libc.a", "libc.so", "libc.so.6"],
+            },
+            conflicting_unwind_prefixes: &["libgcc_s.so"],
+            linker_defined_symbols: GNU_ELF_LINKER_SYMBOLS,
+        }
     }
     pub fn linker_args(&self) -> Vec<&'static str> {
         LINUX_DRIVER_OPTIONS

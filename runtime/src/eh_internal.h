@@ -42,22 +42,6 @@ _Static_assert(offsetof(ScoopExceptionRecord, unwind) + sizeof(struct _Unwind_Ex
                    sizeof(ScoopExceptionRecord),
                "the unwind container conversion is invalid");
 
-/* LLVM 22.1 LSDA encodings accepted by the Scoop personality.
- * Keep this profile closed: adding an encoding requires target qualification
- * before the decoder is extended. */
-enum {
-    SCOOP_EH_DW_PE_ULEB128 = 0x01,
-    SCOOP_EH_DW_PE_PCREL_SDATA4_INDIRECT = 0x9b,
-    SCOOP_EH_DW_PE_OMIT = 0xff,
-#if defined(_WIN32)
-    SCOOP_EH_TTYPE_ENCODING = 0x00,
-    SCOOP_EH_TYPE_ENTRY_SIZE = 8,
-#else
-    SCOOP_EH_TTYPE_ENCODING = SCOOP_EH_DW_PE_PCREL_SDATA4_INDIRECT,
-    SCOOP_EH_TYPE_ENTRY_SIZE = 4,
-#endif
-};
-
 typedef struct ScoopEhByteRange {
     const uint8_t *bytes;
     size_t length;

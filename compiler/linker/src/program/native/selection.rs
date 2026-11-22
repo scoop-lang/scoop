@@ -91,8 +91,11 @@ pub(super) fn resolve(
     add_autolinks(inputs, &mut processed, profile, roots)?;
     let mut pending = inputs.requirements.clone();
     let mut unresolved = BTreeMap::new();
+    let linker_symbols = profile
+        .elf_inputs()
+        .map_or(&[][..], |inputs| inputs.linker_defined_symbols);
     while let Some(symbol) = pending.pop_first() {
-        if inputs.linker_defined(&symbol) {
+        if linker_symbols.contains(&symbol.as_str()) || inputs.linker_defined(&symbol) {
             continue;
         }
         if matches!(profile, ValidatedFinalLinkProfile::Darwin(_))

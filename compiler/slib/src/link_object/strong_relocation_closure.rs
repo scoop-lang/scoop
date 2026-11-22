@@ -48,6 +48,7 @@ pub struct StrongRelocationBindingV1 {
     containing_atom_role: DefinitionAtomRole,
     section_role: BuiltinObjectSectionRoleV1,
     offset_within_atom: u64,
+    relocation_index: usize,
     width_bytes: u8,
     relocation_form: VerifiedObjectRelocationFormV1,
     encoded_value: u64,
@@ -200,24 +201,23 @@ impl VerifiedCurrentConeStrongRelocationClosureV1 {
         &self.bindings
     }
 
-    pub(in crate::link_object) fn bindings_at(
+    pub(in crate::link_object) fn bindings_for_relocation(
         &self,
-        member: SlibMemberId,
-        atom: ObjectDefinitionAtomId,
-        offset: u64,
+        relocation_index: usize,
+        relocation: &VerifiedRelocationUseV1,
     ) -> &[StrongRelocationBindingV1] {
-        let key = (member, atom, offset);
-        let site = |binding: &StrongRelocationBindingV1| {
-            (
-                binding.source_member,
-                binding.containing_atom,
-                binding.offset_within_atom,
-            )
-        };
+        let key = (
+            relocation.member(),
+            relocation.containing_atom(),
+            relocation.offset_within_atom(),
+            relocation_index,
+        );
         // binding_key orders every target slot of a relocation contiguously.
-        let start = self.bindings.partition_point(|binding| site(binding) < key);
+        let start = self
+            .bindings
+            .partition_point(|binding| binding_relocation_key(binding) < key);
         let rest = &self.bindings[start..];
-        let count = rest.partition_point(|binding| site(binding) == key);
+        let count = rest.partition_point(|binding| binding_relocation_key(binding) == key);
         &rest[..count]
     }
 }
@@ -263,9 +263,9 @@ pub fn verify_current_cone_strong_relocation_closure_v1(
     let (symbols, primaries) = index_strong_definitions(&members)?;
     let mut bindings = Vec::new();
     for member in &members {
-        for relocation in member.relocations() {
+        for (relocation_index, relocation) in member.relocations().iter().enumerate() {
             collect_relocation_bindings(
-                member.member(),
+                relocation_index,
                 relocation,
                 &symbols,
                 &primaries,
@@ -341,7 +341,7 @@ fn index_strong_definitions(
 }
 
 fn collect_relocation_bindings(
-    source_member: SlibMemberId,
+    relocation_index: usize,
     relocation: &VerifiedRelocationUseV1,
     symbols: &StrongSymbolByName<'_>,
     primaries: &StrongPrimaryByDefinition<'_>,
@@ -351,7 +351,7 @@ fn collect_relocation_bindings(
         VerifiedObjectRelocationShapeV1::Coff { target, .. }
         | VerifiedObjectRelocationShapeV1::ElfRela { target, .. } => {
             collect_target_binding(
-                source_member,
+                relocation_index,
                 relocation,
                 RelocationTargetSlotV1::Single,
                 target,
@@ -373,7 +373,7 @@ fn collect_relocation_bindings(
             | VerifiedMachORelocationShapeV1::TlvpLoadPage21 { target }
             | VerifiedMachORelocationShapeV1::TlvpLoadPageOffset12 { target } => {
                 collect_target_binding(
-                    source_member,
+                    relocation_index,
                     relocation,
                     RelocationTargetSlotV1::Single,
                     target,
@@ -391,7 +391,7 @@ fn collect_relocation_bindings(
                 subtrahend,
             } => {
                 collect_target_binding(
-                    source_member,
+                    relocation_index,
                     relocation,
                     RelocationTargetSlotV1::Minuend,
                     minuend,
@@ -400,7 +400,7 @@ fn collect_relocation_bindings(
                     bindings,
                 )?;
                 collect_target_binding(
-                    source_member,
+                    relocation_index,
                     relocation,
                     RelocationTargetSlotV1::Subtrahend,
                     subtrahend,
@@ -415,7 +415,7 @@ fn collect_relocation_bindings(
 }
 
 fn collect_target_binding(
-    source_member: SlibMemberId,
+    relocation_index: usize,
     relocation: &VerifiedRelocationUseV1,
     target_slot: RelocationTargetSlotV1,
     target: &VerifiedRelocationTargetV1,
@@ -423,6 +423,7 @@ fn collect_target_binding(
     primaries: &StrongPrimaryByDefinition<'_>,
     bindings: &mut Vec<StrongRelocationBindingV1>,
 ) -> Result<(), StrongRelocationClosureValidationError> {
+    let source_member = relocation.member();
     let (symbol, resolution) = match target {
         VerifiedRelocationTargetV1::StrongDefinition { definition } => {
             let indexed = primaries.get(&(source_member, *definition)).ok_or(
@@ -532,6 +533,7 @@ fn collect_target_binding(
         containing_atom_role: relocation.containing_atom_role(),
         section_role: relocation.section_role(),
         offset_within_atom: relocation.offset_within_atom(),
+        relocation_index,
         width_bytes: relocation.width_bytes(),
         relocation_form: relocation.shape().form(),
         encoded_value: relocation.encoded_value(),
@@ -542,20 +544,24 @@ fn collect_target_binding(
     Ok(())
 }
 
-fn binding_key(
+fn binding_relocation_key(
     binding: &StrongRelocationBindingV1,
-) -> (
-    SlibMemberId,
-    ObjectDefinitionAtomId,
-    u64,
-    RelocationTargetSlotV1,
-) {
+) -> (SlibMemberId, ObjectDefinitionAtomId, u64, usize) {
     (
         binding.source_member,
         binding.containing_atom,
         binding.offset_within_atom,
-        binding.target_slot,
+        binding.relocation_index,
     )
+}
+
+fn binding_key(
+    binding: &StrongRelocationBindingV1,
+) -> (
+    (SlibMemberId, ObjectDefinitionAtomId, u64, usize),
+    RelocationTargetSlotV1,
+) {
+    (binding_relocation_key(binding), binding.target_slot)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

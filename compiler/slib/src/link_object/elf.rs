@@ -2,6 +2,7 @@
 use object::read::elf::{ElfFile64, FileHeader};
 use object::{Object, ObjectKind, SectionIndex, SymbolIndex};
 use scoop_identity::TargetProfileId;
+use scoop_lir::{ObjectMachineV1, ObjectTargetProfileV1};
 
 mod architecture;
 pub use architecture::ElfArchitecture;
@@ -13,9 +14,33 @@ pub(super) mod builtin;
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod tests;
 
+#[derive(Clone, Copy)]
+pub(super) enum ElfRelocationKind {
+    Absolute64,
+    TlsReference(u8),
+    Other(u8),
+}
+
+impl ElfRelocationKind {
+    pub(super) fn classify(machine: ObjectMachineV1, kind: u32, width: u8) -> Option<Self> {
+        let kind = match machine {
+            ObjectMachineV1::X86_64 => x86_64::relocation_kind(kind)?,
+            ObjectMachineV1::Aarch64 => return None,
+        };
+        (kind.width() == width).then_some(kind)
+    }
+
+    const fn width(self) -> u8 {
+        match self {
+            Self::Absolute64 => 8,
+            Self::TlsReference(width) | Self::Other(width) => width,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ValidatedElfObject<'data> {
-    architecture: ElfArchitecture,
+    object_target: ObjectTargetProfileV1,
     file: ElfFile64<'data>,
     relocations: Vec<ElfRelocation>,
 }
@@ -32,7 +57,7 @@ pub struct ElfRelocation {
 
 impl<'data> ValidatedElfObject<'data> {
     pub fn read(bytes: &'data [u8], target: TargetProfileId) -> Result<Self, ElfObjectError> {
-        let architecture = ElfArchitecture::for_target(target)?;
+        let (object_target, architecture) = ElfArchitecture::select(target)?;
         let file = ElfFile64::parse(bytes).map_err(error)?;
         if !file.is_little_endian()
             || file.kind() != ObjectKind::Relocatable
@@ -45,14 +70,10 @@ impl<'data> ValidatedElfObject<'data> {
         architecture.check_flags(file.elf_header().e_flags(file.endian()))?;
         let relocations = relocations::read(&file, architecture)?;
         Ok(Self {
-            architecture,
+            object_target,
             file,
             relocations,
         })
-    }
-
-    pub fn architecture(&self) -> ElfArchitecture {
-        self.architecture
     }
 
     pub fn file(&self) -> &ElfFile64<'data> {

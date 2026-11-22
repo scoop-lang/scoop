@@ -202,6 +202,10 @@ mod tests {
                     "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops",
                     "-DSCOOP_TARGET_LONG_SIZE=8",
                     "-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=0",
+                    "-DSCOOP_EH_LP_START_ENCODING=0xff",
+                    "-DSCOOP_EH_TTYPE_ENCODING=0x9b",
+                    "-DSCOOP_EH_CALL_SITE_ENCODING=0x01",
+                    "-DSCOOP_EH_OMITTED_TTYPE_ENCODING=0xff",
                 ]
             );
             assert!(profile.final_link().unwrap().linker_driver().is_absolute());

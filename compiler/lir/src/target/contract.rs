@@ -185,7 +185,7 @@ impl WireEncode for TargetProfileContract {
         encoder.unsigned(match self.object_target().unwind_image() {
             super::ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame => 1,
             super::ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame => 2,
-            super::ObjectUnwindImageV1::ElfX86_64EhFrame => 3,
+            super::ObjectUnwindImageV1::ElfEhFrame => 3,
             super::ObjectUnwindImageV1::CoffAmd64PdataXdata => 4,
         })
     }

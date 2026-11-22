@@ -48,8 +48,8 @@ mod windows_resource;
 
 pub use cxx::ValidatedCxxToolchain;
 pub use final_link::{
-    FinalLinkOptions, FinalOutputKind, LinkMode, LinuxFinalLinkProfile, ValidatedFinalLinkProfile,
-    WindowsFinalLinkProfile,
+    ElfLinkInputs, FinalLinkOptions, FinalOutputKind, LinkMode, LinuxFinalLinkProfile,
+    ValidatedFinalLinkProfile, WindowsFinalLinkProfile,
 };
 pub use linux_c::resolve_linux_c_toolchain;
 pub use native::{

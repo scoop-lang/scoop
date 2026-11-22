@@ -292,12 +292,12 @@ impl VerifiedMemberObjectRelocationIndexV1 {
     pub(in crate::link_object) fn relocations_for_atom(
         &self,
         atom: ObjectDefinitionAtomId,
-    ) -> impl Iterator<Item = &VerifiedRelocationUseV1> {
+    ) -> impl Iterator<Item = (usize, &VerifiedRelocationUseV1)> {
         self.relocations_by_atom
             .get(&atom)
             .into_iter()
             .flatten()
-            .map(|&index| &self.relocations[index])
+            .map(|&index| (index, &self.relocations[index]))
     }
 }
 

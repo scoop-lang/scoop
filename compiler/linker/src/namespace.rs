@@ -2,6 +2,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use scoop_lir::NativeObjectFormat;
 use scoop_toolchain::{SystemExportKind, ValidatedFinalLinkProfile};
 use scoop_wire::Encoder;
 
@@ -89,15 +90,13 @@ impl NativeNamespace {
         roots: &[PathBuf],
         profile: &ValidatedFinalLinkProfile,
     ) -> Result<Self, LinkError> {
-        match profile {
-            ValidatedFinalLinkProfile::Darwin(_) => Ok(Self::Darwin(DarwinNamespace {
+        match profile.target().native_object_format() {
+            NativeObjectFormat::MachO64 => Ok(Self::Darwin(DarwinNamespace {
                 providers: DynamicInputs::read(native, roots, profile)?,
                 bindings: BTreeMap::new(),
             })),
-            ValidatedFinalLinkProfile::Linux(_) => {
-                ElfNamespace::read(native, roots, profile).map(Self::Elf)
-            }
-            ValidatedFinalLinkProfile::Windows(_) => Ok(Self::Coff(coff::CoffNamespace::default())),
+            NativeObjectFormat::Elf64 => ElfNamespace::read(native, roots, profile).map(Self::Elf),
+            NativeObjectFormat::Coff64 => Ok(Self::Coff(coff::CoffNamespace::default())),
         }
     }
 

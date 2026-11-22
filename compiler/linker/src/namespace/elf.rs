@@ -39,7 +39,7 @@ pub(crate) struct ElfNamespace {
     pub bindings: BTreeMap<String, ElfBinding>,
     pub system_interfaces: BTreeMap<String, ElfSymbols>,
     pub system_inputs: BTreeMap<NativeInputId, BTreeMap<String, NativeSymbolDefinition>>,
-    pub libc_inputs: BTreeSet<NativeInputId>,
+    compatibility_inputs: BTreeSet<NativeInputId>,
     pub providers: BTreeMap<NativeInputId, ElfProvider>,
     pub roots: Vec<NativeInputId>,
     pub selected: BTreeSet<NativeInputId>,
@@ -56,17 +56,17 @@ impl ElfNamespace {
         roots: &[PathBuf],
         profile: &ValidatedFinalLinkProfile,
     ) -> Result<Self, LinkError> {
-        let ValidatedFinalLinkProfile::Linux(linux) = profile else {
-            return Err(error(
+        let elf = profile.elf_inputs().ok_or_else(|| {
+            error(
                 scoop_source::DiagnosticCode::ICE2201,
-                "ELF namespace requires a Linux target",
-            ));
-        };
+                "ELF namespace requires selected ELF link inputs",
+            )
+        })?;
         let mut result = Self {
             system: BTreeMap::new(),
             system_interfaces: BTreeMap::new(),
             system_inputs: BTreeMap::new(),
-            libc_inputs: BTreeSet::new(),
+            compatibility_inputs: BTreeSet::new(),
             providers: BTreeMap::new(),
             roots: Vec::new(),
             selected: BTreeSet::new(),
@@ -74,11 +74,11 @@ impl ElfNamespace {
             edges: BTreeMap::new(),
             rpaths: BTreeSet::new(),
             bindings: BTreeMap::new(),
-            paths: linux.input_paths().map(PathBuf::from).collect(),
+            paths: elf.system_paths.to_vec(),
             needed: BTreeSet::new(),
         };
-        result.read_system(profile)?;
-        result.read_graph(native, roots, profile)?;
+        result.read_system(profile, elf.compatibility_providers)?;
+        result.read_graph(native, roots, profile, elf.conflicting_unwind_prefixes)?;
         Ok(result)
     }
 
@@ -110,7 +110,7 @@ impl ElfNamespace {
         }
         .or_else(|| {
             system_alias.then(|| {
-                self.libc_inputs
+                self.compatibility_inputs
                     .iter()
                     .find_map(|id| self.system_inputs[id].get(symbol))
             })?

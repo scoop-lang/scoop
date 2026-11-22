@@ -74,6 +74,11 @@ def check_mode(args, llc, target_name, target, musl, mode, cc, flags, prefix):
             "-fno-omit-frame-pointer",
             "-fno-optimize-sibling-calls",
             "-funwind-tables",
+            # Expected encodings for the LLVM EH test input.
+            "-DSCOOP_EH_LP_START_ENCODING=0xff",
+            "-DSCOOP_EH_TTYPE_ENCODING=0x9b",
+            "-DSCOOP_EH_CALL_SITE_ENCODING=0x01",
+            "-DSCOOP_EH_OMITTED_TTYPE_ENCODING=0xff",
             "-I",
             str(prefix / "include"),
             "-I",

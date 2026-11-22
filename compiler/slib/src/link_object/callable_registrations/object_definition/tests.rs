@@ -40,6 +40,37 @@ fn coff_relocation_kind_and_in_place_addend_remain_fingerprint_inputs() {
 }
 
 #[test]
+fn amd64_coff_secrel7_preserves_the_upper_bit_in_the_definition() {
+    let mut relocation = CanonicalObjectRelocationV1::unsigned64(
+        0,
+        FinalUndefinedSymbolRequirementV1::Native {
+            symbol: b"external".to_vec(),
+        },
+    );
+    relocation.form =
+        CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::Coff {
+            machine: scoop_lir::ObjectMachineV1::X86_64,
+            kind: object::pe::IMAGE_REL_AMD64_SECREL7,
+            storage_width: 1,
+        });
+    let mut bytes = [0xff];
+    relocation.normalize_bytes(&mut bytes).unwrap();
+    assert_eq!(bytes, [0x80]);
+    assert_eq!(
+        object::pe::IMAGE_REL_ARM64_TOKEN,
+        object::pe::IMAGE_REL_AMD64_SECREL7,
+    );
+    assert!(
+        CoffRelocationKind::classify(
+            scoop_lir::ObjectMachineV1::Aarch64,
+            object::pe::IMAGE_REL_ARM64_TOKEN,
+            1,
+        )
+        .is_none()
+    );
+}
+
+#[test]
 fn native_symbol_names_and_relocations_are_distinct_fingerprint_inputs() {
     let encode = |symbol: &[u8], addend| {
         let mut relocation = CanonicalObjectRelocationV1::unsigned64(

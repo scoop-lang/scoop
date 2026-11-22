@@ -170,15 +170,14 @@ pub enum ObjectRelocationProfileV1 {
     CoffAmd64,
 }
 
-/// Object-file unwind records emitted and consumed for one object target.
+/// Object-file unwind record forms emitted and consumed for an object target.
 ///
-/// This describes container and machine semantics only. It does not select a
-/// language exception model, an unwind runtime, or GC frame recovery.
+/// Machine-specific relocation rules are selected by the object target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ObjectUnwindImageV1 {
     MachOAarch64CompactUnwindAndEhFrame,
     MachOX86_64CompactUnwindAndEhFrame,
-    ElfX86_64EhFrame,
+    ElfEhFrame,
     CoffAmd64PdataXdata,
 }
 
@@ -189,7 +188,7 @@ impl ObjectUnwindImageV1 {
             (
                 Self::MachOAarch64CompactUnwindAndEhFrame
                     | Self::MachOX86_64CompactUnwindAndEhFrame
-                    | Self::ElfX86_64EhFrame,
+                    | Self::ElfEhFrame,
                 TargetExceptionModelV1::ItaniumDwarf
             ) | (
                 Self::CoffAmd64PdataXdata,
@@ -246,9 +245,14 @@ impl ObjectTargetProfileV1 {
         match self {
             Self::MachOAarch64 => ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame,
             Self::MachOX86_64 => ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame,
-            Self::ElfX86_64 => ObjectUnwindImageV1::ElfX86_64EhFrame,
+            Self::ElfX86_64 => ObjectUnwindImageV1::ElfEhFrame,
             Self::CoffAmd64 => ObjectUnwindImageV1::CoffAmd64PdataXdata,
         }
+    }
+
+    /// LLVM emits a separate `DW.ref` constant for the callable's personality.
+    pub const fn uses_indirect_elf_personality(self) -> bool {
+        matches!(self, Self::ElfX86_64)
     }
 
     pub const fn symbol_normalization(self) -> NativeSymbolNormalization {

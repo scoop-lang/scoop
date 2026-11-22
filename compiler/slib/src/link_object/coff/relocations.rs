@@ -1,20 +1,23 @@
-use object::pe;
-
 use super::*;
 
 pub(super) fn read<'data, H: CoffHeader>(
     file: &CoffFile<'data, &'data [u8], H>,
     symbols: &[ObservedObjectSymbolV1],
+    machine: ObjectMachineV1,
 ) -> Result<Vec<ObservedObjectRelocationV1>, CoffObjectError> {
     let mut relocations = Vec::new();
     for section in file.sections() {
         let data = section.data().map_err(error)?;
         for raw in section.coff_relocations().map_err(error)? {
             let kind = raw.typ.get(object::LittleEndian);
-            if kind == pe::IMAGE_REL_AMD64_ABSOLUTE {
+            let decoded = CoffRelocationKind::decode(machine, kind).ok_or_else(|| {
+                error(format!(
+                    "unsupported {machine:?} relocation kind 0x{kind:04x}"
+                ))
+            })?;
+            let Some(width) = decoded.storage_width() else {
                 continue;
-            }
-            let width = width(kind)?;
+            };
             let target_symbol = raw.symbol_table_index.get(object::LittleEndian);
             symbols::require_symbol(symbols, target_symbol)?;
             let offset = raw.virtual_address.get(object::LittleEndian) as usize;
@@ -31,7 +34,7 @@ pub(super) fn read<'data, H: CoffHeader>(
                 offset: offset as u64,
                 encoded_value: u64::from_le_bytes(encoded),
                 shape: ObjectRelocationShapeV1::Coff {
-                    machine: scoop_lir::ObjectMachineV1::X86_64,
+                    machine,
                     kind,
                     target_symbol,
                     storage_width: width,
@@ -40,25 +43,4 @@ pub(super) fn read<'data, H: CoffHeader>(
         }
     }
     Ok(relocations)
-}
-
-fn width(kind: u16) -> Result<u8, CoffObjectError> {
-    match kind {
-        pe::IMAGE_REL_AMD64_ADDR64 => Ok(8),
-        pe::IMAGE_REL_AMD64_ADDR32
-        | pe::IMAGE_REL_AMD64_ADDR32NB
-        | pe::IMAGE_REL_AMD64_REL32
-        | pe::IMAGE_REL_AMD64_REL32_1
-        | pe::IMAGE_REL_AMD64_REL32_2
-        | pe::IMAGE_REL_AMD64_REL32_3
-        | pe::IMAGE_REL_AMD64_REL32_4
-        | pe::IMAGE_REL_AMD64_REL32_5
-        | pe::IMAGE_REL_AMD64_SECREL
-        | pe::IMAGE_REL_AMD64_SSPAN32 => Ok(4),
-        pe::IMAGE_REL_AMD64_SECTION => Ok(2),
-        pe::IMAGE_REL_AMD64_SECREL7 => Ok(1),
-        _ => Err(error(format!(
-            "unsupported AMD64 relocation kind 0x{kind:04x}"
-        ))),
-    }
 }

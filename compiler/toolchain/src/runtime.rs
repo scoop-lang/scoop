@@ -1,7 +1,8 @@
 //! Runtime composition for the implemented targets; no linker or LLVM discovery.
 use scoop_lir::{
-    BackendRedZoneV1, LirTargetProfile, MachineFrameRecoveryV1, NativeObjectFormat,
-    ObjectTargetProfileV1, ProcedureAbi, ScoopAbiClassifier, TargetArchitecture,
+    BackendLsdaEncodingsV1, BackendRedZoneV1, LirTargetProfile, MachineFrameRecoveryV1,
+    NativeObjectFormat, ObjectTargetProfileV1, ProcedureAbi, ScoopAbiClassifier,
+    TargetArchitecture,
 };
 use scoop_target_data::TargetOs;
 
@@ -37,6 +38,7 @@ struct RuntimeComponents {
     managed_frame_ops_flag: &'static str,
     c_long_size_flag: &'static str,
     gc_forwarding_flag: &'static str,
+    lsda: BackendLsdaEncodingsV1,
     os_flags: &'static [&'static str],
     image_flags: &'static [&'static str],
     frame_flags: &'static [&'static str],
@@ -89,13 +91,20 @@ impl ValidatedRuntimeBuildProfile {
             }
             scoop_target_data::RuntimeTuning::InlineGcForwarding => sources::INLINE_GC_FORWARDING,
         };
-        let (image, image_flags): (_, &[_]) = match target.object_target() {
-            ObjectTargetProfileV1::MachOAarch64 | ObjectTargetProfileV1::MachOX86_64 => {
-                (sources::MACHO_IMAGE, &[])
-            }
-            ObjectTargetProfileV1::ElfX86_64 => (sources::ELF_IMAGE, &["-fvisibility=hidden"]),
-            ObjectTargetProfileV1::CoffAmd64 => {
+        let (image, image_flags): (_, &[_]) = match (
+            target.native_object_format(),
+            target.object_target().machine(),
+        ) {
+            (NativeObjectFormat::MachO64, _) => (sources::MACHO_IMAGE, &[]),
+            (NativeObjectFormat::Elf64, _) => (sources::ELF_IMAGE, &["-fvisibility=hidden"]),
+            (NativeObjectFormat::Coff64, scoop_lir::ObjectMachineV1::X86_64) => {
                 (sources::PE_IMAGE, &[sources::PE_AMD64_IMAGE_MACHINE])
+            }
+            (NativeObjectFormat::Coff64, machine) => {
+                return Err(crate::ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2307,
+                    format!("no runtime PE image parser for {machine:?}"),
+                ));
             }
         };
         let (loaded_image, trace_loader, metadata_image_ops_flag): (&[&str], &[&str], &str) =
@@ -201,6 +210,7 @@ impl ValidatedRuntimeBuildProfile {
             managed_frame_ops_flag,
             c_long_size_flag,
             gc_forwarding_flag,
+            lsda: backend.lsda,
             os_flags,
             image_flags,
             frame_flags,
@@ -231,8 +241,10 @@ impl ValidatedRuntimeBuildProfile {
             .collect()
     }
 
-    pub fn runtime_c_flags(self) -> Vec<&'static str> {
+    pub fn runtime_c_flags(self) -> Vec<String> {
         let components = self.components;
+        let lsda = components.lsda;
+        let omitted_type_table = lsda.omitted_type_table.unwrap_or(0xff);
         components
             .os_flags
             .iter()
@@ -246,6 +258,13 @@ impl ValidatedRuntimeBuildProfile {
                 components.managed_frame_ops_flag,
                 components.c_long_size_flag,
                 components.gc_forwarding_flag,
+            ])
+            .map(str::to_owned)
+            .chain([
+                format!("-DSCOOP_EH_LP_START_ENCODING={:#04x}", lsda.lp_start),
+                format!("-DSCOOP_EH_TTYPE_ENCODING={:#04x}", lsda.type_table),
+                format!("-DSCOOP_EH_CALL_SITE_ENCODING={:#04x}", lsda.call_site),
+                format!("-DSCOOP_EH_OMITTED_TTYPE_ENCODING={omitted_type_table:#04x}"),
             ])
             .collect()
     }

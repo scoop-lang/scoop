@@ -10,8 +10,8 @@ pub(in crate::link_object) fn canonicalize_relocations_with_associated_atoms(
     associated_atoms: &[DefinitionAtomRangeV1],
 ) -> Result<Vec<CanonicalObjectRelocationV1>, ObjectDefinitionRelocationFailureV1> {
     let mut output = Vec::new();
-    for relocation in member.relocations_for_atom(atom) {
-        let bindings = closure.bindings_at(member.member(), atom, relocation.offset_within_atom());
+    for (index, relocation) in member.relocations_for_atom(atom) {
+        let bindings = closure.bindings_for_relocation(index, relocation);
         let mut binding_count = 0;
         let mut targets = Vec::new();
         let mut canonical_value = relocation.encoded_value();
@@ -179,7 +179,7 @@ pub(in crate::link_object) fn canonicalize_relocations_with_associated_atoms(
             targets,
         });
     }
-    output.sort_unstable_by_key(|relocation| relocation.offset_within_atom);
+    output.sort_by_key(|relocation| relocation.offset_within_atom);
     for relocation in &output {
         let start = usize::try_from(relocation.offset_within_atom)
             .map_err(|_| ObjectDefinitionRelocationFailureV1::Range)?;

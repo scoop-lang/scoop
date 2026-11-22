@@ -87,12 +87,12 @@ pub(super) fn materialize(
                     }
                     Some((section.index(), 0, section.size()))
                 }
-                DefinitionAtomRole::CompactUnwind
+                role @ (DefinitionAtomRole::CompactUnwind
                 | DefinitionAtomRole::WindowsUnwindTable
-                | DefinitionAtomRole::WindowsUnwindInfo => {
-                    return Err(CodegenError::internal(
-                        "ELF callable plan contains a Mach-O compact-unwind atom".into(),
-                    )
+                | DefinitionAtomRole::WindowsUnwindInfo) => {
+                    return Err(CodegenError::internal(format!(
+                        "ELF callable plan contains an unexpected {role:?} atom"
+                    ))
                     .with_code(scoop_source::DiagnosticCode::ICE2302));
                 }
                 DefinitionAtomRole::AddressTakenConstant
@@ -134,7 +134,6 @@ fn backend_role(name: &str) -> Option<DefinitionAtomRole> {
     match name {
         ".llvm_stackmaps" => Some(DefinitionAtomRole::Stackmap),
         ".eh_frame" => Some(DefinitionAtomRole::EhFrame),
-        ".data.DW.ref.scoop_eh_personality" => Some(DefinitionAtomRole::AddressTakenConstant),
         name if name == ".gcc_except_table" || name.starts_with(".gcc_except_table.") => {
             Some(DefinitionAtomRole::Lsda)
         }

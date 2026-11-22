@@ -26,6 +26,7 @@ fn scoop_personality_implements_the_closed_two_phase_contract() {
         std::env::temp_dir().join(format!("scoop_eh_personality_test_{}", std::process::id()));
     let compile = Command::new("cc")
         .args(COMPILE_AND_LINK_ARGUMENTS)
+        .args(crate::tests::platform_support::native_runtime_c_flags())
         .arg("-I")
         .arg(workspace.join("runtime/src"))
         .arg(workspace.join("runtime/src/eh_personality.c"))

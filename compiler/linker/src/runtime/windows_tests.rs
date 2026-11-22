@@ -88,11 +88,7 @@ fn windows_runtime_sources_define_and_link_the_complete_runtime_abi() {
                 enable_startup_stats: true,
                 input_key: sha256(b"Windows complete runtime inputs"),
                 compiler_inputs: sha256(b"selected Windows runtime compiler"),
-                flags: profile
-                    .runtime_c_flags()
-                    .into_iter()
-                    .map(str::to_owned)
-                    .collect(),
+                flags: profile.runtime_c_flags(),
             },
             objects.clone(),
             &directory.path().join("index"),

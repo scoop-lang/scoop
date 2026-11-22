@@ -101,14 +101,12 @@ pub fn validate_elf_object_envelope_v1(
                 .ok_or_else(|| error("null relocation section"))?,
                 offset: r.offset,
                 encoded_value: u64::from_le_bytes(value),
-                shape: match object.architecture() {
-                    ElfArchitecture::X86_64 => ObjectRelocationShapeV1::ElfRela {
-                        machine: object.architecture().object_machine(),
-                        kind: r.kind,
-                        target_symbol: u32::try_from(r.symbol.0).map_err(error)?,
-                        addend: r.addend,
-                        storage_width: r.width,
-                    },
+                shape: ObjectRelocationShapeV1::ElfRela {
+                    machine: object.object_target.machine(),
+                    kind: r.kind,
+                    target_symbol: u32::try_from(r.symbol.0).map_err(error)?,
+                    addend: r.addend,
+                    storage_width: r.width,
                 },
             })
         })
@@ -116,7 +114,7 @@ pub fn validate_elf_object_envelope_v1(
     Ok(ValidatedObjectEnvelopeV1 {
         byte_length: bytes.len() as u64,
         content_digest: scoop_wire::sha256(bytes),
-        format: ObjectEnvelopeFormatV1::new(target, scoop_lir::ObjectTargetProfileV1::ElfX86_64),
+        format: ObjectEnvelopeFormatV1::new(target, object.object_target),
         sections,
         symbols,
         relocations,

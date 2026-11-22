@@ -4,46 +4,46 @@ use super::{
     VerifiedMachORelocationFormV1 as MachForm, VerifiedMachORelocationShapeV1 as MachShape,
     VerifiedObjectRelocationFormV1 as Form, VerifiedObjectRelocationShapeV1 as Shape,
 };
+use crate::link_object::{coff::CoffRelocationKind, elf::ElfRelocationKind};
 
 impl Form {
     pub fn is_absolute64(self) -> bool {
-        matches!(
-            self,
-            Self::MachO {
-                form: MachForm::Unsigned64,
-                ..
-            } | Self::Coff {
-                kind: object::pe::IMAGE_REL_AMD64_ADDR64,
-                storage_width: 8,
-                ..
-            } | Self::ElfRela {
-                kind: object::elf::R_X86_64_64,
-                storage_width: 8,
-                ..
-            }
-        )
-    }
-
-    /// COFF and Mach-O store the addend in-place; ELF RELA stores it separately.
-    pub fn absolute64_addend(self, encoded_field: u64) -> Option<i128> {
         match self {
             Self::MachO {
                 form: MachForm::Unsigned64,
                 ..
-            } => Some(i128::from(encoded_field)),
+            } => true,
             Self::Coff {
-                kind: object::pe::IMAGE_REL_AMD64_ADDR64,
-                storage_width: 8,
-                ..
-            } => Some(i128::from(encoded_field as i64)),
+                machine,
+                kind,
+                storage_width,
+            } => matches!(
+                CoffRelocationKind::classify(machine, kind, storage_width),
+                Some(CoffRelocationKind::Absolute64)
+            ),
             Self::ElfRela {
-                kind: object::elf::R_X86_64_64,
-                storage_width: 8,
-                addend,
+                machine,
+                kind,
+                storage_width,
                 ..
-            } => Some(i128::from(addend)),
-            _ => None,
+            } => matches!(
+                ElfRelocationKind::classify(machine, kind, storage_width),
+                Some(ElfRelocationKind::Absolute64)
+            ),
+            _ => false,
         }
+    }
+
+    /// COFF and Mach-O store the addend in-place; ELF RELA stores it separately.
+    pub fn absolute64_addend(self, encoded_field: u64) -> Option<i128> {
+        if !self.is_absolute64() {
+            return None;
+        }
+        Some(match self {
+            Self::MachO { .. } => i128::from(encoded_field),
+            Self::Coff { .. } => i128::from(encoded_field as i64),
+            Self::ElfRela { addend, .. } => i128::from(addend),
+        })
     }
 
     pub fn absolute64_address(self, encoded_field: u64, base: u64) -> Option<u64> {
@@ -80,19 +80,12 @@ impl Shape {
             Self::MachO {
                 shape: MachShape::Unsigned64 { target },
                 ..
-            }
-            | Self::Coff {
-                kind: object::pe::IMAGE_REL_AMD64_ADDR64,
-                storage_width: 8,
-                target,
-                ..
-            }
-            | Self::ElfRela {
-                kind: object::elf::R_X86_64_64,
-                storage_width: 8,
-                target,
-                ..
             } => Some(target),
+            Self::Coff { target, .. } | Self::ElfRela { target, .. }
+                if self.form().is_absolute64() =>
+            {
+                Some(target)
+            }
             _ => None,
         }
     }
@@ -113,6 +106,18 @@ mod tests {
         assert_eq!(absolute.absolute64_address(17, 24), Some(41));
         assert_eq!(absolute.absolute64_address(-17i64 as u64, 24), Some(7));
         assert_eq!(absolute.absolute64_address(-17i64 as u64, 0), None);
+        assert_eq!(
+            object::pe::IMAGE_REL_ARM64_ADDR32,
+            object::pe::IMAGE_REL_AMD64_ADDR64,
+        );
+        assert!(
+            !Form::Coff {
+                machine: scoop_lir::ObjectMachineV1::Aarch64,
+                kind: object::pe::IMAGE_REL_ARM64_ADDR32,
+                storage_width: 8,
+            }
+            .is_absolute64()
+        );
         assert!(
             !Form::Coff {
                 machine: scoop_lir::ObjectMachineV1::X86_64,
@@ -157,5 +162,22 @@ mod tests {
                 .is_absolute64()
             );
         }
+    }
+
+    #[test]
+    fn elf_absolute_pointer_kinds_require_their_machine() {
+        let shape = Shape::ElfRela {
+            machine: scoop_lir::ObjectMachineV1::Aarch64,
+            kind: object::elf::R_X86_64_64,
+            addend: 0,
+            storage_width: 8,
+            target: super::super::VerifiedRelocationTargetV1::ExternalUndefined {
+                table_index: 1,
+                name: b"external".to_vec(),
+            },
+        };
+        assert!(!shape.form().is_absolute64());
+        assert_eq!(shape.form().absolute64_addend(0), None);
+        assert_eq!(shape.absolute64_target(), None);
     }
 }

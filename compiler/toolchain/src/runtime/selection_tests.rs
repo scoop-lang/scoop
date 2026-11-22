@@ -65,11 +65,9 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
         "{} selects the wrong Scoop ABI shim",
         profile.canonical_triple()
     );
-    assert_eq!(
-        profile.runtime_c_flags().contains(&"-mno-red-zone"),
-        expected.no_red_zone
-    );
     let flags = profile.runtime_c_flags();
+    let has_flag = |expected| flags.iter().any(|flag| flag == expected);
+    assert_eq!(has_flag("-mno-red-zone"), expected.no_red_zone);
     for expected_flag in [
         expected.metadata_image_ops,
         expected.thread_vm_ops,
@@ -77,23 +75,23 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
         expected.c_long_size,
     ] {
         assert!(
-            flags.contains(&expected_flag),
+            has_flag(expected_flag),
             "{} does not select {expected_flag}",
             profile.canonical_triple()
         );
     }
     assert_eq!(
-        flags.contains(&"-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=1"),
+        has_flag("-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=1"),
         expected.inline_gc_forwarding
     );
     assert_eq!(
-        flags.contains(&"-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=0"),
+        has_flag("-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=0"),
         !expected.inline_gc_forwarding
     );
     assert_eq!(
         flags
             .iter()
-            .copied()
+            .map(String::as_str)
             .find(|flag| flag.starts_with("-DSCOOP_PE_IMAGE_MACHINE=")),
         expected.image_machine
     );

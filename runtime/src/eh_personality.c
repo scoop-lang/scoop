@@ -1,3 +1,4 @@
+#include "eh/lsda_encoding.h"
 #include "eh/lsda_reader.h"
 
 #include <inttypes.h>
@@ -30,14 +31,14 @@ static ScoopEhByteRange scoop_eh_runtime_lsda_range(const uint8_t *bytes, uintpt
         scoop_eh_lsda_error(SCOOP_EH_DECODE_MALFORMED, SCOOP_EH_REASON_POINTER_OVERFLOW,
                             region_start);
     }
-    if (bytes[0] != SCOOP_EH_DW_PE_OMIT) {
+    if (bytes[0] != SCOOP_EH_LP_START_ENCODING) {
         return (ScoopEhByteRange){.bytes = bytes, .length = 1};
     }
-    bool has_type_table = bytes[1] != SCOOP_EH_DW_PE_OMIT;
+    bool has_type_table = bytes[1] != SCOOP_EH_OMITTED_TTYPE_ENCODING;
     if (has_type_table && bytes[1] != SCOOP_EH_TTYPE_ENCODING) {
         return (ScoopEhByteRange){.bytes = bytes, .length = 2};
     }
-    if (!has_type_table && bytes[2] != SCOOP_EH_DW_PE_ULEB128) {
+    if (!has_type_table && bytes[2] != SCOOP_EH_CALL_SITE_ENCODING) {
         return (ScoopEhByteRange){.bytes = bytes, .length = 3};
     }
 

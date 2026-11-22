@@ -169,6 +169,20 @@ pub(in crate::link_object) fn fixture_for_producer(producer: ConeIdentity, name:
 }
 
 fn build_fixture(producer: ConeIdentity, name: &str, include_associated_atom: bool) -> Fixture {
+    build_target_fixture(
+        scoop_target_data::DARWIN_AARCH64,
+        producer,
+        name,
+        include_associated_atom,
+    )
+}
+
+pub(in crate::link_object) fn build_target_fixture(
+    target: scoop_lir::LirTargetProfile,
+    producer: ConeIdentity,
+    name: &str,
+    include_associated_atom: bool,
+) -> Fixture {
     let function =
         CborIdentityRecord::<PersistentFunctionId, _>::from_key(SourceDeclarationKey::function(
             SourceDeclarationSite::new(
@@ -228,17 +242,16 @@ fn build_fixture(producer: ConeIdentity, name: &str, include_associated_atom: bo
     let surface = ObjectSymbolSurfaceV1::from_foundation(&foundation).unwrap();
     let partition = ProducerUnitPartitionV1::from_foundation(&foundation).unwrap();
     let members = PlannedLinkObjectMemberSetV1::new(
-        scoop_target_data::DARWIN_AARCH64,
+        target,
         &partition,
         vec![CanonicalScoopLirObjectUnitSetV1::new(vec![plan.id()]).unwrap()],
         Vec::new(),
     )
     .unwrap();
-    let symbols =
-        PlannedStrongObjectSymbolSetV1::new(scoop_target_data::DARWIN_AARCH64, &surface, &members)
-            .unwrap()
-            .members()[0]
-            .clone();
+    let symbols = PlannedStrongObjectSymbolSetV1::new(target, &surface, &members)
+        .unwrap()
+        .members()[0]
+        .clone();
     Fixture {
         plan: plan.id(),
         atom: atom.id(),
