@@ -1,0 +1,107 @@
+package scoop.ui.component
+
+import scoop.ui.Binding
+
+internal class TreeColumnModel<T>(
+    private val input: Binding<TreeColumnState<T>>,
+    private val mutation: () -> Unit,
+    private val changed: (TreeColumnChange<T>) -> Unit
+) {
+    val value: TreeColumnState<T> get() = input.value
+    fun replace(columns: TreeColumns<T>?, origin: TreeChangeOrigin): Boolean {
+        mutation()
+        return write(
+            treeReplacedColumns(value, columns),
+            None,
+            TreeColumnChangeKind.Definition,
+            origin
+        )
+    }
+    fun show(id: String, visible: Boolean, origin: TreeChangeOrigin): Boolean {
+        mutation()
+        val old = value
+        val definition = old.columns ?:
+            throw IllegalArgumentException(Some("tree has no explicit columns"))
+        val column = definition.column(id)
+        if (old.isVisible(id) == visible) return true
+        if (!column.hideable || (!visible && id == definition.treeColumn)) return false
+        val hidden = ArrayList<String>()
+        for (key in old.hiddenColumns)
+            if (key != id) hidden.add(key)
+        if (!visible) hidden.add(id)
+        return write(
+            TreeColumnState(old.columns, hidden.toArray(), old.widths, old.sorting),
+            Some(id),
+            TreeColumnChangeKind.Visibility,
+            origin
+        )
+    }
+    fun resize(id: String, width: Double?, origin: TreeChangeOrigin): Boolean {
+        mutation()
+        val old = value
+        val definition = old.columns ?:
+            throw IllegalArgumentException(Some("tree has no explicit columns"))
+        val column = definition.column(id)
+        if (!column.resizable) return false
+        val requested = when (width) {
+            case Some(val number) -> Some(column.size.constrain(number))
+            case None -> None
+        }
+        if (old.width(id) == requested) return true
+        val widths = ArrayList<TableColumnWidth>()
+        for (entry in old.widths)
+            if (entry.column != id) widths.add(entry)
+        when (requested) {
+            case Some(val number) -> widths.add(TableColumnWidth(id, number))
+            case None -> {}
+        }
+        return write(
+            TreeColumnState(old.columns, old.hiddenColumns, widths.toArray(), old.sorting),
+            Some(id),
+            TreeColumnChangeKind.Width,
+            origin
+        )
+    }
+    fun sort(sort: TableSort?, origin: TreeChangeOrigin): Boolean {
+        mutation()
+        val old = value
+        return write(
+            TreeColumnState(old.columns, old.hiddenColumns, old.widths, sort),
+            sort?.column,
+            TreeColumnChangeKind.Sort,
+            origin
+        )
+    }
+    fun toggleSort(id: String, origin: TreeChangeOrigin): Boolean {
+        mutation()
+        val old = value
+        val definition = old.columns ?:
+            throw IllegalArgumentException(Some("tree has no explicit columns"))
+        requireComponent(definition.column(id).sortable, "tree sort column requires a comparator")
+        val next = when (old.sorting) {
+            case Some(val sort) ->
+                if (sort.column != id)
+                    Some(TableSort(id))
+                else if (sort.direction == TableSortDirection.Ascending)
+                    Some(TableSort(id, TableSortDirection.Descending))
+                else
+                    None
+            case None -> Some(TableSort(id))
+        }
+        return sort(next, origin)
+    }
+    private fun write(
+        next: TreeColumnState<T>,
+        id: String?,
+        kind: TreeColumnChangeKind,
+        origin: TreeChangeOrigin
+    ): Boolean {
+        val before = value
+        if (treeColumnStatesEqual(before, next)) return true
+        input.value = next
+        val actual = value
+        if (!treeColumnStatesEqual(before, actual))
+            changed(TreeColumnChange(id, kind, actual, origin))
+        return treeColumnStatesEqual(actual, next)
+    }
+}

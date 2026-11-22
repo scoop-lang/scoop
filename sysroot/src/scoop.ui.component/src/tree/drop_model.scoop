@@ -1,0 +1,127 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.ViewKey
+
+internal fun <T> treeDrop(
+    data: TreeData<T>,
+    source: ViewKey,
+    target: ViewKey,
+    position: TreeDropPosition,
+    sorted: Boolean = false
+): TreeDrop<T>? {
+    val from = data.indexOfKey(source) ?: return None
+    val to = data.indexOfKey(target) ?: return None
+    val origin = data.records[from]
+    val destination = data.records[to]
+    if (!origin.node.enabled ||
+        !origin.node.draggable ||
+        !destination.node.enabled ||
+        (to >= from && to < origin.end)
+    )
+        return None
+    if (sorted && position != TreeDropPosition.Inside) return None
+    val parent = if (position == TreeDropPosition.Inside) Some(to) else destination.parent
+    val siblings = when (parent) {
+        case Some(val index) -> {
+            val row = data.records[index]
+            if (!row.node.enabled) return None
+            when (row.node.children) {
+                case Leaf -> return None;
+                else -> {}
+            }
+            row.children
+        }
+
+        case None -> data.rootIndices
+    }
+    val insertion = when (position) {
+        case Before -> destination.position
+        case After -> destination.position + 1L
+        case Inside -> siblings.size
+    }
+    if (origin.parent == parent) {
+        val adjusted = insertion - if (origin.position < insertion) 1L else 0L
+        if (adjusted == origin.position) return None
+    }
+    var before: ViewKey? = None
+    var next = insertion
+    while (next < siblings.size) {
+        val node = data.records[siblings[next]].node
+        if (node.key != source) {
+            before = Some(node.key);
+            break
+        }
+        next += 1L
+    }
+    return Some(
+        TreeDrop(
+            origin.node, destination.node, position,
+            when (parent) {
+                case Some(val index) -> Some(data.records[index].node.key);
+                case None -> None
+            },
+            before
+        )
+    )
+}
+
+/** Moves one loaded subtree. Unknown destination children require application-specific IO. */
+public fun <T> TreeData<T>.moved(
+    source: ViewKey,
+    target: ViewKey,
+    position: TreeDropPosition
+): TreeData<T>? {
+    val move = treeDrop(this, source, target, position) ?: return None
+    when (move.parent) {
+        case Some(val key) ->
+            when (node(key)!!.children) {
+                case Deferred -> return None
+                else -> {}
+            }
+        case None -> {}
+    }
+    val replacements = HashMap<Long, TreeNode<T>>()
+    var index = count
+    while (index > 0L) {
+        index -= 1L
+        val record = records[index]
+        if (record.node.key == source) continue
+        val children = ArrayList<TreeNode<T>>()
+        var changed = false
+        for (at in record.children) {
+            val child = records[at].node
+            if (child.key == source) {
+                changed = true;
+                continue
+            }
+            if (move.parent == Some(record.node.key) && move.before == Some(child.key)) {
+                children.add(move.source)
+                changed = true
+            }
+            when (replacements[at]) {
+                case Some(val next) -> {
+                    children.add(next);
+                    changed = true
+                }
+
+                case None -> children.add(child)
+            }
+        }
+        if (move.parent == Some(record.node.key) && move.before == None) {
+            children.add(move.source)
+            changed = true
+        }
+        if (changed)
+            replacements[index] = record.node.withChildren(TreeChildren.Known(children.toArray()))
+    }
+    val nextRoots = ArrayList<TreeNode<T>>()
+    for (at in rootIndices) {
+        val root = records[at].node
+        if (root.key == source) continue
+        if (move.parent == None && move.before == Some(root.key)) nextRoots.add(move.source)
+        nextRoots.add(replacements[at] ?: root)
+    }
+    if (move.parent == None && move.before == None) nextRoots.add(move.source)
+    return Some(TreeData(nextRoots.toArray()))
+}

@@ -1,0 +1,118 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+internal class TreePinnedRow(val index: Long, val y: Double, val top: Double, val bottom: Double)
+
+internal class TreePinning(val rows: Array<TreePinnedRow>, val height: Double)
+
+/** The next slot follows the branch at its reading edge; each subtree pushes its own row out. */
+internal fun <T> treePinning(
+    source: TreeProjection<T>,
+    extents: ItemExtentIndex,
+    offset: Double,
+    height: Double,
+    options: TreeSticky
+): TreePinning {
+    if (!options.enabled || options.maxRows == 0L || height <= 0.0 || source.count == 0L)
+        return TreePinning([], 0.0)
+    val limit = height * options.maxHeightRatio
+    val result = ArrayList<TreePinnedRow>()
+    var top = 0.0
+    var visible = 0.0
+    var last: Long? = None
+    while (result.size < options.maxRows) {
+        val at = extents.indexAt(offset + top)
+        if (at >= source.count) break
+        val path = ArrayList<Long>()
+        var cursor: Long? = Some(at)
+        while (cursor != None) {
+            val current = cursor!!
+            path.add(current)
+            cursor = source.rowAt(current).parent
+        }
+        var chosen: Long? = None
+        var inside = last == None
+        var index = path.size
+        while (index > 0L) {
+            index -= 1L
+            val row = path[index]
+            if (last == Some(row)) {
+                inside = true;
+                continue
+            }
+            if (inside &&
+                extents.prefix(row) -
+                offset <
+                top &&
+                source.rowAt(row).subtreeEnd >
+                row +
+                1L
+            ) {
+                chosen = Some(row)
+                break
+            }
+        }
+        val row = chosen ?: break
+        val extent = extents.extent(row)
+        if (extent <= 0.0 || top + extent > limit) break
+        val end = extents.prefix(source.rowAt(row).subtreeEnd) - offset
+        val y = upperBound(top, end - extent)
+        val bottom = upperBound(y + extent, height)
+        if (bottom <= top) break
+        result.add(TreePinnedRow(row, y, top, bottom))
+        visible = lowerBound(visible, bottom)
+        top += extent
+        last = Some(row)
+    }
+    return TreePinning(result.toArray(), visible)
+}
+
+/** Candidate slot sums keep an anchor stable across changed row heights without frame feedback. */
+internal fun <T> treeAnchoredOffset(
+    source: TreeProjection<T>,
+    extents: ItemExtentIndex,
+    at: Long,
+    inside: Double,
+    viewport: Double,
+    options: TreeSticky,
+    previous: Double,
+    previousHeight: Double
+): Double {
+    val target = extents.prefix(at) + upperBound(inside, extents.extent(at))
+    val maximum = lowerBound(extents.total - viewport, 0.0)
+    val candidates = ArrayList<Double>()
+    candidates.add(0.0)
+    candidates.add(previousHeight)
+    val path = ArrayList<Long>()
+    var parent = source.rowAt(at).parent
+    while (parent != None) {
+        path.add(parent!!);
+        parent = source.rowAt(parent!!).parent
+    }
+    var height = 0.0
+    var kept = 0L
+    var index = path.size
+    while (index > 0L && kept < options.maxRows && options.enabled) {
+        index -= 1L
+        height += extents.extent(path[index])
+        if (height > viewport * options.maxHeightRatio) break
+        candidates.add(height)
+        kept += 1L
+    }
+    var best = upperBound(lowerBound(target - previousHeight, 0.0), maximum)
+    var error = Double.MAX_VALUE
+    for (height in candidates) {
+        val offset = upperBound(lowerBound(target - height, 0.0), maximum)
+        val actual = treePinning(source, extents, offset, viewport, options).height
+        val delta = target - offset - actual
+        val distance = if (delta < 0.0) -delta else delta
+        val travel = if (offset < previous) previous - offset else offset - previous
+        val oldTravel = if (best < previous) previous - best else best - previous
+        if (distance < error || (distance == error && travel < oldTravel)) {
+            best = offset;
+            error = distance
+        }
+    }
+    return best
+}

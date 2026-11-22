@@ -1,0 +1,38 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.*
+import scoop.time.Duration
+
+public enum TreeDropPosition {
+    Before, Inside, After
+}
+
+/** A current logical insertion point. None for before means append, including unknown children. */
+public class TreeDrop<T> internal constructor(
+    public val source: TreeNode<T>,
+    public val target: TreeNode<T>,
+    public val position: TreeDropPosition,
+    public val parent: ViewKey?,
+    public val before: ViewKey?
+)
+
+/** Tree resolves moves; the application commits data or performs its own IO in onDrop. */
+public class TreeDrag<T> public constructor(
+    public val onDrop: (TreeDrop<T>) -> Boolean,
+    public val allowDrop: (TreeDrop<T>) -> Boolean = { _ -> true },
+    public val enabled: Boolean = true,
+    public val expandDelay: Duration = Duration.milliseconds(650L),
+    public val content: (TreeNode<T>) -> DragContent = { node -> DragContent.Text(node.label) },
+    public val onStart: (TreeNode<T>, DragSourceStart) -> Unit = { _, _ -> },
+    public val onEnter: (TreeDrop<T>) -> Unit = { _ -> },
+    public val onOver: (TreeDrop<T>) -> Unit = { _ -> },
+    public val onLeave: (TreeDrop<T>) -> Unit = { _ -> },
+    public val onEnd: (TreeNode<T>, DragResult) -> Unit = { _, _ -> }
+) {
+    init {
+        requireComponent(expandDelay >= Duration.ZERO, "negative tree hover delay")
+    }
+}
+
+internal class TreeDragPayload<T>(val state: TreeState<T>, val node: TreeNode<T>)

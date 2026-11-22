@@ -1,0 +1,158 @@
+package scoop.examples.ui.shadcn
+
+import scoop.asyncio.currentEventLoop
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+import scoop.window.asyncio.currentApplicationScope
+
+internal class TreeExamplesModel {
+    val filter = TextEditorState()
+    val sticky = state(true)
+    val lines = state(true)
+    val variable = state(false)
+    val narrow = state(false)
+    val highlightOnly = state(false)
+    val notice = state("Jump to file 60 to keep Workspace / src / components visible.")
+    val inspected = state<ViewKey?>(None)
+    val requests = state(0)
+    val moves = state(0)
+    val handle = TreeHandle()
+    val columns = treeExampleColumns(this)
+    val tree = TreeState(
+        treeExampleData(), columns = Some(columns),
+        selection = TreeSelectionMode.Multiple, checking = TreeChecking.Cascade(),
+        initialExpandedKeys = [ViewKey.Number(0L), ViewKey.Number(1L), ViewKey.Number(2L)],
+        onLoad = { event ->
+            notice.value = f"Loaded ${event.children.size} children into ${event.node.label}."
+        },
+        onLoadError = { _ ->
+            notice.value = "The first Remote request fails intentionally. Use its retry arrow."
+        }
+    )
+    val drag = TreeDrag<TreeExampleFile>(
+        { move -> commit(move) },
+        onStart = { node, _ -> notice.value = "Dragging " + node.label },
+        onEnter = { move ->
+            val place = when (move.position) {
+                case Before -> " before ";
+                case Inside -> " into ";
+                case After -> " after "
+            }
+            notice.value = "Drop " + move.source.label + place + move.target.label
+        },
+        onEnd = { node, result ->
+            notice.value = when (result) {
+                case Dropped(_) -> "Moved " + node.label + ". Selection and checks are retained."
+                case NotDropped ->
+                    "Move cancelled. " + node.label + " stays in its original folder."
+                case Failed(_) -> "Could not start dragging " + node.label + ". Try again."
+            }
+        }
+    )
+    val multipleColumns: Boolean
+        get() = when (tree.columns) {
+            case Some(_) -> true;
+            case None -> false
+        }
+    fun start() {
+        tree.setLoader(Some(TreeLoader(currentApplicationScope(), { _ -> loadRemote() })))
+    }
+    fun stop() {
+        tree.setLoader(None)
+    }
+    private suspend fun loadRemote(): Array<TreeNode<TreeExampleFile>> {
+        requests.value += 1
+        val attempt = requests.value
+        currentEventLoop().sleep(Duration.milliseconds(800L))
+        if (attempt == 1) throw IllegalStateException(Some("Demo connection interrupted"))
+        return treeExampleRemote()
+    }
+    fun query() {
+        tree
+            .setQuery(
+                TreeQuery<TreeExampleFile>(
+                    filter.committedText,
+                    if (highlightOnly.value) TreeQueryMode.Highlight else TreeQueryMode.Filter,
+                    expandMatches = true
+                )
+            )
+    }
+    fun clearQuery() {
+        filter.replaceAll("")
+        query()
+    }
+    fun toggleColumns() {
+        tree.replaceColumns(if (multipleColumns) None else Some(columns))
+    }
+    fun toggleDetails() {
+        if (multipleColumns)
+            tree.setColumnVisible("details", !tree.columnState.isVisible("details"))
+    }
+    fun jump() {
+        clearQuery()
+        handle.scrollToItem(ViewKey.Number(159L), ScrollAlignment.Start, expandAncestors = true)
+        notice.value = "The ancestor rows above file 60 are the original interactive rows."
+    }
+    fun collapse() {
+        clearQuery()
+        tree.setExpanded([ViewKey.Number(0L)])
+        handle.scrollToItem(ViewKey.Number(0L), ScrollAlignment.Start)
+        notice.value = "Drag notes.scoop into archive, or hover over src to expand it."
+    }
+    fun expand() {
+        tree.setExpanded(tree.data.loadedKeys)
+    }
+    fun remote() {
+        clearQuery()
+        val key = ViewKey.Number(800L)
+        when (tree.loadStatus(key)) {
+            case Loaded -> tree.replaceData(tree.data.withChildren(key, TreeChildren.Deferred))
+            case Failed(_) -> tree.retryLoad(key)
+            else -> {}
+        }
+        tree.setExpanded(key, true)
+        handle.scrollToItem(key, ScrollAlignment.Start, expandAncestors = true)
+    }
+    fun inspect(node: TreeNode<TreeExampleFile>) {
+        inspected.value = Some(node.key)
+        notice.value = "Inspecting " + node.label + ". Escape returns keyboard focus to its row."
+    }
+    fun commit(move: TreeDrop<TreeExampleFile>): Boolean {
+        val next = tree.data.moved(move.source.key, move.target.key, move.position)
+        when (next) {
+            case None -> {
+                notice.value =
+                    "Wait for the destination to finish loading, then try the move again."
+                return false
+            }
+
+            case Some(val data) -> {
+                tree.replaceData(data)
+                when (move.parent) {
+                    case Some(val parent) -> tree.setExpanded(parent, true)
+                    case None -> {}
+                }
+                moves.value += 1
+                notice.value = "Moved " +
+                    move.source.label +
+                    ". The same node keeps its selection and checks."
+                return true
+            }
+        }
+    }
+    fun reset() {
+        tree.replaceData(treeExampleData())
+        tree.setExpanded([ViewKey.Number(0L), ViewKey.Number(1L), ViewKey.Number(2L)])
+        tree.setSelected([])
+        tree.setCheckedKeys([])
+        tree.setSort(None)
+        inspected.value = None
+        requests.value = 0
+        moves.value = 0
+        clearQuery()
+        handle.scrollToItem(ViewKey.Number(0L), ScrollAlignment.Start)
+        notice.value = "Workspace reset. Remote will fail once before its retry succeeds."
+    }
+}

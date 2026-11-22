@@ -1,0 +1,499 @@
+package scoop.tests.ui.tree
+
+import scoop.collections.HashMap
+import scoop.graphics.Point
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.postDragInput
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class TreeViewTest {
+    @Test
+    fun `sticky multi column tree keeps real row focus and virtual mounts through edits`() {
+        val probe = TreeProbe()
+        try {
+            UiHost { host, application, event -> probe.event(host, application, event) }
+                .use { host ->
+                    Application(
+                        applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                    )
+                        .run(host)
+                }
+            assertTrue(probe.finished)
+            assertFalse(probe.handle.isAttached)
+            assertTrue(probe.history.size < 350L)
+            for (record in probe.history) {
+                assertEquals(1, record.mounts)
+                assertEquals(1, record.unmounts)
+                assertFalse(record.edit.isAttached)
+            }
+        } catch (error: Throwable) {
+            println(f"tree phase=${probe.phase}")
+            throw error
+        } finally {
+            probe.frames?.close()
+            probe.input?.close()
+        }
+    }
+}
+
+internal class TreeRecord(val key: Long) {
+    val edit = FocusHandle()
+    var mounts = 0
+    var unmounts = 0
+}
+
+internal class TreeProbe {
+    val handle = TreeHandle()
+    val vertical = ScrollState()
+    val horizontal = ScrollState()
+    val theme = ThemeSource(macosTheme())
+    val variable = state(false)
+    val drag = state<TreeDrag<Long>?>(None)
+    var dragStarts = 0
+    val directionValue = state(LayoutDirection.Ltr)
+    val records = HashMap<Long, TreeRecord>()
+    val history = ArrayList<TreeRecord>()
+    var columnOrigin = TreeChangeOrigin.Programmatic
+    val model = TreeState(
+        makeData(),
+        checking = TreeChecking.Cascade(),
+        selection = TreeSelectionMode.Multiple,
+        initialExpandAll = true,
+        onColumnsChange = { event -> columnOrigin = event.origin }
+    )
+    val columns = makeColumns()
+    val tail = FocusHandle()
+    var window: Window? = None
+    var active: ActiveApplication? = None
+    var frames: FrameProbe? = None
+    var input: ViewProbe? = None
+    var phase = 0
+    var accepted = 0
+    var waiting = false
+    var finished = false
+    var root: TreeRecord? = None
+    var nested: TreeRecord? = None
+    var offset = 0.0
+    var activations = 0
+
+    private fun makeData(): TreeData<Long> {
+        val children = ArrayList<TreeNode<Long>>()
+        children
+            .add(
+                TreeNode(
+                    ViewKey.Number(1L),
+                    1L,
+                    "Nested",
+                    TreeChildren
+                        .Known(
+                            Array<TreeNode<Long>>(100L) { index ->
+                                val key = index + 2L
+                                TreeNode(ViewKey.Number(key), key, f"File ${key}")
+                            }
+                        )
+                )
+            )
+        for (key in 102L..<10002L)
+            children.add(TreeNode(ViewKey.Number(key), key, f"File ${key}"))
+        return TreeData(
+            [
+                TreeNode(
+                    ViewKey.Number(0L),
+                    0L,
+                    "Workspace",
+                    TreeChildren.Known(children.toArray()),
+                    checkable = false
+                ),
+                TreeNode(ViewKey.Number(20000L), 20000L, "Other")
+            ]
+        )
+    }
+    private fun record(key: Long): TreeRecord {
+        val old = records[key]
+        if ((old?.unmounts ?: 1) == 0) return old!!
+        val value = TreeRecord(key)
+        records[key] = value
+        history.add(value)
+        return value
+    }
+    private fun makeColumns(): TreeColumns<Long> = TreeColumns(
+        [
+            TreeColumn<Long>(
+                "name",
+                "Name",
+                { node ->
+                    val value = record(node.value)
+                    component(
+                        value,
+                        { props, scope -> TreeTitleTrace(props, this, scope) },
+                        node.key
+                    )
+                },
+                size = TableColumnSize(GridTrack.Fixed(240.0)),
+                semanticText = Some { node -> node.label }
+            ),
+            TreeColumn<Long>(
+                "value",
+                "Value",
+                { node -> label(f"${node.value}") { this.theme = Some(this @TreeProbe.theme) } },
+                size = TableColumnSize(GridTrack.Fixed(120.0)),
+                compare = Some { a, b -> if (a < b) -1 else if (a > b) 1 else 0 },
+                semanticText = Some { node -> f"${node.value}" }
+            ),
+            TreeColumn<Long>(
+                "edit",
+                "Edit",
+                { node ->
+                    val value = record(node.value)
+                    button("Edit", {}) {
+                        this.focus = FocusOptions(Some(value.edit));
+                        this.theme = Some(this @TreeProbe.theme)
+                    }
+                },
+                size = TableColumnSize(GridTrack.Fixed(180.0)),
+                focusable = true
+            )
+        ],
+        "name"
+    )
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                model.replaceColumns(Some(columns))
+                val native = application
+                    .createWindow(
+                        windowAttributes {
+                            this.title = "Scoop Tree validation";
+                            this.size = LogicalSize(340.0, 290.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                input = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                host.attach(native, { scope -> TreeTestScene(this, scope) })
+                application
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(60L))
+                    )
+            }
+
+            case AboutToWait ->
+                if (!waiting && settled()) {
+                    waiting = true
+                    assertTrue(
+                        application
+                            .proxy()
+                            .post { _ ->
+                                waiting = false;
+                                if (settled()) advance()
+                            }
+                    )
+                }
+
+            case Window(_, WindowEvent.Pointer(PointerEvent.Moved(_))) ->
+                if (phase == 38) {
+                    assertEquals(1, dragStarts)
+                    assertEquals(3, activations)
+                    // Retire the prepared source before the OS starts its modal session.
+                    window!!.requestDestroy()
+                }
+
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 38;
+                application.requestExit()
+            }
+
+            case NewEvents(StartCause.Deadline) ->
+                fail(Some(f"tree timeout phase=${this @TreeProbe.phase}"))
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean = accepted >
+        0 &&
+        window!!.state ==
+        WindowState.Open &&
+        window!!.isFocused &&
+        !frames!!.snapshot().required &&
+        !handle.isPending
+    private fun next(action: () -> Unit) {
+        phase += 1
+        waiting = true
+        action()
+        assertTrue(active!!.proxy().post { _ -> waiting = false })
+    }
+    private fun key(code: Int, shift: Boolean = false) {
+        assertTrue(sendSurfaceKey(window!!, code, true, shift = shift))
+        assertTrue(sendSurfaceKey(window!!, code, false, shift = shift))
+    }
+    private fun press(x: Double, y: Double, down: Boolean) {
+        assertTrue(moveSurfacePointer(window!!, x, y))
+        assertTrue(input!!.button(x, y, down))
+    }
+    private fun nativeDrag(kind: Int) {
+        @Unsafe {
+            window!!
+                .acquireNativeWindow()
+                .use { lease ->
+                    @Unsafe {
+                        when (lease.handle) {
+                            case AppKit(_, val view) -> postDragInput(view, kind)
+                        }
+                    }
+                }
+        }
+    }
+    private fun headerPress(x: Double, down: Boolean) {
+        val density = theme.current.value.tokens.typography.body.fontSize / 14.0
+        press(10.0 + x * density, 10.0 + 16.0 * density, down)
+    }
+    private fun headerMove(x: Double) {
+        val density = theme.current.value.tokens.typography.body.fontSize / 14.0
+        assertTrue(moveSurfacePointer(window!!, 10.0 + x * density, 10.0 + 16.0 * density))
+    }
+    private fun assertWidth(expected: Double) {
+        val actual = model.columnState.width("name")!!
+        assertTrue(actual > expected - 0.001 && actual < expected + 0.001, Some(f"width ${actual}"))
+    }
+    private fun advance() {
+        when (phase) {
+            case 0 -> {
+                assertTrue(history.size < 40L)
+                assertEquals(10003L, model.projection.count)
+                root = records[0L]
+                nested = records[1L]
+                next { assertTrue(handle.scrollToItem(ViewKey.Number(80L), ScrollAlignment.Start)) }
+            }
+
+            case 1 -> {
+                assertTrue(vertical.offset.y > 0.0)
+                assertEquals(2L, handle.reading!!.stickyKeys.size)
+                assertEquals(ViewKey.Number(0L), handle.reading!!.stickyKeys[0L])
+                assertEquals(ViewKey.Number(1L), handle.reading!!.stickyKeys[1L])
+                assertSame(root!!, records[0L]!!)
+                assertSame(nested!!, records[1L]!!)
+                offset = vertical.offset.y
+                next { assertTrue(handle.focusItem(ViewKey.Number(0L))) }
+            }
+
+            case 2 -> {
+                assertEquals(offset, vertical.offset.y)
+                next { key(123) }
+            }
+
+            case 3 -> {
+                assertFalse(model.isExpanded(ViewKey.Number(0L)))
+                assertEquals(2L, model.projection.count)
+                next { key(124) }
+            }
+
+            case 4 -> {
+                assertTrue(model.isExpanded(ViewKey.Number(0L)))
+                next { assertTrue(handle.focusItem(ViewKey.Number(80L))) }
+            }
+
+            case 5 -> next { key(120) }
+
+            case 6 -> {
+                assertTrue(records[80L]!!.edit.hasFocus)
+                next { assertTrue(model.setColumnVisible("edit", false)) }
+            }
+
+            case 7 -> {
+                assertFalse(records[80L]!!.edit.isAttached)
+                next {
+                    key(49);
+                    key(36)
+                }
+            }
+
+            case 8 -> {
+                assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(80L)))
+                assertTrue(model.isSelected(ViewKey.Number(80L)))
+                assertEquals(1, activations)
+                next {
+                    assertTrue(
+                        model.setSort(Some(TableSort("value", TableSortDirection.Descending)))
+                    )
+                }
+            }
+
+            case 9 -> {
+                assertTrue(model.isSelected(ViewKey.Number(80L)))
+                next {
+                    assertTrue(model.setColumnVisible("edit", true));
+                    assertTrue(handle.focusCell(ViewKey.Number(80L), "edit"))
+                }
+            }
+
+            case 10 -> {
+                assertTrue(records[80L]!!.edit.hasFocus)
+                assertTrue(horizontal.offset.x > 0.0)
+                next {
+                    key(53);
+                    key(125, shift = true)
+                }
+            }
+
+            case 11 -> {
+                assertTrue(model.selectedKeys.size == 2L)
+                next {
+                    directionValue.value = LayoutDirection.Rtl;
+                    variable.value = true
+                }
+            }
+
+            case 12 ->
+                next {
+                    assertTrue(
+                        handle.scrollToCell(ViewKey.Number(80L), "name", ScrollAlignment.Start)
+                    )
+                }
+
+            case 13 -> {
+                assertTrue(handle.reading!!.bodyHeight > 0.0)
+                next {
+                    assertTrue(model.setQuery(TreeQuery<Long>("File 80", TreeQueryMode.Filter)))
+                }
+            }
+
+            case 14 -> {
+                assertTrue(model.projection.count < 140L)
+                assertEquals(ViewKey.Number(0L), model.projection.keyAt(0L))
+                next {
+                    model.setQuery(TreeQuery<Long>());
+                    model.replaceColumns(None);
+                    assertTrue(handle.focusItem(ViewKey.Number(80L)))
+                }
+            }
+
+            case 15 -> {
+                assertTrue(
+                    when (model.columns) {
+                        case None -> true;
+                        case Some(_) -> false
+                    }
+                )
+                next { key(49) }
+            }
+
+            case 16 -> {
+                assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(80L)))
+                next { key(48) }
+            }
+
+            case 17 -> {
+                assertTrue(tail.hasFocus)
+                next {
+                    model.replaceColumns(Some(columns));
+                    assertTrue(handle.focusCell(ViewKey.Number(80L), "edit"))
+                }
+            }
+
+            case 18 -> {
+                assertTrue(records[80L]!!.edit.hasFocus)
+                next { key(48) }
+            }
+
+            case 19 -> {
+                assertTrue(tail.hasFocus)
+                next { key(48, shift = true) }
+            }
+
+            case 20 -> {
+                assertFalse(tail.hasFocus)
+                assertFalse(records[80L]!!.edit.hasFocus)
+                next { key(36) }
+            }
+
+            case 21 -> {
+                assertEquals(2, activations)
+                next {
+                    directionValue.value = LayoutDirection.Ltr
+                    variable.value = false
+                    model.setSort(None)
+                    assertTrue(
+                        handle.scrollToCell(ViewKey.Number(0L), "name", ScrollAlignment.Start)
+                    )
+                }
+            }
+
+            case 22 -> next { assertTrue(sendSurfaceScroll(window!!, 150.0, 75.0, -3, 0)) }
+
+            case 23 -> {
+                assertTrue(horizontal.offset.x > 0.0)
+                assertEquals(0.0, vertical.offset.y)
+                next { horizontal.scrollTo(Point(0.0, 0.0)) }
+            }
+
+            case 24 -> next { headerPress(236.0, true) }
+            case 25 -> next { headerMove(266.0) }
+
+            case 26 -> {
+                assertWidth(270.0)
+                assertEquals(TreeChangeOrigin.Pointer, columnOrigin)
+                next { key(53) }
+            }
+
+            case 27 -> {
+                assertEquals(None, model.columnState.width("name"))
+                assertEquals(TreeChangeOrigin.Keyboard, columnOrigin)
+                next { headerPress(266.0, false) }
+            }
+
+            case 28 -> next { key(124) }
+
+            case 29 -> {
+                assertWidth(250.0)
+                assertEquals(TreeChangeOrigin.Keyboard, columnOrigin)
+                next { headerPress(246.0, true) }
+            }
+
+            case 30 -> next { headerMove(276.0) }
+
+            case 31 -> {
+                assertWidth(280.0)
+                next { model.replaceColumns(None) }
+            }
+
+            case 32 -> next { headerPress(276.0, false) }
+            case 33 ->
+                next {
+                    drag.value = Some(
+                        TreeDrag<Long>(
+                            { _ -> false },
+                            onStart = { node, _ ->
+                                assertEquals(ViewKey.Number(0L), node.key)
+                                dragStarts += 1
+                            }
+                        )
+                    )
+                }
+            case 34 -> next { press(150.0, 45.0, true) }
+            case 35 -> next { press(150.0, 45.0, false) }
+
+            case 36 -> {
+                assertEquals(3, activations)
+                assertEquals(0, dragStarts)
+                next { nativeDrag(0) }
+            }
+
+            case 37 -> next { nativeDrag(1) }
+
+            else -> {}
+        }
+    }
+}

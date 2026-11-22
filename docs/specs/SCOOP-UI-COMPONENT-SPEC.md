@@ -1327,3 +1327,96 @@ ImageView、PathView、Spinner 和 Separator 的 Props／builder 提供 `semanti
 可调整宽度的表头为实际拖动区域发布带数值范围的竖向 Separator，名称包含列标题，步进与键盘保持一致；未接受布局时不声称已知当前宽度。最大宽度未设时使用有限 Double 的上限，不将当前窗口宽度当作列宽限制。语义调整经过同一列宽 Binding 并检查采纳结果。Sidebar rail 发布实际展开状态，WindowControls 的最小化／最大化／还原／关闭按钮可通过 semantics 回调命名；Badge、Item 和其他可点击卡片的语义动作复用原 PressControl。
 
 WindowControls 的默认命名函数 `windowControlSemantics(button, maximized)` 为公共函数，应用覆盖个别按钮时可继续调用它处理其余按钮。它只返回 ComponentSemantics，不创建窗口资源或执行窗口操作。
+
+## 54. Tree 数据与状态
+
+Tree 的完整呈现、交互与交付范围见 [Tree 设计](../ui/tree/DESIGN.md)，实际交付见[实施记录](../ui/tree/PROGRESS.md)。本节首先规定模型合同；组件、异步和原生语义随对应实现批次补齐，不将尚未实现的入口视作可用 API。
+
+### 54.1 不可变数据与展开行
+
+`TreeNode<T>(key, value, label, children = Leaf, enabled = true, selectable = true, checkable = true, checkboxEnabled = true, draggable = true)` 保存类型化业务值和显式 ViewKey。`TreeChildren<T>` 为 Leaf、Known(Array<TreeNode<T>>) 或 Deferred；Known 空数组是已加载的空分支，Deferred 才是未加载。节点不保存标题 View。enabled=false 停用该节点的用户动作，不隐式禁用后代；细分资格可表达可展开但不能选择／勾选／拖动的节点。
+
+`TreeData<T>(roots)` 在新快照边界迭代建立 O(N) 的 key、父项、深度、同级位置和子树范围索引，拒绝 Position、重复 key、循环或共享挂入；同名节点合法。不会递归使用与深度成正比的调用栈。`node(key)`、`indexOfKey(key)` 和 `pathTo(key)` 只访问已知数据，未知项返回 None。`withChildren(key, children)` 返回新的完整快照，仅重建目标及祖先节点，保留其余节点引用；未知父 key 或重复新 key 报参数错误，原快照不变。
+
+`TreeState<T>` 持有数据、展开、选择、勾选、查询和列状态。`replaceData` 明确替换数据，不按隐藏或删除结果擅自清空应用的展开／选择／勾选值；未知 key 可保留作待加载恢复值，但不产生可见行。所有明确动作先检查 owner 线程及 State 的可写阶段，render／measure／scene／原生只读查询不得调用它们。
+
+展开、选择、级联勾选分别可接收 key 数组 Binding；独立勾选使用完整 TreeCheckValue 的 Binding；查询和列状态也可整体绑定。无 Binding 时仅初始化一次本地 State；有 Binding 时其值是唯一真相。写入后读回采纳值，只有实际变化才通知。动作返回是否达到请求状态，被拒绝的值不先显示成功；单项用户动作拒绝未知或相应资格禁用的节点。整体恢复值允许包含未知、禁用节点，不把它们转化为用户动作。回调使用 TreeChangeOrigin 的 Programmatic／Pointer／Keyboard／Accessibility 和类型化节点，不参与第二条写入路径。
+
+`initialExpandAll` 只展开初始已知的非空／Deferred 分支；`initialExpandParent` 默认 true，只扩充初始 keys 的祖先。`setExpanded(keys, expandAncestors = false)` 可在本次动作显式扩充祖先，后续手动折叠不因残留的后代 key 再次打开。Leaf／Known 空分支没有可展开行；数据接入不会重放初始化开关。
+
+`TreeProjection<T>` 是只读展开行快照，包含节点、父行索引、深度、同级位置、有效展开状态及可见子树的排除末端。data／展开／查询／排序变化才构建 O(V) 的当前 V 行投影；滚动、选择、勾选、列调宽及显隐复用原投影。连接线与吸顶沿父行索引查询，不为每行复制完整祖先数组。按 key 的行查找不扫描挂载 View。
+
+### 54.2 查询与列
+
+`TreeQuery<T>` 含 text、Highlight／Filter 模式、expandMatches 及可选类型化 matches。默认匹配对节点 label 和查询做 Unicode casefold 后执行包含判断。Highlight 只标记命中，expandMatches 可临时展开祖先；Filter 保留命中及祖先并临时展开通路。清空查询恢复存储的展开状态，不写回展开 Binding；只搜索已加载数据，不构建单元格或触发加载。查询结果只在数据或查询快照变化时重算。
+
+`TreeColumns<T>(columns, treeColumn)` 是非空、列 id 唯一、包含指定树列的不可变定义。`TreeColumn<T>` 包含稳定 String id、header 文字兼默认无障碍名称、cell(TreeNode<T>)、可选 headerView、semanticText、TableColumnSize、alignment、hideable、resizable 与可选业务值 compare(T,T)。只有树列负责层级控件，其他列保持原始单元格；树列不限于物理第一列。
+
+`TreeColumnState<T>` 将列定义、hiddenColumns、widths 和单列 TableSort 合为一个可整体绑定的不可变值，构造时检查列引用、重复状态、宽度范围及排序能力。TreeState 的 replaceColumns、setColumnVisible、resizeColumn、resetColumnWidth、setSort／toggleSort 通过该值一次写入并读回，绑定拒绝时保留实际采纳值。树列不可隐藏，非 hideable／resizable 列拒绝对应用户操作。更换定义保留仍有效的同 ID 状态，按新范围收敛宽度，移除失效的隐藏／宽度／排序项；整个更新也可以被绑定拒绝。显式列模式只剩一列时仍保留定义和表头语义。
+
+排序对每组直接子项分别稳定执行，根节点也是一组；相等时保持来源顺序，降序不翻转相等项。先排序同级，再展开和过滤，不能排序整个展开数组。比较只读取业务数据；数据、排序或列定义变化才更新同级顺序。宽度／显隐状态变化不会重跑比较或搜索；隐藏排序列不取消已生效排序。
+
+### 54.3 选择与勾选
+
+TreeSelectionMode 为 None／Single／Multiple，Single 的恢复值最多一个 key。明确的 setSelected 恢复值独立于焦点；单项 select 支持 Replace／Toggle／Range／AddRange。Range 在当前投影中取锚点到目标，跳过不可选择项。连续范围动作复用开始时的基线；反向缩短不累加旧范围。锚点离开投影后取实际焦点 key 或目标作为新锚点。折叠及过滤不主动裁掉已存的隐藏选择。
+
+`TreeChecking.Off` 不提供用户勾选动作；`Cascade(initialKeys = [], binding = None)` 只接收 checked keys；`Independent(initial = TreeCheckValue(), binding = None)` 接收 checked／halfChecked，二者不得重叠。TreeState 的 checkState 返回既有 CheckState 三态，setChecked(key, value) 沿配置操作；完整恢复用 setCheckedKeys 或 setChecks，错误策略调用报状态错误。
+
+级联向下传播勾选意图、向上汇总：enabled=false、checkable=false、checkboxEnabled=false 均为传播边界，排除该分支且不穿透其后代；边界自身的外部值照常显示。没有可参与子项时保留自身意图，不从空集自动选中。取消子项须同时移除祖先的全选 key，后续读取不能从旧父 key 重新选回。用户操作只更新相关子树和祖先的勾选结果，序列输出允许按结果数量物化；外部完整值或数据变化允许 O(N) 重算。过滤不改变基础树的勾选范围。
+
+Deferred 父项的 checked key 保存分支意图，不发起加载；后续以 withChildren／replaceData 接入的可传播子项继承最新意图，再汇总三态。独立模式只改目标 key，Mixed 的用户激活转为 Checked。变化通知携实际 resolved checked／halfChecked 值；被拒绝的勾选不改缓存结果或通知成功。
+
+
+### 54.4 Tree 视图、共享轨道与交互
+
+`tree(state) { ... }` 和 `directoryTree(state) { ... }` 使用同一 Tree／TreeProps／TreeBuilder。目录入口默认单击展开、目录／文件图标、整行命中和祖先吸顶；普通入口默认仅展开器展开，其他预设可覆盖。选择、勾选和展开动作仍只写入 TreeState。`TreeExpandAction` 的 Switcher／Click／DoubleClick 决定标题激活是否展开；展开器总能独立操作，点 Checkbox 不选择行。
+
+width／height 指组件外部尺寸。virtualize 默认 true，需要有限的 height 或父约束；关闭虚拟化可使用自然高度，此时没有独立纵向溢出就不吸顶。固定行高裁剪到相同行高，可变行高取全部可见列内容的最大高度。ItemExtent 的数值、indent 和行留白按主题文字密度缩放。显式列模式使用同一 TableTracks 解析的列宽，不按每行内容重新计算；Auto 仅使用列标题、samples 和树列槽位等明确的自然宽度输入。隐式单列可显式指定 contentWidth；显式列不能同时指定 contentWidth。
+
+表头保持在纵向正文之外，showHeader=false 隐藏视觉表头但保留列名称与操作。排序和调宽分别调用 TreeState 的同级排序与宽度 Binding。表头、正文、吸顶行共享横向 ScrollState；纵向滚动条始终位于物理视口边缘。RTL 只改变逻辑列和树缩进的方向，不改变上下导航。隐藏列不构建单元格，列 id 与节点 key 保持独立身份。
+
+Tree 默认一个正文 Tab 入口。上下、Home／End 和 PageUp／PageDown 导航当前展开行，左右按阅读方向展开／进入子项、折叠／返回父项；导航跳过不可用行。Space 优先勾选，否则切换选择；Enter 激活节点。Primary／Shift 选择沿当前投影执行，多选目录的普通激活替换选择，Primary 切换，Shift 扩展连续范围。输入仅在行主焦点目标处理，行内编辑器可消费自己的按键。Typeahead 读取已加载的展开标签，不构造或加载候选。
+
+F2 进入当前行已有的首个交互子目标；Escape 从未消费该键的行内控件返回主行。行内 Tab 沿可见列及实际子目标继续，越过该行后返回外部 Tab 顺序。隐藏正在聚焦的列、折叠或删除当前行，在正常更新／Accepted 收尾中回到同一行、存活祖先或邻近行；render／measure／scene 不修改焦点。
+
+### 54.5 祖先吸顶与阅读位置
+
+`TreeSticky(enabled = false, maxRows = 7, maxHeightRatio = 0.4)` 描述吸顶策略。父项自然位置滚出对应顶部槽位且当前展开子树仍占据阅读位置时，沿外层到内层保留能容纳的完整行；高度上限以扣除表头后的正文视口计算，不足一行不吸顶。接近子树末端时该祖先被边界向上推离，其可见区域不会覆盖其他已固定祖先。
+
+同一行只有一份挂载、状态、焦点、菜单、单元格和语义身份。Lazy 布局为普通行、吸顶祖先和活动项各放置一次；场景通过 `SceneContext.item(key)` 分区呈现，每个已放置项只呈现一次。吸顶不增加内容高度或滚动范围，也不写入 ScrollPadding.top。正文的 clip 和 `withScrollReveal` 扣除实际被祖先遮挡的区域，吸顶行使用自己的可见槽位。
+
+KeepVisible 默认保留吸顶区下方第一实际阅读行的 key 和项内偏移。节点插入、行高或列宽变化时结合新吸顶高度重新求阅读位置；用户的新滚动／定位意图优先。目标消失时沿存活祖先或邻近位置回退。Discarded 帧不发布阅读快照、吸顶几何或成功定位状态。
+
+`TreeHandle` 绑定一个实际挂载，提供按 key 的 scrollToItem／focusItem、按节点与列 id 的单元格显露／聚焦，以及最近 Accepted 的阅读快照。可显式 expandAncestors；拒绝的受控展开、未知节点、隐藏列不会伪造成功。焦点请求先准备目标行，再使用真实焦点资源；静态内容可以显露，不产生虚构的输入目标。
+
+### 54.6 Tree 的逻辑语义
+
+单列与多列都用 Tree 集合；后者附带原 SemanticGrid、真实表头和单元格坐标。describe 只读同一投影与 TreeState，发布 parentKey、hierarchyLevel、siblings、expanded、selected、checked 和 busy。未知／隐藏的选择 key 不进入当前集合快照，叶节点不公布展开动作。离屏展开、选择和勾选沿原模型，查询不调用标题或 cell 工厂。
+
+隐式单列自定义标题可声明 `titleFocusable = true`，显式 TreeColumn 可声明 `focusable = true`，表示该列数据项具有真实交互目标，供离屏语义使用；原生 Focus 仍须准备和解析实际目标，不能以声明代替成功聚焦。吸顶只更新原行及单元格的 Accepted 几何，保持原父子关系与逻辑阅读次序。
+
+### 54.7 按需加载与任务寿命
+
+`TreeLoader<T>(scope: CoroutineScope, load: suspend (TreeNode<T>) -> Array<TreeNode<T>>)` 借用应用的 UI owner 作用域。`TreeState` 接受 loader、onLoad、onLoadError，提供 setLoader、loadStatus、loadingKeys、loadedKeys、loadChildren、retryLoad、cancelLoad 和 close。组件不持有调度器或网络客户端；加载与模型发布必须回到模型的创建线程；该 UI owner 作用域的关闭／取消也在同一线程执行。Leaf 与 Known 为已知状态，loadedKeys 仅枚举 Known 分支，不维护独立的“已完成”真相。
+
+采纳后的显式展开启动 Deferred 请求；初始／外部 Binding 的展开在普通更新边界同步。纯查询、勾选、render、测量和语义枚举不启动加载，查询临时打开的路径不改写展开状态。交互视图接入 Deferred 数据时必须提供 loader，纯模型允许尚未接入 loader。当前 key 的请求去重；失败保留 Throwable，并由 retryLoad 显式重试。取消恢复 Idle；关闭后不再启动任务。
+
+折叠保留在途请求，成功后发布 Known 子项并保持实际展开状态。替换数据保留引用未变节点的任务，取消已删除或被替换节点的任务与错误；替换 loader 或关闭取消全部任务。完成时同时核对节点引用和当前任务身份，旧结果不能覆盖新数据。成功发布后才通知 onLoad，失败不变成 Known；子项接入复用当前排序、勾选与投影。某个视图卸载不关闭外部 TreeState。
+
+勾选的逻辑状态和辅助技术动作归属原 TreeItem，行内可视 Checkbox 不重复发布第二份勾选语义。父行显示加载指示，并发布 busy；错误状态提供明确的重试动作及描述。空 Known 分支保留目录图标而没有展开动作。自定义 loadingIcon 复用同一父行位置，不产生伪业务子项。
+
+### 54.8 树拖放
+
+`TreeDrag<T>` 由 onDrop、allowDrop、enabled、expandDelay 和可选 content／onStart／onEnter／onOver／onLeave／onEnd 配置，经 TreeProps／TreeBuilder.drag 接入。默认传递节点文字及同模型的类型化 localData，拖动一节点及整棵子树；独立行内控件沿原输入消费规则处理。
+
+`TreeState.dropTarget(source, target, position)` 返回当前合法的 `TreeDrop<T>`，其中 position 为 Before／Inside／After，parent 和 before 使用稳定 key；before=None 表示追加。After 位于目标整个子树后的同级位置。拒绝自身／后代环、失效 key、禁用节点、不可拖动来源、叶节点 Inside 及无变化移动；排序期间拒绝 Before／After。Inside Deferred 只表达业务追加意图，不伪造数值索引。
+
+组件使用真实行高解析上下间隙和中部，按当前数据再次判断落点。多列不把非树列的 x 坐标解释为层级缩进。吸顶行保持相同来源、目标和业务回调。悬停 Inside 经一次性 deadline 展开，并沿普通加载路径取子项；正文上下边缘复用原 ScrollState 自动滚动，吸顶遮挡区不是上边缘热区。离开、失效、隐藏窗口或卸载撤销反馈与定时任务。
+
+只有 onDrop 的业务回调提交数据，组件不预先移动内部副本。`TreeData.moved(source, target, position)` 是已加载数据的纯更新便利方法，成功时保留未变化节点引用及来源子树；不合法或未知目的子项返回 None。业务可以将它与 replaceData 组合，也可以执行自己的 IO。
+
+### 54.9 外观与动效
+
+祖先背景不透明，正文与祖先在同一轨道和裁剪范围内绘制；吸顶区提供边界分隔。选择背景沿 Table 使用主题的 muted 表面，保持默认及自定义单元格正文色可读。主题的密度、RTL、减少动画与默认文字样式共同生效。静态标题、错误描述和自定义内容保留原可访问性身份。
+
+展开箭头、选择和 hover 使用现有 Animatable；结构变更只对新出现或重排的实际挂载行过渡，折叠行立即退出输入与语义，不保留可点击的旧行副本。滚动新挂载行和吸顶位置不做追赶动画，减少动画立即收束；静止时不持续提交动画帧。

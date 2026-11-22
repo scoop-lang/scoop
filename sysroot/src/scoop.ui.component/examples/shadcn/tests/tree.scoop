@@ -1,0 +1,45 @@
+package scoop.examples.ui.shadcn
+
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+
+@Test
+private class TreeExamplesTest {
+    @Test
+    fun `demo commits a real subtree move and reset restores the workspace`() {
+        val model = TreeExamplesModel()
+        val source = ViewKey.Number(6L)
+        val archive = ViewKey.Number(5L)
+        model.tree.setChecked(source, true)
+        val move = model.tree.dropTarget(source, archive, TreeDropPosition.Inside)!!
+        assertTrue(model.commit(move))
+        assertEquals(1, model.moves.value)
+        assertEquals(archive, model.tree.pathTo(source)!![1L])
+        assertEquals(CheckState.Checked, model.tree.checkState(source))
+        assertTrue(model.tree.isExpanded(archive))
+        model.reset()
+        assertEquals(2L, model.tree.pathTo(source)!!.size)
+        assertEquals(0, model.moves.value)
+        assertEquals(0L, model.tree.checkedKeys.size)
+    }
+    @Test
+    fun `demo filtering and column modes preserve the same selected nodes`() {
+        val model = TreeExamplesModel()
+        val file = ViewKey.Number(159L)
+        model.tree.setSelected([file])
+        model.filter.replaceAll("component-060")
+        model.query()
+        assertEquals(4L, model.tree.projection.count)
+        model.toggleDetails()
+        assertFalse(model.tree.columnState.isVisible("details"))
+        model.toggleColumns()
+        assertFalse(model.multipleColumns)
+        assertEquals(file, model.tree.selectedKeys[0L])
+        model.clearQuery()
+        assertTrue(model.tree.projection.count > 180L)
+        assertEquals(0, model.requests.value)
+        model.toggleColumns()
+        assertTrue(model.multipleColumns)
+    }
+}

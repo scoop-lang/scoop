@@ -21,5 +21,9 @@ private class GallerySearchTest {
         assertEquals(Some(Demo.Checkbox), model.current(model.entries()))
         assertEquals("你好 Scoop", model.name.text)
         assertTrue(model.checked.value)
+        model.query.replaceAll("tReE")
+        assertEquals(1L, model.entries().size)
+        assertEquals(Some(Demo.Tree), model.current(model.entries()))
+        assertEquals(Demo.Checkbox, model.selected.value)
     }
 }

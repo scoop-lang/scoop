@@ -1,0 +1,81 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.PI
+import scoop.surface.*
+import scoop.ui.*
+
+internal class TreeArrowInput(
+    val expanded: Boolean,
+    val enabled: Boolean,
+    val size: Double,
+    val color: Color,
+    val transition: AnimationSpec?
+)
+
+internal fun <T> treeArrow(input: TreeRowInput<T>): View = element(
+    TreeArrowInput(
+        input.row.expanded, input.plan.input.enabled && input.row.node.enabled,
+        14.0 * input.plan.appearance.density, input
+            .plan
+            .appearance
+            .theme
+            .tokens
+            .palette
+            .muted
+            .foreground,
+        input
+            .plan
+            .appearance
+            .theme
+            .tokens
+            .motion
+            .resolve(input.plan.appearance.theme.tokens.motion.selection)
+    ),
+    { value, scope -> TreeArrow(value, scope) }
+)
+
+private class TreeArrow(private val props: Props<TreeArrowInput>, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    private val progress = scope.animation(if (props.value.expanded) 1.0 else 0.0)
+    private val shape = scope
+        .resource {
+            path {
+                moveTo(Point(9.0, 6.0));
+                lineTo(Point(15.0, 12.0));
+                lineTo(Point(9.0, 18.0))
+            }
+        }
+    public override fun update(): UiInvalidation {
+        val input = props.value
+        changeProgress(
+            progress, if (input.expanded) 1.0 else 0.0,
+            if (input.enabled) input.transition else None
+        )
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(
+        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+        Unit
+    )
+    public override fun scene(context: SceneContext, value: Unit) {
+        val input = props.value
+        val amount = progress.value * PI / 2.0
+        val angle = if (context.layoutDirection == LayoutDirection.Rtl) PI - amount else amount
+        val size = context.size
+        context
+            .draw { paint ->
+                paint
+                    .canvas
+                    .withState { canvas ->
+                        canvas.scale(size.width / 24.0, size.height / 24.0)
+                        canvas.translate(12.0, 12.0);
+                        canvas.rotate(angle);
+                        canvas.translate(-12.0, -12.0)
+                        canvas.drawPath(shape, Paint(input.color, PaintingStyle.Stroke, 2.0))
+                    }
+            }
+    }
+}

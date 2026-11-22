@@ -1,0 +1,168 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class TreeChecksTest {
+    @Test
+    fun `cascade stops at disabled unchecked and checkbox disabled boundaries`() {
+        val data = TreeData(
+            [
+                treeTestNode(
+                    0L,
+                    TreeChildren
+                        .Known(
+                            [
+                                treeTestNode(1L),
+                                treeTestNode(2L),
+                                treeTestNode(
+                                    3L,
+                                    TreeChildren.Known([treeTestNode(4L)]),
+                                    enabled = false
+                                ),
+                                treeTestNode(
+                                    5L,
+                                    TreeChildren.Known([treeTestNode(6L)]),
+                                    checkable = false
+                                ),
+                                treeTestNode(
+                                    7L,
+                                    TreeChildren.Known([treeTestNode(8L)]),
+                                    checkboxEnabled = false
+                                )
+                            ]
+                        )
+                )
+            ]
+        )
+        val model = TreeState(data, checking = TreeChecking.Cascade())
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(0L)))
+        assertTrue(model.setChecked(ViewKey.Number(0L), true))
+        for (id in [0L, 1L, 2L])
+            assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(id)))
+        for (id in [3L, 4L, 5L, 6L, 7L, 8L])
+            assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(id)))
+        assertFalse(model.setChecked(ViewKey.Number(3L), true))
+        assertFalse(model.setChecked(ViewKey.Number(5L), true))
+        assertFalse(model.setChecked(ViewKey.Number(7L), true))
+        assertTrue(model.setChecked(ViewKey.Number(1L), false))
+        assertEquals(CheckState.Indeterminate, model.checkState(ViewKey.Number(0L)))
+        assertTrue(model.setChecked(ViewKey.Number(4L), true))
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(3L)))
+        assertEquals(CheckState.Indeterminate, model.checkState(ViewKey.Number(0L)))
+        // Reconstructing from a controlled snapshot preserves the same cascade result.
+        val restored = TreeState(data, checking = TreeChecking.Cascade(model.checkedKeys))
+        for (id in 0L..<9L)
+            assertEquals(
+                model.checkState(ViewKey.Number(id)),
+                restored.checkState(ViewKey.Number(id))
+            )
+        assertTrue(model.setChecked(ViewKey.Number(2L), false))
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(0L)))
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(4L)))
+        model.setCheckedKeys(treeTestKeys([3L, 99L]))
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(3L)))
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(4L)))
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(0L)))
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(99L)))
+    }
+
+    @Test
+    fun `loaded children inherit the latest branch intent and filtering never changes checking`() {
+        val data = TreeData(
+            [
+                treeTestNode(0L, TreeChildren.Deferred),
+                treeTestNode(1L, TreeChildren.Deferred),
+                treeTestNode(2L, TreeChildren.Known([treeTestNode(3L, checkable = false)]))
+            ]
+        )
+        val model = TreeState(data, checking = TreeChecking.Cascade())
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(2L)))
+        model.setChecked(ViewKey.Number(0L), true)
+        model.setChecked(ViewKey.Number(1L), true)
+        model.setChecked(ViewKey.Number(1L), false)
+        model
+            .replaceData(
+                data
+                    .withChildren(
+                        ViewKey.Number(0L),
+                        TreeChildren.Known([treeTestNode(4L), treeTestNode(5L)])
+                    )
+                    .withChildren(ViewKey.Number(1L), TreeChildren.Known([treeTestNode(6L)]))
+            )
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(4L)))
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(5L)))
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(6L)))
+        model.setQuery(TreeQuery<Int>("node 4", TreeQueryMode.Filter))
+        assertTreeRows(model.projection, [0L, 4L])
+        model.setChecked(ViewKey.Number(0L), false)
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(5L)))
+        model.setChecked(ViewKey.Number(4L), true)
+        assertEquals(CheckState.Indeterminate, model.checkState(ViewKey.Number(0L)))
+        assertFailsWith<IllegalStateException> { model.setChecks(TreeCheckValue()) }
+    }
+
+    @Test
+    fun `controlled check rejection cannot mutate cached states or emit a successful change`() {
+        val input = state<Array<ViewKey>>([])
+        val accept = state(false)
+        val events = state(0)
+        val model = TreeState(
+            TreeData([treeTestNode(0L, TreeChildren.Known([treeTestNode(1L), treeTestNode(2L)]))]),
+            checking = TreeChecking
+                .Cascade(
+                    binding = Some(
+                        binding(
+                            get = { input.value },
+                            set = { value -> if (accept.value) input.value = value }
+                        )
+                    )
+                ),
+            onCheck = { event ->
+                events.value += 1
+                assertEquals(Some(ViewKey.Number(1L)), event.key)
+                assertEquals(TreeChangeOrigin.Pointer, event.origin)
+                assertEquals(ViewKey.Number(1L), event.node!!.key)
+                assertTrue(treeKeysEqual(treeTestKeys([0L]), event.value.halfCheckedKeys))
+            }
+        )
+        val before = model.checkValue
+        assertFalse(model.setChecked(ViewKey.Number(1L), true))
+        assertSame(before, model.checkValue)
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(1L)))
+        assertEquals(0, events.value)
+        accept.value = true
+        assertTrue(model.setChecked(ViewKey.Number(1L), true, TreeChangeOrigin.Pointer))
+        assertEquals(CheckState.Indeterminate, model.checkState(ViewKey.Number(0L)))
+        assertEquals(1, events.value)
+        input.value = treeTestKeys([0L])
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(2L)))
+        assertEquals(1, events.value)
+    }
+
+    @Test
+    fun `independent checking preserves explicit mixed states and excludes checked mixed overlap`() {
+        val model = TreeState(
+            TreeData([treeTestNode(0L, TreeChildren.Known([treeTestNode(1L)]))]),
+            checking = TreeChecking
+                .Independent(TreeCheckValue(halfCheckedKeys = treeTestKeys([0L])))
+        )
+        assertEquals(CheckState.Indeterminate, model.checkState(ViewKey.Number(0L)))
+        assertTrue(model.setChecked(ViewKey.Number(0L), true))
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(0L)))
+        assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(1L)))
+        assertEquals(0L, model.halfCheckedKeys.size)
+        model.setChecks(TreeCheckValue(treeTestKeys([1L, 99L]), treeTestKeys([0L])))
+        assertEquals(CheckState.Indeterminate, model.checkState(ViewKey.Number(0L)))
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(1L)))
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(99L)))
+        assertFailsWith<IllegalArgumentException> {
+            TreeCheckValue(treeTestKeys([0L]), treeTestKeys([0L]))
+        }
+        assertFailsWith<IllegalStateException> { model.setCheckedKeys([]) }
+        val off = TreeState(model.data)
+        assertFalse(off.setChecked(ViewKey.Number(0L), true))
+        assertFalse(off.setChecked(ViewKey.Number(0L), false))
+    }
+}

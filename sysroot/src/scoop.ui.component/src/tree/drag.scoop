@@ -1,0 +1,276 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+/** The source and receiver borrow the row's real input route, including sticky placement. */
+internal class TreeDragControl<T>(
+    private val scope: ComponentScope,
+    private val area: InputArea,
+    private val source: DragSource,
+    private val read: () -> TreeRowInput<T>
+) : Closeable {
+    private val hover = state<TreeDrop<T>?>(None)
+    private val expand = scope.createDeadline { expandHovered() }
+    private val scroll = scope.createDeadline { scrollHovered() }
+    private var offerValue: DropOffer? = None
+    private var hoverLeave: ((TreeDrop<T>) -> Unit)? = None
+    private var height = 0.0
+    private var ready = false
+    private var closed = false
+    private var enabled = false
+    private var sourceEnabled = false
+    private val handlers = DropAreaHandlers(
+        { value, point -> offer(value, point) },
+        { value, point -> drop(value, point) },
+        { leave() }
+    )
+    private val target = scope.dropTarget(area, handlers, false)
+    val position: TreeDropPosition? get() = hover.value?.position
+    private val activity = scope
+        .observeWindowActivity { value -> if (!value.visible || value.occluded) leave() }
+    fun update() {
+        val input = read()
+        val options = input.plan.input.drag
+        val next = input.plan.input.enabled && input.row.node.enabled && (options?.enabled ?: false)
+        if (enabled != next) {
+            enabled = next
+            target.update(handlers, next)
+        }
+        val draggable = next && input.row.node.draggable
+        if (sourceEnabled != draggable) {
+            sourceEnabled = draggable
+            source.update(DragSourceOptions(enabled = draggable)) { value -> prepare(value) }
+        }
+        if (!next)
+            leave()
+        else
+            when (offerValue) {
+                case Some(val value) -> {
+                    val point = area.toLocal(Point(value.position.x, value.position.y))
+                    if (!panelPresent(point))
+                        leave()
+                    else if (!panelPresent(resolve(value, point!!))) leave()
+                }
+
+                case None -> {}
+            }
+    }
+    private fun prepare(start: DragSourceStart): DragSourceData? {
+        if (closed || !enabled) return None
+        val input = read()
+        val options = input.plan.input.drag ?: return None
+        val model = input.plan.input.state
+        val node = model.data.node(input.row.key) ?: return None
+        if (!node.enabled || !node.draggable) return None
+        options.onStart(node, start)
+        return Some(
+            DragSourceData(
+                options.content(node), DragEffects(false, true, false),
+                Some(TreeDragPayload(model, node)), onCompleted = { result ->
+                    options.onEnd(node, result)
+                }
+            )
+        )
+    }
+    private fun resolve(value: DropOffer, point: Point): TreeDrop<T>? {
+        if (closed || !enabled || !ready || !value.effects.move || !scope.isMounted) return None
+        val payload = when (value.localData) {
+            case Some(val data) -> data as? TreeDragPayload<T>
+            case None -> None
+        } ?:
+            return None
+        val input = read()
+        val model = input.plan.input.state
+        if (payload.state !== model) return None
+        val node = model.data.node(payload.node.key) ?: return None
+        if (node !== payload.node) return None
+        val destination = model.data.node(input.row.key) ?: return None
+        if (model.projection.indexOfKey(destination.key) == None) return None
+        val branch = when (destination.children) {
+            case Leaf -> false;
+            else -> true
+        }
+        val position = if (point.y < height * (if (branch) 0.25 else 0.5))
+            TreeDropPosition.Before
+        else if (point.y >= height * (if (branch) 0.75 else 0.5))
+            TreeDropPosition.After
+        else
+            TreeDropPosition.Inside
+        val result = model.dropTarget(node.key, destination.key, position) ?: return None
+        val options = input.plan.input.drag ?: return None
+        return if (options.allowDrop(result)) Some(result) else None
+    }
+    private fun offer(value: DropOffer, point: Point): DropDecision {
+        val next = resolve(value, point)
+        when (next) {
+            case None -> {
+                leave();
+                return DropDecision.Reject
+            }
+
+            case Some(val move) -> {
+                val options = read().plan.input.drag ?: return DropDecision.Reject
+                val previous = hover.value
+                val same = when (previous) {
+                    case Some(val old) ->
+                        old.source.key ==
+                            move.source.key &&
+                            old.target.key ==
+                            move.target.key &&
+                            old.position ==
+                            move.position
+                    case None -> false
+                }
+                if (!same) {
+                    leave()
+                    hover.value = Some(move)
+                    hoverLeave = Some(options.onLeave)
+                    scope.requestFrame()
+                    options.onEnter(move)
+                    if (move.position ==
+                        TreeDropPosition.Inside &&
+                        move.target.expandable &&
+                        !read().plan.input.state.isExpanded(move.target.key)
+                    )
+                        expand.schedule(MonotonicTimeSource.now() + options.expandDelay)
+                }
+                offerValue = Some(value)
+                options.onOver(move)
+                scheduleScroll()
+                return DropDecision
+                    .Accept(
+                        if (value.formats.text)
+                            DragFormat.Text
+                        else if (value.formats.url) DragFormat.Url else DragFormat.Files,
+                        DragEffect.Move
+                    )
+            }
+        }
+    }
+    private fun drop(value: DropRequest, point: Point): Boolean {
+        val move = resolve(value.offer, point) ?: return false
+        val options = read().plan.input.drag ?: return false
+        try {
+            return value.effect == DragEffect.Move && options.onDrop(move)
+        } finally {
+            leave()
+        }
+    }
+    private fun expandHovered() {
+        val value = offerValue ?: return
+        val point = area.toLocal(Point(value.position.x, value.position.y)) ?: return
+        val move = resolve(value, point) ?: return
+        if (move.position == TreeDropPosition.Inside)
+            read().plan.input.state.setExpanded(move.target.key, true, TreeChangeOrigin.Pointer)
+    }
+    private fun scheduleScroll() {
+        val value = offerValue ?: return
+        val delta = read()
+            .plan
+            .controller
+            .ink
+            ?.dragDelta(Point(value.position.x, value.position.y)) ?:
+            0.0
+        if (delta == 0.0)
+            scroll.cancel()
+        else if (!scroll.isScheduled)
+            scroll.schedule(MonotonicTimeSource.now() + Duration.milliseconds(16L))
+    }
+    private fun scrollHovered() {
+        val value = offerValue ?: return
+        val point = Point(value.position.x, value.position.y)
+        if (closed ||
+            !scope.isMounted ||
+            scope.nativeWindow.state !=
+            WindowState.Open ||
+            !scope.nativeWindow.isVisible ||
+            scope.nativeWindow.isOccluded ||
+            !area.hitTest(point)
+        ) {
+            leave()
+            return
+        }
+        val plan = read().plan
+        val delta = plan.controller.ink?.dragDelta(point) ?: 0.0
+        val before = plan.vertical.offset
+        if (delta != 0.0) plan.vertical.scrollBy(Point(0.0, delta), ScrollOrigin.User)
+        if (plan.vertical.offset != before) scheduleScroll()
+    }
+    private fun leave() {
+        if (closed) return
+        expand.cancel()
+        scroll.cancel()
+        offerValue = None
+        val previous = hover.value
+        val callback = hoverLeave
+        hoverLeave = None
+        when (previous) {
+            case Some(_) -> {
+                hover.value = None;
+                if (scope.isMounted) scope.requestFrame()
+            }
+
+            case None -> {}
+        }
+        when (previous) {
+            case Some(val value) -> callback?.invoke(value)
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        if (closed) return
+        enabled = false
+        ready = false
+        try {
+            leave()
+        } finally {
+            closed = true
+            activity.close()
+            source.close()
+            target.close()
+            expand.close()
+            scroll.close()
+        }
+    }
+    fun scene(context: SceneContext, bounds: Rect) {
+        val current = position
+        when (current) {
+            case Some(val value) ->
+                context
+                    .draw { paint ->
+                        val color = read().plan.appearance.theme.tokens.palette.ring
+                        val thickness = 2.0 * read().plan.appearance.density
+                        if (value == TreeDropPosition.Inside)
+                            paint.canvas.drawRect(bounds, Paint(color.withAlpha(0.16)))
+                        else
+                            paint
+                                .canvas
+                                .drawRect(
+                                    Rect(
+                                        0.0,
+                                        if (value == TreeDropPosition.Before)
+                                            0.0
+                                        else
+                                            lowerBound(bounds.height - thickness, 0.0),
+                                        bounds.width,
+                                        thickness
+                                    ),
+                                    Paint(color)
+                                )
+                    }
+            case None -> {}
+        }
+        context
+            .onFrameComplete { result ->
+                if (result.submission == FrameSubmission.Accepted && scope.isMounted && !closed) {
+                    height = bounds.height
+                    ready = true
+                }
+            }
+    }
+}

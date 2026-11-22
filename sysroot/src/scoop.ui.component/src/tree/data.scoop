@@ -1,0 +1,204 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.ViewKey
+
+/** Known([]) is an empty loaded branch; Deferred is the only unknown child state. */
+public enum TreeChildren<T> {
+    Leaf, Known(Array<TreeNode<T>>), Deferred
+}
+
+/** Immutable node metadata. The label names the node independently of custom cell views. */
+public class TreeNode<T> public constructor(
+    public val key: ViewKey,
+    public val value: T,
+    public val label: String,
+    public val children: TreeChildren<T> = TreeChildren.Leaf,
+    public val enabled: Boolean = true,
+    public val selectable: Boolean = true,
+    public val checkable: Boolean = true,
+    public val checkboxEnabled: Boolean = true,
+    public val draggable: Boolean = true
+) {
+    init {
+        requireComponent(key != ViewKey.Position, "tree node requires an explicit key")
+    }
+    public val expandable: Boolean
+        get() = when (children) {
+            case Leaf -> false
+            case Known(val nodes) -> nodes.size > 0L
+            case Deferred -> true
+        }
+    public val canCheck: Boolean get() = enabled && checkable && checkboxEnabled
+    public val canSelect: Boolean get() = enabled && selectable
+    public fun withChildren(value: TreeChildren<T>): TreeNode<T> = TreeNode(
+        key, this.value, label, value, enabled, selectable, checkable, checkboxEnabled, draggable
+    )
+}
+
+internal class TreeRecord<T>(
+    val node: TreeNode<T>,
+    val parent: Long?,
+    val depth: Long,
+    val position: Long,
+    val siblingCount: Long,
+    val children: Array<Long>,
+    val end: Long
+)
+
+/** Indexes a loaded snapshot once, without allocating views or recursive traversal frames. */
+public class TreeData<T> public constructor(public val roots: Array<TreeNode<T>>) {
+    private val keyed = HashMap<ViewKey, Long>()
+    private val indexed = index()
+    internal val records: Array<TreeRecord<T>> get() = indexed.records
+    internal val rootIndices: Array<Long> get() = indexed.roots
+    public val count: Long get() = records.size
+    public val loadedKeys: Array<ViewKey> get() = indexed.loaded
+    internal val deferredKeys: Array<ViewKey> get() = indexed.deferred
+
+    private fun index(): TreeIndex<T> {
+        val rows = ArrayList<TreeRecordBuilder<T>>()
+        val rootIds = ArrayList<Long>()
+        val loaded = ArrayList<ViewKey>()
+        val deferred = ArrayList<ViewKey>()
+        val stack = ArrayList<TreeDataCursor<T>>()
+        stack.add(TreeDataCursor(roots, None, 0L))
+        while (stack.size > 0L) {
+            val cursor = stack[stack.size - 1L]
+            if (cursor.next == cursor.nodes.size) {
+                when (cursor.parent) {
+                    case Some(val parent) -> rows[parent].end = rows.size
+                    case None -> {}
+                }
+                stack.removeAt(stack.size - 1L)
+                continue
+            }
+            val position = cursor.next
+            val node = cursor.nodes[position]
+            cursor.next += 1L
+            requireComponent(keyed[node.key] == None, "duplicate tree key or repeated subtree")
+            val index = rows.size
+            keyed[node.key] = index
+            rows
+                .add(
+                    TreeRecordBuilder(
+                        node,
+                        cursor.parent,
+                        cursor.depth,
+                        position,
+                        cursor.nodes.size
+                    )
+                )
+            when (cursor.parent) {
+                case Some(val parent) -> rows[parent].children.add(index)
+                case None -> rootIds.add(index)
+            }
+            when (node.children) {
+                case Known(val children) -> {
+                    loaded.add(node.key)
+                    stack.add(TreeDataCursor(children, Some(index), cursor.depth + 1L))
+                }
+
+                case Deferred -> {
+                    deferred.add(node.key)
+                    rows[index].end = index + 1L
+                }
+
+                case Leaf -> rows[index].end = index + 1L
+            }
+        }
+        val records = Array<TreeRecord<T>>(rows.size) { index ->
+            val row = rows[index]
+            TreeRecord(
+                row.node,
+                row.parent,
+                row.depth,
+                row.position,
+                row.siblingCount,
+                row.children.toArray(),
+                row.end
+            )
+        }
+        return TreeIndex(records, rootIds.toArray(), loaded.toArray(), deferred.toArray())
+    }
+
+    public fun indexOfKey(key: ViewKey): Long? = keyed[key]
+    public fun node(key: ViewKey): TreeNode<T>? = when (keyed[key]) {
+        case Some(val index) -> Some(records[index].node)
+        case None -> None
+    }
+    /** Returns the known root-to-node path, including the requested key; never loads children. */
+    public fun pathTo(key: ViewKey): Array<ViewKey>? {
+        var at = keyed[key] ?: return None
+        val reversed = ArrayList<ViewKey>()
+        while (true) {
+            val row = records[at]
+            reversed.add(row.node.key)
+            when (row.parent) {
+                case Some(val parent) -> at = parent
+                case None -> break
+            }
+        }
+        return Some(Array<ViewKey>(reversed.size) { index -> reversed[reversed.size - index - 1L] })
+    }
+    /** Replaces one branch and its ancestor path while retaining all unaffected node references. */
+    public fun withChildren(key: ViewKey, children: TreeChildren<T>): TreeData<T> {
+        var at = keyed[key] ?: throw IllegalArgumentException(Some("unknown tree parent key"))
+        var replacement = records[at].node.withChildren(children)
+        while (true) {
+            val row = records[at]
+            when (row.parent) {
+                case Some(val parent) -> {
+                    val siblings = records[parent].children
+                    val chosen = at
+                    val next = replacement
+                    replacement = records[parent]
+                        .node
+                        .withChildren(
+                            TreeChildren
+                                .Known(
+                                    Array<TreeNode<T>>(siblings.size) { index ->
+                                        if (siblings[index] == chosen)
+                                            next
+                                        else
+                                            records[siblings[index]].node
+                                    }
+                                )
+                        )
+                    at = parent
+                }
+
+                case None -> {
+                    val root = replacement
+                    return TreeData(
+                        Array<TreeNode<T>>(roots.size) { index ->
+                            if (index == row.position) root else roots[index]
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private class TreeIndex<T>(
+    val records: Array<TreeRecord<T>>,
+    val roots: Array<Long>,
+    val loaded: Array<ViewKey>,
+    val deferred: Array<ViewKey>
+)
+
+private class TreeRecordBuilder<T>(
+    val node: TreeNode<T>,
+    val parent: Long?,
+    val depth: Long,
+    val position: Long,
+    val siblingCount: Long
+) {
+    val children = ArrayList<Long>()
+    var end = 0L
+}
+
+private class TreeDataCursor<T>(val nodes: Array<TreeNode<T>>, val parent: Long?, val depth: Long) {
+    var next = 0L
+}

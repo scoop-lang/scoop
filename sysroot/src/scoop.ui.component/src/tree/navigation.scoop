@@ -1,0 +1,140 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.*
+
+internal fun treePrimary(modifiers: Modifiers): Boolean {
+    val key = ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter))
+    val superKey = ShortcutChord(key, ShortcutModifiers(primary = true))
+        .equivalentTo(ShortcutChord(key, ShortcutModifiers(superKey = true)))
+    return if (superKey) modifiers.superKey else modifiers.control
+}
+
+internal fun treeCheckingEnabled(value: TreeChecking): Boolean = when (value) {
+    case Off -> false;
+    else -> true
+}
+
+internal fun <T> treeSelect(
+    plan: TreePlan<T>,
+    key: ViewKey,
+    modifiers: Modifiers?,
+    origin: TreeChangeOrigin
+) {
+    val model = plan.input.state
+    val primary = when (modifiers) {
+        case Some(val value) -> treePrimary(value);
+        case None -> false
+    }
+    val shift = modifiers?.shift ?: false
+    val action = if (model.selection != TreeSelectionMode.Multiple)
+        TreeSelectionAction.Replace
+    else if (shift) {
+        if (primary) TreeSelectionAction.AddRange else TreeSelectionAction.Range
+    } else if (primary || !plan.input.directory)
+        TreeSelectionAction.Toggle
+    else
+        TreeSelectionAction.Replace
+    model.select(key, action, plan.controller.focusedKey(), origin)
+}
+
+internal fun <T> treeKeyboard(plan: TreePlan<T>, index: Long, key: KeyEvent): Boolean {
+    if (key.state != ElementState.Pressed || key.synthetic || !plan.input.enabled) return false
+    val row = plan.projection.rowAt(index)
+    if (!row.node.enabled) return false
+    val model = plan.input.state
+    val mods = key.modifiers
+    if (mods.alt || mods.function) return false
+    val named = when (key.logicalKey) {
+        case Named(val value) -> value;
+        else -> return false
+    }
+    val reverse = plan.appearance.direction == LayoutDirection.Rtl
+    val open = if (reverse) NamedKey.ArrowLeft else NamedKey.ArrowRight
+    val close = if (reverse) NamedKey.ArrowRight else NamedKey.ArrowLeft
+    if (named == open) {
+        if (!row.expanded)
+            model.setExpanded(row.key, true, TreeChangeOrigin.Keyboard)
+        else if (index + 1L < row.subtreeEnd)
+            treeMove(plan, index + 1L, 1L, key, Some(row.subtreeEnd))
+        return true
+    }
+    if (named == close) {
+        if (row.expanded)
+            model.setExpanded(row.key, false, TreeChangeOrigin.Keyboard)
+        else {
+            var parent = row.parent
+            while (parent != None) {
+                val ancestor = plan.projection.rowAt(parent!!)
+                if (ancestor.node.enabled) {
+                    plan.controller.focus(ancestor.key, None, false);
+                    break
+                }
+                parent = ancestor.parent
+            }
+        }
+        return true
+    }
+    when (named) {
+        case ArrowUp -> treeMove(plan, index - 1L, -1L, key)
+        case ArrowDown -> treeMove(plan, index + 1L, 1L, key)
+        case Home -> treeMove(plan, 0L, 1L, key)
+        case End -> treeMove(plan, plan.projection.count - 1L, -1L, key)
+        case PageUp -> treeMove(plan, plan.controller.ink!!.page(index, false), -1L, key)
+        case PageDown -> treeMove(plan, plan.controller.ink!!.page(index, true), 1L, key)
+
+        case Space -> {
+            if (treeCheckingEnabled(model.checking) && row.node.canCheck)
+                model
+                    .setChecked(
+                        row.key,
+                        model.checkState(row.key) != CheckState.Checked,
+                        TreeChangeOrigin.Keyboard
+                    )
+            else
+                model
+                    .select(row.key, TreeSelectionAction.Toggle, origin = TreeChangeOrigin.Keyboard)
+        }
+
+        case Enter -> {
+            treeSelect(plan, row.key, Some(mods), TreeChangeOrigin.Keyboard)
+            if (plan.input.directory && plan.input.expandAction != TreeExpandAction.Switcher)
+                model.setExpanded(row.key, !row.expanded, TreeChangeOrigin.Keyboard)
+            plan
+                .input
+                .onActivate(
+                    TreeActivation(row.node, TreeChangeOrigin.Keyboard, keyboard = Some(key))
+                )
+        }
+
+        case F2 -> plan.controller.rows[row.key]?.enter()
+        case ContextMenu ->
+            plan
+                .input
+                .onContextMenu(
+                    TreeActivation(row.node, TreeChangeOrigin.Keyboard, keyboard = Some(key))
+                )
+        else -> return false
+    }
+    return true
+}
+
+private fun <T> treeMove(
+    plan: TreePlan<T>,
+    start: Long,
+    step: Long,
+    key: KeyEvent,
+    end: Long? = None
+) {
+    var at = start
+    while (at >= 0L && at < (end ?: plan.projection.count)) {
+        val row = plan.projection.rowAt(at)
+        if (row.node.enabled) {
+            if (key.modifiers.shift)
+                treeSelect(plan, row.key, Some(key.modifiers), TreeChangeOrigin.Keyboard)
+            plan.controller.focus(row.key, None, false)
+            return
+        }
+        at += step
+    }
+}

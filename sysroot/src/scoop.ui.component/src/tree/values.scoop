@@ -1,0 +1,135 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+import scoop.ui.*
+
+public enum TreeSelectionMode {
+    None, Single, Multiple
+}
+
+public enum TreeSelectionAction {
+    Replace, Toggle, Range, AddRange
+}
+
+public enum TreeChangeOrigin {
+    Programmatic, Pointer, Keyboard, Accessibility
+}
+
+public enum TreeQueryMode {
+    Highlight, Filter
+}
+
+/** Searches loaded labels using Unicode casefold by default; filtering temporarily opens ancestor paths. */
+public class TreeQuery<T> public constructor(
+    public val text: String = "",
+    public val mode: TreeQueryMode = TreeQueryMode.Highlight,
+    public val expandMatches: Boolean = false,
+    public val matches: ((TreeNode<T>, String) -> Boolean)? = None
+)
+
+public class TreeKeyChange<T> internal constructor(
+    public val key: ViewKey?,
+    public val node: TreeNode<T>?,
+    public val keys: Array<ViewKey>,
+    public val origin: TreeChangeOrigin
+)
+
+/** Complete independent checking state, with disjoint checked and mixed keys. */
+public class TreeCheckValue public constructor(
+    checkedKeys: Array<ViewKey> = [],
+    halfCheckedKeys: Array<ViewKey> = []
+) {
+    public val checkedKeys: Array<ViewKey> = treeUniqueKeys(checkedKeys)
+    public val halfCheckedKeys: Array<ViewKey> = treeUniqueKeys(halfCheckedKeys)
+    init {
+        val checked = treeKeySet(this.checkedKeys)
+        for (key in this.halfCheckedKeys)
+            requireComponent(!checked.contains(key), "tree checked and half checked keys overlap")
+    }
+}
+
+public enum TreeChecking {
+    Off,
+    Cascade(val initialKeys: Array<ViewKey> = [], val binding: Binding<Array<ViewKey>>? = None),
+    Independent(
+        val initial: TreeCheckValue = TreeCheckValue(),
+        val binding: Binding<TreeCheckValue>? = None
+    )
+}
+
+public class TreeCheckChange<T> internal constructor(
+    public val key: ViewKey?,
+    public val node: TreeNode<T>?,
+    public val value: TreeCheckValue,
+    public val origin: TreeChangeOrigin
+)
+
+internal fun treeUniqueKeys(keys: Array<ViewKey>): Array<ViewKey> {
+    val seen = HashSet<ViewKey>()
+    val result = ArrayList<ViewKey>()
+    for (key in keys) {
+        requireComponent(key != ViewKey.Position, "tree state requires explicit keys")
+        if (seen.add(key)) result.add(key)
+    }
+    return if (result.size == keys.size) keys else result.toArray()
+}
+
+internal fun treeKeySet(keys: Array<ViewKey>): HashSet<ViewKey> {
+    val result = HashSet<ViewKey>()
+    for (key in keys)
+        result.add(key)
+    return result
+}
+
+internal fun treeKeysEqual(left: Array<ViewKey>, right: Array<ViewKey>): Boolean {
+    if (left === right) return true
+    if (left.size != right.size) return false
+    for (index in 0L..<left.size)
+        if (left[index] != right[index]) return false
+    return true
+}
+
+internal class TreeKeySnapshot(val keys: Array<ViewKey>) {
+    val unique = treeUniqueKeys(keys)
+    val lookup = treeKeySet(unique)
+}
+
+internal fun <T> treeInitialExpansion(
+    data: TreeData<T>,
+    keys: Array<ViewKey>,
+    all: Boolean,
+    parents: Boolean
+): Array<ViewKey> {
+    val result = ArrayList<ViewKey>()
+    if (all) {
+        for (row in data.records)
+            if (row.node.expandable) result.add(row.node.key)
+    }
+    for (key in treeUniqueKeys(keys))
+        result.add(key)
+    return treeExpandedAncestors(data, result.toArray(), parents)
+}
+
+internal fun <T> treeExpandedAncestors(
+    data: TreeData<T>,
+    keys: Array<ViewKey>,
+    ancestors: Boolean
+): Array<ViewKey> {
+    val unique = treeUniqueKeys(keys)
+    if (!ancestors) return unique
+    val seen = treeKeySet(unique)
+    val result = ArrayList<ViewKey>()
+    for (key in unique)
+        result.add(key)
+    for (key in unique) {
+        var at = data.indexOfKey(key) ?: continue
+        while (true) {
+            val parent = data.records[at].parent ?: break
+            val parentKey = data.records[parent].node.key
+            if (!seen.add(parentKey)) break
+            result.add(parentKey)
+            at = parent
+        }
+    }
+    return result.toArray()
+}

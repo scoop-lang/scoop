@@ -1,0 +1,116 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal fun <T> treeHeader(plan: TreePlan<T>): View {
+    if (!plan.explicit || !plan.input.showHeader) return empty()
+    val input = plan.input
+    val model = input.state
+    val cells = ArrayList<TableCellProps>()
+    val views = ArrayList<View>()
+    for (index in 0L..<plan.columns.size) {
+        val column = plan.columns[index]
+        val title = column.header +
+            when (plan.columnState.sorting) {
+                case Some(val order) ->
+                    if (order.column == column.id) {
+                        if (order.direction == TableSortDirection.Ascending) " ↑" else " ↓"
+                    } else
+                        ""
+                case None -> ""
+            }
+        val caption = when (column.headerView) {
+            case Some(val view) -> view
+            case None -> plan.appearance.content(tableText(title), header = true)
+        }
+        val content = if (!column.sortable)
+            caption
+        else
+            treeActionButton(
+                caption, title, input.enabled, input.theme,
+                { origin -> model.toggleSort(column.id, origin) }, tabStop = true, size = ButtonSize
+                    .Sm
+            )
+        val cell = TableCellProps(
+            PanelContent.Custom(content),
+            alignment = column.alignment,
+            header = true,
+            semantics = ComponentSemantics(name = Some(title))
+        )
+        cells.add(cell)
+        val view = plan
+            .appearance
+            .cell(
+                cell,
+                ViewKey.Text(column.id),
+                semantics = Some(basicCellSemantics(cell, reference = Some(plan.headers[index])))
+            )
+        views
+            .add(
+                if (!column.resizable)
+                    view
+                else
+                    element(
+                        TableResizeInput(
+                            binding(
+                                { treeWidth(model, column.id) },
+                                { width ->
+                                    treeResize(
+                                        model,
+                                        column.id,
+                                        width,
+                                        TreeChangeOrigin.Programmatic
+                                    )
+                                }
+                            ),
+                            column.size,
+                            plan.appearance.theme,
+                            input.enabled,
+                            ComponentSemantics(name = Some("Resize " + column.header)),
+                            onWidthChange = Some { width, origin ->
+                                treeResize(
+                                    model, column.id, width,
+                                    when (origin) {
+                                        case Programmatic -> TreeChangeOrigin.Programmatic
+                                        case Pointer -> TreeChangeOrigin.Pointer
+                                        case Keyboard -> TreeChangeOrigin.Keyboard
+                                        case Accessibility -> TreeChangeOrigin.Accessibility
+                                    }
+                                )
+                            }
+                        ),
+                        { value, scope -> TableResizeHeader(value, scope) }, [view], ViewKey
+                            .Text(column.id)
+                    )
+            )
+    }
+    return tableRowView(
+        TableRowProps(cells.toArray(), TableSection.Header),
+        plan.tracks,
+        plan.appearance,
+        ViewKey.Text("header"),
+        prepared = Some(views.toArray())
+    )
+}
+
+private fun <T> treeResize(
+    model: TreeState<T>,
+    id: String,
+    width: Double?,
+    origin: TreeChangeOrigin
+) {
+    val definition = model.columns ?: return
+    if (!panelPresent(definition.find(id))) return
+    when (width) {
+        case Some(val value) -> model.resizeColumn(id, value, origin)
+        case None -> model.resetColumnWidth(id, origin)
+    }
+}
+
+private fun <T> treeWidth(model: TreeState<T>, id: String): Double? {
+    val definition = model.columns ?: return None
+    if (!panelPresent(definition.find(id))) return None
+    return model.columnState.width(id)
+}

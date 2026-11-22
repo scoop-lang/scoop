@@ -1,0 +1,160 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.*
+
+internal interface TreeMountedRow {
+    val focused: Boolean
+    val pending: Boolean
+    val main: FocusHandle
+    val focusedColumn: String?
+    fun hasCell(column: String): Boolean
+    fun focusCell(column: String): Boolean
+    fun enter(): Boolean
+}
+
+internal class TreeScrollRequest(
+    val key: ViewKey,
+    val column: String?,
+    val alignment: ScrollAlignment,
+    val revision: ULong,
+    val horizontalRevision: ULong,
+    val focus: Boolean
+)
+
+internal class TreeViewController<T> : TreeTarget {
+    var ink: TreeInk<T>? = None
+    var plan: TreePlan<T>? = None
+    var presented: TreeProjection<T>? = None
+    val rows = HashMap<ViewKey, TreeMountedRow>()
+    public override val active: Boolean get() = ink?.active ?: false
+    public override val pending: Boolean
+        get() {
+            if (ink?.pending ?: false) return true
+            for (entry in rows.entries)
+                if (entry.value.pending) return true
+            return false
+        }
+    fun focusedKey(): ViewKey? {
+        for (entry in rows.entries)
+            if (entry.value.focused) return Some(entry.key)
+        return None
+    }
+    fun register(key: ViewKey, row: TreeMountedRow) {
+        rows[key] = row
+    }
+    fun unregister(key: ViewKey, row: TreeMountedRow) {
+        when (rows[key]) {
+            case Some(val current) -> if (current === row) rows.remove(key);
+            case None -> {}
+        }
+    }
+    /** Read before keyed reconciliation retires a focused row or cell. */
+    fun fallback(next: TreeProjection<T>, columns: Array<TreeColumn<T>>): ViewKey? {
+        val key = focusedKey() ?: return None
+        val session = rows[key]!!
+        when (next.indexOfKey(key)) {
+            case Some(val at) ->
+                if (next.rowAt(at).node.enabled) {
+                    val column = session.focusedColumn ?: return None
+                    for (value in columns)
+                        if (value.id == column) return None
+                    if (columns.size == 0L && column == "title") return None
+                    return Some(key)
+                }
+            case None -> {}
+        }
+        val old = plan ?: return None
+        val index = old.projection.indexOfKey(key) ?: return None
+        var parent = old.projection.rowAt(index).parent
+        while (parent != None) {
+            val row = old.projection.rowAt(parent!!)
+            val candidate = next.indexOfKey(row.key)
+            if (candidate != None && next.rowAt(candidate!!).node.enabled) return Some(row.key)
+            parent = row.parent
+        }
+        if (next.count == 0L) return None
+        var at = if (index < next.count) index else next.count - 1L
+        while (at < next.count) {
+            if (next.rowAt(at).node.enabled) return Some(next.keyAt(at));
+            at += 1L
+        }
+        at = if (index < next.count) index else next.count - 1L
+        while (at >= 0L) {
+            if (next.rowAt(at).node.enabled) return Some(next.keyAt(at));
+            at -= 1L
+        }
+        return None
+    }
+    private fun prepare(key: ViewKey, column: String?, expand: Boolean): Boolean {
+        val current = plan ?: return false
+        if (!active || !current.input.enabled) return false
+        val node = current.input.state.data.node(key) ?: return false
+        if (!node.enabled) return false
+        when (column) {
+            case Some(val id) -> {
+                val state = current.input.state.columnState
+                when (state.columns) {
+                    case Some(val definition) -> {
+                        if (!panelPresent(definition.find(id)) || !state.isVisible(id)) return false
+                    }
+
+                    case None -> if (id != "title") return false
+                }
+            }
+
+            case None -> {}
+        }
+        if (expand) {
+            val path = current.input.state.pathTo(key) ?: return false
+            for (ancestor in path)
+                if (ancestor != key && !current.input.state.isExpanded(ancestor))
+                    if (!current.input.state.setExpanded(ancestor, true)) return false
+        }
+        return current.input.state.projection.indexOfKey(key) != None
+    }
+    public override fun scroll(
+        key: ViewKey,
+        column: String?,
+        alignment: ScrollAlignment,
+        expand: Boolean
+    ): Boolean {
+        if (!prepare(key, column, expand)) return false
+        return ink!!.request(key, column, alignment, false)
+    }
+    public override fun focus(key: ViewKey, column: String?, expand: Boolean): Boolean {
+        if (!prepare(key, column, expand)) return false
+        when (column) {
+            case Some(val id) -> {
+                val input = plan!!.input
+                val focusable = when (input.state.columns) {
+                    case Some(val definition) -> definition.find(id)?.focusable ?: false
+                    case None -> input.titleFocusable
+                }
+                if (!focusable) return false
+            }
+
+            case None -> {}
+        }
+        when ((column, rows[key])) {
+            case(Some(val id), Some(val row)) -> {
+                if (row.hasCell(id) && !row.focusCell(id)) return false
+            }
+
+            case(None, Some(val row)) -> {
+                if (!row.main.requestFocus()) return false
+            }
+
+            else -> {}
+        }
+        return ink!!.request(key, column, ScrollAlignment.Nearest, true)
+    }
+    fun finishFocus(request: TreeScrollRequest) {
+        if (!request.focus) return
+        val row = rows[request.key] ?: return
+        when (request.column) {
+            case Some(val id) -> row.focusCell(id);
+            case None -> row.main.requestFocus()
+        }
+    }
+}

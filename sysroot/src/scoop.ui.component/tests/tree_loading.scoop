@@ -1,0 +1,278 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class TreeLoadingTest {
+    @Test
+    fun `loading deduplicates and publishes checked children after collapse`() = runTreeLoading {
+        val gate = TreeLoadGate()
+        val events = TreeLoadEvents()
+        val model = TreeState(
+            treeDeferredData(), checking = TreeChecking.Cascade(),
+            loader = Some(TreeLoader(this, { _ -> gate.await() })), onLoad = { _ ->
+                events.loaded += 1
+            }
+        )
+        assertTrue(model.setExpanded(ViewKey.Number(1L), true))
+        assertTrue(model.loadChildren(ViewKey.Number(1L)))
+        assertEquals(1, gate.calls)
+        assertEquals(1L, model.loadingKeys.size)
+        assertTrue(model.setChecked(ViewKey.Number(1L), true))
+        assertTrue(model.setExpanded(ViewKey.Number(1L), false))
+        gate.complete([TreeNode(ViewKey.Number(2L), 2L, "Child")])
+        assertEquals(1L, model.projection.count)
+        assertEquals(0L, model.loadingKeys.size)
+        assertEquals(1L, model.loadedKeys.size)
+        assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(2L)))
+        assertEquals(1, events.loaded)
+        assertFalse(model.loadChildren(ViewKey.Number(1L)))
+        model.close()
+    }
+
+    @Test
+    fun `failed load requires retry and an empty result remains a loaded branch`() =
+        runTreeLoading {
+            val gate = TreeLoadGate()
+            val events = TreeLoadEvents()
+            val model = TreeState(
+                treeDeferredData(), loader = Some(TreeLoader(this, { _ -> gate.await() })),
+                onLoadError = { _ -> events.failed += 1 }
+            )
+            model.setExpanded(ViewKey.Number(1L), true)
+            gate.fail()
+            assertEquals(1, events.failed)
+            assertTrue(
+                when (model.loadStatus(ViewKey.Number(1L))) {
+                    case Failed(_) -> true;
+                    else -> false
+                }
+            )
+            model.synchronizeLoading()
+            assertFalse(model.loadChildren(ViewKey.Number(1L)))
+            assertEquals(1, gate.calls)
+            assertTrue(model.retryLoad(ViewKey.Number(1L)))
+            gate.complete([])
+            assertEquals(2, gate.calls)
+            assertFalse(model.data.node(ViewKey.Number(1L))!!.expandable)
+            assertEquals(1L, model.loadedKeys.size)
+            assertEquals(1, events.failed)
+            model.close()
+        }
+
+    @Test
+    fun `replacement cancellation cannot publish a stale result or close another view model`() =
+        runTreeLoading {
+            val old = TreeLoadGate()
+            val fresh = TreeLoadGate()
+            val model = TreeState(
+                treeDeferredData(),
+                loader = Some(TreeLoader(this, { _ -> old.await() }))
+            )
+            model.setExpanded(ViewKey.Number(1L), true)
+            model.replaceData(treeDeferredData())
+            model.setLoader(Some(TreeLoader(this, { _ -> fresh.await() })))
+            old.complete([TreeNode(ViewKey.Number(3L), 3L, "Old")])
+            assertFalse(panelPresent(model.data.node(ViewKey.Number(3L))))
+            assertEquals(1L, model.loadingKeys.size)
+            fresh.complete([TreeNode(ViewKey.Number(4L), 4L, "Current")])
+            assertTrue(panelPresent(model.data.node(ViewKey.Number(4L))))
+            model.close()
+            assertFalse(model.loadChildren(ViewKey.Number(1L)))
+        }
+
+    @Test
+    fun `controlled rejection and queries do not start deferred loading`() = runTreeLoading {
+        val gate = TreeLoadGate()
+        val keys = state<Array<ViewKey>>([])
+        val model = TreeState(
+            treeDeferredData(), expanded = Some(binding({ keys.value }, { _ -> })),
+            loader = Some(TreeLoader(this, { _ -> gate.await() }))
+        )
+        assertFalse(model.setExpanded(ViewKey.Number(1L), true))
+        model.setQuery(TreeQuery<Long>("Parent", TreeQueryMode.Filter))
+        model.setChecked(ViewKey.Number(1L), true)
+        model.synchronizeLoading()
+        assertEquals(0, gate.calls)
+        keys.value = [ViewKey.Number(1L)]
+        model.synchronizeLoading()
+        assertEquals(1, gate.calls)
+        assertTrue(model.cancelLoad(ViewKey.Number(1L)))
+        gate.complete([])
+        assertEquals(0L, model.loadedKeys.size)
+        assertTrue(
+            when (model.loadStatus(ViewKey.Number(1L))) {
+                case Idle -> true;
+                else -> false
+            }
+        )
+        model.close()
+    }
+    @Test
+    fun `owner cancellation retires a load before its queued body starts`() {
+        val executor = TreeLoadExecutor()
+        val owner = TreeLoadOwner()
+        val hold = TreeLoadGate()
+        val load = TreeLoadGate()
+        val done = TreeLoadCompletion()
+        startDispatchedCoroutine(
+            executor,
+            {
+                coroutineScope {
+                    owner.scope = Some(this)
+                    owner.model = Some(
+                        TreeState(
+                            treeDeferredData(),
+                            loader = Some(TreeLoader(this, { _ -> load.await() }))
+                        )
+                    )
+                    hold.await()
+                    Unit
+                }
+            },
+            done
+        )
+        executor.runOne()
+        val model = owner.model!!
+        model.setExpanded(ViewKey.Number(1L), true)
+        assertEquals(1L, model.loadingKeys.size)
+        assertEquals(0, load.calls)
+        owner.scope!!.job.cancel()
+        assertEquals(0L, model.loadingKeys.size)
+        hold.complete([])
+        while (executor.queued > 0L)
+            executor.runOne()
+        assertEquals(0, load.calls)
+        assertTrue(done.finished)
+        assertTrue(done.error!! is CancellationException)
+        assertFalse(model.loadChildren(ViewKey.Number(1L)))
+        model.close()
+    }
+
+    @Test
+    fun `parallel branches retain requests and use current sort and check state on arrival`() =
+        runTreeLoading {
+            val first = TreeLoadGate()
+            val second = TreeLoadGate()
+            val model = TreeState(
+                TreeData(
+                    [
+                        TreeNode(ViewKey.Number(1L), 1L, "First", TreeChildren.Deferred),
+                        TreeNode(ViewKey.Number(10L), 10L, "Second", TreeChildren.Deferred)
+                    ]
+                ), columns = Some(
+                    TreeColumns(
+                        [
+                            TreeColumn<Long>(
+                                "name", "Name", { _ -> empty() },
+                                compare = Some { a, b -> if (a < b) -1 else if (a > b) 1 else 0 }
+                            )
+                        ],
+                        "name"
+                    )
+                ),
+                checking = TreeChecking.Cascade(), loader = Some(
+                    TreeLoader(
+                        this,
+                        { node -> if (node.value == 1L) first.await() else second.await() }
+                    )
+                )
+            )
+            model.setExpanded([ViewKey.Number(1L), ViewKey.Number(10L)])
+            model.setSort(Some(TableSort("name", TableSortDirection.Ascending)))
+            model.setChecked(ViewKey.Number(1L), true)
+            first
+                .complete(
+                    [
+                        TreeNode(ViewKey.Number(3L), 3L, "Three"),
+                        TreeNode(ViewKey.Number(2L), 2L, "Two", checkboxEnabled = false),
+                        TreeNode(ViewKey.Number(4L), 4L, "Four")
+                    ]
+                )
+            assertEquals(1L, model.loadingKeys.size)
+            assertEquals(ViewKey.Number(2L), model.projection.keyAt(1L))
+            assertEquals(CheckState.Unchecked, model.checkState(ViewKey.Number(2L)))
+            assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(3L)))
+            second.complete([])
+            assertEquals(0L, model.loadingKeys.size)
+            assertEquals(2L, model.loadedKeys.size)
+            model.close()
+        }
+}
+
+private fun treeDeferredData(): TreeData<Long> = TreeData(
+    [TreeNode(ViewKey.Number(1L), 1L, "Parent", TreeChildren.Deferred)]
+)
+
+private class TreeLoadGate {
+    var calls = 0
+    var continuation: Continuation<Array<TreeNode<Long>>>? = None
+    suspend fun await(): Array<TreeNode<Long>> {
+        calls += 1
+        return suspendCoroutine { value -> continuation = Some(value) }
+    }
+    fun complete(value: Array<TreeNode<Long>>) {
+        val next = continuation!!
+        continuation = None
+        next.resume(value)
+    }
+    fun fail() {
+        val next = continuation!!
+        continuation = None
+        next.resumeWithException(IllegalStateException(Some("load failed")))
+    }
+}
+
+private class TreeLoadEvents {
+    var loaded = 0;
+    var failed = 0
+}
+
+private class TreeLoadCompletion : Continuation<Unit> {
+    var finished = false
+    var error: Throwable? = None
+    public override fun resume(value: Unit) {
+        finished = true
+    }
+    public override fun resumeWithException(value: Throwable) {
+        error = Some(value);
+        finished = true
+    }
+}
+
+private fun runTreeLoading(body: suspend CoroutineScope.() -> Unit) {
+    val done = TreeLoadCompletion()
+    startCoroutine({ coroutineScope(body) }, done)
+    when (done.error) {
+        case Some(val error) -> throw error;
+        case None -> {}
+    }
+    assertTrue(done.finished)
+}
+
+private class TreeLoadOwner {
+    var scope: CoroutineScope? = None;
+    var model: TreeState<Long>? = None
+}
+
+/** A deterministic owner queue exercises cancellation before dispatch without another scheduler. */
+private class TreeLoadExecutor : CoroutineExecutor {
+    val queue = ArrayList<() -> Unit>()
+    val queued: Long get() = queue.size
+    public override fun registerTask(parent: ExecutorTask?): ExecutorTask = TreeLoadTicket(this)
+    fun runOne() {
+        queue.removeAt(0L)()
+    }
+}
+
+private class TreeLoadTicket(private val owner: TreeLoadExecutor) : ExecutorTask {
+    public override val executor: CoroutineExecutor get() = owner
+    public override fun dispatch(work: CoroutineWork) {
+        owner.queue.add { work.run() }
+    }
+    public override fun dispatchBlocking(work: BlockingWork) {
+        owner.queue.add { work.run() }
+    }
+    public override fun complete() {}
+}

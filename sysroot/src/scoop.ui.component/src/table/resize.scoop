@@ -8,6 +8,10 @@ import scoop.ui.style.Theme
 import scoop.window.*
 import scoop.window.accessibility.*
 
+internal enum TableResizeOrigin {
+    Programmatic, Pointer, Keyboard, Accessibility
+}
+
 internal class TableResizeInput(
     val width: Binding<Double?>,
     val size: TableColumnSize,
@@ -16,9 +20,16 @@ internal class TableResizeInput(
     val semantics: ComponentSemantics,
     val focus: FocusOptions = FocusOptions(),
     val onResizeStart: () -> Boolean = { true },
-    val onResizeEnd: ((TableColumnResizeEnd) -> Unit)? = None
+    val onResizeEnd: ((TableColumnResizeEnd) -> Unit)? = None,
+    val onWidthChange: ((Double?, TableResizeOrigin) -> Unit)? = None
 ) {
     val density = theme.tokens.typography.body.fontSize / 14.0
+    fun write(value: Double?, origin: TableResizeOrigin) {
+        when (onWidthChange) {
+            case Some(val change) -> change(value, origin)
+            case None -> width.value = value
+        }
+    }
 }
 
 private class TableResizeGesture(
@@ -27,6 +38,7 @@ private class TableResizeGesture(
     val density: Double,
     val direction: LayoutDirection,
     val binding: Binding<Double?>,
+    val write: (Double?, TableResizeOrigin) -> Unit,
     val onEnd: ((TableColumnResizeEnd) -> Unit)?
 ) {
     var expected = initial
@@ -35,15 +47,14 @@ private class TableResizeGesture(
 internal class TableResizeHeader(
     private val props: Props<TableResizeInput>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private val window = scope.nativeWindow
     private var accepted: Double? = None
     private var gesture: TableResizeGesture? = None
     private var cursor = false
-    private val area =
-        scope.createArea(focusable = true) {
-            context,
-            event -> if (context.phase == RoutedPhase.Notification) {
+    private val area = scope
+        .createArea(focusable = true) { context, event ->
+            if (context.phase == RoutedPhase.Notification) {
                 when (event) {
                     case FocusChanged(false) -> cancel();
                     else -> {}
@@ -56,8 +67,8 @@ internal class TableResizeHeader(
         }
     private val focus = scope.focusTarget(area, props.value.focus)
     private val semantics = createComponentSemantics(scope, SemanticRole.Separator)
-    private val drag =
-        scope.drag(
+    private val drag = scope
+        .drag(
             area,
             options(),
             { _ -> props.value.enabled && accepted != None },
@@ -65,122 +76,124 @@ internal class TableResizeHeader(
         )
     init {
         semantics?.bindFocus(Some(focus))
-        area.scope.defaultAction =
-            {
-                context,
-                event -> when (event) {
-                    case Keyboard(val key) -> {
-                        if (
-                            key.state ==
-                                ElementState.Pressed &&
-                                !key.synthetic &&
-                                area.isFocusActive &&
-                                props.value.enabled
-                        ) {
-                            when (key.logicalKey) {
-                                case Named(NamedKey.Escape) -> if (panelPresent(gesture)) {
-                                    cancel();
+        area.scope.defaultAction = { context, event ->
+            when (event) {
+                case Keyboard(val key) -> {
+                    if (key.state ==
+                        ElementState.Pressed &&
+                        !key.synthetic &&
+                        area.isFocusActive &&
+                        props.value.enabled
+                    ) {
+                        when (key.logicalKey) {
+                            case Named(NamedKey.Escape) ->
+                                if (panelPresent(gesture)) {
+                                    cancel(TableResizeOrigin.Keyboard);
                                     context.consume()
                                 }
-                                case Named(NamedKey.Home) -> {
-                                    cancel();
-                                    props.value.width.value = None;
-                                    context.consume()
-                                }
-                                case Named(NamedKey.ArrowLeft) -> {
-                                    adjust(false);
-                                    context.consume()
-                                }
-                                case Named(NamedKey.ArrowRight) -> {
-                                    adjust(true);
-                                    context.consume()
-                                }
-                                else -> {}
+
+                            case Named(NamedKey.Home) -> {
+                                cancel();
+                                props.value.write(None, TableResizeOrigin.Keyboard);
+                                context.consume()
                             }
+
+                            case Named(NamedKey.ArrowLeft) -> {
+                                adjust(false);
+                                context.consume()
+                            }
+
+                            case Named(NamedKey.ArrowRight) -> {
+                                adjust(true);
+                                context.consume()
+                            }
+
+                            else -> {}
                         }
                     }
-                    case Pointer(
-                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
-                    ) -> {
-                        if (props.value.enabled)
-                            focus.handle.requestFocus(FocusOrigin.Pointer)
-                    }
-                    else -> {}
                 }
+
+                case Pointer(
+                    InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                ) -> {
+                    if (props.value.enabled) focus.handle.requestFocus(FocusOrigin.Pointer)
+                }
+
+                else -> {}
             }
+        }
     }
-    private fun options(): DragOptions =
-        DragOptions(DragAxis.Horizontal, enabled = props.value.enabled)
+    private fun options(): DragOptions = DragOptions(
+        DragAxis.Horizontal,
+        enabled = props.value.enabled
+    )
     private fun adjust(forward: Boolean) {
         val width = accepted ?: return
-        val sign =
-            if (forward != (scope.layoutDirection == LayoutDirection.Rtl))
-                1.0
-            else
-                -1.0
-        props.value.width.value =
-            Some(props.value.size.constrain(lowerBound(width + sign * 10.0, 0.0)))
+        val sign = if (forward != (scope.layoutDirection == LayoutDirection.Rtl)) 1.0 else -1.0
+        props
+            .value
+            .write(
+                Some(props.value.size.constrain(lowerBound(width + sign * 10.0, 0.0))),
+                TableResizeOrigin.Keyboard
+            )
     }
     private fun setNumber(value: Double): SemanticActionResult {
-        if (!scope.isMounted)
-            return SemanticActionResult.Unavailable
-        if (!props.value.enabled)
-            return SemanticActionResult.Rejected
-        if (!value.isFinite() || value < 0.0)
-            return SemanticActionResult.InvalidArgument
-        if (accepted == None)
-            return SemanticActionResult.Unavailable
+        if (!scope.isMounted) return SemanticActionResult.Unavailable
+        if (!props.value.enabled) return SemanticActionResult.Rejected
+        if (!value.isFinite() || value < 0.0) return SemanticActionResult.InvalidArgument
+        if (accepted == None) return SemanticActionResult.Unavailable
         cancel()
-        if (!scope.isMounted)
-            return SemanticActionResult.Unavailable
+        if (!scope.isMounted) return SemanticActionResult.Unavailable
         val next = props.value.size.constrain(value)
-        props.value.width.value = Some(next)
-        if (!scope.isMounted)
-            return SemanticActionResult.Unavailable
+        props.value.write(Some(next), TableResizeOrigin.Accessibility)
+        if (!scope.isMounted) return SemanticActionResult.Unavailable
         return if (props.value.width.value == Some(next))
             SemanticActionResult.Completed
         else
             SemanticActionResult.Rejected
     }
     private fun stepNumber(amount: Double): SemanticActionResult {
-        val current =
-            props.value.width.value ?: (accepted ?: return SemanticActionResult.Unavailable)
+        val current = props.value.width.value ?:
+            (accepted ?: return SemanticActionResult.Unavailable)
         return setNumber(lowerBound(current + amount, 0.0))
     }
     private fun updateSemantics() {
         val input = props.value
-        val current =
-            when (accepted) {
-                case Some(val width) -> Some(input.size.constrain(input.width.value ?: width))
-                case None -> None
-            }
+        val current = when (accepted) {
+            case Some(val width) -> Some(input.size.constrain(input.width.value ?: width))
+            case None -> None
+        }
         semantics?.bindReference(input.semantics.reference)
-        semantics?.update(
-            input.semantics.properties(
-                enabled = input.enabled,
-                range =
-                    when (current) {
-                        case Some(val width) -> Some(
-                            SemanticValueRange(
-                                input.size.minimum,
-                                input.size.maximum ?: Double.MAX_VALUE,
-                                width,
-                                10.0
-                            )
-                        )
-                        case None -> None
-                    }
-            ).copy { orientation = Some(SemanticOrientation.Vertical) },
-            if (current != None)
-                SemanticActions(
-                    setNumber = Some { value -> setNumber(value) },
-                    increment = Some { stepNumber(10.0) },
-                    decrement = Some { stepNumber(-10.0) }
-                )
-            else
-                SemanticActions(),
-            input.semantics.relations
-        )
+        semantics
+            ?.update(
+                input
+                    .semantics
+                    .properties(
+                        enabled = input.enabled,
+                        range = when (current) {
+                            case Some(val width) ->
+                                Some(
+                                    SemanticValueRange(
+                                        input.size.minimum,
+                                        input.size.maximum ?: Double.MAX_VALUE,
+                                        width,
+                                        10.0
+                                    )
+                                )
+                            case None -> None
+                        }
+                    )
+                    .copy { orientation = Some(SemanticOrientation.Vertical) },
+                if (current != None)
+                    SemanticActions(
+                        setNumber = Some { value -> setNumber(value) },
+                        increment = Some { stepNumber(10.0) },
+                        decrement = Some { stepNumber(-10.0) }
+                    )
+                else
+                    SemanticActions(),
+                input.semantics.relations
+            )
     }
     private fun receive(event: DragEvent) {
         when (event) {
@@ -191,20 +204,22 @@ internal class TableResizeHeader(
                     drag.cancel()
                     return
                 }
-                gesture =
-                    Some(
-                        TableResizeGesture(
-                            width,
-                            props.value.width.value,
-                            props.value.density,
-                            scope.layoutDirection,
-                            props.value.width,
-                            start.onResizeEnd
-                        )
+                gesture = Some(
+                    TableResizeGesture(
+                        width,
+                        props.value.width.value,
+                        props.value.density,
+                        scope.layoutDirection,
+                        props.value.width,
+                        { value, origin -> start.write(value, origin) },
+                        start.onResizeEnd
                     )
+                )
                 move(sample.displacement)
             }
+
             case Moved(val sample) -> move(sample.displacement)
+
             case Ended(val sample) -> {
                 move(sample.displacement)
                 val previous = gesture
@@ -214,7 +229,8 @@ internal class TableResizeHeader(
                     case None -> {}
                 }
             }
-            case Cancelled(_, _) -> cancel()
+
+            case Cancelled(_, _) -> cancel(TableResizeOrigin.Pointer)
         }
         if (scope.isMounted) {
             updateCursor();
@@ -227,57 +243,53 @@ internal class TableResizeHeader(
             cancel();
             return
         }
-        val logical =
-            if (active.direction == LayoutDirection.Rtl)
-                -delta
-            else
-                delta
-        val next =
-            props.value.size.constrain(lowerBound(active.width + logical / active.density, 0.0))
+        val logical = if (active.direction == LayoutDirection.Rtl) -delta else delta
+        val next = props
+            .value
+            .size
+            .constrain(lowerBound(active.width + logical / active.density, 0.0))
         active.expected = Some(next)
-        props.value.width.value = Some(next)
-        if (scope.isMounted && props.value.width.value != active.expected)
-            cancel()
+        props.value.write(Some(next), TableResizeOrigin.Pointer)
+        if (scope.isMounted && props.value.width.value != active.expected) cancel()
     }
-    private fun cancel() {
+    private fun cancel(origin: TableResizeOrigin = TableResizeOrigin.Programmatic) {
         val active = gesture ?: return
         gesture = None
         drag.cancel()
         when (active.onEnd) {
             case Some(val finish) -> finish(TableColumnResizeEnd.Cancelled(active.initial))
-            case None -> if (active.binding.value == active.expected)
-                active.binding.value = active.initial
+            case None ->
+                if (active.binding.value == active.expected) active.write(active.initial, origin)
         }
     }
     private fun updateCursor() {
         val next = props.value.enabled && (area.scope.isHovered || drag.isDragging)
         if (next || cursor)
-            window.setCursorIcon(
-                if (next)
-                    CursorIcon.ResizeHorizontal
-                else
-                    CursorIcon.Default
-            )
+            window
+                .setCursorIcon(
+                    if (next) CursorIcon.ResizeHorizontal else CursorIcon.Default
+                )
         cursor = next
     }
     public override fun update(): UiInvalidation {
         when (gesture) {
-            case Some(val value) -> if (
-                props.value.width.value !=
+            case Some(val value) ->
+                if (props.value.width.value !=
                     value.expected ||
                     value.density !=
                     props.value.density ||
                     value.direction !=
                     scope.layoutDirection
-            )
-                cancel()
+                )
+                    cancel()
             case None -> {}
         }
-        drag.update(
-            options(),
-            { _ -> props.value.enabled && accepted != None },
-            { event -> receive(event) }
-        )
+        drag
+            .update(
+                options(),
+                { _ -> props.value.enabled && accepted != None },
+                { event -> receive(event) }
+            )
         area.scope.enabled = props.value.enabled
         focus.options = props.value.focus
         updateSemantics()
@@ -296,60 +308,54 @@ internal class TableResizeHeader(
         val density = input.density
         val size = context.size
         val width = size.width / density
-        context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
-                accepted =
-                    if (size.width > 0.0 && size.height > 0.0)
-                        Some(width)
-                    else
-                        None
-                if (accepted == None)
-                    cancel()
-                updateSemantics()
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
+                    accepted = if (size.width > 0.0 && size.height > 0.0) Some(width) else None
+                    if (accepted == None) cancel()
+                    updateSemantics()
+                }
             }
-        }
         context.children()
-        val x =
-            if (context.layoutDirection == LayoutDirection.Rtl)
-                0.0
-            else
-                lowerBound(size.width - 8.0 * density, 0.0)
-        val bounds =
-            Rect(
-                x,
-                4.0 * density,
-                lowerBound(upperBound(size.width, 8.0 * density), 0.0),
-                lowerBound(size.height - 8.0 * density, 0.0)
-            )
+        val x = if (context.layoutDirection == LayoutDirection.Rtl)
+            0.0
+        else
+            lowerBound(size.width - 8.0 * density, 0.0)
+        val bounds = Rect(
+            x,
+            4.0 * density,
+            lowerBound(upperBound(size.width, 8.0 * density), 0.0),
+            lowerBound(size.height - 8.0 * density, 0.0)
+        )
         context.place(area, bounds)
         when (semantics) {
             case Some(val handle) -> context.semantics(handle, bounds)
             case None -> {}
         }
         if (area.scope.isHovered || area.isFocusVisible || drag.isDragging)
-            context.draw {
-                paint ->
-                val color =
-                    if (area.isFocusVisible)
+            context
+                .draw { paint ->
+                    val color = if (area.isFocusVisible)
                         input.theme.tokens.palette.ring
                     else
                         input.theme.tokens.palette.border
-                paint.canvas.drawRect(
-                    Rect(
-                        bounds.x + bounds.width / 2.0 - density,
-                        bounds.y,
-                        2.0 * density,
-                        bounds.height
-                    ),
-                    Paint(color)
-                )
-            }
+                    paint
+                        .canvas
+                        .drawRect(
+                            Rect(
+                                bounds.x + bounds.width / 2.0 - density,
+                                bounds.y,
+                                2.0 * density,
+                                bounds.height
+                            ),
+                            Paint(color)
+                        )
+                }
     }
     public override fun onUnmount() {
         cancel();
-        if (
-            cursor &&
-                (window.state == WindowState.Open || window.state == WindowState.PendingConfigure)
+        if (cursor &&
+            (window.state == WindowState.Open || window.state == WindowState.PendingConfigure)
         )
             window.setCursorIcon(CursorIcon.Default)
     }
