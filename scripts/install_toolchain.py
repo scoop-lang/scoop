@@ -8,7 +8,6 @@ import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 
-from build_llvm import VERSION as LLVM_VERSION
 from build_support import RELEASE_CONFIG, ROOT
 from download_support import download_directory
 from package_toolchain import argument_parser, build_package
@@ -75,20 +74,21 @@ def local_dependencies(args):
     host = current_host()
     if host is None:
         return
-    prepared = dependencies / "build" / f"package-{host['rust_target']}"
-    if not prepared.is_dir():
-        return
-    args.work_dir = args.work_dir or prepared
-    args.llvm_source = args.llvm_source or prepared / f"inputs/llvm-project-{LLVM_VERSION}.src"
-    args.llvm_prefix = args.llvm_prefix or prepared / "llvm/installed"
-    args.debugger_prefix = args.debugger_prefix or prepared / "lldb/installed"
-    args.vscode_extension = args.vscode_extension or next(prepared.glob("tooling/*.vsix"), None)
+    prepared = args.work_dir or dependencies / "build" / f"package-{host['rust_target']}"
+    suffix = ".exe" if os.name == "nt" else ""
+    if prepared.is_dir():
+        args.work_dir = prepared
+        llvm = prepared / "llvm/installed"
+        if args.llvm_prefix is None and (llvm / "bin" / ("llvm-config" + suffix)).is_file():
+            args.llvm_prefix = llvm
+        lldb = prepared / "lldb/installed"
+        if args.debugger_prefix is None and (lldb / "bin" / ("lldb" + suffix)).is_file():
+            args.debugger_prefix = lldb
+        args.vscode_extension = args.vscode_extension or next(prepared.glob("tooling/*.vsix"), None)
     if args.gn == "gn":
-        args.gn = str(dependencies / "tools/gn")
-    os.environ.setdefault("CARGO_HOME", str(dependencies / "cargo"))
-    os.environ.setdefault("CARGO_NET_OFFLINE", "true")
-    os.environ.setdefault("npm_config_cache", str(dependencies / "npm-cache"))
-    os.environ.setdefault("npm_config_offline", "true")
+        gn = dependencies / "gn" / ("gn" + suffix)
+        if gn.is_file():
+            args.gn = str(gn)
 
 
 def main(argv=None):

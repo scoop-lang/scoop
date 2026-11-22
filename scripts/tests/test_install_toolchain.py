@@ -12,6 +12,116 @@ import install_toolchain
 import package_manifest
 
 
+class LocalDependenciesTests(unittest.TestCase):
+    def setUp(self):
+        work = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        self.dependencies = work / "scoop-dep"
+        self.prepared = self.dependencies / "build/package-aarch64-apple-darwin"
+        self.prepared.mkdir(parents=True)
+        self.gn = self.dependencies / "gn" / ("gn.exe" if os.name == "nt" else "gn")
+        self.enterContext(patch.object(install_toolchain, "ROOT", work / "scoop"))
+        self.enterContext(
+            patch.object(
+                install_toolchain,
+                "current_host",
+                return_value={"rust_target": "aarch64-apple-darwin"},
+            )
+        )
+        self.enterContext(patch.dict(os.environ, {}, clear=True))
+
+    def arguments(self, *extra):
+        return install_toolchain.argument_parser(include_version=False).parse_args(
+            [
+                "--download-dir",
+                str(self.dependencies / "downloads"),
+                "--work-dir",
+                str(self.prepared),
+                *extra,
+            ]
+        )
+
+    def test_preserves_cargo_and_npm_configuration(self):
+        for environment in (
+            {},
+            {
+                "CARGO_HOME": str(self.dependencies / "custom-cargo"),
+                "CARGO_NET_OFFLINE": "false",
+                "npm_config_cache": str(self.dependencies / "custom-npm"),
+                "npm_config_offline": "false",
+            },
+        ):
+            with self.subTest(environment=environment), patch.dict(os.environ, environment):
+                install_toolchain.local_dependencies(self.arguments())
+
+                self.assertEqual(dict(os.environ), environment)
+
+    def test_uses_existing_local_gn(self):
+        self.gn.parent.mkdir()
+        self.gn.touch()
+        args = self.arguments()
+
+        install_toolchain.local_dependencies(args)
+
+        self.assertEqual(args.gn, str(self.gn))
+
+    def test_keeps_path_lookup_when_local_gn_is_absent(self):
+        args = self.arguments()
+
+        install_toolchain.local_dependencies(args)
+
+        self.assertEqual(args.gn, "gn")
+
+    def test_preserves_explicit_gn(self):
+        self.gn.parent.mkdir()
+        self.gn.touch()
+        args = self.arguments("--gn", "custom-gn")
+
+        install_toolchain.local_dependencies(args)
+
+        self.assertEqual(args.gn, "custom-gn")
+
+    def test_missing_resources_use_normal_package_preparation(self):
+        args = self.arguments()
+
+        install_toolchain.local_dependencies(args)
+
+        self.assertIsNone(args.llvm_source)
+        self.assertIsNone(args.llvm_prefix)
+        self.assertIsNone(args.debugger_prefix)
+        self.assertIsNone(args.vscode_extension)
+
+    def test_reuses_resources_in_the_selected_work_directory(self):
+        work = self.dependencies / "custom-work"
+        suffix = ".exe" if os.name == "nt" else ""
+        for relative in (
+            "llvm/installed/bin/llvm-config" + suffix,
+            "lldb/installed/bin/lldb" + suffix,
+            "tooling/scoop.vsix",
+        ):
+            path = work / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        args = self.arguments("--work-dir", str(work))
+
+        install_toolchain.local_dependencies(args)
+
+        self.assertEqual(args.work_dir, work)
+        self.assertEqual(args.llvm_prefix, work / "llvm/installed")
+        self.assertEqual(args.debugger_prefix, work / "lldb/installed")
+        self.assertEqual(args.vscode_extension, work / "tooling/scoop.vsix")
+
+    def test_reuses_gn_before_the_first_build(self):
+        self.gn.parent.mkdir()
+        self.gn.touch()
+        args = self.arguments("--work-dir", str(self.dependencies / "first-build"))
+
+        install_toolchain.local_dependencies(args)
+
+        self.assertEqual(args.gn, str(self.gn))
+        self.assertIsNone(args.llvm_prefix)
+        self.assertIsNone(args.debugger_prefix)
+
+
 class InstallToolchainTests(unittest.TestCase):
     def setUp(self):
         work = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()

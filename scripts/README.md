@@ -214,6 +214,8 @@ python3 scripts/install_toolchain.py --install-dir "$HOME/.scoop-dev" --jobs 6
 
 脚本沿用上节的完整打包流程与构建依赖。可传入 `--work-dir`、`--download-dir`、`--llvm-prefix`、`--debugger-prefix` 等打包选项复用已有构建资源。每次生成独立的本地版本，归档和 manifest 默认留在 `tmp/dist`，可用 `--output-dir` 改位置。后续为本地版本追加目标或组件时仍需这些文件。可用 `--skip-docs` 暂缓生成离线 API 文档，之后用 `scoop-install docs` 补齐。
 
+复用本地依赖时，使用所选工作目录中已有的 LLVM／LLDB 和 VSIX；缺失时由打包入口正常下载源码并构建。未指定 `--gn` 时可复用已有的 `scoop-dep/gn/gn`（Windows 为 `gn.exe`）；该文件不存在时沿用 `PATH` 中的 `gn`。Cargo／npm 继续使用调用环境与工具自身的缓存、联网配置，缺失依赖正常下载；`--download-dir` 和 `--work-dir` 不会切换它们的缓存目录或强制离线。
+
 ## GitHub Release
 
 [Release workflow](../.github/workflows/release.yml) 在推送 `vMAJOR.MINOR.PATCH`（可带预发布和 build metadata）tag 时执行，也可通过 `workflow_dispatch` 指定已有 tag 重跑。三个构建任务使用 `xcode-27`（macOS 27.0.1 AArch64）、`windows-2025`（x64）和 `ubuntu-26.04`（x64），按 `release.toml` 的固定版本准备 LLVM、Windows Rust 与 LLVM-MinGW，并复用匹配的 LLVM／LLDB SDK 缓存。
