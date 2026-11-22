@@ -26,7 +26,7 @@ class DownloadTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="downloads with spaces-")
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.requests = []
         self.body = b"fixed upstream input"
         self.interrupted = False

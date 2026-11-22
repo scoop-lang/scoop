@@ -976,6 +976,8 @@ MIR `identity-foundation/6` 与 LIR foundation 保存实际实现的实体目录
 
 `scripts/package_toolchain.py` 是安装包的单一构建入口，负责 LLVM 输入准备、宿主命令、该宿主支持的目标 native／runtime、系统 `.slib` 和 VS Code 扩展。组件组成遵守第 1 节与[发行组件设计](../distribution/DESIGN.md)：每宿主一个 bin、每目标 base／可选 GUI、两个 MinGW 目标各一个 native，以及全局 sources／vendor。所有组件以安装根内容为归档顶层，合并解压即可使用。系统 `.slib` 由本次编译器预编译，按既有格式／目标／ABI 合同消费。同一 release 按相同版本成组选取，不另做跨版本混装校验。
 
+`scripts/install_toolchain.py` 复用该入口更新本地工具链；自动选择本地依赖资源时只复用实际存在的资源，LLVM／LLDB 和扩展缺失时继续由打包入口按原流程下载／构建，保留显式工具参数。下载／工作目录选择不改变 Cargo 或 npm 的缓存与联网配置，这些配置继续由调用环境及相应工具管理，缺失依赖按工具的正常流程下载。
+
 归档输出至 `tmp/dist/scoop-<version>/` 或显式输出目录，全部成功后写入 `packages-<host>.list`；发布侧只从该清单选取本次附件。安装根继续包含 `bin`、`commands`、`lib/<target>`、`include`、`src`、`vendor`、`native`、`libexec`、`share`、`tooling` 和 post-install 入口。commands 按原内容和 executable 权限复制，空目录仍进入包，`.gitkeep` 不进入包。VSIX 按 npm lockfile 构建，源码 revision、版本与宿主写入纯文本 VERSION 和说明性 toolchain.toml；docs 由安装后生成。默认 LLVM 输入缺失时由维护脚本取得固定上游归档，显式输入失败照常报错。宿主／目标集合不变，Darwin AArch64 同时发行两个 Darwin 目标，Linux GNU 同时发行 GNU／musl。
 
 Windows 默认工具选择分别保存实际宿主安装根与所选 Scoop sysroot：Clang／LLD、Clang builtin headers 和 MinGW 公共头取自宿主安装根，目标 SDK 取自 `<sysroot>/lib/<target>/toolchain`。generated-C、native C/C++、RC 预处理和最终链接消费同一次解析结果；目标配置头优先于公共头，C++ 另加配置与公共 libc++ 目录，Clang resource-dir 指向目标 compiler-rt，并显式保留宿主 builtin include。最终 driver／linker 不从目标数据包寻找。显式完整外部 native prefix 仍使用自身的头、库与工具，不混入随包公共头。Scoop sysroot 加入 target request 的 field 3；compiler protocol 为 34，按同一请求传递实际调用配置，删除原调用配置中的工具输入指纹，不保存 native 工具巡检记录，不改 `.slib` 或 runtime ABI。
