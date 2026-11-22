@@ -12,11 +12,17 @@ pub struct TextStubInterface {
 }
 
 pub fn read_text_stubs(
-    machine: scoop_slib::MachOArchitecture,
+    architecture: TargetArchitecture,
+    platform: ApplePlatform,
     bytes: &[u8],
     deployment: DarwinPackedVersionV1,
     system: bool,
 ) -> Result<Vec<TextStubInterface>, ToolchainError> {
+    let source = if system {
+        StubSource::Sdk
+    } else {
+        StubSource::Explicit
+    };
     let records: Vec<_> =
         parse(bytes)?
             .into_iter()
@@ -34,8 +40,14 @@ pub fn read_text_stubs(
                 }
                 let mut exports = BTreeMap::new();
                 let mut reexports = Vec::new();
-                let directives =
-                    record.collect(machine, deployment, system, &mut exports, &mut reexports)?;
+                let directives = record.collect(
+                    architecture,
+                    platform,
+                    deployment,
+                    source,
+                    &mut exports,
+                    &mut reexports,
+                )?;
                 Ok(TextStubInterface {
                     install_name: directives.install_name.unwrap_or(record.install_name),
                     current_version: record.current_version,
@@ -70,7 +82,8 @@ pub fn read_text_stubs(
 }
 
 pub fn write_link_stub(
-    machine: scoop_slib::MachOArchitecture,
+    architecture: TargetArchitecture,
+    platform: ApplePlatform,
     install_name: &str,
     current_version: u32,
     compatibility_version: u32,
@@ -92,14 +105,15 @@ pub fn write_link_stub(
             }
         }
     }
+    let target = target_name(architecture, platform);
     let value = Stub {
         tbd_version: 4,
-        targets: [machine.text_stub_target()],
+        targets: [&target],
         install_name,
         current_version: version_text(current_version),
         compatibility_version: version_text(compatibility_version),
         exports: [ExportList {
-            targets: [machine.text_stub_target()],
+            targets: [&target],
             symbols,
             weak_symbols,
             thread_local_symbols,

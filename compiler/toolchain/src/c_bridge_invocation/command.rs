@@ -8,12 +8,14 @@ impl ValidatedCBridgeToolchainInvocation {
             CBridgeCommandParameters::Darwin {
                 sdk_root,
                 minimum_os,
+                platform,
+                triple,
             } => canonical_object_compilation_command(
                 &self.compiler_driver,
                 sdk_root,
-                self.profile.contract().canonical_triple(),
+                triple,
                 scoop_target_data::darwin_c_bridge_flags(self.target),
-                minimum_os.to_string(),
+                format!("{}={minimum_os}", platform.minimum_version_flag()),
                 self.environment(),
                 self.optimization,
                 source,
@@ -83,7 +85,7 @@ fn canonical_object_compilation_command(
     sdk_root: &Path,
     canonical_triple: &str,
     flags: CanonicalCBridgeFlagContractV1,
-    minimum_os: String,
+    minimum_os_argument: String,
     environment: CBridgeEnvironmentProjectionV1,
     optimization: scoop_lir::OptimizationMode,
     source: &Path,
@@ -104,7 +106,7 @@ fn canonical_object_compilation_command(
                 command.arg("-isysroot").arg(sdk_root);
             }
             CanonicalCBridgeFlagV1::ExplicitMinimumDeployment => {
-                command.arg(format!("-mmacosx-version-min={minimum_os}"));
+                command.arg(&minimum_os_argument);
             }
             CanonicalCBridgeFlagV1::C11 => {
                 command.arg("-std=c11");

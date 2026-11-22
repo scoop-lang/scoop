@@ -1,10 +1,27 @@
 use super::*;
+use scoop_lir::TargetArchitecture;
+use scoop_target_data::{ApplePlatform, apple_architecture};
 use serde::Deserialize;
 mod directives;
 mod interface;
 pub use directives::PreviousExport;
 pub(super) use directives::StubDirectives;
 pub use interface::{TextStubInterface, read_text_stubs, write_link_stub};
+
+fn target_name(architecture: TargetArchitecture, platform: ApplePlatform) -> String {
+    format!(
+        "{}-{}",
+        apple_architecture(architecture),
+        platform.linker_name()
+    )
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum StubSource {
+    Explicit,
+    Sdk,
+    SdkReexport,
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
@@ -96,34 +113,59 @@ pub(super) fn parse(bytes: &[u8]) -> Result<Vec<Record>, ToolchainError> {
 }
 
 impl Record {
+    fn target(
+        &self,
+        architecture: TargetArchitecture,
+        platform: ApplePlatform,
+        source: StubSource,
+    ) -> Option<&str> {
+        let ordinary = target_name(architecture, platform);
+        let arm64e = (!matches!(source, StubSource::Explicit)
+            && architecture == TargetArchitecture::Aarch64)
+            .then(|| format!("arm64e-{}", platform.linker_name()));
+        for target in [Some(ordinary.as_str()), arm64e.as_deref()]
+            .into_iter()
+            .flatten()
+        {
+            if let Some(found) = self.targets.iter().find(|candidate| *candidate == target) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
     pub(super) fn collect(
         &self,
-        machine: scoop_slib::MachOArchitecture,
+        architecture: TargetArchitecture,
+        platform: ApplePlatform,
         deployment: DarwinPackedVersionV1,
-        system: bool,
+        source: StubSource,
         exports: &mut BTreeMap<String, NativeExport>,
         pending: &mut Vec<String>,
     ) -> Result<StubDirectives, ToolchainError> {
-        let ordinary = machine.text_stub_target();
-        let candidates = if system {
-            machine.system_text_stub_targets()
-        } else {
-            std::slice::from_ref(&ordinary)
-        };
-        let target = candidates
-            .iter()
-            .find(|target| self.targets.iter().any(|value| value == *target))
+        let selected = self.target(architecture, platform, source);
+        let target = selected
+            .or_else(|| {
+                if matches!(source, StubSource::SdkReexport)
+                    && platform == ApplePlatform::IosSimulator
+                {
+                    self.target(architecture, ApplePlatform::MacOs, source)
+                } else {
+                    None
+                }
+            })
             .ok_or_else(|| {
                 ToolchainError::new(
                     scoop_source::DiagnosticCode::E2303,
                     format!(
-                        "SDK {} has no compatible {ordinary} target",
-                        self.install_name
+                        "SDK {} has no compatible {} target",
+                        self.install_name,
+                        target_name(architecture, platform),
                     ),
                 )
             })?;
         for library in &self.reexported_libraries {
-            if library.targets.iter().any(|value| value == *target) {
+            if library.targets.iter().any(|value| value == target) {
                 pending.extend(library.libraries.iter().cloned());
             }
         }
@@ -132,12 +174,14 @@ impl Record {
             .exports
             .iter()
             .chain(&self.reexports)
-            .filter(|section| section.targets.iter().any(|value| value == *target))
+            .filter(|section| section.targets.iter().any(|value| value == target))
         {
             for (symbols, weak) in [(&section.symbols, false), (&section.weak_symbols, true)] {
                 for symbol in symbols {
                     if symbol.starts_with("$ld$") {
-                        directives.push(symbol);
+                        if selected.is_some() {
+                            directives.push(symbol);
+                        }
                     } else {
                         insert(
                             exports,
@@ -184,7 +228,7 @@ impl Record {
         }
         let mut result = StubDirectives::default();
         for directive in directives {
-            result.apply(exports, directive, deployment)?;
+            result.apply(exports, directive, platform, deployment)?;
         }
         Ok(result)
     }

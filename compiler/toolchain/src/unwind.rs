@@ -20,25 +20,24 @@ pub fn runtime_unwind_include(
     target: LirTargetProfile,
     prefix: Option<&Path>,
 ) -> Result<Option<PathBuf>, ToolchainError> {
-    let os = scoop_target_data::definition(target.id())
+    let backend = scoop_target_data::definition(target.id())
         .ok_or_else(|| {
             ToolchainError::new(
                 scoop_source::DiagnosticCode::E2307,
                 "unknown runtime target".into(),
             )
         })?
-        .os;
-    match os {
-        scoop_target_data::TargetOs::Darwin => {
-            if prefix.is_some() {
-                return Err(ToolchainError::new(
-                    scoop_source::DiagnosticCode::E2307,
-                    "Darwin runtime uses the SDK unwind headers".into(),
-                ));
-            }
-            return Ok(None);
+        .selection
+        .backend()
+        .contract();
+    if backend.unwind_provider == scoop_lir::UnwindProviderV1::DarwinLibSystem {
+        if prefix.is_some() {
+            return Err(ToolchainError::new(
+                scoop_source::DiagnosticCode::E2307,
+                "Darwin runtime uses the SDK unwind headers".into(),
+            ));
         }
-        scoop_target_data::TargetOs::Linux | scoop_target_data::TargetOs::Windows => {}
+        return Ok(None);
     }
     let prefix = selected_unwind_prefix(target, None, prefix)?;
     let include = prefix.join("include");

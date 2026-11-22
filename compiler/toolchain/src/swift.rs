@@ -71,10 +71,9 @@ impl SwiftBuildRequest {
         cache_root: &Path,
     ) -> Result<Self, ToolchainError> {
         if !cfg!(target_os = "macos")
-            || !matches!(
-                target.canonical_triple(),
-                "aarch64-apple-darwin" | "x86_64-apple-darwin"
-            )
+            || scoop_target_data::named_target(target.canonical_triple())
+                .and_then(|definition| definition.apple_platform())
+                != Some(scoop_target_data::ApplePlatform::MacOs)
         {
             return Err(error(
                 "Swift package production requires a macOS host and macOS target",

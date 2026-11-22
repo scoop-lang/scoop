@@ -26,6 +26,15 @@ pub(super) fn read<'a>(
     let mut rpaths = Vec::new();
     let mut builds = 0;
     let mut base = None;
+    let target_platform = super::platform(profile)?;
+    let minimum_os = profile
+        .startup_toolchain()
+        .profile()
+        .contract()
+        .deployment()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
+        .minimum_os()
+        .packed();
     while let Some(command) = commands
         .next()
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
@@ -33,18 +42,8 @@ pub(super) fn read<'a>(
         if let Some((platform, minimum)) =
             crate::native_object::deployment_record(&command, endian)?
         {
-            // Zippered inputs also describe Mac Catalyst; select macOS.
-            if platform == macho::PLATFORM_MACOS {
-                if minimum
-                    > profile
-                        .startup_toolchain()
-                        .profile()
-                        .contract()
-                        .deployment()
-                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?
-                        .minimum_os()
-                        .packed()
-                {
+            if platform == target_platform.macho_platform() {
+                if minimum > minimum_os {
                     return Err(error(
                         scoop_source::DiagnosticCode::E2305,
                         "native dylib has incompatible platform/deployment",
@@ -207,7 +206,10 @@ pub(super) fn read<'a>(
     if builds != 1 {
         return Err(error(
             scoop_source::DiagnosticCode::E2305,
-            "native dylib requires one macOS deployment record",
+            format!(
+                "native dylib requires one {} deployment record",
+                target_platform.name()
+            ),
         ));
     }
     Ok(Commands {

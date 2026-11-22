@@ -12,6 +12,7 @@ use std::process::Command;
 mod command;
 
 use scoop_lir::{CBridgeEnvironmentProjectionV1, CBridgeToolchainProfileV1, LirTargetProfile};
+use scoop_target_data::ApplePlatform;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedCBridgeToolchainInvocation {
@@ -27,6 +28,8 @@ enum CBridgeCommandParameters {
     Darwin {
         sdk_root: PathBuf,
         minimum_os: scoop_lir::DarwinPackedVersionV1,
+        platform: ApplePlatform,
+        triple: &'static str,
     },
     Linux {
         native_sysroot: Option<PathBuf>,
@@ -43,14 +46,17 @@ impl ValidatedCBridgeToolchainInvocation {
         compiler_driver: PathBuf,
         sdk_root: PathBuf,
     ) -> Result<Self, CBridgeToolchainInvocationError> {
-        if !matches!(
-            scoop_target_data::definition(target.id()).map(|definition| definition.os),
-            Some(scoop_target_data::TargetOs::Darwin)
-        ) {
-            return Err(CBridgeToolchainInvocationError::Platform(
+        let definition = scoop_target_data::definition(target.id()).ok_or(
+            CBridgeToolchainInvocationError::Platform(
                 scoop_lir::CBridgePlatformError::ExpectedDarwin,
-            ));
-        }
+            ),
+        )?;
+        let platform =
+            definition
+                .apple_platform()
+                .ok_or(CBridgeToolchainInvocationError::Platform(
+                    scoop_lir::CBridgePlatformError::ExpectedDarwin,
+                ))?;
         if !compiler_driver.is_absolute() {
             return Err(CBridgeToolchainInvocationError::RelativeCompilerDriver);
         }
@@ -70,6 +76,8 @@ impl ValidatedCBridgeToolchainInvocation {
             parameters: CBridgeCommandParameters::Darwin {
                 sdk_root,
                 minimum_os,
+                platform,
+                triple: definition.llvm_triple,
             },
         };
         value.validate_target(target)?;
@@ -115,6 +123,13 @@ impl ValidatedCBridgeToolchainInvocation {
             CBridgeCommandParameters::Linux { .. } | CBridgeCommandParameters::Windows(_) => {
                 Err(scoop_lir::CBridgePlatformError::ExpectedDarwin)
             }
+        }
+    }
+
+    pub const fn apple_platform(&self) -> Option<ApplePlatform> {
+        match self.parameters {
+            CBridgeCommandParameters::Darwin { platform, .. } => Some(platform),
+            CBridgeCommandParameters::Linux { .. } | CBridgeCommandParameters::Windows(_) => None,
         }
     }
 
@@ -246,12 +261,14 @@ impl ValidatedCBridgeToolchainInvocation {
             CBridgeCommandParameters::Darwin {
                 sdk_root,
                 minimum_os,
+                platform,
+                triple,
             } => {
                 command
-                    .args(["-target", self.profile.contract().canonical_triple()])
+                    .args(["-target", triple])
                     .arg("-isysroot")
                     .arg(sdk_root)
-                    .arg(format!("-mmacosx-version-min={minimum_os}"));
+                    .arg(format!("{}={minimum_os}", platform.minimum_version_flag()));
                 if self.target.architecture() == scoop_lir::TargetArchitecture::X86_64 {
                     command.arg("-march=x86-64");
                 }

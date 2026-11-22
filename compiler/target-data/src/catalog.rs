@@ -4,6 +4,7 @@ use scoop_lir::{LirTargetProfile, TargetArchitecture, ValidatedLirTargetSelectio
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetOs {
     Darwin,
+    Ios,
     Linux,
     Windows,
 }
@@ -12,6 +13,7 @@ impl TargetOs {
     pub const fn source_name(self) -> &'static str {
         match self {
             Self::Darwin => "darwin",
+            Self::Ios => "ios",
             Self::Linux => "linux",
             Self::Windows => "windows",
         }
@@ -36,8 +38,8 @@ pub enum FinalLinkProfile {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CodegenDeploymentProfile {
-    Darwin,
+pub enum DeploymentProfile {
+    Apple(crate::ApplePlatform),
     Linux,
     Windows,
 }
@@ -87,7 +89,7 @@ pub struct TargetDefinition {
     pub architecture: TargetArchitecture,
     pub env: &'static str,
     pub llvm_triple: &'static str,
-    pub codegen_deployment: CodegenDeploymentProfile,
+    pub deployment: DeploymentProfile,
     pub native_environment: NativeEnvironment,
     pub final_link: FinalLinkProfile,
     pub c_bridge_profile: &'static str,
@@ -103,6 +105,13 @@ impl TargetDefinition {
 
     pub const fn source_os(self) -> &'static str {
         self.os.source_name()
+    }
+
+    pub const fn apple_platform(self) -> Option<crate::ApplePlatform> {
+        match self.deployment {
+            DeploymentProfile::Apple(platform) => Some(platform),
+            DeploymentProfile::Linux | DeploymentProfile::Windows => None,
+        }
     }
 
     pub const fn source_arch(self) -> &'static str {

@@ -1,6 +1,9 @@
 //! Static target contracts shared by codegen and artifact consumers.
 //! This crate contains no LLVM initialization, ABI classifier, or tool execution.
 
+mod apple;
+pub use apple::*;
+
 mod backend;
 pub use backend::*;
 

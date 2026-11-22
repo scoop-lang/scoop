@@ -58,11 +58,13 @@ pub(crate) fn resolve(
     let target = selection.target();
     let definition = scoop_target_data::definition(target.id()).expect("selected target");
     let invocation = match definition.os {
-        scoop_target_data::TargetOs::Darwin => crate::c_bridge::probe_system_c_bridge_toolchain(
-            target,
-            options.compiler.as_deref(),
-            options.native_sysroot.as_deref(),
-        )?,
+        scoop_target_data::TargetOs::Darwin | scoop_target_data::TargetOs::Ios => {
+            crate::c_bridge::probe_system_c_bridge_toolchain(
+                target,
+                options.compiler.as_deref(),
+                options.native_sysroot.as_deref(),
+            )?
+        }
         scoop_target_data::TargetOs::Windows => crate::windows_c::resolve_default(
             target,
             options.native_sysroot.as_deref(),

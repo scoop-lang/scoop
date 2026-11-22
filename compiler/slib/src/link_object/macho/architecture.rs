@@ -50,18 +50,4 @@ impl MachOArchitecture {
             Self::X86_64 => scoop_lir::ObjectMachineV1::X86_64,
         }
     }
-
-    pub const fn text_stub_target(self) -> &'static str {
-        match self {
-            Self::Aarch64 => "arm64-macos",
-            Self::X86_64 => "x86_64-macos",
-        }
-    }
-
-    pub const fn system_text_stub_targets(self) -> &'static [&'static str] {
-        match self {
-            Self::Aarch64 => &["arm64-macos", "arm64e-macos"],
-            Self::X86_64 => &["x86_64-macos"],
-        }
-    }
 }

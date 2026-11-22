@@ -19,10 +19,11 @@ impl StubDirectives {
         &mut self,
         exports: &mut BTreeMap<String, NativeExport>,
         directive: &str,
+        platform: ApplePlatform,
         deployment: DarwinPackedVersionV1,
     ) -> Result<(), ToolchainError> {
         if let Some(previous) = directive.strip_prefix("$ld$previous$") {
-            return self.previous(exports, previous, deployment);
+            return self.previous(exports, previous, platform, deployment);
         }
         let mut parts = directive.trim_start_matches("$ld$").splitn(3, '$');
         let operation = parts.next().unwrap_or_default();
@@ -60,6 +61,7 @@ impl StubDirectives {
         &mut self,
         exports: &mut BTreeMap<String, NativeExport>,
         directive: &str,
+        target: ApplePlatform,
         deployment: DarwinPackedVersionV1,
     ) -> Result<(), ToolchainError> {
         let fields: Vec<_> = directive.splitn(6, '$').collect();
@@ -74,8 +76,10 @@ impl StubDirectives {
         if name.is_empty() || start >= end {
             return Err(invalid(directive));
         }
-        // Mach-O platform 1 is macOS; the interval includes start and excludes end.
-        if platform != 1 || deployment.packed() < start || deployment.packed() >= end {
+        if platform != target.macho_platform()
+            || deployment.packed() < start
+            || deployment.packed() >= end
+        {
             return Ok(());
         }
         if symbol.is_empty() {

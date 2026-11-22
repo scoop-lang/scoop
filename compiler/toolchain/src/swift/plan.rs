@@ -154,11 +154,9 @@ impl BuildPlan {
                 libraries.insert(library);
             }
         }
-        let architecture = if request.target.canonical_triple() == "aarch64-apple-darwin" {
-            "arm64"
-        } else {
-            "x86_64"
-        };
+        let target = scoop_target_data::named_target(request.target.canonical_triple())
+            .ok_or_else(|| error("Swift package production requires a registered target"))?;
+        let architecture = scoop_target_data::apple_architecture(target.architecture);
         let mut result = Vec::new();
         for library in libraries {
             let framework = library.extension().is_some_and(|ext| ext == "framework");

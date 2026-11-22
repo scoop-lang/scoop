@@ -16,6 +16,17 @@ mod plan;
 mod read;
 mod stub;
 
+fn platform(
+    profile: &ValidatedFinalLinkProfile,
+) -> Result<scoop_target_data::ApplePlatform, LinkError> {
+    profile.startup_toolchain().apple_platform().ok_or_else(|| {
+        error(
+            scoop_source::DiagnosticCode::ICE2201,
+            "Mach-O input requires an Apple deployment platform",
+        )
+    })
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) struct NativeDynamicProviderId(Digest256);
 impl std::fmt::Display for NativeDynamicProviderId {

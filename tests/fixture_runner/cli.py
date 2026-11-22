@@ -31,6 +31,22 @@ from .suite import run_suite
 from .targets import applicable as target_applicable
 from .values import references
 
+APPLE_COMPANIONS = {
+    "MacOs": (
+        "macosx",
+        "MACOSX_DEPLOYMENT_TARGET",
+        "-mmacosx-version-min",
+        "macosx{minimum}",
+    ),
+    "Ios": ("iphoneos", "IPHONEOS_DEPLOYMENT_TARGET", "-miphoneos-version-min", "ios{minimum}"),
+    "IosSimulator": (
+        "iphonesimulator",
+        "IPHONEOS_DEPLOYMENT_TARGET",
+        "-mios-simulator-version-min",
+        "ios{minimum}-simulator",
+    ),
+}
+
 
 def arguments(argv):
     parser = argparse.ArgumentParser(description="Run declared Scoop process fixtures")
@@ -150,6 +166,8 @@ def environment(repo, work, fixtures, args):
         args.cache_dir or os.environ.get("SCOOP_CACHE_DIR") or repo / "target/fixture-cache"
     ).resolve()
     sysroot = Path(args.sysroot or os.environ.get("SCOOP_SYSROOT") or repo / "sysroot").resolve()
+    target_definition = TARGETS[target]
+    apple = APPLE_COMPANIONS.get(target_definition["deployment"])
     common = {
         "repo": str(repo),
         "runtime": str(repo / "runtime"),
@@ -163,7 +181,7 @@ def environment(repo, work, fixtures, args):
         "target_facts": {key: TARGETS[target][key] for key in ("os", "arch", "env")},
         "llvm_target": TARGETS[target]["llvm_triple"],
         "target_profile": TARGETS[target]["profile"],
-        "symbol_prefix": "_" if TARGETS[target]["os"] == "darwin" else "",
+        "symbol_prefix": "_" if apple is not None else "",
         "errno_eloop": errno.ELOOP,
         "file_not_found_error": f"{missing_file} (os error 2)",
         "directory_write_error": f"{output_directory} (os error {directory_error})",
@@ -184,7 +202,7 @@ def environment(repo, work, fixtures, args):
     if target_os in {"linux", "windows"}:
         if args.unwind_prefix:
             common["link_args"] += ["--unwind-prefix", str(args.unwind_prefix.resolve())]
-    elif target_os != "darwin":
+    elif apple is None:
         raise EnvironmentError(f"no fixture final-link companion for target OS {target_os!r}")
     if args.linker:
         common["link_args"] += ["--linker", str(args.linker.resolve())]
@@ -246,26 +264,27 @@ def environment(repo, work, fixtures, args):
         if not re.search(r"\bversion 22\.1(?:\.|\b)", tool_output([located, "--version"])):
             raise EnvironmentError(f"IR companions require LLVM 22.1: {located}")
         common["llc"] = located
-    if needed & {"cc", "ar"} and target_os == "darwin":
+    if needed & {"cc", "ar"} and apple is not None:
+        sdk, minimum_variable, minimum_flag, _ = apple
         common.update(
             cc_family="clang",
             cc=str(args.cc.absolute())
             if args.cc
-            else tool_output(["/usr/bin/xcrun", "--find", "clang"]),
+            else tool_output(["/usr/bin/xcrun", "--sdk", sdk, "--find", "clang"]),
             ar=str(args.ar.resolve())
             if args.ar
-            else tool_output(["/usr/bin/xcrun", "--find", "ar"]),
+            else tool_output(["/usr/bin/xcrun", "--sdk", sdk, "--find", "ar"]),
             sdk=str(args.native_sysroot.resolve())
             if args.native_sysroot
-            else tool_output(["/usr/bin/xcrun", "--sdk", "macosx", "--show-sdk-path"]),
-            deployment=darwin_deployment(repo, target),
+            else tool_output(["/usr/bin/xcrun", "--sdk", sdk, "--show-sdk-path"]),
+            deployment=apple_minimum_os(repo, target, minimum_variable),
         )
         common["cc_args"] = [
             "-target",
             TARGETS[target]["llvm_triple"],
             "-isysroot",
             common["sdk"],
-            "-mmacosx-version-min=" + common["deployment"],
+            minimum_flag + "=" + common["deployment"],
         ]
     elif needed & {"cc", "ar"} and target_os == "windows":
         from .windows_tools import companions
@@ -298,12 +317,13 @@ def environment(repo, work, fixtures, args):
                 common["cc_args"].append("--sysroot=" + str(args.native_sysroot.resolve()))
     elif needed & {"cc", "ar"}:
         raise EnvironmentError(f"no fixture native-tool companion for target OS {target_os!r}")
-    if "llc" in needed and target_os == "darwin":
+    if "llc" in needed and apple is not None:
+        _, minimum_variable, _, platform_triple = apple
         if "deployment" not in common:
-            common["deployment"] = darwin_deployment(repo, target)
-        common["llvm_target"] = (
-            TARGETS[target]["llvm_triple"].replace("-darwin", "-macosx") + common["deployment"]
-        )
+            common["deployment"] = apple_minimum_os(repo, target, minimum_variable)
+        architecture = target_definition["arch"]
+        platform_version = platform_triple.format(minimum=common["deployment"])
+        common["llvm_target"] = f"{architecture}-apple-{platform_version}"
     for fixture in applicable:
         if any(
             "cc_family" in references(step.get("diagnostics", []))
@@ -322,8 +342,8 @@ def environment(repo, work, fixtures, args):
     return common
 
 
-def darwin_deployment(repo, target):
-    configured = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+def apple_minimum_os(repo, target, variable):
+    configured = os.environ.get(variable)
     if configured is not None:
         return configured
     release = tomllib.loads((repo / "scripts/release.toml").read_text(encoding="utf-8"))

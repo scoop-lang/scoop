@@ -40,7 +40,7 @@ Linux／Windows 仅在显式指定时传入 `--unwind-prefix`；默认链接沿�
 需要固定自定义 `--cc` 的工具链诊断专测直接传 `--target ${target}`，不展开包含环境 `--cc` 的公共参数数组。
 使用 C 编译器包装脚本的用例可另传 `{each = "${native_sysroot_args}"}`，保留所选 SDK；
 该数组只包含显式配置的 `--native-sysroot`，未配置时为空。
-native companion 用 `{each = "${cc_args}"}` 传平台编译参数：Darwin 为实际 target、
+native companion 用 `{each = "${cc_args}"}` 传平台编译参数：Apple 平台为实际 target、
 SDK 和 deployment，Linux 为 PIC/pthread；源码自己的标准、优化和告警参数保留。
 声明 `cc` 工具后，`${cc_family}` 为所选 companion 的 `gcc` 或 `clang`。
 依赖 C 诊断文字或对象字节布局的专测按该值选择完整期望，保留精确诊断与成员范围；
@@ -49,7 +49,7 @@ Linux 复用已有预定义宏探测，Darwin／Windows 使用其配套 Clang。
 所选文件在工具确定后、执行步骤前加载并校验，未使用的 compiler 期望不参与本次运行。
 直接链接 C 辅助可执行程序时，再传 `{each = "${cc_link_args}"}`；musl 使用 `-static`，
 避免依赖宿主的动态 libc 或 GCC runtime，其他目标为空。对象和共享库只使用 `${cc_args}`。
-Darwin deployment 采用 `MACOSX_DEPLOYMENT_TARGET` 或 `scripts/release.toml` 的明确基线，
+Apple deployment 采用 macOS 的 `MACOSX_DEPLOYMENT_TARGET`、iOS 的 `IPHONEOS_DEPLOYMENT_TARGET` 或 `scripts/release.toml` 的明确基线，
 与开发工具保持一致，不读取宿主系统版本。
 `${target_facts.os}`、`${target_facts.arch}` 和 `${target_facts.env}` 来自共享目标目录，适合按 OS／架构／环境检查源码选择，不必在 fixture 中复制完整目标名单。
 `${target_profile}` 是内部 target profile 名称，core artifact 目录使用 canonical `${target}`；`${symbol_prefix}` 是 C/编译器逻辑名字
@@ -58,7 +58,7 @@ Darwin deployment 采用 `MACOSX_DEPLOYMENT_TARGET` 或 `scripts/release.toml` �
 平台无关的专测共用期望，比较时不抹去 ABI 或符号差异。
 手写 LLVM IR companion 声明 `tools = ["llc", ...]`，使用 `${llc}` 加
 `-mtriple=${llvm_target} -filetype=obj -relocation-model=pic` 生成目标对象。
-ELF 的 `${llvm_target}` 与 `${target}` 相同；Darwin 包含当前 deployment，以产生
+ELF 的 `${llvm_target}` 与 `${target}` 相同；Apple 平台包含当前 deployment，以产生
 原生对象需要的 `LC_BUILD_VERSION`。Scoop 命令仍使用 canonical `${target}`。
 工具依次使用 `--llc`、`SCOOP_TEST_PAIRED_LLC`、`LLVM_SYS_221_PREFIX/bin/llc`，
 否则查找 `llc-22` / `llc`；实际版本必须为 LLVM 22.1。

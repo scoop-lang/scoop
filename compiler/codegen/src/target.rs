@@ -203,7 +203,7 @@ impl ValidatedBackendProfile {
                     selection.target().contract().canonical_triple()
                 ))
             })?
-            .codegen_deployment;
+            .deployment;
         let deployment =
             deployment::ObjectDeployment::from_contract(selection, deployment_profile, native)?;
         Self::select(selection, deployment)
@@ -221,7 +221,7 @@ impl ValidatedBackendProfile {
                     selection.target().contract().canonical_triple()
                 ))
             })?;
-        let deployment = deployment::ObjectDeployment::for_test(definition.codegen_deployment);
+        let deployment = deployment::ObjectDeployment::for_test(definition.deployment);
         Self::select(selection, deployment)
     }
 

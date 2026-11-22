@@ -16,7 +16,7 @@ pub fn darwin_c_bridge_profile(
     compiler: AppleClangCompilerIdentityV1,
 ) -> Result<CBridgeToolchainProfileV1, CBridgeToolchainBuildError> {
     if !crate::definition(target.id()).is_some_and(|definition| {
-        definition.selection.target() == target && definition.os == crate::TargetOs::Darwin
+        definition.selection.target() == target && definition.apple_platform().is_some()
     }) {
         return Err(CBridgeToolchainBuildError::Platform(
             CBridgePlatformError::ExpectedDarwin,

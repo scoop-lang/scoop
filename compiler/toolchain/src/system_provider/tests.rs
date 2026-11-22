@@ -1,12 +1,14 @@
 use super::*;
-use scoop_slib::MachOArchitecture;
+use scoop_lir::TargetArchitecture;
+use scoop_target_data::ApplePlatform;
 
 #[test]
 fn previous_sdk_exports_follow_platform_and_half_open_deployment_ranges() {
     let text = b"--- !tapi-tbd\ntbd-version: 4\ntargets: [arm64-macos]\ninstall-name: /usr/lib/current.dylib\nexports:\n  - targets: [arm64-macos]\n    symbols: [_ordinary, '$ld$previous$/usr/lib/previous.dylib$3.1$1$12.0$14.0$_OBJC_CLASS_$_Moved$', '$ld$previous$/usr/lib/ios.dylib$1$2$1.0$99.0$_ios$']\n";
     for (major, active) in [(11, false), (12, true), (13, true), (14, false)] {
         let records = read_text_stubs(
-            MachOArchitecture::Aarch64,
+            TargetArchitecture::Aarch64,
+            ApplePlatform::MacOs,
             text,
             DarwinPackedVersionV1::from_components(major, 0, 0).unwrap(),
             true,
@@ -28,7 +30,8 @@ fn previous_sdk_exports_follow_platform_and_half_open_deployment_ranges() {
 fn previous_sdk_library_name_and_version_apply_without_a_symbol() {
     let text = b"--- !tapi-tbd\ntbd-version: 4\ntargets: [arm64-macos]\ninstall-name: /usr/lib/current.dylib\nexports:\n  - targets: [arm64-macos]\n    symbols: [_ordinary, '$ld$previous$/usr/lib/previous.dylib$3$1$12.0$14.0$$']\n";
     let records = read_text_stubs(
-        MachOArchitecture::Aarch64,
+        TargetArchitecture::Aarch64,
+        ApplePlatform::MacOs,
         text,
         DarwinPackedVersionV1::from_components(13, 0, 0).unwrap(),
         true,
@@ -42,7 +45,8 @@ fn previous_sdk_library_name_and_version_apply_without_a_symbol() {
             .unwrap()
             .replace("$3$1$", &format!("${version}$1$"));
         let records = read_text_stubs(
-            MachOArchitecture::Aarch64,
+            TargetArchitecture::Aarch64,
+            ApplePlatform::MacOs,
             text.as_bytes(),
             DarwinPackedVersionV1::from_components(13, 0, 0).unwrap(),
             true,
@@ -82,7 +86,8 @@ exports:
     )
     .unwrap();
     let provider = SystemProvider::read(
-        MachOArchitecture::Aarch64,
+        TargetArchitecture::Aarch64,
+        ApplePlatform::MacOs,
         sdk.path(),
         DarwinPackedVersionV1::from_components(14, 0, 0).unwrap(),
     )
@@ -106,17 +111,27 @@ fn missing_reexports_and_wrong_targets_report_the_actual_input() {
     let deployment = DarwinPackedVersionV1::from_components(14, 0, 0).unwrap();
     std::fs::write(&root, template).unwrap();
     assert!(
-        SystemProvider::read(MachOArchitecture::Aarch64, sdk.path(), deployment)
-            .unwrap_err()
-            .to_string()
-            .contains("missing.tbd")
+        SystemProvider::read(
+            TargetArchitecture::Aarch64,
+            ApplePlatform::MacOs,
+            sdk.path(),
+            deployment
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("missing.tbd")
     );
     std::fs::write(root, template.replace("arm64-macos", "x86_64-macos")).unwrap();
     assert!(
-        SystemProvider::read(MachOArchitecture::Aarch64, sdk.path(), deployment)
-            .unwrap_err()
-            .to_string()
-            .contains("no compatible arm64-macos")
+        SystemProvider::read(
+            TargetArchitecture::Aarch64,
+            ApplePlatform::MacOs,
+            sdk.path(),
+            deployment
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("no compatible arm64-macos")
     );
 }
 
@@ -147,26 +162,41 @@ fn native_stubs_preserve_exports_and_reject_conflicting_install_records() {
         ),
     ]);
     let first = tbd::write_link_stub(
-        MachOArchitecture::Aarch64,
+        TargetArchitecture::Aarch64,
+        ApplePlatform::MacOs,
         "@rpath/libtest.dylib",
         2 << 16,
         1 << 16,
         &imports,
     )
     .unwrap();
-    let interface =
-        tbd::read_text_stubs(MachOArchitecture::Aarch64, &first, deployment, false).unwrap();
+    let interface = tbd::read_text_stubs(
+        TargetArchitecture::Aarch64,
+        ApplePlatform::MacOs,
+        &first,
+        deployment,
+        false,
+    )
+    .unwrap();
     assert_eq!(interface[0].exports, imports);
     let mut identical = first.clone();
     identical.extend_from_slice(&first);
     assert_eq!(
-        tbd::read_text_stubs(MachOArchitecture::Aarch64, &identical, deployment, false).unwrap(),
+        tbd::read_text_stubs(
+            TargetArchitecture::Aarch64,
+            ApplePlatform::MacOs,
+            &identical,
+            deployment,
+            false
+        )
+        .unwrap(),
         interface
     );
     let mut conflicting = first;
     conflicting.extend(
         tbd::write_link_stub(
-            MachOArchitecture::Aarch64,
+            TargetArchitecture::Aarch64,
+            ApplePlatform::MacOs,
             "@rpath/libtest.dylib",
             3 << 16,
             1 << 16,
@@ -175,9 +205,15 @@ fn native_stubs_preserve_exports_and_reject_conflicting_install_records() {
         .unwrap(),
     );
     assert!(
-        tbd::read_text_stubs(MachOArchitecture::Aarch64, &conflicting, deployment, false)
-            .unwrap_err()
-            .to_string()
-            .contains("conflicting text stub records")
+        tbd::read_text_stubs(
+            TargetArchitecture::Aarch64,
+            ApplePlatform::MacOs,
+            &conflicting,
+            deployment,
+            false
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("conflicting text stub records")
     );
 }

@@ -16,6 +16,9 @@ from build_support import build_lock
 from target_catalog import TARGET_FACTS, TARGETS
 
 ROOT = Path(__file__).resolve().parent.parent
+RELEASE_TARGETS = tomllib.loads((ROOT / "scripts/release.toml").read_text(encoding="utf-8"))[
+    "targets"
+]
 
 
 def host_path(carrier):
@@ -62,7 +65,13 @@ def has_target_sources(manifest, target):
 
 
 def cone_order(sysroot, work, target):
-    manifests = sorted((sysroot / "src").glob("*/Cone.toml"))
+    source = sysroot / "src"
+    configured = RELEASE_TARGETS[target].get("system_cones")
+    manifests = sorted(
+        source.glob("*/Cone.toml")
+        if configured is None
+        else (source / name / "Cone.toml" for name in configured)
+    )
     inputs = [metadata(path) for path in manifests]
     inputs.append(metadata(Path(__file__).resolve()))
     inputs.append({"target_facts": TARGET_FACTS})
@@ -249,7 +258,7 @@ def main():
     scratch = work / "scratch"
     scratch.mkdir(exist_ok=True)
     environment = dict(os.environ, TMPDIR=str(scratch), TMP=str(scratch), TEMP=str(scratch))
-    if args.unwind_prefix is None and TARGETS[args.target]["os"] != "darwin":
+    if args.unwind_prefix is None and TARGETS[args.target]["native_environment"] != "Darwin":
         args.unwind_prefix = args.sysroot / "lib" / args.target / "unwind"
     native = []
     for flag, value in (

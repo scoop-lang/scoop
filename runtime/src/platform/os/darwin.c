@@ -4,8 +4,11 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <TargetConditionals.h>
 #include <mach/mach.h>
+#if TARGET_OS_OSX
 #include <mach/mach_vm.h>
+#endif
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <unistd.h>
@@ -13,8 +16,8 @@
 #include "../platform.h"
 #include "posix_mapping.h"
 
-#if !defined(__APPLE__)
-#error "the Darwin OS component requires macOS"
+#if !TARGET_OS_OSX && !TARGET_OS_IOS
+#error "the Darwin OS component requires macOS or iOS"
 #endif
 
 static bool darwin_stack_bounds(ScoopPlatformStackBounds *bounds, ScoopPlatformError *error) {
@@ -79,11 +82,18 @@ static bool darwin_discard_pages(void *base, size_t size, ScoopPlatformError *er
     if (error == NULL) {
         return false;
     }
+    if (base == NULL || page_size == 0 || size == 0 || (uintptr_t)base % page_size != 0) {
+        error->code = SCOOP_PLATFORM_VM_OPERATION_FAILED;
+        return false;
+    }
+#if TARGET_OS_OSX
     // Rosetta can lose SA_RESETHAND handlers while emulating madvise.
-    // Preserve madvise's alignment check before Mach rounds the address down.
-    if (base == NULL || page_size == 0 || size == 0 || (uintptr_t)base % page_size != 0 ||
-        mach_vm_behavior_set(mach_task_self(), (mach_vm_address_t)(uintptr_t)base, size,
-                             VM_BEHAVIOR_DONTNEED) != KERN_SUCCESS) {
+    bool discarded = mach_vm_behavior_set(mach_task_self(),
+        (mach_vm_address_t)(uintptr_t)base, size, VM_BEHAVIOR_DONTNEED) == KERN_SUCCESS;
+#else
+    bool discarded = madvise(base, size, MADV_DONTNEED) == 0;
+#endif
+    if (!discarded) {
         error->code = SCOOP_PLATFORM_VM_OPERATION_FAILED;
         return false;
     }

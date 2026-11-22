@@ -11,7 +11,7 @@ path = "src"
 
 [[sources]]
 path = "platform/unix"
-when = { os = ["darwin", "linux"] }
+when = { os = ["darwin", "ios", "linux"] }
 
 [[sources]]
 path = "platform/windows"

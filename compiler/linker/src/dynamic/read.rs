@@ -13,8 +13,8 @@ pub(crate) fn read(
 ) -> Result<Vec<Arc<DynamicProvider>>, LinkError> {
     if text {
         return scoop_toolchain::read_text_stubs(
-            scoop_slib::MachOArchitecture::for_target(profile.target().id())
-                .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?,
+            profile.target().architecture(),
+            platform(profile)?,
             bytes,
             profile
                 .startup_toolchain()

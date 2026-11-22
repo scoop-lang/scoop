@@ -5,6 +5,7 @@ use object::{
     Object, ObjectKind, ObjectSection, ObjectSymbol, SymbolKind, macho, read::macho::MachOFile64,
 };
 use scoop_lir::{CBridgeToolchainProfileV1, DarwinCBridgeDeploymentContractV1};
+use scoop_target_data::ApplePlatform;
 
 use crate::{LinkError, error};
 
@@ -91,6 +92,14 @@ impl NativeObjectInfo {
     ) -> Result<Self, LinkError> {
         let machine = scoop_slib::MachOArchitecture::for_target(target)
             .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?;
+        let platform = scoop_target_data::definition(target)
+            .and_then(|definition| definition.apple_platform())
+            .ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::E2301,
+                    "missing Apple deployment platform",
+                )
+            })?;
         let file: MachOFile64<'_> = MachOFile64::parse(bytes)
             .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
         if file.architecture() != machine.object_architecture()
@@ -103,7 +112,7 @@ impl NativeObjectInfo {
                 "native input must be an ordinary little-endian Mach-O object for the selected target",
             ));
         }
-        check_deployment(&file, deployment)?;
+        check_deployment(&file, platform, deployment)?;
         let mut definitions = BTreeMap::new();
         let mut requirements = BTreeSet::new();
         for symbol in file.symbols().filter(|symbol| symbol.is_global()) {
@@ -185,6 +194,7 @@ impl NativeObjectInfo {
 
 fn check_deployment(
     file: &MachOFile64<'_>,
+    target: ApplePlatform,
     deployment: &DarwinCBridgeDeploymentContractV1,
 ) -> Result<(), LinkError> {
     let mut commands = file
@@ -192,28 +202,28 @@ fn check_deployment(
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?;
     let endian = file.endian();
     let mut has_platform = false;
-    let mut has_macos = false;
+    let mut has_target = false;
     while let Some(command) = commands
         .next()
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2305, cause))?
     {
         if let Some((platform, minimum)) = deployment_record(&command, endian)? {
             has_platform = true;
-            if platform == macho::PLATFORM_MACOS {
-                has_macos = true;
+            if platform == target.macho_platform() {
+                has_target = true;
                 if minimum > deployment.minimum_os().packed() {
                     return Err(error(
                         scoop_source::DiagnosticCode::E2305,
-                        "native object has incompatible minimum macOS",
+                        format!("native object has incompatible minimum {}", target.name()),
                     ));
                 }
             }
         }
     }
-    if has_platform && !has_macos {
+    if has_platform && !has_target {
         return Err(error(
             scoop_source::DiagnosticCode::E2305,
-            "native object has no compatible macOS platform",
+            format!("native object has no compatible {} platform", target.name()),
         ));
     }
     Ok(())

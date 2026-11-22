@@ -63,7 +63,8 @@ pub struct SystemProvider {
 
 impl SystemProvider {
     pub fn read(
-        machine: scoop_slib::MachOArchitecture,
+        architecture: scoop_lir::TargetArchitecture,
+        platform: scoop_target_data::ApplePlatform,
         sdk: &Path,
         deployment: DarwinPackedVersionV1,
     ) -> Result<Self, ToolchainError> {
@@ -105,8 +106,19 @@ impl SystemProvider {
                 )
             })?;
             let mut local = BTreeMap::new();
-            let mut directives =
-                record.collect(machine, deployment, true, &mut local, &mut pending)?;
+            let source = if name == LIBSYSTEM_INSTALL_NAME {
+                tbd::StubSource::Sdk
+            } else {
+                tbd::StubSource::SdkReexport
+            };
+            let mut directives = record.collect(
+                architecture,
+                platform,
+                deployment,
+                source,
+                &mut local,
+                &mut pending,
+            )?;
             if let Some(install_name) = &directives.install_name {
                 for (symbol, interface) in &local {
                     directives
