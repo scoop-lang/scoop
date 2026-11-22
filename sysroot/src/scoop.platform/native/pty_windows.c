@@ -66,6 +66,8 @@ static DWORD launch_child(ScoopPlatformPty *pty, const WCHAR *executable, WCHAR 
         return GetLastError();
     STARTUPINFOEXW startup = {0};
     startup.StartupInfo.cb = sizeof(startup);
+    // Null standard handles let ConPTY replace redirected host streams as well.
+    startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
     startup.lpAttributeList = malloc(size);
     if (!startup.lpAttributeList)
         return ERROR_NOT_ENOUGH_MEMORY;

@@ -354,7 +354,7 @@ Windows 依据：[CreateProcessW](https://learn.microsoft.com/en-us/windows/win3
 
 Unix 子进程开启会话，把 slave 设为控制终端和三路标准流。父进程只保留 nonblocking master。fork 后子进程执行原生初始化和 exec，使用 close-on-exec 错误管道报告初始化及 exec 失败。exec 后仅保留三路标准描述符。调整尺寸使用 `TIOCSWINSZ`，前台进程组依终端驱动接收信号。
 
-Windows 通过系统 ConPTY 启动控制台进程，尺寸使用 `ResizePseudoConsole`。两条本地命名管道以同步端接 ConPTY，宿主端用 overlapped I/O。缺少 ConPTY 系统函数时报 Unsupported。初始化失败关闭全部已取得资源，并报告本次系统错误。
+Windows 通过系统 ConPTY 启动控制台进程，尺寸使用 `ResizePseudoConsole`。两条本地命名管道以同步端接 ConPTY，宿主端用 overlapped I/O。启动时显式由新控制台分配三路标准句柄，宿主的标准流重定向不影响连接。缺少 ConPTY 系统函数时报 Unsupported。初始化失败关闭全部已取得资源，并报告本次系统错误。
 
 platform 的 `spawnPtyNative` 是 `scoop.asyncio` 使用的 unsafe 原生资源交接入口。调用方取得端点和直接子进程的唯一关闭责任，串行协调控制调用及等待，在原生请求退役后释放所借用的句柄。公开异步会话及关闭语义见[异步 I/O 规范](SCOOP-ASYNCIO-SPEC.md)。
 
