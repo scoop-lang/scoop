@@ -25,6 +25,8 @@ Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、
 SCOOP_SYSROOT="$PWD/sysroot" target/release/scoop run sysroot/src/scoop.ui.component/examples/shadcn --release
 ```
 
+macOS 上可在同一命令前加 `SCOOP_SURFACE_FPS=1` 查看实际呈现帧率。Button 页可供静止对照，Spinner 或 Skeleton 页可测连续动画。输出字段见 [Surface README](../../../scoop.surface/README.md)。
+
 顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。切换主题、方向和页面保留应用模型；搜索不修改控件状态。此轮只在 macOS 验证。
 
 macOS 默认使用实际系统配色，顶部 `Colors: System／Neutral` 按钮切换配色。System 使用系统强调色、背景、文字及分隔线，按当前 Light／Dark 选择解析；切换配色、明暗或重新聚焦窗口时读取最新系统颜色。shadcn 的尺寸、布局和交互保持一致，Neutral 仍用于参考和固定配色测试。其他平台继续使用 Neutral，系统取色适配只在 macOS 提供。
