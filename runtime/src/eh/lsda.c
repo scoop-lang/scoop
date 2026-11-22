@@ -1,3 +1,4 @@
+#include "lsda_encoding.h"
 #include "lsda_reader.h"
 
 typedef struct ScoopEhCallSite {
@@ -140,7 +141,7 @@ ScoopEhDecodeResult scoop_eh_decode_lsda(ScoopEhByteRange lsda, uintptr_t region
         return scoop_eh_failure(SCOOP_EH_DECODE_MALFORMED, scoop_eh_read_reason(status),
                                 cursor.offset);
     }
-    if (encoding != SCOOP_EH_DW_PE_OMIT) {
+    if (encoding != SCOOP_EH_LP_START_ENCODING) {
         return scoop_eh_failure(SCOOP_EH_DECODE_UNSUPPORTED,
                                 SCOOP_EH_REASON_UNSUPPORTED_LPSTART_ENCODING, 0);
     }
@@ -149,7 +150,7 @@ ScoopEhDecodeResult scoop_eh_decode_lsda(ScoopEhByteRange lsda, uintptr_t region
         return scoop_eh_failure(SCOOP_EH_DECODE_MALFORMED, scoop_eh_read_reason(status),
                                 cursor.offset);
     }
-    bool has_type_table = encoding != SCOOP_EH_DW_PE_OMIT;
+    bool has_type_table = encoding != SCOOP_EH_OMITTED_TTYPE_ENCODING;
     if (has_type_table && encoding != SCOOP_EH_TTYPE_ENCODING) {
         return scoop_eh_failure(SCOOP_EH_DECODE_UNSUPPORTED,
                                 SCOOP_EH_REASON_UNSUPPORTED_TTYPE_ENCODING, 1);
@@ -177,7 +178,7 @@ ScoopEhDecodeResult scoop_eh_decode_lsda(ScoopEhByteRange lsda, uintptr_t region
         return scoop_eh_failure(SCOOP_EH_DECODE_MALFORMED, scoop_eh_read_reason(status),
                                 cursor.offset);
     }
-    if (encoding != SCOOP_EH_DW_PE_ULEB128) {
+    if (encoding != SCOOP_EH_CALL_SITE_ENCODING) {
         return scoop_eh_failure(SCOOP_EH_DECODE_UNSUPPORTED,
                                 SCOOP_EH_REASON_UNSUPPORTED_CALL_SITE_ENCODING,
                                 call_site_encoding_offset);

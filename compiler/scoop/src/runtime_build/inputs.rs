@@ -65,29 +65,30 @@ impl Inputs {
         {
             includes.push(include);
         }
-        let flags: Vec<_> = request
-            .target
-            .runtime_build()
-            .runtime_c_flags()
-            .into_iter()
-            .chain(request.optimization.c_flags().iter().copied())
-            .chain([if request.enable_gc_stress {
-                "-DSCOOP_ENABLE_GC_STRESS=1"
-            } else {
-                "-DSCOOP_ENABLE_GC_STRESS=0"
-            }])
-            .chain([if request.enable_startup_stats {
-                "-DSCOOP_ENABLE_STARTUP_STATS=1"
-            } else {
-                "-DSCOOP_ENABLE_STARTUP_STATS=0"
-            }])
-            .chain([
-                "-funwind-tables",
-                "-fasynchronous-unwind-tables",
-                "-fno-lto",
-            ])
-            .map(str::to_owned)
-            .collect();
+        let mut flags = request.target.runtime_build().runtime_c_flags();
+        flags.extend(
+            request
+                .optimization
+                .c_flags()
+                .iter()
+                .copied()
+                .chain([if request.enable_gc_stress {
+                    "-DSCOOP_ENABLE_GC_STRESS=1"
+                } else {
+                    "-DSCOOP_ENABLE_GC_STRESS=0"
+                }])
+                .chain([if request.enable_startup_stats {
+                    "-DSCOOP_ENABLE_STARTUP_STATS=1"
+                } else {
+                    "-DSCOOP_ENABLE_STARTUP_STATS=0"
+                }])
+                .chain([
+                    "-funwind-tables",
+                    "-fasynchronous-unwind-tables",
+                    "-fno-lto",
+                ])
+                .map(str::to_owned),
+        );
         let path = |p: &Path| {
             HostPathCarrier::from_path(p)
                 .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))

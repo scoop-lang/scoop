@@ -1,17 +1,20 @@
 //! Architecture-specific relocation uses shared by bridge and runtime readers.
 
 use super::{VerifiedMachORelocationFormV1 as MachForm, VerifiedObjectRelocationFormV1 as Form};
-use crate::link_object::elf::ElfRelocationKind;
+use crate::link_object::{coff::CoffRelocationKind, elf::ElfRelocationKind};
 
 impl Form {
     pub(in crate::link_object) fn is_tls_reference(self) -> bool {
         match self {
             Self::Coff {
-                machine: scoop_lir::ObjectMachineV1::X86_64,
-                kind: object::pe::IMAGE_REL_AMD64_SECREL,
-                storage_width: 4,
-            }
-            | Self::MachO {
+                machine,
+                kind,
+                storage_width,
+            } => matches!(
+                CoffRelocationKind::classify(machine, kind, storage_width),
+                Some(CoffRelocationKind::SectionRelative32)
+            ),
+            Self::MachO {
                 machine: scoop_lir::ObjectMachineV1::Aarch64,
                 form: MachForm::TlvpLoadPage21 | MachForm::TlvpLoadPageOffset12,
             }

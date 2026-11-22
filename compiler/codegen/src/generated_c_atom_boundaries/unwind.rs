@@ -205,52 +205,6 @@ pub(super) fn require(
     })
 }
 
-pub(super) struct WindowsUnwind {
-    pub table: SectionIndex,
-    pub info: SectionIndex,
-}
-
-pub(super) fn windows<'data, O: Object<'data>>(
-    file: &O,
-) -> Result<BTreeMap<usize, WindowsUnwind>, CodegenError> {
-    let mut output = BTreeMap::new();
-    for table in file.sections().filter(|section| {
-        section
-            .name()
-            .is_ok_and(|name| name == ".pdata" || name.starts_with(".pdata$"))
-    }) {
-        if table.size() != 12 {
-            return Err(error(
-                "generated bridge needs one runtime-function record per section",
-            ));
-        }
-        let target = |offset| -> Result<SectionIndex, CodegenError> {
-            let relocation = table
-                .relocations()
-                .find(|(site, _)| *site == offset)
-                .ok_or_else(|| error("missing Windows unwind relocation"))?
-                .1;
-            match relocation.target() {
-                RelocationTarget::Section(index) => Ok(index),
-                RelocationTarget::Symbol(index) => file
-                    .symbol_by_index(index)
-                    .map_err(error)?
-                    .section_index()
-                    .ok_or_else(|| error("undefined Windows unwind target")),
-                _ => Err(error("invalid Windows unwind target")),
-            }
-        };
-        output.insert(
-            target(0)?.0,
-            WindowsUnwind {
-                table: table.index(),
-                info: target(8)?,
-            },
-        );
-    }
-    Ok(output)
-}
-
 /// Physical extents of the compiler's global definitions, including alignment
 /// padding before the next definition in the same section.
 pub(super) fn primary_ends<'data, O: Object<'data>>(

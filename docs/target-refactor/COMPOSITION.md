@@ -400,6 +400,8 @@ verified shape、form、undefined requirements、callable encoding、pointer／T
 
 ELF 消费方用 machine 查询 relocation 的绝对地址和 TLS 语义，与 RELA 读取共享同一张表。归属范围可由 offset 确定，符号绑定按单条 relocation 关联；同址记录保留原表相对顺序。当前紧凑 GC 表要求 stackmap 只有函数地址槽的单条绝对重定位，instruction offset 在对象发射后即可确定。
 
+COFF 的宽度、绝对地址和 TLS 引用同样由 machine relocation 表解释。COFF／bigobj 的符号表和边界编辑按容器结构处理，按已选机器核对对象头；AMD64 数字 kind 仅在 AMD64 规则内解释。
+
 ### 6.3 unwind image 与 GC frame 是两个合同
 
 异常展开、GC root frame recovery 和对象 unwind section 会相互关联，但不能合并为一个 `arch` 开关：
@@ -408,6 +410,8 @@ ELF 消费方用 machine 查询 relocation 的绝对地址和 TLS 语义，与 R
 - unwind provider 决定 libunwind／platform unwind API 和链接需求；
 - object target 决定 `.eh_frame`、`.pdata`／`.xdata` 等记录形式；ELF 生成桥根据实际 machine relocation 关联 FDE 和函数，LLVM personality 间接常量单独投影；
 - machine frame recovery 决定 runtime 如何从 statepoint／stackmap 恢复根与调用链。
+
+COFF 生成桥按选定的 object unwind image 读取 runtime-function 记录。runtime LSDA decoder 接收 backend profile 的编码值，SEH provider 和 GC frame 恢复仍各用各自的已选合同。
 
 Windows ARM64 的前置工作因此不是把现有 `WindowsSeh` 重命名为通用 SEH，而是先让 virtual unwind 机制接收显式 machine/register/object unwind contract。RISC-V／LoongArch 的前置工作则是让 DWARF 与 stackmap machine 信息由 backend qualification 产生，不从 ELF 推导。
 
@@ -721,6 +725,8 @@ C6 的现有七目标行为回归与第 8 节职责审查均已完成；未把�
 用项目现有 `runtime/tests/linux_frames_test.ll` 的真实 `gc.statepoint`／`gc.relocate` 输入对 LLVM 22.1.8 做了探索性探针：`riscv64-unknown-linux-gnu` 与 `loongarch64-unknown-linux-gnu` 都能在 O2／PIC 下生成含 `.llvm_stackmaps` v3 和 `.eh_frame` 的对象，并产生各自 machine relocation 与 DWARF register location。
 
 同一输入在 Linux/ARM64 和 FreeBSD/RV64 的 O2／PIC 探针也生成了这两个 section。ARM64 的函数地址用 `R_AARCH64_ABS64`，FDE 初始位置用 `R_AARCH64_PREL32`，栈根样本用 DWARF register 31。FreeBSD/RV64 启用 `+relax` 时，函数地址用 `R_RISCV_64`，FDE 初始位置用 `R_RISCV_32_PCREL`，栈根样本用 register 8。RV64 的 stackmap instruction offset 字段在对象中为零，同址有 `R_RISCV_ADD32`／`R_RISCV_SUB32`，FDE 的范围也有同址对。用 LLD 和桩函数完成独立链接后，第一个 offset 为 24。用 `-relax` 重跑时，stackmap 仅保留函数地址重定位，该 offset 在对象和链接输出中均为 28。
+
+Windows/ARM64 的同一 statepoint 样本采用 `IMAGE_REL_ARM64_ADDR64`，栈根样本用 DWARF register 31。Clang 生成的 ARM64 `.pdata` 每条记录为 8 字节，外置 `.xdata` 的 RVA 位于偏移 4；packed 样本直接保存展开信息，`.xdata` 无有效内容。AMD64 样本的记录为 12 字节，`.xdata` RVA 位于偏移 8。两个 Windows machine 的 catch-all 样本均发射 LPStart／TType／call-site `0xff / 0x00 / 0x01`。这些结果来自 LLVM 22.1.8 的对象及汇编探针。
 
 这只能说明 LLVM 22 已具备继续实测的入口，不能视为 Scoop backend qualification。LLVM 的公开 [StackMaps and PatchPoint Intrinsics](https://llvm.org/docs/StackMaps.html) 文档列出的支持架构与该探索性结果并不完全一致，因此本设计要求以锁定 LLVM/profile 的 call／invoke／EH／大 frame／register pressure／GC 实测为准，不从文档列表或一次 `llc` 成功推导支持状态。
 

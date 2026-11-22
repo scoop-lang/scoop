@@ -5,7 +5,7 @@ use std::fmt;
 use std::num::NonZeroU32;
 
 use crate::link_object::ObjectRelocationShapeV1;
-use crate::link_object::elf::ElfRelocationKind;
+use crate::link_object::{coff::CoffRelocationKind, elf::ElfRelocationKind};
 
 use super::{
     LlvmStackmapSectionParseError, ParsedLlvmStackmapFunctionV3, parse_llvm_stackmap_section_v3,
@@ -123,11 +123,17 @@ pub fn read_object_stackmap_section_v3(
         )?;
         let target_symbol_table_index = match relocation.shape() {
             ObjectRelocationShapeV1::Coff {
-                machine: scoop_lir::ObjectMachineV1::X86_64,
-                kind: object::pe::IMAGE_REL_AMD64_ADDR64,
+                machine,
+                kind,
                 target_symbol,
-                storage_width: 8,
-            } => target_symbol,
+                storage_width,
+            } if matches!(
+                CoffRelocationKind::classify(machine, kind, storage_width),
+                Some(CoffRelocationKind::Absolute64)
+            ) =>
+            {
+                target_symbol
+            }
             ObjectRelocationShapeV1::MachO {
                 shape:
                     MachORelocationShapeV1::Unsigned64 {

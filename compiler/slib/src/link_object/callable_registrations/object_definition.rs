@@ -3,6 +3,7 @@ use scoop_identity::{
     StrongDefinitionEntity, StrongDefinitionRole,
 };
 
+use crate::link_object::coff::CoffRelocationKind;
 use crate::link_object::{
     CanonicalObjectDefinitionRequirementV1, CanonicalUndefinedRelocationUseV1,
     DefinitionAtomRangeV1, FinalUndefinedSymbolRequirementV1, LinkDefinitionOwnerV1,
@@ -171,10 +172,14 @@ impl CanonicalObjectRelocationV1 {
                 slot.fill(0);
             }
             CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::Coff {
-                kind: object::pe::IMAGE_REL_AMD64_SECREL7,
-                storage_width: 1,
-                ..
-            }) => {
+                machine,
+                kind,
+                storage_width,
+            }) if matches!(
+                CoffRelocationKind::classify(machine, kind, storage_width),
+                Some(CoffRelocationKind::SectionRelative7)
+            ) =>
+            {
                 let byte = bytes
                     .get_mut(start)
                     .ok_or(ObjectDefinitionRelocationFailureV1::Range)?;

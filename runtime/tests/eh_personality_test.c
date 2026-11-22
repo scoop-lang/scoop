@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "eh/lsda_encoding.h"
 #include "eh_internal.h"
 
 enum {

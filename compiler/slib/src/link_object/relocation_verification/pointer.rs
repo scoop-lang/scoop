@@ -4,7 +4,7 @@ use super::{
     VerifiedMachORelocationFormV1 as MachForm, VerifiedMachORelocationShapeV1 as MachShape,
     VerifiedObjectRelocationFormV1 as Form, VerifiedObjectRelocationShapeV1 as Shape,
 };
-use crate::link_object::elf::ElfRelocationKind;
+use crate::link_object::{coff::CoffRelocationKind, elf::ElfRelocationKind};
 
 impl Form {
     pub fn is_absolute64(self) -> bool {
@@ -12,12 +12,15 @@ impl Form {
             Self::MachO {
                 form: MachForm::Unsigned64,
                 ..
-            }
-            | Self::Coff {
-                machine: scoop_lir::ObjectMachineV1::X86_64,
-                kind: object::pe::IMAGE_REL_AMD64_ADDR64,
-                storage_width: 8,
             } => true,
+            Self::Coff {
+                machine,
+                kind,
+                storage_width,
+            } => matches!(
+                CoffRelocationKind::classify(machine, kind, storage_width),
+                Some(CoffRelocationKind::Absolute64)
+            ),
             Self::ElfRela {
                 machine,
                 kind,
@@ -103,6 +106,18 @@ mod tests {
         assert_eq!(absolute.absolute64_address(17, 24), Some(41));
         assert_eq!(absolute.absolute64_address(-17i64 as u64, 24), Some(7));
         assert_eq!(absolute.absolute64_address(-17i64 as u64, 0), None);
+        assert_eq!(
+            object::pe::IMAGE_REL_ARM64_ADDR32,
+            object::pe::IMAGE_REL_AMD64_ADDR64,
+        );
+        assert!(
+            !Form::Coff {
+                machine: scoop_lir::ObjectMachineV1::Aarch64,
+                kind: object::pe::IMAGE_REL_ARM64_ADDR32,
+                storage_width: 8,
+            }
+            .is_absolute64()
+        );
         assert!(
             !Form::Coff {
                 machine: scoop_lir::ObjectMachineV1::X86_64,

@@ -92,6 +92,7 @@ pub struct BackendLsdaEncodingsV1 {
     pub lp_start: u8,
     pub type_table: u8,
     pub call_site: u8,
+    /// An absent encoding uses the standard DW_EH_PE_omit value.
     pub omitted_type_table: Option<u8>,
 }
 

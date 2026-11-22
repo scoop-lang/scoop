@@ -1,7 +1,10 @@
 use object::{Object, ObjectSection};
+use scoop_lir::ObjectUnwindImageV1;
 
 use super::*;
 use crate::coff_object::{CoffObject, error};
+
+mod amd64_unwind;
 
 pub(super) fn materialize(
     bytes: &[u8],
@@ -10,7 +13,14 @@ pub(super) fn materialize(
 ) -> Result<Vec<u8>, CodegenError> {
     let mut output = CoffObject::read(bytes, object_target)?;
     let primary_ends = super::unwind::primary_ends(&output.file)?;
-    let unwind = super::unwind::windows(&output.file)?;
+    let unwind = match object_target.unwind_image() {
+        ObjectUnwindImageV1::CoffAmd64PdataXdata => amd64_unwind::read(&output.file)?,
+        image => {
+            return Err(error(format!(
+                "unsupported COFF bridge unwind image {image:?}"
+            )));
+        }
+    };
     for definition in atoms {
         let name = definition.primary_symbol().symbol();
         let (section, start) = output.extent(name.as_str())?;

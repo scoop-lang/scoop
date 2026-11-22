@@ -17,7 +17,7 @@ pub(crate) fn native_platform_bundle_source() -> &'static str {
         .expect("the native runtime has a platform bundle")
 }
 
-pub(crate) fn native_runtime_c_flags() -> Vec<&'static str> {
+pub(crate) fn native_runtime_c_flags() -> Vec<String> {
     native_runtime_profile().runtime_c_flags()
 }
 
