@@ -80,11 +80,23 @@ pub(crate) fn decode_compile_stage<'input>(
 ) -> Result<DecodedMetadataEnvelope<'input>, CompileSectionDecodeError> {
     let member = metadata_member_id(graph, location)?;
     let payload = member_payload(graph, location, member)?;
-    let envelope = decode_metadata_envelope(location, payload)?;
-    profile
-        .validate_compile_metadata_inventory(location, envelope.sections())
-        .map_err(CompileSectionDecodeError::Inventory)?;
-    Ok(envelope)
+    decode_metadata_envelope(profile, location, payload)
+}
+
+pub(crate) fn with_compile_stage<T>(
+    graph: &ValidatedGraphArtifact<'_>,
+    profile: ArtifactCapabilityProfile,
+    location: MetadataLocation,
+    decode: impl FnOnce(&DecodedMetadataEnvelope<'_>) -> Result<T, CompileSectionDecodeError>,
+) -> Result<T, CompileSectionDecodeError> {
+    let member = metadata_member_id(graph, location)?;
+    let payload = graph
+        .envelope
+        .transient_member(member)
+        .map_err(CompileSectionDecodeError::MemberRead)?
+        .ok_or(CompileSectionDecodeError::MissingMetadataMemberPayload { location, member })?;
+    let envelope = decode_metadata_envelope(profile, location, &payload)?;
+    decode(&envelope)
 }
 
 pub(crate) fn decode_stage_section<T: WireDecode>(
@@ -126,11 +138,16 @@ pub(crate) fn decode_compile_section<T: WireDecode>(
 }
 
 fn decode_metadata_envelope<'input>(
+    profile: ArtifactCapabilityProfile,
     location: MetadataLocation,
     payload: &'input [u8],
 ) -> Result<DecodedMetadataEnvelope<'input>, CompileSectionDecodeError> {
-    DecodedMetadataEnvelope::decode(payload, location)
-        .map_err(|source| CompileSectionDecodeError::OuterEnvelope { location, source })
+    let envelope = DecodedMetadataEnvelope::decode(payload, location)
+        .map_err(|source| CompileSectionDecodeError::OuterEnvelope { location, source })?;
+    profile
+        .validate_compile_metadata_inventory(location, envelope.sections())
+        .map_err(CompileSectionDecodeError::Inventory)?;
+    Ok(envelope)
 }
 
 fn metadata_member_id(

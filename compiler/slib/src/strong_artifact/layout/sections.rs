@@ -2,6 +2,7 @@ use scoop_hir::{
     CoreBootstrapInterfaceSectionV1, CrossConeHirInterfaceSectionV1,
     CrossConeTypeSemanticsSectionV1,
 };
+use scoop_identity::ConeIdentity;
 use scoop_lir::{ConeLirFoundation, CrossConeLayoutAbiSectionV1, CrossConeLirBridgeSectionV1};
 use scoop_mir::{
     CoreBootstrapBridgeSectionV1, CrossConeMirBridgeSectionV1, CrossConeMirTypeBridgeSectionV1,
@@ -38,13 +39,14 @@ pub(super) struct LayoutMetadataInput<'section, 'ir> {
 }
 
 pub(super) struct LayoutMetadataAssembly {
-    pub hir: LayerAssembly,
-    pub mir: LayerAssembly,
-    pub lir: LayerAssembly,
+    pub hir: crate::SlibMember,
+    pub mir: crate::SlibMember,
+    pub lir: crate::SlibMember,
     pub fingerprints: crate::SemanticFingerprintRecord,
 }
 
 pub(super) fn assemble_metadata(
+    cone: ConeIdentity,
     mut input: LayoutMetadataInput<'_, '_>,
     compatibility: &crate::CompatibilityRecord,
     direct_dependencies: &[crate::DependencyRecord],
@@ -86,6 +88,8 @@ pub(super) fn assemble_metadata(
             )?,
         ],
     )?;
+    drop(hir_cross_cone);
+    drop(input.hir_cross_cone);
     let mir = LayerAssembly::new(
         MetadataLocation::Mir,
         vec![
@@ -133,14 +137,19 @@ pub(super) fn assemble_metadata(
         MemberPurposeSet::COMPILE_AND_LINK,
         input.lir_layout_abi.exports(),
     )?;
+    let lir_semantic_sections = [ordinary, layout_interface];
     let fingerprints = crate::SemanticFingerprintRecord::from_metadata_sections(
         compatibility,
         direct_dependencies,
-        &hir.sections,
-        &mir.sections,
-        &[ordinary.clone(), layout_interface],
+        hir.sections(),
+        mir.sections(),
+        &lir_semantic_sections,
     )
     .map_err(CrossConeLayoutArtifactWriteError::SemanticFingerprints)?;
+    let [ordinary, layout_interface] = lir_semantic_sections;
+    drop(layout_interface);
+    let hir = hir.into_member(cone)?;
+    let mir = mir.into_member(cone)?;
     let lir = LayerAssembly::new(
         MetadataLocation::Lir,
         vec![
@@ -182,6 +191,7 @@ pub(super) fn assemble_metadata(
             )?,
         ],
     )?;
+    let lir = lir.into_member(cone)?;
     Ok(LayoutMetadataAssembly {
         hir,
         mir,

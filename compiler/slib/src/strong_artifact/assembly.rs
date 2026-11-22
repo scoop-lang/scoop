@@ -8,9 +8,7 @@ use crate::{
 };
 
 pub(super) struct LayerAssembly {
-    location: MetadataLocation,
-    pub(super) sections: Vec<MetadataSection>,
-    envelope: Vec<u8>,
+    metadata: MetadataEnvelope,
 }
 
 impl LayerAssembly {
@@ -18,33 +16,31 @@ impl LayerAssembly {
         location: MetadataLocation,
         sections: Vec<MetadataSection>,
     ) -> Result<Self, StrongArtifactAssemblyError> {
-        let envelope = MetadataEnvelope::new(location, sections.clone())
+        let metadata = MetadataEnvelope::new(location, sections)
             .map_err(|source| StrongArtifactAssemblyError::MetadataEnvelope { location, source })?;
-        let envelope = encode(&envelope).map_err(|source| {
-            StrongArtifactAssemblyError::MetadataEnvelopeEncoding { location, source }
-        })?;
-        Ok(Self {
-            location,
-            sections,
-            envelope,
-        })
+        Ok(Self { metadata })
+    }
+
+    pub(super) fn sections(&self) -> &[MetadataSection] {
+        self.metadata.sections()
     }
 
     pub(super) fn into_member(
         self,
         cone: ConeIdentity,
     ) -> Result<SlibMember, StrongArtifactAssemblyError> {
-        let (stable_key, role) = match self.location {
+        let location = self.metadata.location();
+        let (stable_key, role) = match location {
             MetadataLocation::Hir => (MemberStableKey::HirMetadata, SlibMemberRole::HirMetadata),
             MetadataLocation::Mir => (MemberStableKey::MirMetadata, SlibMemberRole::MirMetadata),
             MetadataLocation::Lir => (MemberStableKey::LirMetadata, SlibMemberRole::LirMetadata),
         };
-        SlibMember::new(cone, stable_key, role, self.envelope).map_err(|source| {
-            StrongArtifactAssemblyError::MetadataMember {
-                location: self.location,
-                source,
-            }
-        })
+        let envelope = encode(&self.metadata).map_err(|source| {
+            StrongArtifactAssemblyError::MetadataEnvelopeEncoding { location, source }
+        })?;
+        drop(self);
+        SlibMember::new(cone, stable_key, role, envelope)
+            .map_err(|source| StrongArtifactAssemblyError::MetadataMember { location, source })
     }
 }
 

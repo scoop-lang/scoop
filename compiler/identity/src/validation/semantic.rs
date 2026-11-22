@@ -59,7 +59,6 @@ impl SemanticIdentitySlot {
 #[derive(Clone)]
 struct SessionEntity {
     world_index: u32,
-    key_slot: CanonicalKeySlot,
     key: Arc<dyn ErasedCanonicalKey>,
 }
 

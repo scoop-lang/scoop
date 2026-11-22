@@ -124,7 +124,7 @@ impl SemanticIdentitySession {
         for (key_slot, _, key) in &entries {
             let slot = SemanticIdentitySlot::from_key_slot(*key_slot);
             if let Some(existing) = self.entities.get(&slot) {
-                if existing.key_slot.key_type != key_slot.key_type
+                if existing.key.as_any().type_id() != key_slot.key_type
                     || (!Arc::ptr_eq(&existing.key, key) && !existing.key.equals(key.as_ref()))
                 {
                     return Err(SemanticIdentityImportError::IdentityConflict {
@@ -188,7 +188,6 @@ impl SemanticIdentitySession {
                     slot,
                     SessionEntity {
                         world_index,
-                        key_slot,
                         key: Arc::clone(key),
                     },
                 );

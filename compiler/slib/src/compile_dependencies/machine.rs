@@ -6,7 +6,7 @@ use scoop_mir as mir;
 
 use super::*;
 use crate::HirProductionValidatedCrossConeLayoutSections;
-use crate::compile_sections::{decode_compile_stage, decode_stage_section};
+use crate::compile_sections::{decode_stage_section, with_compile_stage};
 
 impl CompileDependencyClosure<'_> {
     pub fn read_machine_dependencies(
@@ -88,47 +88,53 @@ fn read_machine<'input>(
     let mir_location = crate::MetadataLocation::Mir;
     let lir_location = crate::MetadataLocation::Lir;
     let decode = || -> Result<_, crate::CompileSectionDecodeError> {
-        let mir = decode_compile_stage(&graph, profile, mir_location)?;
-        let lir = decode_compile_stage(&graph, profile, lir_location)?;
-        Ok((
-            decode_stage_section::<mir::DecodedMirFoundation>(
-                &mir,
-                mir_location,
-                crate::mir_identity_foundation_capability(),
-            )?,
-            decode_stage_section(
-                &mir,
-                mir_location,
-                crate::mir_core_bootstrap_bridge_capability(),
-            )?,
-            decode_stage_section(
-                &mir,
-                mir_location,
-                crate::mir_cross_cone_param_free_bridge_capability(),
-            )?,
-            decode_stage_section(
-                &mir,
-                mir_location,
-                crate::mir_cross_cone_type_bridge_capability(),
-            )?,
-            decode_stage_section::<lir::DecodedLirFoundation>(
-                &lir,
-                lir_location,
-                crate::lir_identity_foundation_capability(),
-            )?,
-            decode_stage_section(&lir, lir_location, crate::lir_cone_production_capability())?,
-            decode_stage_section(
-                &lir,
-                lir_location,
-                crate::lir_cross_cone_param_free_bridge_capability(),
-            )?,
-            decode_stage_section(
-                &lir,
-                lir_location,
-                crate::lir_cross_cone_layout_abi_capability(),
-            )?,
-            lir,
-        ))
+        with_compile_stage(&graph, profile, mir_location, |mir| {
+            with_compile_stage(&graph, profile, lir_location, |lir| {
+                Ok((
+                    decode_stage_section::<mir::DecodedMirFoundation>(
+                        mir,
+                        mir_location,
+                        crate::mir_identity_foundation_capability(),
+                    )?,
+                    decode_stage_section(
+                        mir,
+                        mir_location,
+                        crate::mir_core_bootstrap_bridge_capability(),
+                    )?,
+                    decode_stage_section(
+                        mir,
+                        mir_location,
+                        crate::mir_cross_cone_param_free_bridge_capability(),
+                    )?,
+                    decode_stage_section(
+                        mir,
+                        mir_location,
+                        crate::mir_cross_cone_type_bridge_capability(),
+                    )?,
+                    decode_stage_section::<lir::DecodedLirFoundation>(
+                        lir,
+                        lir_location,
+                        crate::lir_identity_foundation_capability(),
+                    )?,
+                    decode_stage_section(
+                        lir,
+                        lir_location,
+                        crate::lir_cone_production_capability(),
+                    )?,
+                    decode_stage_section(
+                        lir,
+                        lir_location,
+                        crate::lir_cross_cone_param_free_bridge_capability(),
+                    )?,
+                    decode_stage_section(
+                        lir,
+                        lir_location,
+                        crate::lir_cross_cone_layout_abi_capability(),
+                    )?,
+                    graph.decode_layout_link_only_sections(lir),
+                ))
+            })
+        })
     };
     let (
         mir_foundation,
@@ -139,16 +145,14 @@ fn read_machine<'input>(
         lir_strong_production,
         lir_cross_cone_bridge,
         lir_layout_abi,
-        lir,
+        link,
     ) = decode().map_err(|source| sections(slot, source))?;
-    let link = graph
-        .decode_layout_link_only_sections(&lir)
-        .map_err(|source| {
-            layout(LayoutError::LinkSections {
-                slot: Slot::Dependency(slot),
-                source: Box::new(source),
-            })
-        })?;
+    let link = link.map_err(|source| {
+        layout(LayoutError::LinkSections {
+            slot: Slot::Dependency(slot),
+            source: Box::new(source),
+        })
+    })?;
     let identity = graph.identity();
     let identities = || -> Result<_, scoop_identity::IdentityValidationError> {
         let mut pending = PendingIdentityValidation::from_graph(provider.identities.clone());
