@@ -10,10 +10,15 @@ pub(super) fn materialize(
     atoms: &[&DefinitionSymbolPlanV1],
 ) -> Result<Vec<u8>, CodegenError> {
     let mut output = ElfObject::read(bytes, object_target)?;
-    let unwind = output.file.section_by_name(".eh_frame");
-    let unwind_ranges = unwind
-        .as_ref()
-        .map(|section| super::unwind::eh_frame(&output.file, section))
+    let unwind = output
+        .file
+        .section_by_name(".eh_frame")
+        .map(|section| {
+            let ranges = super::unwind::eh_frame(&section, |_, relocations| {
+                super::unwind::elf_function(&output.file, relocations)
+            })?;
+            Ok::<_, CodegenError>((section.index(), ranges))
+        })
         .transpose()?;
     for definition in atoms {
         let name = definition.primary_symbol().symbol();
@@ -35,16 +40,12 @@ pub(super) fn materialize(
             let (section, start, end) = match boundary.atom_role() {
                 scoop_lir::DefinitionAtomRole::Primary => (section_index, start, end),
                 scoop_lir::DefinitionAtomRole::EhFrame => {
-                    let section = output.file.section_by_name(".eh_frame").ok_or_else(|| {
+                    let (section, ranges) = unwind.as_ref().ok_or_else(|| {
                         CodegenError::internal("ELF generated-C bridge has no unwind table".into())
                             .with_code(scoop_source::DiagnosticCode::ICE2302)
                     })?;
-                    let (start, end) = super::unwind::require(
-                        unwind_ranges.as_ref().expect("EH section was parsed"),
-                        section_index,
-                        start,
-                    )?;
-                    (section.index(), start, end)
+                    let (start, end) = super::unwind::require(ranges, section_index, start)?;
+                    (*section, start, end)
                 }
                 role => {
                     return Err(CodegenError::internal(format!(

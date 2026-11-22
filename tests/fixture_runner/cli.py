@@ -188,7 +188,7 @@ def environment(repo, work, fixtures, args):
         "python": sys.executable,
         "compile_args": ["--target", target],
         "cc_args": [],
-        "cc_link_args": ["-static"] if TARGETS[target]["native_environment"] == "LinuxMusl" else [],
+        "cc_link_args": [],
         "native_sysroot_args": ["--native-sysroot", str(args.native_sysroot.resolve())]
         if args.native_sysroot
         else [],
@@ -317,6 +317,9 @@ def environment(repo, work, fixtures, args):
                 common["cc_args"].append("--sysroot=" + str(args.native_sysroot.resolve()))
     elif needed & {"cc", "ar"}:
         raise EnvironmentError(f"no fixture native-tool companion for target OS {target_os!r}")
+    common["cc_dynamic_link_args"] = common["cc_link_args"]
+    if target_definition["native_environment"] == "LinuxMusl":
+        common["cc_link_args"] = [*common["cc_link_args"], "-static"]
     if "llc" in needed and apple is not None:
         _, minimum_variable, _, platform_triple = apple
         if "deployment" not in common:

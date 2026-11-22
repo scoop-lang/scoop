@@ -120,9 +120,13 @@ impl StartupObject {
             .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
         let mut info =
             NativeObjectInfo::read_with_toolchain(&bytes, profile.startup_toolchain().profile())?;
-        if profile.target().native_object_format() == scoop_lir::NativeObjectFormat::Elf64 {
+        let got = "_GLOBAL_OFFSET_TABLE_";
+        if profile
+            .elf_inputs()
+            .is_some_and(|elf| elf.linker_defined_symbols.contains(&got))
+        {
             // GNU as may retain this implicit linker symbol without a use.
-            info.requirements.remove("_GLOBAL_OFFSET_TABLE_");
+            info.requirements.remove(got);
         }
         let normalization = profile.target().contract().native_symbol_normalization();
         let main = normalization.compiler_generated_object_symbol(entry);

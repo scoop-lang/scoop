@@ -1,7 +1,7 @@
 [
   {
     "code": "E2301",
-    "message": "framework libraries are not supported by the Linux target; requirement 2f72e52eb0d32bdd5fa072c76dcd4d1bf2910b68d0acd5cc25d257be3195fe51; origins: dev.m33:library-negative:0.1.0",
+    "message": "framework libraries require a Mach-O target; requirement 2f72e52eb0d32bdd5fa072c76dcd4d1bf2910b68d0acd5cc25d257be3195fe51; origins: dev.m33:library-negative:0.1.0",
     "notes": [],
     "origin": {
       "kind": "none"

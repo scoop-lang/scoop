@@ -211,7 +211,7 @@ impl CanonicalLirFoundation {
                         DefinitionAtomRole::EhFrame,
                         DefinitionAtomRole::CompactUnwind,
                     ],
-                    crate::ObjectUnwindImageV1::ElfX86_64EhFrame => &[DefinitionAtomRole::EhFrame],
+                    crate::ObjectUnwindImageV1::ElfEhFrame => &[DefinitionAtomRole::EhFrame],
                     crate::ObjectUnwindImageV1::CoffAmd64PdataXdata => &[
                         DefinitionAtomRole::WindowsUnwindTable,
                         DefinitionAtomRole::WindowsUnwindInfo,
@@ -340,13 +340,15 @@ pub(super) fn callable_body_associated_atoms(
             )
         }));
     }
+    let object_target = target.object_target();
+    let unwind_image = object_target.unwind_image();
     if function.callable_body.release_owner().is_none() {
-        let roles: &[_] = match target.object_target().unwind_image() {
+        let roles: &[_] = match unwind_image {
             crate::ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame
             | crate::ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame => {
                 &[DefinitionAtomRole::CompactUnwind]
             }
-            crate::ObjectUnwindImageV1::ElfX86_64EhFrame => &[DefinitionAtomRole::EhFrame],
+            crate::ObjectUnwindImageV1::ElfEhFrame => &[DefinitionAtomRole::EhFrame],
             crate::ObjectUnwindImageV1::CoffAmd64PdataXdata => &[
                 DefinitionAtomRole::WindowsUnwindTable,
                 DefinitionAtomRole::WindowsUnwindInfo,
@@ -363,15 +365,15 @@ pub(super) fn callable_body_associated_atoms(
         .any(|(_, block)| matches!(block.terminator, crate::Terminator::Invoke { .. }))
     {
         associated.push((DefinitionAtomRole::Lsda, subkey()));
-        match target.object_target().unwind_image() {
+        if matches!(
+            unwind_image,
             crate::ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame
-            | crate::ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame => {
-                associated.push((DefinitionAtomRole::EhFrame, subkey()));
-            }
-            crate::ObjectUnwindImageV1::ElfX86_64EhFrame => {
-                associated.push((DefinitionAtomRole::AddressTakenConstant, subkey()));
-            }
-            crate::ObjectUnwindImageV1::CoffAmd64PdataXdata => {}
+                | crate::ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame
+        ) {
+            associated.push((DefinitionAtomRole::EhFrame, subkey()));
+        }
+        if object_target.uses_indirect_elf_personality() {
+            associated.push((DefinitionAtomRole::AddressTakenConstant, subkey()));
         }
     }
     associated.extend(cstrings.iter().map(|identity| {

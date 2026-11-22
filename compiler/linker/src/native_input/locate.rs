@@ -75,9 +75,11 @@ fn read_bytes(
         sha256(&bytes[slice.clone()])
     };
     let fixed_system = matches!(kind, NativeFileKind::Archive | NativeFileKind::SharedObject)
-        && matches!(profile, ValidatedFinalLinkProfile::Linux(linux) if linux
-            .input_paths()
-            .any(|path| path.canonicalize().ok().as_ref() == Some(&locator)));
+        && profile.elf_inputs().is_some_and(|elf| {
+            elf.system_paths
+                .iter()
+                .any(|path| path.canonicalize().ok().as_ref() == Some(&locator))
+        });
     let content = match kind {
         _ if fixed_system => NativeContent::System,
         NativeFileKind::Archive => {

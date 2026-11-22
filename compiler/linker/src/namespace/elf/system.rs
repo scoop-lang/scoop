@@ -7,6 +7,7 @@ impl ElfNamespace {
     pub(super) fn read_system(
         &mut self,
         profile: &ValidatedFinalLinkProfile,
+        compatibility_providers: &[&str],
     ) -> Result<(), LinkError> {
         let architecture = scoop_slib::ElfArchitecture::for_target(profile.id())
             .map_err(|cause| error(scoop_source::DiagnosticCode::E2301, cause))?;
@@ -54,8 +55,8 @@ impl ElfNamespace {
                 continue;
             };
             let id = NativeInputId::from_bytes(&bytes, kind, profile)?;
-            if matches!(name.as_str(), "libc.a" | "libc.so" | "libc.so.6") {
-                self.libc_inputs.insert(id);
+            if compatibility_providers.contains(&name.as_str()) {
+                self.compatibility_inputs.insert(id);
             }
             self.system.extend(symbols.clone());
             self.system_inputs.insert(id, symbols);

@@ -149,15 +149,21 @@ fn link_inputs(
             retain_symbols,
             dead_strip,
         )?,
-        ValidatedFinalLinkProfile::Linux(linux) => elf::link(
-            linux,
-            inputs,
-            directory.path(),
-            &archives,
-            &candidate,
-            retain_symbols,
-            dead_strip,
-        )?,
+        ValidatedFinalLinkProfile::Linux(linux) => {
+            let mut command = linux
+                .command(directory.path(), &candidate)
+                .map_err(|cause| error(cause.code(), cause))?;
+            elf::append_inputs(
+                &mut command,
+                inputs,
+                directory.path(),
+                &archives,
+                retain_symbols,
+                dead_strip,
+            )?;
+            linux.append_system_libraries(&mut command);
+            elf::run(&mut command)?;
+        }
         ValidatedFinalLinkProfile::Windows(windows) => {
             link_input_paths = pe::link(
                 windows,
@@ -194,7 +200,14 @@ fn link_inputs(
         )
         .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
     );
-    let plan_dump = dump(closure, runtime, inputs, &startup, options.keep_symbols);
+    let plan_dump = dump(
+        closure,
+        runtime,
+        inputs,
+        &startup,
+        profile,
+        options.keep_symbols,
+    );
     let import_library = match profile {
         ValidatedFinalLinkProfile::Windows(windows) => windows
             .import_library_path(&candidate)
@@ -323,6 +336,7 @@ fn dump(
     runtime: &RuntimeObjectSet,
     inputs: &ProgramInputs<'_>,
     startup: &StartupObject,
+    profile: &ValidatedFinalLinkProfile,
     keep_symbols: bool,
 ) -> String {
     let mut text = format!(
@@ -351,10 +365,10 @@ fn dump(
         inputs.symbol("scoop_td_String"),
         inputs.string_target
     ));
-    text.push_str(match &inputs.namespace {
-        crate::namespace::NativeNamespace::Darwin(_) => "link inputs: startup, cone/member order, runtime/object order, libSystem\n",
-        crate::namespace::NativeNamespace::Elf(_) => "link inputs: startup, cone/member order, runtime/object order, native CRT/libc/LLVM unwind\n",
-        crate::namespace::NativeNamespace::Coff(_) => "link inputs: Unicode startup, cone/member order, runtime/object order, COFF/import libraries, selected Windows CRT/LLVM unwind\n",
+    text.push_str(match profile {
+        ValidatedFinalLinkProfile::Darwin(_) => "link inputs: startup, cone/member order, runtime/object order, libSystem\n",
+        ValidatedFinalLinkProfile::Linux(_) => "link inputs: startup, cone/member order, runtime/object order, native CRT/libc/LLVM unwind\n",
+        ValidatedFinalLinkProfile::Windows(_) => "link inputs: Unicode startup, cone/member order, runtime/object order, COFF/import libraries, selected Windows CRT/LLVM unwind\n",
     });
     text.push_str(&inputs.native.dump());
     text.push_str(&inputs.namespace.dump());

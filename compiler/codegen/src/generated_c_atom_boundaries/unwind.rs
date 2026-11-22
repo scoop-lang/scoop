@@ -2,7 +2,11 @@
 
 use std::collections::BTreeMap;
 
-use object::{Object, ObjectSection, ObjectSymbol, RelocationTarget, SectionIndex, SectionKind};
+use object::read::elf::ElfFile64;
+use object::{
+    LittleEndian, Object, ObjectSection, ObjectSymbol, Relocation, RelocationEncoding,
+    RelocationKind, RelocationTarget, SectionIndex, SectionKind,
+};
 
 use crate::CodegenError;
 
@@ -23,13 +27,47 @@ fn unsigned(data: &[u8], offset: usize, size: usize) -> Result<u64, CodegenError
     Ok(u64::from_le_bytes(value))
 }
 
-/// Resolve the function at a record's initial-location field. Mach-O's local
-/// section relocations store object addresses; ELF RELA stores an explicit addend.
-fn function<'data, O: Object<'data>>(
+pub(super) fn elf_function(
+    file: &ElfFile64<'_, LittleEndian>,
+    relocations: &[Relocation],
+) -> Result<Function, CodegenError> {
+    // The ELF reader decodes the relocation in the file's machine namespace.
+    let [relocation] = relocations else {
+        return Err(error("ELF FDE initial location requires one relocation"));
+    };
+    if relocation.kind() != RelocationKind::Relative
+        || relocation.encoding() != RelocationEncoding::Generic
+        || relocation.has_implicit_addend()
+    {
+        return Err(error(format!(
+            "unsupported ELF FDE initial-location relocation {:?}",
+            relocation.flags()
+        )));
+    }
+    let RelocationTarget::Symbol(index) = relocation.target() else {
+        return Err(error("ELF FDE initial location requires a symbol"));
+    };
+    let symbol = file.symbol_by_index(index).map_err(error)?;
+    let section = symbol
+        .section_index()
+        .ok_or_else(|| error("undefined ELF FDE target"))?;
+    if file.section_by_index(section).map_err(error)?.kind() != SectionKind::Text {
+        return Err(error("ELF FDE target is outside text"));
+    }
+    // The unwinder adds the field address back to S + A - P.
+    let address = symbol
+        .address()
+        .checked_add_signed(relocation.addend())
+        .ok_or_else(|| error("ELF FDE target address overflows"))?;
+    Ok((section.0, address))
+}
+
+/// Mach-O's local section relocations store object addresses.
+pub(super) fn macho_function<'data, O: Object<'data>>(
     file: &O,
     section: &impl ObjectSection<'data>,
     offset: u64,
-    relocations: &[object::Relocation],
+    relocations: &[Relocation],
 ) -> Result<Function, CodegenError> {
     for relocation in relocations {
         let (target, address, section_symbol) = match relocation.target() {
@@ -62,23 +100,19 @@ fn function<'data, O: Object<'data>>(
         return Ok((target.0, address));
     }
     // The x86-64 Mach-O assembler resolves its PC-relative FDE pointers locally.
-    if matches!(file.flags(), object::FileFlags::MachO { .. }) {
-        let value = unsigned(section.data().map_err(error)?, offset as usize, 8)?;
-        let address = section.address().wrapping_add(offset).wrapping_add(value);
-        if let Some(text) = file.sections().find(|text| {
-            text.kind() == SectionKind::Text
-                && address >= text.address()
-                && address < text.address() + text.size()
-        }) {
-            return Ok((text.index().0, address));
-        }
+    let value = unsigned(section.data().map_err(error)?, offset as usize, 8)?;
+    let address = section.address().wrapping_add(offset).wrapping_add(value);
+    if let Some(text) = file.sections().find(|text| {
+        text.kind() == SectionKind::Text
+            && address >= text.address()
+            && address < text.address() + text.size()
+    }) {
+        return Ok((text.index().0, address));
     }
     Err(error("function has no resolvable unwind initial location"))
 }
 
-fn relocation_sites<'data>(
-    section: &impl ObjectSection<'data>,
-) -> BTreeMap<u64, Vec<object::Relocation>> {
+fn relocation_sites<'data>(section: &impl ObjectSection<'data>) -> BTreeMap<u64, Vec<Relocation>> {
     let mut sites = BTreeMap::<_, Vec<_>>::new();
     for (offset, relocation) in section.relocations() {
         sites.entry(offset).or_default().push(relocation);
@@ -86,9 +120,9 @@ fn relocation_sites<'data>(
     sites
 }
 
-pub(super) fn eh_frame<'data, O: Object<'data>>(
-    file: &O,
+pub(super) fn eh_frame<'data>(
     section: &impl ObjectSection<'data>,
+    mut function: impl FnMut(u64, &[Relocation]) -> Result<Function, CodegenError>,
 ) -> Result<Ranges, CodegenError> {
     let data = section.data().map_err(error)?;
     let sites = relocation_sites(section);
@@ -116,12 +150,7 @@ pub(super) fn eh_frame<'data, O: Object<'data>>(
         }
         if unsigned(data, offset + header, id_size)? != 0 {
             let site = (offset + header + id_size) as u64;
-            let key = function(
-                file,
-                section,
-                site,
-                sites.get(&site).map(Vec::as_slice).unwrap_or(&[]),
-            )?;
+            let key = function(site, sites.get(&site).map(Vec::as_slice).unwrap_or(&[]))?;
             if ranges
                 .insert(key, (owned_start as u64, end as u64))
                 .is_some()
@@ -139,7 +168,7 @@ pub(super) fn eh_frame<'data, O: Object<'data>>(
     Ok(ranges)
 }
 
-pub(super) fn compact<'data, O: Object<'data>>(
+pub(super) fn macho_compact<'data, O: Object<'data>>(
     file: &O,
     section: &impl ObjectSection<'data>,
 ) -> Result<Ranges, CodegenError> {
@@ -151,7 +180,7 @@ pub(super) fn compact<'data, O: Object<'data>>(
         .step_by(32)
         .map(|offset| {
             Ok((
-                function(
+                macho_function(
                     file,
                     section,
                     offset,

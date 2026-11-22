@@ -1,5 +1,17 @@
 use super::*;
 
+/// Inputs supplied by the selected final-link profile to ELF library resolution.
+#[derive(Clone, Copy)]
+pub struct ElfLinkInputs<'a> {
+    pub mode: LinkMode,
+    pub system_paths: &'a [PathBuf],
+    pub compatibility_providers: &'static [&'static str],
+    pub conflicting_unwind_prefixes: &'static [&'static str],
+    pub linker_defined_symbols: &'static [&'static str],
+}
+
+pub(super) const GNU_ELF_LINKER_SYMBOLS: &[&str] = &["__ehdr_start", "_GLOBAL_OFFSET_TABLE_"];
+
 const GNU_ELF_OPTIONS: &[&str] = &[
     "-Wl,--eh-frame-hdr",
     "-Wl,--enable-new-dtags",

@@ -1,5 +1,6 @@
+//! Inputs and flags for an already selected GNU-compatible ELF linker command.
+
 use super::*;
-use scoop_toolchain::LinuxFinalLinkProfile;
 
 mod shared;
 
@@ -20,18 +21,14 @@ fn append_archives(
     Ok(())
 }
 
-pub(super) fn link(
-    profile: &LinuxFinalLinkProfile,
+pub(super) fn append_inputs(
+    command: &mut std::process::Command,
     inputs: &ProgramInputs<'_>,
     directory: &Path,
     archives: &[PathBuf],
-    candidate: &Path,
     keep_symbols: bool,
     dead_strip: bool,
 ) -> Result<(), LinkError> {
-    let mut command = profile
-        .command(directory, candidate)
-        .map_err(|cause| error(cause.code(), cause))?;
     if !keep_symbols {
         command.arg("-Xlinker").arg("--strip-all");
     }
@@ -39,14 +36,17 @@ pub(super) fn link(
         command.arg("-Xlinker").arg("--gc-sections");
     }
 
-    append_archives(&mut command, directory, archives)?;
+    append_archives(command, directory, archives)?;
     command.arg("-Xlinker").arg(format!(
         "--defsym={}={}",
         inputs.symbol("scoop_td_String"),
         inputs.string_target
     ));
-    shared::append(inputs, directory, &mut command)?;
-    profile.append_system_libraries(&mut command);
+    shared::append(inputs, directory, command)?;
+    Ok(())
+}
+
+pub(super) fn run(command: &mut std::process::Command) -> Result<(), LinkError> {
     let result = command.scoop_output().map_err(|err| {
         error(
             scoop_source::DiagnosticCode::E2202,

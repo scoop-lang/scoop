@@ -1,47 +1,45 @@
 //! Architecture-specific relocation uses shared by bridge and runtime readers.
 
 use super::{VerifiedMachORelocationFormV1 as MachForm, VerifiedObjectRelocationFormV1 as Form};
-use object::elf::*;
+use crate::link_object::elf::ElfRelocationKind;
 
 impl Form {
     pub(in crate::link_object) fn is_tls_reference(self) -> bool {
-        matches!(
-            self,
+        match self {
             Self::Coff {
                 machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: object::pe::IMAGE_REL_AMD64_SECREL,
                 storage_width: 4,
-            } | Self::MachO {
+            }
+            | Self::MachO {
                 machine: scoop_lir::ObjectMachineV1::Aarch64,
                 form: MachForm::TlvpLoadPage21 | MachForm::TlvpLoadPageOffset12,
-            } | Self::MachO {
-                machine: scoop_lir::ObjectMachineV1::X86_64,
-                form: MachForm::X86_64PcRelative32 {
-                    kind: super::MachOX86_64PcRelativeKindV1::Tlv,
-                },
-            } | Self::ElfRela {
-                machine: scoop_lir::ObjectMachineV1::X86_64,
-                kind: R_X86_64_TLSGD
-                    | R_X86_64_TLSLD
-                    | R_X86_64_DTPOFF32
-                    | R_X86_64_GOTTPOFF
-                    | R_X86_64_TPOFF32
-                    | R_X86_64_GOTPC32_TLSDESC,
-                storage_width: 4,
-                ..
-            } | Self::ElfRela {
-                machine: scoop_lir::ObjectMachineV1::X86_64,
-                kind: R_X86_64_DTPOFF64 | R_X86_64_TPOFF64,
-                storage_width: 8,
-                ..
             }
-        )
+            | Self::MachO {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
+                form:
+                    MachForm::X86_64PcRelative32 {
+                        kind: super::MachOX86_64PcRelativeKindV1::Tlv,
+                    },
+            } => true,
+            Self::ElfRela {
+                machine,
+                kind,
+                storage_width,
+                ..
+            } => matches!(
+                ElfRelocationKind::classify(machine, kind, storage_width),
+                Some(ElfRelocationKind::TlsReference(_))
+            ),
+            _ => false,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use object::elf::{R_X86_64_REX_GOTPCRELX, R_X86_64_TLSGD};
 
     #[test]
     fn amd64_tls_references_are_distinct_from_ordinary_addresses() {

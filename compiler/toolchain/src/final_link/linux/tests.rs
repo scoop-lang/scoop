@@ -61,7 +61,7 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
         linux.append_system_libraries(&mut command);
         let linked = probe::run(&mut command).unwrap();
         let inputs = String::from_utf8(linked.stdout).unwrap();
-        for input in linux.input_paths() {
+        for input in linux.elf_inputs().system_paths {
             assert!(
                 inputs.lines().any(|line| Path::new(line.trim()) == input),
                 "system library {} was not used by the real link: {inputs}",

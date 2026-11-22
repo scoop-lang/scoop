@@ -227,7 +227,7 @@ fn linux_libcs_have_distinct_targets_and_share_the_x86_backend() {
     for profile in [gnu.target(), musl.target()] {
         assert_eq!(
             profile.object_target().unwind_image(),
-            scoop_lir::ObjectUnwindImageV1::ElfX86_64EhFrame
+            scoop_lir::ObjectUnwindImageV1::ElfEhFrame
         );
         assert_eq!(
             profile.contract().native_symbol_normalization(),

@@ -10,7 +10,7 @@ use object::read::elf::{ElfFile64, ElfSymbol, FileHeader, SectionHeader};
 use object::{
     LittleEndian as LE, Object, ObjectSection, ObjectSymbol, SectionIndex, SymbolIndex, elf,
 };
-use scoop_lir::LinkageClass;
+use scoop_lir::{LinkageClass, NativeObjectFormat, ObjectMachineV1};
 
 use crate::CodegenError;
 
@@ -34,14 +34,14 @@ impl<'a> ElfObject<'a> {
         bytes: &'a [u8],
         object_target: scoop_lir::ObjectTargetProfileV1,
     ) -> Result<Self, CodegenError> {
-        let architecture = match object_target {
-            scoop_lir::ObjectTargetProfileV1::ElfX86_64 => object::Architecture::X86_64,
-            _ => {
-                return Err(CodegenError::internal(format!(
-                    "atom materialization has no ELF implementation for {object_target:?}"
-                ))
-                .with_code(scoop_source::DiagnosticCode::ICE2302));
-            }
+        if object_target.format() != NativeObjectFormat::Elf64 {
+            return Err(error(format!(
+                "atom materialization requires an ELF object target, got {object_target:?}"
+            )));
+        }
+        let architecture = match object_target.machine() {
+            ObjectMachineV1::Aarch64 => object::Architecture::Aarch64,
+            ObjectMachineV1::X86_64 => object::Architecture::X86_64,
         };
         let file = ElfFile64::<LE>::parse(bytes).map_err(error)?;
         if !file.is_little_endian()

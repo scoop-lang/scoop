@@ -89,13 +89,20 @@ impl ValidatedRuntimeBuildProfile {
             }
             scoop_target_data::RuntimeTuning::InlineGcForwarding => sources::INLINE_GC_FORWARDING,
         };
-        let (image, image_flags): (_, &[_]) = match target.object_target() {
-            ObjectTargetProfileV1::MachOAarch64 | ObjectTargetProfileV1::MachOX86_64 => {
-                (sources::MACHO_IMAGE, &[])
-            }
-            ObjectTargetProfileV1::ElfX86_64 => (sources::ELF_IMAGE, &["-fvisibility=hidden"]),
-            ObjectTargetProfileV1::CoffAmd64 => {
+        let (image, image_flags): (_, &[_]) = match (
+            target.native_object_format(),
+            target.object_target().machine(),
+        ) {
+            (NativeObjectFormat::MachO64, _) => (sources::MACHO_IMAGE, &[]),
+            (NativeObjectFormat::Elf64, _) => (sources::ELF_IMAGE, &["-fvisibility=hidden"]),
+            (NativeObjectFormat::Coff64, scoop_lir::ObjectMachineV1::X86_64) => {
                 (sources::PE_IMAGE, &[sources::PE_AMD64_IMAGE_MACHINE])
+            }
+            (NativeObjectFormat::Coff64, machine) => {
+                return Err(crate::ToolchainError::new(
+                    scoop_source::DiagnosticCode::E2307,
+                    format!("no runtime PE image parser for {machine:?}"),
+                ));
             }
         };
         let (loaded_image, trace_loader, metadata_image_ops_flag): (&[&str], &[&str], &str) =

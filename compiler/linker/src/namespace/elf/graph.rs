@@ -8,6 +8,7 @@ impl ElfNamespace {
         native: &mut NativeInputs,
         roots: &[PathBuf],
         profile: &ValidatedFinalLinkProfile,
+        conflicting_unwind_prefixes: &[&str],
     ) -> Result<(), LinkError> {
         self.roots = native
             .ordered_files()
@@ -34,10 +35,15 @@ impl ElfNamespace {
                 if self.needed.contains(name) {
                     continue;
                 }
-                if name.starts_with("libgcc_s.so") {
+                if conflicting_unwind_prefixes
+                    .iter()
+                    .any(|&prefix| name.starts_with(prefix))
+                {
                     return Err(error(
                         scoop_source::DiagnosticCode::E2307,
-                        "native DSO requires a second EH provider alongside LLVM libunwind",
+                        format!(
+                            "native DSO dependency {name} conflicts with the selected unwind provider"
+                        ),
                     ));
                 }
                 let child = if let Some(child) = names.get(name) {

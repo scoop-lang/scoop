@@ -5,6 +5,7 @@ use std::fmt;
 use std::num::NonZeroU32;
 
 use crate::link_object::ObjectRelocationShapeV1;
+use crate::link_object::elf::ElfRelocationKind;
 
 use super::{
     LlvmStackmapSectionParseError, ParsedLlvmStackmapFunctionV3, parse_llvm_stackmap_section_v3,
@@ -92,12 +93,17 @@ pub fn read_object_stackmap_section_v3(
         parse_llvm_stackmap_section_v3(contents).map_err(ObjectStackmapSectionError::Parse)?;
     let (constants, parsed_functions) = parsed.into_parts();
 
-    let mut relocations = envelope
+    let mut relocations = BTreeMap::new();
+    for relocation in envelope
         .relocations()
         .iter()
         .filter(|relocation| relocation.containing_section_ordinal() == section_ordinal)
-        .map(|relocation| (relocation.offset(), relocation))
-        .collect::<BTreeMap<_, _>>();
+    {
+        let offset = relocation.offset();
+        if relocations.insert(offset, relocation).is_some() {
+            return Err(ObjectStackmapSectionError::DuplicateRelocation { offset });
+        }
+    }
     let mut functions = Vec::with_capacity(parsed_functions.len());
     for (index, parsed) in parsed_functions.into_iter().enumerate() {
         if parsed.encoded_function_address() != 0 {
@@ -130,12 +136,18 @@ pub fn read_object_stackmap_section_v3(
                 ..
             } => target,
             ObjectRelocationShapeV1::ElfRela {
-                machine: scoop_lir::ObjectMachineV1::X86_64,
-                kind: object::elf::R_X86_64_64,
+                machine,
+                kind,
                 target_symbol,
                 addend: 0,
-                storage_width: 8,
-            } => target_symbol,
+                storage_width,
+            } if matches!(
+                ElfRelocationKind::classify(machine, kind, storage_width),
+                Some(ElfRelocationKind::Absolute64)
+            ) =>
+            {
+                target_symbol
+            }
             shape => {
                 return Err(
                     ObjectStackmapSectionError::InvalidFunctionAddressRelocation { index, shape },
@@ -199,6 +211,9 @@ pub enum ObjectStackmapSectionError {
     InvalidFunctionTargetSymbol {
         index: usize,
         table_index: u32,
+    },
+    DuplicateRelocation {
+        offset: u64,
     },
     UnexpectedRelocation {
         offset: u64,

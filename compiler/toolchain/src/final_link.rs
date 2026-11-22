@@ -33,6 +33,7 @@ mod output;
 mod shared_tests;
 mod windows;
 pub use darwin::DarwinFinalLinkProfile;
+pub use elf::ElfLinkInputs;
 pub use linux::LinuxFinalLinkProfile;
 pub use output::FinalOutputKind;
 use output::OutputConfiguration;
@@ -163,6 +164,13 @@ impl ValidatedFinalLinkProfile {
             Self::Darwin(profile) => &profile.data.native_roots,
             Self::Linux(profile) => &profile.data.native_roots,
             Self::Windows(profile) => &profile.data.native_roots,
+        }
+    }
+
+    pub fn elf_inputs(&self) -> Option<ElfLinkInputs<'_>> {
+        match self {
+            Self::Linux(profile) => Some(profile.elf_inputs()),
+            Self::Darwin(_) | Self::Windows(_) => None,
         }
     }
 

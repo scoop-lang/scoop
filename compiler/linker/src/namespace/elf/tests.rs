@@ -31,7 +31,11 @@ fn check_system_libraries(target: &str, musl: bool) {
         ids.insert(name, id);
     }
     let mut native = NativeInputs::read(requirements, &[], &profile, &[]).unwrap();
-    let namespace = ElfNamespace::read(&mut native, &[], &profile).unwrap();
+    let NativeNamespace::Elf(namespace) =
+        NativeNamespace::read(&mut native, &[], &profile).unwrap()
+    else {
+        panic!("expected ELF namespace");
+    };
     for (name, symbol) in [("c", "puts"), ("m", "cos")] {
         let library = &native.libraries[&ids[name]];
         let candidates = namespace.candidates(symbol, Some(&library.inputs), library.system_alias);
@@ -57,6 +61,60 @@ fn check_system_libraries(target: &str, musl: bool) {
             .iter()
             .all(|id| !namespace.system_inputs.contains_key(id))
     );
+}
+
+#[test]
+fn elf_dependencies_follow_the_selected_linux_unwinder() {
+    let target =
+        scoop_toolchain::ResolvedTargetProfile::resolve("x86_64-unknown-linux-gnu").unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("unwind.c");
+    std::fs::write(
+        &source,
+        "#include <unwind.h>\nvoid drop_exception(struct _Unwind_Exception *value) { _Unwind_DeleteException(value); }\n",
+    )
+    .unwrap();
+    let output = target
+        .c_bridge_toolchain()
+        .driver_command()
+        .args(["-shared", "-fPIC", "-Wl,-z,defs"])
+        .arg(&source)
+        .arg("-lgcc_s")
+        .arg("-o")
+        .arg(directory.path().join("libuses_unwind.so"))
+        .scoop_output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let key = NativeLinkRequirementKey::for_target(
+        target.lir_target().wire_id(),
+        CanonicalNativeLibraryName::new("uses_unwind").unwrap(),
+        NativeLibraryKind::Dynamic,
+        NativeLibraryGrouping::Independent,
+    );
+    let id = NativeLinkRequirementId::from_key(&key).unwrap();
+    let roots = [directory.path().to_owned()];
+    let read = |profile| {
+        let requirements = BTreeMap::from([(id, (key.clone(), vec!["unwind-test".to_owned()]))]);
+        let mut native = NativeInputs::read(requirements, &roots, profile, &[]).unwrap();
+        NativeNamespace::read(&mut native, &roots, profile)
+    };
+    let c_profile = target.final_link().unwrap();
+    let failure = read(&c_profile).err().expect("expected an unwind conflict");
+    assert_eq!(failure.code(), scoop_source::DiagnosticCode::E2307);
+    assert!(failure.to_string().contains("libgcc_s.so"), "{failure}");
+
+    let cxx_profile = target
+        .final_link_with_cxx(&Default::default(), true)
+        .unwrap();
+    assert!(matches!(
+        read(&cxx_profile).unwrap(),
+        NativeNamespace::Elf(_)
+    ));
 }
 
 #[test]
