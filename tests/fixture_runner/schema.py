@@ -86,6 +86,7 @@ BUILTINS = {
     "cc_family",
     "cc_args",
     "cc_link_args",
+    "cc_dynamic_link_args",
     "native_sysroot_args",
     "compile_args",
     "link_args",

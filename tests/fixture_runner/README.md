@@ -47,8 +47,7 @@ SDK 和 deployment，Linux 为 PIC/pthread；源码自己的标准、优化和�
 Linux 复用已有预定义宏探测，Darwin／Windows 使用其配套 Clang。
 诊断文件路径可组合 `${cc_family}` 与 `${target}`；须声明 `cc` 和适用目标。
 所选文件在工具确定后、执行步骤前加载并校验，未使用的 compiler 期望不参与本次运行。
-直接链接 C 辅助可执行程序时，再传 `{each = "${cc_link_args}"}`；musl 使用 `-static`，
-避免依赖宿主的动态 libc 或 GCC runtime，其他目标为空。对象和共享库只使用 `${cc_args}`。
+普通 C 辅助可执行程序使用 `{each = "${cc_link_args}"}`，其中 musl 附加 `-static`。需要装载共享库的 C／C++ 宿主使用 `{each = "${cc_dynamic_link_args}"}`，取得所选 companion 的链接参数及动态 libc。对象和共享库只使用 `${cc_args}`。
 Apple deployment 采用 macOS 的 `MACOSX_DEPLOYMENT_TARGET`、iOS 的 `IPHONEOS_DEPLOYMENT_TARGET` 或 `scripts/release.toml` 的明确基线，
 与开发工具保持一致，不读取宿主系统版本。
 `${target_facts.os}`、`${target_facts.arch}` 和 `${target_facts.env}` 来自共享目标目录，适合按 OS／架构／环境检查源码选择，不必在 fixture 中复制完整目标名单。

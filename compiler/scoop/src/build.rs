@@ -324,10 +324,10 @@ fn output_path(
     if emit_slib || graph.root_kind() == RequestedConeKind::Library {
         name.push_str(".slib");
     } else if graph.root_kind() == RequestedConeKind::NativeApp {
-        name = match final_link {
-            scoop_target_data::FinalLinkProfile::Darwin => format!("lib{name}.dylib"),
-            scoop_target_data::FinalLinkProfile::Linux => format!("lib{name}.so"),
-            scoop_target_data::FinalLinkProfile::Windows => format!("{name}.dll"),
+        name = match target.lir_target().native_object_format() {
+            scoop_lir::NativeObjectFormat::MachO64 => format!("lib{name}.dylib"),
+            scoop_lir::NativeObjectFormat::Elf64 => format!("lib{name}.so"),
+            scoop_lir::NativeObjectFormat::Coff64 => format!("{name}.dll"),
         };
     } else if final_link.is_windows() {
         name.push_str(".exe");

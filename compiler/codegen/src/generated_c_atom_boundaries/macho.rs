@@ -13,12 +13,16 @@ pub(super) fn materialize(
     let eh = file.section_by_name("__eh_frame");
     let eh_ranges = eh
         .as_ref()
-        .map(|section| super::unwind::eh_frame(&file, section))
+        .map(|section| {
+            super::unwind::eh_frame(section, |offset, relocations| {
+                super::unwind::macho_function(&file, section, offset, relocations)
+            })
+        })
         .transpose()?;
     let compact = file.section_by_name("__compact_unwind");
     let compact_ranges = compact
         .as_ref()
-        .map(|section| super::unwind::compact(&file, section))
+        .map(|section| super::unwind::macho_compact(&file, section))
         .transpose()?;
     let primary_ends = super::unwind::primary_ends(&file)?;
     let normalization = target.contract().native_symbol_normalization();

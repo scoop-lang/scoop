@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "eh/lsda_encoding.h"
 #include "eh_internal.h"
 
 typedef struct TestBuffer {
@@ -275,6 +276,11 @@ static void test_unsupported_encodings(void) {
                    SCOOP_EH_REASON_UNSUPPORTED_LPSTART_ENCODING);
     bad = valid;
     bad.bytes[1] = 0x03;
+    expect_failure(decode(&bad, region, region + 1), SCOOP_EH_DECODE_UNSUPPORTED,
+                   SCOOP_EH_REASON_UNSUPPORTED_TTYPE_ENCODING);
+    bad.bytes[1] = SCOOP_EH_TTYPE_ENCODING == SCOOP_EH_DW_PE_ABSPTR
+                       ? SCOOP_EH_DW_PE_PCREL_SDATA4_INDIRECT
+                       : SCOOP_EH_DW_PE_ABSPTR;
     expect_failure(decode(&bad, region, region + 1), SCOOP_EH_DECODE_UNSUPPORTED,
                    SCOOP_EH_REASON_UNSUPPORTED_TTYPE_ENCODING);
     bad = valid;

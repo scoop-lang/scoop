@@ -1,4 +1,6 @@
 use super::*;
+use scoop_lir::NativeObjectFormat;
+use scoop_toolchain::LinkMode;
 
 pub(super) fn find(
     key: &NativeLinkRequirementKey,
@@ -7,44 +9,19 @@ pub(super) fn find(
     observed: &mut Vec<PathBuf>,
 ) -> Result<Option<NativeFile>, LinkError> {
     let name = key.library().as_str();
-    let linux = matches!(profile, ValidatedFinalLinkProfile::Linux(_));
-    let dynamic = matches!(profile, ValidatedFinalLinkProfile::Linux(p) if p.mode() == scoop_toolchain::LinkMode::Dynamic);
-    let windows = matches!(profile, ValidatedFinalLinkProfile::Windows(_));
-    let suffixes = if windows {
-        windows::suffixes(key)?
-    } else if linux {
-        match key.kind() {
-            NativeLibraryKind::TargetDefault => {
-                let mut files = vec![
-                    (format!("{name}.o"), NativeFileKind::Object),
-                    (format!("lib{name}.a"), NativeFileKind::Archive),
-                ];
-                if dynamic {
-                    files.push((format!("lib{name}.so"), NativeFileKind::SharedObject));
-                }
-                files
-            }
-            NativeLibraryKind::StaticArchive => {
-                vec![(format!("lib{name}.a"), NativeFileKind::Archive)]
-            }
-            NativeLibraryKind::Dynamic if dynamic => {
-                vec![(format!("lib{name}.so"), NativeFileKind::SharedObject)]
-            }
-            NativeLibraryKind::Dynamic => {
-                return Err(error(
-                    scoop_source::DiagnosticCode::E2001,
-                    "ELF shared library requires --link-mode dynamic",
-                ));
-            }
-            NativeLibraryKind::Framework => {
-                return Err(error(
-                    scoop_source::DiagnosticCode::E2301,
-                    "framework libraries are not supported by the Linux target",
-                ));
-            }
+    let format = profile.target().native_object_format();
+    let suffixes = match format {
+        NativeObjectFormat::Coff64 => windows::suffixes(key)?,
+        NativeObjectFormat::Elf64 => {
+            let elf = profile.elf_inputs().ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::ICE2201,
+                    "ELF library lookup requires a selected link mode",
+                )
+            })?;
+            elf_suffixes(name, key.kind(), elf.mode)?
         }
-    } else {
-        match key.kind() {
+        NativeObjectFormat::MachO64 => match key.kind() {
             NativeLibraryKind::TargetDefault => vec![
                 (format!("{name}.o"), NativeFileKind::Object),
                 (format!("lib{name}.a"), NativeFileKind::Archive),
@@ -72,7 +49,7 @@ pub(super) fn find(
                     NativeFileKind::TextStub,
                 ),
             ],
-        }
+        },
     };
     let paths: BTreeMap<_, _> = roots
         .iter()
@@ -102,7 +79,7 @@ pub(super) fn find(
                 format!("native candidate {}: {err}", path.display()),
             )
         })?;
-        if windows && !windows::matches_kind(&file, key.kind()) {
+        if format == NativeObjectFormat::Coff64 && !windows::matches_kind(&file, key.kind()) {
             continue;
         }
         locators.push(path);
@@ -127,5 +104,42 @@ pub(super) fn find(
             scoop_source::DiagnosticCode::E2305,
             "native candidate disappeared",
         )
+    })
+}
+
+fn elf_suffixes(
+    name: &str,
+    kind: NativeLibraryKind,
+    mode: LinkMode,
+) -> Result<Vec<(String, NativeFileKind)>, LinkError> {
+    Ok(match kind {
+        NativeLibraryKind::TargetDefault => {
+            let mut files = vec![
+                (format!("{name}.o"), NativeFileKind::Object),
+                (format!("lib{name}.a"), NativeFileKind::Archive),
+            ];
+            if mode == LinkMode::Dynamic {
+                files.push((format!("lib{name}.so"), NativeFileKind::SharedObject));
+            }
+            files
+        }
+        NativeLibraryKind::StaticArchive => {
+            vec![(format!("lib{name}.a"), NativeFileKind::Archive)]
+        }
+        NativeLibraryKind::Dynamic if mode == LinkMode::Dynamic => {
+            vec![(format!("lib{name}.so"), NativeFileKind::SharedObject)]
+        }
+        NativeLibraryKind::Dynamic => {
+            return Err(error(
+                scoop_source::DiagnosticCode::E2001,
+                "ELF shared library requires --link-mode dynamic",
+            ));
+        }
+        NativeLibraryKind::Framework => {
+            return Err(error(
+                scoop_source::DiagnosticCode::E2301,
+                "framework libraries require a Mach-O target",
+            ));
+        }
     })
 }

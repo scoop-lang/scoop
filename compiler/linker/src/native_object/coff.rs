@@ -1,6 +1,7 @@
 use super::*;
 use object::Architecture;
 use object::{ObjectComdat, SectionFlags, pe};
+use scoop_lir::{NativeObjectFormat, ObjectMachineV1};
 
 pub(super) fn read(
     bytes: &[u8],
@@ -123,11 +124,15 @@ pub(crate) fn read_with_import_sections(
 pub(crate) fn object_architecture(
     target: scoop_lir::LirTargetProfile,
 ) -> Result<Architecture, LinkError> {
-    match target.object_target() {
-        scoop_lir::ObjectTargetProfileV1::CoffAmd64 => Ok(Architecture::X86_64),
-        object_target => Err(error(
+    let object_target = target.object_target();
+    if object_target.format() != NativeObjectFormat::Coff64 {
+        return Err(error(
             scoop_source::DiagnosticCode::E2301,
             format!("no COFF native object reader for {object_target:?}"),
-        )),
+        ));
     }
+    Ok(match object_target.machine() {
+        ObjectMachineV1::Aarch64 => Architecture::Aarch64,
+        ObjectMachineV1::X86_64 => Architecture::X86_64,
+    })
 }

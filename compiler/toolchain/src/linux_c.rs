@@ -1,4 +1,4 @@
-//! GCC/Clang discovery for ELF targets. C compilation does not require an unwinder.
+//! GCC/Clang discovery for Linux targets. C compilation does not require an unwinder.
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};

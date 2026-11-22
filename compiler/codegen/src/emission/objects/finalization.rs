@@ -35,12 +35,8 @@ pub(super) fn finalize_production<'a, D, C, I>(
             counts.insert(registration.safepoint(), count);
         }
     }
-    let unwind_image = input
-        .module()
-        .meta
-        .target_profile
-        .object_target()
-        .unwind_image();
+    let object_target = input.module().meta.target_profile.object_target();
+    let unwind_image = object_target.unwind_image();
     let mut removed_atoms = BTreeSet::new();
     for definition in production
         .canonical_definitions()
@@ -65,16 +61,16 @@ pub(super) fn finalize_production<'a, D, C, I>(
         }
         if !plan.has_unwind {
             roles.push(DefinitionAtomRole::Lsda);
-            roles.extend(match unwind_image {
+            if matches!(
+                unwind_image,
                 scoop_lir::ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame
-                | scoop_lir::ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame => {
-                    Some(DefinitionAtomRole::EhFrame)
-                }
-                scoop_lir::ObjectUnwindImageV1::ElfX86_64EhFrame => {
-                    Some(DefinitionAtomRole::AddressTakenConstant)
-                }
-                scoop_lir::ObjectUnwindImageV1::CoffAmd64PdataXdata => None,
-            });
+                    | scoop_lir::ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame
+            ) {
+                roles.push(DefinitionAtomRole::EhFrame);
+            }
+            if object_target.uses_indirect_elf_personality() {
+                roles.push(DefinitionAtomRole::AddressTakenConstant);
+            }
         }
         for role in roles {
             // Only the body-scoped backend atom is removed, never a CString or scan.

@@ -103,11 +103,7 @@ fn linux_runtime_sources_compile_and_define_the_complete_runtime_abi() {
                 enable_startup_stats: false,
                 input_key: sha256(b"runtime index integration"),
                 compiler_inputs: sha256(b"selected runtime test compiler"),
-                flags: profile
-                    .runtime_c_flags()
-                    .iter()
-                    .map(|value| (*value).to_owned())
-                    .collect(),
+                flags: profile.runtime_c_flags(),
             },
             objects.clone(),
             &directory.path().join("index"),

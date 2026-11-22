@@ -154,6 +154,7 @@ class EnvironmentTests(unittest.TestCase):
             self.assertEqual(common["cc_family"], "gcc")
             self.assertEqual(common["cc_args"], ["-fPIC", "-pthread"])
             self.assertEqual(common["cc_link_args"], ["-static"])
+            self.assertEqual(common["cc_dynamic_link_args"], [])
             self.assertEqual(common["native_sysroot_args"], [])
             self.assertEqual(common["compile_args"], ["--target", "x86_64-unknown-linux-musl"])
             self.assertEqual(common["link_args"], common["compile_args"])
@@ -319,6 +320,7 @@ class EnvironmentTests(unittest.TestCase):
                         self.assertIn("--sysroot=" + str(sdk), common["cc_args"])
                         self.assertNotIn("-static", common["cc_args"])
                         self.assertEqual(common["cc_link_args"], linking)
+                        self.assertEqual(common["cc_dynamic_link_args"], [])
                         self.assertEqual(
                             common["native_sysroot_args"], ["--native-sysroot", str(sdk)]
                         )
@@ -451,6 +453,7 @@ class EnvironmentTests(unittest.TestCase):
                         self.assertEqual(common["cc"], str(llvm / "bin/clang.exe"))
                         self.assertEqual(common["ar"], str(llvm / "bin/llvm-ar.exe"))
                         self.assertEqual(common["link_args"], ["--target", target])
+                        self.assertEqual(common["cc_dynamic_link_args"], common["cc_link_args"])
                         if target != WINDOWS_TARGETS[0]:
                             native = sysroot / "lib" / target / "toolchain"
                             self.assertIn("--sysroot=" + str(native), common["cc_args"])

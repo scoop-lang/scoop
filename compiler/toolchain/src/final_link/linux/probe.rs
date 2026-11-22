@@ -26,14 +26,13 @@ pub(super) fn system_inputs(
 ) -> Result<Vec<PathBuf>, ToolchainError> {
     // Ask the selected driver to resolve its libraries, including linker scripts.
     // No source, startup object, program object or published output is needed.
+    let scratch =
+        tempfile::tempdir().map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
     let mut command = profile.data.runtime.command(&profile.startup);
-    command.args(profile.linker_args()).args([
-        "-nostartfiles",
-        "-Wl,-t",
-        "-Wl,-e,0",
-        "-o",
-        "/dev/null",
-    ]);
+    command
+        .args(profile.linker_args())
+        .args(["-nostartfiles", "-Wl,-t", "-Wl,-e,0", "-o"])
+        .arg(scratch.path().join("link-probe"));
     if profile.cxx() {
         // A library operand makes the driver run its normal C++ library plan.
         command.arg("-lc");

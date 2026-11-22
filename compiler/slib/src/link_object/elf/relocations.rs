@@ -51,6 +51,7 @@ pub(super) fn read(
             });
         }
     }
+    // Preserve the order of records that operate on the same location.
     result.sort_by_key(|relocation| (relocation.section.0, relocation.offset));
     Ok(result)
 }

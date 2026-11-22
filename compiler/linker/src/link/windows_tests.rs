@@ -339,6 +339,7 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
         root: "scoop$test$root".into(),
         string_target: "scoop$test$String".into(),
         native,
+        native_outputs: Vec::new(),
         windows_subsystem: scoop_identity::WindowsSubsystem::Console,
     };
     let startup = StartupObject::build(&inputs, profile, true, scratch).unwrap_or_else(|error| {
@@ -412,16 +413,7 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
         Ok(archives)
     };
     let archives = build_archives().unwrap();
-    let traced = pe::link(
-        windows,
-        &inputs,
-        scratch,
-        &archives,
-        &executable,
-        Some(&pdb),
-        false,
-    )
-    .unwrap();
+    let traced = pe::link(windows, &inputs, &archives, &executable, Some(&pdb), false).unwrap();
     assert_eq!(archives.len(), 2);
     assert_ne!(archives[0].file_name(), archives[1].file_name());
     let members: usize = archives

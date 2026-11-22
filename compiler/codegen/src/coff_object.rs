@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use object::{Object, ObjectSection, ObjectSymbol, SectionIndex, SymbolIndex, pe};
-use scoop_lir::LinkageClass;
+use scoop_lir::{LinkageClass, NativeObjectFormat, ObjectMachineV1};
 
 use crate::CodegenError;
 
@@ -31,13 +31,14 @@ impl<'a> CoffObject<'a> {
         bytes: &'a [u8],
         object_target: scoop_lir::ObjectTargetProfileV1,
     ) -> Result<Self, CodegenError> {
-        let architecture = match object_target {
-            scoop_lir::ObjectTargetProfileV1::CoffAmd64 => object::Architecture::X86_64,
-            _ => {
-                return Err(error(format!(
-                    "atom materialization has no COFF implementation for {object_target:?}"
-                )));
-            }
+        if object_target.format() != NativeObjectFormat::Coff64 {
+            return Err(error(format!(
+                "atom materialization requires a COFF object target, got {object_target:?}"
+            )));
+        }
+        let architecture = match object_target.machine() {
+            ObjectMachineV1::Aarch64 => object::Architecture::Aarch64,
+            ObjectMachineV1::X86_64 => object::Architecture::X86_64,
         };
         let (symbol_bytes, table_offset_field, table_count_field, sections_offset) =
             match object::FileKind::parse(bytes).map_err(error)? {

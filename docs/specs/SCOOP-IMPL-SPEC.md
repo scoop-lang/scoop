@@ -62,15 +62,15 @@ LLVM architecture 只负责对应 LLVM target 的初始化、项目自建 LLVM �
 
 Windows 后端数据使用三个完整 target profile，机器 triple 分别投影为 MSVC 的 `x86_64-pc-windows-msvc` 或两个 MinGW 环境的 `x86_64-w64-windows-gnu`。三者共享 `org.scoop-lang.backend-profile/llvm-22-1-windows-x86-64/1`、Win64 数据布局与 COFF 机器发射，完整 target identity 仍参与产物相容性和缓存。Scoop ABI classifier 新编码 5 表示 Win64 caller copy／interface 间接结果，native symbol normalization 新编码 3 保留 x64 COFF 原符号字节。backend 的 frame recovery 编码 2 表示当前 Windows AMD64 virtual-unwind profile：通过 SEH 重建 RSP／RBP，寄存器为 LLVM 编号 7／6、root slot 8 bytes，不保存 SysV frame-record 几何；LSDA 为 LPStart `0xff`、type table `0x00`、call-site `0x01`，无 type table 时为 `0xff`。同次构建的生产者与消费者使用一致的数据编码；项目未发布，不为旧编码或 fingerprint 保留兼容路径。
 
-Windows stackmap reader 验证 location kind、寄存器、8-byte slot／对齐和 pair 结构，保留 RSP／RBP 的有符号 offset；不从 stack size 推造 RBP 位置。扫描时由运行时使用实际 SEH context 计算地址，并执行真实线程栈范围检查。编译产物读取不另建一套 SEH unwinder 重放系统 frame 恢复。
+Windows AMD64 的 stackmap frame 规则验证 location kind、寄存器、8-byte slot／对齐和 pair 结构，保留 RSP／RBP 的有符号 offset。系统 SEH 恢复机器帧，运行时扫描时使用实际 SEH context 计算地址，并执行真实线程栈范围检查。
 
-Windows statepoint 的 instruction offset 必须指向 call 的真实返回地址。LLVM 22.1.8 的 WinEH emitter 在部分 call／invoke 后插入必要的 NOP；配套 LLVM 修正为先登记 statepoint 标签，再发射该 NOP，保持 EH region 与 epilogue 行为。此修正适用于所有发射 Windows 对象的宿主；runtime 继续精确匹配 PC，不尝试相邻地址或跳过未登记 frame。
+statepoint 的 instruction offset 必须指向 call 的真实返回地址。LLVM 22.1.8 的 AMD64 WinEH emitter 在部分 call／invoke 后插入必要的 NOP。配套 LLVM 对该 emitter 先登记 statepoint 标签，再发射 NOP，保持 EH region 与 epilogue 行为。发射 Windows AMD64 对象的宿主均使用这一修正。runtime 按 backend 的 frame 合同精确匹配 PC。
 
 Windows executable 的 `[windows].subsystem` 与 `[windows].rc` 按语言规范 12.2 和 [Windows 设计 3.4](../windows-targets/DESIGN.md#34-windows-executable-配置与资源) 实施。subsystem 默认为 console，可选 gui；工具链提供或发现 RC compiler，使用所选目标 headers／预处理环境编译资源。executable `.slib` 保留最终链接所需的 subsystem 和资源产物，artifact-only linker 不重新读取 RC 源码。RC、实际 include 与引用资源以及工具选择进入普通更新记录；命中不读取资源内容或探测工具。
 
-Windows generated-C producer 使用所选完整 target 的 Clang 模式，平台合同新增编码 3，记录实际 Clang 数值版本与预处理配置；宿主路径只保留在普通工具发现记录。三环境各有独立 C producer profile，Clang 接受的 machine triple 不取代完整 target。公共 flags 保持 C11、所选优化、无 debug／common／compiler-ident／stack-protector／builtin substitution；Windows 使用 x86-64 baseline、Windows 10 API 基线和 SEH unwind tables，Microsoft 环境使用动态 UCRT（`/MD` 等效设置）。新增 flag 编码 17、18、19 分别表示 Windows SEH、所选 Windows CRT 和 Windows 10 基线，原平台编码不变。
+Windows generated-C producer 使用所选完整 target 的 Clang 模式，平台合同新增编码 3，记录实际 Clang 数值版本与预处理配置；宿主路径只保留在普通工具发现记录。三环境各有独立 C producer profile，Clang 接受的 machine triple 不取代完整 target。公共 flags 保持 C11、所选优化、无 debug／common／compiler-ident／stack-protector／builtin substitution。现有三个 Windows AMD64 profile 使用 x86-64 baseline、Windows 10 API 基线和 SEH unwind tables，Microsoft 环境使用动态 UCRT（`/MD` 等效设置）。新增 flag 编码 17、18、19 分别表示 Windows SEH、所选 Windows CRT 和 Windows 10 基线，原平台编码不变。
 
-generated-C 对象中由 Clang 产生的 `.pdata`／`.xdata` 保留实际 Windows unwind 分类、内容和重定位，交给原生 linker 处理；它们不要求另建 Scoop definition atom，也不进入 Scoop atom 的 relocation 所属检查。COFF 格式、引用边界和桥接代码中的引用检查保持。Scoop LIR 发射的 unwind atoms 仍按自身 definition plan 关联和验证，不能将其未归属 relocation 视为 generated-C 辅助内容。
+generated-C 对象中由 Clang 产生的 `.pdata`／`.xdata` 按所选 object unwind image 划定相关范围，保持实际内容和原生重定位。当前 AMD64 profile 的每个生成桥有一条 12 字节的 runtime-function 记录，偏移 0 与 8 的 RVA 重定位分别指向代码与 unwind information。生成桥的展开重定位由原生 linker 消费，COFF reader 仍验证其格式和引用边界。Scoop LIR 发射的 unwind atoms 按自身 definition plan 关联和验证。
 
 Windows 内部 C 对象（含 generated-C 和最终 startup）以 `-mno-incremental-linker-compatible` 关闭 COFF 当前时间戳，保持重复编译和等价重链接的确定性；最终 PE 本已关闭 incremental linking。该 producer flag 使用新增编码 20，进入 Windows C producer profile，既有平台编码不变。此配置不移除 SEH 表，也不在读取缓存对象时改写或归一化对象内容。
 
@@ -108,7 +108,7 @@ Linux GNU GUI 的维护准备通过 `pkg-config` 选择 GTK 4.18 以上和 libad
 
 runtime 源码组合直接消费目录投影，不再登记重复 OS＋arch 的 runtime profile。结构完备的 build selection 分别选择 OS services、primitive API adapter、object image parser、loaded-image provider、startup/argv adapter、trace/symbolizer adapter、ISA helper、machine frame recovery、ManagedEntry、Scoop ABI shim、unwind provider 与已有实测 runtime tuning；缺少任一当前 target 必需组件时不能形成目录记录。`platform/arch` 只保存纯 ISA helper；frame decoder／virtual unwind 按 machine-frame profile 选择，ManagedEntry 与返回 shim 另外按 procedure ABI、Scoop ABI 和 object target 选择。red-zone 等参数属于实际 ABI／frame component，不由 x86_64 等 ISA 名称普遍推导；GC 私有 helper 的内联策略由目录绑定的 runtime tuning 显式形成编译参数，不在 C 源中从宿主或 target 架构宏推导。PE image parser 的 machine 核对同样由 object target 提供，不能把 AMD64 写成通用 PE 条件。源码路径、编译参数的更新沿既有 runtime 构建记录处理，不添加动态插件、运行时注册或重复平台探测。
 
-ELF image parser 只解释 program header、segment 与 Scoop metadata 与代码范围；枚举当前已加载模块、取得 self image 与维持模块生命周期属于所选 OS／loader provider。共享 ELF 容器不能隐含 Linux loader，POSIX 名称也不能作为 thread stack、VM、RSS、argv 或 loader 的通用 fallback。静态 `ScoopPlatformBundle` 由 runtime builder 根据上述完整选择生成一份小型 translation unit，现有组件继续导出具名 ops；不为每个完整 target 复制手写 bundle 源文件。
+ELF image parser 按对象格式选入，只解释 program header、segment、Scoop metadata 与代码范围；枚举当前已加载模块、取得 self image 与维持模块生命周期属于所选 OS／loader provider。共享 ELF 容器不能隐含 Linux loader，POSIX 名称也不能作为 thread stack、VM、RSS、argv 或 loader 的通用 fallback。静态 `ScoopPlatformBundle` 由 runtime builder 根据上述完整选择生成一份小型 translation unit，现有组件继续导出具名 ops；不为每个完整 target 复制手写 bundle 源文件。
 
 Darwin 的 metadata image 组件按运行时规范 2.8 定位承载 runtime 的实际模块。普通 executable 与 native host 加载的 dylib 使用同一 parser；地址范围、代码区间与普通 metadata 均来自该模块，GC 表由 callable 登记引用，不依赖专用 stackmap 段。runtime 源码变化沿原更新记录重建，不增加目标 profile、产物版本或独立镜像登记机制。
 
@@ -650,13 +650,13 @@ ARM64 默认对 ArraySet 的单引用槽屏障使用已有数组对象基址查�
 
 对象格式与 object machine 分别决定容器结构和机器规则：ELF 不隐含 x86-64，COFF 不隐含 AMD64，AArch64 不隐含 Mach-O。所选 `ObjectTargetProfile` 解释 format、machine、header ABI/flags、relocation profile、symbol normalization、stackmap/EH 指针及最终动态 relocation；仅开放当前已实现的完整 target，不增加空 handler。对象边界按该 profile 验证格式、machine/header flags、section/symbol extent、alignment、权限、relocation 写入宽度/addend、定义与引用闭合，形成 validated envelope；后续 callable、stackmap 与 linker 消费其中保存的 machine，不重新解析 header 或从完整 target 推导。Mach-O 使用其真实 relocation 与 weak 属性；ELF 使用 ET_REL、实际 section/symbol/RELA/COMDAT 数据，TLS 必须保持 STT_TLS/SHF_TLS，不能伪装成普通 data。
 
-generic relocation envelope 的顶层分支只表示 Mach-O、ELF RELA、COFF 等当前实际容器形态，machine 作为必需字段保存；不得以 `ElfX86_64Rela`、`CoffAmd64` 一类当前唯一组合的名称承担通用 envelope 身份。已验证的 relocation form 继续明确保留机器语义；现有 ELF form 的 tag 11 表示 x86-64 RELA（kind、width、signed addend），其编码不变，不把同一数字 relocation kind 自动解释为其他架构。ELF header flags 在所选 machine/header ABI 的对象读取边界检查一次，后续 envelope 复用该结果。指令字段、relaxation pair、TLS 与 call relocation 仍由 machine profile 解释，不能退化为仅按 storage width 写整数。
+generic relocation envelope 的顶层分支表示 Mach-O、ELF RELA、COFF 等实际容器形态，machine 是必需字段。ELF RELA 保留原 machine、kind、写入宽度和独立的 signed addend，现有指纹与 wire 编码保持。对象读取在所选 header ABI 下检查 ELF flags。ELF machine 的 relocation 表同时确定写入宽度和消费者用到的绝对地址、TLS 等语义，数字 kind 只在该 machine 下解释。相同位置的 ELF RELA 记录保留原顺序；atom 的定义内容按每条记录关联其符号绑定，位置只用于确定归属与写入范围。
 
 Mach-O amd64 使用 `CPU_TYPE_X86_64`／`CPU_SUBTYPE_X86_64_ALL`。UNSIGNED 与 SUBTRACTOR／UNSIGNED pair 保留 32／64-bit 宽度，pair 两端分别保留符号或 section ordinal 目标；SIGNED、BRANCH、GOT_LOAD、GOT、SIGNED_1／2／4 和 TLV 使用各自的 32-bit PC-relative 形式，保留隐式 addend 与指令尾部偏移，不将其解释为 ARM64 指令位域。新增 relocation form tag 13／14 分别为 Unsigned32／Subtractor32，tag 15 保存 x86-64 PC-relative kind；现有 64-bit 绝对指针和差值沿同一真实语义复用。SDK 文本桩、fat 对象与动态库选择 `x86_64-macos`／x86-64 slice，不能接受 arm64 或 x86_64h 专用 slice 代替基线。
 
-Windows 使用 AMD64 COFF relocatable（含 bigobj），对象格式 identity 为 `org.scoop-lang.object-format/coff-relocatable/1`。对象 reader 保存原 section／symbol 序号、长名称、section characteristics、aux symbol、COMDAT selection／关联 section、weak external fallback 与实际 relocation kind／写入宽度／隐式 addend；aux symbol 占用原符号表序号，但不能作为 relocation 的普通目标。COFF relocation form 使用新 tag 12（kind、width），隐式 addend 保留在原 field／canonical value，现有 Mach-O／ELF 编码不变。引用检查在读取边界完成，后续发射与链接复用结果。PE import-library 的短 import member 不伪装成 relocatable 对象；它由 native library 输入选择处理。三种 Windows 完整 target 独立保存身份，普通 COFF 本身没有可证明 CRT 的标签，reader 不从文件名或 object header 推测 CRT。
+现有 Windows target 选择 AMD64 COFF relocatable（含 bigobj），对象格式 identity 为 `org.scoop-lang.object-format/coff-relocatable/1`。对象 reader 核对所选 object machine，保存原 section／symbol 序号、长名称、section characteristics、aux symbol、COMDAT selection／关联 section、weak external fallback 与实际 relocation machine、kind、写入宽度和隐式 addend。aux symbol 占用原符号表序号，但不能作为 relocation 的普通目标。COFF machine 规则同时提供重定位宽度、绝对指针和 TLS 引用分类，stackmap 地址槽采用同一绝对指针语义。定义指纹按该 machine 的重定位写入位域归一化，隐式 addend 保留在原 field／canonical value，relocation wire 编码保持。PE import-library 的短 import member 由 native library 输入选择处理。三种 Windows 完整 target 独立保存身份，普通 COFF 本身没有可证明 CRT 的标签。
 
-COFF section inventory 将 `.pdata`／`.pdata$…` 记为 Windows unwind function table，将 `.xdata`／`.xdata$…` 记为 Windows unwind information，section-role 编码分别为新增 tag 14、15；两者不冒充 ELF `.eh_frame` 或独立 LSDA。`.llvm_stackmaps` 使用已有 stackmap role 和真实 ADDR64 function relocation；`.tls`／`.tls$…` 按 section characteristics 区分有初始化／零填充 TLS。其余实际加载节按 code／writable／zero-fill 属性分类，CodeView、linker directives 与被标记移除的节属于 object metadata。现有 section-role 编码保持不变。
+COFF section inventory 将实际出现的 `.pdata`／`.pdata$…` 记为 Windows unwind function table，将 `.xdata`／`.xdata$…` 记为 Windows unwind information。具体记录布局、RVA 字段和是否需要独立 unwind information 由所选 object unwind image 决定。`.llvm_stackmaps` 使用已有 stackmap role 和所选 machine 的绝对 function relocation，GC 帧由 backend 的 machine frame recovery 合同解释。`.tls`／`.tls$…` 按 section characteristics 区分有初始化／零填充 TLS。其余实际加载节按 code／writable／zero-fill 属性分类，CodeView、linker directives 与被标记移除的节属于 object metadata。现有 section-role 编码保持。
 
 ELF／COFF 机器发射在同一份未变化的 Cone symbol surface 上建立一次名称索引，函数模块只处理本模块出现的定义／别名，不为每个函数重复重建全 Cone 的符号拼写与映射。finalization 改变 surface 后，metadata 模块使用更新后的索引；不改变既有 linkage、COMDAT 或 atom 归属规则。
 
@@ -707,6 +707,8 @@ GCLeaf 契约不意味着 pure、readnone、readonly 或 nosync，不能据此�
 摘要依赖必须无环，节点仅依赖实际内容所需的上游摘要。Code、RuntimeImage 与 Artifact 分别覆盖自己的内容，不能建立自引用。产物的 RuntimeImage 摘要在生产时计算一次；最终 linker 只按选中的定义建立 image 指针表，不为不可见的 runtime 字段重新编码摘要。
 
 对象中的实际 stackmap 与 LSDA 遵守运行时规范 2.8、5.2。LLVM 机器发射成功后直接使用产出，不执行自建的机器指令、frame chain、stackmap 或 LSDA 全面验证；只读取后续地址、GC 数据和产物内容计算实际需要的字段，并复用结果。stackmap 按实际 function relocation 关联 callable，以符号地址加 LLVM instruction offset 取得返回地址，读取并归一化实际根记录；不再次反汇编检查 call/frame chain，也不重建预期 member/function/site 全集做覆盖证明。优化后的 invoke 是否仍存在决定 EH atom 是否保留，不为此重建或比对独立 EH manifest；删除 final/provisional 对象复制、指纹清零后重填及最终字节比较等消费 replay。仅为验证服务的边界和索引删除；仍用于 codegen、重定位、GC 或实际链接选择的索引在同一份 surface 上建立一次。
+
+当前 backend 的 LLVM v3 stackmap 函数地址槽为零，恰有一条指向函数定义的 64 位绝对重定位。ELF 使用所选 machine 的绝对地址语义，RELA addend 为零。紧凑 GC 表以已确定的 instruction offset 编码，只接受无需重定位的记录偏移。其他 stackmap 重定位（包括需要链接器求值的同址差分）在紧凑化之前报告；根槽和寄存器由 backend 的 machine frame recovery 合同选择。
 
 发布直接接收本次 codegen 与 generated-C 的实际对象、成员分配及生成记录。C bridge 的编译器 profile、源码模板、flags 和 unit 集合不再与自行构造的生产记录重复比对；对象中的 SDK／工具版本也不作为来源证明。所需 section 与符号正常读取，Code 指纹继续消费实际生成记录。删除无生产调用的旧 single-Cone 分级资格流水线；不以另一套 `Verified` 包装保留这些入口。当前完整产物的投影直接采用已有生产计划与实际对象，不深比较它们的副本来证明同源。
 
@@ -800,7 +802,7 @@ Scoop LinkObject logical key 为 `{1=nonzero unit_count, 2=unit_set_digest}`；d
 
 同一 Cone、同一 target 和 C 编译参数下的生成桥接实现共享一个 C 翻译单元。类型声明和布局断言只生成一次，回调的 C 辅助名称按桥身份区分；桥的逻辑身份、签名和关联 atom 不随物理分组改变。空桥集合不创建 generated-C 工作目录。外部编译器完成后，对象只读入一次，在内存中补全边界并交给产物组装，不写回临时对象再重新读取。
 
-批量对象中的每个主定义保持独立、精确的边界；共享 unwind section 按实际函数记录划分不重叠的范围，CIE 等公共前缀归入紧随其后的 FDE 所属范围，原生展开数据与引用保持原样。ELF／COFF 生成桥启用独立函数和数据 section（canonical flag tag 24），使原生链接器仍可按需裁剪；Mach-O 使用既有符号子区间与 compact-unwind 记录。generated-C 继续使用 `-g0`，编译诊断按生成桥身份定位，不伪造用户源码行。
+批量对象中的每个主定义保持独立、精确的边界；共享 unwind section 按实际函数记录划分不重叠的范围，CIE 等公共前缀归入紧随其后的 FDE 所属范围。ELF `.eh_frame` 表达展开记录的容器，生成桥按 ELF machine 解码的 PC-relative RELA 与 signed addend 定位 FDE 的初始位置，CIE、FDE 及其他字段的原生字节和重定位保持原样。LLVM 间接 personality 常量由实际对象 profile 单独选择。ELF／COFF 生成桥启用独立函数和数据 section（canonical flag tag 24），使原生链接器仍可按需裁剪；Mach-O 使用既有符号子区间与 compact-unwind 记录。generated-C 继续使用 `-g0`，编译诊断按生成桥身份定位，不伪造用户源码行。
 
 GeneratedBridgeUnitId 的 domain 为 `scoop-generated-bridge-unit-v1`。key 为 OutboundFunction=1（native contract fingerprint 与普通/errno 捕获的结果适配）、GlobalRead=2、GlobalWrite=3、GlobalAddress=4（各含 native contract fingerprint）、CallbackTrampoline=5（C signature fingerprint 与 context parameter index）、StaticCallbackTrampoline=6（storage-bridge generated callable ID 与 C signature fingerprint）。OutboundFunction 的结果适配确定 bridge 的私有返回方式；同一 native symbol 的捕获与不捕获 recipe 不能共用 unit identity。NativeSafe/GcLeaf 不改变 bridge 本身的结果适配，仍可复用相同 recipe。
 
@@ -1328,9 +1330,11 @@ RC 更新记录使用预处理器的实际头文件依赖，以及 LLVM RC 对�
 
 program-link 消费完整 `.slib` Link 闭包、普通 runtime 对象、已有 native 文件、LIR target 与 final-link 配置。它不展开模板、重新编译 Scoop 或编译用户 C/C++；只可用明确选择的 C compiler 生成本次固定启动代码与最终 image tables。
 
-ELF native 对象引用的 `__ehdr_start` 由最终 linker 提供当前 image 的 ELF header 地址，和 `_GLOBAL_OFFSET_TABLE_` 一样交给最终链接解析，不要求普通 native 库提供定义。这不放宽其他未定义符号的解析规则，也不将该 ELF 符号视为 Mach-O 或 COFF 的内置符号。
+隐式 linker 符号由实际链接器配置声明。当前 GNU ELF 链接配置提供 `__ehdr_start` 和 `_GLOBAL_OFFSET_TABLE_`，分别用于当前 image 的 ELF header 地址和 GOT。链接闭包按所选配置将这些符号交给最终 linker 解析。
 
 final-link profile 由完整 target 显式引用，不能从 ELF／Mach-O／COFF 或 `TargetOs` 单独推导。格式／linker-family 层可以复用实际对象顺序、response file、shared/executable 形态、SONAME 与 section/relocation handling；平台环境层必须显式提供 CRT start files、dynamic loader、PIE/static policy、系统库、libc／C++ runtime、unwind provider、SDK 搜索与 rpath 约定。Linux profile 只能把确属 ELF／linker-family 的既有操作交给公共 helper，Linux CRT、loader 与默认库不能冒充通用 ELF 行为。
+
+原生符号命名空间、显式 library root 的候选格式及 native-app 默认共享库名称按对象格式选择。ELF 读取符号和 DSO 依赖时消费所选最终链接配置提供的链接模式、固定系统输入、兼容库别名及 unwind 冲突规则。Linux 的 libc 文件名和额外 unwind 库处理由 Linux 配置提供。GNU ELF 的对象归档、response file、DSO 和裁剪参数加到已选平台的命令中，平台配置在实际对象之后追加所需系统库。
 
 Darwin 的 executable 与 native-app 共享库直接调用宿主配套的 LLVM LLD，以开头的 `-flavor darwin` 选择 Mach-O 链接；包含 C++ 依赖时也使用同一路径，libc++／ABI 运行库继续由已有 native 依赖闭包及所选 SDK 的显式 stub 提供。`--linker` 可显式选择 LLD executable；省略时依次查找宿主安装根的 `libexec/llvm/bin/lld`、`LLVM_SYS_221_PREFIX/bin/lld` 与 PATH 中的 `lld`，缺失时报告正常工具错误，不回退到 Apple ld。C／C++／Objective-C 编译及 SDK 选择继续使用配套 Apple Clang。最终链接探测复用已读取的目标系统导出生成普通单目标 stub，与 program-link 保持一致，不将其他架构的 SDK stub 条目交给 LLD。
 
@@ -1442,7 +1446,7 @@ Darwin 链接归档中的成员移除空代码段中未被重定位或间接符�
 
 独立调试文件按 2.22 替换原文本 map 的伴随输出与结果复用通路；不再提供 `--emit-symbol-map` 或原 map parser，不将旧选项静默解释成另一种产物。`--emit symbols` 继续提供逻辑符号观察，离线地址归因使用 llvm-symbolizer 与实际 executable／独立调试文件。此替换不增加运行时测量代码。
 
-Linux 接受 `.o`、`.a`，动态模式另接受 ELF `.so`；framework 与静态程序的动态库需求为错误。用户 `.so` 必须是 DSO，不是 PIE executable 或 linker script。未版本化的源码 extern 只匹配默认导出版本，DT_NEEDED 不等于显式库 re-export；TLS、IFUNC、版本化导入按实际 kind/version 检查。
+ELF 显式 library root 接受 `.o`、`.a`，动态模式另接受 `.so`；framework 与静态程序的动态库需求为错误。用户 `.so` 必须是 DSO，不是 PIE executable 或 linker script。未版本化的源码 extern 只匹配默认导出版本，DT_NEEDED 不等于显式库 re-export；TLS、IFUNC、版本化导入按实际 kind/version 检查。
 
 Linux gnu 默认 dynamic PIE，musl 默认 static ET_EXEC；musl 可显式 dynamic PIE，不支持 glibc static。非 C++ 链接明确选择 CRT、LLVM unwind、libc、libm/线程及算术 builtins；GNU C++ 链接使用配套 libstdc++／C++ ABI 运行库，并统一由配套 libgcc_s 提供 Scoop Level I 与 C++ 所需的 unwind，不再额外链接另一套 LLVM unwind provider。musl 不支持 C++ 模式。Linux profile 负责上述 libc／CRT／unwind／系统库、驱动探测及静态／动态缺省策略；选定的输出形态和链接模式再交给不读取 OS、target 或 native environment 的 GNU ELF plan，后者只负责 GNU ELF linker flags、shared／PIE／ET_EXEC 形态、SONAME 以及 metadata section script。动态 metadata 满足实际 RELRO，静态 musl 的不可变记录位于只读 PT_LOAD；最终文件不得有 text relocation。共享该 ELF plan 不表示共享 Linux 的 loader、CRT、系统库或工具发现。
 
