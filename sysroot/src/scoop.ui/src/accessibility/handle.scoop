@@ -10,7 +10,7 @@ public class SemanticsHandle internal constructor(
     internal val resource: AccessibilityNode,
     internal var explicitParent: SemanticsHandle?,
     internal var parent: SemanticsHandle?
-): Closeable {
+) : Closeable {
     private var closed = false
     private var references: Array<SemanticsReference> = []
     internal var properties = SemanticProperties()
@@ -18,6 +18,7 @@ public class SemanticsHandle internal constructor(
     private var declaredRelations = SemanticRelations()
     internal var focus: FocusTarget? = None
     internal var merged = false
+    internal var contentExposure = 0
     internal var revealPlacement: SemanticRevealPlacement? = None
     internal var textBinding: SemanticTextBinding? = None
     internal var textChild: SemanticTextChildBinding? = None
@@ -32,59 +33,59 @@ public class SemanticsHandle internal constructor(
     public val role: SemanticRole get() = resource.role
     /** Merges plain text leaves in this semantic container, retaining interactive children. */
     public var mergeLabels: Boolean
-    get() {
-        checkOpen()
-        return merging
-    }
-    set(value) {
-        checkOpen()
-        checkSemanticsMutation()
-        if (merging == value)
-            return
-        merging = value
-        controller.contentChanged()
-    }
+        get() {
+            checkOpen()
+            return merging
+        }
+        set(value) {
+            checkOpen()
+            checkSemanticsMutation()
+            if (merging == value) return
+            merging = value
+            controller.contentChanged()
+        }
 
-    internal val mergeCandidate: Boolean get() {
-        if (
-            role !=
+    internal val mergeCandidate: Boolean
+        get() {
+            if (role !=
                 SemanticRole.Text ||
                 merging ||
                 properties.protectedText ||
                 properties.selection !=
                 None
-        )
-            return false
-        if (!actions.isEmpty)
-            return false
-        return when (focus) {
-            case None -> true;
-            case Some(_) -> false
+            )
+                return false
+            if (!actions.isEmpty) return false
+            return when (focus) {
+                case None -> true;
+                case Some(_) -> false
+            }
         }
-    }
     /** Current same-root references, with retired targets removed. */
-    public val relations: SemanticRelations get() {
-        checkOpen()
-        return resource.relations
-    }
-    public val isClosed: Boolean get() {
-        owner.root.checkThread()
-        return !active
-    }
-    internal val active: Boolean get() =
-        !closed && owner.active && owner.root.isOpen && !resource.isClosed
+    public val relations: SemanticRelations
+        get() {
+            checkOpen()
+            return resource.relations
+        }
+    public val isClosed: Boolean
+        get() {
+            owner.root.checkThread()
+            return !active
+        }
+    internal val active: Boolean
+        get() = !closed && owner.active && owner.root.isOpen && !resource.isClosed
 
     /** The last accepted geometry matching the current semantic content. */
-    public val geometry: SemanticGeometry? get() {
-        checkOpen()
-        return resource.geometry
-    }
+    public val geometry: SemanticGeometry?
+        get() {
+            checkOpen()
+            return resource.geometry
+        }
 
     public fun announce(text: String, priority: SemanticLive = SemanticLive.Polite) {
         checkOpen()
         checkSemanticsMutation()
-        if (!owner.scope.input.isInputAllowed)
-            return
+        if (!owner.scope.input.isInputAllowed) return
         resource.announce(text, priority)
         controller.changed()
     }
@@ -108,10 +109,8 @@ public class SemanticsHandle internal constructor(
         for (old in references) {
             var retained = false
             for (value in next)
-                if (value === old)
-                    retained = true
-            if (!retained)
-                old.detach(this)
+                if (value === old) retained = true
+            if (!retained) old.detach(this)
         }
         for (value in next)
             value.attach(this)
@@ -137,9 +136,9 @@ public class SemanticsHandle internal constructor(
         updateFacts(properties, actions, relations)
         when ((textBinding, host)) {
             case(Some(val previous), Some(val current)) -> {
-                if (previous.host === current)
-                    return
+                if (previous.host === current) return
             }
+
             else -> {}
         }
         textBinding?.close()
@@ -151,6 +150,7 @@ public class SemanticsHandle internal constructor(
                 current.binding = Some(binding)
                 owner.invalidateScene()
             }
+
             case None -> {}
         }
     }
@@ -163,18 +163,14 @@ public class SemanticsHandle internal constructor(
         checkOpen()
         checkSemanticsMutation()
         val candidate = mergeCandidate
-        val exposure =
-            this.properties.ignored !=
-                properties.ignored ||
-                this.properties.hidden !=
-                properties.hidden
-        resource.update(
-            semanticProperties(this, properties, merged),
-            semanticActions(this, actions),
-            if (declaredRelations == relations)
-                resource.relations
-            else
-                relations
+        val exposure = this.properties.ignored !=
+            properties.ignored ||
+            this.properties.hidden !=
+            properties.hidden
+        publishFacts(
+            properties,
+            actions,
+            if (declaredRelations == relations) resource.relations else relations
         )
         this.properties = properties
         this.actions = actions
@@ -197,30 +193,37 @@ public class SemanticsHandle internal constructor(
                 )
                 controller.checkFocus(this, value)
             }
+
             case None -> {}
         }
         val candidate = mergeCandidate
         focus = target
-        resource.update(
-            semanticProperties(this, properties, merged),
-            semanticActions(this, actions),
-            resource.relations
-        )
-        if (candidate != mergeCandidate)
-            controller.contentChanged()
-        else
-            controller.changed()
+        publishFacts(properties, actions, resource.relations)
+        if (candidate != mergeCandidate) controller.contentChanged() else controller.changed()
+    }
+
+    internal fun publishFacts(
+        properties: SemanticProperties,
+        actions: SemanticActions,
+        relations: SemanticRelations
+    ) {
+        val exposure = semanticInputExposure(this)
+        resource
+            .update(
+                semanticProperties(this, properties, merged, exposure),
+                semanticActions(this, actions),
+                relations
+            )
+        contentExposure = exposure
     }
 
     internal fun checkOpen() {
         owner.root.checkThread()
-        if (!active)
-            throw IllegalStateException(Some("semantic node is no longer mounted"))
+        if (!active) throw IllegalStateException(Some("semantic node is no longer mounted"))
     }
 
     internal fun finishClose() {
-        if (closed)
-            return
+        if (closed) return
         closed = true
         for (reference in references)
             reference.detach(this)
@@ -229,15 +232,15 @@ public class SemanticsHandle internal constructor(
         collectionItems = None
         collectionViewport = None
         when (owner.lazySemantics) {
-            case Some(val current) -> if (current === this) {
-                owner.lazySemantics = None
-                owner.lazyItems?.unbindSemantics()
-            }
+            case Some(val current) ->
+                if (current === this) {
+                    owner.lazySemantics = None
+                    owner.lazyItems?.unbindSemantics()
+                }
             case None -> {}
         }
         when (owner.semanticItem) {
-            case Some(val current) -> if (current === this)
-                owner.semanticItem = None
+            case Some(val current) -> if (current === this) owner.semanticItem = None
             case None -> {}
         }
         textBinding?.close()
@@ -249,11 +252,10 @@ public class SemanticsHandle internal constructor(
         explicitParent = None
         parent = None
         when (val route = owner.semanticRoute) {
-            case Some(val value) -> if (value === this)
-                owner.semanticRoute = None
+            case Some(val value) -> if (value === this) owner.semanticRoute = None
             case None -> {}
         }
-        for (index in 0L ..< owner.semanticHandles.size)
+        for (index in 0L..<owner.semanticHandles.size)
             if (owner.semanticHandles[index] === this) {
                 owner.semanticHandles.removeAt(index)
                 break
@@ -265,23 +267,22 @@ public class SemanticsHandle internal constructor(
     public override fun close() {
         owner.root.checkThread()
         checkSemanticsMutation()
-        if (!closed)
-            controller.retire(this)
+        if (!closed) controller.retire(this)
     }
 }
 
 internal fun checkSemanticsMutation() {
     when (currentEvaluation()) {
-        case Some(_) -> throw IllegalStateException(
-            Some("semantics cannot change during render, measure, scene or draw")
-        )
+        case Some(_) ->
+            throw IllegalStateException(
+                Some("semantics cannot change during render, measure, scene or draw")
+            )
         case None -> {}
     }
 }
 
-internal fun sameSemantics(a: SemanticsHandle?, b: SemanticsHandle?): Boolean =
-    when ((a, b)) {
-        case(Some(val first), Some(val second)) -> first === second
-        case(None, None) -> true
-        else -> false
-    }
+internal fun sameSemantics(a: SemanticsHandle?, b: SemanticsHandle?): Boolean = when ((a, b)) {
+    case(Some(val first), Some(val second)) -> first === second
+    case(None, None) -> true
+    else -> false
+}

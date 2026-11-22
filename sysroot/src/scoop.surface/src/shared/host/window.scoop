@@ -16,7 +16,7 @@ public class SurfaceWindow internal constructor(
     public val nativeWindow: Window,
     private val content: SurfaceContent,
     private val renderer: WindowRenderer
-): Closeable {
+) : Closeable {
     private var phase = SurfaceWindowState.Open
     private var failure: Throwable? = None
     private var depth = 0
@@ -32,32 +32,38 @@ public class SurfaceWindow internal constructor(
         host.bindShortcuts(inputs.rootScope)
         animations.scheduleChanged = { refresh() }
     }
-    public val input: InputScope get() {
-        host.checkThread()
-        return inputs.rootScope
-    }
-    public val focusedArea: InputArea? get() {
-        host.checkThread();
-        return inputs.logicalFocus
-    }
-    public val focusRevision: ULong get() {
-        host.checkThread()
-        return inputs.focusRevision
-    }
+    public val input: InputScope
+        get() {
+            host.checkThread()
+            return inputs.rootScope
+        }
+    public val focusedArea: InputArea?
+        get() {
+            host.checkThread();
+            return inputs.logicalFocus
+        }
+    public val focusRevision: ULong
+        get() {
+            host.checkThread()
+            return inputs.focusRevision
+        }
     /** Records a deferred or rejected focus intent without changing the current target. */
     public fun reserveFocusRequest(): ULong = inputs.reserveFocusRequest()
-    public val focusBoundary: InputBoundary? get() {
-        host.checkThread()
-        return inputs.currentFocusBoundary
-    }
-    public val inputBoundary: InputBoundary? get() {
-        host.checkThread()
-        return inputs.currentBoundary
-    }
-    public val state: SurfaceWindowState get() {
-        host.checkThread();
-        return phase
-    }
+    public val focusBoundary: InputBoundary?
+        get() {
+            host.checkThread()
+            return inputs.currentFocusBoundary
+        }
+    public val inputBoundary: InputBoundary?
+        get() {
+            host.checkThread()
+            return inputs.currentBoundary
+        }
+    public val state: SurfaceWindowState
+        get() {
+            host.checkThread();
+            return phase
+        }
 
     public fun createArea(
         focusable: Boolean = false,
@@ -88,19 +94,17 @@ public class SurfaceWindow internal constructor(
     }
     internal fun refresh() {
         host.checkThread()
-        if (phase != SurfaceWindowState.Open)
-            return
+        if (phase != SurfaceWindowState.Open) return
         callback { refreshWindow() }
     }
     internal fun initialize() {
         refreshWindow()
     }
     private fun refreshWindow() {
-        if (
+        if (nativeWindow.state !=
+            WindowState.Open &&
             nativeWindow.state !=
-                WindowState.Open &&
-                nativeWindow.state !=
-                WindowState.PendingConfigure
+            WindowState.PendingConfigure
         ) {
             close();
             return
@@ -115,14 +119,13 @@ public class SurfaceWindow internal constructor(
                     regions.geometryChanged()
                     inputs.geometryChanged()
                 }
-                if (phase != SurfaceWindowState.Open)
-                    return
-                drawable =
-                    metrics.physicalSize.isDrawable &&
-                        nativeWindow.isVisible &&
-                        !nativeWindow.isOccluded
+                if (phase != SurfaceWindowState.Open) return
+                drawable = metrics.physicalSize.isDrawable &&
+                    nativeWindow.isVisible &&
+                    !nativeWindow.isOccluded
                 renderer.setFrameDemand((scheduler.dirty || animations.hasFrameWork) && drawable)
             }
+
             case None -> {
                 configured = None
                 renderer.setFrameDemand(false)
@@ -132,15 +135,15 @@ public class SurfaceWindow internal constructor(
     }
     private fun refreshAnimationDeadline(drawable: Boolean) {
         val next = animations.nextDeadline(!drawable)
-        if (next == scheduledAnimationTime)
-            return
+        if (next == scheduledAnimationTime) return
         scheduledAnimationTime = next
         when (next) {
             case None -> animationDeadline?.cancel()
+
             case Some(val time) -> {
-                val deadline =
-                    animationDeadline ?:
-                        nativeWindow.createDeadline {
+                val deadline = animationDeadline ?:
+                    nativeWindow
+                        .createDeadline {
                             scheduledAnimationTime = None
                             callback {
                                 animations.advanceTo(MonotonicTimeSource.now())
@@ -154,25 +157,29 @@ public class SurfaceWindow internal constructor(
     }
     internal fun event(event: WindowEvent) {
         host.checkThread()
-        if (phase != SurfaceWindowState.Open)
-            return
+        if (phase != SurfaceWindowState.Open) return
         callback {
             when (event) {
                 case Closing -> close()
                 case Destroyed -> close()
+
                 case RedrawRequested -> {
                     scheduler.request();
                     render()
                 }
+
                 case GeometryChanged(_) -> refresh()
+
                 case FrameChanged -> {
                     regions.geometryChanged();
                     requestFrame()
                 }
+
                 case Occluded(_) -> {
                     scheduler.request();
                     refresh()
                 }
+
                 case ThemeChanged(_) -> requestFrame()
                 else -> inputs.event(event)
             }
@@ -180,8 +187,7 @@ public class SurfaceWindow internal constructor(
     }
     private fun render() {
         refresh()
-        if (phase != SurfaceWindowState.Open)
-            return
+        if (phase != SurfaceWindowState.Open) return
         val metrics = configured ?: return
         if (!metrics.physicalSize.isDrawable || !nativeWindow.isVisible || nativeWindow.isOccluded)
             return
@@ -190,66 +196,74 @@ public class SurfaceWindow internal constructor(
                 scheduler.request();
                 refresh()
             }
+
             case Ready(val frame) -> {
                 val time = MonotonicTimeSource.now()
                 val size = Size(metrics.logicalSize.width, metrics.logicalSize.height)
-                val accepted =
-                    frame.use {
-                        current -> regions.begin(metrics.scaleFactor).use {
-                            nativeRegions -> inputs.beginFrame().use {
-                                placements ->
-                                scheduler.begin()
-                                animations.withFrame<Unit>(time) {
-                                    if (phase == SurfaceWindowState.Open) {
-                                        current.draw {
-                                            canvas -> content.paint(
-                                                FrameContext(
-                                                    this,
-                                                    canvas,
-                                                    size,
-                                                    time,
-                                                    placements,
-                                                    nativeRegions
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                                // A painter can resize or close its native window synchronously.
-                                refresh()
-                                val accepted =
-                                    if (
-                                        phase !=
+                val accepted = frame
+                    .use { current ->
+                        regions
+                            .begin(metrics.scaleFactor)
+                            .use { nativeRegions ->
+                                inputs
+                                    .beginFrame()
+                                    .use { placements ->
+                                        scheduler.begin()
+                                        animations
+                                            .withFrame<Unit>(time) {
+                                                if (phase == SurfaceWindowState.Open) {
+                                                    current
+                                                        .draw { canvas ->
+                                                            inputs
+                                                                .dispatch {
+                                                                    content
+                                                                        .paint(
+                                                                            FrameContext(
+                                                                                this,
+                                                                                canvas,
+                                                                                size,
+                                                                                time,
+                                                                                placements,
+                                                                                nativeRegions
+                                                                            )
+                                                                        )
+                                                                }
+                                                        }
+                                                }
+                                            }
+                                        // A painter can resize or close its native window synchronously.
+                                        refresh()
+                                        val accepted = if (phase !=
                                             SurfaceWindowState.Open ||
                                             nativeWindow.state !=
                                             WindowState.Open ||
                                             !nativeWindow.isVisible ||
                                             nativeWindow.isOccluded
-                                    )
-                                        false
-                                    else
-                                        current.submit()
-                                if (accepted) {
-                                    regions.publish(nativeRegions)
-                                    inputs.publish(placements)
-                                }
-                                accepted
+                                        )
+                                            false
+                                        else
+                                            current.submit()
+                                        if (accepted) {
+                                            regions.publish(nativeRegions)
+                                            inputs.publish(placements)
+                                        }
+                                        accepted
+                                    }
                             }
-                        }
                     }
-                if (!accepted)
-                    scheduler.request()
+                if (!accepted) scheduler.request()
                 if (phase == SurfaceWindowState.Open)
-                    content.onFrameComplete(
-                        FrameCompletion(
-                            time,
-                            size,
-                            if (accepted)
-                                FrameSubmission.Accepted
-                            else
-                                FrameSubmission.Discarded
+                    content
+                        .onFrameComplete(
+                            FrameCompletion(
+                                time,
+                                size,
+                                if (accepted)
+                                    FrameSubmission.Accepted
+                                else
+                                    FrameSubmission.Discarded
+                            )
                         )
-                    )
                 refresh()
             }
         }
@@ -271,8 +285,7 @@ public class SurfaceWindow internal constructor(
     /** Runs synchronous logical work under this window's callback and retirement boundary. */
     public fun dispatch(block: () -> Unit): Boolean {
         host.checkThread()
-        if (phase != SurfaceWindowState.Open)
-            return false
+        if (phase != SurfaceWindowState.Open) return false
         callback(block)
         return phase == SurfaceWindowState.Open
     }
@@ -287,8 +300,7 @@ public class SurfaceWindow internal constructor(
         finishClosing()
     }
     private fun stop() {
-        if (phase != SurfaceWindowState.Open)
-            return
+        if (phase != SurfaceWindowState.Open) return
         phase = SurfaceWindowState.Closing
         host.requestRetirement()
         failure = cleanupFailure(failure) { renderer.setFrameDemand(false) }
@@ -313,8 +325,7 @@ public class SurfaceWindow internal constructor(
         throwFailure(retire())
     }
     private fun retire(): Throwable? {
-        if (phase == SurfaceWindowState.Closed)
-            return None
+        if (phase == SurfaceWindowState.Closed) return None
         phase = SurfaceWindowState.Closed
         failure = cleanupFailure(failure) { content.close() }
         failure = cleanupFailure(failure) { renderer.close() }
@@ -330,32 +341,18 @@ public class SurfaceWindow internal constructor(
     }
 }
 
-private fun windowAnimations(window: Window): AnimationTimeline =
-    AnimationTimeline {
-        if (window.state == WindowState.Open)
-            window.requestRedraw()
-    }
+private fun windowAnimations(window: Window): AnimationTimeline = AnimationTimeline {
+    if (window.state == WindowState.Open) window.requestRedraw()
+}
 
-private fun windowInputs(window: Window): InputRouter =
-    InputRouter(
-        window.isFocused,
-        {
-            if (window.state == WindowState.Open)
-                window.requestRedraw()
-        },
-        {
-            allowed -> if (window.state == WindowState.Open) {
-                window.setImeAllowed(allowed)
-            }
-        },
-        {
-            caret -> if (window.state == WindowState.Open)
-                publishWindowCaret(window, caret)
-            else
-                false
-        },
-        {
-            commands -> if (window.state == WindowState.Open)
-                window.textCommandAvailability = commands
+private fun windowInputs(window: Window): InputRouter = InputRouter(
+    window.isFocused,
+    { if (window.state == WindowState.Open) window.requestRedraw() },
+    { allowed ->
+        if (window.state == WindowState.Open) {
+            window.setImeAllowed(allowed)
         }
-    )
+    },
+    { caret -> if (window.state == WindowState.Open) publishWindowCaret(window, caret) else false },
+    { commands -> if (window.state == WindowState.Open) window.textCommandAvailability = commands }
+)

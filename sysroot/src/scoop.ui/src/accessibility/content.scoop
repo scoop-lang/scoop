@@ -3,6 +3,7 @@ package scoop.ui
 import scoop.collections.HashMap
 import scoop.collections.HashSet
 import scoop.window.accessibility.*
+import scoop.window.accessibility.copy
 import scoop.surface.InputScope
 
 /** Reconciles declared content only when its membership or eligibility changes. */
@@ -14,115 +15,104 @@ internal class SemanticContent(private val ordered: Array<SemanticsHandle>) {
 
     init {
         for (handle in ordered) {
-            if (!handle.active)
-                continue
+            if (!handle.active) continue
             var hidden = handle.properties.hidden || semanticInputExposure(handle) == 2
             when (val parent = handle.parent) {
                 case Some(val value) -> {
-                    val siblings =
-                        when (val existing = children[value.id]) {
-                            case Some(val items) -> items
-                            case None -> {
-                                val items = ArrayList<SemanticsHandle>()
-                                children[value.id] = items
-                                items
-                            }
+                    val siblings = when (val existing = children[value.id]) {
+                        case Some(val items) -> items
+
+                        case None -> {
+                            val items = ArrayList<SemanticsHandle>()
+                            children[value.id] = items
+                            items
                         }
+                    }
                     siblings.add(handle)
                     hidden = hidden || concealed.contains(value.id)
                 }
+
                 case None -> {}
             }
-            if (hidden)
-                concealed.add(handle.id)
+            if (hidden) concealed.add(handle.id)
         }
+        val empty: Array<SemanticNodeId> = []
         for (handle in ordered) {
-            if (!handle.active)
-                continue
-            val labels = ArrayList<SemanticNodeId>()
-            if (handle.mergeLabels && !handle.properties.ignored && !concealed.contains(handle.id))
+            if (!handle.active) continue
+            if (handle.mergeLabels && !handle.properties.ignored && !concealed.contains(handle.id)
+            ) {
+                val labels = ArrayList<SemanticNodeId>()
                 collect(handle.id, labels)
-            content[handle.id] = labels.toArray()
+                content[handle.id] = labels.toArray()
+            } else
+                content[handle.id] = empty
         }
     }
 
     private fun collect(parent: SemanticNodeId, labels: ArrayList<SemanticNodeId>) {
         val values = children[parent] ?: return
         for (child in values) {
-            if (concealed.contains(child.id))
-                continue
+            if (concealed.contains(child.id)) continue
             if (child.properties.ignored)
                 collect(child.id, labels)
-            else
-                if (child.mergeCandidate && !children.containsKey(child.id)) {
-                    labels.add(child.id)
-                    merged.add(child.id)
-                }
+            else if (child.mergeCandidate && !children.containsKey(child.id)) {
+                labels.add(child.id)
+                merged.add(child.id)
+            }
         }
     }
 
     fun apply() {
         for (handle in ordered) {
-            if (!handle.active)
-                continue
+            if (!handle.active) continue
             val next = content[handle.id]!!
             if (!sameContent(handle.resource.contentLabels, next))
                 handle.resource.contentLabels = []
         }
         for (handle in ordered) {
-            if (!handle.active)
-                continue
+            if (!handle.active) continue
             val ignored = merged.contains(handle.id)
-            handle.merged = ignored
-            handle.resource.update(
-                semanticProperties(handle, handle.properties, ignored),
-                semanticActions(handle, handle.actions),
-                handle.resource.relations
-            )
+            if (handle.merged != ignored || handle.contentExposure != semanticInputExposure(handle)
+            ) {
+                handle.merged = ignored
+                handle.publishFacts(handle.properties, handle.actions, handle.resource.relations)
+            }
             handle.resource.contentLabels = content[handle.id]!!
         }
     }
 }
 
 private fun sameContent(before: Array<SemanticNodeId>, after: Array<SemanticNodeId>): Boolean {
-    if (before.size != after.size)
-        return false
-    for (index in 0L ..< before.size)
-        if (before[index] != after[index])
-            return false
+    if (before.size != after.size) return false
+    for (index in 0L..<before.size)
+        if (before[index] != after[index]) return false
     return true
 }
 
 internal fun semanticProperties(
     handle: SemanticsHandle,
     value: SemanticProperties,
-    merged: Boolean
-): SemanticProperties {
-    val exposure = semanticInputExposure(handle)
-    return value.copy {
+    merged: Boolean,
+    exposure: Int = semanticInputExposure(handle)
+): SemanticProperties = value
+    .copy {
         ignored = value.ignored || merged || exposure == 1
         hidden = value.hidden || exposure == 2
     }
-}
 
 private fun semanticWithin(child: InputScope, parent: InputScope): Boolean {
     var current: InputScope? = Some(child)
     while (true) {
         val scope = current ?: return false
-        if (scope === parent)
-            return true
+        if (scope === parent) return true
         current = scope.parent
     }
 }
 
 /** Keeps only ancestry needed to connect the currently admitted modal subtree. */
-private fun semanticInputExposure(handle: SemanticsHandle): Int {
+internal fun semanticInputExposure(handle: SemanticsHandle): Int {
     val boundary = handle.owner.root.surface.inputBoundary ?: return 0
     val scope = handle.owner.scope.input
-    if (semanticWithin(scope, boundary.input))
-        return 0
-    return if (semanticWithin(boundary.input, scope))
-        1
-    else
-        2
+    if (semanticWithin(scope, boundary.input)) return 0
+    return if (semanticWithin(boundary.input, scope)) 1 else 2
 }
