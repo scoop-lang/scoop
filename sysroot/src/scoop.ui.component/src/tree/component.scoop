@@ -114,9 +114,12 @@ public class Tree<T> public constructor(
             next.source,
             next,
             { value, mount -> TreeInk(value, mount) },
-            retention = input.retention,
-            key = ViewKey.Text("body")
+            retention = input.retention
         )
-        return element(next, { value, mount -> TreeRoot(value, mount) }, [treeHeader(next), body])
+        return element(
+            next,
+            { value, mount -> TreeRoot(value, mount) },
+            [treeHeader(next), cachedScene(body, key = ViewKey.Text("body"))]
+        )
     }
 }

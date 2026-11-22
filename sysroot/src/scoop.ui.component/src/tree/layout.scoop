@@ -14,12 +14,27 @@ internal class TreeReadingPosition<T>(
     val stickyHeight: Double
 )
 
+internal class TreeRegularRows<T>(
+    private val projection: TreeProjection<T>,
+    private val indices: Array<Long>
+) {
+    val keys = Array<ViewKey>(indices.size) { index -> projection.keyAt(indices[index]) }
+
+    fun matches(projection: TreeProjection<T>, indices: Array<Long>): Boolean {
+        if (this.projection !== projection || this.indices.size != indices.size) return false
+        for (index in 0L..<indices.size)
+            if (this.indices[index] != indices[index]) return false
+        return true
+    }
+}
+
 internal class TreeFrame<T>(
     val plan: TreePlan<T>,
     val size: Size,
     val layout: ScrollLayout,
     val pinning: TreePinning,
-    val regular: Array<Long>,
+    val regular: TreeRegularRows<T>,
+    val regularOrigin: Double,
     val reading: TreeReadingPosition<T>,
     val request: TreeScrollRequest?,
     val requestDone: Boolean,
@@ -35,6 +50,7 @@ internal class TreeLayout<T>(
     private val control: ScrollControl,
     private val measurements: VirtualMeasurements,
     private val previous: TreeReadingPosition<T>?,
+    private val previousRegular: TreeRegularRows<T>?,
     private val request: TreeScrollRequest?
 ) {
     private val input = plan.input
@@ -132,6 +148,8 @@ internal class TreeLayout<T>(
         val layout = snapshot()
         val offset = layout.snapshot.offset.y
         val pinning = pins(offset)
+        // Rebase near the viewport so the shared scroll transform stays small.
+        val regularOrigin = extents.prefix(extents.indexAt(offset))
         val pinned = HashSet<Long>()
         for (row in pinning.rows)
             pinned.add(row.index)
@@ -142,7 +160,7 @@ internal class TreeLayout<T>(
             active.add(at)
         var recheck = false
         for (at in measured) {
-            var y = extents.prefix(at) - offset
+            var y = extents.prefix(at) - regularOrigin
             if (pinned.contains(at)) {
                 for (row in pinning.rows)
                     if (row.index == at)
@@ -176,12 +194,19 @@ internal class TreeLayout<T>(
             lowerBound(size.height - pinning.height, 0.0), offset, offset >=
                 layout.snapshot.maximum.y
         )
+        val indices = regular.sortedBy<Long, Long> { value -> value }.toArray()
+        val rows = when (previousRegular) {
+            case Some(val old) ->
+                if (old.matches(projection, indices)) old else TreeRegularRows(projection, indices)
+            case None -> TreeRegularRows(projection, indices)
+        }
         return TreeFrame(
             plan,
             outer,
             layout,
             pinning,
-            regular.sortedBy<Long, Long> { value -> value }.toArray(),
+            rows,
+            regularOrigin,
             TreeReadingPosition(
                 plan,
                 revision,

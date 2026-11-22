@@ -104,6 +104,11 @@ private class TreeTitleInk(private val record: TreeRecord, scope: ComponentScope
     Element<Unit>(
         scope
     ) {
+    private val area = scope.createArea()
+    init {
+        area.ignoreSelf = true
+        record.titleArea = Some(area)
+    }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -113,6 +118,8 @@ private class TreeTitleInk(private val record: TreeRecord, scope: ComponentScope
         return LayoutResult(measured, Unit)
     }
     public override fun scene(context: SceneContext, value: Unit) {
+        record.scenes += 1
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
         context.children()
     }
 }

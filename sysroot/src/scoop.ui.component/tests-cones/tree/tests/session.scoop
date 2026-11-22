@@ -2,6 +2,7 @@ package scoop.tests.ui.tree
 
 import scoop.collections.HashMap
 import scoop.graphics.Point
+import scoop.graphics.Rect
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
 import scoop.test.*
@@ -51,6 +52,8 @@ internal class TreeRecord(val key: Long) {
     var mounts = 0
     var unmounts = 0
     var measures = 0
+    var scenes = 0
+    var titleArea: InputArea? = None
 }
 
 internal class TreeProbe {
@@ -78,7 +81,7 @@ internal class TreeProbe {
     var active: ActiveApplication? = None
     var frames: FrameProbe? = None
     var input: ViewProbe? = None
-    var phase = -1
+    var phase = -2
     var accepted = 0
     var waiting = false
     var finished = false
@@ -88,6 +91,9 @@ internal class TreeProbe {
     var activations = 0
     private var retainedTitle: TreeRecord? = None
     private var titleMeasures = 0
+    private var titleScenes = 0
+    private var titleY = 0.0
+    private var beforeScroll: TreeReadingSnapshot? = None
 
     private fun makeData(): TreeData<Long> {
         val children = ArrayList<TreeNode<Long>>()
@@ -273,18 +279,30 @@ internal class TreeProbe {
     }
     private fun advance() {
         when (phase) {
+            case - 2 -> next { vertical.scrollTo(Point(0.0, 1.0)) }
+
             case - 1 -> {
                 val title = records[3L]!!
                 retainedTitle = Some(title)
                 titleMeasures = title.measures
+                titleScenes = title.scenes
+                titleY = title.titleArea!!.toWindow(Rect(0.0, 0.0, 1.0, 1.0))!!.y
+                beforeScroll = handle.reading
                 assertTrue(titleMeasures > 0)
-                next { vertical.scrollTo(Point(0.0, 1.0)) }
+                assertTrue(titleScenes > 0)
+                next { vertical.scrollTo(Point(0.0, 2.0)) }
             }
 
             case 0 -> {
-                assertEquals(1.0, vertical.offset.y)
-                assertSame(retainedTitle!!, records[3L]!!)
-                assertEquals(titleMeasures, records[3L]!!.measures)
+                val title = records[3L]!!
+                val reading = handle.reading!!
+                assertEquals(2.0, vertical.offset.y)
+                assertEquals(beforeScroll!!.visible, reading.visible)
+                assertSame(retainedTitle!!, title)
+                assertEquals(titleMeasures, title.measures)
+                assertEquals(titleScenes, title.scenes)
+                val moved = title.titleArea!!.toWindow(Rect(0.0, 0.0, 1.0, 1.0))!!.y
+                assertTrue(moved > titleY - 1.001 && moved < titleY - 0.999)
                 assertTrue(history.size < 40L)
                 assertEquals(10003L, model.projection.count)
                 root = records[0L]
