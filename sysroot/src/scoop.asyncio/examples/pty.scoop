@@ -2,26 +2,25 @@
 //! dep: scoop:scoop.platform:0.1.0
 
 import scoop.asyncio.*
-import scoop.platform.fs.Path
+import scoop.platform.env.arguments
+import scoop.platform.env.executablePath
 import scoop.platform.process.*
 import scoop.platform.system.*
 import scoop.text.contains
 
 fun main() {
-    val windows = operatingSystem == OperatingSystem.Windows
-    val shell = command(Path.fromString(if (windows) "cmd.exe" else "sh")) {
-        val arguments = if (windows)
-            ["/d", "/c", "echo hello-from-pty"]
-        else
-            ["-c", "printf 'hello-from-pty\\n'"]
-        for (argument in arguments)
-            arg(OsString.fromString(argument))
+    val childArgument = OsString.fromString("--pty-child")
+    val args = arguments()
+    if (args.size > 1L && args[1L] == childArgument) {
+        println("hello-from-pty")
+        return
     }
+    val child = command(executablePath()) { arg(childArgument) }
     val loop = eventLoop()
     loop
         .run {
             loop
-                .spawnPty(shell, 80L, 24L, searchPath = true)
+                .spawnPty(child, 80L, 24L)
                 .useAsync { pty ->
                     val output = String.fromUtf8(pty.readAllBytes())
                     val status = pty.wait()
