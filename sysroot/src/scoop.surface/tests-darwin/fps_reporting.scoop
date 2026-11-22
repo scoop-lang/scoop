@@ -1,0 +1,95 @@
+package scoop.surface
+
+import scoop.graphics.Color
+import scoop.platform.env.environmentVariable
+import scoop.platform.env.executablePath
+import scoop.platform.process.*
+import scoop.platform.system.OsString
+import scoop.platform.time.MonotonicInstant
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.text.contains
+import scoop.time.Duration
+import scoop.window.*
+
+private val configureFps = OsString.fromString("SCOOP_TEST_SURFACE_CONFIGURE_FPS")
+
+private val fpsSetting = OsString.fromString("SCOOP_SURFACE_FPS")
+
+@Test
+private class SurfaceFpsReportingTest {
+    private var stopAt: MonotonicInstant? = None
+    private var completed = false
+
+    @Test
+    fun `only an explicit call with environment value 1 reports FPS`() {
+        checkReporting(false, Some("1"), false)
+        checkReporting(true, None, false)
+        checkReporting(true, Some("0"), false)
+        checkReporting(true, Some("1"), true)
+    }
+
+    @Test
+    @Ignore("Launched in a separate process by the FPS reporting test")
+    fun renderFrames() {
+        if (environmentVariable(configureFps) != None) configureFpsReportingFromEnvironment()
+
+        SurfaceHost { owner, active, event ->
+            when (event) {
+                case Resumed -> {
+                    active
+                        .setControlFlow(
+                            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(8L))
+                        )
+                    val window = active
+                        .createWindow(
+                            windowAttributes {
+                                this.title = "Scoop Surface FPS"
+                                this.size = LogicalSize(200.0, 120.0)
+                            }
+                        )
+                    window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                    owner
+                        .attach(window) { frame ->
+                            frame.canvas.clear(Color.White)
+                            val end = stopAt ?: frame.time + Duration.milliseconds(1500L)
+                            stopAt = Some(end)
+                            if (frame.time < end) {
+                                frame.window.requestFrame()
+                            } else {
+                                completed = true
+                                active.requestExit()
+                            }
+                        }
+                }
+
+                case NewEvents(StartCause.Deadline) ->
+                    fail(Some("FPS window stopped receiving frames"))
+                else -> {}
+            }
+        }
+            .use { host -> Application().run(host) }
+        assertTrue(completed)
+    }
+}
+
+private fun checkReporting(callApi: Boolean, value: String?, enabled: Boolean) {
+    val probe = command(executablePath()) {
+        removeEnv(OsString.fromString("SCOOP_TEST_RUN_DIR"))
+        arg(OsString.fromString("--scoop-test-filter-ignored"))
+        arg(OsString.fromString("SurfaceFpsReportingTest::renderFrames"))
+        if (callApi) env(configureFps, OsString.fromString("1")) else removeEnv(configureFps)
+        if (value != None) env(fpsSetting, OsString.fromString(value!!)) else removeEnv(fpsSetting)
+        stderr = Stdio.Pipe
+    }
+    val output = probe.spawn().use { child -> child.communicate(Duration.seconds(12L)) }
+    val errors = String.fromUtf8(output.stderr)
+    val setting = value ?: "(unset)"
+    val details = Some(f"callApi=${callApi} value=${setting}\n${errors}")
+    assertEquals(ExitStatus.Exited(0), output.status, details)
+    assertEquals(enabled, errors.contains("scoop-surface-fps "), details)
+    if (enabled) {
+        assertTrue(errors.contains(" fps="), details)
+        assertTrue(errors.contains(" presented_total="), details)
+    }
+}

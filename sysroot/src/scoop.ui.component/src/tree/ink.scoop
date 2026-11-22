@@ -209,6 +209,7 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
             control,
             measurements,
             committed,
+            drawing?.regular,
             request
         )
             .measure()
@@ -240,14 +241,14 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
                     content
                         .withScrollReveal(control.viewport, body, ScrollAxes.Vertical) { normal ->
                             normal
-                                .withState { clipped ->
-                                    clipped
-                                        .clipRect(
-                                            Rect(left, body.y - shift, body.width, body.height)
-                                        )
-                                    for (index in frame.regular)
-                                        clipped.item(frame.plan.projection.keyAt(index))
-                                }
+                                .clipRect(Rect(left, body.y - shift, body.width, body.height))
+                            normal
+                                .translate(
+                                    0.0,
+                                    frame.regularOrigin - frame.layout.snapshot.offset.y
+                                )
+                            for (key in frame.regular.keys)
+                                normal.item(key)
                         }
                     for (row in frame.pinning.rows)
                         content
@@ -257,18 +258,15 @@ internal class TreeInk<T>(private val props: Props<TreePlan<T>>, scope: Componen
                                 ScrollAxes.Vertical
                             ) { sticky ->
                                 sticky
-                                    .withState { clipped ->
-                                        clipped
-                                            .clipRect(
-                                                Rect(
-                                                    left,
-                                                    row.top - shift,
-                                                    viewport.width,
-                                                    row.bottom - row.top
-                                                )
-                                            )
-                                        clipped.item(frame.plan.projection.keyAt(row.index))
-                                    }
+                                    .clipRect(
+                                        Rect(
+                                            left,
+                                            row.top - shift,
+                                            viewport.width,
+                                            row.bottom - row.top
+                                        )
+                                    )
+                                sticky.item(frame.plan.projection.keyAt(row.index))
                             }
                 }
             )

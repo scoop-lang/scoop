@@ -260,7 +260,7 @@ public class AccessibilityNode internal constructor(
             value?.check()
             invalidateGeometry()
             placement = value
-            provider.changed(this)
+            provider.geometryChanged(this)
         }
 
     /** Reads the matching native shape only; it does not run input handlers. */
@@ -317,7 +317,7 @@ public class AccessibilityNode internal constructor(
                 case None -> {}
             }
             activation = value
-            provider.changed(this)
+            provider.geometryChanged(this)
         }
 
     /** Retains matching accepted geometry and its native hit test in actual scene order. */
@@ -334,7 +334,7 @@ public class AccessibilityNode internal constructor(
         placement = Some(geometry)
         hit = Some(next)
         sceneOrder = order
-        provider.changed(this)
+        provider.geometryChanged(this)
     }
 
     /** Retains native text queries matching this node's known text and accepted geometry. */
@@ -365,7 +365,7 @@ public class AccessibilityNode internal constructor(
         }
         textGeometry?.close()
         textGeometry = next
-        provider.changed(this)
+        provider.geometryChanged(this)
     }
 
     /** Replaces current facts and callbacks without changing the native role or identity. */

@@ -1,0 +1,115 @@
+package scoop.window
+
+import scoop.window.accessibility.AccessibilityNode
+import scoop.window.accessibility.native.NativeSemanticHitTest
+import scoop.window.accessibility.native.NativeSemanticTextGeometry
+
+internal fun platformAccessibilityGeometryPublisher(): (
+    (Ptr<Unit>, Collection<AccessibilityNode>) -> Unit
+)? = Some { pointer, nodes -> stageAccessibilityGeometry(pointer, nodes) }
+
+private fun stageAccessibilityGeometry(pointer: Ptr<Unit>, nodes: Collection<AccessibilityNode>) {
+    val count = nodes.size
+    val bytesPerNode = sizeOf<NativeAccessibilityGeometry>() +
+        sizeOf<NativeSemanticHitTest>() +
+        sizeOf<NativeSemanticTextGeometry>()
+    requireWindow(
+        count.toULong() <= ULong.MAX_VALUE / bytesPerNode,
+        "accessibility geometry batch is too large"
+    )
+    @Unsafe
+    {
+        val storage = allocateGeometry(count.toULong() * bytesPerNode) ?:
+            throw IllegalStateException(Some("cannot allocate accessibility geometry batch"))
+        try {
+            // The three C-layout arrays have the same alignment.
+            val records = storage.cast<NativeAccessibilityGeometry>()
+            val hits = (records + count).cast<NativeSemanticHitTest>()
+            val texts = (hits + count).cast<NativeSemanticTextGeometry>()
+            var index = 0L
+            for (node in nodes) {
+                val hit = when (val snapshot = node.hit) {
+                    case Some(val value) -> {
+                        val address = hits + index
+                        address.store(value.native)
+                        Some(address)
+                    }
+
+                    case None -> None
+                }
+                val text = when (val snapshot = node.textGeometry) {
+                    case Some(val value) -> {
+                        val address = texts + index
+                        address.store(value.native)
+                        Some(address)
+                    }
+
+                    case None -> None
+                }
+                val placement = node.placement
+                val bounds = placement?.bounds ?: emptyGeometry
+                val visible = (placement?.visibleBounds ?: None) ?: emptyGeometry
+                val activation = node.activation
+                records
+                    .store(
+                        index,
+                        NativeAccessibilityGeometry(
+                            node.id.number,
+                            node.sceneOrder,
+                            flag(placement != None),
+                            flag(visible.size.width > 0.0 && visible.size.height > 0.0),
+                            bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height,
+                            visible.origin.x, visible.origin.y, visible.size.width, visible
+                                .size
+                                .height,
+                            flag(activation != None), activation?.x ?: 0.0, activation?.y ?: 0.0,
+                            hit, text
+                        )
+                    )
+                index += 1L
+            }
+            checkNativeStatus(
+                nativeAccessibilityStageGeometry(pointer, records, count),
+                "stage accessibility geometry"
+            )
+        } finally {
+            freeGeometry(storage)
+        }
+    }
+}
+
+private val emptyGeometry = LogicalRect(LogicalPosition(0.0, 0.0), LogicalSize(0.0, 0.0))
+
+@CLayout
+private struct NativeAccessibilityGeometry(
+    val number: Long,
+    val sceneOrder: Long,
+    val geometry: Int,
+    val visible: Int,
+    val x: Double,
+    val y: Double,
+    val width: Double,
+    val height: Double,
+    val visibleX: Double,
+    val visibleY: Double,
+    val visibleWidth: Double,
+    val visibleHeight: Double,
+    val activation: Int,
+    val activationX: Double,
+    val activationY: Double,
+    val hit: Ptr<NativeSemanticHitTest>?,
+    val text: Ptr<NativeSemanticTextGeometry>?
+)
+
+@Extern(name = "malloc")
+private fun allocateGeometry(bytes: ULong): Ptr<Unit>?
+
+@Extern(name = "free")
+private fun freeGeometry(storage: Ptr<Unit>)
+
+@Extern(name = "scoop_window_accessibility_stage_geometry")
+private fun nativeAccessibilityStageGeometry(
+    pointer: Ptr<Unit>,
+    records: Ptr<NativeAccessibilityGeometry>,
+    count: Long
+): Long

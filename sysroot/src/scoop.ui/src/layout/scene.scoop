@@ -4,7 +4,6 @@ import scoop.graphics.*
 import scoop.graphics.native.captureGeometry
 import scoop.surface.FrameContext
 import scoop.surface.FrameCompletion
-import scoop.surface.FrameSubmission
 import scoop.surface.InputArea
 import scoop.surface.WindowRegionHandle
 import scoop.platform.time.MonotonicInstant
@@ -203,16 +202,6 @@ public class SceneContext internal constructor(
             requireUi(previous !== key, "paint key was already used in this scene")
         pass.paintKeys.add(key)
     }
-    internal fun drawRetained(layer: CachedPaintLayer) {
-        checkActive()
-        usePaintKey(layer.key)
-        borrowed = true
-        try {
-            layer.paint(frame.canvas, paintCache)
-        } finally {
-            borrowed = false
-        }
-    }
     /** Shares the one child presentation pass while isolating scene state. */
     public fun <T> withState(block: (SceneContext) -> T): T {
         checkActive()
@@ -409,7 +398,7 @@ public class SceneContext internal constructor(
         val index = items.take(key)
         pass.presentedItems = Some(items)
         pass.cacheable = false
-        presentChild(index, epochs)
+        layout.presentChild(index, frame, overlay, scrollPath, paintCache, epochs)
     }
     internal fun presentChildren(order: Array<Long>?, epoch: SceneEpoch?) {
         checkActive()
@@ -439,7 +428,6 @@ public class SceneContext internal constructor(
             case None -> {}
         }
         pass.presentedChildren = true
-        recorder?.add(SceneCommand.Children(order, epoch))
         val childEpochs = when (epoch) {
             case Some(val value) ->
                 Array<SceneEpoch>(epochs.size + 1L) { index ->
@@ -447,43 +435,12 @@ public class SceneContext internal constructor(
                 }
             case None -> epochs
         }
+        recorder?.add(SceneCommand.Children(order, childEpochs))
         try {
-            when (order) {
-                case Some(val value) ->
-                    for (index in value)
-                        presentChild(index, childEpochs)
-                case None ->
-                    for (index in 0L..<layout.children.size)
-                        presentChild(index, childEpochs)
-            }
+            layout.presentChildren(frame, overlay, scrollPath, paintCache, childEpochs, order)
         } catch (error: Throwable) {
             pass.cacheable = false
             throw error
-        }
-    }
-    private fun presentChild(index: Long, childEpochs: Array<SceneEpoch>) {
-        val child = layout.children[index]
-        val placed = child.origin != None
-        if (child.node.participatesInFrame != placed)
-            node
-                .root
-                .addCompletion(child.node) { completion ->
-                    if (completion.submission == FrameSubmission.Accepted)
-                        child.node.setFrameParticipation(placed)
-                }
-        when (child.origin) {
-            case Some(val origin) ->
-                child
-                    .result!!
-                    .scene(
-                        frame,
-                        origin,
-                        overlay,
-                        scrollPath,
-                        paintCache,
-                        childEpochs
-                    )
-            case None -> child.node.clearPaintSubtree()
         }
     }
     internal fun finish() {
@@ -495,7 +452,8 @@ public class SceneContext internal constructor(
                 )
                     throw IllegalStateException(Some("placed children must be presented"))
             for (index in 0L..<layout.children.size)
-                if (layout.children[index].origin == None) presentChild(index, epochs)
+                if (layout.children[index].origin == None)
+                    layout.presentChild(index, frame, overlay, scrollPath, paintCache, epochs)
         }
         node.paintLayers.retain(pass.paintKeys)
     }

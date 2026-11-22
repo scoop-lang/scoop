@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.graphics.*
+import scoop.surface.FrameContext
 import scoop.surface.InputArea
 import scoop.platform.time.MonotonicInstant
 
@@ -11,26 +12,7 @@ internal class SceneEpoch
 internal enum SceneCommand {
     Concat(Transform), Clip(Rect), Save, SaveLayer(Double, BlendMode), Restore,
     Place(InputArea, Rect), Anchor(LayoutAnchor, Rect), Semantics(SemanticsHandle, Rect),
-    Children(Array<Long>?, SceneEpoch?), Drawing(CachedPaintLayer), Scope(Array<SceneCommand>)
-
-    fun replay(context: SceneContext) {
-        when (this) {
-            case Concat(val value) -> context.concat(value)
-            case Clip(val value) -> context.clipRect(value)
-            case Save -> context.save()
-            case SaveLayer(val opacity, val blend) -> context.saveLayer(opacity, blendMode = blend)
-            case Restore -> context.restore()
-            case Place(val area, val rect) -> context.place(area, rect)
-            case Anchor(val handle, val rect) -> context.anchor(handle, rect)
-            case Semantics(val handle, val rect) -> context.semantics(handle, rect)
-            case Children(val order, val epoch) -> context.presentChildren(order, epoch)
-            case Drawing(val layer) -> context.drawRetained(layer)
-            case Scope(val commands) -> context.withState<Unit> {
-                child -> for (command in commands)
-                    command.replay(child)
-            }
-        }
-    }
+    Children(Array<Long>?, Array<SceneEpoch>), Drawing(CachedPaintLayer), Scope(Array<SceneCommand>)
 }
 
 internal class SceneRecorder {
@@ -46,7 +28,9 @@ internal class CachedScene(
     private val version: Long,
     private val epochs: Array<SceneEpoch>,
     private val commands: Array<SceneCommand>,
-    private val layers: Array<CachedPaintLayer>
+    private val layers: Array<CachedPaintLayer>,
+    private val paintKeys: ArrayList<PaintKey>,
+    private val presentedChildren: Boolean
 ) {
     fun matches(
         node: MountedNode,
@@ -54,18 +38,69 @@ internal class CachedScene(
         canvas: Canvas,
         time: MonotonicInstant
     ): Boolean {
-        if (version != node.sceneVersion || epochs.size != current.size)
-            return false
-        for (index in 0L ..< epochs.size)
-            if (epochs[index] !== current[index])
-                return false
+        if (version != node.sceneVersion || epochs.size != current.size) return false
+        for (index in 0L..<epochs.size)
+            if (epochs[index] !== current[index]) return false
         for (layer in layers)
-            if (!layer.compatible(canvas) || !layer.current(Some(time)))
-                return false
+            if (!layer.compatible(canvas) || !layer.current(Some(time))) return false
         return true
     }
-    fun replay(context: SceneContext) {
-        for (command in commands)
-            command.replay(context)
+    fun replay(
+        layout: NodeLayout,
+        frame: FrameContext,
+        overlay: OverlayLayout?,
+        scrollPath: Array<ScrollReveal>,
+        paintCache: PaintCachePolicy
+    ) {
+        replayCommands(commands, layout, frame, overlay, scrollPath, paintCache)
+        val node = layout.node
+        if (node.active && node.root.isOpen) {
+            if (!presentedChildren)
+                layout.presentChildren(frame, overlay, scrollPath, paintCache, epochs, None)
+            node.paintLayers.retain(paintKeys)
+        }
     }
+}
+
+/** The recorder has already validated the child order and the balanced borrowing scopes. */
+private fun replayCommands(
+    commands: Array<SceneCommand>,
+    layout: NodeLayout,
+    frame: FrameContext,
+    overlay: OverlayLayout?,
+    scrollPath: Array<ScrollReveal>,
+    paintCache: PaintCachePolicy
+) {
+    val node = layout.node
+    val canvas = frame.canvas
+    for (command in commands)
+        when (command) {
+            case Concat(val value) -> canvas.concat(value)
+            case Clip(val value) -> canvas.clipRect(value)
+            case Save -> canvas.save()
+            case SaveLayer(val opacity, val blend) -> canvas.saveLayer(opacity, blendMode = blend)
+            case Restore -> canvas.restore()
+
+            case Place(val area, val rect) -> {
+                frame.place(area, rect)
+                node.root.focus.place(area, scrollPath)
+            }
+
+            case Anchor(val handle, val rect) ->
+                handle.capture(node, node.root.overlays.frame, canvas, rect)
+
+            case Semantics(val handle, val rect) -> {
+                checkSemanticOwner(node, handle)
+                handle.controller.capture(handle, canvas, rect, scrollPath)
+            }
+
+            case Children(val order, val childEpochs) ->
+                layout.presentChildren(frame, overlay, scrollPath, paintCache, childEpochs, order)
+            case Drawing(val layer) -> layer.paint(canvas, paintCache)
+            case Scope(val nested) ->
+                frame
+                    .withState<Unit> { child ->
+                        replayCommands(nested, layout, child, overlay, scrollPath, paintCache)
+                    }
+        }
 }

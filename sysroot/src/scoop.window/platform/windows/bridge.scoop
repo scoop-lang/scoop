@@ -1,6 +1,11 @@
 package scoop.window
 
+import scoop.window.accessibility.AccessibilityNode
 import scoop.window.native.NativeWindowHandle
+
+internal fun platformAccessibilityGeometryPublisher(): (
+    (Ptr<Unit>, Collection<AccessibilityNode>) -> Unit
+)? = None
 
 internal fun platformBackend(): WindowBackend = WindowBackend.Win32
 

@@ -20,8 +20,20 @@
 @class SWAccessibilityCollection;
 @class SWAccessibilityColumnData;
 
+typedef struct {
+  int64_t number, scene_order;
+  int32_t geometry, visible;
+  double x, y, width, height;
+  double visible_x, visible_y, visible_width, visible_height;
+  int32_t activation;
+  double activation_x, activation_y;
+  const SWAccessibilityHitData *hit;
+  const SWAccessibilityTextData *text;
+} SWAccessibilityGeometryUpdate;
+
 @interface SWAccessibilityState : NSObject
 @property(nonatomic) SWAccessibilityData data;
+@property(nonatomic) BOOL geometryOnly;
 @property(nonatomic) NSRange selection;
 @property(nonatomic, copy) NSString *name, *help, *error, *identifier, *value,
     *url;

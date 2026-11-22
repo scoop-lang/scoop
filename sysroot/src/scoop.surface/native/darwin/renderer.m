@@ -1,9 +1,15 @@
 #import <AppKit/AppKit.h>
 #import <Metal/Metal.h>
+#import <QuartzCore/CAMediaTiming.h>
 #import <QuartzCore/CAMetalDisplayLink.h>
 #import <QuartzCore/CATransaction.h>
 #include <math.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef int32_t (*SSUCallback)(void *, int32_t);
 typedef struct {
@@ -18,6 +24,78 @@ typedef struct {
 @implementation SSUDevice
 @end
 
+@interface SSUMetalFpsProbe : NSObject
+- (instancetype)initWithWindowNumber:(NSInteger)windowNumber;
+- (void)watchDrawable:(id<MTLDrawable>)drawable;
+- (void)finish;
+@end
+
+@implementation SSUMetalFpsProbe {
+  NSInteger _windowNumber;
+  CFTimeInterval _lastPresentation, _sampleStart;
+  uint64_t _presented, _withoutTime, _sampleFrames;
+  BOOL _closed;
+}
+- (instancetype)initWithWindowNumber:(NSInteger)windowNumber {
+  self = [super init];
+  if (self)
+    _windowNumber = windowNumber;
+  return self;
+}
+- (void)recordPresentedTime:(CFTimeInterval)time {
+  CFTimeInterval start, end;
+  uint64_t frames;
+  @synchronized(self) {
+    if (_closed)
+      return;
+    if (!isfinite(time) || time <= 0) {
+      ++_withoutTime;
+      return;
+    }
+    ++_presented;
+    _lastPresentation = fmax(_lastPresentation, time);
+    if (_sampleStart == 0)
+      _sampleStart = time;
+    // A late callback for a published interval still counts in the total.
+    if (time <= _sampleStart)
+      return;
+    ++_sampleFrames;
+    if (_lastPresentation - _sampleStart < 1.0)
+      return;
+    start = _sampleStart;
+    end = _lastPresentation;
+    frames = _sampleFrames;
+    _sampleStart = end;
+    _sampleFrames = 0;
+  }
+  fprintf(stderr,
+          "scoop-surface-fps window=%ld start=%.6f end=%.6f frames=%llu "
+          "seconds=%.6f fps=%.2f\n",
+          (long)_windowNumber, start, end, (unsigned long long)frames,
+          end - start, (double)frames / (end - start));
+}
+- (void)watchDrawable:(id<MTLDrawable>)drawable {
+  [drawable addPresentedHandler:^(id<MTLDrawable> presented) {
+    [self recordPresentedTime:presented.presentedTime];
+  }];
+}
+- (void)finish {
+  CFTimeInterval last;
+  uint64_t presented, withoutTime;
+  @synchronized(self) {
+    _closed = YES;
+    last = _lastPresentation;
+    presented = _presented;
+    withoutTime = _withoutTime;
+  }
+  fprintf(stderr,
+          "scoop-surface-fps window=%ld closed_at=%.6f last_presented=%.6f "
+          "presented_total=%llu without_time_total=%llu\n",
+          (long)_windowNumber, CACurrentMediaTime(), last,
+          (unsigned long long)presented, (unsigned long long)withoutTime);
+}
+@end
+
 @interface SSUSurface : NSObject <CAMetalDisplayLinkDelegate>
 @property(nonatomic, strong) SSUDevice *device;
 @property(nonatomic, strong) NSView *view;
@@ -27,6 +105,7 @@ typedef struct {
 @property(nonatomic, strong) CAMetalDisplayLink *link;
 @property(nonatomic, strong) id<CAMetalDrawable> pending;
 @property(nonatomic, strong) id<MTLCommandBuffer> lastCommand;
+@property(nonatomic, strong) SSUMetalFpsProbe *fpsProbe;
 @property(nonatomic) int32_t width;
 @property(nonatomic) int32_t height;
 @property(nonatomic) double scale;
@@ -101,6 +180,14 @@ typedef struct {
 }
 @end
 
+static atomic_bool fpsReportingEnabled = false;
+
+void scoop_surface_metal_configure_fps_reporting_from_environment(void) {
+  const char *fps = getenv("SCOOP_SURFACE_FPS");
+  atomic_store_explicit(&fpsReportingEnabled, fps && strcmp(fps, "1") == 0,
+                        memory_order_relaxed);
+}
+
 void *scoop_surface_metal_host_create(void) {
   @autoreleasepool {
     @try {
@@ -136,6 +223,9 @@ void *scoop_surface_metal_surface_create(void *hostPointer, void *viewPointer,
       surface.previousWantsLayer = view.wantsLayer;
       surface.callback = callback;
       surface.context = context;
+      if (atomic_load_explicit(&fpsReportingEnabled, memory_order_relaxed))
+        surface.fpsProbe = [[SSUMetalFpsProbe alloc]
+            initWithWindowNumber:view.window.windowNumber];
       surface.layer = [CAMetalLayer layer];
       surface.layer.device = surface.device.device;
       surface.layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
@@ -264,6 +354,7 @@ int32_t scoop_surface_metal_frame_present(void *pointer) {
       id<MTLCommandBuffer> command = [surface.device.queue commandBuffer];
       if (!command)
         return -1;
+      [surface.fpsProbe watchDrawable:frame.drawable];
       // CAMetalDisplayLink schedules its drawables and rejects timed present.
       [command presentDrawable:frame.drawable];
       __weak SSUSurface *weakSurface = surface;
@@ -312,5 +403,6 @@ int32_t scoop_surface_metal_surface_close(void *pointer) {
   }
   if (![surface restoreLayer])
     status = -1;
+  [surface.fpsProbe finish];
   return status;
 }

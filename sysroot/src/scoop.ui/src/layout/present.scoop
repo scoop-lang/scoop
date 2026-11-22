@@ -2,6 +2,7 @@ package scoop.ui
 
 import scoop.graphics.*
 import scoop.surface.FrameContext
+import scoop.surface.FrameSubmission
 
 internal fun NodeLayout.scene(
     frame: FrameContext,
@@ -60,6 +61,48 @@ internal fun NodeLayout.scene(
     }
 }
 
+internal fun NodeLayout.presentChild(
+    index: Long,
+    frame: FrameContext,
+    overlay: OverlayLayout?,
+    scrollPath: Array<ScrollReveal>,
+    paintCache: PaintCachePolicy,
+    epochs: Array<SceneEpoch>
+) {
+    val child = children[index]
+    val placed = child.origin != None
+    if (child.node.participatesInFrame != placed)
+        node
+            .root
+            .addCompletion(child.node) { completion ->
+                if (completion.submission == FrameSubmission.Accepted)
+                    child.node.setFrameParticipation(placed)
+            }
+    when (child.origin) {
+        case Some(val origin) ->
+            child.result!!.scene(frame, origin, overlay, scrollPath, paintCache, epochs)
+        case None -> child.node.clearPaintSubtree()
+    }
+}
+
+internal fun NodeLayout.presentChildren(
+    frame: FrameContext,
+    overlay: OverlayLayout?,
+    scrollPath: Array<ScrollReveal>,
+    paintCache: PaintCachePolicy,
+    epochs: Array<SceneEpoch>,
+    order: Array<Long>?
+) {
+    when (order) {
+        case Some(val value) ->
+            for (index in value)
+                presentChild(index, frame, overlay, scrollPath, paintCache, epochs)
+        case None ->
+            for (index in 0L..<children.size)
+                presentChild(index, frame, overlay, scrollPath, paintCache, epochs)
+    }
+}
+
 private fun NodeLayout.sceneElement(
     frame: FrameContext,
     origin: Point,
@@ -69,32 +112,23 @@ private fun NodeLayout.sceneElement(
     epochs: Array<SceneEpoch>,
     value: ElementLayout
 ) {
-    frame.withState {
-        childFrame ->
-        childFrame.canvas.translate(origin.x, origin.y)
-        val cached =
+    frame
+        .withState<Unit> { childFrame ->
+            childFrame.canvas.translate(origin.x, origin.y)
             when (sceneCache) {
-                case Some(val previous) -> if (
-                    epochs.size >
+                case Some(val previous) ->
+                    if (epochs.size >
                         0L &&
                         previous.matches(node, epochs, childFrame.canvas, frame.time)
-                )
-                    Some(previous)
-                else
-                    None
-                case None -> None
+                    ) {
+                        previous.replay(this, childFrame, overlay, scrollPath, paintCache)
+                        return@withState Unit
+                    }
+                case None -> {}
             }
-        val recorder =
-            when (cached) {
-                case Some(_) -> None
-                case None -> if (epochs.size > 0L)
-                    Some(SceneRecorder())
-                else
-                    None
-            }
-        val pass = ScenePass()
-        val context =
-            SceneContext(
+            val recorder = if (epochs.size > 0L) Some(SceneRecorder()) else None
+            val pass = ScenePass()
+            val context = SceneContext(
                 node,
                 childFrame,
                 this,
@@ -105,41 +139,34 @@ private fun NodeLayout.sceneElement(
                 epochs = epochs,
                 recorder = recorder
             )
-        try {
-            when (cached) {
-                case Some(val previous) -> {
-                    previous.replay(context)
-                    if (node.active && node.root.isOpen)
-                        context.finish()
-                }
-                case None -> {
-                    sceneCache = None
-                    val version = node.sceneVersion
-                    val reads = FrameReads(node, frame.time)
-                    evaluateUi<Unit>(None, Some(reads)) { value.scene(context) }
-                    if (node.active && node.root.isOpen) {
-                        context.finish()
-                        val inputs = reads.finish()
-                        node.frameInputs.setScene(inputs)
-                        when (recorder) {
-                            case Some(val commands) -> if (pass.cacheable && !inputs.perFrame)
-                                sceneCache =
-                                    Some(
-                                        CachedScene(
-                                            version,
-                                            epochs,
-                                            commands.finish(),
-                                            pass.layers.toArray()
-                                        )
+            try {
+                sceneCache = None
+                val version = node.sceneVersion
+                val reads = FrameReads(node, frame.time)
+                evaluateUi<Unit>(None, Some(reads)) { value.scene(context) }
+                if (node.active && node.root.isOpen) {
+                    context.finish()
+                    val inputs = reads.finish()
+                    node.frameInputs.setScene(inputs)
+                    when (recorder) {
+                        case Some(val commands) ->
+                            if (pass.cacheable && !inputs.perFrame)
+                                sceneCache = Some(
+                                    CachedScene(
+                                        version,
+                                        epochs,
+                                        commands.finish(),
+                                        pass.layers.toArray(),
+                                        pass.paintKeys,
+                                        pass.presentedChildren
                                     )
-                            case None -> {}
-                        }
+                                )
+                        case None -> {}
                     }
                 }
+                Unit
+            } finally {
+                context.end()
             }
-            Unit
-        } finally {
-            context.end()
         }
-    }
 }

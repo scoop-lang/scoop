@@ -416,6 +416,15 @@ BOOL sw_accessibility_collections_commit(
   for (NSNumber *number in changes) {
     SWAccessibilityState *value = changes[number];
     SWAccessibilityState *old = previous[number];
+    if (value.geometryOnly) {
+      if (value.itemKey && (old.data.visible != value.data.visible ||
+                            old.data.geometry != value.data.geometry)) {
+        int64_t owner = collectionOwner(tree.published, number);
+        if (owner)
+          [visible addObject:@(owner)];
+      }
+      continue;
+    }
     BOOL structure =
         !old || old.data.parent != value.data.parent ||
         old.data.order != value.data.order ||

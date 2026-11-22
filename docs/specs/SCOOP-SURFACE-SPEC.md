@@ -348,6 +348,12 @@ macOS 使用 AppKit lease 中的 NSView 安装 CAMetalLayer，保持原有输入
 
 采用 BGRA8、sRGB 与一致的预乘 alpha 配置，按 WindowMetrics 同步 contentsScale 和 drawableSize，以 top-left surface origin 绘制。Skia flush／submit 与 present 使用有序的 Metal command queue；CAMetalDisplayLink 的 drawable 使用普通 presentDrawable，由 display link 决定呈现节奏，不调用 atTime 或 afterMinimumDuration 变体。普通帧不 waitUntilCompleted；关闭时排空实际资源使用。
 
+macOS 的 `scoop.surface.configureFpsReportingFromEnvironment()` 显式读取进程环境中的 `SCOOP_SURFACE_FPS`。只有值恰为 `1` 时才为随后附着的 Surface 开启实际呈现诊断。默认关闭，仅设置环境变量无效。每次调用重新读取该值，已附着的 Surface 保留附着时的设置。应用通常在启动时、附着第一个窗口前调用此入口。
+
+开启诊断后，renderer 对已进入 present 路径的 drawable 读取 Metal 呈现回执，以大于零的原生 `presentedTime` 计入实际帧数；缺少有效呈现时间的回执单独计数。连续收到有效回执时，从首个呈现时间或上次报告的末帧时间起计算，跨度达到一秒即向 stderr 输出该区间的帧数、时长和 FPS。关闭时输出收到的有效和无有效时间的回执总数及最后一次呈现时间。时间使用 Metal host time 的秒数。
+
+统计只消费既有呈现产生的异步回执，静止时没有周期输出。回执只持有原生统计对象，关闭后迟到的回执不会访问窗口、SurfaceContent 或 Scoop 回调。此诊断不参与帧需求、提交结果或输入几何发布，也不等待呈现完成。
+
 系统字体由 Skia 的 CoreText font manager 提供，段落算法和 HarfBuzz shaping 继续使用共享实现。Objective-C `.m` 负责 AppKit／QuartzCore／Metal 对象，C++ `.cpp` 负责 Skia；经 C ABI 的不透明句柄连接，不要求 Cone 新增 `.mm` 支持。
 
 支持基线沿用 [发行配置](../../scripts/release.toml)。当前配置为 macOS 27.0.1／SDK 27.0，满足 CAMetalDisplayLink 的 macOS 14 API 要求；本设计不据此宣称支持 macOS 14，也不新增旧系统定时器后备实现。
