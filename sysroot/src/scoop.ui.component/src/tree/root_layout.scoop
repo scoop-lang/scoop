@@ -5,12 +5,17 @@ import scoop.ui.*
 
 internal class TreeViewportInput(val contentWidth: Double, val horizontalOffset: Double)
 
+private class TreeBodyLayoutInput(val viewport: TreeViewportInput) {
+    val layout = LayoutInput(viewport)
+}
+
 internal class TreeRootFrame(val layout: ScrollLayout)
 
 /** Horizontal scrolling moves header and row content while leaving the body viewport in place. */
 internal class TreeRoot<T>(private val props: Props<TreePlan<T>>, scope: ComponentScope) :
     Element<TreeRootFrame>(scope) {
     private val control = ScrollControl(scope) { props.value.horizontalControls }
+    private var bodyInput: TreeBodyLayoutInput? = None
     public override fun update(): UiInvalidation {
         control.update();
         return UiInvalidation.Layout
@@ -68,7 +73,6 @@ internal class TreeRoot<T>(private val props: Props<TreePlan<T>>, scope: Compone
             case None -> None
         }
         val offset = treeHorizontalOffset(plan, widths, preliminary.snapshot, request)
-        val layoutInput = LayoutInput(TreeViewportInput(widths.total, offset))
         val body = context
             .measureChild(
                 1L,
@@ -78,7 +82,7 @@ internal class TreeRoot<T>(private val props: Props<TreePlan<T>>, scope: Compone
                     if (panelPresent(bodyLimit)) bodyLimit!! else 0.0,
                     bodyLimit
                 ),
-                layoutInput
+                bodyLayoutInput(widths.total, offset)
             )
         val size = constraints
             .constrain(Size(width, header.size.height + body.size.height + control.gutter.height))
@@ -97,6 +101,24 @@ internal class TreeRoot<T>(private val props: Props<TreePlan<T>>, scope: Compone
                 Point(layout.snapshot.offset.x - layout.snapshot.padding.left, header.size.height)
             )
         return LayoutResult(LayoutMetrics(size), TreeRootFrame(layout))
+    }
+    private fun bodyLayoutInput(
+        contentWidth: Double,
+        horizontalOffset: Double
+    ): LayoutInput<TreeViewportInput> {
+        when (bodyInput) {
+            case Some(val cached) ->
+                if (cached.viewport.contentWidth ==
+                    contentWidth &&
+                    cached.viewport.horizontalOffset ==
+                    horizontalOffset
+                )
+                    return cached.layout
+            case None -> {}
+        }
+        val input = TreeBodyLayoutInput(TreeViewportInput(contentWidth, horizontalOffset))
+        bodyInput = Some(input)
+        return input.layout
     }
     public override fun scene(context: SceneContext, frame: TreeRootFrame) {
         control

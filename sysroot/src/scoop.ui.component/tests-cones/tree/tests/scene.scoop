@@ -78,7 +78,14 @@ internal class TreeTitleTrace(
         props.value.unmounts += 1
     }
     public override fun render(): View = frame(
-        label(f"Row ${props.value.key}") { this.theme = Some(this @TreeTitleTrace.probe.theme) }
+        element(
+            { mount -> TreeTitleInk(props.value, mount) },
+            [
+                label(f"Row ${props.value.key}") {
+                    this.theme = Some(this @TreeTitleTrace.probe.theme)
+                }
+            ]
+        )
     ) {
         this.height = Some(
             if (this @TreeTitleTrace.probe.variable.value &&
@@ -90,5 +97,22 @@ internal class TreeTitleTrace(
             else
                 18.0
         )
+    }
+}
+
+private class TreeTitleInk(private val record: TreeRecord, scope: ComponentScope) :
+    Element<Unit>(
+        scope
+    ) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        record.measures += 1
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(measured, Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.children()
     }
 }
