@@ -1,0 +1,99 @@
+package scoop.asyncio
+
+import scoop.platform.env.environment
+import scoop.platform.env.executablePath
+import scoop.platform.fs.*
+import scoop.platform.process.*
+import scoop.platform.system.OsString
+import scoop.test.*
+
+@Test
+private class AsyncPtyUnixTest {
+    @Test
+    fun resizeAndInterruptSignalTheForegroundProcess() {
+        val loop = eventLoop()
+        loop
+            .run {
+                loop
+                    .spawnPty(unixPtyProbe("signals"), 40L, 20L)
+                    .useAsync { pty ->
+                        pty.readMarker("signal-ready")
+                        pty.resize(60L, 25L)
+                        pty.readMarker("signal-winch")
+                        pty.send("\u0003")
+                        pty.readAllBytes()
+                        assertEquals(ExitStatus.Signaled(2), pty.wait())
+                    }
+            }
+    }
+
+    @Test
+    fun outputCanEndWhileTheChildStillRuns() {
+        val temporary = createTempDirectory(prefix = "scoop-pty-eof-")
+        val release = temporary.resolve(Path.fromString("release"))
+        try {
+            val loop = eventLoop()
+            loop
+                .run {
+                    val scope = this
+                    loop
+                        .spawnPty(unixPtyProbe("eofFirst", Some(release)), 40L, 20L)
+                        .useAsync { pty ->
+                            val child = scope.async { pty.wait() }
+                            assertEquals(0L, pty.readAllBytes().size)
+                            assertFalse(child.isCompleted)
+                            release.writeText("")
+                            assertEquals(ExitStatus.Exited(24), child.await())
+                        }
+                }
+        } finally {
+            temporary.deleteRecursively()
+        }
+    }
+}
+
+private val releaseVariable = OsString.fromString("SCOOP_PTY_EOF_RELEASE")
+
+private fun unixPtyProbe(selector: String, release: Path? = None): Command = command(
+    executablePath()
+) {
+    removeEnv(OsString.fromString("SCOOP_TEST_RUN_DIR"))
+    env(OsString.fromString("SCOOP_TEST_NOCAPTURE"), OsString.fromString("1"))
+    if (release != None) env(releaseVariable, release!!.toOsString())
+    arg(OsString.fromString("--scoop-test-filter-ignored"))
+    arg(OsString.fromString("PtyUnixChildProbe::" + selector))
+}
+
+@Test
+private class PtyUnixChildProbe {
+    @Test
+    @Ignore("Launched by AsyncPtyUnixTest")
+    fun signals() {
+        @Unsafe
+        {
+            exit(probeSignals())
+        }
+    }
+
+    @Test
+    @Ignore("Launched by AsyncPtyUnixTest")
+    fun eofFirst() {
+        val release = Path.fromOsString(environment()[releaseVariable]!!)
+        @Unsafe
+        {
+            val status = release
+                .withNativePath { pointer ->
+                    @Unsafe {
+                        return@withNativePath closeThenWait(pointer)
+                    }
+                }
+            exit(status)
+        }
+    }
+}
+
+@Extern(name = "scoop_test_pty_child_signals")
+private fun probeSignals(): Int
+
+@Extern(name = "scoop_test_pty_child_close_then_wait")
+private fun closeThenWait(release: Ptr<Byte>): Int

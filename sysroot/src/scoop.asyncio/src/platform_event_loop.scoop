@@ -5,6 +5,7 @@ import scoop.time.Duration
 import scoop.platform.net.*
 import scoop.platform.system.OsString
 import scoop.platform.fs.*
+import scoop.platform.process.Command
 
 /**
  * A single-use platform event loop. Run it from outside a Job and outside another event loop; I/O
@@ -124,6 +125,12 @@ public class PlatformEventLoop internal constructor(
      * Opens an owned asynchronous terminal handle.
      */
     public override suspend fun openTty(): AsyncTty = openTtyOnLoop(state)
+    public override suspend fun spawnPty(
+        command: Command,
+        columns: Long,
+        rows: Long,
+        searchPath: Boolean
+    ): AsyncPty = spawnPtyOnLoop(state, command, columns, rows, searchPath)
 
     /**
      * Queries filesystem metadata, optionally following symbolic links.

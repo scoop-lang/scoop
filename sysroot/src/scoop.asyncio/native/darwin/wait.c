@@ -29,6 +29,13 @@ int scoop_io_wait_fd(ScoopIoWait *wait, int fd, bool writing, dispatch_function_
     return add_source(wait, source, ready);
 }
 
+int scoop_io_wait_process(ScoopIoWait *wait, int pid, dispatch_function_t ready) {
+    dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_PROC, (uintptr_t)pid,
+                                                       DISPATCH_PROC_EXIT,
+                                                       wait->request.loop->queue);
+    return add_source(wait, source, ready);
+}
+
 int scoop_io_wait_timer(ScoopIoWait *wait, ScoopIoDeadline deadline, dispatch_function_t ready) {
     dispatch_source_t source =
         dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, wait->request.loop->queue);

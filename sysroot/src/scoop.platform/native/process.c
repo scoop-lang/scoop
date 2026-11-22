@@ -52,7 +52,7 @@ static int redirect(posix_spawn_file_actions_t *actions, struct SpawnDescriptors
 }
 
 /* The private caller supplies exactly count checked, NUL-terminated byte strings. */
-static char **string_vector(char *data, int64_t count) {
+char **scoop_process_string_vector(char *data, int64_t count) {
     if (count < 0 || (uint64_t)count >= SIZE_MAX / sizeof(char *)) {
         errno = EOVERFLOW;
         return NULL;
@@ -88,10 +88,10 @@ ScoopPlatformSpawnResult scoop_platform_process_spawn(const char *executable, ch
                                                       const char *directory,
                                                       const ScoopPlatformStdio redirects[3],
                                                       ScoopPlatformFileHandle result[3]) {
-    char **argv = string_vector(arguments, argument_count);
+    char **argv = scoop_process_string_vector(arguments, argument_count);
     if (argv == NULL)
         return scoop_process_failure(errno);
-    char **envp = string_vector(environment, environment_count);
+    char **envp = scoop_process_string_vector(environment, environment_count);
     if (envp == NULL) {
         int error = errno;
         free(argv);

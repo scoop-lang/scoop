@@ -1,0 +1,34 @@
+//! dep: scoop:scoop.asyncio:0.1.0
+//! dep: scoop:scoop.platform:0.1.0
+
+import scoop.asyncio.*
+import scoop.platform.env.arguments
+import scoop.platform.env.executablePath
+import scoop.platform.process.*
+import scoop.platform.system.*
+import scoop.text.contains
+
+fun main() {
+    val childArgument = OsString.fromString("--pty-child")
+    val args = arguments()
+    if (args.size > 1L && args[1L] == childArgument) {
+        println("hello-from-pty")
+        return
+    }
+    val child = command(executablePath()) { arg(childArgument) }
+    val loop = eventLoop()
+    loop
+        .run {
+            loop
+                .spawnPty(child, 80L, 24L)
+                .useAsync { pty ->
+                    val output = String.fromUtf8(pty.readAllBytes())
+                    val status = pty.wait()
+                    if (!output.contains("hello-from-pty") || status != ExitStatus.Exited(0))
+                        throw IllegalStateException(
+                            Some("unexpected pseudoterminal output or exit")
+                        )
+                    println("hello-from-pty")
+                }
+        }
+}
