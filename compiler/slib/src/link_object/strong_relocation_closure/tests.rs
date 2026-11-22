@@ -229,7 +229,7 @@ pub(in crate::link_object) fn replace_only_binding_resolution(
     resolution: StrongRelocationResolutionV1,
 ) -> VerifiedCurrentConeStrongRelocationClosureV1 {
     assert_eq!(closure.bindings.len(), 1);
-    closure.bindings[0].resolution = resolution;
+    Arc::make_mut(&mut closure.bindings)[0].resolution = resolution;
     closure
 }
 

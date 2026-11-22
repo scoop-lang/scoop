@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 use scoop_identity::{
     ConeIdentity, DefinitionAtomRole, ObjectDefinitionAtomId, ObjectDefinitionPlanId,
@@ -179,8 +180,9 @@ impl StrongRelocationBindingV1 {
 pub struct VerifiedCurrentConeStrongRelocationClosureV1 {
     target: LirTargetProfile,
     producer: ConeIdentity,
-    members: Vec<VerifiedMemberObjectRelocationIndexV1>,
-    bindings: Vec<StrongRelocationBindingV1>,
+    // Finalization records retain the same immutable object and relocation data.
+    members: Arc<[VerifiedMemberObjectRelocationIndexV1]>,
+    bindings: Arc<[StrongRelocationBindingV1]>,
 }
 
 impl VerifiedCurrentConeStrongRelocationClosureV1 {
@@ -277,8 +279,8 @@ pub fn verify_current_cone_strong_relocation_closure_v1(
     Ok(VerifiedCurrentConeStrongRelocationClosureV1 {
         target,
         producer,
-        members,
-        bindings,
+        members: members.into(),
+        bindings: bindings.into(),
     })
 }
 
