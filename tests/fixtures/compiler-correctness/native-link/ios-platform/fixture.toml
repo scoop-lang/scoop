@@ -1,0 +1,89 @@
+schema = 1
+name = "native-link-ios-platform"
+when = {os = "ios", env = "simulator"}
+requires_target_execution = false
+inputs = ["main.scoop", "probe.c"]
+tools = ["scoop", "scoopc", "cc", "ar"]
+tags = ["native-link", "compiler-correctness", "ios"]
+
+[[steps]]
+name = "prepare"
+files = [{mkdir = {path = "${work}/simulator"}}, {mkdir = {path = "${work}/device"}}, {mkdir = {path = "${work}/device-dylib"}}]
+checks = []
+
+[[steps]]
+name = "simulator-object"
+argv = ["${cc}", {each = "${cc_args}"}, "-c", "${fixture}/probe.c", "-o", "${work}/simulator.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "device-object"
+argv = ["${cc}", "-target", "arm64-apple-ios17.0", "-c", "${fixture}/probe.c", "-o", "${work}/device.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "simulator-archive"
+argv = ["${ar}", "rcs", "${work}/simulator/libprobe.a", "${work}/simulator.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "device-archive"
+argv = ["${ar}", "rcs", "${work}/device/libprobe.a", "${work}/device.o"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "device-dylib"
+argv = ["xcrun", "--sdk", "iphoneos", "clang", "-target", "arm64-apple-ios17.0", "-dynamiclib", "${work}/device.o", "-install_name", "@rpath/libprobe.dylib", "-o", "${work}/device-dylib/libprobe.dylib"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "emit-slib"
+argv = ["${scoop}", "build", "${fixture}/main.scoop", "--emit-slib", "--release", {each = "${compile_args}"}, "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "-o", "${work}/app.slib", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "consume-simulator-archive"
+argv = ["${scoop}", "link", "--root-slib", "${work}/app.slib", {each = "${link_args}"}, "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--library-path", "${work}/simulator", "-o", "${work}/simulator-app", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "reject-arm64-device-archive"
+argv = ["${scoop}", "link", "--root-slib", "${work}/app.slib", {each = "${link_args}"}, "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--library-path", "${work}/device", "-o", "${work}/device-app", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+checks = [
+  {actual = "${reject-arm64-device-archive.diagnostics.0.code}", equals = "E2305"},
+  {actual = "${reject-arm64-device-archive.diagnostics.0.message}", contains = "archive member 0 (device.o): native object has no compatible iOS Simulator platform"},
+]
+
+[[steps]]
+name = "reject-arm64-device-dylib"
+argv = ["${scoop}", "link", "--root-slib", "${work}/app.slib", {each = "${link_args}"}, "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--library-path", "${work}/device-dylib", "-o", "${work}/device-dylib-app", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+checks = [
+  {actual = "${reject-arm64-device-dylib.diagnostics.0.code}", equals = "E2305"},
+  {actual = "${reject-arm64-device-dylib.diagnostics.0.message}", contains = "native dylib requires one iOS Simulator deployment record"},
+]

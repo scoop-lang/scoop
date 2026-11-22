@@ -38,7 +38,9 @@ impl NativeConfig {
             .and_then(|extension| extension.to_str())
         {
             Some("c") => Ok(NativeSourceLanguage::C),
-            Some("m") if target.os == "darwin" => Ok(NativeSourceLanguage::ObjectiveC),
+            Some("m") if matches!(target.os, "darwin" | "ios") => {
+                Ok(NativeSourceLanguage::ObjectiveC)
+            }
             Some("m") => Err(format!(
                 "{}: Objective-C native sources require a Darwin target",
                 path.as_str()

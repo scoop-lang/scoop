@@ -1,0 +1,7 @@
+@Extern(lib = "probe", name = "scoop_platform_probe")
+fun probe(): Int
+
+@Unsafe
+fun main() {
+    println(probe().toString())
+}

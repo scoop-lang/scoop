@@ -1,19 +1,20 @@
 use super::*;
 use object::read::macho::MachOFile64;
-use scoop_slib::MachOArchitecture;
 
 pub(super) fn append_libraries(
     profile: &DarwinFinalLinkProfile,
     command: &mut Command,
     directory: &Path,
 ) {
-    let machine = MachOArchitecture::for_target(profile.id()).unwrap();
+    let architecture = profile.target().architecture();
+    let platform = profile.platform();
     let system = profile.system_provider();
     let stub = directory.join("libSystem.tbd");
     std::fs::write(
         &stub,
         crate::write_link_stub(
-            machine,
+            architecture,
+            platform,
             system.install_name(),
             system.current_version(),
             system.compatibility_version(),
@@ -34,16 +35,18 @@ pub(super) fn append_libraries(
         .deployment()
         .unwrap()
         .minimum_os();
-    for (index, interface) in crate::read_text_stubs(machine, &bytes, deployment, true)
-        .unwrap()
-        .into_iter()
-        .enumerate()
+    for (index, interface) in
+        crate::read_text_stubs(architecture, platform, &bytes, deployment, true)
+            .unwrap()
+            .into_iter()
+            .enumerate()
     {
         let stub = directory.join(format!("libcxx-{index}.tbd"));
         std::fs::write(
             &stub,
             crate::write_link_stub(
-                machine,
+                architecture,
+                platform,
                 &interface.install_name,
                 interface.current_version,
                 interface.compatibility_version,

@@ -32,7 +32,7 @@ struct Target {
     exception_model: String,
     tuning: String,
     runtime_tuning: String,
-    codegen_deployment: String,
+    deployment: String,
     native_environment: String,
     final_link: String,
     c_bridge_profile: String,
@@ -63,6 +63,7 @@ fn identifier(value: &str) {
 fn target_os(value: &str) -> &'static str {
     match value {
         "darwin" => "Darwin",
+        "ios" => "Ios",
         "linux" => "Linux",
         "windows" => "Windows",
         _ => panic!("unsupported target OS {value:?}"),
@@ -85,27 +86,36 @@ fn object_target_architecture(value: &str) -> &'static str {
     }
 }
 
-fn final_link_os(value: &str) -> &'static str {
+fn os_family(value: &str) -> &str {
     match value {
-        "Darwin" => "darwin",
+        "darwin" | "ios" => "apple",
+        _ => value,
+    }
+}
+
+fn final_link_family(value: &str) -> &'static str {
+    match value {
+        "Darwin" => "apple",
         "Linux" => "linux",
         "Windows" => "windows",
         _ => panic!("unsupported final-link profile {value:?}"),
     }
 }
 
-fn codegen_deployment_os(value: &str) -> &'static str {
+fn deployment(value: &str) -> (&'static str, &'static str) {
     match value {
-        "Darwin" => "darwin",
-        "Linux" => "linux",
-        "Windows" => "windows",
-        _ => panic!("unsupported codegen deployment profile {value:?}"),
+        "MacOs" => ("darwin", "Apple(crate::ApplePlatform::MacOs)"),
+        "Ios" => ("ios", "Apple(crate::ApplePlatform::Ios)"),
+        "IosSimulator" => ("ios", "Apple(crate::ApplePlatform::IosSimulator)"),
+        "Linux" => ("linux", "Linux"),
+        "Windows" => ("windows", "Windows"),
+        _ => panic!("unsupported deployment profile {value:?}"),
     }
 }
 
-fn native_environment_os(value: &str) -> &'static str {
+fn native_environment_family(value: &str) -> &'static str {
     match value {
-        "Darwin" => "darwin",
+        "Darwin" => "apple",
         "LinuxGnu" | "LinuxMusl" => "linux",
         "MicrosoftUcrt" | "LlvmMingwMsvcrt" | "LlvmMingwUcrt" => "windows",
         _ => panic!("unsupported native environment {value:?}"),
@@ -134,7 +144,7 @@ fn main() {
             &target.symbol,
             &target.object_target,
             &target.backend,
-            &target.codegen_deployment,
+            &target.deployment,
             &target.native_environment,
             &target.final_link,
             &target.procedure_abi,
@@ -166,17 +176,17 @@ fn main() {
         );
         assert_eq!(
             target.os,
-            codegen_deployment_os(&target.codegen_deployment),
-            "target OS and codegen deployment profile differ for {canonical}"
+            deployment(&target.deployment).0,
+            "target OS and deployment profile differ for {canonical}"
         );
         assert_eq!(
-            target.os,
-            final_link_os(&target.final_link),
+            os_family(&target.os),
+            final_link_family(&target.final_link),
             "target OS and final-link profile differ for {canonical}"
         );
         assert_eq!(
-            target.os,
-            native_environment_os(&target.native_environment),
+            os_family(&target.os),
+            native_environment_family(&target.native_environment),
             "target OS and native environment differ for {canonical}"
         );
         writeln!(
@@ -213,7 +223,7 @@ fn main() {
             arch,
             env,
             llvm_triple,
-            codegen_deployment,
+            deployment: deployment_name,
             native_environment,
             final_link,
             c_bridge_profile,
@@ -224,7 +234,8 @@ fn main() {
         } = target;
         let target_os = target_os(os);
         let architecture = target_architecture(arch);
-        writeln!(output, "TargetDefinition {{ selection: {symbol}_LLVM_22_1, aliases: &{aliases:?}, versioned_aliases: &{versioned_aliases:?}, os: TargetOs::{target_os}, architecture: scoop_lir::TargetArchitecture::{architecture}, env: {env:?}, llvm_triple: {llvm_triple:?}, codegen_deployment: CodegenDeploymentProfile::{codegen_deployment}, native_environment: NativeEnvironment::{native_environment}, final_link: FinalLinkProfile::{final_link}, c_bridge_profile: {c_bridge_profile:?}, native_rust_target: {native_rust_target:?}, tuning: CodegenTuning::{tuning}, runtime_tuning: RuntimeTuning::{runtime_tuning} }},").unwrap();
+        let (_, deployment) = deployment(deployment_name);
+        writeln!(output, "TargetDefinition {{ selection: {symbol}_LLVM_22_1, aliases: &{aliases:?}, versioned_aliases: &{versioned_aliases:?}, os: TargetOs::{target_os}, architecture: scoop_lir::TargetArchitecture::{architecture}, env: {env:?}, llvm_triple: {llvm_triple:?}, deployment: DeploymentProfile::{deployment}, native_environment: NativeEnvironment::{native_environment}, final_link: FinalLinkProfile::{final_link}, c_bridge_profile: {c_bridge_profile:?}, native_rust_target: {native_rust_target:?}, tuning: CodegenTuning::{tuning}, runtime_tuning: RuntimeTuning::{runtime_tuning} }},").unwrap();
     }
     output.push_str("];\npub const fn definition(id: TargetProfileId) -> Option<TargetDefinition> { match id {\n");
     for (index, target) in catalog.targets.iter().enumerate() {

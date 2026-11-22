@@ -32,6 +32,8 @@ Swift 原生库第一阶段见 2.7.1～2.8.1 及 [Swift 设计](../swift-librari
 | --- | --- | --- | --- |
 | `aarch64-apple-darwin` | `org.scoop-lang.target-profile/darwin-aarch64/1` | Mach-O relocatable | Darwin/AArch64 |
 | `x86_64-apple-darwin` | `org.scoop-lang.target-profile/darwin-x86-64/1` | Mach-O relocatable | Darwin/amd64、SysV AMD64 |
+| `aarch64-apple-ios` | `org.scoop-lang.target-profile/ios-aarch64/1` | Mach-O relocatable | iOS 设备/AArch64 |
+| `aarch64-apple-ios-sim` | `org.scoop-lang.target-profile/ios-simulator-aarch64/1` | Mach-O relocatable | iOS Simulator/AArch64 |
 | `x86_64-unknown-linux-gnu` | `org.scoop-lang.target-profile/linux-x86-64-gnu/1` | ELF64 relocatable | Linux/amd64、glibc |
 | `x86_64-unknown-linux-musl` | `org.scoop-lang.target-profile/linux-x86-64-musl/1` | ELF64 relocatable | Linux/amd64、musl |
 | `x86_64-pc-windows-msvc-ucrt` | `org.scoop-lang.target-profile/windows-x86-64-msvc-ucrt/1` | AMD64 COFF | Windows/amd64、Microsoft UCRT |
@@ -39,6 +41,8 @@ Swift 原生库第一阶段见 2.7.1～2.8.1 及 [Swift 设计](../swift-librari
 | `x86_64-w64-windows-llvm-mingw-ucrt` | `org.scoop-lang.target-profile/windows-x86-64-llvm-mingw-ucrt/1` | AMD64 COFF | Windows/amd64、LLVM-MinGW UCRT |
 
 这些目标采用 little-endian、64-bit data/code pointer 与 16-byte 调用栈对齐。合法非 null pointer 可经内部 64-bit carrier 逐 bit 往返，null carrier 全零。data、code、managed 与 metadata pointer 的语义仍不同，不因此增加源码整数转换。
+
+Apple 部署平台是目录的显式目标事实，选择对应的 SDK、带版本 LLVM triple、Mach-O 平台号和链接平台。机器架构和过程 ABI 独立选择。ARM64 macOS、iOS 设备与模拟器共用对象机器、Darwin AArch64 调用约定、固定帧、调优和 LLVM backend。各完整目标拥有自己的 target identity、预编译系统库、runtime 和缓存。源码条件使用语言规范 12.2.2 的目标 OS 和环境，宿主 macOS 的默认目标独立选择。
 
 output target、编译器 host 与发行资源是三个独立支持结果。backend 能发射某一 output target 不自动要求同架构 host 包，也不证明该 target 的 runtime、系统库和发行资源已经准备；反向也不能由 host 可执行或资源目录推定 output target 已完成 ABI、GC、EH 与链接验收。
 
@@ -82,7 +86,7 @@ Microsoft 发现同时支持普通 shell 与已初始化的 Visual Studio 开发
 
 显式从源码构建 runtime 时，所选 Darwin 最低部署版本是 runtime 更新键的输入，改变它必须重新生产对应对象。消费现有 runtime 索引仍按最低版本兼容性判断；不能用消费时允许较低版本的规则代替源码构建的输入更新判断。
 
-工具角色、命令行方言与目标 native 环境分别选择。Darwin 的 `--cc` 可选择 Apple Clang，`--native-sysroot` 可选择 macOS SDK；省略项由本机 Xcode 工具发现补足。SDK 版本从实际 SDK 设置读取，真实对象 probe 验证所选 machine 与部署信息。C、C++、startup 与 final-link 共用已选目标、SDK 和部署版本，Apple linker 的 `-arch` 从目标架构取得；不通过宿主架构或 Mach-O 格式隐含 arm64。普通工具发现记录保存路径和输入更新事实，目标产物中的 compiler contract 不包含宿主路径。
+工具角色、命令行方言与目标 native 环境分别选择。Darwin 的 `--cc` 可选择 Apple Clang，`--native-sysroot` 可指定与目标 Apple 平台匹配的 SDK；省略项由本机 Xcode 工具发现补足。SDK 版本从实际 SDK 设置读取，真实对象 probe 验证所选 machine 与部署信息。C、C++、startup 与 final-link 共用已选目标、SDK 和部署版本，Apple linker 的 `-arch` 从目标架构取得；不通过宿主架构或 Mach-O 格式隐含 arm64。普通工具发现记录保存路径和输入更新事实，目标产物中的 compiler contract 不包含宿主路径。
 
 宿主 Rust 命令使用 rustc 对应目标的默认 CPU 基线，不使用构建机器的 native CPU，也不以 Scoop backend 的 `generic` 配置覆盖平台必需特性；Darwin/AArch64 因而保留 Apple Silicon 的 AES／SHA2 等平台特性，Linux/amd64 仍使用 x86-64 基线。
 
@@ -1494,6 +1498,14 @@ macOS app 打包同样保留弱装载：无实际候选时保留该可选 load�
 发布时由 bundle metadata 自己显式列出私有 framework／dylib，复用 `bundle.files` 的 `kind = "framework"`／`"library"`，不从 Cone native metadata 或 Swift 清单推导打包清单。bundle 在副本上部署到 `Contents/Frameworks`，统一处理 rpath、install name 和私有库之间的加载路径，再签名；文件描述、metadata 和产物位置进入已有 bundle 更新记录。系统 framework／dylib 位于系统固定位置，不列入私有清单，bundle 跳过它们，不复制、不修改加载路径、不重签。SwiftPM resource bundle 仍通过既有资源交接进入 `Contents/Resources`。
 
 **调用。** `@c` 入口按语言规范 12.2.5、13.4、13.8 使用现有 C ABI symbol、参数和 NativeSafe 调用。runtime 合同见运行时规范 4.5、5.5；不增加 Swift ABI、ARC/GC 合并、自动类型转换或 bindgen。
+
+#### 2.8.2 iOS native-app 与 XCFramework
+
+开发宿主使用 macOS Xcode。`aarch64-apple-ios-sim` 选择 `iphonesimulator` SDK、带版本的 `arm64-apple-ios<version>-simulator` triple、Mach-O `IOSSIMULATOR` 平台与 LLD `-platform_version ios-simulator`。`aarch64-apple-ios` 选择 `iphoneos` SDK、`arm64-apple-ios<version>` triple、Mach-O `IOS` 平台与 LLD `-platform_version ios`。两者默认最低版本为 iOS 17.0，`IPHONEOS_DEPLOYMENT_TARGET` 可指定本次应用的部署版本。Scoop 对象、generated-C、C／C++／Objective-C 对象、runtime 与 startup 均按目标生成，各自的开发 sysroot 提供 `scoop.core`、`scoop.std` 和 runtime。应用可从源码构建其他相容的 Cone。
+
+原生对象的部署记录、归档中实际使用的成员、动态库和 SDK 文本 stub 按选中的 Apple 平台消费。存在部署记录的输入必须有匹配的目标平台，最低版本不能超过本次部署版本。设备、模拟器和 macOS 的 ARM64 输入分别解析。模拟器 SDK 的 libSystem 会显式 re-export 宿主的核心系统库；沿已选 SDK 的实际 re-export 边读取这些库时，允许选择同架构的 macOS 文本 stub 切片。应用的部署版本只作用于应用目标平台的 stub 指令。沿用已有读取边界与更新记录。
+
+`native-app` 使用原有 `scoop_app_init` 和 C 函数表 ABI。`scoop build` 与 artifact-only `scoop link` 可产生用于 framework 的动态 Mach-O，使用 `--install-name @rpath/<Name>.framework/<Name>` 并以 `<Name>` 为二进制名称。组装使用扁平 `<Name>.framework`，其根目录含可执行文件和 `Info.plist`，`Headers/` 含 `scoop_app.h` 与应用公开头，`Modules/module.modulemap` 公布 C 模块。每个 Apple 部署平台提供一份 framework，由 Xcode 的 `-create-xcframework` 组装并按宿主平台选择；设备和模拟器可共同组装，也可各自组装。最终 `.app` 的 framework 嵌入和签名由 Xcode 宿主构建负责。平台和容器依据 [Apple XCFramework 文档](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle)。
 
 ### 2.9 虚方法与接口分派
 

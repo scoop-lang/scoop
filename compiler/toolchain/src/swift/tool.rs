@@ -39,11 +39,8 @@ impl SwiftTools {
             .deployment()
             .map_err(error)?
             .minimum_os();
-        let architecture = match target.canonical_triple() {
-            "aarch64-apple-darwin" => "arm64",
-            "x86_64-apple-darwin" => "x86_64",
-            _ => return Err(error("Swift package production requires a macOS target")),
-        };
+        let architecture =
+            scoop_target_data::apple_architecture(target.lir_target().architecture());
         Ok(Self {
             swift,
             root,

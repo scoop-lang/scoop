@@ -46,9 +46,7 @@ impl NativeDebugTools {
                 )
             })?;
         match target.native_object_format() {
-            scoop_lir::NativeObjectFormat::MachO64
-                if definition.os == scoop_target_data::TargetOs::Darwin =>
-            {
+            scoop_lir::NativeObjectFormat::MachO64 if definition.apple_platform().is_some() => {
                 let dsymutil = llvm_tool("dsymutil")?;
                 let strip = PathBuf::from("/usr/bin/strip");
                 let codesign = PathBuf::from("/usr/bin/codesign");

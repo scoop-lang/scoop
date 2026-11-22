@@ -11,14 +11,30 @@ use scoop_lir::{
     AppleClangCompilerIdentityV1, DarwinBuildToolIdV1, DarwinBuildToolVersionContractV1,
     DarwinCBridgeDeploymentContractV1, DarwinPackedVersionV1, LirTargetProfile,
 };
+use scoop_target_data::ApplePlatform;
 
 use crate::ToolchainError;
 
 const XCRUN: &str = "/usr/bin/xcrun";
 const MACHO_TOOL_LLD: u32 = 4;
 
+fn apple_platform(target: LirTargetProfile) -> Result<ApplePlatform, ToolchainError> {
+    scoop_target_data::definition(target.id())
+        .and_then(|definition| definition.apple_platform())
+        .ok_or_else(|| {
+            ToolchainError::new(
+                scoop_source::DiagnosticCode::E2303,
+                format!(
+                    "{} is not an Apple target",
+                    target.contract().canonical_triple()
+                ),
+            )
+        })
+}
+
 pub(super) fn deployment_version(target: LirTargetProfile) -> Result<String, ToolchainError> {
-    match std::env::var("MACOSX_DEPLOYMENT_TARGET") {
+    let variable = apple_platform(target)?.deployment_variable();
+    match std::env::var(variable) {
         Ok(value) => Ok(value),
         Err(std::env::VarError::NotPresent) => crate::DARWIN_DEPLOYMENT_BASELINES
             .iter()
@@ -35,7 +51,7 @@ pub(super) fn deployment_version(target: LirTargetProfile) -> Result<String, Too
             }),
         Err(std::env::VarError::NotUnicode(_)) => Err(ToolchainError::new(
             scoop_source::DiagnosticCode::E2303,
-            "MACOSX_DEPLOYMENT_TARGET must be UTF-8 major.minor[.patch]".into(),
+            format!("{variable} must be UTF-8 major.minor[.patch]"),
         )),
     }
 }
@@ -45,29 +61,33 @@ pub(super) fn probe_system_c_bridge_toolchain(
     compiler: Option<&Path>,
     sdk: Option<&Path>,
 ) -> Result<ValidatedCBridgeToolchainInvocation, ToolchainError> {
+    let platform = apple_platform(target)?;
     let deployment_version = deployment_version(target)?;
-    let minimum_os = parse_darwin_version(&deployment_version, "MACOSX_DEPLOYMENT_TARGET")?;
+    let minimum_os = parse_darwin_version(&deployment_version, platform.deployment_variable())?;
     let compiler_path = match compiler {
         Some(path) => crate::paths::find_program(
             path.as_os_str(),
             &std::env::var_os("PATH").unwrap_or_default(),
         )?,
-        None => PathBuf::from(command_text(XCRUN, &["--find", "clang"])?),
+        None => PathBuf::from(command_text(
+            XCRUN,
+            &["--sdk", platform.sdk(), "--find", "clang"],
+        )?),
     };
     let sdk_path = match sdk {
         Some(path) => std::path::absolute(path).map_err(|error| {
             ToolchainError::new(
                 scoop_source::DiagnosticCode::E2303,
-                format!("macOS SDK path: {error}"),
+                format!("{} SDK path: {error}", platform.name()),
             )
         })?,
         None => PathBuf::from(command_text(
             XCRUN,
-            &["--sdk", "macosx", "--show-sdk-path"],
+            &["--sdk", platform.sdk(), "--show-sdk-path"],
         )?),
     };
     let compiler_driver = canonical_existing_path(&compiler_path, "Apple Clang compiler", true)?;
-    let sdk_root = canonical_existing_path(&sdk_path, "macOS SDK root", false)?;
+    let sdk_root = canonical_existing_path(&sdk_path, "Apple SDK root", false)?;
     let compiler_version = command_text_from_path(&compiler_driver, &["--version"])?;
     let settings_path = sdk_root.join("SDKSettings.json");
     let settings: serde_json::Value =
@@ -80,20 +100,33 @@ pub(super) fn probe_system_c_bridge_toolchain(
         .map_err(|error| {
             ToolchainError::new(
                 scoop_source::DiagnosticCode::E2303,
-                format!("invalid macOS SDK settings: {error}"),
+                format!("invalid {} SDK settings: {error}", platform.name()),
             )
         })?;
+    if settings
+        .get("SupportedTargets")
+        .is_some_and(|targets| targets.get(platform.sdk()).is_none())
+    {
+        return Err(ToolchainError::new(
+            scoop_source::DiagnosticCode::E2303,
+            format!(
+                "SDK {} does not support {}",
+                sdk_root.display(),
+                platform.name()
+            ),
+        ));
+    }
     let sdk_version = settings
         .get("Version")
         .and_then(|value| value.as_str())
         .ok_or_else(|| {
             ToolchainError::new(
                 scoop_source::DiagnosticCode::E2303,
-                "macOS SDK settings are missing Version".into(),
+                "Apple SDK settings are missing Version".into(),
             )
         })?
         .to_owned();
-    let sdk_version_value = parse_darwin_version(&sdk_version, "macOS SDK version")?;
+    let sdk_version_value = parse_darwin_version(&sdk_version, "Apple SDK version")?;
     let tools = probe_build_tools(
         target,
         &compiler_driver,
@@ -128,9 +161,9 @@ fn resolve_c_bridge_toolchain(
     facts: CBridgeToolchainFacts,
 ) -> Result<ValidatedCBridgeToolchainInvocation, ToolchainError> {
     require_absolute(&facts.compiler_driver, "Apple Clang compiler")?;
-    require_absolute(&facts.sdk_root, "macOS SDK root")?;
-    let sdk = parse_darwin_version(&facts.sdk_version, "macOS SDK version")?;
-    let minimum_os = parse_darwin_version(&facts.deployment_version, "macOS deployment version")?;
+    require_absolute(&facts.sdk_root, "Apple SDK root")?;
+    let sdk = parse_darwin_version(&facts.sdk_version, "Apple SDK version")?;
+    let minimum_os = parse_darwin_version(&facts.deployment_version, "Apple deployment version")?;
     let compiler = parse_apple_clang_identity(&facts.compiler_version)?;
     let deployment =
         DarwinCBridgeDeploymentContractV1::new(minimum_os, sdk, facts.tools).map_err(|error| {
@@ -245,6 +278,7 @@ fn parse_probe_deployment(
     expected_minimum_os: DarwinPackedVersionV1,
     expected_sdk: DarwinPackedVersionV1,
 ) -> Result<Vec<DarwinBuildToolVersionContractV1>, ToolchainError> {
+    let platform = apple_platform(target)?;
     let file: MachOFile64<'_> = MachOFile64::parse(bytes).map_err(|error| {
         ToolchainError::new(
             scoop_source::DiagnosticCode::E2303,
@@ -304,12 +338,13 @@ fn parse_probe_deployment(
                     "LC_BUILD_VERSION command did not decode as deployment".to_owned(),
                 )
             })?;
-        if build.platform.get(endian) != macho::PLATFORM_MACOS {
+        if build.platform.get(endian) != platform.macho_platform() {
             return Err(ToolchainError::new(
                 scoop_source::DiagnosticCode::E2303,
                 format!(
-                    "C bridge probe selected platform {}, expected macOS",
-                    build.platform.get(endian)
+                    "C bridge probe selected platform {}, expected {}",
+                    build.platform.get(endian),
+                    platform.name(),
                 ),
             ));
         }

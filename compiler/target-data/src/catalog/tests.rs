@@ -59,23 +59,29 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
                 .supports_exception_model(exception_model)
         );
         assert!(matches!(
-            (target.os, target.codegen_deployment, target.final_link),
+            (target.os, target.deployment, target.final_link),
             (
                 crate::TargetOs::Darwin,
-                crate::CodegenDeploymentProfile::Darwin,
+                crate::DeploymentProfile::Apple(crate::ApplePlatform::MacOs),
+                crate::FinalLinkProfile::Darwin
+            ) | (
+                crate::TargetOs::Ios,
+                crate::DeploymentProfile::Apple(
+                    crate::ApplePlatform::Ios | crate::ApplePlatform::IosSimulator
+                ),
                 crate::FinalLinkProfile::Darwin
             ) | (
                 crate::TargetOs::Linux,
-                crate::CodegenDeploymentProfile::Linux,
+                crate::DeploymentProfile::Linux,
                 crate::FinalLinkProfile::Linux
             ) | (
                 crate::TargetOs::Windows,
-                crate::CodegenDeploymentProfile::Windows,
+                crate::DeploymentProfile::Windows,
                 crate::FinalLinkProfile::Windows
             )
         ));
         let expected_debug_information = match target.os {
-            crate::TargetOs::Darwin | crate::TargetOs::Linux => {
+            crate::TargetOs::Darwin | crate::TargetOs::Ios | crate::TargetOs::Linux => {
                 scoop_lir::BackendDebugInformationFormatV1::Dwarf5
             }
             crate::TargetOs::Windows => scoop_lir::BackendDebugInformationFormatV1::CodeView,
@@ -98,7 +104,7 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
     }
     for invalid in [
         "arm64-apple-darwin25.invalid",
-        "arm64-apple-ios",
+        "arm64-apple-ios-macabi",
         "x86_64-pc-windows-msvc",
         "x86_64-w64-windows-gnu",
     ] {

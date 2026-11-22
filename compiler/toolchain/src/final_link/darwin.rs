@@ -50,8 +50,13 @@ impl DarwinFinalLinkProfile {
         let output = OutputConfiguration::resolve(startup.target(), options)?;
         let linker = tools::resolve(tools::candidates(options.linker.as_deref())?)?;
         let system = SystemProvider::read(
-            scoop_slib::MachOArchitecture::for_target(startup.profile().contract().target().id())
-                .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?,
+            startup.target().architecture(),
+            startup.apple_platform().ok_or_else(|| {
+                error(
+                    scoop_source::DiagnosticCode::ICE2201,
+                    "Mach-O final link requires an Apple deployment platform",
+                )
+            })?,
             startup
                 .sdk_root()
                 .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
@@ -90,10 +95,9 @@ impl DarwinFinalLinkProfile {
     pub fn linker_args(&self) -> Vec<&'static str> {
         // LLD 22.1 can move the destination write of AdrpLdrGot ahead of an
         // intervening use of the old register value.
-        let (architecture, hint_option) = match self.target().architecture() {
-            scoop_lir::TargetArchitecture::Aarch64 => ("arm64", Some("-ignore_optimization_hints")),
-            scoop_lir::TargetArchitecture::X86_64 => ("x86_64", None),
-        };
+        let architecture = self.target().architecture();
+        let hint_option = (architecture == scoop_lir::TargetArchitecture::Aarch64)
+            .then_some("-ignore_optimization_hints");
         let output_options: &[&str] = match self.data.output.kind() {
             FinalOutputKind::Executable => &[
                 "-execute",
@@ -105,15 +109,25 @@ impl DarwinFinalLinkProfile {
             ],
             FinalOutputKind::SharedLibrary => &["-dylib"],
         };
-        ["-flavor", "darwin", "-arch", architecture]
-            .into_iter()
-            .chain(hint_option)
-            .chain(output_options.iter().copied())
-            .chain(OPTIONS.iter().copied())
-            .collect()
+        [
+            "-flavor",
+            "darwin",
+            "-arch",
+            scoop_target_data::apple_architecture(architecture),
+        ]
+        .into_iter()
+        .chain(hint_option)
+        .chain(output_options.iter().copied())
+        .chain(OPTIONS.iter().copied())
+        .collect()
     }
     pub fn startup_toolchain(&self) -> &ValidatedCBridgeToolchainInvocation {
         &self.startup
+    }
+    pub fn platform(&self) -> scoop_target_data::ApplePlatform {
+        self.startup
+            .apple_platform()
+            .expect("Apple startup toolchain")
     }
     pub fn system_provider(&self) -> &SystemProvider {
         &self.data.system
@@ -126,9 +140,10 @@ impl DarwinFinalLinkProfile {
     /// Only queried after an actually required Swift library was absent in the SDK.
     pub fn swift_library_roots(&self) -> Result<Vec<PathBuf>, ToolchainError> {
         let root = crate::swift::toolchain_root(self.swift_toolchain.as_deref())?;
+        let platform = self.platform().sdk();
         Ok(vec![
-            root.join("usr/lib/swift/macosx"),
-            root.join("usr/lib/swift_static/macosx"),
+            root.join("usr/lib/swift").join(platform),
+            root.join("usr/lib/swift_static").join(platform),
         ])
     }
 
@@ -193,7 +208,7 @@ impl DarwinFinalLinkProfile {
         }
         for argument in [
             "-platform_version".into(),
-            "macos".into(),
+            self.platform().linker_name().into(),
             deployment.minimum_os().to_string().into(),
             deployment.sdk().to_string().into(),
             "-syslibroot".into(),

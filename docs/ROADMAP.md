@@ -800,6 +800,10 @@ Darwin self-image 前置已完成：按 runtime 内部地址定位自身 Mach-O�
 
 iOS、Android、HarmonyOS 及 Scoop native-app 的 framework/JNI/Node-API 输出适配后置为独立设计，不作为本里程碑桌面 bootstrap 的完成门。模块只加载不卸载，host 保留句柄至进程结束；业务资源通过应用协议显式关闭。
 
+### iOS arm64 与 native-app XCFramework（模拟器与真机已验收）
+
+Apple 部署平台与机器架构分别选择。iOS arm64 设备及模拟器分别准备 core、std 和 runtime，并沿用 M64 ABI 组装动态 XCFramework。Xcode 27.2 的 arm64 模拟器和 iPhone 13 Pro Max（iOS 27.2.1）均实际运行了 Swift 与 Objective-C 宿主，验证主线程／工作线程双向调用、移动 GC 和 Swift 宿主收到的初始化异常。正式 CLI fixture 验证同为 arm64 的设备 archive 与 dylib 被模拟器链接拒绝。目标与产物合同见[实现规范 2.8.2](specs/SCOOP-IMPL-SPEC.md#282-ios-native-app-与-xcframework)。
+
 ### Swift 原生库第一阶段（已完成，2026-11-18，[设计](swift-libraries/DESIGN.md)）
 
 第一阶段从 Swift package 已有的 `@c` 函数出发，经 Swift 工具生产 `.a`／`.dylib`／静态或动态 framework，接入 Scoop 最终链接及手写 `@Extern` 调用。首期为 macOS 宿主与现有两个 Darwin target；这与 Scoop native-app 自身的 framework 输出是不同能力。

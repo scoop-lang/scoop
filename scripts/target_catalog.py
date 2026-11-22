@@ -13,18 +13,20 @@ HOSTS = _catalog["hosts"]
 TARGET_FACTS = {
     name: {key: target[key] for key in ("os", "arch", "env")} for name, target in TARGETS.items()
 }
-SYSTEMS = {"darwin": "Darwin", "linux": "Linux", "windows": "Windows"}
-DEFAULT_CC = {
-    "Darwin": "clang",
-    "LinuxGnu": "gcc",
-    "LinuxMusl": "musl-gcc",
-    "MicrosoftUcrt": "clang-cl",
-    "LlvmMingwMsvcrt": "clang",
-    "LlvmMingwUcrt": "clang",
+_NATIVE_RECIPE_TOOLS = {
+    "Darwin": ("Darwin", "clang"),
+    "LinuxGnu": ("Linux", "gcc"),
+    "LinuxMusl": ("Linux", "musl-gcc"),
+    "MicrosoftUcrt": ("Windows", "clang-cl"),
+    "LlvmMingwMsvcrt": ("Windows", "clang"),
+    "LlvmMingwUcrt": ("Windows", "clang"),
 }
+# The vendored library recipes cover the desktop distribution targets.
+_DISTRIBUTION_TARGETS = {target for host in HOSTS for target in host["distribution_targets"]}
 NATIVE_TARGETS = {
-    name: (SYSTEMS[target["os"]], DEFAULT_CC[target["native_environment"]])
+    name: _NATIVE_RECIPE_TOOLS[target["native_environment"]]
     for name, target in TARGETS.items()
+    if name in _DISTRIBUTION_TARGETS
 }
 WINDOWS_TARGETS = tuple(name for name, target in TARGETS.items() if target["os"] == "windows")
 _LLVM_COMPONENT_BY_ARCH = {"aarch64": "AArch64", "x86_64": "X86"}

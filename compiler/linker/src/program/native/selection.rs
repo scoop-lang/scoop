@@ -95,7 +95,7 @@ pub(super) fn resolve(
         if inputs.linker_defined(&symbol) {
             continue;
         }
-        if inputs.target_os == scoop_target_data::TargetOs::Darwin
+        if matches!(profile, ValidatedFinalLinkProfile::Darwin(_))
             && !declarations.contains_key(&symbol)
             && !inputs.definitions.contains_key(&symbol)
             && symbol

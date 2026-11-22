@@ -54,7 +54,7 @@ impl ValidatedRuntimeBuildProfile {
                 )
             })?;
         let (os, os_flags, trace, thread_vm_ops_flag): (_, &[_], _, _) = match definition.os {
-            TargetOs::Darwin => (
+            TargetOs::Darwin | TargetOs::Ios => (
                 sources::DARWIN_OS,
                 &["-pthread"],
                 sources::UNIX_TRACE,
@@ -105,7 +105,7 @@ impl ValidatedRuntimeBuildProfile {
                     sources::LINUX_ELF_TRACE_LOADER,
                     sources::LINUX_ELF_METADATA_IMAGE_OPS,
                 ),
-                (TargetOs::Darwin, NativeObjectFormat::MachO64) => {
+                (TargetOs::Darwin | TargetOs::Ios, NativeObjectFormat::MachO64) => {
                     (&[], &[], sources::MACHO_METADATA_IMAGE_OPS)
                 }
                 (TargetOs::Windows, NativeObjectFormat::Coff64) => {

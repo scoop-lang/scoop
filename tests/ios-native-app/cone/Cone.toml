@@ -1,0 +1,16 @@
+schema = 1
+
+[cone]
+group = "dev.scoop"
+name = "ios-native-app"
+version = "0.1.0"
+kind = "native-app"
+
+[[native.sources]]
+path = "native/metrics.m"
+when = { os = "ios" }
+
+[[native.libraries]]
+name = "Foundation"
+kind = "framework"
+when = { os = "ios" }

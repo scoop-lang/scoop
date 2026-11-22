@@ -1,0 +1,61 @@
+package dev.scoop
+
+@CLayout
+struct HostApi(val service: FunPtr<(Int) -> Int>, val fail: Int)
+
+@CLayout
+struct AppApi(
+    val run: FunPtr<(Int, Ptr<Unit>) -> Int>,
+    val context: Ptr<Unit>,
+    val close: FunPtr<(Ptr<Unit>) -> Unit>,
+    val closeContext: Ptr<Unit>
+)
+
+class AppState(val bias: Int)
+
+class Request(val value: Int, val state: AppState)
+
+@Extern(name = "scoop_test_last_moved")
+fun lastMoved(): Long
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit {
+    val host = hostApi.cast<HostApi>().load()
+    val bias = host.service(7)
+    if (host.fail != 0 || bias != 35) {
+        throw IllegalStateException()
+    }
+    val state = AppState(bias)
+    val run = foreignCallback<(Int, Ptr<Unit>) -> Int>(
+        { value: Int ->
+            val request = Request(value, state)
+            gcCollect()
+            var moved = 0L
+            @Unsafe {
+                moved = lastMoved()
+            }
+            if (moved <= 0L || request.state !== state || request.value != value) {
+                -1
+            } else {
+                var fromHost = 0
+                @Unsafe {
+                    fromHost = host.service(request.value)
+                }
+                fromHost + request.state.bias
+            }
+        },
+        1L,
+        ForeignCallbackMode.Reusable
+    )
+    val close = foreignCallback<(Ptr<Unit>) -> Unit>(
+        {
+            @Unsafe {
+                releaseForeignCallback(run)
+            }
+            gcCollect()
+        },
+        0L,
+        ForeignCallbackMode.OneShot
+    )
+    outAppApi.cast<AppApi>().store(AppApi(run.function, run.context, close.function, close.context))
+}

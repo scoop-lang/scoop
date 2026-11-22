@@ -30,6 +30,20 @@ minimum_os = "27.0.1"
 sdk = "27.0"
 build_system = "macOS 27.0.1 (Rosetta on Apple Silicon)"
 
+[targets.aarch64-apple-ios]
+cpu = "generic"
+minimum_os = "17.0"
+sdk = "27.2"
+build_system = "macOS with Xcode"
+system_cones = ["scoop.core", "scoop.std"]
+
+[targets.aarch64-apple-ios-sim]
+cpu = "generic"
+minimum_os = "17.0"
+sdk = "27.2"
+build_system = "macOS with Xcode"
+system_cones = ["scoop.core", "scoop.std"]
+
 [targets.x86_64-unknown-linux-gnu]
 cpu = "x86-64"
 minimum_libc = "2.43"
