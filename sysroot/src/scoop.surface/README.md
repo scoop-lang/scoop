@@ -48,6 +48,8 @@ fun main() {
 
 content 可实现 `onFrameComplete(FrameCompletion)`，读取该帧的 time、窗口内容区 size 和 Accepted／Discarded 结果。回调位于 Canvas／frame 借用结束后；Accepted 时输入几何已发布，可请求焦点或下一帧。没有进入 paint、绘制异常或窗口关闭时不发通知，资源仍在 close 中释放。它不表示 GPU 已完成，也不会自行续订帧。
 
+一次 paint 内的输入 scope 更新按同一个批次收尾。逻辑启用、关闭、重挂和焦点请求立即生效，路由协调与 `observeActivity` 通知在 paint 退出后交付稳定状态；不会在逐个创建或卸载虚拟项时重复通知。抛错仍执行输入收尾，成功提交后再发布本帧几何。需要读取提交结果的业务工作继续放在 `onFrameComplete` 中。
+
 macOS 应用在附着窗口前调用 `scoop.surface.configureFpsReportingFromEnvironment()`，并以 `SCOOP_SURFACE_FPS=1` 启动，即可在 stderr 查看每个窗口实际呈现的帧率。未调用时环境变量无效。每次调用读取当前值，设置适用于随后附着的窗口。
 
 `scoop-surface-fps` 样本使用 Metal 回执时间，`frames / seconds` 为该区间的 `fps`。样本的 `start` 和 `end` 可用于判断区间是否跨过静止期。窗口静止时探针随呈现停采，关闭时输出累计有效回执数 `presented_total`、无有效时间的回执数 `without_time_total` 和 `last_presented`。

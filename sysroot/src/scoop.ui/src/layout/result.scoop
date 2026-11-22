@@ -17,7 +17,7 @@ public class LayoutResult<L> public constructor(
 }
 
 /** Keeps the layout type paired with its element without restoring member fields. */
-internal interface ElementLayout: Closeable {
+internal interface ElementLayout : Closeable {
     val metrics: LayoutMetrics
     fun scene(context: SceneContext)
 }
@@ -25,7 +25,7 @@ internal interface ElementLayout: Closeable {
 internal class TypedElementLayout<L>(
     private val result: LayoutResult<L>,
     private val draw: (SceneContext, L) -> Unit
-): ElementLayout {
+) : ElementLayout {
     override val metrics: LayoutMetrics get() = result.metrics
     override fun scene(context: SceneContext) {
         draw(context, result.data)
@@ -55,14 +55,16 @@ internal class NodeLayout(
     val metrics: LayoutMetrics,
     val children: Array<ChildLayout>,
     val body: LayoutBody,
-    val inputs: FrameInputs = FrameInputs()
-): Closeable {
+    val inputs: FrameInputs = FrameInputs(),
+    val usesLayoutInput: Boolean = false
+) : Closeable {
     var selected: LayoutRound? = None
     var sceneCache: CachedScene? = None
     private var closed = false
+    fun matchesEnvironment(value: LayoutEnvironment?): Boolean = !usesLayoutInput ||
+        sameLayoutEnvironment(environment, value)
     public override fun close() {
-        if (closed)
-            return
+        if (closed) return
         closed = true
         sceneCache = None
         when (body) {
@@ -74,7 +76,7 @@ internal class NodeLayout(
 }
 
 /** Owns each result once, while parent results only share child references. */
-internal class LayoutStore: Closeable {
+internal class LayoutStore : Closeable {
     var round = LayoutRound()
     private var results = ArrayList<NodeLayout>()
     private val touched = ArrayList<MountedNode>()
@@ -100,11 +102,10 @@ internal class LayoutStore: Closeable {
         val keep = ArrayList<NodeLayout>()
         var failure: Throwable? = None
         for (result in results) {
-            val retained =
-                if (success)
-                    sameLayoutRound(result.selected, round)
-                else
-                    result.round !== round
+            val retained = if (success)
+                sameLayoutRound(result.selected, round)
+            else
+                result.round !== round
             if (retained && result.node.active) {
                 keep.add(result)
                 if (success) {
@@ -141,14 +142,13 @@ internal class LayoutStore: Closeable {
     }
 }
 
-internal fun sameLayoutRound(previous: LayoutRound?, current: LayoutRound): Boolean =
-    when (previous) {
-        case Some(val value) -> value === current
-        case None -> false
-    }
+internal fun sameLayoutRound(previous: LayoutRound?, current: LayoutRound): Boolean = when (previous
+) {
+    case Some(val value) -> value === current
+    case None -> false
+}
 
-private fun sameNodeLayout(previous: NodeLayout?, current: NodeLayout): Boolean =
-    when (previous) {
-        case Some(val value) -> value === current
-        case None -> false
-    }
+private fun sameNodeLayout(previous: NodeLayout?, current: NodeLayout): Boolean = when (previous) {
+    case Some(val value) -> value === current
+    case None -> false
+}

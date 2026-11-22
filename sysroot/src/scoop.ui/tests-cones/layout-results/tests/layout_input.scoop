@@ -8,6 +8,10 @@ import scoop.window.*
 
 internal class InputPlan(val first: Long)
 
+internal class InputMeasureCount {
+    var calls = 0
+}
+
 internal class InputRecord(val plan: InputPlan, val row: Long) {
     var closes = 0
     fun close() {
@@ -21,20 +25,23 @@ internal class LayoutInputProbe {
     val b = LayoutInput(InputPlan(1L))
     val failed = LayoutInput(InputPlan(2L))
     val records = ArrayList<InputRecord>()
+    val independentMeasures = Array<InputMeasureCount>(3L) { _ -> InputMeasureCount() }
     var aCalls = 0
     var bCalls = 0
     var phase = 0
     var rootInput: (() -> InputPlan)? = None
     fun attach(host: UiHost, active: ActiveApplication, finished: () -> Unit) {
-        host.attach(
-            active.createWindow(
-                windowAttributes {
-                    title = "Scoop typed layout input"
-                    size = LogicalSize(240.0, 160.0)
-                }
-            ),
-            { mount -> LayoutInputScene(this, finished, scope = mount) }
-        )
+        host
+            .attach(
+                active
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop typed layout input"
+                            size = LogicalSize(240.0, 160.0)
+                        }
+                    ),
+                { mount -> LayoutInputScene(this, finished, scope = mount) }
+            )
     }
 }
 
@@ -42,19 +49,18 @@ private class LayoutInputScene(
     private val probe: LayoutInputProbe,
     private val finished: () -> Unit,
     scope: ComponentScope
-): Component(scope) {
-    public override fun render(): View =
-        element(
-            { mount -> LayoutInputRoot(probe, finished, scope = mount) },
-            [component({ mount -> InputTransparent(probe, scope = mount) })]
-        )
+) : Component(scope) {
+    public override fun render(): View = element(
+        { mount -> LayoutInputRoot(probe, finished, scope = mount) },
+        [component({ mount -> InputTransparent(probe, scope = mount) })]
+    )
 }
 
 private class LayoutInputRoot(
     private val probe: LayoutInputProbe,
     private val finished: () -> Unit,
     scope: ComponentScope
-): Element<Int>(scope) {
+) : Element<Int>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Int
     > {
@@ -81,21 +87,18 @@ private class LayoutInputRoot(
     }
     public override fun scene(context: SceneContext, phase: Int) {
         context.children()
-        context.onFrameComplete {
-            completion -> if (
-                completion.submission ==
+        context
+            .onFrameComplete { completion ->
+                if (completion.submission ==
                     FrameSubmission.Accepted &&
                     probe.phase ==
                     phase &&
                     probe.phase <
                     2
-            ) {
-                probe.phase += 1
-                if (probe.phase == 2)
-                    finished()
-                else
-                    scope.requestLayout()
+                ) {
+                    probe.phase += 1
+                    if (probe.phase == 2) finished() else scope.requestLayout()
+                }
             }
-        }
     }
 }

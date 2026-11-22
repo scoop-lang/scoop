@@ -245,6 +245,8 @@ viewport.physics = ScrollPhysicsOptions(
 
 父布局可以创建不可变 `LayoutInput(plan)`，通过 `context.measureChild(index, constraints, input)` 或 `context.measureItem(index, constraints, input)` 提供给子树；后代在自己的测量回调中用 `context.input<Plan>()` 读取。使用同一输入对象可复用布局，变化时替换输入并正常使父布局失效。读取只允许发生在所属 measure 中；render、scene 或已结束的 context 不能读取。场景所需数据应保存在 LayoutResult 中，不能用共享可变字段传递最近一次试测的列宽或滚动计划。输入穿过透明 Component 和普通二参数测量；不同类型继承，同类型由最近输入覆盖。
 
+输入依赖会沿子测量传播，透明包装及试测不能掩盖子树对输入的读取。没有直接或经子测量读取输入的内容可以在外层输入变化时继续复用，例如滚动裁剪改变时，约束未变的单元格文本无需重新测量。同一份计划在多次测量中应复用同一个 `LayoutInput`，只在计划改变时替换。
+
 LazyElement 的生命周期及 scene 与 Element 相同，measure 接收 LazyMeasureContext。容器用 `measureItem(index, constraints)` 按需取得子项，再用 `placeItem(index, origin)` 放置；一个索引放置前可重新测量，最终选择集合在根或 portal 测量结束后统一收尾。框架在这两个步骤之间管理 build、挂载和 update，生命周期可以正常写 State，外层 measure 和子项 render 仍保持纯度。子项在 scene.children() 中按 source 索引顺序呈现。
 
 `ItemRetention.Dispose` 让离开选择范围的项正常卸载；`KeepAlive(maxOffscreenItems)` 额外保留有限个最近使用的离屏实例，容量为零与 Dispose 相同。缓存项继续处理 Props／State 并持有资源，本帧不测量或呈现场景；再次进入复用同 key、同 shape 的实例，真实删除或 shape 改变仍正常退休。容量不包含本轮选择和活动交互固定的项。

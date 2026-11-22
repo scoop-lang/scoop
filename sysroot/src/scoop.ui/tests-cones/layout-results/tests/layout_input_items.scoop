@@ -7,51 +7,46 @@ import scoop.ui.*
 internal class InputTransparent(
     private val probe: LayoutInputProbe,
     scope: ComponentScope
-): Component(scope) {
-    public override fun render(): View =
-        lazyElement(InputSource(probe), { mount -> InputRows(probe, scope = mount) })
+) : Component(scope) {
+    public override fun render(): View = lazyElement(
+        InputSource(probe),
+        { mount -> InputRows(probe, scope = mount) }
+    )
 }
 
-private class InputSource(private val probe: LayoutInputProbe): ItemSource {
+private class InputSource(private val probe: LayoutInputProbe) : ItemSource {
     public override val count: Long get() = 100000000L
     public override fun keyAt(index: Long): ViewKey {
         assertTrue(index >= 0L && index < 3L)
         return ViewKey.Number(index)
     }
-    public override fun indexOfKey(key: ViewKey): Long? =
-        when (key) {
-            case Number(val index) -> if (index >= 0L && index < count)
-                Some(index)
-            else
-                None
-            else -> None
-        }
-    public override fun build(index: Long): View =
-        component({ mount -> InputRow(probe, index, scope = mount) })
+    public override fun indexOfKey(key: ViewKey): Long? = when (key) {
+        case Number(val index) -> if (index >= 0L && index < count) Some(index) else None
+        else -> None
+    }
+    public override fun build(index: Long): View = component(
+        { mount -> InputRow(probe, index, scope = mount) }
+    )
 }
 
-private class InputRows(private val probe: LayoutInputProbe, scope: ComponentScope): LazyElement<
-    InputPlan
->(scope) {
+private class InputRows(private val probe: LayoutInputProbe, scope: ComponentScope) :
+    LazyElement<InputPlan>(scope) {
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
     ): LayoutResult<InputPlan> {
         val plan = context.input<InputPlan>()
-        if (plan.first == 2L)
-            throw IllegalArgumentException(Some("test rejected input"))
-        if (plan.first == 0L)
-            probe.aCalls += 1
-        else
-            probe.bCalls += 1
+        if (plan.first == 2L) throw IllegalArgumentException(Some("test rejected input"))
+        if (plan.first == 0L) probe.aCalls += 1 else probe.bCalls += 1
         assertFailsWith<IllegalStateException> { probe.rootInput!!() }
-        for (index in plan.first ..< plan.first + 2L) {
+        for (index in plan.first..<plan.first + 2L) {
             val size = Constraints.tight(Size(80.0, 20.0))
             context.measureItem(index, size, LayoutInput(index * 10L))
-            context.placeItem(
-                index,
-                Point(plan.first.toDouble() * 3.0, (index - plan.first).toDouble() * 20.0)
-            )
+            context
+                .placeItem(
+                    index,
+                    Point(plan.first.toDouble() * 3.0, (index - plan.first).toDouble() * 20.0)
+                )
             assertTrue(plan === context.input<InputPlan>())
             assertFailsWith<IllegalStateException> { context.input<Long>() }
         }
@@ -59,10 +54,7 @@ private class InputRows(private val probe: LayoutInputProbe, scope: ComponentSco
     }
     public override fun scene(context: SceneContext, plan: InputPlan) {
         assertEquals(
-            if (probe.phase == 0)
-                0L
-            else
-                1L,
+            if (probe.phase == 0) 0L else 1L,
             plan.first
         )
         context.children()
@@ -73,18 +65,64 @@ private class InputRow(
     private val probe: LayoutInputProbe,
     private val index: Long,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     public override fun render(): View {
         assertFailsWith<IllegalStateException> { probe.rootInput!!() }
-        return element({ mount -> InputLeaf(probe, index, scope = mount) })
+        return element(
+            { mount -> InputForwarder(mount) },
+            [
+                element(
+                    { mount -> InputLeaf(probe, index, scope = mount) },
+                    [component({ mount -> InputIndependent(probe, index, mount) })]
+                )
+            ]
+        )
     }
+}
+
+/** Reads only through its child, including a cached child result. */
+private class InputForwarder(scope: ComponentScope) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.children()
+    }
+}
+
+private class InputIndependent(
+    private val probe: LayoutInputProbe,
+    private val index: Long,
+    scope: ComponentScope
+) : Component(scope) {
+    public override fun render(): View = element(
+        { mount -> InputIndependentLeaf(probe, index, mount) }
+    )
+}
+
+private class InputIndependentLeaf(
+    private val probe: LayoutInputProbe,
+    private val index: Long,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.independentMeasures[index].calls += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 20.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {}
 }
 
 private class InputLeaf(
     private val probe: LayoutInputProbe,
     private val index: Long,
     scope: ComponentScope
-): Element<InputRecord>(scope) {
+) : Element<InputRecord>(scope) {
     private var inputRead: (() -> InputPlan)? = None
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         InputRecord
@@ -96,6 +134,8 @@ private class InputLeaf(
         inputRead = Some { context.input<InputPlan>() }
         val record = InputRecord(plan, index)
         probe.records.add(record)
+        context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
         return LayoutResult(
             LayoutMetrics(constraints.constrain(Size(80.0, 20.0))),
             record,
@@ -104,14 +144,12 @@ private class InputLeaf(
     }
     public override fun scene(context: SceneContext, record: InputRecord) {
         assertEquals(
-            if (probe.phase == 0)
-                0L
-            else
-                1L,
+            if (probe.phase == 0) 0L else 1L,
             record.plan.first
         )
         assertEquals(index, record.row)
         assertEquals(0, record.closes)
         assertFailsWith<IllegalStateException> { inputRead!!() }
+        context.children()
     }
 }
