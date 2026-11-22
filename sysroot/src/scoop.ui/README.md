@@ -100,6 +100,8 @@ private class NamedRegion(private val props: Props<String>, scope: ComponentScop
 
 属性与结构在普通逻辑更新结束后发布，直接更新 handle 也沿现有宿主队列生效，不要求 drawable。场景登记参与缓存重放，仅在 Accepted 后发布当前 transform／clip 的几何；Discarded 保留仍匹配的旧几何。名字或值改变会使旧几何不可用，后续匹配场景恢复它。`geometry=None` 与已布局但被裁剪的 `visibleBounds=None` 分开。
 
+paint 内新增虚拟项时，布局收尾仍先落实标签、内容合并关系和内容修订，再捕获几何；平台快照与激活点合并到帧完成时发布。Discarded 也会发布逻辑变化，但不会采用本帧候选几何。帧外更新及隐藏窗口的逻辑发布继续沿原宿主队列执行。
+
 负责绘制的后代 Element 也可登记逻辑祖先持有的 handle，供组合控件沿用原 Component 的资源与实际 FocusTarget。兄弟、后代或跨根资源不允许登记；同一节点每帧仍只登记一次，几何登记不会移动它的语义父节点或资源归属。
 
 `context.semantics(handle, shape: Path)` 可登记非矩形语义区域；它和 Path 输入登记一样使当前场景不缓存，调用后可以关闭 Path。Rect 登记保持可缓存。两者都捕获原生只读命中快照，Accepted 后按实际场景层叠顺序查询，路径孔洞、祖先裁剪和窗口视口共同生效；阅读顺序不随层叠变化。位置失效时同时撤下命中，丢弃帧与关闭释放候选引用。按点定位不提供未经实际输入验证的激活点。

@@ -1,0 +1,48 @@
+package scoop.tests.ui.accessibility
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class SemanticLateSource(private val probe: SemanticSceneProbe) : ItemSource {
+    public override val count: Long get() = 1L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? = if (key == ViewKey.Number(0L))
+        Some(0L)
+    else
+        None
+    public override fun build(index: Long): View = element(
+        { mount -> SemanticLateItem(probe, mount) }
+    )
+}
+
+internal class SemanticLateItems(scope: ComponentScope) : LazyElement<Unit>(scope) {
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> {
+        if (context.input<Boolean>()) {
+            context.measureItem(0L, constraints)
+            context.placeItem(0L, Point(0.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(50.0, 20.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+    }
+}
+
+private class SemanticLateItem(probe: SemanticSceneProbe, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    private val semantic = scope.semantics(SemanticRole.Text)
+    init {
+        semantic.update(SemanticProperties(name = Some("Late item"), automationId = Some("late")))
+        probe.lateSemantic = Some(semantic)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(50.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.semantics(semantic, Rect(0.0, 0.0, context.size.width, context.size.height))
+    }
+}
