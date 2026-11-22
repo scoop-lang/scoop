@@ -27,8 +27,12 @@ Cone cache 和输出目录，确认本库实际重新编译。系统文件缓存
 | 提前释放各阶段 IR 和临时索引 | 17,469,308,928 | 16.27 |
 | 释放依赖解码缓冲并精简实体驻留表 | 16,361,734,144 | 15.24 |
 | 转移打包 payload 所有权并逐层释放 | 15,876,620,288 | 14.79 |
+| 合并 main `4da7ec626` 后复验 | 16,136,372,224 | 15.03 |
 
-最终峰值减少 11,330,076,672 bytes（10.55 GiB，41.6%）。各版本各测量一次，包含采样，
+同一源码基线上的四类优化使峰值减少 11,330,076,672 bytes（10.55 GiB，41.6%）。
+随后合并 main 的 ELF／COFF 目标契约重构 `4da7ec626`，在相同 Scoop 源码与依赖上再次冷编译，
+峰值为 15.03 GiB，比初始基线少 11,070,324,736 bytes（10.31 GiB，40.7%）。
+表中保留合并前后的独立结果。各版本各测量一次，包含采样，
 部分测量同时运行 Rust 构建或测试，不作为稳定编译速度的结论，也不外推其他平台的绝对内存值。
 每次产出的 `.slib` 均为 150,493,710 bytes，与原版逐字节相同；SHA-256 为
 `be016f002d98003c3dbb76f451cdfe627a77489ce61a53df1d3ab9928a943d28`。
@@ -71,15 +75,20 @@ Cone cache 和输出目录，确认本库实际重新编译。系统文件缓存
 有效长度。报告区分 allocator 的在用堆和进程 RSS，释放后 allocator 可以保留页面用于复用。
 生命周期与 metadata 所有权规则分别见实现规范 2.0 和 2.6。
 
-本次保持相同的 LLVM 优化等级、库划分和语言能力。最终 14.79 GiB 仍然是较大的占用，
+本次保持相同的 LLVM 优化等级、库划分和语言能力。最终 15.03 GiB 仍然是较大的占用，
 上述收益针对已确认的重复分配与过长存活期，不代表所有大程序都具有相同优化幅度。
 
-验证：`cargo fmt --all`、`cargo clippy --workspace --all-targets` 和 release 构建通过；
+合并 main 后复验：`cargo fmt --all`、`cargo clippy --workspace --all-targets` 和 release 构建通过；
 Clippy 保留仓库已有告警，改动处没有新增告警。
-`cargo test -p scoop-identity -p scoop-mir -p scoop-slib -p scoopc` 的 990 项测试全部通过。
+对 `scoop`、`scoopc`、`scoop-identity`、`scoop-mir`、`scoop-lir`、`scoop-slib`、
+`scoop-codegen`、`scoop-linker`、`scoop-target-data` 和 `scoop-toolchain` 执行 Cargo 测试，
+共 1,989 项全部通过。扩展 Rust 测试首次使用了旧 debug 配套包管理器，出现 ABI 和协议失配；
+按当前源码重建 debug 配套命令后完整重跑通过。
 正式 CLI 覆盖 `generic-reader`、`runtime-images`、`direct-c/artifacts`、
 `interfaces/artifacts`、`doc-cli/basic`、`cache/process-observations`、
 `source-inputs/testing` 和 `test-artifact-dependencies`，共 23 个 fixture、25 个配置组合、
 156 次进程调用全部通过。配套 `scoop`、`scoopc`、`scoop-link` 和 `scoop-pm` 均按当前源码
-重建，CLI 验收使用新的共享 Cone cache。验证目标为 Darwin/AArch64；未执行全仓库 fixture，
+重建，本机 runtime 按合并后的构建参数重新准备，CLI 验收使用新的共享 Cone cache。
+fixture runner 的 Ruff 0.16.10 格式化和检查通过，Python 规则测试 80 项通过、4 项 Windows
+专属测试按平台跳过。验证目标为 Darwin/AArch64；未执行全仓库 fixture，
 也未进行尚未准备好的 iOS 目标产物与运行验收。
