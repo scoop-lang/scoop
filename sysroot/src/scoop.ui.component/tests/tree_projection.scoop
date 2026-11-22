@@ -1,0 +1,177 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+internal class TreeTestCalls {
+    var compare = 0
+    var cells = 0
+    var matches = 0
+    var changes = 0
+}
+
+internal fun treeTestColumns(calls: TreeTestCalls): TreeColumns<Int> = TreeColumns(
+    [
+        TreeColumn<Int>(
+            "value", "Value", { _ ->
+                calls.cells += 1;
+                empty()
+            },
+            size = TableColumnSize(minimum = 50.0, maximum = Some(200.0)),
+            compare = Some { left, right ->
+                calls.compare += 1;
+                left - right
+            }
+        ),
+        TreeColumn<Int>(
+            "name",
+            "Name",
+            { _ ->
+                calls.cells += 1;
+                empty()
+            }
+        ),
+        TreeColumn<Int>(
+            "fixed",
+            "Fixed",
+            { _ ->
+                calls.cells += 1;
+                empty()
+            },
+            hideable = false,
+            resizable = false
+        )
+    ],
+    "name"
+)
+
+private fun treeSortedNode(id: Long, value: Int, children: Array<TreeNode<Int>> = []): TreeNode<
+    Int
+> = TreeNode(
+    ViewKey.Number(id),
+    value,
+    f"node ${id}",
+    if (children.size == 0L) TreeChildren.Leaf else TreeChildren.Known(children)
+)
+
+@Test
+private class TreeProjectionTest {
+    @Test
+    fun `sibling sorting is stable and presentation changes reuse ordering matching and projection`() {
+        val calls = TreeTestCalls()
+        val data = TreeData(
+            [
+                treeSortedNode(10L, 2, [treeSortedNode(11L, 4), treeSortedNode(12L, 1)]),
+                treeSortedNode(20L, 1, [treeSortedNode(21L, 3), treeSortedNode(22L, 3)])
+            ]
+        )
+        val model = TreeState(
+            data, columns = Some(treeTestColumns(calls)), selection = TreeSelectionMode.Multiple,
+            checking = TreeChecking.Cascade(), initialExpandAll = true,
+            initialQuery = TreeQuery<Int>(
+                "node",
+                matches = Some { _, _ ->
+                    calls.matches += 1;
+                    true
+                }
+            )
+        )
+        assertTreeRows(model.projection, [10L, 11L, 12L, 20L, 21L, 22L])
+        assertTrue(model.setSort(Some(TableSort("value"))))
+        val sorted = model.projection
+        assertTreeRows(sorted, [20L, 21L, 22L, 10L, 12L, 11L])
+        assertEquals(Some(0L), sorted.rowAt(1L).parent)
+        assertEquals(3L, sorted.rowAt(0L).subtreeEnd)
+        assertEquals(6L, sorted.rowAt(3L).subtreeEnd)
+        val compared = calls.compare
+        val matched = calls.matches
+        assertTrue(model.select(ViewKey.Number(21L)))
+        assertTrue(model.setChecked(ViewKey.Number(10L), true))
+        assertTrue(model.setColumnVisible("value", false))
+        assertTrue(model.resizeColumn("value", 180.0))
+        assertSame(sorted, model.projection)
+        assertEquals(compared, calls.compare)
+        assertEquals(matched, calls.matches)
+        assertEquals(0, calls.cells)
+        assertTrue(model.setExpanded(ViewKey.Number(20L), false))
+        assertTreeRows(model.projection, [20L, 10L, 12L, 11L])
+        assertEquals(compared, calls.compare)
+        assertEquals(matched, calls.matches)
+        assertTrue(model.setExpanded(ViewKey.Number(20L), true))
+        assertTrue(model.toggleSort("value"))
+        assertTreeRows(model.projection, [10L, 11L, 12L, 20L, 21L, 22L])
+        assertTrue(model.toggleSort("value"))
+        assertEquals(None, model.sort)
+        assertTreeRows(model.projection, [10L, 11L, 12L, 20L, 21L, 22L])
+    }
+
+    @Test
+    fun `query expands ancestor paths without overwriting the stored expansion`() {
+        val nested = TreeNode(ViewKey.Number(2L), 2, "Straße")
+        val data = TreeData(
+            [
+                treeTestNode(
+                    0L,
+                    TreeChildren
+                        .Known([treeTestNode(1L, TreeChildren.Known([nested])), treeTestNode(3L)])
+                ),
+                treeTestNode(4L, TreeChildren.Deferred)
+            ]
+        )
+        val external = state<Array<ViewKey>>([])
+        val writes = state(0)
+        val model = TreeState(
+            data,
+            expanded = Some(
+                binding(
+                    get = { external.value },
+                    set = { value ->
+                        writes.value += 1;
+                        external.value = value
+                    }
+                )
+            )
+        )
+        assertTreeRows(model.projection, [0L, 4L])
+        model.setQuery(TreeQuery<Int>("STRASSE"))
+        assertTreeRows(model.projection, [0L, 4L])
+        model.setQuery(TreeQuery<Int>("STRASSE", expandMatches = true))
+        assertTreeRows(model.projection, [0L, 1L, 2L, 3L, 4L])
+        assertTrue(model.projection.rowAt(2L).matched)
+        assertFalse(model.projection.rowAt(0L).matched)
+        model.setQuery(TreeQuery<Int>("STRASSE", TreeQueryMode.Filter))
+        assertTreeRows(model.projection, [0L, 1L, 2L])
+        assertEquals(1L, model.projection.rowAt(1L).siblingCount)
+        assertEquals(0, writes.value)
+        assertEquals(0L, external.value.size)
+        model.setQuery(TreeQuery<Int>())
+        assertTreeRows(model.projection, [0L, 4L])
+        external.value = treeTestKeys([0L, 1L])
+        assertTreeRows(model.projection, [0L, 1L, 2L, 3L, 4L])
+        assertTrue(model.setExpanded(ViewKey.Number(0L), false))
+        assertTrue(model.isExpanded(ViewKey.Number(1L)))
+        assertTreeRows(model.projection, [0L, 4L])
+        model.setExpanded(treeTestKeys([2L]), expandAncestors = true)
+        assertTreeRows(model.projection, [0L, 1L, 2L, 3L, 4L])
+    }
+
+    @Test
+    fun `empty data and unknown restoration keys do not create rows or erase controlled values`() {
+        val selected = state(treeTestKeys([99L]))
+        val expanded = state(treeTestKeys([99L]))
+        val model = TreeState(
+            TreeData<Int>([]),
+            selected = Some(selected.binding()),
+            expanded = Some(expanded.binding())
+        )
+        assertEquals(0L, model.projection.count)
+        assertFalse(model.setExpanded(ViewKey.Number(99L), true))
+        model.replaceData(TreeData([treeTestNode(99L, TreeChildren.Known([treeTestNode(100L)]))]))
+        assertTreeRows(model.projection, [99L, 100L])
+        assertTrue(model.isSelected(ViewKey.Number(99L)))
+        model.replaceData(TreeData<Int>([]))
+        assertEquals(1L, model.selectedKeys.size)
+        assertEquals(1L, model.expandedKeys.size)
+        assertEquals(0L, model.projection.count)
+    }
+}

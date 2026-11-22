@@ -1,0 +1,185 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.collections.HashSet
+import scoop.ui.*
+
+/** Header text names the column even when headerView supplies its visual content. */
+public class TreeColumn<T> public constructor(
+    public val id: String,
+    public val header: String,
+    public val cell: (TreeNode<T>) -> View,
+    public val size: TableColumnSize = TableColumnSize(),
+    public val alignment: AxisAlignment = AxisAlignment.Start,
+    public val hideable: Boolean = true,
+    public val resizable: Boolean = true,
+    public val compare: ((T, T) -> Int)? = None,
+    public val semanticText: ((TreeNode<T>) -> String)? = None,
+    public val headerView: View? = None,
+    /** Declares an offscreen cell's focus capability; focus still requires a real mounted target. */
+    public val focusable: Boolean = false
+) {
+    init {
+        requireComponent(id != "", "tree column id must not be empty")
+    }
+    public val sortable: Boolean
+        get() = when (compare) {
+            case Some(_) -> true
+            case None -> false
+        }
+}
+
+/** A nonempty ordered column definition; the identified tree column cannot be hidden. */
+public class TreeColumns<T> public constructor(
+    public val columns: Array<TreeColumn<T>>,
+    public val treeColumn: String
+) {
+    private val keyed = HashMap<String, TreeColumn<T>>()
+    init {
+        requireComponent(columns.size > 0L, "tree columns must not be empty")
+        val seen = HashSet<String>()
+        for (column in columns) {
+            requireComponent(seen.add(column.id), "duplicate tree column id")
+            keyed[column.id] = column
+        }
+        requireComponent(seen.contains(treeColumn), "tree column must name a defined column")
+    }
+    public fun find(id: String): TreeColumn<T>? = keyed[id]
+    public fun column(id: String): TreeColumn<T> = keyed[id] ?:
+        throw IllegalArgumentException(Some(f"unknown tree column: ${id}"))
+}
+
+/** Definition and presentation state form one value so controlled replacement is atomic. */
+public class TreeColumnState<T> public constructor(
+    public val columns: TreeColumns<T>? = None,
+    public val hiddenColumns: Array<String> = [],
+    public val widths: Array<TableColumnWidth> = [],
+    public val sorting: TableSort? = None
+) {
+    private val hidden = HashSet<String>()
+    private val overrides = HashMap<String, Double>()
+    public val visibleColumns: Array<TreeColumn<T>> = prepare()
+    private fun prepare(): Array<TreeColumn<T>> {
+        val visible = ArrayList<TreeColumn<T>>()
+        when (columns) {
+            case None ->
+                requireComponent(
+                    hiddenColumns.size == 0L && widths.size == 0L && sorting == None,
+                    "single column tree cannot contain column state"
+                )
+
+            case Some(val definition) -> {
+                for (id in hiddenColumns) {
+                    val column = definition.column(id)
+                    requireComponent(hidden.add(id), "duplicate hidden tree column")
+                    requireComponent(
+                        column.hideable && id != definition.treeColumn,
+                        "tree column cannot be hidden"
+                    )
+                }
+                for (width in widths) {
+                    val column = definition.column(width.column)
+                    requireComponent(overrides[width.column] == None, "duplicate tree column width")
+                    requireComponent(
+                        column.size.constrain(width.width) == width.width,
+                        "tree column width is out of range"
+                    )
+                    overrides[width.column] = width.width
+                }
+                when (sorting) {
+                    case Some(val sort) ->
+                        requireComponent(
+                            definition.column(sort.column).sortable,
+                            "tree sort column requires a comparator"
+                        )
+                    case None -> {}
+                }
+                for (column in definition.columns)
+                    if (!hidden.contains(column.id)) visible.add(column)
+            }
+        }
+        return visible.toArray()
+    }
+    public fun isVisible(id: String): Boolean {
+        when (columns) {
+            case Some(val value) -> value.column(id)
+            case None -> throw IllegalArgumentException(Some("tree has no explicit columns"))
+        }
+        return !hidden.contains(id)
+    }
+    public fun width(id: String): Double? {
+        when (columns) {
+            case Some(val value) -> value.column(id)
+            case None -> throw IllegalArgumentException(Some("tree has no explicit columns"))
+        }
+        return overrides[id]
+    }
+}
+
+public enum TreeColumnChangeKind {
+    Definition, Visibility, Width, Sort
+}
+
+public class TreeColumnChange<T> internal constructor(
+    public val column: String?,
+    public val kind: TreeColumnChangeKind,
+    public val value: TreeColumnState<T>,
+    public val origin: TreeChangeOrigin
+)
+
+internal fun <T> treeColumnStatesEqual(
+    left: TreeColumnState<T>,
+    right: TreeColumnState<T>
+): Boolean {
+    if (left === right) return true
+    val same = when ((left.columns, right.columns)) {
+        case(Some(val a), Some(val b)) -> a === b
+        case(None, None) -> true
+        else -> false
+    }
+    if (!same ||
+        left.sorting !=
+        right.sorting ||
+        left.hiddenColumns.size !=
+        right.hiddenColumns.size ||
+        left.widths.size !=
+        right.widths.size
+    )
+        return false
+    for (index in 0L..<left.hiddenColumns.size)
+        if (left.hiddenColumns[index] != right.hiddenColumns[index]) return false
+    for (index in 0L..<left.widths.size)
+        if (left.widths[index].column !=
+            right.widths[index].column ||
+            left.widths[index].width !=
+            right.widths[index].width
+        )
+            return false
+    return true
+}
+
+internal fun <T> treeReplacedColumns(
+    previous: TreeColumnState<T>,
+    columns: TreeColumns<T>?
+): TreeColumnState<T> {
+    val definition = columns ?: return TreeColumnState<T>()
+    val hidden = ArrayList<String>()
+    for (id in previous.hiddenColumns) {
+        val column = definition.find(id) ?: continue
+        if (column.hideable && id != definition.treeColumn) hidden.add(id)
+    }
+    val widths = ArrayList<TableColumnWidth>()
+    for (width in previous.widths) {
+        val column = definition.find(width.column) ?: continue
+        widths.add(TableColumnWidth(column.id, column.size.constrain(width.width)))
+    }
+    val sort = when (previous.sorting) {
+        case Some(val value) ->
+            when (definition.find(value.column)) {
+                case Some(val column) -> if (column.sortable) Some(value) else None
+                case None -> None
+            }
+        case None -> None
+    }
+    return TreeColumnState(columns, hidden.toArray(), widths.toArray(), sort)
+}

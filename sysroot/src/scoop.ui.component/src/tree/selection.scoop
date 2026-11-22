@@ -1,0 +1,76 @@
+package scoop.ui.component
+
+import scoop.ui.ViewKey
+
+internal class TreeSelectionPlan(
+    val keys: Array<ViewKey>,
+    val anchor: ViewKey,
+    val baseline: Array<ViewKey>?,
+    val additive: Boolean
+)
+
+/** A range gesture keeps its starting baseline while either end moves. */
+internal class TreeRangeSelection {
+    private var anchor: ViewKey? = None
+    private var baseline: Array<ViewKey>? = None
+    private var lastKeys: Array<ViewKey>? = None
+    private var additive = false
+    fun reset() {
+        anchor = None
+        baseline = None
+        lastKeys = None
+    }
+    fun accept(plan: TreeSelectionPlan, keys: Array<ViewKey>) {
+        anchor = Some(plan.anchor)
+        baseline = plan.baseline
+        additive = plan.additive
+        lastKeys = Some(keys)
+    }
+    fun <T> plan(
+        projection: TreeProjection<T>,
+        current: Array<ViewKey>,
+        key: ViewKey,
+        action: TreeSelectionAction,
+        focused: ViewKey?,
+        mode: TreeSelectionMode
+    ): TreeSelectionPlan {
+        if (action == TreeSelectionAction.Replace) return TreeSelectionPlan([key], key, None, false)
+        if (action == TreeSelectionAction.Toggle) {
+            val selected = treeKeySet(current).contains(key)
+            val keys: Array<ViewKey> = if (mode == TreeSelectionMode.Single)
+                if (selected) [] else [key]
+            else
+                treeChangedKey(current, key, !selected)
+            return TreeSelectionPlan(keys, key, None, false)
+        }
+        val target = projection.indexOfKey(key) ?: return TreeSelectionPlan([key], key, None, false)
+        val origin = when (anchor) {
+            case Some(val value) -> if (projection.indexOfKey(value) != None) Some(value) else None
+            case None -> None
+        }
+        val fallback = when (focused) {
+            case Some(val value) -> if (projection.indexOfKey(value) != None) value else key
+            case None -> key
+        }
+        val chosen = origin ?: fallback
+        val start = projection.indexOfKey(chosen)!!
+        val add = action == TreeSelectionAction.AddRange
+        val continuing = when ((origin, baseline, lastKeys)) {
+            case(Some(_), Some(_), Some(val previous)) ->
+                additive == add && treeKeysEqual(previous, current)
+            else -> false
+        }
+        val base = if (continuing) baseline!! else if (add) current else []
+        val result = ArrayList<ViewKey>()
+        val seen = treeKeySet(base)
+        for (value in base)
+            result.add(value)
+        val first = if (start < target) start else target
+        val last = if (start > target) start else target
+        for (index in first..<last + 1L) {
+            val node = projection.rowAt(index).node
+            if (node.canSelect && seen.add(node.key)) result.add(node.key)
+        }
+        return TreeSelectionPlan(result.toArray(), chosen, Some(base), add)
+    }
+}

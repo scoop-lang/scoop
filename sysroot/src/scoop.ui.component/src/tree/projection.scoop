@@ -1,0 +1,136 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.ViewKey
+
+/** Metadata for one visible row; parent and subtreeEnd address this same projection. */
+public class TreeRow<T> internal constructor(
+    public val node: TreeNode<T>,
+    public val parent: Long?,
+    public val depth: Long,
+    public val position: Long,
+    public val siblingCount: Long,
+    public val expanded: Boolean,
+    public val matched: Boolean,
+    public val subtreeEnd: Long
+) {
+    public val key: ViewKey get() = node.key
+    public val lastSibling: Boolean get() = position + 1L == siblingCount
+}
+
+public class TreeProjection<T> internal constructor(
+    public val data: TreeData<T>,
+    public val rows: Array<TreeRow<T>>
+) {
+    private val keyed = HashMap<ViewKey, Long>()
+    public val count: Long get() = rows.size
+    init {
+        for (index in 0L..<rows.size)
+            keyed[rows[index].key] = index
+    }
+    public fun indexOfKey(key: ViewKey): Long? = keyed[key]
+    public fun keyAt(index: Long): ViewKey = rows[index].key
+    public fun rowAt(index: Long): TreeRow<T> = rows[index]
+}
+
+internal class TreeProjectionCache<T>(
+    val order: TreeOrder<T>,
+    val matches: TreeMatches<T>,
+    val expanded: TreeKeySnapshot
+) {
+    val projection: TreeProjection<T> = treeProject(order, matches, expanded)
+}
+
+private class TreeProjectionCursor(val children: Array<Long>, val parent: Long?, val depth: Long) {
+    var next = 0L
+}
+
+private class TreeRowBuilder<T>(
+    val node: TreeNode<T>,
+    val parent: Long?,
+    val depth: Long,
+    val position: Long,
+    val siblingCount: Long,
+    val expanded: Boolean,
+    val matched: Boolean
+) {
+    var end = 0L
+}
+
+private fun <T> treeIncludedChildren(
+    order: TreeOrder<T>,
+    matches: TreeMatches<T>,
+    parent: Long?
+): Array<Long> {
+    val children = order.children(parent)
+    if (!matches.active || matches.query.mode != TreeQueryMode.Filter) return children
+    val included = ArrayList<Long>()
+    for (child in children)
+        if (matches.includes(child)) included.add(child)
+    return included.toArray()
+}
+
+private fun <T> treeProject(
+    order: TreeOrder<T>,
+    matches: TreeMatches<T>,
+    expanded: TreeKeySnapshot
+): TreeProjection<T> {
+    val built = ArrayList<TreeRowBuilder<T>>()
+    val stack = ArrayList<TreeProjectionCursor>()
+    stack.add(TreeProjectionCursor(treeIncludedChildren(order, matches, None), None, 0L))
+    while (stack.size > 0L) {
+        val cursor = stack[stack.size - 1L]
+        if (cursor.next == cursor.children.size) {
+            when (cursor.parent) {
+                case Some(val parent) -> built[parent].end = built.size
+                case None -> {}
+            }
+            stack.removeAt(stack.size - 1L)
+            continue
+        }
+        val position = cursor.next
+        val index = cursor.children[position]
+        cursor.next += 1L
+        val node = order.data.records[index].node
+        val open = node.expandable &&
+            (expanded.lookup.contains(node.key) || matches.expands(node.key))
+        val at = built.size
+        val row = TreeRowBuilder(
+            node,
+            cursor.parent,
+            cursor.depth,
+            position,
+            cursor.children.size,
+            open,
+            matches.matched.contains(node.key)
+        )
+        built.add(row)
+        if (open)
+            stack
+                .add(
+                    TreeProjectionCursor(
+                        treeIncludedChildren(order, matches, Some(index)),
+                        Some(at),
+                        cursor.depth + 1L
+                    )
+                )
+        else
+            row.end = at + 1L
+    }
+    return TreeProjection(
+        order.data,
+        Array<TreeRow<T>>(built.size) { index ->
+            val row = built[index]
+            TreeRow(
+                row.node,
+                row.parent,
+                row.depth,
+                row.position,
+                row.siblingCount,
+                row.expanded,
+                row.matched,
+                row.end
+            )
+        }
+    )
+}

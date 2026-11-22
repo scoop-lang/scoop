@@ -1,6 +1,6 @@
 # shadcn Gallery
 
-真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。导航分为 Applications 和 Components，包含设计目录全部 64 项的独立页面，以及四个可操作的应用组合：
+真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。导航分为 Applications 和 Components，包含 65 项组件的独立页面，以及四个可操作的应用组合：
 
 - **Settings app**：资料与偏好表单，组合中文输入、邮件与验证码校验、生日选择、勾选／开关／单选和存储滑块；固定操作区提交时会显露并聚焦错误字段。
 - **Workspace app**：侧栏、文档／预览页签和可调面板，配合 File 菜单、命令搜索、重命名 Dialog、嵌套 Sheet 和活动 Drawer；窗口变窄后使用移动侧栏，草稿随应用模型保留。
@@ -13,9 +13,11 @@ Message Scroller 页面使用稳定消息 key，提供新回合、真实异步�
 
 Table 展示有限发票、共享列宽、footer 和独立动作。Data Table 展示付款列表的排序、邮件筛选、本页选择、列显隐／拖宽、行内备注与菜单、分页、虚拟滚动和调用方提供的结果页；备注保存于稳定行模型。可切换窄宽、主题及 RTL，或加载更多行检查实际交互。
 
+Tree 页面使用含 180 个组件文件的目录数据，展示同一模型的单列／多列、祖先整行吸顶、级联勾选、目录多选、过滤／高亮、连接线、固定／可变行高及窄宽横向滚动。Jump to file 60 显示三层祖先；Size 表头排序、列边缘调宽、Details column 显隐和 Inspect 行内操作可组合使用，F2 进入行内操作、Escape 返回行。Collapse branches 后可把 notes.scoop 拖入 archive，也可悬停 src 展开或沿正文边缘滚动；排序时仅保留 Inside 移动。Load Remote 的首次异步请求故意失败，点击原父行的重试箭头后成功；切页取消尚未完成的加载，已加载数据和选择保留。Reset tree 恢复演示数据；主题、RTL 与减少动态沿 Gallery 顶部设置。示例只修改内存数据，不访问真实文件系统。
+
 Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、长文换行及可拒绝的受控绑定；Hover Card 页展示可选文字、关注操作和嵌套 Popover。Popover 页可切换箭头，三页沿 Gallery 的 System／Neutral、明暗、RTL 与 Reduced Motion 配置。
 
-组件页面包括普通、invalid、disabled、真实焦点状态和各公开变体。组件及组合应用的实际验证范围见 [实施记录](../../../../../docs/ui/shadcn/PROGRESS.md)。
+组件页面包括普通、invalid、disabled、真实焦点状态和各公开变体。组件及组合应用的实际验证范围见 [实施记录](../../../../../docs/ui/shadcn/PROGRESS.md)，Tree 的定向验证与系统拖放限制见 [Tree 实施记录](../../../../../docs/ui/tree/PROGRESS.md)。
 
 在准备好开发 sysroot 后运行：
 

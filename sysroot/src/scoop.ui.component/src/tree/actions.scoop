@@ -1,0 +1,79 @@
+package scoop.ui.component
+
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal class TreeActionInput(
+    val content: View,
+    val name: String,
+    val enabled: Boolean,
+    val theme: ThemeSource?,
+    val activate: (TreeChangeOrigin) -> Boolean,
+    val tabStop: Boolean,
+    val size: ButtonSize
+)
+
+/** Retains the ordinary button's press behavior and reports the actual action source. */
+private class TreeAction(private val props: Props<TreeActionInput>, scope: ComponentScope) :
+    Component(scope) {
+    private var origin = TreeChangeOrigin.Pointer
+    init {
+        scope
+            .resource {
+                scope
+                    .input
+                    .addEventHandler { context, event ->
+                        if (context.phase ==
+                            RoutedPhase.Capture ||
+                            context.phase ==
+                            RoutedPhase.Target
+                        )
+                            when (event) {
+                                case Keyboard(_) -> origin = TreeChangeOrigin.Keyboard
+                                case Pointer(_) -> origin = TreeChangeOrigin.Pointer
+                                case Contact(_) -> origin = TreeChangeOrigin.Pointer
+                                else -> {}
+                            }
+                    }
+            }
+    }
+    public override fun render(): View {
+        val input = props.value
+        return semanticButton(
+            ButtonProps(
+                ButtonContent.Custom(input.content), { input.activate(origin) },
+                enabled = input.enabled, theme = input.theme,
+                focus = FocusOptions(tabStop = input.tabStop), variant = ButtonVariant.Ghost,
+                size = input.size, style = buttonStyle {
+                    this.surface { this.padding = Some(Insets.all(0.0)) }
+                },
+                semantics = ComponentSemantics(name = Some(input.name))
+            ),
+            SemanticRole.Button, SemanticProperties(
+                name = Some(input.name),
+                enabled = input.enabled
+            ),
+            SemanticActions(
+                invoke = Some {
+                    treeAction(input.enabled && input.activate(TreeChangeOrigin.Accessibility))
+                }
+            )
+        )
+    }
+}
+
+internal fun treeActionButton(
+    content: View,
+    name: String,
+    enabled: Boolean,
+    theme: ThemeSource?,
+    activate: (TreeChangeOrigin) -> Boolean,
+    tabStop: Boolean = false,
+    size: ButtonSize = ButtonSize.IconSm
+): View = component(
+    TreeActionInput(content, name, enabled, theme, activate, tabStop, size),
+    { value, scope -> TreeAction(value, scope) }
+)

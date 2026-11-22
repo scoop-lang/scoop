@@ -1,0 +1,83 @@
+package scoop.tests.ui.component.treeaccessibility
+
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal fun treeData(): TreeData<Long> = TreeData(
+    [
+        TreeNode(
+            ViewKey.Number(0L),
+            0L,
+            "Workspace",
+            TreeChildren
+                .Known(
+                    Array<TreeNode<Long>>(300L) { at ->
+                        TreeNode(ViewKey.Number(at + 1L), at + 1L, f"File ${at + 1L}")
+                    }
+                )
+        ),
+        TreeNode(ViewKey.Number(500L), 500L, "Remote", TreeChildren.Deferred)
+    ]
+)
+
+internal fun treeColumns(probe: TreeProbe): TreeColumns<Long> = TreeColumns(
+    [
+        TreeColumn<Long>(
+            "name",
+            "Name",
+            { node ->
+                probe.builds += 1
+                if (node.value == 200L) probe.offscreenBuilds += 1
+                label(node.label) { this.theme = Some(probe.theme) }
+            },
+            size = TableColumnSize(GridTrack.Fixed(220.0)),
+            semanticText = Some { node -> node.label }
+        ),
+        TreeColumn<Long>(
+            "value", "Value", { node ->
+                label(f"${node.value}") { this.theme = Some(probe.theme) }
+            },
+            size = TableColumnSize(GridTrack.Fixed(120.0), 80.0, Some(240.0)),
+            semanticText = Some { node -> f"${node.value}" },
+            compare = Some { a, b -> if (a < b) -1 else if (a > b) 1 else 0 }
+        ),
+        TreeColumn<Long>(
+            "edit",
+            "Edit",
+            { node ->
+                button("Inspect", {}) {
+                    this.theme = Some(probe.theme)
+                    if (node.value == 200L) this.focus = FocusOptions(Some(probe.edit))
+                }
+            },
+            size = TableColumnSize(GridTrack.Fixed(140.0)),
+            focusable = true
+        )
+    ],
+    "name"
+)
+
+internal class LoadGate {
+    var calls = 0
+    private var pending: CancellableContinuation<Array<TreeNode<Long>>>? = None
+    suspend fun load(): Array<TreeNode<Long>> {
+        calls += 1
+        return suspendCancellableCoroutine { next -> pending = Some(next) }
+    }
+    fun fail() {
+        val value = pending!!
+        pending = None
+        value.tryResumeWithException(IllegalStateException(Some("offline")))
+    }
+    fun complete() {
+        val value = pending!!
+        pending = None
+        value
+            .tryResume(
+                [
+                    TreeNode(ViewKey.Number(600L), 600L, "Loaded child"),
+                    TreeNode(ViewKey.Number(601L), 601L, "Another child")
+                ]
+            )
+    }
+}

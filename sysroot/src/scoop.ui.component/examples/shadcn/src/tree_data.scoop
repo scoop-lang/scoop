@@ -1,0 +1,101 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal class TreeExampleFile(
+    val kind: String,
+    val size: Long,
+    val description: String,
+    val expandedDetail: Boolean = false
+)
+
+internal fun treeExampleFile(
+    key: Long,
+    name: String,
+    size: Long,
+    description: String,
+    expandedDetail: Boolean = false
+): TreeNode<TreeExampleFile> = TreeNode(
+    ViewKey.Number(key), TreeExampleFile("File", size, description, expandedDetail), name
+)
+
+private fun folder(
+    key: Long,
+    name: String,
+    children: Array<TreeNode<TreeExampleFile>>,
+    enabled: Boolean = true,
+    draggable: Boolean = true
+): TreeNode<TreeExampleFile> = TreeNode(
+    ViewKey.Number(key), TreeExampleFile("Folder", 0L, "Local workspace"), name,
+    TreeChildren.Known(children), enabled = enabled, draggable = draggable
+)
+
+internal fun treeExampleData(): TreeData<TreeExampleFile> = TreeData(
+    [
+        folder(
+            0L, "Workspace",
+            [
+                folder(
+                    1L, "src",
+                    [
+                        folder(
+                            2L, "components",
+                            Array<TreeNode<TreeExampleFile>>(180L) { index ->
+                                val number = index + 1L
+                                val suffix = if (number < 10L)
+                                    f"00${number}"
+                                else if (number < 100L) f"0${number}" else f"${number}"
+                                treeExampleFile(
+                                    100L + index, "component-" + suffix + ".scoop",
+                                    4L + (index * 7L) % 96L, "Reusable UI component",
+                                    index % 8L == 0L
+                                )
+                            }
+                        ),
+                        treeExampleFile(3L, "app.scoop", 28L, "Application entry")
+                    ]
+                ),
+                folder(
+                    4L, "docs",
+                    [
+                        treeExampleFile(410L, "README.md", 6L, "Project overview"),
+                        treeExampleFile(411L, "API.md", 12L, "Public interfaces", true),
+                        treeExampleFile(412L, "GUIDE.md", 18L, "Getting started")
+                    ]
+                ),
+                folder(5L, "archive", []),
+                treeExampleFile(6L, "notes.scoop", 22L, "Try dragging this into archive"),
+                folder(
+                    7L,
+                    "locked",
+                    [treeExampleFile(710L, "private.scoop", 4L, "Disabled parent")],
+                    enabled = false
+                ),
+                TreeNode(
+                    ViewKey.Number(800L), TreeExampleFile("Remote", 0L, "Load on demand"),
+                    "Remote", TreeChildren.Deferred
+                )
+            ],
+            draggable = false
+        ),
+        folder(
+            900L, "Examples",
+            [
+                treeExampleFile(901L, "hello.scoop", 2L, "Hello, Scoop"),
+                treeExampleFile(902L, "window.scoop", 8L, "Native window")
+            ]
+        )
+    ]
+)
+
+internal fun treeExampleRemote(): Array<TreeNode<TreeExampleFile>> = Array<
+    TreeNode<TreeExampleFile>
+>(6L) { index ->
+    treeExampleFile(
+        810L + index,
+        f"remote-${index + 1L}.scoop",
+        10L + index,
+        "Loaded asynchronously"
+    )
+}

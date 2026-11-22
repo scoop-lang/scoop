@@ -1,0 +1,108 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class TreeColumnsTest {
+    @Test
+    fun `column snapshots validate identity tree visibility widths and sortable columns`() {
+        val columns = treeTestColumns(TreeTestCalls())
+        assertEquals("name", columns.treeColumn)
+        assertFailsWith<IllegalArgumentException> { TreeColumns<Int>([], "name") }
+        assertFailsWith<IllegalArgumentException> {
+            TreeColumns([columns.columns[0L], columns.columns[0L]], "value")
+        }
+        assertFailsWith<IllegalArgumentException> { TreeColumns(columns.columns, "missing") }
+        assertFailsWith<IllegalArgumentException> {
+            TreeColumnState(Some(columns), hiddenColumns = ["name"])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TreeColumnState(Some(columns), hiddenColumns = ["fixed"])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TreeColumnState(Some(columns), hiddenColumns = ["value", "value"])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TreeColumnState(Some(columns), widths = [TableColumnWidth("value", 20.0)])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TreeColumnState(Some(columns), widths = [TableColumnWidth("value", 250.0)])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TreeColumnState(Some(columns), sorting = Some(TableSort("name")))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TreeColumnState<Int>(sorting = Some(TableSort("value")))
+        }
+        val model = TreeState(TreeData<Int>([]), columns = Some(columns))
+        assertFalse(model.setColumnVisible("name", false))
+        assertFalse(model.setColumnVisible("fixed", false))
+        assertFalse(model.resizeColumn("fixed", 100.0))
+        assertTrue(model.resizeColumn("value", 500.0))
+        assertEquals(Some(200.0), model.columnState.width("value"))
+        assertTrue(model.resizeColumn("value", 20.0))
+        assertEquals(Some(50.0), model.columnState.width("value"))
+        assertTrue(model.resetColumnWidth("value"))
+        assertEquals(None, model.columnState.width("value"))
+        assertTrue(model.setColumnVisible("value", false))
+        assertEquals(2L, model.visibleColumns.size)
+        assertEquals("name", model.visibleColumns[0L].id)
+    }
+
+    @Test
+    fun `replacing controlled definitions is atomic and retains only valid presentation state`() {
+        val original = treeTestColumns(TreeTestCalls())
+        val input = state(
+            TreeColumnState(
+                Some(original), hiddenColumns = ["value"],
+                widths = [TableColumnWidth("value", 180.0)], sorting = Some(TableSort("value"))
+            )
+        )
+        val accept = state(false)
+        val events = state(0)
+        val model = TreeState(
+            TreeData<Int>([]),
+            columnState = Some(
+                binding(
+                    get = { input.value },
+                    set = { value -> if (accept.value) input.value = value }
+                )
+            ),
+            onColumnsChange = { event ->
+                events.value += 1
+                assertEquals(TreeColumnChangeKind.Definition, event.kind)
+                assertSame(input.value, event.value)
+            }
+        )
+        val next = TreeColumns(
+            [
+                TreeColumn<Int>(
+                    "value",
+                    "New value",
+                    { _ -> empty() },
+                    size = TableColumnSize(minimum = 60.0, maximum = Some(120.0))
+                ),
+                original.columns[1L]
+            ],
+            "value"
+        )
+        val before = model.columnState
+        assertFalse(model.replaceColumns(Some(next)))
+        assertSame(before, model.columnState)
+        assertSame(original, model.columns!!)
+        assertEquals(0, events.value)
+        accept.value = true
+        assertTrue(model.replaceColumns(Some(next)))
+        assertSame(next, model.columns!!)
+        assertTrue(model.columnState.isVisible("value"))
+        assertEquals(Some(120.0), model.columnState.width("value"))
+        assertEquals(None, model.sort)
+        assertEquals(1, events.value)
+        assertTrue(model.replaceColumns(None))
+        assertFalse(panelPresent(model.columns))
+        assertEquals(0L, model.columnState.widths.size)
+        assertEquals(0L, model.visibleColumns.size)
+        assertEquals(2, events.value)
+    }
+}

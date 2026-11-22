@@ -1,0 +1,344 @@
+package scoop.tests.ui.component.treeaccessibility
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+import scoop.window.asyncio.*
+import scoop.window.native.*
+
+@Test
+private class NativeComponentTreeTest {
+    @Test
+    fun `real tree exposes virtual hierarchy loading and cell actions through AppKit`() {
+        val probe = TreeProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }
+                .use { host -> Application().runWithAsyncio(host) }
+            assertTrue(probe.finished)
+        } catch (error: Throwable) {
+            println(f"component tree native phase=${probe.phase}")
+            throw error
+        } finally {
+            probe.close()
+        }
+    }
+}
+
+internal class TreeProbe : Closeable {
+    val handle = TreeHandle()
+    val edit = FocusHandle()
+    val scroll = ScrollState()
+    val theme = ThemeSource(macosTheme())
+    val gate = LoadGate()
+    var checkOrigin = TreeChangeOrigin.Programmatic
+    var columnOrigin = TreeChangeOrigin.Programmatic
+    val model = TreeState(
+        treeData(), initialExpandedKeys = [ViewKey.Number(0L)],
+        checking = TreeChecking.Cascade([ViewKey.Number(1L)]),
+        onCheck = { event -> checkOrigin = event.origin },
+        onColumnsChange = { event -> columnOrigin = event.origin }
+    )
+    var scope: ComponentScope? = None
+    var builds = 0
+    var finished = false
+    var phase = 0
+    var offscreenBuilds = 0
+    private var waiting = false
+    private var active: ActiveApplication? = None
+    private var ui: UiWindow? = None
+    private var root: NativeNode? = None
+    private var tree: NativeNode? = None
+    private var branch: NativeNode? = None
+    private var leaf: NativeNode? = None
+    private var remote: NativeNode? = None
+    private var editCell: NativeNode? = None
+    private var sorter: NativeNode? = None
+    private var retry: NativeNode? = None
+    private var resize: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private var frames: FrameProbe? = None
+    private val held = ArrayList<NativeNode>()
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                model.setLoader(Some(TreeLoader(currentApplicationScope(), { _ -> gate.load() })))
+                model.replaceColumns(Some(treeColumns(this)))
+                val window = application
+                    .createWindow(
+                        windowAttributes {
+                            this.title = "Scoop Tree component accessibility"
+                            this.size = LogicalSize(340.0, 250.0)
+                        }
+                    )
+                window.requestFocus()
+                frames = Some(observeFrames(window))
+                ui = host.attach(window, { mount -> TreeScene(this, mount) })
+                @Unsafe {
+                    window
+                        .acquireNativeWindow()
+                        .use { lease ->
+                            @Unsafe {
+                                when (lease.handle) {
+                                    case AppKit(_, val pointer) ->
+                                        root = Some(keep(NativeNode(nativeRoot(pointer)!!)))
+                                    else -> fail(Some("expected AppKit"))
+                                }
+                            }
+                        }
+                }
+                calls = Some(
+                    NativeCalls(application.proxy(), { tag -> inspect(tag) }) { tag, result ->
+                        completed(tag, result)
+                    }
+                )
+                application
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(45L))
+                    )
+            }
+
+            case NewEvents(StartCause.Deadline) ->
+                fail(Some(f"tree component accessibility timeout ${phase}"))
+            else -> {}
+        }
+    }
+    fun accepted() {
+        val expected = phase
+        active!!.proxy().post { _ -> if (phase == expected) inspectAccepted() }
+    }
+    private fun inspectAccepted() {
+        if (finished || waiting || handle.isPending) return
+        if (phase == 12 && !edit.hasFocus) return
+        if (model.loadingKeys.size == 0L && frames!!.snapshot().required) return
+        waiting = true
+        when (phase) {
+            case 1 -> calls!!.post(leaf!!, phase, 21)
+            case 3 -> calls!!.post(remote!!, phase, 14)
+            case 7 -> calls!!.post(retry!!, phase, 0)
+            case 16 -> calls!!.post(sorter!!, phase, 0)
+            case 18 -> calls!!.post(resize!!, phase, 9, "160")
+            else -> calls!!.post(root!!, phase, 20)
+        }
+    }
+    private fun inspect(tag: Int) {
+        assertEquals(phase, tag)
+        val before = builds
+        when (phase) {
+            case 0 -> {
+                tree = Some(keep(root!!.find("files-tree")!!))
+                branch = Some(keep(tree!!.row(0L)!!))
+                leaf = Some(keep(tree!!.row(200L)!!))
+                remote = Some(keep(tree!!.row(301L)!!))
+                editCell = Some(keep(tree!!.cell(200L, 2L)!!))
+                assertTrue(tree!!.text(2, Some("AXOutline")))
+                assertTrue(branch!!.text(2, Some("AXRow")))
+                assertEquals(302L, tree!!.rowCount)
+                assertEquals(0L, branch!!.hierarchyLevel)
+                assertEquals(1L, leaf!!.hierarchyLevel)
+                assertTrue(keep(leaf!!.disclosedByRow()!!).same(branch!!))
+                assertEquals(2L, branch!!.numericValue)
+                assertEquals(0L, leaf!!.numericValue)
+                assertFalse(leaf!!.flag(2))
+                assertEquals(3L, tree!!.trait(6))
+                assertTrue(keep(tree!!.cell(200L, 1L)!!).text(1, Some("200")))
+                assertTrue(keep(tree!!.columnHeader(1L)!!).text(0, Some("Value")))
+            }
+
+            case 2 -> {
+                assertEquals(1L, leaf!!.numericValue)
+                assertFalse(leaf!!.flag(2))
+            }
+
+            case 4 -> {
+                assertTrue(remote!!.text(7, Some("Busy")))
+                assertTrue(remote!!.flag(17))
+            }
+
+            case 5 -> assertTrue(remote!!.text(5, Some("Loading failed: offline")))
+            case 6 -> retry = Some(find(root!!, "AXButton", "Retry loading Remote")!!)
+            case 8 -> assertTrue(remote!!.text(7, Some("Busy")))
+
+            case 9 -> {
+                assertTrue(remote!!.text(7, Some("Busy")))
+                assertFalse(remote!!.flag(17))
+            }
+
+            case 10 -> {
+                assertEquals(302L, tree!!.rowCount)
+                assertFalse(remote!!.flag(17))
+                assertFalse(remote!!.text(7, Some("Busy")))
+            }
+
+            case 11 -> {
+                assertEquals(304L, tree!!.rowCount)
+                val child = keep(tree!!.row(302L)!!)
+                assertEquals(1L, child.hierarchyLevel)
+                assertTrue(keep(child.disclosedByRow()!!).same(remote!!))
+                assertEquals(1L, child.numericValue)
+            }
+
+            case 12 -> {
+                assertTrue(branch!!.same(keep(tree!!.row(0L)!!)))
+                assertTrue(branch!!.flag(2))
+                assertTrue(editCell!!.flag(2))
+            }
+
+            case 13 -> {
+                assertTrue(tree!!.text(2, Some("AXOutline")))
+                assertEquals(304L, tree!!.rowCount)
+                assertFalse(editCell!!.flag(0))
+            }
+
+            case 14 -> {
+                assertEquals(4L, tree!!.rowCount)
+                assertFalse(branch!!.flag(17))
+                assertFalse(leaf!!.flag(0))
+            }
+
+            case 15 -> {
+                val header = keep(tree!!.columnHeader(1L)!!)
+                sorter = Some(find(header, "AXButton", "Value")!!)
+                resize = Some(find(root!!, "AXSplitter", "Resize Value")!!)
+            }
+
+            case 17 -> assertTrue(keep(tree!!.columnHeader(1L)!!).text(0, Some("Value ↑")))
+            case 19 -> assertEquals(160L, resize!!.numericValue)
+            case 20 -> assertFalse(tree!!.flag(0))
+            else -> {}
+        }
+        assertEquals(before, builds, Some("native metadata must not construct tree cells"))
+    }
+    private fun completed(tag: Int, result: Int) {
+        assertEquals(phase, tag)
+        assertEquals(1, result)
+        when (phase) {
+            case 0 -> {
+                assertTrue(builds < 40)
+                assertEquals(0, gate.calls)
+            }
+
+            case 1 -> {
+                assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(200L)))
+                assertEquals(TreeChangeOrigin.Accessibility, checkOrigin)
+                assertEquals(0, offscreenBuilds)
+            }
+
+            case 2 -> {
+                assertEquals(0, offscreenBuilds);
+                assertEquals(0, gate.calls)
+            }
+
+            case 3 -> {
+                assertEquals(1, gate.calls)
+                assertEquals(1L, model.loadingKeys.size)
+                model.setChecked(ViewKey.Number(500L), true)
+            }
+
+            case 4 -> gate.fail()
+
+            case 5 -> {
+                assertTrue(
+                    when (model.loadStatus(ViewKey.Number(500L))) {
+                        case Failed(_) -> true;
+                        else -> false
+                    }
+                )
+                assertTrue(handle.scrollToItem(ViewKey.Number(500L), ScrollAlignment.Start))
+            }
+
+            case 7 -> {
+                assertEquals(2, gate.calls);
+                assertEquals(1L, model.loadingKeys.size)
+            }
+
+            case 8 -> model.setExpanded(ViewKey.Number(500L), false)
+            case 9 -> gate.complete()
+
+            case 10 -> {
+                assertEquals(2L, model.loadedKeys.size)
+                assertEquals(CheckState.Checked, model.checkState(ViewKey.Number(600L)))
+                model.setExpanded(ViewKey.Number(500L), true)
+            }
+
+            case 11 -> {
+                assertFalse(handle.focusCell(ViewKey.Number(200L), "name"))
+                assertTrue(handle.focusCell(ViewKey.Number(200L), "edit"))
+            }
+
+            case 12 -> {
+                assertTrue(edit.hasFocus)
+                assertEquals(ViewKey.Number(0L), handle.reading!!.stickyKeys[0L])
+                model.replaceColumns(None)
+            }
+
+            case 13 -> {
+                assertFalse(edit.isAttached)
+                model.setExpanded(ViewKey.Number(0L), false)
+            }
+
+            case 14 -> model.replaceColumns(Some(treeColumns(this)))
+
+            case 16 -> {
+                assertEquals(Some(TableSort("value", TableSortDirection.Ascending)), model.sort)
+                assertEquals(TreeChangeOrigin.Accessibility, columnOrigin)
+            }
+
+            case 18 -> {
+                assertEquals(Some(160.0), model.columnState.width("value"))
+                assertEquals(TreeChangeOrigin.Accessibility, columnOrigin)
+            }
+
+            case 19 -> {
+                ui!!.close()
+                model.close()
+                phase = 20
+                calls!!.post(root!!, phase, 20)
+                return
+            }
+
+            case 20 -> {
+                finished = true;
+                active!!.requestExit();
+                return
+            }
+
+            else -> {}
+        }
+        waiting = false
+        phase += 1
+        scope!!.requestFrame()
+    }
+    private fun find(node: NativeNode, role: String, label: String): NativeNode? {
+        if (node.text(2, Some(role)) && node.text(0, Some(label))) return Some(node)
+        for (index in 0L..<node.count) {
+            val child = keep(node.child(index))
+            val found = find(child, role, label)
+            if (when (found) {
+                case Some(_) -> true;
+                case None -> false
+            }
+            )
+                return found
+        }
+        return None
+    }
+    private fun keep(node: NativeNode): NativeNode {
+        held.add(node);
+        return node
+    }
+    public override fun close() {
+        model.close()
+        frames?.close()
+        calls?.close()
+        for (node in held)
+            node.close()
+    }
+}

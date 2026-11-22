@@ -1,0 +1,298 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+import scoop.collections.sortedBy
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+internal class TreeReadingPosition<T>(
+    val plan: TreePlan<T>,
+    val revision: ULong,
+    val index: Long?,
+    val snapshot: TreeReadingSnapshot,
+    val stickyHeight: Double
+)
+
+internal class TreeFrame<T>(
+    val plan: TreePlan<T>,
+    val size: Size,
+    val layout: ScrollLayout,
+    val pinning: TreePinning,
+    val regular: Array<Long>,
+    val reading: TreeReadingPosition<T>,
+    val request: TreeScrollRequest?,
+    val requestDone: Boolean,
+    val recheck: Boolean,
+    val extents: ItemExtentIndex
+)
+
+/** A measure pass resolves estimates, ancestor slots and positioning against the same row index. */
+internal class TreeLayout<T>(
+    private val context: LazyMeasureContext,
+    private val constraints: Constraints,
+    private val plan: TreePlan<T>,
+    private val control: ScrollControl,
+    private val measurements: VirtualMeasurements,
+    private val previous: TreeReadingPosition<T>?,
+    private val request: TreeScrollRequest?
+) {
+    private val input = plan.input
+    private val projection = plan.projection
+    private val viewport = context.input<TreeViewportInput>()
+    private val extents = measurements
+        .prepare(
+            plan.source,
+            context.itemCount,
+            plan.extent,
+            Orientation.Vertical,
+            viewport.contentWidth,
+            context.layoutDirection
+        )
+    private val state = plan.vertical
+    private val revision = state.requestRevision
+    private val measured = HashSet<Long>()
+    private val requestActive = request?.revision == Some(revision)
+    private val destination = if (requestActive) projection.indexOfKey(request!!.key) else None
+    private val mayAnchor = input.anchor !=
+        VirtualListAnchor.None &&
+        when (previous) {
+            case Some(val value) ->
+                value.plan.vertical ===
+                    state &&
+                    value.revision ==
+                    revision &&
+                    !state.hasPositionAnimation
+            case None -> false
+        }
+    private val anchor = if (mayAnchor) previous!!.snapshot.anchor else None
+    private val anchorIndex = findAnchor()
+    private val outer: Size
+        get() = constraints
+            .constrain(
+                Size(
+                    constraints.maxWidth ?: constraints.minWidth,
+                    constraints.maxHeight ?: extents.total
+                )
+            )
+    private val body: Rect get() = control.contentViewport(outer, context.layoutDirection)
+    private val size: Size get() = Size(body.width, body.height)
+    private val hasViewport: Boolean get() = body.width > 0.0 && body.height > 0.0
+
+    private fun findAnchor(): Long? {
+        val key = anchor?.key ?: return None
+        when (projection.indexOfKey(key)) {
+            case Some(val at) -> return Some(at);
+            case None -> {}
+        }
+        val old = previous ?: return None
+        var parent = when (old.index) {
+            case Some(val at) -> old.plan.projection.rowAt(at).parent;
+            case None -> None
+        }
+        while (parent != None) {
+            val row = old.plan.projection.rowAt(parent!!)
+            when (projection.indexOfKey(row.key)) {
+                case Some(val at) -> return Some(at);
+                case None -> {}
+            }
+            parent = row.parent
+        }
+        return if (projection.count == 0L)
+            None
+        else
+            Some(
+                if ((old.index ?: 0L) < projection.count) old.index ?: 0L else projection.count - 1L
+            )
+    }
+    fun measure(): TreeFrame<T> {
+        if (hasViewport) {
+            val initial = when (destination) {
+                case Some(_) -> destination;
+                case None -> anchorIndex
+            }
+            when (initial) {
+                case Some(val at) -> ensure(at);
+                case None -> {}
+            }
+        }
+        var changed = true
+        while (changed) {
+            changed = false
+            for (at in context.pinnedItems)
+                if (ensure(at)) changed = true
+            val layout = snapshot()
+            val pinning = pins(layout.snapshot.offset.y)
+            for (row in pinning.rows)
+                if (ensure(row.index)) changed = true
+            val range = range(layout.snapshot.offset.y)
+            for (at in range.start..<range.end)
+                if (ensure(at)) changed = true
+        }
+        val layout = snapshot()
+        val offset = layout.snapshot.offset.y
+        val pinning = pins(offset)
+        val pinned = HashSet<Long>()
+        for (row in pinning.rows)
+            pinned.add(row.index)
+        val range = range(offset)
+        val regular = ArrayList<Long>()
+        val active = HashSet<Long>()
+        for (at in context.pinnedItems)
+            active.add(at)
+        var recheck = false
+        for (at in measured) {
+            var y = extents.prefix(at) - offset
+            if (pinned.contains(at)) {
+                for (row in pinning.rows)
+                    if (row.index == at)
+                        y = row.y - layout.overscroll.y - layout.snapshot.padding.top
+            } else
+                regular.add(at)
+            context
+                .placeItem(at, Point(-viewport.horizontalOffset - layout.snapshot.padding.left, y))
+            if (!pinned.contains(at) &&
+                !active.contains(at) &&
+                (at < range.start || at >= range.end)
+            )
+                recheck = true
+        }
+        val start = extents.indexAt(offset + pinning.height)
+        val end = extents.endBefore(offset + size.height)
+        val nextAnchor = if (hasViewport && start < extents.count)
+            Some(
+                VirtualReadingAnchor(
+                    projection.keyAt(start),
+                    lowerBound(offset + pinning.height - extents.prefix(start), 0.0)
+                )
+            )
+        else
+            None
+        val reading = TreeReadingSnapshot(
+            VirtualRange(start, if (end < start) start else end), nextAnchor,
+            Array<ViewKey>(pinning.rows.size) { index ->
+                projection.keyAt(pinning.rows[index].index)
+            },
+            lowerBound(size.height - pinning.height, 0.0), offset, offset >=
+                layout.snapshot.maximum.y
+        )
+        return TreeFrame(
+            plan,
+            outer,
+            layout,
+            pinning,
+            regular.sortedBy<Long, Long> { value -> value }.toArray(),
+            TreeReadingPosition(
+                plan,
+                revision,
+                if (start < extents.count) Some(start) else None,
+                reading,
+                pinning.height
+            ),
+            request,
+            requestActive && (destination == None || hasViewport),
+            recheck,
+            extents
+        )
+    }
+    private fun ensure(at: Long): Boolean {
+        if (measured.contains(at)) return false
+        val extent = when (plan.extent) {
+            case Fixed(val value) -> Some(value);
+            case Variable(_) -> None
+        }
+        val child = context
+            .measureItem(
+                at,
+                Constraints(
+                    viewport.contentWidth,
+                    Some(viewport.contentWidth),
+                    extent ?: 0.0,
+                    extent
+                )
+            )
+        measured.add(at)
+        measurements.record(at, child.size.height)
+        return true
+    }
+    private fun pins(offset: Double): TreePinning = treePinning(
+        projection,
+        extents,
+        offset,
+        size.height,
+        input.sticky
+    )
+    private fun range(offset: Double): VirtualRange {
+        if (!input.virtualize) return VirtualRange(0L, extents.count)
+        if (!hasViewport) return VirtualRange(0L, 0L)
+        val extra = input.overscan * plan.appearance.density
+        return VirtualRange(
+            extents.indexAt(lowerBound(offset - extra, 0.0)),
+            extents.endBefore(offset + size.height + extra)
+        )
+    }
+    private fun snapshot(): ScrollLayout {
+        val content = Size(size.width, extents.total)
+        val base = control.layout(size, content)
+        var target: Double? = None
+        when (destination) {
+            case Some(val at) ->
+                target = Some(aligned(at, base.snapshot.offset.y, request!!.alignment))
+            case None ->
+                if (mayAnchor &&
+                    input.anchor ==
+                    VirtualListAnchor.FollowEnd &&
+                    previous!!.snapshot.atEnd
+                )
+                    target = Some(base.snapshot.maximum.y)
+                else
+                    when (anchorIndex) {
+                        case Some(val at) ->
+                            target = Some(
+                                treeAnchoredOffset(
+                                    projection,
+                                    extents,
+                                    at,
+                                    anchor!!.offset,
+                                    size.height,
+                                    input.sticky,
+                                    previous!!.snapshot.offset,
+                                    previous!!.stickyHeight
+                                )
+                            )
+                        case None -> if (mayAnchor && extents.count == 0L) target = Some(0.0)
+                    }
+        }
+        return when (target) {
+            case Some(val value) ->
+                control.layout(size, content, Some(ScrollAdjustment(revision, Point(0.0, value))))
+            case None -> base
+        }
+    }
+    private fun aligned(at: Long, current: Double, alignment: ScrollAlignment): Double {
+        val start = extents.prefix(at)
+        val end = start + extents.extent(at)
+        val pinning = pins(current)
+        for (row in pinning.rows)
+            if (row.index == at && alignment == ScrollAlignment.Nearest) return current
+        val top = treeAnchoredOffset(
+            projection,
+            extents,
+            at,
+            0.0,
+            size.height,
+            input.sticky,
+            current,
+            pinning.height
+        )
+        return when (alignment) {
+            case Start -> top
+            case End -> end - size.height
+            case Center -> (top + end - size.height) / 2.0
+            case Nearest ->
+                if (start < current + pinning.height)
+                    top
+                else if (end > current + size.height) end - size.height else current
+        }
+    }
+}

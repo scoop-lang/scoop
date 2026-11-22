@@ -1,0 +1,75 @@
+package scoop.examples.ui.shadcn
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.component.column as treeDetailsColumn
+
+internal fun treeExampleColumns(model: TreeExamplesModel): TreeColumns<TreeExampleFile> =
+    TreeColumns(
+        [
+            TreeColumn<TreeExampleFile>(
+                "name", "Name", { node -> treeExampleText(node.label) },
+                size = TableColumnSize(GridTrack.Fixed(270.0), 170.0),
+                semanticText = Some { node -> node.label }
+            ),
+            TreeColumn<TreeExampleFile>(
+                "kind", "Kind", { node -> treeExampleText(node.value.kind) },
+                size = TableColumnSize(GridTrack.Fixed(76.0), 60.0),
+                semanticText = Some { node -> node.value.kind }
+            ),
+            TreeColumn<TreeExampleFile>(
+                "size", "Size", { node -> treeExampleText(treeExampleSize(node.value)) },
+                size = TableColumnSize(GridTrack.Fixed(88.0), 64.0),
+                alignment = AxisAlignment.End,
+                semanticText = Some { node -> treeExampleSize(node.value) },
+                compare = Some { left, right ->
+                    if (left.size < right.size) -1 else if (left.size > right.size) 1 else 0
+                }
+            ),
+            TreeColumn<TreeExampleFile>(
+                "details", "Details", { node ->
+                    treeDetailsColumn {
+                        this.label(node.value.description)
+                        if (model.variable.value && node.value.expandedDetail)
+                            this
+                                .typography(
+                                    "Includes examples and documentation",
+                                    TypographyRole.Muted
+                                )
+                        this.spacing = 3.0
+                        this.alignment = CrossAlignment.Stretch
+                    }
+                },
+                size = TableColumnSize(GridTrack.Fixed(246.0), 120.0),
+                semanticText = Some { node -> node.value.description }
+            ),
+            TreeColumn<TreeExampleFile>(
+                "inspect", "Action", { node ->
+                    button("Inspect", { model.inspect(node) }) {
+                        this.size = ButtonSize.Xs
+                        this.variant = ButtonVariant.Ghost
+                        this.enabled = node.enabled
+                        this.semantics = ComponentSemantics(name = Some("Inspect " + node.label))
+                    }
+                },
+                size = TableColumnSize(GridTrack.Fixed(82.0), 72.0),
+                focusable = true, resizable = false
+            )
+        ],
+        "name"
+    )
+
+internal fun treeExampleText(text: String, matched: Boolean = false): View = label(text) {
+    this
+        .settings {
+            this.maxLines = Some(1L)
+            this.ellipsis = "…"
+        }
+    this.style { this.weight = Some(if (matched) 600 else 400) }
+}
+
+internal fun treeExampleSize(value: TreeExampleFile): String = if (value.size == 0L)
+    "—"
+else
+    f"${value.size} KB"

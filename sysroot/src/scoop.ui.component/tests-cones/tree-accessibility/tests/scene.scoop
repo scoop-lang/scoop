@@ -1,0 +1,50 @@
+package scoop.tests.ui.component.treeaccessibility
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal class TreeScene(private val probe: TreeProbe, scope: ComponentScope) : Component(scope) {
+    public override fun render(): View {
+        val probe = this.probe
+        return element(
+            { mount -> TreePanel(probe, mount) },
+            [
+                tree(probe.model) {
+                    this.height = Some(230.0)
+                    this.handle = Some(probe.handle)
+                    this.scroll = Some(probe.scroll)
+                    this.theme = Some(probe.theme)
+                    this.sticky { this.enabled = true }
+                    this.semantics = ComponentSemantics(
+                        name = Some("Files tree"),
+                        automationId = Some("files-tree")
+                    )
+                }
+            ]
+        )
+    }
+}
+
+private class TreePanel(private val probe: TreeProbe, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    init {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(320.0, 230.0)))
+        context.placeChild(0L, Point(10.0, 10.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(340.0, 250.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) probe.accepted()
+            }
+    }
+}

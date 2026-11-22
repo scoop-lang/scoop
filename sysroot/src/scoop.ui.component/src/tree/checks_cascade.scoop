@@ -1,0 +1,143 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.ViewKey
+
+internal class TreeCascadeSnapshot<T>(
+    val data: TreeData<T>,
+    var input: Array<ViewKey>,
+    val states: HashMap<ViewKey, CheckState>,
+    var value: TreeCheckValue
+) {
+    fun state(key: ViewKey): CheckState = states[key] ?: CheckState.Unchecked
+}
+
+internal fun <T> treeCascadeSnapshot(data: TreeData<T>, input: Array<ViewKey>): TreeCascadeSnapshot<
+    T
+> {
+    val keys = treeUniqueKeys(input)
+    val seeds = treeKeySet(keys)
+    val states = HashMap<ViewKey, CheckState>()
+    for (key in keys)
+        states[key] = CheckState.Checked
+    for (row in data.records) {
+        var checked = seeds.contains(row.node.key)
+        if (row.node.canCheck)
+            when (row.parent) {
+                case Some(val parent) ->
+                    if (data.records[parent].node.canCheck &&
+                        states[data.records[parent].node.key] ==
+                        Some(CheckState.Checked)
+                    )
+                        checked = true
+                case None -> {}
+            }
+        states[row.node.key] = if (checked) CheckState.Checked else CheckState.Unchecked
+    }
+    var cursor = data.count
+    while (cursor > 0L) {
+        cursor -= 1L
+        val row = data.records[cursor]
+        if (row.node.canCheck)
+            states[row.node.key] = treeAggregateCheck(
+                data, cursor, { key -> states[key] ?: CheckState.Unchecked }
+            )
+    }
+    val checked = ArrayList<ViewKey>()
+    val half = ArrayList<ViewKey>()
+    for (key in keys)
+        if (data.indexOfKey(key) == None) checked.add(key)
+    for (row in data.records)
+        when (states[row.node.key]!!) {
+            case Checked -> checked.add(row.node.key)
+            case Indeterminate -> half.add(row.node.key)
+            case Unchecked -> {}
+        }
+    return TreeCascadeSnapshot(
+        data,
+        input,
+        states,
+        TreeCheckValue(checked.toArray(), half.toArray())
+    )
+}
+
+internal fun <T> treeAggregateCheck(
+    data: TreeData<T>,
+    index: Long,
+    state: (ViewKey) -> CheckState
+): CheckState {
+    val row = data.records[index]
+    var participating = 0L
+    var checked = 0L
+    var partial = false
+    for (child in row.children) {
+        val node = data.records[child].node
+        if (!node.canCheck) continue
+        participating += 1L
+        when (state(node.key)) {
+            case Checked -> checked += 1L
+            case Indeterminate -> partial = true
+            case Unchecked -> {}
+        }
+    }
+    if (participating == 0L) return state(row.node.key)
+    if (checked == participating) return CheckState.Checked
+    return if (checked > 0L || partial) CheckState.Indeterminate else CheckState.Unchecked
+}
+
+/** Stages only the affected branch and its conducting ancestors until the binding accepts it. */
+internal class TreeCascadeChange<T>(
+    val previous: TreeCascadeSnapshot<T>,
+    index: Long,
+    checked: Boolean
+) {
+    private val changes = HashMap<ViewKey, CheckState>()
+    private val order = ArrayList<ViewKey>()
+    val value = compute(index, checked)
+    private fun compute(index: Long, checked: Boolean): TreeCheckValue {
+        val data = previous.data
+        val end = data.records[index].end
+        var at = index
+        while (at < end) {
+            val row = data.records[at]
+            if (!row.node.canCheck) {
+                at = row.end
+                continue
+            }
+            change(row.node.key, if (checked) CheckState.Checked else CheckState.Unchecked)
+            at += 1L
+        }
+        var parent = data.records[index].parent
+        while (true) {
+            val ancestor = parent ?: break
+            val row = data.records[ancestor]
+            if (!row.node.canCheck) break
+            change(row.node.key, treeAggregateCheck(data, ancestor, { key -> current(key) }))
+            parent = row.parent
+        }
+        return TreeCheckValue(
+            updated(previous.value.checkedKeys, CheckState.Checked),
+            updated(previous.value.halfCheckedKeys, CheckState.Indeterminate)
+        )
+    }
+    private fun current(key: ViewKey): CheckState = changes[key] ?: previous.state(key)
+    private fun change(key: ViewKey, state: CheckState) {
+        if (changes[key] == None) order.add(key)
+        changes[key] = state
+    }
+    private fun updated(keys: Array<ViewKey>, state: CheckState): Array<ViewKey> {
+        val result = ArrayList<ViewKey>()
+        val retained = treeKeySet([])
+        for (key in keys)
+            if (current(key) == state && retained.add(key)) result.add(key)
+        for (key in order)
+            if (current(key) == state && retained.add(key)) result.add(key)
+        return result.toArray()
+    }
+    fun accept(input: Array<ViewKey>) {
+        for (key in order)
+            previous.states[key] = changes[key]!!
+        previous.input = input
+        previous.value = value
+    }
+}

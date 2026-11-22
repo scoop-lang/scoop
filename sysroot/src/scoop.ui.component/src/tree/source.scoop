@@ -1,0 +1,174 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.window.accessibility.*
+
+internal class TreeItems<T>(val plan: TreePlan<T>) : ItemSource, NavigationSource {
+    private val projection = plan.projection
+    public override val count: Long get() = projection.count
+    public override fun keyAt(index: Long): ViewKey = projection.keyAt(index)
+    public override fun indexOfKey(key: ViewKey): Long? = projection.indexOfKey(key)
+    public override fun enabledAt(index: Long): Boolean = plan.input.enabled &&
+        projection.rowAt(index).node.enabled
+    public override fun searchTextAt(index: Long): String = projection.rowAt(index).node.label
+    public override fun build(index: Long): View = component(
+        TreeRowInput(plan, index),
+        { value, scope -> TreeRowView(value, scope) },
+        keyAt(index)
+    )
+
+    fun semantics(): ItemSemantics {
+        val model = plan.input.state
+        val selected = ArrayList<SemanticItemKey>()
+        for (key in model.selectedKeys)
+            if (indexOfKey(key) != None) selected.add(componentSemanticKey(key))
+        // The owning render subscribes to these reads without constructing offscreen rows.
+        val checks = model.checkValue
+        val checked = treeKeySet(checks.checkedKeys)
+        val mixed = treeKeySet(checks.halfCheckedKeys)
+        val loading = treeKeySet(model.loadingKeys)
+        return ItemSemantics(
+            this,
+            { index ->
+                val row = projection.rowAt(index)
+                val node = row.node
+                Some(
+                    SemanticItemProperties(
+                        name = Some(node.label), enabled = enabledAt(index), focusable = enabledAt(
+                            index
+                        ),
+                        selected = if (node.selectable && model.selection != TreeSelectionMode.None)
+                            Some(model.isSelected(node.key))
+                        else
+                            None,
+                        expanded = if (node.expandable) Some(row.expanded) else None,
+                        busy = loading.contains(node.key),
+                        description = when (model.loadStatus(node.key)) {
+                            case Failed(val error) ->
+                                Some(
+                                    if (error is Exception)
+                                        "Loading failed: " + (error.message ?: "unknown error")
+                                    else
+                                        "Loading failed"
+                                )
+                            else -> None
+                        },
+                        hierarchyLevel = Some(row.depth),
+                        parentKey = when (row.parent) {
+                            case Some(val at) -> Some(componentSemanticKey(keyAt(at)));
+                            case None -> None
+                        },
+                        siblings = Some(SemanticItemPosition(row.position, row.siblingCount)),
+                        checked = if (treeCheckingEnabled(model.checking) && node.checkable)
+                            Some(
+                                if (mixed.contains(node.key))
+                                    SemanticChecked.Mixed
+                                else if (checked.contains(node.key))
+                                    SemanticChecked.On
+                                else
+                                    SemanticChecked.Off
+                            )
+                        else
+                            None
+                    )
+                )
+            },
+            search = SemanticItemSearch(name = true),
+            selection = if (model.selection == TreeSelectionMode.None)
+                None
+            else
+                Some(
+                    SemanticCollectionSelection(
+                        selected.toArray(),
+                        multiple = model.selection == TreeSelectionMode.Multiple
+                    )
+                ),
+            setSelected = Some { key, value ->
+                val node = model.data.node(key)
+                if (!plan.input.enabled ||
+                    model.selection ==
+                    TreeSelectionMode.None ||
+                    !(node?.canSelect ?: false)
+                )
+                    SemanticActionResult.Rejected
+                else
+                    treeAction(
+                        model
+                            .setSelected(
+                                treeChangedKey(
+                                    if (model.selection == TreeSelectionMode.Single && value)
+                                        []
+                                    else
+                                        model.selectedKeys,
+                                    key,
+                                    value
+                                ),
+                                TreeChangeOrigin.Accessibility
+                            )
+                    )
+            },
+            grid = if (!plan.explicit)
+                None
+            else
+                Some(
+                    SemanticGrid(
+                        Array<SemanticGridColumn>(plan.columns.size) { at ->
+                            SemanticGridColumn(
+                                SemanticItemKey.Text(plan.columns[at].id),
+                                Some(plan.columns[at].header),
+                                plan.headers[at].id
+                            )
+                        },
+                        { key, column ->
+                            val at = indexOfKey(treeViewKey(key))
+                            when (at) {
+                                case None -> None
+
+                                case Some(val index) -> {
+                                    val definition = plan.columns[column]
+                                    val row = projection.rowAt(index)
+                                    Some(
+                                        SemanticItemProperties(
+                                            name = Some(definition.header),
+                                            value = when (definition.semanticText) {
+                                                case Some(val text) -> Some(text(row.node));
+                                                case None ->
+                                                    if (definition.id == plan.treeColumn)
+                                                        Some(row.node.label)
+                                                    else
+                                                        None
+                                            },
+                                            enabled = enabledAt(index),
+                                            focusable = enabledAt(index) && definition.focusable
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    )
+                ),
+            setExpanded = Some { key, value ->
+                treeAction(
+                    plan.input.enabled &&
+                        model.setExpanded(key, value, TreeChangeOrigin.Accessibility)
+                )
+            },
+            setChecked = Some { key, value ->
+                treeAction(
+                    plan.input.enabled &&
+                        model.setChecked(key, value, TreeChangeOrigin.Accessibility)
+                )
+            }
+        )
+    }
+}
+
+internal fun treeAction(accepted: Boolean): SemanticActionResult = if (accepted)
+    SemanticActionResult.Completed
+else
+    SemanticActionResult.Rejected
+
+internal fun treeViewKey(key: SemanticItemKey): ViewKey = when (key) {
+    case Number(val value) -> ViewKey.Number(value);
+    case Text(val value) -> ViewKey.Text(value)
+}

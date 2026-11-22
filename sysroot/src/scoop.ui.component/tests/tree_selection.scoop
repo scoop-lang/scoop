@@ -1,0 +1,103 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class TreeSelectionTest {
+    @Test
+    fun `controlled expansion selection and query rejection preserves actual state and notifications`() {
+        val expandedEvents = state(0)
+        val selectedEvents = state(0)
+        val expanded = state<Array<ViewKey>>([])
+        val selected = state<Array<ViewKey>>([])
+        val query = state(TreeQuery<Int>())
+        val model = TreeState(
+            TreeData([treeTestNode(0L, TreeChildren.Known([treeTestNode(1L)]))]),
+            expanded = Some(binding(get = { expanded.value }, set = { _ -> })),
+            selected = Some(binding(get = { selected.value }, set = { _ -> })),
+            query = Some(binding(get = { query.value }, set = { _ -> })),
+            onExpand = { _ -> expandedEvents.value += 1 }, onSelect = { _ ->
+                selectedEvents.value += 1
+            }
+        )
+        val before = model.projection
+        assertFalse(model.setExpanded(ViewKey.Number(0L), true))
+        assertFalse(model.select(ViewKey.Number(0L)))
+        assertFalse(model.setQuery(TreeQuery<Int>("missing", TreeQueryMode.Filter)))
+        assertSame(before, model.projection)
+        assertEquals(0, expandedEvents.value)
+        assertEquals(0, selectedEvents.value)
+        expanded.value = treeTestKeys([0L])
+        selected.value = treeTestKeys([1L])
+        assertTreeRows(model.projection, [0L, 1L])
+        assertTrue(model.isSelected(ViewKey.Number(1L)))
+        assertEquals(0, expandedEvents.value)
+        assertEquals(0, selectedEvents.value)
+    }
+
+    @Test
+    fun `range gestures shrink against their baseline and skip unselectable nodes`() {
+        val model = TreeState(
+            TreeData(
+                [
+                    treeTestNode(0L),
+                    treeTestNode(1L),
+                    treeTestNode(2L, enabled = false),
+                    treeTestNode(3L, selectable = false),
+                    treeTestNode(4L),
+                    treeTestNode(5L)
+                ]
+            ),
+            selection = TreeSelectionMode.Multiple
+        )
+        assertTrue(model.select(ViewKey.Number(1L)))
+        assertTrue(model.select(ViewKey.Number(5L), TreeSelectionAction.Range))
+        assertTrue(treeKeysEqual(treeTestKeys([1L, 4L, 5L]), model.selectedKeys))
+        assertTrue(model.select(ViewKey.Number(4L), TreeSelectionAction.Range))
+        assertTrue(treeKeysEqual(treeTestKeys([1L, 4L]), model.selectedKeys))
+        assertTrue(model.select(ViewKey.Number(0L), TreeSelectionAction.Range))
+        assertTrue(treeKeysEqual(treeTestKeys([0L, 1L]), model.selectedKeys))
+        model.setSelected(treeTestKeys([0L, 99L]))
+        assertTrue(model.select(ViewKey.Number(1L), TreeSelectionAction.Toggle))
+        assertTrue(model.select(ViewKey.Number(5L), TreeSelectionAction.AddRange))
+        assertTrue(model.isSelected(ViewKey.Number(99L)))
+        assertTrue(model.isSelected(ViewKey.Number(5L)))
+        assertTrue(model.select(ViewKey.Number(1L), TreeSelectionAction.AddRange))
+        assertFalse(model.isSelected(ViewKey.Number(4L)))
+        assertFalse(model.isSelected(ViewKey.Number(5L)))
+        assertTrue(model.isSelected(ViewKey.Number(0L)))
+        assertTrue(model.isSelected(ViewKey.Number(99L)))
+        assertFalse(model.select(ViewKey.Number(2L)))
+        assertFalse(model.select(ViewKey.Number(3L)))
+    }
+
+    @Test
+    fun `hidden anchors restart from actual focus and single selection stays independent of expansion`() {
+        val model = TreeState(
+            TreeData(
+                [
+                    treeTestNode(0L, TreeChildren.Known([treeTestNode(1L), treeTestNode(2L)])),
+                    treeTestNode(3L),
+                    treeTestNode(4L)
+                ]
+            ),
+            selection = TreeSelectionMode.Multiple, initialExpandAll = true
+        )
+        model.select(ViewKey.Number(1L))
+        model.setExpanded(ViewKey.Number(0L), false)
+        assertTrue(model.isSelected(ViewKey.Number(1L)))
+        assertFalse(model.select(ViewKey.Number(2L), TreeSelectionAction.Range))
+        model.select(ViewKey.Number(4L), TreeSelectionAction.Range, Some(ViewKey.Number(3L)))
+        assertTrue(treeKeysEqual(treeTestKeys([3L, 4L]), model.selectedKeys))
+        val single = TreeState(model.data)
+        single.select(ViewKey.Number(0L))
+        assertFalse(single.isExpanded(ViewKey.Number(0L)))
+        single.setExpanded(ViewKey.Number(0L), true)
+        assertTrue(single.isSelected(ViewKey.Number(0L)))
+        single.select(ViewKey.Number(3L), TreeSelectionAction.Range)
+        assertTrue(treeKeysEqual(treeTestKeys([3L]), single.selectedKeys))
+        assertFailsWith<IllegalArgumentException> { single.setSelected(treeTestKeys([0L, 3L])) }
+        assertFailsWith<IllegalArgumentException> { single.setExpanded([ViewKey.Position]) }
+    }
+}
