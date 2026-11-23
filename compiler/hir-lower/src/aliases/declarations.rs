@@ -160,7 +160,7 @@ impl Lowerer {
             let id = self.fresh_source_type_param(parameter, parameters.len());
             parameters.push(crate::lower_type_param_decl(parameter, id));
         }
-        let id = self.source_type_aliases.alloc(SourceTypeAlias {
+        let alias = SourceTypeAlias {
             annotations: declaration.annotations.clone(),
             lexical: false,
             name: declaration.name.text.clone(),
@@ -175,7 +175,8 @@ impl Lowerer {
             origin: self.definition_origin(declaration.span),
             file,
             resolution: TypeAliasResolution::Unresolved,
-        });
+        };
+        let id = self.source_type_aliases.alloc(alias);
         self.observe_type_declaration(
             file,
             declaration.name.span,

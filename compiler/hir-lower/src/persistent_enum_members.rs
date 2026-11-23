@@ -16,7 +16,7 @@ impl Lowerer {
         let result = match &mut self.enum_member_identities {
             Some(identities) => identities.append_declarations(&self.enums, nominals),
             None => hir::HirEnumMemberIdentities::from_declarations(&self.enums, nominals)
-                .map(|identities| self.enum_member_identities = Some(identities)),
+                .map(|identities| self.enum_member_identities = Some(identities.into())),
         };
         result.map_err(|error| {
             let enumeration = hir::EnumId::from_raw(error.enumeration().into());

@@ -117,7 +117,7 @@ impl Lowerer {
         // Relevance is complete independently of finiteness. Editing queries
         // keep it for the declarations outside the failed components.
         if valid || self.editing_declarations.is_some() {
-            self.value_layout_relevance = relevance;
+            self.value_layout_relevance = relevance.into();
         }
         valid
     }

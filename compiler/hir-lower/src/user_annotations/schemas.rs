@@ -121,6 +121,7 @@ impl Lowerer {
         if complete {
             self.document_annotation(id);
             let rules = self.initial_annotation_rules(id);
+            let definition_origin = self.definition_origin(input.declaration.span);
             self.annotation_metadata
                 .declarations
                 .push(hir::SourceAnnotationDeclaration {
@@ -128,7 +129,7 @@ impl Lowerer {
                     parameters: parameters.clone(),
                     rules,
                     visibility: input.access.declared,
-                    definition_origin: self.definition_origin(input.declaration.span),
+                    definition_origin,
                 });
         }
         self.current_file = file;

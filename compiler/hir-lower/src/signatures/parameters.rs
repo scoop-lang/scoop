@@ -22,7 +22,7 @@ impl Lowerer {
             ast::ParameterSyntax::Default { expression, .. } => (
                 declared_ty,
                 FnParamCalling::Default {
-                    expression: expression.clone(),
+                    expression: expression.clone().into(),
                 },
             ),
             ast::ParameterSyntax::Vararg { default, .. } => {
@@ -31,7 +31,7 @@ impl Lowerer {
                     ast::VarargDefaultSyntax::EmptyWhenOmitted => FnVarargOmission::EmptyArray,
                     ast::VarargDefaultSyntax::Expression { expression, .. } => {
                         FnVarargOmission::Default {
-                            expression: expression.clone(),
+                            expression: expression.clone().into(),
                         }
                     }
                 };
