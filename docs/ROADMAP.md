@@ -919,7 +919,7 @@ Apple 部署平台与机器架构分别选择。iOS arm64 设备及模拟器分�
 - [高级文本排版](graphics/text/DESIGN.md#8-后续增强图文绕排分栏与区域续排)：在内容／样式／InlineKey 基础上增加矩形区域续排、分栏及图文绕排，保留全局文本位置和真实行片段。固定宽度 SkParagraph 不能直接完成任意区域排版；后端增强与公共 UI 适配按实际场景推进，跨栏保留子组件身份。
 - [GPU 与 3D 互操作](ui/DESIGN.md#13-后续增强gpu-互操作3d-与视频)：先补充外部 GPU 图像导入和生产／采样的同步及资源合同，再分别推进 UI 纹理宿主和组件内 3D 合成。复用现有 Metal／D3D12 目标基础；GL／GLES／Vulkan 按实际需求增加后端，离屏 UI 另须接入帧、输入映射和根所有权。
 - [视频展示](ui/DESIGN.md#135-视频播放)：复用帧图像接入，媒体库负责解码、音频与播放时钟，UI 适配负责展示和状态通知；区分业务 State 与连续帧，补齐按呈现时间选帧、YUV／SDR 转换、跨线程交付、seek 迟到帧及共享播放器生命周期。
-- [SkSL 与组件效果](graphics/sksl/DESIGN.md)：在 graphics 接入 SkRuntimeEffect、uniform／输入 shader 与 Paint，自绘 Element 通过 Surface 动画驱动参数；程序复用、参数独立，静止不产生帧需求。本期先完成基础 Skia 滤镜与 style，后续 SkSL 先完成填充和已有图像效果，再复用图层接入自定义子树滤镜。Backdrop blur 的背后采样另行设计。
+- graphics 已接入 SkSL 编译、uniform 与 shader 输入、Canvas 形状着色、图层滤镜和背景采样。固定工具栏示例用滚动列表对照高斯模糊和自定义折射。[接入设计](graphics/sksl/DESIGN.md) · [独立 demo](../sysroot/src/scoop.ui.component/examples/glass/README.md)
 - 上述方向列在首期自绘框架、富文本和基础控件之后，不扩充当前交付前置。文本和基础 SkSL 效果可独立推进，3D 元素和视频共享图像接入但互不依赖；先完成代表性闭环，再决定后续平台与高级能力范围。
 
 ### `scoop example` 外部子命令（首批 24 个主题已实现）

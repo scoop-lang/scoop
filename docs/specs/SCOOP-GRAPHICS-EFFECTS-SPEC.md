@@ -1,6 +1,6 @@
 # Scoop 图像滤镜与图层规范
 
-日期：2026-11-09。状态：macOS aarch64 与 Rosetta x86_64 的最初 Raster／Metal 定向验证见 [UI 实施记录](../ui/PROGRESS.md)；本轮 Metal、D3D12、GLES 及图层优化验证见 [基础设施实施记录](../ui/infrastructure/PROGRESS.md)。本文扩展 [Surface 规范第 2 节](SCOOP-SURFACE-SPEC.md#2-几何与绘制)的 graphics 合同；UI 应用方式见 [公共样式规范](SCOOP-UI-STYLE-SPEC.md)。
+更新于 2026-11-23。本文扩展 [Surface 规范第 2 节](SCOOP-SURFACE-SPEC.md#2-几何与绘制)的 graphics 合同。基础滤镜与图层优化的历史验证见 [UI 实施记录](../ui/PROGRESS.md)和[基础设施实施记录](../ui/infrastructure/PROGRESS.md)。SkSL 与背景采样的 UI 接入见[公共样式规范](SCOOP-UI-STYLE-SPEC.md)和[独立工具栏示例](../../sysroot/src/scoop.ui.component/examples/glass/README.md)。
 
 ## 1. 职责与公开对象
 
@@ -13,6 +13,7 @@
 | `ImageFilter.blur(sigmaX, sigmaY)` | 对预乘 RGBA 作 Gaussian blur；源外按透明黑采样 |
 | `ImageFilter.dropShadow(offset, sigmaX, sigmaY, color)` | 取 S 的 alpha，模糊、着色并平移为阴影，然后把 S 以 SrcOver 合成到阴影上 |
 | `ImageFilter.dropShadowOnly(offset, sigmaX, sigmaY, color)` | 仅输出上述阴影，不包含 S |
+| `ImageFilter.runtimeShader(program, sourceChild, sampleRadius) { … }` | 用 sourceChild 采样 S 并执行已绑定的 SkSL 程序，见第 5 节 |
 | `filter.then(next)` | 返回 `next(filter(S))`；列表中的先后顺序就是实际求值顺序 |
 
 sigma 是标准差，sigmaX／sigmaY 为有限非负的局部逻辑单位；offset 为同坐标系的有限 Point。零 sigma 合法，仍可产生平移、着色或恒等结果。颜色沿用 Color 的非预乘 sRGB 输入，模糊与合成使用预乘 alpha；不能把 RGB 与 alpha 重复相乘。非法参数按 graphics 的既有异常规则拒绝。

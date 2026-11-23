@@ -237,7 +237,7 @@ Drawer 复用同一个 Portal，增加实际布局得到的拖动位置与 snap�
 
 Select 的选中项对齐采用公共内容锚点：Popup 根布局在测量中提交选中行的局部矩形，Portal 按该矩形与外部 LayoutAnchor 的目标位置求平移，之后统一执行视口约束／碰撞。普通 popup 模式仍沿 Anchored。选中项可能虚拟化时只按需实现该项及可见范围，准备完成后再开放输入；没有选中项或该项不可用时使用普通侧边定位。两条定位方式共用最终 Popup 几何，不在 Select 里保存第二份窗口坐标或访问 UI internal 节点。实际协议为 `LayoutMetrics.overlayAnchor: Rect?` 和 `OverlayPlacement.ContentAligned`；改变局部坐标的容器显式转换它。Select 在首次 Accepted 后保留打开时的局部滚动参考，手动滚动不带动面板位置；当前有限候选使用普通 ScrollViewport。
 
-关闭中复用 Presence：立即取消内部输入，保留绘图资源，Modal／FocusContained 的相应约束保留到成功移除；中途重开从当前进度返回。首次焦点、锚点、碰撞、拖动命中和最终恢复都不能先于成功场景。Backdrop 只需颜色／透明度；不把尚未交付的 backdrop blur 设为前置。
+关闭中复用 Presence：立即取消内部输入，保留绘图资源，Modal／FocusContained 的相应约束保留到成功移除；中途重开从当前进度返回。首次焦点、锚点、碰撞、拖动命中和最终恢复都不能先于成功场景。此处的 Backdrop 使用颜色和透明度。
 
 Popover 首次交付提供 `popover(open.binding(), content) { trigger("Open"); title("Details") }` 与对应 Props／Component。trigger 是普通 Button，或省略并提供公共 LayoutAnchor；mode 可选择全部三种模式，focus 独立配置。默认 Escape／外部关闭、包含 trigger 的内部判断、业务 veto、受控绑定和真实值通知沿 Portal；内容可组合编辑器、表单与嵌套 Popover。默认宽 288、padding／spacing 10、corner 8、100ms 淡入缩放和定位方向位移，随字体、主题和 Reduced Motion 调整。详细合同见组件规范 §28。
 

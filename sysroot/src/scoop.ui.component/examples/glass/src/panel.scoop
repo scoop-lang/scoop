@@ -1,0 +1,97 @@
+package scoop.examples.glass
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.max
+import scoop.math.min
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal val lensSource = """
+uniform shader background;
+uniform float2 size;
+half4 main(float2 p) {
+    float radius = min(20.0, min(size.x, size.y) * 0.5);
+    float2 halfSize = size * 0.5;
+    float2 q = p - halfSize;
+    float2 nearEdge = q - clamp(q, -halfSize + radius, halfSize - radius);
+    float distance = length(nearEdge);
+    float2 normal = nearEdge / max(distance, 0.001);
+    float rim = smoothstep(0.0, radius, distance);
+    half4 sampleColor = background.eval(p - normal * (13.0 * rim));
+    float glint = 0.24 * rim * rim * max(0.0, dot(normal, float2(-0.6, -0.8)));
+    return half4(mix(sampleColor.rgb, half3(sampleColor.a), glint), sampleColor.a);
+}
+"""
+
+internal class GlassPanel(
+    private val name: String,
+    private val program: ShaderProgram?,
+    private val enabled: Props<Boolean>,
+    scope: ComponentScope
+) : Element<ImageFilter>(scope) {
+    private val painter = scope.resource { StylePainter() }
+    private val label = scope.resource { lettering(scope, name, 17.0, 650) }
+    private val surface = style {
+        corners = Corners.all(20.0)
+        background = Some(Paint(Color(0.025, 0.058, 0.085, 0.47)))
+        border = Some(Border.all(1.0, Color.White.withAlpha(0.62)))
+        clipContent = true
+    }
+
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ImageFilter
+    > {
+        val size = constraints.constrain(Size(272.0, 68.0))
+        val button = context
+            .measureChild(
+                0L,
+                Constraints
+                    .tight(Size(min(52.0, max(0.0, size.width - 20.0)), min(32.0, size.height)))
+            )
+        context
+            .placeChild(
+                0L,
+                Point(
+                    max(0.0, size.width - button.size.width - 14.0),
+                    (size.height - button.size.height) * 0.5
+                )
+            )
+        val filter = when (program) {
+            case None -> ImageFilter.blur(7.0, 7.0)
+            case Some(val lens) ->
+                ImageFilter
+                    .runtimeShader(lens, "background", 13.0) {
+                        setFloats("size", [size.width.toFloat(), size.height.toFloat()])
+                    }
+        }
+        return LayoutResult(LayoutMetrics(size), filter, { filter.close() })
+    }
+
+    public override fun scene(context: SceneContext, layout: ImageFilter) {
+        painter
+            .scene(context, surface, if (enabled.value) Some(layout) else None) { local ->
+                if (local.size.width >= 174.0) {
+                    local.draw { paint -> paint.canvas.drawText(label, Point(17.0, 22.0)) }
+                }
+                local.children()
+            }
+    }
+}
+
+internal fun lettering(
+    scope: ComponentScope,
+    value: String,
+    pixels: Double,
+    weight: Int
+): TextLayout = Paragraph(
+    scope.defaultFonts,
+    value,
+    textStyle {
+        families = ["Inter", "Helvetica Neue", "Arial", "sans-serif"]
+        fontSize = pixels
+        this.weight = weight
+        color = Color.White
+    }
+)
+    .use { paragraph -> paragraph.layoutUnwrapped() }

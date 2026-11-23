@@ -1,0 +1,68 @@
+package scoop.examples.glass
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+
+internal struct Swatch(val name: String, val dark: Color, val light: Color, val phase: Float)
+
+internal val swatches = [
+    Swatch("Tidal blue", Color(0.025, 0.15, 0.29), Color(0.14, 0.88, 0.85), 0.2f),
+    Swatch("Blood orange", Color(0.29, 0.055, 0.12), Color(1.0, 0.55, 0.24), 1.6f),
+    Swatch("Ultraviolet", Color(0.14, 0.08, 0.32), Color(0.76, 0.60, 1.0), 2.2f),
+    Swatch("Sea grass", Color(0.05, 0.20, 0.17), Color(0.72, 0.91, 0.36), 3.5f),
+    Swatch("Rose quartz", Color(0.27, 0.08, 0.20), Color(1.0, 0.72, 0.78), 4.1f),
+    Swatch("Lapis", Color(0.035, 0.11, 0.33), Color(0.51, 0.74, 1.0), 5.0f),
+    Swatch("Amber", Color(0.23, 0.12, 0.06), Color(1.0, 0.80, 0.37), 6.1f),
+    Swatch("Lagoon", Color(0.035, 0.16, 0.22), Color(0.34, 0.91, 0.70), 7.4f)
+]
+
+internal val patternSource = """
+layout(color) uniform half4 darkInk;
+layout(color) uniform half4 lightInk;
+uniform float phase;
+half4 main(float2 p) {
+    float wave = 22.0 * sin(p.x * 0.012 + phase) + 14.0 * cos(p.y * 0.025 + p.x * 0.005);
+    float level = (p.y + p.x * 0.21 + wave) / 17.0;
+    float band = 0.5 + 0.5 * sin(level * 0.72 + phase);
+    float line = 1.0 - smoothstep(0.025, 0.115, abs(fract(level) - 0.5));
+    float pigment = 0.14 + 0.57 * band + 0.29 * line;
+    float shade = 1.0 - 0.56 * smoothstep(74.0, 167.0, p.y) * (1.0 - smoothstep(36.0, 350.0, p.x));
+    return half4(mix(darkInk.rgb, lightInk.rgb, pigment) * shade, 1.0);
+}
+"""
+
+internal class ColorRow(swatch: Swatch, program: ShaderProgram, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    private val ink = scope
+        .resource {
+            program
+                .makeShader {
+                    setColor("darkInk", swatch.dark)
+                    setColor("lightInk", swatch.light)
+                    setFloat("phase", swatch.phase)
+                }
+        }
+    private val label = scope.resource { lettering(scope, swatch.name, 32.0, 600) }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(
+        LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 760.0, 168.0))),
+        Unit
+    )
+
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val size = context.size
+        context
+            .draw { paint ->
+                paint
+                    .canvas
+                    .drawRect(
+                        Rect(0.0, 0.0, size.width, size.height),
+                        Paint(Color.White),
+                        Some(ink)
+                    )
+                paint.canvas.drawText(label, Point(28.0, 111.0))
+            }
+    }
+}
