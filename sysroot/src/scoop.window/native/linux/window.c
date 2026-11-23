@@ -104,6 +104,13 @@ void sw_snapshot_update(SWWindow *window) {
   window->snapshot.visible = gtk_widget_get_visible(window->window);
   window->snapshot.maximized = (state & GDK_TOPLEVEL_STATE_MAXIMIZED) != 0;
   window->snapshot.minimized = (state & GDK_TOPLEVEL_STATE_MINIMIZED) != 0;
+  bool fullscreen = (state & GDK_TOPLEVEL_STATE_FULLSCREEN) != 0;
+  if (window->snapshot.fullscreen != fullscreen) {
+    window->snapshot.fullscreen = fullscreen;
+    adw_toolbar_view_set_reveal_top_bars(ADW_TOOLBAR_VIEW(window->toolbar),
+                                         !fullscreen);
+    sw_frame_invalidate(window);
+  }
   bool occluded = !gtk_widget_get_mapped(window->window) ||
                   window->snapshot.minimized ||
                   (state & GDK_TOPLEVEL_STATE_SUSPENDED) != 0;

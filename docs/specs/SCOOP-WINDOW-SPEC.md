@@ -10,7 +10,7 @@
 
 window 依赖 core／std／platform；window.asyncio 另依赖 asyncio。Darwin AArch64／amd64 的 AppKit 后端和三个 Windows x86_64 target 的 Win32 后端已实现；Windows 窗口 API 要求 Windows 10 1703 起的 Per-Monitor V2。Linux GNU x86_64 的 Wayland／X11 接入按第 12 节实施，进展与实际验证范围见 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)。两个库及其原生薄层、测试、示例均以普通 Cone 组织，窗口逻辑不进入编译器或 runtime。
 
-本轮范围按 winit 定位为 GUI 骨架：应用／窗口与基础属性、基础输入／IME、DPI／显示器快照、渲染句柄和 I/O 集成。下文的完整窗口层模型同时保留后续扩展方向；全屏控制／视频模式切换、全局 raw device、触摸／高级手势、光标捕获、文件拖放及复杂平台窗口交互不作为当前骨架验收项。未实施接口随实际需求再增加，不为占据 API 名称加入空实现。
+最初的 GUI 骨架包含应用／窗口与基础属性、基础输入／IME、DPI／显示器快照、渲染句柄和 I/O 集成。全屏窗口控制见第 4.4 节。独占全屏和视频模式切换属于后续扩展。
 
 公共应用对象不暴露 fd、HWND、XID、dispatch queue 或 ring。现有 Job／CoroutineScope、Context、ForeignCallback、时间、路径与异常规则继续适用；窗口库不承担布局、排版、绘制设备、I/O 调度或另一套任务树。
 
@@ -92,7 +92,7 @@ AppKit 读取 NSScroller.preferredScrollerStyle、NSWorkspace 的减少动画／
 
 ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、InteractionPreferencesChanged(InteractionPreferences)、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
 
-WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、Contact(ContactEvent)、Gesture(GestureEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。平台专有激活结果随对应能力后续增加；数据拖放使用独立会话合同。
+WindowEvent 类别为：CloseRequested、Closing、Destroyed、GeometryChanged(WindowMetrics)、FrameChanged、Moved(DesktopPosition)、Focused(Boolean)、Occluded(Boolean)、ThemeChanged(Theme?)、Keyboard(KeyEvent)、ModifiersChanged(Modifiers)、Pointer(PointerEvent)、Contact(ContactEvent)、Gesture(GestureEvent)、TextInput(TextInputEvent)。RedrawRequested 为独立窗口事件。payload 为自有值，不携带 OS 回调栈的借出指针。平台专有激活结果随对应能力后续增加；数据拖放使用独立会话合同。
 
 NewEvents 原因区分 Init、Poll、Wake 与 Deadline；平台没有信息时不伪造输入硬件时间。允许合并 redraw、连续 geometry 和 pointer move，但不得跨过按键／按钮、IME 编辑、焦点、close 等顺序边界；Commit、drop、button、touch 的开始／结束及 lifecycle 不得丢弃。
 
@@ -108,7 +108,7 @@ LogicalPosition／LogicalSize／LogicalRect 采用有限 Double，内容坐标�
 
 WindowMetrics 包含 logicalSize、physicalSize、scaleFactor，scaleFactor 必须有限且为正；首个原生配置前 metrics 为 None，GeometryChanged 原子发布完整快照。请求与实际配置分离；渲染所需像素向上取整，零 drawable 大小不得申请或提交帧。
 
-窗口级别为 Normal／AlwaysOnTop／AlwaysOnBottom。后续全屏控制采用 Windowed／Borderless(Monitor?)／Exclusive(VideoMode)，并与显示模式切换和恢复一起实施；相同平台语义复用现有表示。平台专有选项放在 platform 子包。
+窗口级别为 Normal／AlwaysOnTop／AlwaysOnBottom。平台专有选项放在 platform 子包。
 
 尺寸约束分别保存可选 min／max，非负且 min 不大于 max；创建尺寸必须满足约束。运行中收紧约束时请求调整当前内容大小，实际结果由 GeometryChanged 确认。resize increments 为可选的有限正尺寸，None 恢复平台默认。属性在创建返回前复制并应用，再按 visible／activation 请求显示窗口；不会先显示一个忽略所需属性的窗口。
 
@@ -151,6 +151,14 @@ showModal 从隐藏的既有窗口创建 ModalSession，区分 Owner／Applicati
 自绘窗框的 beginMove／beginResize／showWindowMenu 使用当前真实输入上下文；原生命中、区域失效与能力差异见[窗框规范第 3～4 节](SCOOP-WINDOW-FRAME-SPEC.md#3-自有区域)。
 
 窗口归属、模态输入限制、焦点与系统拖移／缩放由 scoop.window 提供；UI 负责内容、控件及结果交付。不得在组件中通过临时屏蔽几个输入回调或设置置顶来代替窗口模态。实施时分别验证窗口模态／应用模态、其他窗口的交互、关闭及焦点恢复、自绘窗框拖移／缩放，以及真实原生循环中的 asyncio 推进。
+
+### 4.4 全屏
+
+`Window.requestFullscreen(value: Boolean): RequestStatus` 在窗口 owner 上请求进入（true）或退出（false）全屏。全屏使用窗口所在的显示器及其当前视频模式。请求进入或退出不会重建窗口、替换内容宿主或改变 `WindowId`。独立普通窗口可以请求全屏，归属窗口和工具窗口返回 Unsupported。切换要求窗口已显示、未最小化且未被模态输入限制；违反窗口状态要求时抛出 WindowException。对已处于目标状态的窗口重复请求可以安全执行。
+
+`Window.isFullscreen: Boolean` 在 owner 上读取实际状态。返回 Requested 后，以此属性确认结果。AppKit 过渡期间保留上一次完成的状态，重复请求正在过渡的目标不会再次触发切换，逆向请求报告 ResourceBusy。退出全屏后恢复普通窗口布局。应用可在 `WindowEvent.FrameChanged` 后重新读取状态与窗框度量，几何变化继续由 `WindowEvent.GeometryChanged` 报告。窗口关闭按第 7 节收尾。
+
+AppKit 使用系统全屏空间及窗口委托，也观察用户通过系统按钮发起的切换。GTK 在 Wayland／X11 上提交全屏请求，以 GDK 的实际 toplevel 状态为准。全屏期间收起宿主标题栏和菜单栏，并去除客户区边框。Win32 使用覆盖显示器边界的无边框窗口，保存并恢复窗口位置、尺寸和最大化状态。全屏期间隐藏原生菜单栏，退出时恢复仍绑定的菜单。Win32 全屏期间的普通定位、内容尺寸和最大化请求返回 Unsupported。选择其他显示器、独占全屏和改变视频模式另行定义。
 
 ## 5. 输入与文本
 

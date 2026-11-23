@@ -2,7 +2,7 @@
 
 状态：macOS／Windows 骨架与 Linux GNU 的 GTK4／libadwaita Wayland／X11 后端已实现；更新于 2026-11-17，补充 AppKit 原生手势映射。与 [DESIGN.md](DESIGN.md) 和[规范](../specs/SCOOP-WINDOW-SPEC.md)一起阅读。基线为 winit 0.30.13；实际交付与验收边界见 [PROGRESS.md](PROGRESS.md)、[交互打磨实施记录](../ui/interaction-polish/PROGRESS.md)和 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)。
 
-当前阶段交付 macOS／Windows／Linux GNU GUI 基础：应用／窗口、proxy／关闭／lease、基础属性、显示器与 DPI、键盘／鼠标／滚轮／IME、renderer 与 asyncio 接入；AppKit 已接入原生 Magnify／Rotate／Swipe。Linux 使用 GTK/GDK 与 GtkGLArea，各操作仍按实际显示协议提供能力。直接触摸与更多原生手势，以及全屏、显示模式、raw device、光标捕获等能力继续按各自范围补充。
+当前阶段交付 macOS／Windows／Linux GNU GUI 基础：应用／窗口、proxy／关闭／lease、基础属性、显示器与 DPI、全屏、键盘／鼠标／滚轮／IME、renderer 与 asyncio 接入；AppKit 已接入原生 Magnify／Rotate／Swipe。Linux 使用 GTK/GDK 与 GtkGLArea，各操作仍按实际显示协议提供能力。直接触摸与更多原生手势，以及显示模式、raw device、光标捕获等能力继续按各自范围补充。
 
 范围分为：本期通用、本期按平台能力、平台扩展、后续／范围外。不承诺逐字复制 Rust API、trait、Drop 或所有平台扩展。Scoop 尚未发布；本表随实际实现直接修订，不保留旧草案签名兼容层，也不为未来平台穷举无实现的变体。窗口后端使用原生系统／协议库；全项目 Rust 依赖汇总和统一 staticlib 构建属于独立流水线工作，不在本表范围内。
 
@@ -25,7 +25,7 @@
 | min／max inner size | setSizeConstraints | 本期按能力；逻辑尺寸，GTK 当前不支持最大内容尺寸约束 |
 | enabled buttons／window level | setEnabledButtons／setWindowLevel | 本期按能力，保留按钮集合与上下层级；置顶不建立模态输入限制 |
 | minimize／maximize | requestMinimized／requestMaximized | 本期；请求不等于状态确认，未知状态为 None |
-| borderless／exclusive fullscreen | 后续 requestFullscreen(Fullscreen) | 后续；系统全屏过渡、模式切换与恢复一起实施 |
+| fullscreen on the current monitor | requestFullscreen(Boolean)／isFullscreen | AppKit 系统全屏空间、GTK toplevel 全屏、Win32 无边框全屏。独占模式与视频模式切换属于后续 |
 | focus／attention | requestFocus／requestAttention | 本期按能力；不承诺绕过 OS 激活策略 |
 | window menu／drag／drag resize | 后续 showWindowMenu／beginMove／beginResize | 后续；当前原生装饰仍支持用户拖动，程序化操作须保存有效输入上下文 |
 | transparency／blur／content protection | 对应属性与设置方法 | 本期按能力；不把视觉提示当作安全保证 |

@@ -11,7 +11,7 @@ typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
-  int32_t visible, occluded, focused, minimized, maximized, dark;
+  int32_t visible, occluded, focused, minimized, maximized, fullscreen, dark;
 } SWSnapshot;
 
 typedef struct {
@@ -149,6 +149,7 @@ void sw_invalidate_text_caret(SWView *view);
 @property(nonatomic) double frameWidth, frameHeight, frameScale;
 @property(nonatomic) uint64_t frameRevision;
 @property(nonatomic) int32_t menuTextCommands;
+@property(nonatomic) int32_t fullscreenTransition;
 @property(nonatomic) NSInteger attentionRequest;
 - (void)emit:(int32_t)kind;
 @end

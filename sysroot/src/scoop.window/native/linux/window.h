@@ -31,7 +31,7 @@ typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
-  int32_t visible, occluded, focused, minimized, maximized, dark;
+  int32_t visible, occluded, focused, minimized, maximized, fullscreen, dark;
 } SWSnapshot;
 typedef struct {
   void *pointer;

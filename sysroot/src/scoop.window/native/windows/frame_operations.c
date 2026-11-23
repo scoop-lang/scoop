@@ -10,7 +10,7 @@ typedef struct {
 SWResult scoop_window_system_operation_prepare(SWWindow *window,
                                                SWNativeInput *input,
                                                int32_t kind, int32_t edge) {
-  if (input->window != window->identity ||
+  if (window->fullscreen || input->window != window->identity ||
       (kind != 2 && (input->kind != SWPointer || input->button != 0)) ||
       (kind == 1 && (!window->resizable || IsZoomed(window->hwnd) ||
                      IsIconic(window->hwnd))))

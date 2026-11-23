@@ -52,6 +52,17 @@ internal fun documentSections(root: DocumentView): View {
         label(
             "Menus, windows, dialogs and a tray share live application state. Changes below use the public Scoop APIs."
         )
+        row {
+            spacing = 10.0
+            alignment = CrossAlignment.Center
+            if (root.fullscreen.value) {
+                button("Exit full screen", { root.toggleFullscreen() })
+                label("Full screen")
+            } else {
+                button("Enter full screen", { root.toggleFullscreen() })
+                label("Windowed")
+            }
+        }
         add(
             panel(
                 "Native menus and text editing",
@@ -186,7 +197,7 @@ internal fun documentSections(root: DocumentView): View {
                     label(
                         "Visual clipping alone may retain rectangular input. Matching mode requests a real window or input region; unsupported choices are disabled."
                     )
-                    if (caps.frame.resizeHitRegions || caps.frame.beginResize)
+                    if (!root.fullscreen.value && (caps.frame.resizeHitRegions || caps.frame.beginResize))
                         add(
                             windowResizeRegion(
                                 WindowResizeEdge.BottomRight,

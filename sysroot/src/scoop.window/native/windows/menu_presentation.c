@@ -137,17 +137,24 @@ int64_t scoop_window_menu_bind(SWMenu *menu, int32_t kind, int64_t serial,
   if (error)
     return error;
   if (kind == 1) {
-    menu->previous = GetMenu(window->hwnd);
-    if (!SetMenu(window->hwnd, menu->handle))
-      return sw_menu_error();
-    if (!DrawMenuBar(window->hwnd)) {
-      error = sw_menu_error();
-      SetMenu(window->hwnd, menu->previous);
-      return error;
+    if (window->fullscreen) {
+      menu->previous = window->fullscreen_menu;
+      window->fullscreen_menu = menu->handle;
+    } else {
+      menu->previous = GetMenu(window->hwnd);
+      if (!SetMenu(window->hwnd, menu->handle))
+        return sw_menu_error();
+      if (!DrawMenuBar(window->hwnd)) {
+        error = sw_menu_error();
+        SetMenu(window->hwnd, menu->previous);
+        return error;
+      }
     }
     window->menu_bar = menu;
-    sw_text_geometry_changed(window);
-    sw_emit(window, 2);
+    if (!window->fullscreen) {
+      sw_text_geometry_changed(window);
+      sw_emit(window, 2);
+    }
   }
   menu->window = window;
   menu->binding = kind;
@@ -161,13 +168,18 @@ int64_t scoop_window_menu_unbind(SWMenu *menu) {
     return -2;
   if (menu->binding == 1) {
     SWWindow *window = menu->window;
-    if (!SetMenu(window->hwnd, menu->previous))
+    if (window->fullscreen) {
+      window->fullscreen_menu = menu->previous;
+    } else if (!SetMenu(window->hwnd, menu->previous)) {
       return sw_menu_error();
+    }
     window->menu_bar = NULL;
     menu->previous = NULL;
-    DrawMenuBar(window->hwnd);
-    sw_text_geometry_changed(window);
-    sw_emit(window, 2);
+    if (!window->fullscreen) {
+      DrawMenuBar(window->hwnd);
+      sw_text_geometry_changed(window);
+      sw_emit(window, 2);
+    }
   }
   if (menu->window && menu->window->popup_menu == menu)
     menu->window->popup_menu = NULL;

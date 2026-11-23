@@ -38,6 +38,7 @@ internal struct NativeSnapshot(
     val focused: Int,
     val minimized: Int,
     val maximized: Int,
+    val fullscreen: Int,
     val dark: Int
 ) {
     fun metrics(): WindowMetrics =

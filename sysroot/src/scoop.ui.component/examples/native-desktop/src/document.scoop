@@ -18,6 +18,7 @@ internal class DocumentView(
     val overrideMenu = state(false)
     val hideMenuBar = state(false)
     val frameMetrics = state<WindowFrameMetrics?>(None)
+    val fullscreen = state(false)
     val readOnly = state(false)
     val topmost = state(false)
     val shadow = state(true)
@@ -40,7 +41,20 @@ internal class DocumentView(
     }
 
     public override fun onMount() {
-        scope.observeFrameMetrics { frameMetrics.value = it }
+        scope
+            .observeFrameMetrics {
+                frameMetrics.value = it
+                fullscreen.value = document.window.isFullscreen
+            }
+    }
+    fun toggleFullscreen() {
+        val window = document.window
+        try {
+            if (window.requestFullscreen(!window.isFullscreen) == RequestStatus.Unsupported)
+                demo.report("Fullscreen is unavailable for this window.")
+        } catch (error: WindowException) {
+            demo.operationFailed(error)
+        }
     }
     fun selectFrame(next: Int) {
         val frame =
@@ -175,6 +189,7 @@ internal class DocumentView(
         val root = this
         val caps = demo.capabilities!!.frame
         val client = mode.value == 2
+        val isFullscreen = fullscreen.value
         val currentMode = mode.value
         val decorated =
             frame(scrollArea(documentSections(root))) { padding = Some(Insets.all(18.0)) }
@@ -191,11 +206,11 @@ internal class DocumentView(
                             }
                         ) { width = Some(240.0) }
                         button("New window", { root.demo.newDocument() }) { size = ButtonSize.Sm }
-                        if (client)
+                        if (client && !isFullscreen)
                             add(windowControls())
                     }
                 ) { padding = Some(Insets(8.0, 4.0, 8.0, 4.0)) }
-            ) { enabled = caps.beginMove }
+            ) { enabled = caps.beginMove && !isFullscreen }
         val useShadow = shadow.value
         val chrome =
             windowChrome(decorated) {

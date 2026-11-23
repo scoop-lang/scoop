@@ -38,7 +38,7 @@ int64_t sw_frame_margins(SWWindow *window) {
   MARGINS margins = {0};
   if (window->transparent)
     margins = (MARGINS){-1, -1, -1, -1};
-  else if (window->frame_mode == 1) {
+  else if (window->frame_mode == 1 && !window->fullscreen) {
     UINT dpi = GetDpiForWindow(window->hwnd);
     margins.cyTopHeight = GetSystemMetricsForDpi(SM_CYCAPTION, dpi) +
                           GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
@@ -51,7 +51,8 @@ int64_t sw_frame_margins(SWWindow *window) {
 int64_t scoop_window_frame(SWWindow *window, int32_t mode) {
   if (window->frame_mode == mode)
     return 0;
-  HMENU menu = GetMenu(window->hwnd);
+  HMENU menu =
+      window->fullscreen ? window->fullscreen_menu : GetMenu(window->hwnd);
   if (mode == 1 && menu && GetMenuItemCount(menu) > 0)
     return -1;
   int previous = window->frame_mode;
@@ -81,7 +82,7 @@ static SWFrameRect screen_rect(SWWindow *window, RECT rect) {
 }
 
 SWFrameRect scoop_window_frame_button(SWWindow *window, int32_t role) {
-  if (window->frame_mode == 2)
+  if (window->frame_mode == 2 || window->fullscreen)
     return sw_frame_unknown();
   TITLEBARINFOEX info = {0};
   info.cbSize = sizeof(info);
@@ -97,7 +98,7 @@ SWFrameRect scoop_window_frame_button(SWWindow *window, int32_t role) {
 SWFrameSnapshot scoop_window_frame_snapshot(SWWindow *window) {
   SWSnapshot size = sw_snapshot(window);
   SWFrameRect layout = {0, 0, size.width, size.height};
-  if (window->frame_mode == 1) {
+  if (window->frame_mode == 1 && !window->fullscreen) {
     TITLEBARINFOEX info = {0};
     info.cbSize = sizeof(info);
     SendMessageW(window->hwnd, WM_GETTITLEBARINFOEX, 0, (LPARAM)&info);
@@ -222,6 +223,13 @@ int64_t scoop_window_hit_regions(SWWindow *window, const SWHitRect *rects,
 
 bool sw_frame_message(SWWindow *window, UINT message, WPARAM wp, LPARAM lp,
                       LRESULT *result) {
+  if (window->fullscreen) {
+    if (message == WM_NCHITTEST) {
+      *result = HTCLIENT;
+      return true;
+    }
+    return false;
+  }
   if (message == WM_NCCALCSIZE && window->frame_mode != 0) {
     RECT *rect = wp ? &((NCCALCSIZE_PARAMS *)lp)->rgrc[0] : (RECT *)lp;
     RECT outer = *rect;
