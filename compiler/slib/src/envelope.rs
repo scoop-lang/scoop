@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 
 use scoop_lir::ValidatedLirTargetSelection;
@@ -154,6 +155,19 @@ impl<'input> DecodedSlibEnvelope<'input> {
                 archive.member(id).map_err(SlibReadError::Container)
             }
             EnvelopeSource::File { file, directory } => file.member(directory, id),
+        }
+    }
+
+    pub(crate) fn transient_member(
+        &self,
+        id: SlibMemberId,
+    ) -> Result<Option<Cow<'_, [u8]>>, SlibReadError> {
+        match &self.source {
+            EnvelopeSource::Memory { archive, .. } => archive
+                .member(id)
+                .map(|bytes| bytes.map(Cow::Borrowed))
+                .map_err(SlibReadError::Container),
+            EnvelopeSource::File { file, directory } => file.transient_member(directory, id),
         }
     }
 }

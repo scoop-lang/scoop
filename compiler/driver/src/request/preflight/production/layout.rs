@@ -137,6 +137,8 @@ pub(super) fn assemble(
     .map_err(Error::MirExports)?;
     let mir_uses =
         scoop_mir_lower::lower_type_bridge_dependencies(mir_input).map_err(Error::MirUses)?;
+    drop(hir.hir);
+    drop(hir.nominal_classifier);
     let units = scoop_mir_lower::lower_type_bridge_initialization_units(&mir.strong)
         .map_err(Error::MirUses)?;
     let mir_section = mir::CrossConeMirTypeBridgeSectionV1::try_new(
@@ -183,6 +185,8 @@ pub(super) fn assemble(
         &diagnostics,
     )
     .map_err(CurrentConeProductionFailure::Lir)?;
+    drop(selected);
+    drop(diagnostics);
     let mut pending = scoop_identity::PendingIdentityValidation::from_graph(identities);
     lir.foundation()
         .as_canonical()
@@ -282,6 +286,9 @@ pub(super) fn assemble(
         &roots,
     )
     .map_err(Error::Selection)?;
+    drop(selected_layout);
+    drop(identities);
+    let (mir_foundation, mir_production) = mir.strong.into_metadata();
     let backend = scoop_codegen::ValidatedBackendProfile::from_selection(
         request.target().lir_target_selection(),
         request.target().c_bridge_toolchain().profile().contract(),
@@ -301,6 +308,7 @@ pub(super) fn assemble(
             .with_optimization(request.optimization()),
     )
     .map_err(Error::Codegen)?;
+    drop(lir);
     let producer = slib::ProducerRecord::new(concat!("scoopc/", env!("CARGO_PKG_VERSION")))
         .map_err(CurrentConeProductionFailure::Producer)?;
     let native_objects = super::native::compile(request, cone.identity(), temporary_parent)
@@ -312,8 +320,8 @@ pub(super) fn assemble(
         &foundation,
         &hir.production_section,
         hir.cross_cone_section,
-        mir.strong.foundation(),
-        mir.strong.production(),
+        &mir_foundation,
+        &mir_production,
         &mir.public,
         &lir_public,
     );

@@ -196,6 +196,8 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
                 },
             ));
         }
+        drop(world);
+        drop(self.sources);
         let artifact = (|| {
             let ControlFlow::Continue(artifact) = protocols::lower_machine(
                 hir,

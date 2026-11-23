@@ -65,12 +65,27 @@ fn source_declarations_leave_unused_machine_members_unread() {
     assert!(world.direct_provider(identity).is_some());
     for file in [&core, &file] {
         let saved = file.directory().unwrap();
-        for (record, (_, _, cached)) in saved.manifest.members().iter().zip(&saved.members) {
-            assert_eq!(
-                cached.get().is_some(),
-                matches!(record.role(), SlibMemberRole::HirMetadata)
-            );
-        }
+        let hir = saved
+            .manifest
+            .members()
+            .iter()
+            .find(|record| matches!(record.role(), SlibMemberRole::HirMetadata))
+            .unwrap();
+        let (_, position, _) = saved
+            .members
+            .iter()
+            .find(|(id, _, _)| *id == hir.id())
+            .unwrap();
+        assert_eq!(
+            file.0.file.lock().unwrap().stream_position().unwrap(),
+            position.offset + position.length
+        );
+        assert!(
+            saved
+                .members
+                .iter()
+                .all(|(_, _, cached)| cached.get().is_none())
+        );
     }
     assert!(path.exists());
 }

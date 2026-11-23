@@ -4,9 +4,7 @@ use scoop_identity::PendingIdentityValidation;
 use scoop_wire::WirePath;
 
 use super::*;
-use crate::compile_sections::{
-    decode_compile_stage, decode_stage_section, validate_compile_profile,
-};
+use crate::compile_sections::{decode_stage_section, validate_compile_profile, with_compile_stage};
 
 pub(super) fn read_hir<'input>(
     graph: ValidatedGraphArtifact<'input>,
@@ -19,29 +17,30 @@ pub(super) fn read_hir<'input>(
     let location = crate::MetadataLocation::Hir;
     let decode = || -> Result<_, crate::CompileSectionDecodeError> {
         validate_compile_profile(&graph, profile)?;
-        let metadata = decode_compile_stage(&graph, profile, location)?;
-        Ok((
-            decode_stage_section::<hir::DecodedHirFoundation>(
-                &metadata,
-                location,
-                crate::hir_identity_foundation_capability(),
-            )?,
-            decode_stage_section::<hir::DecodedCoreBootstrapInterfaceSectionV1>(
-                &metadata,
-                location,
-                crate::hir_core_bootstrap_interface_capability(),
-            )?,
-            decode_stage_section::<hir::DecodedCrossConeHirInterfaceSectionV1>(
-                &metadata,
-                location,
-                crate::hir_cross_cone_interface_capability(),
-            )?,
-            decode_stage_section::<hir::DecodedCrossConeTypeSemanticsSectionV1>(
-                &metadata,
-                location,
-                crate::hir_cross_cone_type_semantics_capability(),
-            )?,
-        ))
+        with_compile_stage(&graph, profile, location, |metadata| {
+            Ok((
+                decode_stage_section::<hir::DecodedHirFoundation>(
+                    metadata,
+                    location,
+                    crate::hir_identity_foundation_capability(),
+                )?,
+                decode_stage_section::<hir::DecodedCoreBootstrapInterfaceSectionV1>(
+                    metadata,
+                    location,
+                    crate::hir_core_bootstrap_interface_capability(),
+                )?,
+                decode_stage_section::<hir::DecodedCrossConeHirInterfaceSectionV1>(
+                    metadata,
+                    location,
+                    crate::hir_cross_cone_interface_capability(),
+                )?,
+                decode_stage_section::<hir::DecodedCrossConeTypeSemanticsSectionV1>(
+                    metadata,
+                    location,
+                    crate::hir_cross_cone_type_semantics_capability(),
+                )?,
+            ))
+        })
     };
     let (foundation, core, interface, types) = decode().map_err(|source| sections(slot, source))?;
     let provider = graph.identity();

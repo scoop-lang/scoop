@@ -134,6 +134,8 @@ M51 的普通 native include 支持语言规范 12.2.1 的路径字符串或条�
 
 stage 只通过对应 IR/metadata 交换数据，不调用上游 stage 的实现。所有源码语义错误在 parser/HIR 结束；后续阶段报告自身的格式、引用、ABI、目标或链接错误。已验证且不变的数据在后续边界复用。
 
+driver 按最后一个实际消费者安排阶段数据的存活期：告警、测试目录及文档投影完成后释放 AST 和 HIR 查询世界；MIR 与类型桥导出完成后释放 HIR 正文；LIR 与布局导出完成后只转移后续打包需要的 MIR 规范记录；LLVM 与 generated-C 发射完成后释放 LIR 正文。产物需要的 foundation、公开 metadata 和生产记录继续保持完整，不为保留它们而延长整份上游 IR 的存活期。阶段观察、诊断与文档在各自输入释放前完成，不通过重读源码或重跑 stage 补回结果。
+
 ### 2.1 Parser / AST
 
 源码集合非空，文件具有唯一 `SourceIdentity { cone, logical_path }`。manifest Cone 的 logical path 为完整的标准化 Cone-relative source path；默认目录中的文件保持 `src/...`，显式源码根不截短路径或改变相同文件的身份。single-file 的原始入口文件为 `main.scoop`，由输入选择保证；2.20 的生成正文在同一 Cone 中另有按方法身份派生的逻辑来源。SourceIdentity 只组合已有 ConeIdentity 与标准化逻辑路径，不把单文件输入的选择规则施加给所有诊断／正文来源。host 路径只用于本次 I/O 与诊断。parser 只接收按语言规范 12.2.2 及本规范 2.7 选定的完整源码集合，不自行补扫目录。
@@ -594,6 +596,8 @@ codegen 的 LLVM 发射入口只接收当前 Cone 的完整 LIR；不在后端�
 
 Scoop 的 LLVM 对象以拥有所有权的原生字节交接，在内存中完成常量整理、atom 边界与链接属性处理，再由 driver 消费并打包；这些步骤不通过临时对象文件反复写入、读取与删除。实际外部工具输入输出和可复用对象缓存仍按需要落盘。内存交接不改变对象内容、分区、符号、GC／异常展开或 ABI 合同，格式与引用检查在原有消费边界执行。
 
+对象解析结果与完成绑定的整库重定位表在后续需求分类、GC／运行时登记、内容摘要和打包步骤间只读共享；保留这些结果的生产记录不各自深复制整库成员与重定位数据。GC 表压缩实际改变对象字节后仍按既有规则读取变动成员并建立新结果，未变化的共享结果保持不可变。该所有权安排不改变检查边界、对象内容、产物格式或 ABI。
+
 逐 callable 发射使用的整库函数 GC effect 表建立一次，函数计划及优化后计划共享这份只读数据。每个函数的 site 集合在入口按所属 body 分组一次，与根分组独立保存；不为每个函数重新扫描整库 site 集合。保留已生成函数计划时不逐份复制整库属性表。共享只改变进程内所有权，不改变 GC effect 选择、safepoint 身份、输出或 ABI。
 
 每个 callable 的 LLVM module 只声明正文实际引用的类型描述符、数组描述符、普通全局量和初始化登记，并完整发射该 body 所属的 C 字符串等关联定义。归属和初始化登记的查询表按 Cone 建立一次；元数据分区仍取得其完整定义。逐函数 module 可复用同一个 LLVM Context，但对象、ODR、registration 与 GC 的物理选择边界保持独立，不以合并函数对象消除准备开销。
@@ -741,6 +745,10 @@ Mach-O／ELF 对象按实际目标格式读取 section、符号及 relocation，
 容器固定头为 16 bytes：前 8 bytes 是 ASCII `SCOOPSLB`，后 8 bytes 是 little-endian u64，保存紧随其后的压缩 manifest 长度。manifest 为 deterministic CBOR 的单个 Zstandard frame；其后按目录中的 SlibMemberId bytes 严格升序连续保存各成员的实际存储 payload。成员起点由 manifest 末尾和此前成员的 stored length checked 累加得到，不再保存物理名称、mtime、uid、gid、mode、第二份长度或对齐 padding。普通 native `.a` 文件仍使用自己的标准 ar 格式。
 
 writer 按上述目录与固定头规则生成容器。普通 reader 根据目录按需定位 section，不重读全部成员来验证归档生成过程或对照内容 hash；payload 不因自身 magic 而递归作为归档解释。实际解码与 I/O 错误照常传播，长度转换和索引保持内存安全。
+
+文件形式的编译依赖 metadata 在读取边界解压并形成完整的类型化记录，解码完成后释放临时字节，不随文件读取器继续保留一份已消费的 HIR／MIR／LIR 原始 payload。已解码的 HIR 记录供后续机器层加载共享，不因释放临时字节而重读。需要稳定借用字节的成员访问继续复用已有缓冲；两种使用方式共用目录、解压和格式规则。实体驻留表按 typed 持久 id 索引，只保存本次会话编号和共享规范键；不在值中再次复制索引键与可由规范键取得的类型信息，身份类型与内容冲突检查保持原规则。
+
+writer 转移已有 section payload 的所有权来构造 metadata envelope，不深复制整层 payload。语义指纹消费完成后，逐层编码为归档成员并释放该层中间数据；已编码的层不再同时保留原始 section 副本。共享 ID 表、规范排序、语义指纹及最终字节保持原编码规则。
 
 每个非 manifest 成员为四字段 record：`1=id, 3=role, 4=byte_length, 5=sha256`，字段 2 不再保存 stable key。生产端继续用 ConeIdentity 与完整的稳定 member key 生成 SlibMemberId；物理名、扩展名和生成顺序不参与身份。metadata 角色、Scoop／generated-C unit-set key 与扩展的逻辑 key 在目录 ID 生成后没有消费方，不重复落盘，也不在读取时重算成员 ID。普通 Native 对象的规范化源路径是实际链接输入，保存在独立的 NativeObject 角色中。
 

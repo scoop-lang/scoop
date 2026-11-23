@@ -159,6 +159,7 @@ impl AssembledCrossConeLayoutArtifactV1 {
         }
 
         let metadata = assemble_metadata(
+            identity,
             LayoutMetadataInput {
                 hir_foundation,
                 hir_production,
@@ -191,9 +192,9 @@ impl AssembledCrossConeLayoutArtifactV1 {
         );
 
         let mut members = Vec::with_capacity(3 + link_objects.len());
-        members.push(metadata.hir.into_member(identity)?);
-        members.push(metadata.mir.into_member(identity)?);
-        members.push(metadata.lir.into_member(identity)?);
+        members.push(metadata.hir);
+        members.push(metadata.mir);
+        members.push(metadata.lir);
         members.extend(
             crate::member::encode_object_members(identity, link_objects)
                 .map_err(CrossConeLayoutArtifactWriteError::ObjectMembers)?,

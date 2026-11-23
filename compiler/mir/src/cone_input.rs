@@ -379,6 +379,11 @@ impl ConeMirInput {
     pub const fn materialization(&self) -> &ConeMirMaterializationPlan {
         &self.materialization
     }
+
+    /// Retains artifact records after the MIR bodies and lowering inputs are consumed.
+    pub fn into_metadata(self) -> (Rc<CanonicalMirFoundation>, CoreBootstrapBridgeSectionV1) {
+        (self.foundation, self.production)
+    }
 }
 
 fn callable_roots(module: &Module) -> Result<Vec<CallableMaterializationRoot>, ConeMirInputError> {
