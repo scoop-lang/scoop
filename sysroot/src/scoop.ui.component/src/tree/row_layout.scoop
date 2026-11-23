@@ -5,6 +5,10 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.window.accessibility.*
 
+private const val treeCellPadding: Double = 4.0
+
+internal const val treeRowSlotSize: Double = 20.0
+
 internal class TreeRowDrawing<T>(
     val input: TreeRowInput<T>,
     val owner: TreeRowView<T>,
@@ -13,7 +17,7 @@ internal class TreeRowDrawing<T>(
 )
 
 internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope: ComponentScope) :
-    Element<Unit>(scope) {
+    Element<Rect>(scope) {
     // The row's main target lives outside this group; only F2 enters cell Tab order.
     private val group = scope.focusScope()
     private val selected = scope.animation(if (props.value.selected) 1.0 else 0.0)
@@ -54,7 +58,7 @@ internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope:
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        Unit
+        Rect
     > {
         val plan = props.value.input.plan
         val widths = plan.tracks.resolve(constraints.maxWidth ?: constraints.minWidth)
@@ -75,41 +79,63 @@ internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope:
             height = lowerBound(height, value.size.height)
         }
         val size = constraints.constrain(Size(widths.total, height))
+        val treeIndex = plan.columnIndex(plan.treeColumn)!!
+        val rtl = context.layoutDirection == LayoutDirection.Rtl
+        var treeX = 0.0
         var x = 0.0
         for (index in 0L..<count) {
+            val childX = if (rtl) widths.total - x - sizes[index].width else x
+            if (index == treeIndex) treeX = childX
             context
                 .placeChild(
                     index,
-                    Point(
-                        if (context.layoutDirection == LayoutDirection.Rtl)
-                            widths.total - x - sizes[index].width
-                        else
-                            x,
-                        lowerBound((size.height - sizes[index].height) / 2.0, 0.0)
-                    )
+                    Point(childX, lowerBound((size.height - sizes[index].height) / 2.0, 0.0))
                 )
             x += widths.values[index]
         }
-        return LayoutResult(LayoutMetrics(size), Unit)
+        return LayoutResult(
+            LayoutMetrics(size),
+            Rect(treeX, 0.0, sizes[treeIndex].width, size.height)
+        )
     }
-    public override fun scene(context: SceneContext, value: Unit) {
+    public override fun scene(context: SceneContext, treeColumn: Rect) {
         val drawing = props.value
         val plan = drawing.input.plan
         val palette = plan.appearance.theme.tokens.palette
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val direction = context.layoutDirection
         val selection = selected.value
         val hover = hovered.value
         context
             .draw { paint ->
-                paint.canvas.drawRect(bounds, Paint(palette.background.background.withAlpha(1.0)))
+                // Round fills and guides at the same device-pixel boundary between rows.
+                paint
+                    .canvas
+                    .drawRect(
+                        bounds, Paint(
+                            palette.background.background.withAlpha(1.0),
+                            antiAlias = false
+                        )
+                    )
                 if (hover > 0.0)
                     paint
                         .canvas
-                        .drawRect(bounds, Paint(palette.muted.background.withAlpha(0.5 * hover)))
+                        .drawRect(
+                            bounds,
+                            Paint(
+                                palette.muted.background.withAlpha(0.5 * hover),
+                                antiAlias = false
+                            )
+                        )
                 if (selection > 0.0)
                     paint
                         .canvas
-                        .drawRect(bounds, Paint(palette.muted.background.withAlpha(selection)))
+                        .drawRect(
+                            bounds,
+                            Paint(palette.muted.background.withAlpha(selection), antiAlias = false)
+                        )
+                if (plan.input.showLines)
+                    drawTreeLines(paint.canvas, drawing.input, treeColumn, direction)
                 if (drawing.interaction.focusVisible) {
                     val line = lowerBound(plan.appearance.density, 1.0)
                     paint.canvas.drawRect(Rect(0.0, 0.0, bounds.width, line), Paint(palette.ring))
@@ -211,7 +237,7 @@ private class TreeCellInk<T>(private val props: Props<TreeCellInput<T>>, scope: 
     > {
         val input = props.value
         val density = input.row.plan.appearance.density
-        val padding = 4.0 * density
+        val padding = treeCellPadding * density
         val child = context
             .measureChild(
                 0L,
@@ -251,68 +277,52 @@ private class TreeCellInk<T>(private val props: Props<TreeCellInput<T>>, scope: 
             !panelPresent(plan.input.drag)
         )
             context.place(input.owner.area, content)
-        if (input.id == plan.treeColumn && plan.input.showLines) treeLines(context, input.row)
         context.clipRect(bounds)
         context.children()
     }
 }
 
-private fun <T> treeLines(context: SceneContext, input: TreeRowInput<T>) {
+private fun <T> drawTreeLines(
+    canvas: Canvas,
+    input: TreeRowInput<T>,
+    column: Rect,
+    direction: LayoutDirection
+) {
     val plan = input.plan
     val row = input.row
-    val step = plan.input.indent * plan.appearance.density
-    val height = context.size.height
-    val direction = context.layoutDirection
-    val width = context.size.width
-    context
-        .draw { paint ->
-            val color = Paint(plan.appearance.theme.tokens.palette.border)
-            var at = row.parent
-            while (at != None) {
-                val ancestor = plan.projection.rowAt(at!!)
-                if (!ancestor.lastSibling) {
-                    val distance = 4.0 *
-                        plan.appearance.density +
-                        ancestor.depth.toDouble() *
-                        step +
-                        10.0 *
-                        plan.appearance.density
-                    val x = if (direction == LayoutDirection.Rtl) width - distance else distance
-                    paint.canvas.drawRect(Rect(x, 0.0, plan.appearance.density, height), color)
-                }
-                at = ancestor.parent
-            }
-            if (row.depth > 0L) {
-                val distance = 4.0 *
-                    plan.appearance.density +
-                    row.depth.toDouble() *
-                    step -
-                    step +
-                    10.0 *
-                    plan.appearance.density
-                val x = if (direction == LayoutDirection.Rtl) width - distance else distance
-                paint
-                    .canvas
-                    .drawRect(
-                        Rect(
-                            x,
-                            0.0,
-                            plan.appearance.density,
-                            if (row.lastSibling) height / 2.0 else height
-                        ),
-                        color
-                    )
-                paint
-                    .canvas
-                    .drawRect(
-                        Rect(
-                            if (direction == LayoutDirection.Rtl) x - step else x,
-                            height / 2.0,
-                            step,
-                            plan.appearance.density
-                        ),
-                        color
-                    )
-            }
-        }
+    val hasVisibleChildren = row.subtreeEnd > input.index + 1L
+    if (row.depth == 0L && !hasVisibleChildren) return
+    val density = plan.appearance.density
+    val step = plan.input.indent * density
+    val halfSlot = treeRowSlotSize / 2.0 * density
+    val rtl = direction == LayoutDirection.Rtl
+    val columnRight = column.x + column.width
+    val height = column.height
+    val center = height / 2.0
+    val color = Paint(plan.appearance.theme.tokens.palette.border, antiAlias = false)
+    fun stemX(depth: Long): Double {
+        val offset = treeCellPadding * density + halfSlot + depth.toDouble() * step
+        return if (rtl) columnRight - offset - density else column.x + offset
+    }
+    fun segment(x: Double, width: Double, top: Double, bottom: Double) {
+        val left = lowerBound(x, column.x)
+        val right = upperBound(x + width, columnRight)
+        if (right > left && bottom > top)
+            canvas.drawRect(Rect(left, top, right - left, bottom - top), color)
+    }
+    var at = row.parent
+    while (at != None) {
+        val ancestor = plan.projection.rowAt(at!!)
+        if (ancestor.depth > 0L && !ancestor.lastSibling)
+            segment(stemX(ancestor.depth - 1L), density, 0.0, height)
+        at = ancestor.parent
+    }
+    if (row.depth > 0L) {
+        val x = stemX(row.depth - 1L)
+        val top = lowerBound(center - density / 2.0, 0.0)
+        val bottom = upperBound(center + density / 2.0, height)
+        segment(x, density, 0.0, if (row.lastSibling) bottom else height)
+        segment(if (rtl) x + density - step else x + density, step - density, top, bottom)
+    }
+    if (hasVisibleChildren) segment(stemX(row.depth), density, center + halfSlot, height)
 }

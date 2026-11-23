@@ -1,0 +1,199 @@
+package scoop.tests.ui.treelines
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.surface.sampleCanvasPixel
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class TreeLinesTest {
+    private var accepted = false
+
+    @Test
+    fun `tree lines join across full rows in fixed and variable columns`() {
+        UiHost { host, application, event ->
+            when (event) {
+                case Resumed -> {
+                    val window = application
+                        .createWindow(
+                            windowAttributes {
+                                this.title = "Scoop Tree lines"
+                                this.size = LogicalSize(420.0, 340.0)
+                                this.level = WindowLevel.AlwaysOnTop
+                            }
+                        )
+                    window
+                        .createDeadline { fail(Some("Tree lines frame timeout")) }
+                        .schedule(MonotonicTimeSource.now() + Duration.seconds(10L))
+                    host.attach(window, { scope -> TreeLinesScene({ accepted = true }, scope) })
+                }
+
+                case AboutToWait -> {
+                    if (accepted) application.requestExit()
+                }
+
+                else -> {}
+            }
+        }
+            .use { host -> Application().run(host) }
+        assertTrue(accepted)
+    }
+}
+
+private class TreeLinesScene(private val accepted: () -> Unit, scope: ComponentScope) :
+    Component(scope) {
+    private val theme = ThemeSource(
+        macosTheme {
+            this
+                .tokens {
+                    this.typography { this.body { this.fontSize = 14.0 } }
+                    this
+                        .palette {
+                            this.background = ColorPair(Color.White, Color.Black)
+                            this.border = Color.Black
+                        }
+                }
+        }
+    )
+    private val model = TreeState(
+        TreeData(
+            [
+                TreeNode(
+                    ViewKey.Number(0L),
+                    36L,
+                    "Root",
+                    TreeChildren
+                        .Known(
+                            [
+                                TreeNode(
+                                    ViewKey.Number(1L),
+                                    48L,
+                                    "Branch",
+                                    TreeChildren
+                                        .Known(
+                                            [
+                                                TreeNode(ViewKey.Number(2L), 60L, "First"),
+                                                TreeNode(ViewKey.Number(3L), 44L, "Last")
+                                            ]
+                                        )
+                                ),
+                                TreeNode(ViewKey.Number(4L), 52L, "Sibling")
+                            ]
+                        )
+                )
+            ]
+        ),
+        columns = Some(
+            TreeColumns(
+                [
+                    TreeColumn<Long>(
+                        "detail",
+                        "Detail",
+                        { node ->
+                            frame(empty()) {
+                                this.height = Some(
+                                    if (node.value == 36L) 36.25 else node.value.toDouble()
+                                )
+                            }
+                        },
+                        size = TableColumnSize(GridTrack.Fixed(56.0))
+                    ),
+                    TreeColumn<Long>(
+                        "name", "Name", { _ -> empty() },
+                        size = TableColumnSize(GridTrack.Fixed(144.0))
+                    )
+                ],
+                "name"
+            )
+        ),
+        initialExpandAll = true
+    )
+
+    private fun sampleTree(extent: ItemExtent): View = tree(model) {
+        this.theme = Some(this @TreeLinesScene.theme)
+        this.itemExtent = extent
+        this.showLines = true
+        this.showHeader = false
+        this.enabled = false
+        this.scrollbars = ScrollbarVisibility.Hidden
+    }
+
+    public override fun render(): View = element(
+        { mount -> TreeLinesPanel(accepted, mount) },
+        [
+            sampleTree(ItemExtent.Variable(52.0)),
+            direction(sampleTree(ItemExtent.Fixed(56.0)), LayoutDirection.Rtl)
+        ]
+    )
+}
+
+private class TreeLinesPanel(private val accepted: () -> Unit, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val tree = Constraints.tight(Size(200.0, 320.0))
+        context.measureChild(0L, tree)
+        context.measureChild(1L, tree)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.placeChild(1L, Point(210.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(410.0, 320.0))), Unit)
+    }
+
+    public override fun scene(context: SceneContext, value: Unit) {
+        context.children()
+        context
+            .draw { paint ->
+                // The tree column follows Detail on the logical axis. The two nested rails mirror.
+                checkTreeLines(paint.canvas, 70.5, 20.0, 44.25, 56.0, 68.0, 52.0, 60.0)
+                checkTreeLines(paint.canvas, 339.5, -20.0, 56.0, 56.0, 56.0, 56.0, 56.0)
+            }
+        context
+            .onFrameComplete { result ->
+                if (result.submission == FrameSubmission.Accepted) accepted()
+            }
+    }
+}
+
+private fun checkTreeLines(
+    canvas: Canvas,
+    rootX: Double,
+    indent: Double,
+    root: Double,
+    branch: Double,
+    first: Double,
+    last: Double,
+    sibling: Double
+) {
+    val branchX = rootX + indent
+    val branchBottom = root + branch
+    val childBoundary = branchBottom + first
+    val lastBottom = childBoundary + last
+    fun expect(x: Double, y: Double, line: Boolean = true) {
+        val point = canvas.pixelTransform.map(Point(x, y))
+        assertEquals(
+            if (line) 255uL else 4294967295uL,
+            sampleCanvasPixel(canvas, point.x.toInt(), point.y.toInt()),
+            Some(f"Tree line sample at (${x}, ${y})")
+        )
+    }
+    for (offset in [-2.0, -0.5, 0.0, 0.5, 2.0]) {
+        expect(rootX, childBoundary + offset)
+        expect(branchX, childBoundary + offset)
+    }
+    expect(rootX, root - 2.0)
+    expect(rootX, root + 2.0)
+    expect(branchX, branchBottom - 2.0)
+    expect(branchX, branchBottom + 2.0)
+    expect(branchX, childBoundary + last / 2.0 - 2.0)
+    expect(branchX + indent / 2.0, childBoundary + last / 2.0)
+    expect(branchX, childBoundary + last / 2.0 + 2.0, false)
+    expect(rootX, lastBottom + sibling / 2.0 + 2.0, false)
+}
