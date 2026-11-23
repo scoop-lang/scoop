@@ -1,0 +1,52 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class StyleBackdropTest {
+    @Test
+    fun backdropOnlyDecorationLeavesContentSharpAndCornersUntouched() {
+        StylePainter()
+            .use { painter ->
+                val glass = style { corners = Corners.all(8.0) }
+                val bounds = Rect(8.0, 4.0, 32.0, 24.0)
+                ImageFilter
+                    .blur(3.0, 3.0)
+                    .use { filter ->
+                        RasterSurface(48, 32)
+                            .use { surface ->
+                                surface
+                                    .draw { canvas ->
+                                        canvas.clear(Color.Black)
+                                        canvas
+                                            .drawRect(
+                                                Rect(24.0, 0.0, 24.0, 32.0),
+                                                Paint(Color.White)
+                                            )
+                                        canvas
+                                            .drawRect(Rect(9.0, 5.0, 1.0, 1.0), Paint(Color.White))
+                                        painter
+                                            .paint(canvas, bounds, glass, Some(filter)) {
+                                                foreground
+                                                ->
+                                                foreground
+                                                    .drawRect(
+                                                        Rect(16.0, 14.0, 1.0, 4.0),
+                                                        Paint(Color(1.0, 0.0, 0.0))
+                                                    )
+                                            }
+                                    }
+                                val pixels = surface.readPixels()
+                                assertTrue(channel(pixels, 48, 23, 12, 0) in 50..150)
+                                assertEquals(255, channel(pixels, 48, 9, 5, 0))
+                                assertEquals(255, channel(pixels, 48, 16, 15, 0))
+                                assertEquals(0, channel(pixels, 48, 16, 15, 1))
+                                assertTrue(channel(pixels, 48, 17, 15, 0) < 12)
+                                assertEquals(0, channel(pixels, 48, 23, 2, 0))
+                                assertFalse(filter.isClosed)
+                            }
+                    }
+            }
+    }
+}

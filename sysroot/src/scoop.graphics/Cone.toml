@@ -74,6 +74,10 @@ when = { os = "darwin" }
 [[test.sources]]
 path = "tests/effects.scoop"
 [[test.sources]]
+path = "tests/shaders.scoop"
+[[test.sources]]
+path = "tests/shader_filters.scoop"
+[[test.sources]]
 path = "tests/layer_bounds.scoop"
 [[test.sources]]
 path = "tests/opacity_layers.scoop"
@@ -121,6 +125,8 @@ path = "native/shared/geometry.cpp"
 path = "native/shared/geometry_hit.cpp"
 [[native.sources]]
 path = "native/shared/filter.cpp"
+[[native.sources]]
+path = "native/shared/shader.cpp"
 [[native.sources]]
 path = "native/shared/canvas.cpp"
 [[native.sources]]

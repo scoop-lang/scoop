@@ -80,6 +80,8 @@ SGBounds scoop_graphics_canvas_clip_bounds(SGCanvas *value) {
 int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
                                    SGFilter *filter, int32_t blend,
                                    bool hasBounds, SGRect bounds) {
+  if (filter && !sg_compatible(value, filter->context))
+    return -1;
   SkBlendMode mode;
   switch (blend) {
   case 0:

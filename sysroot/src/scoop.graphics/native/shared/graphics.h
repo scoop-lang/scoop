@@ -103,8 +103,13 @@ struct SGDrawing : SGObject {
   }
 };
 struct SGFilter : SGObject {
+  sk_sp<GrDirectContext> context;
   sk_sp<SkImageFilter> filter;
-  explicit SGFilter(sk_sp<SkImageFilter> f) : filter(std::move(f)) {}
+  explicit SGFilter(sk_sp<SkImageFilter> f, sk_sp<GrDirectContext> c = nullptr,
+                    std::shared_ptr<SGGLState> state = {})
+      : context(std::move(c)), filter(std::move(f)) {
+    gl = std::move(state);
+  }
 };
 // Raw handles are kept alive by the GrDirectContext (and SGGLState for GLES).
 struct SGDeviceInfo {

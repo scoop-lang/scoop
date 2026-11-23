@@ -6,31 +6,32 @@ import scoop.graphics.native.canvasGpuDevice
 /** A canvas borrowed by a render callback. Every operation checks the active scope and owner. */
 public class Canvas internal constructor(private val handle: GraphicsResource) {
     private var borrowed = false
-    internal val resource: GraphicsResource get() {
-        if (borrowed)
-            throw IllegalStateException(Some("canvas has an active child scope"))
-        return handle
-    }
+    internal val resource: GraphicsResource
+        get() {
+            if (borrowed) throw IllegalStateException(Some("canvas has an active child scope"))
+            return handle
+        }
     /** Includes the target DPI root; useful for choosing a raster grid. */
-    public val pixelTransform: Transform get() {
-        @Unsafe
-        {
-            val result = canvasPixelTransform(resource.get())
-            checkTransform(result)
-            return result
+    public val pixelTransform: Transform
+        get() {
+            @Unsafe
+            {
+                val result = canvasPixelTransform(resource.get())
+                checkTransform(result)
+                return result
+            }
         }
-    }
     /** Conservative local bounds, not an exact path clip or hit-test result. */
-    public val localClipBounds: Rect? get() {
-        @Unsafe
-        {
-            val result = canvasClipBounds(resource.get())
-            if (result.found == 0)
-                return None
-            checkRect(result.rect)
-            return Some(result.rect)
+    public val localClipBounds: Rect?
+        get() {
+            @Unsafe
+            {
+                val result = canvasClipBounds(resource.get())
+                if (result.found == 0) return None
+                checkRect(result.rect)
+                return Some(result.rect)
+            }
         }
-    }
     /** Records in an independent local coordinate system, clipped to bounds. */
     public fun recordDrawing(bounds: Rect, block: (Canvas) -> Unit): Drawing {
         checkRect(bounds)
@@ -119,11 +120,10 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
         }
         @Unsafe
         {
-            val pointer =
-                when (filter) {
-                    case Some(val value) -> Some(value.resource.get())
-                    case None -> None
-                }
+            val pointer = when (filter) {
+                case Some(val value) -> Some(value.resource.get())
+                case None -> None
+            }
             graphicsResult(
                 canvasSave(
                     resource.get(),
@@ -173,66 +173,97 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
             graphicsResult(canvasClipPath(resource.get(), path.resource.get()), "clip path")
         }
     }
-    public fun drawRect(rect: Rect, paint: Paint = Paint()) {
-        shape(0, rect, paint)
+    /** Filters the current layer's prior pixels within the antialiased output outline. */
+    public fun drawBackdrop(outline: Path, filter: ImageFilter) {
+        @Unsafe {
+            graphicsResult(
+                canvasBackdrop(
+                    resource.get(),
+                    outline.resource.getForClose(),
+                    filter.resource.getForClose()
+                ),
+                "draw incompatible backdrop filter"
+            )
+        }
     }
-    public fun drawOval(rect: Rect, paint: Paint = Paint()) {
-        shape(1, rect, paint)
+    public fun drawRect(rect: Rect, paint: Paint = Paint(), shader: Shader? = None) {
+        shape(0, rect, paint, shader)
+    }
+    public fun drawOval(rect: Rect, paint: Paint = Paint(), shader: Shader? = None) {
+        shape(1, rect, paint, shader)
     }
     public fun drawRoundRect(
         rect: Rect,
         radiusX: Double,
         radiusY: Double,
-        paint: Paint = Paint()
-    ): Unit = drawRoundRect(rect, CornerRadii.all(Size(radiusX, radiusY)), paint)
-    public fun drawRoundRect(rect: Rect, radii: CornerRadii, paint: Paint = Paint()) {
+        paint: Paint = Paint(),
+        shader: Shader? = None
+    ): Unit = drawRoundRect(rect, CornerRadii.all(Size(radiusX, radiusY)), paint, shader)
+    public fun drawRoundRect(
+        rect: Rect,
+        radii: CornerRadii,
+        paint: Paint = Paint(),
+        shader: Shader? = None
+    ) {
         val outline = RoundedOutline(rect, radii).normalized()
         val corners = outline.radii
         val pointer = resource.get()
-        paint.withNative {
-            value -> @Unsafe
-            {
-                graphicsResult(
-                    canvasRoundRect(
-                        pointer,
-                        rect,
-                        cornerPoint(corners.topLeft),
-                        cornerPoint(corners.topRight),
-                        cornerPoint(corners.bottomRight),
-                        cornerPoint(corners.bottomLeft),
-                        value
-                    ),
-                    "draw rounded rectangle"
-                )
+        paint
+            .withNative(pointer, shader) { value ->
+                @Unsafe
+                {
+                    graphicsResult(
+                        canvasRoundRect(
+                            pointer,
+                            rect,
+                            cornerPoint(corners.topLeft),
+                            cornerPoint(corners.topRight),
+                            cornerPoint(corners.bottomRight),
+                            cornerPoint(corners.bottomLeft),
+                            value
+                        ),
+                        "draw rounded rectangle"
+                    )
+                }
             }
-        }
     }
-    public fun drawCircle(center: Point, radius: Double, paint: Paint = Paint()) {
+    public fun drawCircle(
+        center: Point,
+        radius: Double,
+        paint: Paint = Paint(),
+        shader: Shader? = None
+    ) {
         checkPoint(center);
         checkScalar(radius)
         requireGraphics(radius >= 0.0, "negative circle radius")
-        drawOval(Rect(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0), paint)
+        drawOval(
+            Rect(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0),
+            paint,
+            shader
+        )
     }
-    public fun drawLine(start: Point, end: Point, paint: Paint) {
+    public fun drawLine(start: Point, end: Point, paint: Paint, shader: Shader? = None) {
         checkPoint(start);
         checkPoint(end)
         val pointer = resource.get()
-        paint.withNative {
-            value -> @Unsafe
-            {
-                graphicsResult(canvasLine(pointer, start, end, value), "draw line")
+        paint
+            .withNative(pointer, shader) { value ->
+                @Unsafe
+                {
+                    graphicsResult(canvasLine(pointer, start, end, value), "draw line")
+                }
             }
-        }
     }
-    public fun drawPath(path: Path, paint: Paint = Paint()) {
+    public fun drawPath(path: Path, paint: Paint = Paint(), shader: Shader? = None) {
         val pointer = resource.get()
         val shape = path.resource.get()
-        paint.withNative {
-            value -> @Unsafe
-            {
-                graphicsResult(canvasPath(pointer, shape, value), "draw path")
+        paint
+            .withNative(pointer, shader) { value ->
+                @Unsafe
+                {
+                    graphicsResult(canvasPath(pointer, shape, value), "draw path")
+                }
             }
-        }
     }
     public fun drawImage(
         image: Image,
@@ -249,10 +280,7 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
                     resource.get(),
                     image.resource.get(),
                     destination,
-                    if (sampling == ImageSampling.Nearest)
-                        0
-                    else
-                        1,
+                    if (sampling == ImageSampling.Nearest) 0 else 1,
                     opacity
                 ),
                 "draw image"
@@ -291,25 +319,23 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
                     image.resource.get(),
                     source,
                     destination,
-                    if (sampling == ImageSampling.Nearest)
-                        0
-                    else
-                        1,
+                    if (sampling == ImageSampling.Nearest) 0 else 1,
                     opacity
                 ),
                 "draw image region"
             )
         }
     }
-    private fun shape(kind: Int, rect: Rect, paint: Paint) {
+    private fun shape(kind: Int, rect: Rect, paint: Paint, shader: Shader?) {
         checkRect(rect)
         val pointer = resource.get()
-        paint.withNative {
-            value -> @Unsafe
-            {
-                graphicsResult(canvasShape(pointer, kind, rect, value), "draw shape")
+        paint
+            .withNative(pointer, shader) { value ->
+                @Unsafe
+                {
+                    graphicsResult(canvasShape(pointer, kind, rect, value), "draw shape")
+                }
             }
-        }
     }
 }
 
@@ -402,3 +428,6 @@ private fun canvasImage(
     sampling: Int,
     opacity: Double
 ): Int
+
+@Extern(name = "scoop_graphics_canvas_backdrop")
+private fun canvasBackdrop(canvas: Ptr<Unit>, path: Ptr<Unit>, filter: Ptr<Unit>): Int

@@ -1,0 +1,215 @@
+package scoop.graphics
+
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+import scoop.text.contains
+
+private val swizzle = """
+uniform float amount;
+uniform float2x2 matrix;
+uniform int index;
+uniform int values[2];
+layout(color) uniform half4 tint;
+uniform shader image;
+half4 main(float2 p) {
+    half4 sampleColor = image.eval(p);
+    float2 factor = matrix * float2(1.0, 0.0);
+    return half4(sampleColor.r * amount, tint.g * factor.y, float(index == 0 ? values[0] : values[1]), 1);
+}
+"""
+
+private val shift = """
+uniform shader source;
+uniform float delta;
+half4 main(float2 p) { return source.eval(p + float2(delta, 0)); }
+"""
+
+@Test
+private class RuntimeShaderTest {
+    @Test
+    fun compilerAndBindingsReportErrors() {
+        val diagnostic = assertFailsWith<GraphicsException> {
+            ShaderProgram.compile("half4 main(float2 p) { return missingColor; }")
+        }
+        assertTrue(diagnostic.message!!.contains("missingColor"))
+        assertFailsWith<GraphicsException> {
+            ShaderProgram
+                .compile("uniform colorFilter c; half4 main(float2 p) { return c.eval(half4(0)); }")
+        }
+        ShaderProgram
+            .compile(swizzle)
+            .use { program ->
+                val expired = ArrayList<ShaderBindings>()
+                val missing = assertFailsWith<IllegalArgumentException> {
+                    program.makeShader { expired.add(this) }
+                }
+                assertTrue(missing.message!!.contains("image"))
+                assertFailsWith<IllegalStateException> { expired[0L].setInt("index", 0) }
+                assertFailsWith<IllegalArgumentException> {
+                    ImageFilter.runtimeShader(program, "image", 0.0) { setFloat("typo", 1f) }
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    ImageFilter.runtimeShader(program, "image", 0.0) { setInt("amount", 1) }
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    ImageFilter
+                        .runtimeShader(program, "image", 0.0) { setFloats("values", [1f, 0f]) }
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    ImageFilter.runtimeShader(program, "image", 0.0) { setInts("values", [1]) }
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    ImageFilter.runtimeShader(program, "image", 0.0) { setFloat("matrix", 1f) }
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    ImageFilter
+                        .runtimeShader(program, "image", 0.0) { setColor("matrix", Color.White) }
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    ImageFilter.runtimeShader(program, "other", 0.0)
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    ImageFilter.runtimeShader(program, "image", -1.0)
+                }
+                Image
+                    .fromRgba(1, 1, [0, 0, 0, 0])
+                    .use { image ->
+                        image
+                            .toShader()
+                            .use { child ->
+                                assertFailsWith<IllegalArgumentException> {
+                                    ImageFilter
+                                        .runtimeShader(program, "image", 0.0) {
+                                            setChild("image", child)
+                                        }
+                                }
+                                assertFailsWith<IllegalArgumentException> {
+                                    ImageFilter
+                                        .runtimeShader(program, "image", 0.0) {
+                                            setChild("tint", child)
+                                        }
+                                }
+                            }
+                    }
+                Thread
+                    .start { assertFailsWith<IllegalStateException> { program.makeShader() } }
+                    .use { thread -> thread.join() }
+            }
+    }
+
+    @Test
+    fun immutableUniformsAndChildrenSurviveRecording() {
+        RasterSurface(12, 8)
+            .use { surface ->
+                val drawing = surface
+                    .draw { canvas ->
+                        canvas
+                            .recordDrawing(Rect(0.0, 0.0, 12.0, 8.0)) { target ->
+                                val image = Image.fromRgba(1, 1, [255.toByte(), 0, 0, 255.toByte()])
+                                val child = image
+                                    .use { input -> input.toShader(ImageSampling.Nearest) }
+                                child
+                                    .use { input ->
+                                        ShaderProgram
+                                            .compile(swizzle)
+                                            .use { program ->
+                                                program
+                                                    .makeShader {
+                                                        setChild("image", input)
+                                                        setColor("tint", Color(0.0, 1.0, 0.0))
+                                                        setFloats("matrix", [0f, 1f, 0f, 0f])
+                                                        setInt("index", 1)
+                                                        setInts("values", [1, 0])
+                                                    }
+                                                    .use { green ->
+                                                        target
+                                                            .drawRect(
+                                                                Rect(0.0, 0.0, 6.0, 8.0),
+                                                                shader = Some(green)
+                                                            )
+                                                    }
+                                                program
+                                                    .makeShader {
+                                                        setChild("image", input)
+                                                        setFloat("amount", 1f)
+                                                        setInts("values", [1, 0])
+                                                    }
+                                                    .use { magenta ->
+                                                        target
+                                                            .drawCircle(
+                                                                Point(9.0, 4.0),
+                                                                3.0,
+                                                                Paint(Color.White.withAlpha(0.5)),
+                                                                Some(magenta)
+                                                            )
+                                                    }
+                                            }
+                                    }
+                            }
+                    }
+                drawing
+                    .use { replay ->
+                        surface
+                            .draw { canvas ->
+                                canvas.clear(Color.Transparent)
+                                canvas.drawDrawing(replay)
+                            }
+                    }
+                val bytes = surface.readPixels()
+                assertEquals(0, channel(bytes, 12, 2, 4, 0))
+                assertEquals(255, channel(bytes, 12, 2, 4, 1))
+                assertEquals(0, channel(bytes, 12, 2, 4, 2))
+                assertEquals(255, channel(bytes, 12, 9, 4, 0))
+                assertEquals(0, channel(bytes, 12, 9, 4, 1))
+                assertEquals(255, channel(bytes, 12, 9, 4, 2))
+                assertEquals(128, channel(bytes, 12, 9, 4, 3))
+            }
+    }
+
+    @Test
+    fun recordedBackdropSamplesTheCurrentLayerIncludingItsNeighbors() {
+        RasterSurface(48, 24)
+            .use { surface ->
+                val drawing = surface
+                    .draw { canvas ->
+                        canvas
+                            .recordDrawing(Rect(0.0, 0.0, 48.0, 24.0)) { target ->
+                                path { addRoundRect(Rect(4.0, 2.0, 20.0, 20.0), 4.0, 4.0) }
+                                    .use { outline ->
+                                        ShaderProgram
+                                            .compile(shift)
+                                            .use { program ->
+                                                ImageFilter
+                                                    .runtimeShader(program, "source", 8.0) {
+                                                        setFloat("delta", 8f)
+                                                    }
+                                                    .use { filter ->
+                                                        target.drawBackdrop(outline, filter)
+                                                    }
+                                            }
+                                    }
+                            }
+                    }
+                drawing
+                    .use { replay ->
+                        assertFalse(replay.canRasterizeTiles)
+                        for (color in [Color(1.0, 0.0, 0.0, 0.5), Color(0.0, 0.0, 1.0, 0.5)]) {
+                            surface
+                                .draw { canvas ->
+                                    canvas.clear(Color(0.0, 1.0, 0.0, 0.5))
+                                    canvas.drawRect(Rect(24.0, 0.0, 24.0, 24.0), Paint(color))
+                                    canvas.drawDrawing(replay)
+                                }
+                            val bytes = surface.readPixels()
+                            assertEquals(128, channel(bytes, 48, 9, 12, 3))
+                            assertEquals(255, channel(bytes, 48, 9, 12, 1))
+                            // The shifted sample lies beyond the outline. Its translucent destination is replaced once.
+                            val channel = if (color.red == 1.0) 0 else 2
+                            assertTrue(channel(bytes, 48, 21, 12, channel) >= 169)
+                            assertTrue(channel(bytes, 48, 21, 12, 3) in 191..192)
+                            assertEquals(255, channel(bytes, 48, 15, 1, 1))
+                        }
+                    }
+            }
+    }
+}

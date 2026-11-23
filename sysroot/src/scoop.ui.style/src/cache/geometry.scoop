@@ -13,7 +13,7 @@ internal class DecorationPaths(
     val outline: Path,
     val border: Path?,
     val regions: Array<Path>
-): Closeable {
+) : Closeable {
     public override fun close() {
         var failure = cleanupStyle(None) { outline.close() }
         failure = cleanupStyle(failure) { border?.close() }
@@ -23,32 +23,43 @@ internal class DecorationPaths(
     }
 }
 
-internal class DecorationGeometry: Closeable {
+internal class DecorationGeometry : Closeable {
     private var input: OutlineInput? = None
     private var current: DecorationPaths? = None
 
     fun update(
         bounds: Rect,
         style: Style,
-        direction: LayoutDirection = LayoutDirection.Ltr
+        direction: LayoutDirection = LayoutDirection.Ltr,
+        hasBackdrop: Boolean = false
     ): DecorationPaths? {
         val edges = physicalEdges(style, direction)
         val insets = edges.insets
         val outline = RoundedOutline(bounds, style.corners.resolve(direction)).normalized()
-        val hasBorder =
-            insets.left > 0.0 || insets.top > 0.0 || insets.right > 0.0 || insets.bottom > 0.0
-        val background =
-            when (style.background) {
-                case Some(_) -> true;
-                case None -> false
-            }
-        if (!background && !hasBorder && style.boxShadows.size == 0L && !style.clipContent) {
+        val hasBorder = insets.left >
+            0.0 ||
+            insets.top >
+            0.0 ||
+            insets.right >
+            0.0 ||
+            insets.bottom >
+            0.0
+        val background = when (style.background) {
+            case Some(_) -> true;
+            case None -> false
+        }
+        if (!background &&
+            !hasBackdrop &&
+            !hasBorder &&
+            style.boxShadows.size ==
+            0L &&
+            !style.clipContent
+        ) {
             close()
             return None
         }
         val nextInput = OutlineInput(outline, insets, hasBorder && edges.uniformColor() == None)
-        if (input == Some(nextInput))
-            return current
+        if (input == Some(nextInput)) return current
         val next = decorationPaths(nextInput, edges)
         val previous = current
         current = Some(next)
@@ -71,46 +82,35 @@ private fun decorationPaths(input: OutlineInput, edges: BorderEdges): Decoration
     try {
         val outline = path { addRoundRect(outer.bounds, outer.radii) }
         owned.add(outline)
-        val ring =
-            if (
-                (
-                    widths.left >
-                        0.0 ||
-                        widths.top >
-                        0.0 ||
-                        widths.right >
-                        0.0 ||
-                        widths.bottom >
-                        0.0
-                ) &&
-                    outer.bounds.width >
-                    0.0 &&
-                    outer.bounds.height >
-                    0.0
-            ) {
-                val inner = insetOutline(outer, widths)
-                val value =
-                    path(FillRule.EvenOdd) {
-                        addRoundRect(outer.bounds, outer.radii)
-                        if (inner.bounds.width > 0.0 && inner.bounds.height > 0.0)
-                            addRoundRect(inner.bounds, inner.radii)
-                    }
-                owned.add(value)
-                Some(value)
-            } else
-                None
+        val ring = if ((
+            widths.left > 0.0 || widths.top > 0.0 || widths.right > 0.0 || widths.bottom > 0.0
+        ) &&
+            outer.bounds.width >
+            0.0 &&
+            outer.bounds.height >
+            0.0
+        ) {
+            val inner = insetOutline(outer, widths)
+            val value = path(FillRule.EvenOdd) {
+                addRoundRect(outer.bounds, outer.radii)
+                if (inner.bounds.width > 0.0 && inner.bounds.height > 0.0)
+                    addRoundRect(inner.bounds, inner.radii)
+            }
+            owned.add(value)
+            Some(value)
+        } else
+            None
         val regions = ArrayList<Path>()
         if (input.partitions)
             for (points in borderRegions(outer.bounds, edges)) {
-                val region =
-                    path {
-                        if (points.size > 0L) {
-                            moveTo(points[0L])
-                            for (index in 1L ..< points.size)
-                                lineTo(points[index])
-                            closeContour()
-                        }
+                val region = path {
+                    if (points.size > 0L) {
+                        moveTo(points[0L])
+                        for (index in 1L..<points.size)
+                            lineTo(points[index])
+                        closeContour()
                     }
+                }
                 owned.add(region)
                 regions.add(region)
             }
