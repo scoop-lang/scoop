@@ -179,3 +179,20 @@ workspace Clippy 与全部 release 配套命令构建通过，保留仓库已有
 六项累计相对本轮 main 基线少用 3,550,855,168 bytes（3.31 GiB，22.3%），
 耗时从 321.63 秒降至 111.42 秒；各版本各测一次，不作为稳定加速比例，
 也不外推其他平台的绝对内存或时间。
+
+六项完成后合并 main 的 `5ccab2355`（Tree 连接线修复）。以上性能和产物字节对照
+固定使用合并前的同一份源码；合并后的 UI 源码已有变化，未将新产物纳入旧哈希对照。
+本机 Darwin/AArch64 的 debug／release 配套命令、44 个系统 Cone 和四种 runtime
+配置均重新构建，新增 Tree 连接线窗口测试通过。workspace Rust 测试 6,499 项通过，
+Python fixture 规则测试 80 项通过、4 项 Windows 专属测试按平台跳过。
+
+全量正式 CLI 验收覆盖 4,358 个 fixture、4,559 个配置组合、13,565 次进程调用；
+首轮 4,327 项通过、30 项不适用，唯一失败为 `generic-delegate-consumption-consumer`。
+main 基线编译器同样复现：用例要求 consumer 保留三个泛型委托初始化单元，却只调用
+一种实例，另两种按程序链接判活规则被裁剪。修正 downstream 输入以实际调用并检查
+另外两种实例的初值，保留原来的三单元元数据断言；相关泛型委托整组 59 项复验通过，
+全量发现的失败已闭合。该修正只改变此 fixture 的输入，没有修改编译器判活规则。
+
+两个未发布的 iOS target 仅做编译检查：`aarch64-apple-ios` 与
+`aarch64-apple-ios-sim` 的 `scoop.core`、`scoop.std` 均成功生成 release `.slib`，
+没有进行设备、模拟器宿主或发布验证。

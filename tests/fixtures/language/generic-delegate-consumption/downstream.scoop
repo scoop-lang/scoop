@@ -1,5 +1,13 @@
 package dev.example.downstream.delegates
 
+import dev.example.consumer.delegates.otherFirst
+import dev.example.consumer.delegates.otherSecond
 import dev.example.consumer.delegates.result
 
-public fun check(): Int = result()
+public fun check(): Int {
+    val shared = result()
+    if (otherFirst() != 40 || otherSecond() != 40) {
+        return 0
+    }
+    return shared
+}
