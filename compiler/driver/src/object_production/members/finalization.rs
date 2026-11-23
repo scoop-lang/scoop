@@ -5,7 +5,7 @@ use super::*;
 pub(in crate::object_production) fn final_members(
     member_plan: &PlannedLinkObjectMemberSetV1,
     generated_c_bridge_members: &[PlannedGeneratedCBridgeObjectInputV1],
-    objects: &[scoop_slib::FinalScoopLirObjectV1],
+    objects: &[scoop_slib::ScoopLirObjectCandidateV1<'_>],
 ) -> Result<Vec<UncompressedObjectMember>, BuiltinObjectProductionError> {
     let producer = member_plan.producer();
     let mut members = Vec::with_capacity(objects.len() + generated_c_bridge_members.len());

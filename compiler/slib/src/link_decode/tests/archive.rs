@@ -46,7 +46,7 @@ pub(crate) fn complete_artifact_parts() -> (BootstrapManifest, Vec<SlibMember>) 
         cone().identity(),
         member_plan.stable_key().clone(),
         crate::SlibMemberRole::LinkObject,
-        final_objects.objects()[0].bytes().to_vec(),
+        link_object_fixture().bytes,
     )
     .unwrap();
     let link_objects = crate::build_code_link_object_members_v1(

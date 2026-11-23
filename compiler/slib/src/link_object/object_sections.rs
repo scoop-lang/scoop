@@ -1,6 +1,7 @@
 //! Section roles and inventory shared by builtin object formats.
 
 use super::ValidatedObjectEnvelopeV1;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum BuiltinObjectSectionRoleV1 {
@@ -23,12 +24,12 @@ pub enum BuiltinObjectSectionRoleV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedBuiltinObjectSectionInventoryV1 {
-    pub(in crate::link_object) envelope: ValidatedObjectEnvelopeV1,
-    pub(in crate::link_object) roles: Vec<BuiltinObjectSectionRoleV1>,
+    pub(in crate::link_object) envelope: Arc<ValidatedObjectEnvelopeV1>,
+    pub(in crate::link_object) roles: Arc<[BuiltinObjectSectionRoleV1]>,
 }
 
 impl ValidatedBuiltinObjectSectionInventoryV1 {
-    pub const fn envelope(&self) -> &ValidatedObjectEnvelopeV1 {
+    pub fn envelope(&self) -> &ValidatedObjectEnvelopeV1 {
         &self.envelope
     }
 

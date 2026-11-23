@@ -16,7 +16,7 @@ use scoop_slib::{
     GeneratedCBridgeObjectCandidateV1, GeneratedCObjectReadError, LinkObjectMemberSetPlanError,
     MissingObjectDefinitionMemberV1, ObjectUnitSetError, PlannedGeneratedBridgeObjectMemberV1,
     PlannedLinkObjectMemberSetV1, PlannedScoopLirObjectMemberV1, PlannedStrongObjectSymbolSetV1,
-    ProductionCodeProjectionError, RegistrationObjectError, RuntimeAndEhRequirementValidationError,
+    ProductionCodeProjectionError, RuntimeAndEhRequirementValidationError,
     RuntimeImageFingerprintError, ScoopLirObjectCandidateV1, ScoopStackmapReadError,
     ScoopStackmapSetV1, SlibMemberId, SlibMemberRecordError,
     SourceExternalRequirementValidationError, StrongCallableBodyFingerprintError,

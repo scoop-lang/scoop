@@ -173,7 +173,7 @@ mod tests {
             storage_width: 8,
             target: super::super::VerifiedRelocationTargetV1::ExternalUndefined {
                 table_index: 1,
-                name: b"external".to_vec(),
+                name: b"external".as_slice().into(),
             },
         };
         assert!(!shape.form().is_absolute64());

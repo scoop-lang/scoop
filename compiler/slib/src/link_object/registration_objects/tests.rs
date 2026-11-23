@@ -14,7 +14,7 @@ use crate::link_object::{
 use scoop_wire::sha256;
 
 #[test]
-fn preserves_original_object_bytes_and_reuses_their_content_digest() {
+fn registration_fingerprints_outlive_the_original_object_buffers() {
     let fixture = Fixture::new(Corruption::None);
     let objects = [ScoopLirObjectCandidateV1::new(
         fixture.member,
@@ -23,33 +23,37 @@ fn preserves_original_object_bytes_and_reuses_their_content_digest() {
     let (safepoints, callables, types, immortal_objects, static_storages, initializations) =
         verified_fingerprints(&fixture, &objects);
 
-    let collected = collect_registration_objects_v1(
+    let collected = RegistrationObjectSetV1::new(
         safepoints,
         callables,
         types,
         immortal_objects,
         static_storages,
         initializations,
-        &objects,
-    )
-    .unwrap();
+    );
 
     assert_eq!(
         collected.producer(),
         scoop_identity::ConeIdentity::SINGLE_FILE
     );
-    assert_eq!(collected.objects().len(), 1);
-    let final_object = &collected.objects()[0];
-    assert_eq!(final_object.member(), fixture.member);
+    let member = fixture.member;
+    let digest = sha256(&fixture.object_bytes);
+    drop(fixture);
+    let builtins = collected
+        .callables()
+        .body_objects()
+        .registrations()
+        .builtins();
     assert_eq!(
-        final_object
-            .envelope()
+        builtins
+            .member(member)
+            .unwrap()
+            .definitions()
             .sections()
             .envelope()
             .content_digest(),
-        sha256(final_object.bytes())
+        digest
     );
-    assert_eq!(final_object.bytes(), fixture.object_bytes);
 }
 
 fn verified_fingerprints(

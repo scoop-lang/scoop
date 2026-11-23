@@ -32,7 +32,7 @@ impl From<ValidatedMachOObjectEnvelopeV1> for ValidatedObjectEnvelopeV1 {
                 .iter()
                 .map(|s| ObservedObjectSymbolV1 {
                     table_index: s.table_index(),
-                    name: s.name().to_vec(),
+                    name: s.name().into(),
                     kind: match s.kind() {
                         MachOSymbolKindV1::FileMetadata => ObjectSymbolKindV1::FileMetadata,
                         MachOSymbolKindV1::LocalSectionDefinition => {

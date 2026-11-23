@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::num::NonZeroU32;
+use std::sync::Arc;
 
 use scoop_identity::{
     ConeIdentity, DefinitionAtomRole, ObjectDefinitionAtomId, ObjectDefinitionPlanId,
@@ -22,7 +23,7 @@ mod ranges;
 pub struct ObjectDefinitionSymbolV1 {
     role: PlannedStrongObjectSymbolRoleV1,
     definition_owner: ObjectDefinitionPlanOwner,
-    macho_name: Vec<u8>,
+    macho_name: Arc<[u8]>,
     table_index: u32,
     section_ordinal: NonZeroU32,
     value: u64,
@@ -40,6 +41,10 @@ impl ObjectDefinitionSymbolV1 {
     }
 
     pub fn macho_name(&self) -> &[u8] {
+        &self.macho_name
+    }
+
+    pub(super) const fn shared_name(&self) -> &Arc<[u8]> {
         &self.macho_name
     }
 
@@ -166,10 +171,10 @@ impl MemberObjectDefinitionIndexV1 {
     pub fn strong_symbol_by_table_index(
         &self,
         table_index: u32,
-    ) -> Option<ObjectDefinitionSymbolV1> {
+    ) -> Option<&ObjectDefinitionSymbolV1> {
         self.symbol_indices
             .get(&table_index)
-            .map(|&index| self.symbols[index].clone())
+            .map(|&index| &self.symbols[index])
     }
 }
 
@@ -181,9 +186,9 @@ pub fn read_member_object_definitions_v1(
     let expected = plan
         .symbols()
         .iter()
-        .map(|symbol| (symbol.macho_name().to_vec(), symbol))
+        .map(|symbol| (symbol.macho_name(), symbol))
         .collect::<BTreeMap<_, _>>();
-    let mut actual = BTreeMap::<Vec<u8>, &ObservedObjectSymbolV1>::new();
+    let mut actual = BTreeMap::<&[u8], &ObservedObjectSymbolV1>::new();
     for symbol in sections.envelope().symbols().iter().filter(|symbol| {
         matches!(
             symbol.kind(),
@@ -191,7 +196,7 @@ pub fn read_member_object_definitions_v1(
                 | ObjectSymbolKindV1::ExternalWeakDefinition
         )
     }) {
-        if actual.insert(symbol.name().to_vec(), symbol).is_some() {
+        if actual.insert(symbol.name(), symbol).is_some() {
             return Err(
                 ObjectDefinitionReadError::DuplicateExternalStrongDefinition {
                     name: symbol.name().to_vec(),
@@ -203,7 +208,9 @@ pub fn read_member_object_definitions_v1(
     let mut definitions = BTreeMap::<ObjectDefinitionPlanId, DefinitionAccumulator>::new();
     for (name, planned) in expected {
         let observed = actual.get(&name).ok_or_else(|| {
-            ObjectDefinitionReadError::MissingExternalStrongDefinition { name: name.clone() }
+            ObjectDefinitionReadError::MissingExternalStrongDefinition {
+                name: name.to_vec(),
+            }
         })?;
         let section_ordinal = observed.section_ordinal().ok_or(
             ObjectDefinitionReadError::ExternalDefinitionWithoutSection {
@@ -220,7 +227,7 @@ pub fn read_member_object_definitions_v1(
         symbols.push(ObjectDefinitionSymbolV1 {
             role,
             definition_owner: planned.definition_owner(),
-            macho_name: name,
+            macho_name: observed.shared_name().clone(),
             table_index: location.table_index,
             section_ordinal: location.section_ordinal,
             value: location.value,

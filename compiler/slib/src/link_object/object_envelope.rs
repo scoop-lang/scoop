@@ -171,7 +171,7 @@ pub enum CoffSymbolAuxiliaryV1 {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ObservedObjectSymbolV1 {
     pub(super) table_index: u32,
-    pub(super) name: Vec<u8>,
+    pub(super) name: std::sync::Arc<[u8]>,
     pub(super) kind: ObjectSymbolKindV1,
     pub(super) section_ordinal: Option<NonZeroU32>,
     pub(super) value: u64,
@@ -183,6 +183,9 @@ impl ObservedObjectSymbolV1 {
         self.table_index
     }
     pub fn name(&self) -> &[u8] {
+        &self.name
+    }
+    pub(super) const fn shared_name(&self) -> &std::sync::Arc<[u8]> {
         &self.name
     }
     pub const fn kind(&self) -> ObjectSymbolKindV1 {

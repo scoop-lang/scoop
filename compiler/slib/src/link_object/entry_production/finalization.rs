@@ -1,7 +1,7 @@
 //! Final production data assembled without rewriting object bytes.
 
 use super::EntryProductionDataV1;
-use crate::link_object::{FinalScoopLirObjectV1, RuntimeImageContentV1};
+use crate::link_object::RuntimeImageContentV1;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FinalRuntimeObjectsV1<
@@ -34,8 +34,5 @@ impl<D: scoop_lir::StrongDescriptorReference, C: Clone, I> FinalRuntimeObjectsV1
     }
     pub const fn entry(&self) -> &EntryProductionDataV1 {
         &self.entry
-    }
-    pub fn objects(&self) -> &[FinalScoopLirObjectV1] {
-        self.runtime_image.registrations().objects()
     }
 }

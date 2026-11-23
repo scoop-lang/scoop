@@ -13,12 +13,6 @@ pub struct ValidatedScoopLirObjectEnvelopeV1 {
 }
 
 impl ValidatedScoopLirObjectEnvelopeV1 {
-    pub(in crate::link_object) fn from_sections(
-        sections: ValidatedBuiltinObjectSectionInventoryV1,
-    ) -> Self {
-        Self { sections }
-    }
-
     pub const fn sections(&self) -> &ValidatedBuiltinObjectSectionInventoryV1 {
         &self.sections
     }
