@@ -1,7 +1,7 @@
 [
   {
     "code": "E2203",
-    "message": "native C++ toolchain: selected GNU toolchain has no libstdc++ development library; C++ required by dev.m33:cxx-config:0.1.0",
+    "message": "native C++ toolchain: selected C++ toolchain has no standard library headers; C++ required by dev.m33:cxx-config:0.1.0",
     "notes": [],
     "origin": {
       "kind": "none"

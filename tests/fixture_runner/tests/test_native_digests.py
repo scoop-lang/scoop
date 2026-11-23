@@ -88,7 +88,9 @@ class NativeDigestTests(unittest.TestCase):
         self.assertEqual(result.count(b"$NATIVE_INPUT_0"), 2)
         self.assertIn(f"PersistentSourceNativeExternalContractId({numbers})".encode(), result)
         self.assertIn(f"unrelated={digest}".encode(), result)
-        self.assertIn(b"-member-1-668 selected by helper", result)
+        self.assertIn(b"-member-1-$NATIVE_HEADER selected by helper", result)
+        self.assertEqual(result, normalize_native_digests(data.replace(b"-1-668", b"-1-748")))
+        self.assertNotEqual(result, normalize_native_digests(data.replace(b"-1-668", b"-2-668")))
         for numbers in ([17] * 31, [17] * 33, [256] * 32):
             malformed = f"NativeInputId(Digest256({numbers}))".encode()
             self.assertEqual(normalize_native_digests(malformed), malformed)

@@ -371,10 +371,13 @@ Module
     local %171 $allocation.155.field.0: i32
     local %172 $inline.43.value: i1
     local %173 $inline.43.$dependency.receiver: i1
-    local %174 $sc.1: struct2
-    local %175 $sc.2: exception_record
-    local %176 $sc.3: ptr<raw>
-    local %177 $sc.4: ptr<managed>
+    local %174 $sc.1: exception_record
+    local %175 $sc.2: ptr<raw>
+    local %176 $sc.3: ptr<managed>
+    local %177 $sc.4: exception_record
+    local %178 $sc.5: ptr<raw>
+    local %179 $sc.6: ptr<managed>
+    local %180 $sc.7: struct2
   block entry
     poll managed-void-target7 sp<managed-poll:0> live=[]
     store integer<UInt>(0xff800123) -> local0
@@ -503,8 +506,8 @@ Module
     store integer<Long>(0x0000000000000004) -> local105
     store integer<Long>(0x0000000000000005) -> local106
     store integer<Long>(0x0000000000000006) -> local107
-    store local12 -> local174
-    call native-borrowed-direct-target0 sp<native-borrowed:4> roots=[] t22 = sig=direct4 (i64, i64, i64, i64, i64, i64, indirect<struct2 size=16 align=8 scan=none>, f64) -> struct2 extern8(integer<Long>(0x0000000000000001), integer<Long>(0x0000000000000002), integer<Long>(0x0000000000000003), integer<Long>(0x0000000000000004), integer<Long>(0x0000000000000005), integer<Long>(0x0000000000000006), indirect local174, local101)
+    store local12 -> local180
+    call native-borrowed-direct-target0 sp<native-borrowed:4> roots=[] t22 = sig=direct4 (i64, i64, i64, i64, i64, i64, indirect<struct2 size=16 align=8 scan=none>, f64) -> struct2 extern8(integer<Long>(0x0000000000000001), integer<Long>(0x0000000000000002), integer<Long>(0x0000000000000003), integer<Long>(0x0000000000000004), integer<Long>(0x0000000000000005), integer<Long>(0x0000000000000006), indirect local180, local101)
     store t22 -> local110
     t23 = extract local110, 0 : f64
     store t23 -> local111
@@ -534,21 +537,21 @@ Module
     br @inline.33.entry
   block try.unwind.19
     (t29, t30) = landingpad : (exception_record, ptr<raw>)
-    store t29 -> local175
-    store t30 -> local176
+    store t29 -> local177
+    store t30 -> local178
     br @try.dispatch.20
   block try.dispatch.20
-    t31 = begin_catch local176 : ptr<managed>
-    store t31 -> local177
+    t31 = begin_catch local178 : ptr<managed>
+    store t31 -> local179
     br @scope.29
   block try.exit_pad.21
     (t32, t33) = cleanup_pad : (exception_record, ptr<raw>)
-    store t32 -> local175
-    store t33 -> local176
+    store t32 -> local174
+    store t33 -> local175
     br @try.exit_cleanup.22
   block try.exit_cleanup.22
     end_catch
-    resume local175
+    resume local174
   block try.end.23
     store integer<Int>(0x00000049) -> local144
     store integer<Int>(0x00000049) -> local145
@@ -578,7 +581,6 @@ Module
     br @if.merge.27
   block if.merge.27
     invoke managed-void-target5 sp<managed-invoke:0> roots=[] sig=void5 (i1) local-fn13(local137) normal @invoke.normal.1 unwind @try.unwind.19
-    br @invoke.normal.1
   block scope.28
     store integer<Int>(0x00000000) -> local140
     store integer<Int>(0x00000000) -> local141
@@ -593,7 +595,6 @@ Module
     store integer<Int>(0x00000001) -> local143
     store integer<Int>(0x00000001) -> local125
     invoke no-gc-void-target0 sig=void6 () runtime @scoop_rt_rethrow() normal @rethrow.normal.2 unwind @try.exit_pad.21
-    br @rethrow.normal.2
   block if.then.30
     store integer<Int>(0x00000001) -> local147
     store integer<Int>(0x00000001) -> local148
@@ -856,7 +857,6 @@ Module
     poll gateway managed-void-target1 sp<managed-poll:0> live=[]
     call managed-direct-target0 sp<managed-call:0> live=[] t3 = sig=direct0 (ptr<metadata>) -> ptr<managed> runtime @scoop_rt_context_ensure_root(external-td3)
     invoke managed-void-target0 sp<managed-invoke:0> roots=[] sig=void0 () local-fn14() normal @success unwind @failure
-    br @success
   block success
     raw_store param2 integer<Int>(0x00000000) align 4
     ret integer<UInt>(0x00000000)

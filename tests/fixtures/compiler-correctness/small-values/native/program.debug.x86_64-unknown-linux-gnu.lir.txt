@@ -349,10 +349,13 @@ Module
     local %153 $dependency.argument.0: ptr<managed>
     local %154 $dependency.parameter.value: ptr<managed>
     local %155 $new.1: ptr<managed>
-    local %156 $sc.1: struct2
-    local %157 $sc.2: exception_record
-    local %158 $sc.3: ptr<raw>
-    local %159 $sc.4: ptr<managed>
+    local %156 $sc.1: exception_record
+    local %157 $sc.2: ptr<raw>
+    local %158 $sc.3: ptr<managed>
+    local %159 $sc.4: exception_record
+    local %160 $sc.5: ptr<raw>
+    local %161 $sc.6: ptr<managed>
+    local %162 $sc.7: struct2
   block entry
     poll managed-void-target9 sp<managed-poll:0> live=[]
     store integer<UInt>(0xff800123) -> local0
@@ -547,8 +550,8 @@ Module
     store local99 -> local107
     store local100 -> local108
     store local101 -> local109
-    store local108 -> local156
-    call native-borrowed-direct-target4 sp<native-borrowed:4> roots=[] t43 = sig=direct13 (i64, i64, i64, i64, i64, i64, indirect<struct2 size=16 align=8 scan=none>, f64) -> struct2 extern8(local102, local103, local104, local105, local106, local107, indirect local156, local109)
+    store local108 -> local162
+    call native-borrowed-direct-target4 sp<native-borrowed:4> roots=[] t43 = sig=direct13 (i64, i64, i64, i64, i64, i64, indirect<struct2 size=16 align=8 scan=none>, f64) -> struct2 extern8(local102, local103, local104, local105, local106, local107, indirect local162, local109)
     store t43 -> local110
     t44 = extract local110, 0 : f64
     store t44 -> local111
@@ -586,21 +589,21 @@ Module
     br @try.body.24
   block try.unwind.19
     (t52, t53) = landingpad : (exception_record, ptr<raw>)
-    store t52 -> local157
-    store t53 -> local158
+    store t52 -> local159
+    store t53 -> local160
     br @try.dispatch.20
   block try.dispatch.20
-    t54 = begin_catch local158 : ptr<managed>
-    store t54 -> local159
+    t54 = begin_catch local160 : ptr<managed>
+    store t54 -> local161
     br @scope.29
   block try.exit_pad.21
     (t55, t56) = cleanup_pad : (exception_record, ptr<raw>)
-    store t55 -> local157
-    store t56 -> local158
+    store t55 -> local156
+    store t56 -> local157
     br @try.exit_cleanup.22
   block try.exit_cleanup.22
     end_catch
-    resume local157
+    resume local156
   block try.end.23
     t57 = heap_load local124 +16 : i32
     store t57 -> local144
@@ -637,7 +640,6 @@ Module
     store local137 -> local138
     store local138 -> local139
     invoke managed-void-target6 sp<managed-invoke:0> roots=[local124:normal] sig=void6 (i1) local-fn13(local139) normal @invoke.normal.1 unwind @try.unwind.19
-    br @invoke.normal.1
   block scope.28
     store local125 -> local140
     store local140 -> local141
@@ -654,7 +656,6 @@ Module
     t67 = integer_Add<Int> local141, local143 : i32
     store t67 -> local125
     invoke no-gc-void-target0 sig=void7 () runtime @scoop_rt_rethrow() normal @rethrow.normal.2 unwind @try.exit_pad.21
-    br @rethrow.normal.2
   block if.then.30
     store local125 -> local147
     store integer<Int>(0x00000001) -> local148
@@ -867,7 +868,6 @@ Module
     poll gateway managed-void-target1 sp<managed-poll:0> live=[]
     call managed-direct-target0 sp<managed-call:0> live=[] t3 = sig=direct0 (ptr<metadata>) -> ptr<managed> runtime @scoop_rt_context_ensure_root(external-td3)
     invoke managed-void-target0 sp<managed-invoke:0> roots=[] sig=void0 () local-fn14() normal @success unwind @failure
-    br @success
   block success
     raw_store param2 integer<Int>(0x00000000) align 4
     ret integer<UInt>(0x00000000)

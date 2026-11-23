@@ -12,15 +12,15 @@ files = [{copy = {from = "${fixture}/cone", to = "${work}/cone"}}]
 name = "toolchain"
 files = [
 {mkdir = {path = "${work}/toolchain"}},
-{write = {path = "${work}/toolchain/gcc", data = "#!/bin/sh\nexec \"${cc}\" \"$@\"\n"}},
-{chmod = {path = "${work}/toolchain/gcc", mode = "755"}},
-{write = {path = "${work}/toolchain/g++", data = "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = \"-include\" ]; then echo \"selected GNU toolchain has no libstdc++ development library\" >&2; exit 1; fi\ndone\nexec g++ \"$@\"\n"}},
-{chmod = {path = "${work}/toolchain/g++", mode = "755"}}
+{write = {path = "${work}/toolchain/cc", data = "#!/bin/sh\nexec \"${cc}\" \"$@\"\n"}},
+{chmod = {path = "${work}/toolchain/cc", mode = "755"}},
+{write = {path = "${work}/toolchain/c++", data = "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = \"-include\" ]; then echo \"selected C++ toolchain has no standard library headers\" >&2; exit 1; fi\ndone\nexec \"${cc}\" \"$@\"\n"}},
+{chmod = {path = "${work}/toolchain/c++", mode = "755"}}
 ]
 
 [[steps]]
 name = "reject"
-argv = ["${scoop}", "build", "--target", "${target}", "--cc", "${work}/toolchain/gcc", "${work}/cone", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+argv = ["${scoop}", "build", "--target", "${target}", "--cc", "${work}/toolchain/cc", "${work}/cone", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
 exit = 1
 stdout = ""
 stderr = ""

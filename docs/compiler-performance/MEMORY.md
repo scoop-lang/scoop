@@ -196,3 +196,36 @@ main 基线编译器同样复现：用例要求 consumer 保留三个泛型委�
 两个未发布的 iOS target 仅做编译检查：`aarch64-apple-ios` 与
 `aarch64-apple-ios-sim` 的 `scoop.core`、`scoop.std` 均成功生成 release `.slib`，
 没有进行设备、模拟器宿主或发布验证。
+
+跨平台验收在上述本机任务全部结束后执行。Linux/x64 GNU 的 identity、slib、codegen
+和 driver 专项 Rust 测试共 1,148 项通过；Windows/x64 的对应测试共 1,059 项通过，
+实际应用使用 MSVC/UCRT，并为原生代码生成测试提供 Microsoft、LLVM-MinGW UCRT
+和 MSVCRT 三套工具配置。两平台的格式检查、对应 crate 的 Clippy 及 release
+配套命令构建通过。
+
+Linux 的 compiler-correctness 首轮为 376 项通过、39 项不适用、12 项失败，
+全部失败已定向复验闭合。C++ 负向测试改为包装实际选定的 C driver；原生链接快照
+不再比较随 C 编译器元数据变化的归档成员绝对字节位置，继续锁定成员顺序、名称、
+内容相等关系、选择结果、section 范围和引用关系。相关用例在 Clang 与 GCC 下
+各 11 项通过；本机原生链接整组 68 项通过、4 项不适用。三个 IR 用例的旧期望
+与 main 基线、当前编译器及重新编译的 core 均不一致；确认 main 与当前版本的
+完整差异相同后更新八份期望，两编译器各自复验三项、六种配置、八份 golden 全部
+通过。Darwin/x64 对共享的 SSA roots 期望也复验通过。
+
+Windows 的 compiler-correctness 首轮为 44 项通过、379 项不适用、4 项失败。
+context-query 检查脚本改为输出原始 LF，两个 profile 在本机和 Windows 均通过。
+两项 GC 压力用例在已安装的预编译系统库上报告缺少返回 PC；使用当前编译器和
+包含 Windows statepoint 修正的 LLVM 重建 core/std/platform 后，三种配置全部
+通过。fixture runner 的取消测试等待 Windows Job 内的 venv 子进程实际终止，
+保留进程退出与排队任务未执行的断言。更新后的 Python 规则测试在本机和 Windows
+均为 81 项通过、4 项不适用，Ruff 格式和检查通过。
+
+Windows 并行验收还在新的缓存目录复现 PM 解析记录发布的“拒绝访问”，排除了
+仅由旧缓存目录导致失败的解释。manifest、用户配置和 artifact 摘要记录现在复用
+已有文件锁，按输入键协调记录读取、未命中解析和原子发布，避免多个请求重复替换
+同键文件；不同键继续并行，不增加重试、内容复核或缓存修复。新增十二个独立进程
+共享输入的回归测试，保留真实配置、清单和产物，验证冷并发解析一致与热复用。
+PM 全套测试在本机／Linux 各 64 项、Windows 63 项通过；本机与 Linux 的相关
+并行 CLI 组各七项、八种配置通过。Windows 用新的冷缓存复验完整泛型委托组与
+lazy-object-cache，共 60 项、61 种配置、475 次进程调用全部通过。跨平台验收中
+发现的失败均已闭合；原始日志和逐次报告保留在仓库外，临时构建与用例产物清理。

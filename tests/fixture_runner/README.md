@@ -228,14 +228,18 @@ canonical source、span、code、message 或 notes；stdout/stderr 仍严格比�
 startup 符号列表、生成 C 或全镜像 `ELF system imports` 总数；系统导入总数包含 runtime
 和后端辅助引用，不是该 fixture 的 native 输入选择合同。真实符号解析由 linker 与程序运行验证。
 裸原生对象从零开始的总文件长度用 `$NATIVE_INPUT_SIZE` 表示，因为 C 编译器的版本标记等
-非 ABI 元数据会改变该长度；零长度、非零起点、archive 成员和选中 section 的范围仍精确比较。
+非 ABI 元数据会改变该长度；archive 成员的 header／payload 字节位置也受这些元数据
+影响，不进入选择快照。成员编号、名称、内容相等关系和选择状态继续精确比较，实际
+归档成员边界由读取器及其对象测试覆盖。裸对象的零长度、非零起点和选中 section
+的范围仍精确比较。
 `native-digests` 仅用于链接计划：
 将 `native library` 的 `input`、`native object/archive` 的内容 ID、归档 member 的
 `digest`、`dynamic provider` 及其 load/re-export 引用替换为按首次出现编号的标记。
 同值共用标记，不同值使用不同标记；保留逻辑库、requirement、源码声明身份、符号、
-成员名称／顺序／范围、选择状态、动态库路径和绑定关系。它不处理普通 IR ID 或任意哈希。
+成员名称／顺序、选择状态、动态库路径和绑定关系。它不处理普通 IR ID 或任意哈希。
 native 诊断中的 `native object` 引用及 `NativeInputId(Digest256(...))` 可通过进程步骤的
-`diagnostics_normalize = ["native-digests"]` 使用同一规则；完整诊断的其他字段仍精确比较。
+`diagnostics_normalize = ["native-digests"]` 使用同一规则；归档成员引用中的字节偏移
+用 `$NATIVE_HEADER` 表示，保留所属输入和成员编号。完整诊断的其他字段仍精确比较。
 过期依赖诊断可用 `diagnostics_normalize = ["dependency-digests"]`，仅处理
 `StaleDependency` 中 recorded HIR/MIR/LIR 与 actual 的六个内容摘要，保留它们的相等／变化关系。
 该规则只允许用于诊断；Cone／provider 身份、坐标、来源、阶段、错误 code 和其他内容仍精确比较。

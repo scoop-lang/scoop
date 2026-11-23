@@ -13,7 +13,7 @@ FIELDS = re.compile(
     + rb"|\bnative (?:archive|object) (?P<object>"
     + HEX
     + rb")(?= members=\d| slice=\d|-member-\d+-\d+| selected by | section )"
-    + rb"|^  member \d+ header=\d+ payload=\d+\.\.\d+ name=[^\n]+ digest=(?P<member>"
+    + rb"|^  member \d+ (?:header=\d+ payload=\d+\.\.\d+ )?name=[^\n]+ digest=(?P<member>"
     + HEX
     + rb")(?= selected=(?:true|false)(?:\n|$))"
     + rb"|^dynamic provider (?P<provider>"
@@ -51,4 +51,11 @@ def normalize_native_digests(data):
         start, end = match.span(field)
         return data[match.start() : start] + token + data[end : match.end()]
 
-    return FIELDS.sub(replace, data)
+    normalized = FIELDS.sub(replace, data)
+    # The member ordinal identifies the reference within its input. Its byte
+    # position also includes compiler-specific metadata in preceding members.
+    return re.sub(
+        rb"(\bnative object \$NATIVE_INPUT_\d+-member-\d+)-\d+(?= selected by | section )",
+        rb"\1-$NATIVE_HEADER",
+        normalized,
+    )

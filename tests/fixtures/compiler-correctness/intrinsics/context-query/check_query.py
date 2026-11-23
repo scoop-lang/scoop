@@ -28,4 +28,4 @@ for body in queries:
         assert forbidden not in body, body
 
 assert len(keys) == 3, f"expected interface, String and function context keys: {keys}"
-print("context queries use allocation-free NoGC lookups")
+sys.stdout.buffer.write(b"context queries use allocation-free NoGC lookups\n")
