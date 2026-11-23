@@ -45,7 +45,7 @@ impl ValidatedIdentityGraph {
                     .flatten()
                     .filter(move |(node, _)| node.kind == kind),
             )
-            .filter(move |(_, candidate)| scope.includes(candidate.layer))
+            .filter(move |(node, _)| scope.includes(self.local_layers.get(*node).copied()))
     }
 
     /// Reconstructs this artifact's records from one layer, sorted by typed id.

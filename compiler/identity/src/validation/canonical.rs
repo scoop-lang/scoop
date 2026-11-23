@@ -7,8 +7,9 @@ impl PendingIdentityValidation {
     pub fn from_graph(graph: ValidatedIdentityGraph) -> Self {
         Self {
             candidates: Rc::unwrap_or_clone(graph.candidates),
+            local_layers: graph.local_layers,
             declared: graph.declared.to_vec(),
-            checking: Vec::new(),
+            checking: HashMap::default(),
             phase: ValidationPhase::Registering,
             link: false,
             local_nodes: graph.local_nodes.to_vec(),
@@ -64,18 +65,17 @@ impl PendingIdentityValidation {
     ) -> Result<(), IdentityValidationError> {
         self.require_registration_phase()?;
         let node = IdentityNode::trusted(id);
-        if let Some(candidate) = self.candidates.get_mut(&node)
-            && candidate.layer.is_none()
-            && candidate.resolved
+        if let Some(candidate) = self.candidates.get(&node)
+            && !self.local_layers.contains_key(&node)
             && candidate.trusted_id.as_ref().downcast_ref::<I>() == Some(&id)
         {
-            candidate.layer = Some(layer);
+            Rc::make_mut(&mut self.local_layers).insert(node, layer);
             return self.record_declaration(node);
         }
         self.insert_candidate(layer, id)?;
-        self.candidates
-            .get_mut(&IdentityNode::trusted(id))
-            .expect("inserted identity")
+        self.checking
+            .get_mut(&node)
+            .expect("inserted identity state")
             .resolved = true;
         Ok(())
     }
@@ -121,8 +121,7 @@ impl PendingIdentityValidation {
         self.require_registration_phase()?;
         let node = IdentityNode::trusted(id);
         if let Some(candidate) = self.candidates.get(&node)
-            && candidate.layer.is_none()
-            && candidate.resolved
+            && !self.local_layers.contains_key(&node)
         {
             let same_key = candidate.key_ref::<I, K>() == Some(key.as_ref());
             if !same_key {
@@ -131,16 +130,15 @@ impl PendingIdentityValidation {
                     id: node.bytes,
                 });
             }
-            self.candidates
-                .get_mut(&node)
-                .expect("existing identity")
-                .layer = Some(layer);
+            Rc::make_mut(&mut self.local_layers).insert(node, layer);
             return self.record_declaration(node);
         }
         self.insert_candidate(layer, id)?;
-        let candidate = self.candidates.get_mut(&node).expect("inserted identity");
-        candidate.canonical_key = Some(key);
-        candidate.resolved = true;
+        self.candidates.set_key(&node, key);
+        self.checking
+            .get_mut(&node)
+            .expect("inserted identity state")
+            .resolved = true;
         Ok(())
     }
 }

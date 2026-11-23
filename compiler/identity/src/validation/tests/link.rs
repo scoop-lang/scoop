@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn shared_diamond_dependencies_visit_each_sources_records_once() {
+fn shared_diamond_dependencies_reuse_the_first_graph_and_visit_only_new_sources() {
     let core = validated_source_type_graph();
     let branch = |name: &str| {
         let cone = ConeCoordinate::new("tests", name, "1.0.0")
@@ -34,15 +34,13 @@ fn shared_diamond_dependencies_visit_each_sources_records_once() {
     let right = branch("right");
     let mut pending = PendingIdentityValidation::for_link();
     pending.register_external_graph_authorities(&left).unwrap();
+    assert!(pending.candidates.ptr_eq(&left.candidates));
     pending.register_external_graph_authorities(&right).unwrap();
     pending.register_external_graph_authorities(&core).unwrap();
     pending.register_external_graph_authorities(&left).unwrap();
     assert_eq!(
         pending.external_candidate_visits,
-        [&core, &left, &right]
-            .iter()
-            .map(|graph| graph.local_nodes.len() + graph.declared_identity_count())
-            .sum::<usize>()
+        right.local_nodes.len() + right.declared_identity_count()
     );
     let graph = pending.finish().unwrap();
     assert_eq!(graph.identity_count(), 6);

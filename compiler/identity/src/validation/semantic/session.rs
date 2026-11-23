@@ -112,7 +112,7 @@ impl SemanticIdentitySession {
                 .ok_or(SemanticIdentityImportError::MissingCanonicalKey)?;
             entries.push((
                 slot,
-                candidate.layer.expect("declared node has a layer"),
+                graph.local_layers[&node],
                 candidate
                     .canonical_key
                     .as_ref()

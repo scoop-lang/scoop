@@ -1,6 +1,52 @@
 use super::*;
 
 #[test]
+fn shared_dependency_records_keep_declaration_layers_local_to_each_graph() {
+    let dependency = validated_source_type_graph();
+    let mut pending = PendingIdentityValidation::new();
+    pending
+        .register_external_graph_authorities(&dependency)
+        .unwrap();
+    assert!(pending.candidates.ptr_eq(&dependency.candidates));
+    let imported = pending.finish().unwrap();
+    assert_eq!(imported.declared_identity_count(), 0);
+    assert!(
+        imported
+            .records::<PersistentTypeId, SourceDeclarationKey>(
+                IdentityLayer::Hir,
+                &WirePath::root()
+            )
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        imported
+            .closure_records::<PersistentTypeId, SourceDeclarationKey>(&WirePath::root())
+            .unwrap(),
+        vec![source_type_record()]
+    );
+
+    let mut pending = PendingIdentityValidation::from_graph(imported.clone());
+    pending
+        .register_canonical(IdentityLayer::Hir, source_type_record())
+        .unwrap();
+    let local = pending.finish().unwrap();
+    assert_eq!(local.declared_identity_count(), 1);
+    assert_eq!(imported.declared_identity_count(), 0);
+    assert_eq!(dependency.declared_identity_count(), 1);
+    assert_eq!(
+        local
+            .records::<PersistentTypeId, SourceDeclarationKey>(
+                IdentityLayer::Hir,
+                &WirePath::root()
+            )
+            .unwrap(),
+        vec![source_type_record()]
+    );
+    assert!(local.candidates.ptr_eq(&imported.candidates));
+}
+
+#[test]
 fn extending_a_shared_graph_preserves_the_original_records() {
     let graph = validated_source_type_graph();
     let snapshot = graph.clone();
@@ -8,6 +54,8 @@ fn extending_a_shared_graph_preserves_the_original_records() {
 
     let exact = decoded_exact_type();
     let mut pending = PendingIdentityValidation::from_graph(graph);
+    assert!(pending.candidates.ptr_eq(&snapshot.candidates));
+    assert!(Rc::ptr_eq(&pending.local_layers, &snapshot.local_layers));
     pending.register(IdentityLayer::Mir, &exact).unwrap();
     pending.resolve(&exact).unwrap();
     let extended = pending.finish().unwrap();
@@ -52,7 +100,9 @@ fn resolved_candidates_still_participate_in_new_cycles() {
         let mut edge = |source, target_is_first| {
             let mut resolver = PendingIdentityResolver {
                 current: source,
-                candidates: &mut pending.candidates,
+                candidates: &pending.candidates,
+                local_layers: &pending.local_layers,
+                checking: &mut pending.checking,
                 resource_error: &mut pending.resource_error,
                 resource_path: &pending.resource_path,
             };
@@ -87,7 +137,9 @@ fn extending_a_validated_graph_rejects_a_new_self_cycle() {
         .unwrap();
     let mut resolver = PendingIdentityResolver {
         current: IdentityNode::trusted(record.id()),
-        candidates: &mut pending.candidates,
+        candidates: &pending.candidates,
+        local_layers: &pending.local_layers,
+        checking: &mut pending.checking,
         resource_error: &mut pending.resource_error,
         resource_path: &pending.resource_path,
     };
@@ -150,10 +202,7 @@ fn shared_graph_merges_and_session_imports_still_reject_conflicting_keys() {
         Arc::new(exact_type_record().key().clone()) as Arc<dyn ErasedCanonicalKey>,
     ] {
         let mut conflicting = original.clone();
-        Rc::make_mut(&mut conflicting.candidates)
-            .get_mut(&node)
-            .unwrap()
-            .canonical_key = Some(key);
+        Rc::make_mut(&mut conflicting.candidates).set_key(&node, key);
         let mut pending = PendingIdentityValidation::new();
         pending
             .register_external_graph_authorities(&original)
