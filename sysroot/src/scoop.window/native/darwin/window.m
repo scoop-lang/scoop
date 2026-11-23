@@ -43,6 +43,12 @@ double sw_desktop_top(void) {
   return NSMaxY(NSScreen.screens.firstObject.frame);
 }
 
+static BOOL sw_is_fullscreen(SWWindow *owner) {
+  if (owner.fullscreenTransition != 0)
+    return owner.fullscreenTransition < 0;
+  return (owner.window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+}
+
 SWSnapshot sw_snapshot(SWWindow *owner) {
   NSWindow *window = owner.window;
   NSRect logical = owner.view.bounds;
@@ -63,6 +69,7 @@ SWSnapshot sw_snapshot(SWWindow *owner) {
   result.focused = window.keyWindow;
   result.minimized = window.miniaturized;
   result.maximized = window.zoomed;
+  result.fullscreen = sw_is_fullscreen(owner);
   NSAppearanceName appearance =
       [owner.view.effectiveAppearance bestMatchFromAppearancesWithNames:@[
         NSAppearanceNameAqua, NSAppearanceNameDarkAqua
@@ -185,6 +192,26 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
   [self emit:5];
   [self emit:2];
 }
+- (void)windowWillEnterFullScreen:(NSNotification *)notification {
+  self.fullscreenTransition = 1;
+}
+- (void)windowWillExitFullScreen:(NSNotification *)notification {
+  self.fullscreenTransition = -1;
+}
+- (void)windowDidEnterFullScreen:(NSNotification *)notification {
+  self.fullscreenTransition = 0;
+  sw_frame_invalidate(self);
+}
+- (void)windowDidExitFullScreen:(NSNotification *)notification {
+  self.fullscreenTransition = 0;
+  sw_frame_invalidate(self);
+}
+- (void)windowDidFailToEnterFullScreen:(NSWindow *)window {
+  self.fullscreenTransition = 0;
+}
+- (void)windowDidFailToExitFullScreen:(NSWindow *)window {
+  self.fullscreenTransition = 0;
+}
 @end
 
 SWResult scoop_window_create(void *application, int64_t identity,
@@ -213,6 +240,9 @@ SWResult scoop_window_create(void *application, int64_t identity,
                                            defer:NO];
     if (!owner.window)
       return (SWResult){NULL, 0};
+    if (!role && !parent)
+      owner.window.collectionBehavior |=
+          NSWindowCollectionBehaviorFullScreenPrimary;
     owner.view = [[SWView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
     owner.view.owner = owner;
     [owner.view installInput];
@@ -253,6 +283,24 @@ SWResult scoop_window_create(void *application, int64_t identity,
 
 SWSnapshot scoop_window_snapshot(void *pointer) {
   return sw_snapshot((__bridge SWWindow *)pointer);
+}
+
+int64_t scoop_window_fullscreen(void *pointer, int32_t value) {
+  SWWindow *owner = (__bridge SWWindow *)pointer;
+  NSWindow *window = owner.window;
+  int32_t direction = value ? 1 : -1;
+  if (owner.fullscreenTransition != 0)
+    return owner.fullscreenTransition == direction ? 0 : -5;
+  if (sw_is_fullscreen(owner) == (value != 0))
+    return 0;
+  if (!window.visible || window.miniaturized)
+    return -4;
+  if (window.inLiveResize)
+    return -5;
+
+  owner.fullscreenTransition = direction;
+  [window toggleFullScreen:nil];
+  return 0;
 }
 
 void scoop_window_destroy(void *pointer) {

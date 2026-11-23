@@ -30,6 +30,9 @@ internal fun nativeWindowMinimized(window: Ptr<Unit>, value: Int): Long
 @Extern(name = "scoop_window_maximized")
 internal fun nativeWindowMaximized(window: Ptr<Unit>, value: Int): Long
 
+@Extern(name = "scoop_window_fullscreen")
+internal fun nativeWindowFullscreen(window: Ptr<Unit>, value: Int): Long
+
 @Extern(name = "scoop_window_theme")
 internal fun nativeWindowTheme(window: Ptr<Unit>, value: Int): Long
 

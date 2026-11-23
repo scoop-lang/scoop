@@ -6,7 +6,7 @@
 
 状态：基础架构、macOS／Windows GUI 骨架及 Linux GNU x86_64 的 GTK4／libadwaita Wayland／X11 后端已实现。更新：2026-11-07，同步 Linux 合入后的设计基线；本次仅更新文档。Linux 采用 GtkGLArea／Skia 呈现，musl 暂无 GUI。实现、验证与限制见 [PROGRESS.md](PROGRESS.md)及 [Linux GUI 实施记录](../linux-gui/PROGRESS.md)，使用方式见[窗口库 README](../../sysroot/src/scoop.window/README.md)。
 
-本轮按 winit 的职责搭建可供 GUI 使用的骨架：真实窗口／主循环、显式生命周期与 proxy、基础窗口属性、DPI／显示器快照、键盘／指针／滚轮／文本输入、native lease、renderer 和 asyncio 接入。winit 的完整能力地图用于确定边界和后续扩展方向，不要求本轮复制它的全部平台扩展。全屏控制／显示模式切换、全局原始设备监听、触摸／高级手势、光标捕获、文件拖放及平台专有的复杂窗口交互分批补充；未实施项不以 Unsupported 伪装成平台不支持。控件、布局、菜单体系和应用编辑器仍由上层 GUI 实现。
+本轮按 winit 的职责搭建可供 GUI 使用的骨架：真实窗口／主循环、显式生命周期与 proxy、基础窗口属性、DPI／显示器快照、键盘／指针／滚轮／文本输入、native lease、renderer 和 asyncio 接入。winit 的完整能力地图用于确定边界和后续扩展方向，不要求本轮复制它的全部平台扩展。独占全屏／显示模式切换、全局原始设备监听、触摸／高级手势、光标捕获、文件拖放及平台专有的复杂窗口交互分批补充；未实施项不以 Unsupported 伪装成平台不支持。控件、布局、菜单体系和应用编辑器仍由上层 GUI 实现。
 
 目标是为 Skia／HarfBuzz 上层 GUI 提供 winit 对应的窗口、输入、显示器与主循环能力。公共 API 使用 Scoop，平台实现使用成熟的系统／协议库。功能基线取 [winit 0.30.13](https://docs.rs/winit/0.30.13/winit/)，另参考 0.31 beta 的演进方向，不追随其未稳定 API；逐项范围见 [WINIT-MAPPING.md](WINIT-MAPPING.md)，目标合同见[窗口库规范草案](../specs/SCOOP-WINDOW-SPEC.md)。
 
@@ -142,11 +142,11 @@ watch/remove 的所有权、非内联注册、串行通知、回调退出后注�
 
 ## 5. 窗口属性、DPI 与平台差异
 
-当前 WindowAttributes 使用普通属性／值类型，包含标题、内容尺寸及约束、可见性、装饰、可调整大小、初始位置、resize increments、透明／模糊、主题、窗口级别、按钮集合、内容共享提示及激活请求。创建时取得独立快照，之后修改原属性对象不改变已创建窗口；ApplicationOptions 同样在构造时取快照。全屏、图标和初始光标属性属于后续范围，不列为已存在的创建字段。无平台支持的必需属性使创建失败；主题／聚焦等建议性属性只表示已请求，不能把请求值伪装成 OS 已接受的状态。各方法分组见映射表。
+当前 WindowAttributes 使用普通属性／值类型，包含标题、内容尺寸及约束、可见性、装饰、可调整大小、初始位置、resize increments、透明／模糊、主题、窗口级别、按钮集合、内容共享提示及激活请求。创建时取得独立快照，之后修改原属性对象不改变已创建窗口；ApplicationOptions 同样在构造时取快照。全屏由应用在窗口显示后请求。无平台支持的必需属性使创建失败；主题／聚焦等建议性属性只表示已请求，不能把请求值伪装成 OS 已接受的状态。各方法分组见映射表。
 
 `RequestStatus` 为 Applied／Requested／Unsupported。Applied 只用于可立即确认的设置；Requested 由后续事件／快照确认；Unsupported 不产生副作用。非法参数用通常参数异常；平台失败用 WindowException，保留 operation、错误类别、backend 和可选原生 code。当前没有通用 supports 查询；实际调用仍须处理运行环境失联、权限或 compositor 状态变化。
 
-公共类型表达实际后端的共同语义与必要差异。窗口级别用 Normal／AlwaysOnTop／AlwaysOnBottom；后续全屏采用 Windowed／Borderless(monitor?)／Exclusive(videoMode)。本阶段直接提供已实施的方法，不预留一组没有对应方法的 WindowFeature 枚举或空平台分支。Windows 接入时复用语义相同的类型；发现当前表示不合适时直接修订 API 与调用方，不为保持旧事件匹配增加平行模型。
+公共类型表达实际后端的共同语义与必要差异。窗口级别用 Normal／AlwaysOnTop／AlwaysOnBottom。`requestFullscreen(Boolean)` 控制当前显示器上的全屏，`isFullscreen` 观察实际状态。各平台过渡与布局恢复见[窗口规范第 4.4 节](../specs/SCOOP-WINDOW-SPEC.md#44-全屏)。本阶段直接提供已实施的方法，不预留一组没有对应方法的 WindowFeature 枚举或空平台分支。Windows 接入时复用语义相同的类型；发现当前表示不合适时直接修订 API 与调用方，不为保持旧事件匹配增加平行模型。
 
 窗口内部坐标以左上为原点，x 向右、y 向下。LogicalPosition／LogicalSize／LogicalRect 使用有限 Double；PhysicalSize 使用非负 Int，表示 drawable 像素尺寸；PhysicalPosition 保留小数，适合物理像素中的指针位置。尺寸非负、scaleFactor 为有限正值；render target 遇到零尺寸暂停取得／提交帧。
 
@@ -248,7 +248,7 @@ framework 链接复用已有合同；macOS 阶段已实际验证本仓库 Mach-O
 
 同样使用 GTK/libadwaita 与 GtkGLArea；通过 GDK 公共入口取得需要的 Xlib Display／XID，现有全局位置、窗口层级与 attention 使用原生 X11 请求。显示事件仍由 GTK 读取，不混入另一套 XCB／Xlib 事件消费者。
 
-WM 可以忽略状态或叠放建议，Requested 不冒充观察结果。透明需要实际 compositor；输入、IME、剪贴板和显示器继续由 GTK/GDK 处理。全屏、拖放、raw／touch 等未交付能力不因 GTK 存在就记为完成。
+WM 可以忽略状态或叠放建议，Requested 不冒充观察结果。透明需要实际 compositor；全屏、输入、IME、剪贴板和显示器由 GTK/GDK 处理。raw device 等未交付能力不因 GTK 存在就记为完成。
 
 ### 10.4 依赖与发行
 
@@ -260,7 +260,7 @@ WM 可以忽略状态或叠放建议，Requested 不冒充观察结果。透明�
 
 本阶段以 Windows 10 1703 起的 Per-Monitor V2 为窗口 API 基线，消费现有三个 Windows x86_64 target。消息窗口和业务 HWND 均由主线程拥有，原生 C 薄层通过已有 ForeignCallback 回到 Scoop。共享生命周期、业务／收尾队列和测试辅助不复制为第二套实现。平台文件由普通 Cone source 条件选择；native handle 增加 Win32(hwnd, hinstance)，未知键码分别保留 Windows scan code 和 virtual key 来源。
 
-普通窗口使用 Unicode Win32 API。物理键来自扩展 scan code，逻辑键来自当前键盘布局；普通 WM_CHAR／WM_UNICHAR 与 TSF 文档编辑统一为自有 UTF-8 批次。owner 线程激活 ITfThreadMgr，每窗口以 ITfDocumentMgr／ITfContext 管理焦点，应用侧实现 ITextStoreACP 和必要通知。原生文档投影把 ACP／UTF-16 范围归一为公共 UTF-8 操作，revision／origin 保证输入法编辑与上层确认一致；COM/C++ 限制在 native 后端，不保留 IMM32 组合后端或公共 TSF 扩展。raw device、触摸、全屏和捕获仍属后续扩展。
+普通窗口使用 Unicode Win32 API。物理键来自扩展 scan code，逻辑键来自当前键盘布局；普通 WM_CHAR／WM_UNICHAR 与 TSF 文档编辑统一为自有 UTF-8 批次。owner 线程激活 ITfThreadMgr，每窗口以 ITfDocumentMgr／ITfContext 管理焦点，应用侧实现 ITextStoreACP 和必要通知。原生文档投影把 ACP／UTF-16 范围归一为公共 UTF-8 操作，revision／origin 保证输入法编辑与上层确认一致；COM/C++ 限制在 native 后端，不保留 IMM32 组合后端或公共 TSF 扩展。raw device 和捕获仍属后续扩展。
 
 所有 HWND 创建前确认 owner 的 DPI awareness。WM_DPICHANGED 应用系统建议 rect 后发布实际 client pixel size 与 DPI 的完整快照。桌面位置采用物理虚拟桌面坐标；内容逻辑坐标按本窗口 DPI 转换，不用单个 scale 换算整个桌面。显示器枚举使用 EnumDisplayMonitors／GetMonitorInfo／当前显示设置，离线身份由共享层退休。
 
@@ -289,7 +289,7 @@ Windows 后端要求创建窗口的 owner 使用 Per-Monitor V2。应用优先�
 1. 按本草案定义最小端到端子集，先落实实际需要的 `.m` native 管线，并采用 Windows 分支的 EventLoopNotification／watch；同步实际宿主与调用方，不新增旧签名兼容层。
 2. 用真实 window／window.asyncio 两个 Cone 完成公开宿主接入、窗口创建、输入、提交一帧及退出。持有 renderer lease 和活动 I/O 时请求退出，确认窗口、session、watch 与 lease 能依次或交错收尾；没有窗口时也能等待 session 完成。渲染使用小型实际 surface 适配，不建设完整 GUI 或通用渲染框架。
 3. Linux GNU 已通过 GTK/libadwaita 接入 Wayland／X11 的窗口、内容分配、输入／IME、装饰、GtkGLArea 和 asyncio；当前验证见 Linux GUI 实施记录。拖放等未交付能力继续独立补齐，musl 不列入当前 GUI 范围。
-4. 在已有基础光标、monitor、主题和窗口属性之上，按映射表分批补充 touch／gesture／raw device、全屏控制及高级可选属性；每项“平台不支持”均有真实 capability 依据和明确结果。
+4. 在已有基础光标、monitor、主题和窗口属性之上，按映射表分批补充 touch／gesture／raw device 及高级可选属性；每项“平台不支持”均有真实 capability 依据和明确结果。
 5. 每个阶段以配套示例、真实目标测试和明确限制独立交付。当前基础架构／macOS 骨架阶段与完整能力地图分别记录；Linux 窗口及平台专测另行安排，平台基础分支通过不等于窗口可用。
 
 纯值／归一规则、状态、错误与普通 API 行为用所属 Cone 的 scoop.test；真实窗口与 callback 测试使用主线程测试程序，必要的 OS 进程控制／ABI／native 编译能力才用少量 fixture。当前覆盖 macOS、Windows 和 Linux GNU 的 GTK Wayland／X11；实际执行范围分别记录。Xvfb／嵌套 compositor 可覆盖自动化行为，但不能替代硬件显示器、输入法候选交互、真实用户拖动及不同桌面 Shell 的验证。

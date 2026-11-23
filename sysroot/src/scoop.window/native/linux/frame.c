@@ -120,7 +120,7 @@ SWFrameSnapshot scoop_window_frame_snapshot(SWWindow *window) {
   if (window->configured) {
     layout =
         (SWFrameRect){0, 0, window->snapshot.width, window->snapshot.height};
-    if (window->frame_mode == 1) {
+    if (window->frame_mode == 1 && !window->snapshot.fullscreen) {
       graphene_point_t origin = GRAPHENE_POINT_INIT(0, 0), point;
       if (gtk_widget_compute_point(window->toolbar, window->view, &origin,
                                    &point)) {
@@ -154,7 +154,8 @@ static GtkWidget *find_button(GtkWidget *widget, int role) {
 }
 
 SWFrameRect scoop_window_frame_button(SWWindow *window, int32_t role) {
-  if (!window->configured || window->frame_mode == 2)
+  if (!window->configured || window->frame_mode == 2 ||
+      window->snapshot.fullscreen)
     return sw_frame_unknown();
   GtkWidget *button = find_button(window->header, role);
   graphene_rect_t rect;

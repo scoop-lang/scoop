@@ -74,6 +74,11 @@ private suspend fun awaitDemoScenario(demo: DesktopDemo, first: DemoDocument) {
     }
     root.selectFrame(2)
     waitDemo("client frame") { first.window.frameMetrics!!.frame == WindowFrame.Client }
+    root.toggleFullscreen()
+    waitDemo("enter full screen") { first.window.isFullscreen && root.fullscreen.value }
+    requireDemo(!second.window.isFullscreen, "fullscreen changed the second window")
+    root.toggleFullscreen()
+    waitDemo("exit full screen") { !first.window.isFullscreen && !root.fullscreen.value }
     waitDemo("popup anchor") { root.popup.requestOpen() }
     root.popup.cancel()
     waitDemo("popup cancelled") { !root.popup.isPending }

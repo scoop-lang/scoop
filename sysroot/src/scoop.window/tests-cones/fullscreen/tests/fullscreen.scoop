@@ -1,0 +1,160 @@
+package scoop.tests.window.fullscreen
+
+import scoop.platform.system.OperatingSystem
+import scoop.platform.system.operatingSystem
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class FullscreenTest {
+    @Test
+    fun `fullscreen is observed on the same window and restores its layout`() {
+        val probe = FullscreenProbe()
+        Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(probe)
+        assertTrue(probe.completed)
+        assertFailsWith<WindowException> { probe.window!!.isFullscreen }
+        assertFailsWith<WindowException> { probe.window!!.requestFullscreen(true) }
+    }
+}
+
+private enum Stage {
+    Configure, Enter, Exit, Maximize, Destroy
+}
+
+private class FullscreenProbe : ApplicationHandler {
+    var window: Window? = None
+    var completed = false
+    private var stage = Stage.Configure
+    private var originalSize = PhysicalSize(0, 0)
+    private var originalBounds: DesktopRect? = None
+    private var monitor: Monitor? = None
+    private var maximized = false
+    private var observedFrame = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> createWindows(application)
+
+            case Window(val id, val change) -> {
+                val target = window ?: return
+                if (id != target.id) return
+                when (change) {
+                    case GeometryChanged(_) -> advance(target, false)
+                    case FrameChanged -> advance(target, true)
+                    case Destroyed -> completed = stage == Stage.Destroy
+                    else -> {}
+                }
+            }
+
+            else -> {}
+        }
+    }
+
+    private fun createWindows(application: ActiveApplication) {
+        val target = application
+            .createWindow(
+                windowAttributes { size = LogicalSize(440.0, 300.0) }
+            )
+        window = Some(target)
+        val hidden = application.createWindow(windowAttributes { visible = false })
+        assertFalse(hidden.isFullscreen)
+        assertNotEquals(RequestStatus.Unsupported, hidden.requestFullscreen(false))
+        assertEquals(
+            WindowErrorKind.InvalidState,
+            assertFailsWith<WindowException> { hidden.requestFullscreen(true) }.kind
+        )
+        hidden.requestDestroy()
+        val owned = application
+            .createWindow(
+                windowAttributes {
+                    visible = false
+                    relation = WindowRelation.Owned(target)
+                }
+            )
+        assertEquals(RequestStatus.Unsupported, owned.requestFullscreen(true))
+        owned.requestDestroy()
+        target
+            .createDeadline { fail(Some("Timed out waiting for fullscreen geometry or state")) }
+            .schedule(MonotonicTimeSource.now() + Duration.seconds(25L))
+    }
+
+    private fun advance(target: Window, frameChanged: Boolean) {
+        val size = target.metrics?.physicalSize ?: return
+        if (!size.isDrawable) return
+        when (stage) {
+            case Configure -> enter(target, size)
+
+            case Enter -> {
+                if (!target.isFullscreen) return
+                observedFrame = observedFrame || frameChanged
+                val screen = monitor!!.physicalSize
+                if (!observedFrame ||
+                    size.width !=
+                    screen.width ||
+                    size.height <=
+                    originalSize.height
+                )
+                    return
+                if (operatingSystem != OperatingSystem.Darwin && size.height != screen.height)
+                    return
+                assertEquals(monitor!!.id, target.currentMonitor()!!.id)
+                stage = Stage.Exit
+                observedFrame = false
+                assertNotEquals(RequestStatus.Unsupported, target.requestFullscreen(false))
+                assertNotEquals(RequestStatus.Unsupported, target.requestFullscreen(false))
+            }
+
+            case Exit -> {
+                if (target.isFullscreen) return
+                observedFrame = observedFrame || frameChanged
+                if (!observedFrame ||
+                    size.width !=
+                    originalSize.width ||
+                    size.height !=
+                    originalSize.height
+                )
+                    return
+                if (operatingSystem == OperatingSystem.Windows) {
+                    assertEquals(Some(maximized), target.isMaximized)
+                    val before = originalBounds!!
+                    val after = target.outerBounds!!
+                    assertEquals(before.origin.x, after.origin.x)
+                    assertEquals(before.origin.y, after.origin.y)
+                    if (!maximized) {
+                        stage = Stage.Maximize
+                        target.requestMaximized(true)
+                        return
+                    }
+                }
+                stage = Stage.Destroy
+                target.requestDestroy()
+            }
+
+            case Maximize ->
+                if (target.isMaximized == Some(true)) {
+                    maximized = true
+                    enter(target, size)
+                }
+            case Destroy -> {}
+        }
+    }
+
+    private fun enter(target: Window, size: PhysicalSize) {
+        assertFalse(target.isFullscreen)
+        originalSize = size
+        originalBounds = target.outerBounds
+        monitor = Some(target.currentMonitor() ?: return)
+        stage = Stage.Enter
+        observedFrame = false
+        assertNotEquals(RequestStatus.Unsupported, target.requestFullscreen(true))
+        assertNotEquals(RequestStatus.Unsupported, target.requestFullscreen(true))
+        if (operatingSystem == OperatingSystem.Darwin && !target.isFullscreen) {
+            assertEquals(
+                WindowErrorKind.ResourceBusy,
+                assertFailsWith<WindowException> { target.requestFullscreen(false) }.kind
+            )
+        }
+    }
+}

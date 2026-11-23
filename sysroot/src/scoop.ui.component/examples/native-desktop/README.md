@@ -1,6 +1,6 @@
 # 原生桌面能力 Demo
 
-同一个普通 Cone 演示 SVG／Lucide、字体选择与变体、Taskbar／Dock、系统通知、原生菜单栏／popup、独立托盘组件、邻近窗口定位、窗框与形状、owned 工具窗口、Owner／Application 模态及系统文件面板。使用公共 API，显式依赖对应桌面和托盘适配 Cone。
+同一个普通 Cone 演示 SVG／Lucide、字体选择与变体、Taskbar／Dock、系统通知、原生菜单栏／popup、独立托盘组件、邻近窗口定位、全屏、窗框与形状、owned 工具窗口、Owner／Application 模态及系统文件面板。使用公共 API，显式依赖对应桌面和托盘适配 Cone。
 
 ## 构建与运行
 
@@ -13,7 +13,7 @@ scoop build sysroot/src/scoop.ui.component/examples/native-desktop --release --s
 
 Windows 安装包的主驱动为 `sco.exe`，使用对应 `--target` 及 `.exe` 输出名；Linux 需要 GTK4／libadwaita 与 libdbusmenu-glib 0.4。托盘还需要支持 StatusNotifierItem 的桌面宿主。普通窗口和组件库仍不依赖托盘。
 
-`--help` 不创建窗口。`--smoke` 在真实显示会话中执行一组有界流程并退出：两窗口、SVG 主题和桌面状态更新、通知设置查询、菜单更新与 popup 取消、窗框切换、工具／异形窗口、两种模态范围、文件面板取消、无窗口更新及再次打开窗口。它不发送通知、不请求授权、不发布持久 Jump List。该流程不代替真实点击、焦点、拖动、Snap、文件选择及多显示器视觉验收。Windows SSH 只编译 GUI；在登录桌面运行可执行文件及 `--smoke`。
+`--help` 不创建窗口。`--smoke` 在真实显示会话中执行一组有界流程并退出：两窗口、SVG 主题和桌面状态更新、通知设置查询、菜单更新与 popup 取消、窗框切换、进入与退出全屏、工具／异形窗口、两种模态范围、文件面板取消、无窗口更新及再次打开窗口。它不发送通知、不请求授权、不发布持久 Jump List。该流程不代替真实点击、焦点、拖动、Snap、文件选择及多显示器视觉验收。Windows SSH 可编译 GUI，在登录桌面运行可执行文件及 `--smoke`。
 
 ## 应用身份与打包
 
@@ -31,7 +31,7 @@ Linux desktop action 与 Windows Jump List 的 “New document window” 启动�
 
 1. 编辑文本，选择原生 Edit 菜单的 Cut／Copy／Paste／Undo；切换只读。popup 与托盘共享 checkbox、radio 和图标颜色，菜单项保持身份。试用右键、菜单键、Shift+F10 与按钮的方向键。
 2. 打开另一文档并启用窗口菜单覆盖，切换焦点，观察 macOS 应用菜单和 Windows／Linux 每窗口菜单的区别。
-3. 切换 System／Extended／Client。拖动自绘标题栏空白处，操作其中的输入与按钮；试用双击最大化、系统窗口菜单和缩放握柄。Windows 另展示 DWM 属性与系统按钮 Snap，macOS 展示 AppKit 标题栏选项。
+3. 用页面顶部的 Enter full screen 和 Exit full screen 切换当前文档，旁边的状态来自 `Window.isFullscreen`。再切换 System／Extended／Client。拖动自绘标题栏空白处，操作其中的输入与按钮；试用双击最大化、系统窗口菜单和缩放握柄。Windows 另展示 DWM 属性与系统按钮 Snap，macOS 展示 AppKit 标题栏选项。
 
    Windows 使用 Extended 前勾选 Hide menu bar，以空菜单覆盖当前文档的原生菜单栏；恢复菜单栏时，此文档先切回 Client。Win32 当前宿主明确拒绝非空 HMENU 与 Extended 的冲突组合。弹出菜单、编辑器右键菜单与托盘菜单仍可使用。示例背景填满客户区，同时按实际 frameMetrics 留出系统按钮的透明区域，避免遮住 DWM 绘制的按钮或在按钮下方留下黑块。
 4. 打开 owned 工具窗口，验证它不阻塞父窗口；最小化／恢复父窗口并检查相对叠放。分别试用一次 raise 和持续 topmost，能力不支持时相应按钮禁用。

@@ -106,6 +106,15 @@ int64_t scoop_window_maximized(SWWindow *window, int32_t value) {
     gtk_window_unmaximize(GTK_WINDOW(window->window));
   return 0;
 }
+int64_t scoop_window_fullscreen(SWWindow *window, int32_t value) {
+  if (!gtk_widget_get_visible(window->window) || window->snapshot.minimized)
+    return value || window->snapshot.fullscreen ? -4 : 0;
+  if (value)
+    gtk_window_fullscreen(GTK_WINDOW(window->window));
+  else
+    gtk_window_unfullscreen(GTK_WINDOW(window->window));
+  return 0;
+}
 int64_t scoop_window_theme(SWWindow *window, int32_t value) {
   return value < 0 ? 0 : -1;
 }
@@ -120,7 +129,8 @@ int64_t sw_transparency(SWWindow *window, bool transparent) {
         ".scoop-window.scoop-transparent toolbarview, "
         ".scoop-window.scoop-transparent scoopcontent "
         "{ background: transparent; }"
-        ".scoop-window.scoop-client, .scoop-window.scoop-client contents "
+        ".scoop-window.scoop-client, .scoop-window.scoop-client contents, "
+        ".scoop-window.fullscreen, .scoop-window.fullscreen contents "
         "{ border-radius: 0; border: 0 solid transparent; padding: 0; "
         "box-shadow: none; }"
         ".scoop-window.scoop-no-shadow { box-shadow: none; }");

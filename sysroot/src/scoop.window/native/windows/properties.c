@@ -1,14 +1,21 @@
 #include "window.h"
 
-int64_t sw_restyle(SWWindow *window) {
-  RECT client;
-  GetClientRect(window->hwnd, &client);
+static DWORD set_style(SWWindow *window, LONG_PTR retain) {
   LONG_PTR old = GetWindowLongPtrW(window->hwnd, GWL_STYLE);
   SetLastError(0);
-  SetWindowLongPtrW(window->hwnd, GWL_STYLE,
-                    sw_style(window) | (old & (WS_VISIBLE | WS_MINIMIZE |
-                                               WS_MAXIMIZE | WS_DISABLED)));
-  DWORD error = GetLastError();
+  return SetWindowLongPtrW(window->hwnd, GWL_STYLE,
+                           sw_style(window) | (old & retain))
+             ? 0
+             : GetLastError();
+}
+
+int64_t sw_restyle(SWWindow *window) {
+  if (window->fullscreen)
+    return 0;
+  RECT client;
+  GetClientRect(window->hwnd, &client);
+  DWORD error =
+      set_style(window, WS_VISIBLE | WS_MINIMIZE | WS_MAXIMIZE | WS_DISABLED);
   if (error)
     return error;
   if (!SetWindowPos(window->hwnd, NULL, 0, 0, 0, 0,
@@ -20,6 +27,8 @@ int64_t sw_restyle(SWWindow *window) {
 }
 
 int64_t scoop_window_position(SWWindow *window, double x, double y) {
+  if (window->fullscreen)
+    return -1;
   if (x < INT_MIN || x > INT_MAX || y < INT_MIN || y > INT_MAX)
     return ERROR_INVALID_PARAMETER;
   return SetWindowPos(window->hwnd, NULL, (int)round(x), (int)round(y), 0, 0,
@@ -122,9 +131,81 @@ int64_t scoop_window_minimized(SWWindow *window, int32_t value) {
   return 0;
 }
 int64_t scoop_window_maximized(SWWindow *window, int32_t value) {
+  if (window->fullscreen)
+    return -1;
   ShowWindow(window->hwnd, value ? SW_MAXIMIZE : SW_RESTORE);
   return 0;
 }
+
+int64_t sw_fit_fullscreen(SWWindow *window) {
+  HWND hwnd = window->hwnd;
+  MONITORINFO monitor = {.cbSize = sizeof(monitor)};
+  HMONITOR current = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+  if (!GetMonitorInfoW(current, &monitor))
+    return ERROR_INVALID_MONITOR_HANDLE;
+  RECT bounds = monitor.rcMonitor;
+  return SetWindowPos(hwnd, NULL, bounds.left, bounds.top,
+                      bounds.right - bounds.left, bounds.bottom - bounds.top,
+                      SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE)
+             ? 0
+             : GetLastError();
+}
+
+static int64_t apply_fullscreen_frame(SWWindow *window) {
+  HWND hwnd = window->hwnd;
+  int64_t status = set_style(window, WS_VISIBLE | WS_DISABLED);
+  if (status)
+    return status;
+  HMENU menu = window->fullscreen ? NULL : window->fullscreen_menu;
+  if (GetMenu(hwnd) != menu && !SetMenu(hwnd, menu)) {
+    DWORD error = GetLastError();
+    return error ? error : ERROR_GEN_FAILURE;
+  }
+  status = sw_frame_margins(window);
+  if (status)
+    return status;
+  if (window->fullscreen)
+    return sw_fit_fullscreen(window);
+  if (!SetWindowPlacement(hwnd, &window->fullscreen_placement))
+    return GetLastError();
+  return SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+                      SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE |
+                          SWP_NOZORDER | SWP_NOACTIVATE)
+             ? 0
+             : GetLastError();
+}
+
+int64_t scoop_window_fullscreen(SWWindow *window, int32_t value) {
+  bool fullscreen = value != 0;
+  if (window->fullscreen == fullscreen)
+    return 0;
+  HWND hwnd = window->hwnd;
+  if (!IsWindowVisible(hwnd) || IsIconic(hwnd))
+    return -4;
+  if (fullscreen) {
+    WINDOWPLACEMENT placement = {.length = sizeof(placement)};
+    if (!GetWindowPlacement(hwnd, &placement))
+      return GetLastError();
+    window->fullscreen_placement = placement;
+    window->fullscreen_menu = GetMenu(hwnd);
+  }
+
+  uint64_t revision = window->frame_revision;
+  window->fullscreen = fullscreen;
+  int64_t status = apply_fullscreen_frame(window);
+  if (status) {
+    window->fullscreen = !fullscreen;
+    int64_t restored = apply_fullscreen_frame(window);
+    if (restored)
+      sw_fail(window->application, (DWORD)restored);
+  } else if (window->frame_revision == revision) {
+    sw_frame_invalidate(window);
+  }
+  if (!window->fullscreen)
+    window->fullscreen_menu = NULL;
+  return status;
+}
+
 int sw_theme(SWWindow *window) {
   if (window->theme >= 0)
     return window->theme;

@@ -34,6 +34,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | 定时回调 | `Window.createDeadline` 创建窗口所属的一次性回调；共用主循环最近期限，关闭窗口即撤销 |
 | 系统交互偏好 | `interactionPreferences` 读取已发布快照，`observeInteractionPreferences` 观察变化；未知值与明确关闭分开，不轮询系统 |
 | 窗口 | 独立／Owned 顶层窗口、Tool 角色与一次 raise；标题、显示／隐藏、焦点请求、尺寸及约束、桌面位置、窗框及按钮、窗口级别、最小化／最大化、主题、透明／模糊、内容共享提示、注意力请求 |
+| 全屏 | `window.requestFullscreen(true)` 进入、`window.requestFullscreen(false)` 退出、`window.isFullscreen` 查询实际状态 |
 | 模态 | 从隐藏窗口创建 ModalSession；Owner／Application 输入范围、SeparateWindow／Sheet 能力、嵌套、取消与原生使用退休 |
 | macOS | activation policy、titlebar 属性、bundle identifier 查询 |
 | 显示器与 DPI | 拥有数据的显示器快照、可选名称／桌面位置／刷新率；窗口完整 logical／physical／scale metrics |
@@ -60,7 +61,13 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 
 Windows 从 WM_POINTER 和对应查询复制触点，整条消息路径一致交回 DefWindowProc，并过滤 UI 的兼容鼠标副本；GTK 使用原始 GdkEventSequence／笔工具，通过捕获阶段的 GtkEventControllerLegacy 避免 GtkGestureClick 重复交付。AppKit 继续交付已识别的触控板手势，不把 NSTouch 设备坐标假装成窗口内直接触摸。Windows／GTK 原生实现和真实设备验收范围见[实施记录](../../../docs/ui/interaction-polish/PROGRESS.md)。
 
-全屏控制／显示模式切换、全局 raw device、更多应用手势识别、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放已提供 AppKit／OLE／GDK 来源与目标、UI source／target 及文本事务；各平台的实际验证范围见交互实施记录。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
+独占全屏／显示模式切换、全局 raw device、更多应用手势识别、光标捕获／自定义光标和复杂平台窗口交互属于后续范围。数据拖放已提供 AppKit／OLE／GDK 来源与目标、UI source／target 及文本事务；各平台的实际验证范围见交互实施记录。完整映射见 [WINIT-MAPPING.md](../../../docs/windowing/WINIT-MAPPING.md)。
+
+## 全屏
+
+从 `scoop.window` 导入 `requestFullscreen` 和 `isFullscreen`。在窗口 owner 线程，对已显示的独立普通窗口调用 `window.requestFullscreen(true)`，退出时传 `false`。请求返回后，通过 `window.isFullscreen` 读取系统确认的状态。应用可以在收到 `WindowEvent.FrameChanged` 时重新读取它，随后更新按钮和布局。全屏使用窗口所在的显示器，退出后恢复窗口布局。AppKit 完成过渡前，正在进行的同向请求可重复提交，反向请求会抛出 `WindowException`（`ResourceBusy`）。
+
+`scoop.ui.component/examples/native-desktop` 演示从 UI 发起切换并显示观察到的状态。在仓库根目录用 `scoop test sysroot/src/scoop.window/tests-cones/fullscreen --release` 运行桌面测试。Linux 可分别设置 `SCOOP_WINDOW_BACKEND=wayland` 和 `x11`。
 
 ## 系统交互偏好
 

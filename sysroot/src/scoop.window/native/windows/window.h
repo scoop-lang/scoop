@@ -26,7 +26,7 @@ typedef int32_t (*SWCallback)(void *, int64_t, int32_t);
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
   double x, y, outer_width, outer_height;
-  int32_t visible, occluded, focused, minimized, maximized, dark;
+  int32_t visible, occluded, focused, minimized, maximized, fullscreen, dark;
 } SWSnapshot;
 typedef struct {
   void *pointer;
@@ -88,6 +88,9 @@ typedef struct SWWindow {
   uint64_t frame_revision;
   int frame_hover, frame_pressed, frame_button_down;
   bool window_region;
+  bool fullscreen;
+  WINDOWPLACEMENT fullscreen_placement;
+  HMENU fullscreen_menu;
   bool resizable, close_button, minimize_button, maximize_button;
   bool transparent, bottom, ime_allowed;
   int32_t menu_text_commands;
@@ -145,6 +148,7 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT message, WPARAM wparam,
                                 LPARAM lparam);
 SWSnapshot sw_snapshot(SWWindow *window);
 DWORD sw_style(SWWindow *window);
+int64_t sw_fit_fullscreen(SWWindow *window);
 int64_t sw_restyle(SWWindow *window);
 int64_t sw_frame_margins(SWWindow *window);
 void sw_frame_invalidate(SWWindow *window);

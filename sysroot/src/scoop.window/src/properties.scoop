@@ -180,6 +180,25 @@ public fun Window.requestMaximized(value: Boolean): RequestStatus {
     }
 }
 
+/** Requests entry into or exit from fullscreen on the window's current display. */
+public fun Window.requestFullscreen(value: Boolean): RequestStatus {
+    owner.requireOpen()
+    if (owner.hasOwner || owner.role != WindowRole.Normal) return RequestStatus.Unsupported
+    if (owner.inputBlocked || owner.hasModal)
+        throw WindowException("fullscreen", WindowErrorKind.InvalidState)
+    @Unsafe
+    {
+        return nativeRequestStatus(
+            nativeWindowFullscreen(owner.pointer!!, flag(value)),
+            "fullscreen",
+            RequestStatus.Requested
+        )
+    }
+}
+
+/** Observes the actual fullscreen mode. Read again after a FrameChanged event. */
+public val Window.isFullscreen: Boolean get() = owner.snapshot().fullscreen != 0
+
 /** Observes native miniaturization. */
 public val Window.isMinimized: Boolean? get() {
     val value = owner.snapshot().minimized

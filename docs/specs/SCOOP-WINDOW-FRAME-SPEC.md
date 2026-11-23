@@ -16,6 +16,8 @@ Win32 当前的 HWND 宿主不组合 Extended 与非空原生菜单栏：HMENU �
 
 `Window.frameRevision: ULong` 是原生窗框／区域配置的短期版本快照。在同一窗口原生尺寸、DPI、窗框或内容偏移失效时，先更新该值并撤销旧区域，再排队 FrameChanged；即使通知尚未派发，值已反映失效。Surface 在采集和发布区域之间比较它，避免绘制回调内切换配置后重新发布旧几何。读取不重新计算按钮布局，只提供同一窗口内的相等比较，不用作跨窗口身份或持久版本。
 
+完成全屏切换时，原生窗框及区域失效并发送 FrameChanged。再次读取 `frameMetrics` 得到实际布局与按钮占用，读取 `isFullscreen` 得到当前状态。全屏请求见[窗口规范第 4.4 节](SCOOP-WINDOW-SPEC.md#44-全屏)。
+
 `DesktopCapabilities.frame` 分别声明 client、extendedContent、systemResizeEdges、beginMove、beginResize、windowMenu、windowRegion、inputRegion、ignoreMouse、shadow、resizeHitRegions、systemButtonHitRegions。它描述后端提供的操作，具体窗口状态仍会影响请求；不表示 WM 已接受异步请求。
 
 ## 2. 原生外观

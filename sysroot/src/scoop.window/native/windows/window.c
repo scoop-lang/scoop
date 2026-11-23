@@ -2,6 +2,8 @@
 
 DWORD sw_style(SWWindow *window) {
   DWORD style = WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+  if (window->fullscreen)
+    return style | WS_POPUP;
   style |= WS_SYSMENU | (window->frame_mode != 2 ? WS_CAPTION : WS_POPUP);
   if (window->resizable)
     style |= WS_THICKFRAME;
@@ -35,6 +37,7 @@ SWSnapshot sw_snapshot(SWWindow *window) {
   result.occluded = result.minimized || cloaked != 0;
   result.focused = GetFocus() == window->hwnd;
   result.maximized = IsZoomed(window->hwnd);
+  result.fullscreen = window->fullscreen;
   result.dark = sw_theme(window);
   return result;
 }
@@ -141,7 +144,8 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
   case WM_ERASEBKGND:
     return 1;
   case WM_GETMINMAXINFO:
-    sw_minmax(window, (MINMAXINFO *)lp);
+    if (!window->fullscreen)
+      sw_minmax(window, (MINMAXINFO *)lp);
     return 0;
   case WM_SIZING:
     sw_sizing(window, wp, (RECT *)lp);
@@ -150,14 +154,26 @@ LRESULT CALLBACK sw_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     window->scale = HIWORD(wp) / 96.0;
     sw_menu_dpi(window, HIWORD(wp));
     RECT *rect = (RECT *)lp;
-    if (!SetWindowPos(hwnd, NULL, rect->left, rect->top,
-                      rect->right - rect->left, rect->bottom - rect->top,
-                      SWP_NOZORDER | SWP_NOACTIVATE))
+    if (window->fullscreen) {
+      int64_t status = sw_fit_fullscreen(window);
+      if (status)
+        sw_fail(window->application, (DWORD)status);
+    } else if (!SetWindowPos(hwnd, NULL, rect->left, rect->top,
+                             rect->right - rect->left, rect->bottom - rect->top,
+                             SWP_NOZORDER | SWP_NOACTIVATE)) {
       sw_fail(window->application, GetLastError());
+    }
     sw_text_geometry_changed(window);
     sw_emit(window, 2);
     return 0;
   }
+  case WM_DISPLAYCHANGE:
+    if (window->fullscreen && !IsIconic(hwnd)) {
+      int64_t status = sw_fit_fullscreen(window);
+      if (status)
+        sw_fail(window->application, (DWORD)status);
+    }
+    break;
   case WM_WINDOWPOSCHANGING:
     if (window->bottom) {
       WINDOWPOS *position = (WINDOWPOS *)lp;
@@ -264,6 +280,8 @@ int64_t scoop_window_title(SWWindow *window, const uint8_t *title,
   return error;
 }
 int64_t sw_size(SWWindow *window, double width, double height) {
+  if (window->fullscreen)
+    return 0;
   double pw = ceil(width * window->scale), ph = ceil(height * window->scale);
   if (pw > INT_MAX / 2 || ph > INT_MAX / 2)
     return ERROR_INVALID_PARAMETER;
@@ -288,7 +306,7 @@ int64_t sw_size(SWWindow *window, double width, double height) {
   return 0;
 }
 int64_t scoop_window_size(SWWindow *window, double width, double height) {
-  return sw_size(window, width, height);
+  return window->fullscreen ? -1 : sw_size(window, width, height);
 }
 int64_t scoop_window_visible(SWWindow *window, int32_t visible) {
   ShowWindow(window->hwnd, visible ? SW_SHOWNOACTIVATE : SW_HIDE);

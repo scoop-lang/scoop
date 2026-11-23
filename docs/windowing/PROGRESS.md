@@ -17,6 +17,12 @@
 
 每批完成后先格式化／lint，再运行相应测试，提交并推送分支，检查并合并远端 main。原始日志与临时验收产物保存在仓库外；本文只记录范围、结果与实际限制。
 
+## 程序化全屏（2026-11-24）
+
+- macOS arm64 的 376 项窗口、Surface、UI 和演示相关测试通过。每个需要启动 Application 的用例在独立进程中完成验证。`native-desktop --smoke` 通过。
+- Linux GNU 在 Xvfb／Openbox 的 X11 和嵌套 Weston 的 Wayland 上分别通过 8 项测试和 `native-desktop --smoke`。X11 专项覆盖无合成器时的全屏几何，演示用同一 X11 环境加合成器验证透明异形窗口。
+- Windows x86_64 MSVC UCRT 在已登录的桌面会话中通过全屏、普通窗口、窗框值和菜单测试。全屏专项覆盖进入前处于普通或最大化的窗口，以及退出时的状态和布局恢复。原版及本分支的演示均需要重建缺少 `scoop_unicode_free` 的文本后端归档，此次通过 `--library-path` 使用重建产物完成链接。演示 `--smoke`、原生窗框与窗口 asyncio 两项额外回归在本分支和基线均触发 `scoop stackmap: no exact record for managed return PC`。演示在使用仓库源码重建运行时后仍复现该问题。
+
 ## 多格式文本剪贴板
 
 `ClipboardText`、`Clipboard.writeTexts` 和带媒体类型的 `readText` 让同一系统项目提供纯文本、Markdown、HTML 及自定义文本表示。共享层统一 MIME 规范化、重复格式、NUL、换行和 owner 合同；所有参数先检查，native 准备完成后发布。macOS 使用 UTI，Linux 使用 GDK MIME provider，Windows 使用 Unicode 纯文本及 MIME 注册格式，并使用应用的隐藏宿主窗口取得 clipboard owner。
