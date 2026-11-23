@@ -27,6 +27,42 @@ half4 main(float2 p) { return source.eval(p + float2(delta, 0)); }
 @Test
 private class RuntimeShaderTest {
     @Test
+    fun shapeDrawsCheckTheColorSourceBeforeDrawing() {
+        val gradient = Gradient
+            .linear(
+                Point(0.0, 0.0), Point(4.0, 0.0),
+                [GradientStop(0.0, Color.Black), GradientStop(1.0, Color.White)]
+            )
+        val shader = ShaderProgram
+            .compile("half4 main(float2 p) { return half4(1); }")
+            .use { program -> program.makeShader() }
+        shader
+            .use { white ->
+                RasterSurface(4, 4)
+                    .use { surface ->
+                        surface
+                            .draw { canvas ->
+                                canvas.clear(Color.Black)
+                                val bounds = Rect(0.0, 0.0, 4.0, 4.0)
+                                assertFailsWith<IllegalArgumentException> {
+                                    canvas
+                                        .drawRect(
+                                            bounds,
+                                            Paint(gradient = Some(gradient)),
+                                            Some(white)
+                                        )
+                                }
+                                white.close()
+                                assertFailsWith<IllegalStateException> {
+                                    canvas.drawOval(bounds, shader = Some(white))
+                                }
+                            }
+                        assertEquals(0, channel(surface.readPixels(), 4, 2, 2, 0))
+                    }
+            }
+    }
+
+    @Test
     fun compilerAndBindingsReportErrors() {
         val diagnostic = assertFailsWith<GraphicsException> {
             ShaderProgram.compile("half4 main(float2 p) { return missingColor; }")
