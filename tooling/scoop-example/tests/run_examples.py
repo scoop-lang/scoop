@@ -39,7 +39,7 @@ EXPECTED = {
     "language/imports": (
         "Hello, Ada!\nGood day, Ada.\nHello, Lin!\nGood day, Lin.\nHello, Lin!\nGood day, Grace.\n"
     ),
-    "text/strings": "Hello, Ada!\n${name}\nscalars=2, bytes=4\nA|中|\n",
+    "text/strings": "Hello, Ada!\n${name}\nscalars=2, bytes=4\nA|中|\nabcdefghijklmnopqrstuvwxyz\n",
     "collections/list": "snapshot: Ada\nsnapshot: Lin\ncurrent first: Grace\nsizes=2,3\n",
     "collections/map": "red=2\nblue=1\nmissing=0\n",
     "io/resources": "stop writing\nclosed=true\nsaved before failure\ntemporary directory removed\n",

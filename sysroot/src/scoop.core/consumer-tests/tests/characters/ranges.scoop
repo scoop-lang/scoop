@@ -1,0 +1,87 @@
+package test.core.tests.characters
+
+import scoop.test.*
+
+private fun charactersIn(source: Iterable<Char>): String {
+    val builder = StringBuilder()
+    for (character in source) {
+        builder.append(character)
+    }
+    return builder.toString()
+}
+
+@Test
+private class CharRangeTests {
+    @Test
+    fun endpoints() {
+        val closed: CharRange = 'a'..'d'
+        val exclusive = 'a'..<'d'
+        assertEquals("abcd", charactersIn(closed))
+        assertEquals("abc", charactersIn(exclusive))
+        assertEquals("abc", charactersIn('a' until 'd'))
+        assertEquals("dcba", charactersIn('d' downTo 'a'))
+        assertEquals("a", charactersIn('a'..'a'))
+        assertEquals("", charactersIn('d'..'a'))
+        assertEquals("", charactersIn('a'..<'a'))
+        assertEquals("", charactersIn('a' downTo 'd'))
+        assertTrue('d' in closed)
+        assertTrue('d' !in exclusive)
+        assertFalse('a' in ('d'..'a'))
+    }
+
+    @Test
+    fun steps() {
+        val range = 'a'..'g'
+        val stepped = range step 2
+        assertNotSame(range, stepped)
+        assertEquals("aceg", charactersIn(stepped))
+        assertEquals("ace", charactersIn(('a'..<'g') step 2))
+        assertEquals("geca", charactersIn(('g' downTo 'a') step 2))
+        assertEquals("adg", charactersIn(stepped step 3))
+        assertTrue('e' in stepped)
+        assertFalse('d' in stepped)
+        assertFalse('i' in stepped)
+        assertFailsWith<IllegalArgumentException> { val unused = range step 0 }
+        assertFailsWith<IllegalArgumentException> { val unused = range step -1 }
+    }
+
+    @Test
+    fun surrogateGap() {
+        assertEquals("\uD7FF\uE000", charactersIn('\uD7FF'..'\uE000'))
+        assertEquals("\uE000\uD7FF", charactersIn('\uE000' downTo '\uD7FF'))
+        val ascending = ('\uD7FE'..'\uE002') step 3
+        val descending = ('\uE002' downTo '\uD7FE') step 3
+        assertEquals("\uD7FE\uE001", charactersIn(ascending))
+        assertEquals("\uE002\uD7FF", charactersIn(descending))
+        assertTrue('\uE001' in ascending)
+        assertTrue('\uD7FF' in descending)
+        assertFalse('\uE000' in ascending)
+        assertFalse('\uE000' in descending)
+    }
+
+    @Test
+    fun scalarLimits() {
+        assertEquals("\u{10FFFE}\u{10FFFF}", charactersIn('\u{10FFFE}'..'\u{10FFFF}'))
+        assertEquals("\u0001\u0000", charactersIn('\u0001' downTo '\u0000'))
+        assertEquals("\u0000", charactersIn(('\u0000'..'\u{10FFFF}') step Int.MAX_VALUE))
+        assertEquals("\u{10FFFF}", charactersIn(('\u{10FFFF}' downTo '\u0000') step Int.MAX_VALUE))
+    }
+
+    @Test
+    fun independentIteratorsAndOperators() {
+        val from: RangeTo<Char, CharRange> = 'a'
+        val before: RangeUntil<Char, CharRange> = 'a'
+        val range = from..'b'
+        val membership: Contains<Char> = before..<'b'
+        assertTrue('a' in membership)
+        assertFalse('b' in membership)
+        val first = range.iterator()
+        val second = range.iterator()
+        assertEquals(Some('a'), first.next())
+        assertEquals(Some('b'), first.next())
+        assertEquals(Some('a'), second.next())
+        assertEquals<Char?>(None, first.next())
+        assertEquals<Char?>(None, first.next())
+        assertEquals(Some('b'), second.next())
+    }
+}

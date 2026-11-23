@@ -3,7 +3,12 @@
  * cluster.
  */
 @Intrinsic("core_char")
-public struct Char : Compare<Char>, Equals<Char>, ToString, Hash {
+public struct Char : Compare<Char>,
+    Equals<Char>,
+    ToString,
+    Hash,
+    RangeTo<Char, CharRange>,
+    RangeUntil<Char, CharRange> {
     @NoGC @Intrinsic("char_code")
     private fun codeValue(): Int
 
@@ -19,12 +24,31 @@ public struct Char : Compare<Char>, Equals<Char>, ToString, Hash {
     @NoGC @Intrinsic("char_equals")
     public override operator fun equals(other: Char): Boolean
 
-
     /**
      * Orders characters by Unicode scalar number.
      */
     @NoGC @Intrinsic("char_compare_to")
     public override operator fun compareTo(other: Char): Long
+
+    /** Creates an ascending character range including both endpoints. */
+    public override operator fun rangeTo(endpoint: Char): CharRange = CharRange(this, endpoint)
+
+    /** Creates an ascending character range excluding the endpoint. */
+    public override operator fun rangeUntil(endpoint: Char): CharRange = CharRange(
+        this,
+        endpoint,
+        inclusive = false
+    )
+
+    /** Creates an ascending character range excluding the endpoint. */
+    public infix fun until(endpoint: Char): CharRange = rangeUntil(endpoint)
+
+    /** Creates a descending character range including both endpoints. */
+    public infix fun downTo(endpoint: Char): CharRange = CharRange(
+        this,
+        endpoint,
+        descending = true
+    )
 
     /**
      * Encodes this one scalar as a UTF-8 string.
@@ -42,14 +66,18 @@ public struct Char : Compare<Char>, Equals<Char>, ToString, Hash {
         /**
          * Exposes the value as a typed scalar observation.
          */
-        public override fun inspect(value: Char): ValueView =
-            ValueObservation(typeInfo<Char>().type, None, { ValueShape.Scalar(ScalarValue.Char(value)) })
+        public override fun inspect(value: Char): ValueView = ValueObservation(
+            typeInfo<Char>().type,
+            None,
+            { ValueShape.Scalar(ScalarValue.Char(value)) }
+        )
 
         /**
          * Writes the scalar value through the corresponding single-value encoding operation.
          */
-        public override fun encode(value: Char, encoder: Encoder): Unit =
-            encoder.singleValue().writeString(value.toString())
+        public override fun encode(value: Char, encoder: Encoder): Unit = encoder
+            .singleValue()
+            .writeString(value.toString())
 
         /**
          * Reads the scalar through the corresponding decoding operation. A character requires
@@ -73,5 +101,7 @@ public fun Int.toChar(): Char {
     if (this < 0 || this > 1114111 || (this >= 55296 && this <= 57343)) {
         throw IllegalArgumentException()
     }
-    @Unsafe { return this.characterUnchecked() }
+    @Unsafe {
+        return this.characterUnchecked()
+    }
 }

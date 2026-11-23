@@ -1822,7 +1822,7 @@ List、MutableList、ArrayList、StringBuilder 及迭代器是普通 core 类型
 
 ArrayGenerate 保存完整目标 application、元素类型、Long count 与 ordinary `(Long) -> T` initializer。负长度、求值顺序、逐索引初始化和异常遵守语言规范 10.6；ZST 只省略 payload，不省略 initializer 调用。生成控制流在任意 GC/异常点保持数组可扫描。
 
-Char 为独立 nominal identity，常量和各层表示保存合法 Unicode scalar，物理布局为 GC-free u32。它不与 UInt 合并，Option、数组、装箱与 ABI 使用实际 Char 类型；不因表示相同增加整数算术或 CharRange。
+Char 为独立 nominal identity，常量和各层表示保存合法 Unicode scalar，物理布局为 GC-free u32。它不与 UInt 合并，Option、数组、装箱与 ABI 使用实际 Char 类型。语言规范 11.8.1 的 CharRange 及其运算符、迭代器由普通 core 源码实现，经既有成员调用与 for 协议降低。
 
 String 的普通 getCharAt(idx) 方法和 charLength 属性按 Unicode scalar，byteLength 使用物理 UTF-8 byte count；String 不提供 get／下标运算或 length 别名。公开 API 从 core 真实声明导出并跨 Cone 消费，内部 UTF-8 表示与普通 helper 的 Option 结果保持；定位算法由 core 正文实现，异常边界见运行时规范第 6 章。List getter 仍为可抛出的普通 managed 调用。
 
