@@ -18,6 +18,90 @@ pub(super) fn records(root: &Path) -> Vec<(std::path::PathBuf, std::time::System
 }
 
 #[test]
+fn concurrent_prepares_share_manifest_config_and_artifact_records() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    super::artifact::artifact(
+        &root.join("sysroot/lib/aarch64-apple-darwin/scoop.core.slib"),
+        scoop_identity::ConeCoordinate::reserved_core(),
+        vec![],
+        1,
+    );
+    write(&root.join("app/Cone.toml"), &cone("app", "1.0.0"));
+    let configuration_root = root.join("configuration");
+    let configuration = if cfg!(target_os = "macos") {
+        configuration_root.join("Library/Application Support/scoop/config.toml")
+    } else if cfg!(windows) {
+        configuration_root.join("AppData/scoop/config.toml")
+    } else {
+        configuration_root.join(".config/scoop/config.toml")
+    };
+    write(&configuration, "[registry]\n");
+    let requests: Vec<_> = (0..12)
+        .map(|index| {
+            let mut request = request(root, &root.join("app"));
+            // Different preparation and lockfile keys still share parsed inputs.
+            request.lockfile = Some(
+                scoop_protocol::HostPathCarrier::from_path(
+                    &root.join(format!("locks/{index}.lock")),
+                )
+                .unwrap(),
+            );
+            serde_json::to_vec(&request).unwrap()
+        })
+        .collect();
+    let run = || {
+        let start = std::sync::Barrier::new(requests.len());
+        std::thread::scope(|scope| {
+            let workers: Vec<_> = requests
+                .iter()
+                .map(|request| {
+                    scope.spawn(|| {
+                        start.wait();
+                        let output = command(root)
+                            .env("HOME", &configuration_root)
+                            .env("APPDATA", configuration_root.join("AppData"))
+                            .env("XDG_CONFIG_HOME", configuration_root.join(".config"))
+                            .scoop_output_with_input(request)
+                            .unwrap();
+                        let response: scoop_protocol::package::PreparedWorkspaceV1 =
+                            serde_json::from_str(&success(output)).unwrap();
+                        response.validate().unwrap();
+                        response.resolutions
+                    })
+                })
+                .collect();
+            let responses: Vec<_> = workers
+                .into_iter()
+                .map(|worker| worker.join().unwrap())
+                .collect();
+            assert!(responses.iter().all(|response| response == &responses[0]));
+            assert_eq!(responses[0][0].nodes.len(), 2);
+        });
+    };
+    run();
+    let cached_inputs = || {
+        ["manifests-v5", "config-v1", "artifacts-v1"]
+            .into_iter()
+            .map(|namespace| {
+                let entries: Vec<_> = fs::read_dir(root.join("cache/records").join(namespace))
+                    .unwrap()
+                    .map(|entry| {
+                        let entry = entry.unwrap();
+                        (entry.path(), entry.metadata().unwrap().modified().unwrap())
+                    })
+                    .collect();
+                assert_eq!(entries.len(), 1);
+                entries
+            })
+            .collect::<Vec<_>>()
+    };
+    let before = cached_inputs();
+    run();
+    assert_eq!(cached_inputs(), before);
+}
+
+#[test]
 fn prepare_reuses_configuration_after_source_edits_but_observes_new_workspace() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();

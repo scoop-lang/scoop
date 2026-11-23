@@ -56,11 +56,12 @@ impl Manifests {
             return Ok(self.insert(path, input_directory, record));
         }
         let stamp = crate::cache::FileStamp::read(&path)?;
-        let record_path = self
+        let cached_record = self
             .cache
             .as_ref()
-            .map(|cache| cache.input_record("manifests-v5", &path, &stamp, &[]))
+            .map(|cache| cache.locked_input_record("manifests-v5", &path, &stamp, &[]))
             .transpose()?;
+        let record_path = cached_record.as_ref().map(|(path, _guard)| path);
         let record = record_path.as_ref().map(std::fs::read).transpose();
         let record = match record {
             Ok(Some(bytes)) => Some(serde_json::from_slice::<Record>(&bytes).map_err(|error| {
@@ -86,11 +87,12 @@ impl Manifests {
                     let bytes = serde_json::to_vec(&record).map_err(|error| {
                         PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
                     })?;
-                    crate::cache::atomic_write(&path, &bytes)?;
+                    crate::cache::atomic_write(path, &bytes)?;
                 }
                 record
             }
         };
+        drop(cached_record);
         self.inputs.push((path.clone(), stamp));
         Ok(self.insert(path, input_directory, record))
     }

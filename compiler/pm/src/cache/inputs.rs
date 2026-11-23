@@ -44,13 +44,14 @@ impl FileStamp {
 }
 
 impl PackageCache {
-    pub(crate) fn input_record(
+    /// Hold the returned guard through reading or publishing this input record.
+    pub(crate) fn locked_input_record(
         &self,
         namespace: &str,
         path: &Path,
         stamp: &FileStamp,
         extra: &[u8],
-    ) -> PmResult<PathBuf> {
+    ) -> PmResult<(PathBuf, File)> {
         let bytes = serde_json::to_vec(&(
             path.as_os_str().as_encoded_bytes(),
             stamp,
@@ -59,10 +60,12 @@ impl PackageCache {
             scoop_toolchain::SOURCE_CATALOG_KEY,
         ))
         .map_err(|error| PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string()))?;
-        Ok(self
+        let guard = self.lock(namespace, &bytes)?;
+        let path = self
             .root
             .join("records")
             .join(namespace)
-            .join(scoop_wire::sha256(&bytes).to_string()))
+            .join(scoop_wire::sha256(&bytes).to_string());
+        Ok((path, guard))
     }
 }
