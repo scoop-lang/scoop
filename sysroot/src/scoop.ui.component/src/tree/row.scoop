@@ -240,7 +240,7 @@ private fun <T> treeTitle(
     val plan = input.plan
     val options = plan.input
     val density = plan.appearance.density
-    val slot = 20.0 * density
+    val slot = treeRowSlotSize * density
     val title = when (options.title) {
         case Some(val build) -> build(row)
         case None ->
