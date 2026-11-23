@@ -99,6 +99,25 @@ fn relation_sorts_and_queries_typed_function_locations() {
         relation.get(first).unwrap().signature_record().subject(),
         CallableSignatureSubject::Strong(CallableOwner::Function(_))
     ));
+    assert_eq!(
+        relation
+            .get_by_materialization(first_materialization)
+            .unwrap()
+            .function(),
+        first
+    );
+    assert_eq!(
+        relation
+            .get_by_materialization(materialization("second"))
+            .unwrap()
+            .function(),
+        second
+    );
+    assert!(
+        relation
+            .get_by_materialization(materialization("missing"))
+            .is_none()
+    );
 }
 
 #[test]

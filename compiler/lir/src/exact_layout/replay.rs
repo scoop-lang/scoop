@@ -48,10 +48,13 @@ fn scan_binding(
     }
     let key = ScanKey::new(identity.layout(), role);
 
+    let id = scoop_identity::PersistentScanId::from_key(&key)?;
     let scan = foundation
         .scans()
-        .iter()
-        .find(|record| *record.key() == key)
+        .binary_search_by_key(&id, |record| record.id())
+        .ok()
+        .map(|index| &foundation.scans()[index])
+        .filter(|record| *record.key() == key)
         .ok_or(ExactLayoutReplayError::MissingScan)?;
     let physical = StrongShapeDefinitionRefV1::from_foundation(
         ExternalStrongShapeSubjectV1::Scan(scan.id()),

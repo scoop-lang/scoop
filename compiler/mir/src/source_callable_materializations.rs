@@ -200,6 +200,7 @@ fn callable_member(
 #[derive(Clone, Debug, Default)]
 pub struct SourceCallableMaterializations {
     entries: Vec<SourceCallableMaterialization>,
+    by_materialization: Vec<usize>,
 }
 
 impl SourceCallableMaterializations {
@@ -219,12 +220,10 @@ impl SourceCallableMaterializations {
                 },
             );
         }
+        let mut by_materialization = std::collections::BTreeMap::new();
+        let mut by_subject = std::collections::HashMap::new();
         for (index, entry) in entries.iter().enumerate() {
-            if let Some((first, _)) = entries[..index]
-                .iter()
-                .enumerate()
-                .find(|(_, existing)| existing.materialization == entry.materialization)
-            {
+            if let Some(&first) = by_materialization.get(&entry.materialization) {
                 return Err(
                     SourceCallableMaterializationRelationError::DuplicateMaterialization {
                         first,
@@ -232,11 +231,7 @@ impl SourceCallableMaterializations {
                     },
                 );
             }
-            if let Some((first, _)) = entries[..index]
-                .iter()
-                .enumerate()
-                .find(|(_, existing)| existing.signature.subject() == entry.signature.subject())
-            {
+            if let Some(&first) = by_subject.get(&entry.signature.subject()) {
                 return Err(
                     SourceCallableMaterializationRelationError::DuplicateSignatureSubject {
                         first,
@@ -244,8 +239,13 @@ impl SourceCallableMaterializations {
                     },
                 );
             }
+            by_materialization.insert(entry.materialization, index);
+            by_subject.insert(entry.signature.subject(), index);
         }
-        Ok(Self { entries })
+        Ok(Self {
+            entries,
+            by_materialization: by_materialization.into_values().collect(),
+        })
     }
 
     pub fn get(&self, function: FunctionId) -> Option<&SourceCallableMaterialization> {
@@ -260,9 +260,12 @@ impl SourceCallableMaterializations {
         &self,
         materialization: CallableMaterialization,
     ) -> Option<&SourceCallableMaterialization> {
-        self.entries
-            .iter()
-            .find(|entry| entry.materialization == materialization)
+        self.by_materialization
+            .binary_search_by_key(&materialization, |&index| {
+                self.entries[index].materialization
+            })
+            .ok()
+            .map(|index| &self.entries[self.by_materialization[index]])
     }
 
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &SourceCallableMaterialization> {

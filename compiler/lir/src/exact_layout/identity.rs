@@ -29,10 +29,13 @@ impl ExactLayoutIdentityV1 {
     ) -> Result<Self, ExactLayoutIdentityError> {
         let key = LayoutKey::new(exact.id(), target.wire_id(), role);
 
+        let id = PersistentLayoutId::from_key(&key).map_err(ExactLayoutIdentityError::Hash)?;
         let layout = foundation
             .layouts()
-            .iter()
-            .find(|record| record.key() == &key)
+            .binary_search_by_key(&id, CborIdentityRecord::id)
+            .ok()
+            .map(|index| &foundation.layouts()[index])
+            .filter(|record| record.key() == &key)
             .ok_or(ExactLayoutIdentityError::MissingLayout(key))?;
         let physical = StrongShapeDefinitionRefV1::from_foundation(
             ExternalStrongShapeSubjectV1::Layout(layout.id()),
@@ -81,6 +84,7 @@ pub enum ExactLayoutIdentityError {
     Definition(StrongShapeDefinitionError),
     DefinitionSubject,
     Resource(WireError),
+    Hash(scoop_wire::HashError),
 }
 
 impl From<StrongShapeDefinitionError> for ExactLayoutIdentityError {

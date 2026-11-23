@@ -198,6 +198,7 @@ pub struct ConeMirMaterializationPlan {
     callable_roots: Vec<CallableMaterializationRoot>,
     external_callable_roots: Vec<StrongExternalCallableRoot>,
     source_nominal_shapes: Vec<SourceNominalShapeRoot>,
+    source_shapes_by_type: Vec<usize>,
     generated_nominal_shapes: Vec<GeneratedNominalShapeRoot>,
     dependency_generated_nominal_shapes: Vec<StrongDependencyGeneratedNominalShapeRoot>,
     shape_support: Vec<StrongSourceShapeSupportRoot>,
@@ -223,9 +224,10 @@ impl ConeMirMaterializationPlan {
     }
 
     pub fn source_nominal_shape(&self, ty: &Type) -> Option<&SourceNominalShapeRoot> {
-        self.source_nominal_shapes
-            .iter()
-            .find(|root| root.ty() == ty)
+        self.source_shapes_by_type
+            .binary_search_by(|&index| self.source_nominal_shapes[index].ty().cmp(ty))
+            .ok()
+            .map(|index| &self.source_nominal_shapes[self.source_shapes_by_type[index]])
     }
 
     pub fn generated_nominal_shapes(&self) -> &[GeneratedNominalShapeRoot] {
@@ -326,6 +328,12 @@ impl ConeMirInput {
             )
             .collect::<Vec<_>>();
         source_nominal_shapes.sort_unstable_by_key(SourceNominalShapeRoot::exact);
+        let mut source_shapes_by_type = (0..source_nominal_shapes.len()).collect::<Vec<_>>();
+        source_shapes_by_type.sort_unstable_by(|&left, &right| {
+            source_nominal_shapes[left]
+                .ty()
+                .cmp(source_nominal_shapes[right].ty())
+        });
 
         let generated_shapes::Partition {
             local: generated_nominal_shapes,
@@ -338,6 +346,7 @@ impl ConeMirInput {
             callable_roots,
             external_callable_roots,
             source_nominal_shapes,
+            source_shapes_by_type,
             generated_nominal_shapes,
             dependency_generated_nominal_shapes,
             shape_support,
