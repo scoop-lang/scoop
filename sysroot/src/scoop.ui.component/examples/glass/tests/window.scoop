@@ -1,0 +1,185 @@
+package scoop.examples.glass
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.math.abs
+import scoop.math.min
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.material.materialTheme
+import scoop.window.*
+
+@Test
+private class GlassWindowTest {
+    @Test
+    fun scrollingRefreshesBothFixedPanels() {
+        val probe = GlassWindowProbe()
+        context(ThemeSource(materialTheme())) {
+            UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                when (event) {
+                    case Resumed -> {
+                        val window = active
+                            .createWindow(
+                                windowAttributes {
+                                    title = "Glass backdrop test"
+                                    size = LogicalSize(640.0, 420.0)
+                                    level = WindowLevel.AlwaysOnTop
+                                }
+                            )
+                        window
+                            .createDeadline {
+                                fail(Some(f"Glass test timed out at frame ${probe.phase}"))
+                            }
+                            .schedule(MonotonicTimeSource.now() + Duration.seconds(20L))
+                        host.attach(window, { mount -> ObservedGallery(probe, mount) })
+                    }
+
+                    case AboutToWait -> probe.advance(active)
+                    else -> {}
+                }
+            }
+                .use { host -> Application().run(host) }
+        }
+        assertEquals(6, probe.phase)
+    }
+}
+
+private class GlassWindowProbe {
+    val model = GlassModel()
+    var phase = 0
+    var completed = 0
+    var pixels = Array<Long>(0L) { _ -> 0L }
+    private var lastFrame = 0
+    private var frames = ArrayList<Array<Long>>()
+
+    fun advance(active: ActiveApplication) {
+        if (phase >= 6 || completed <= lastFrame) return
+        val expectedY = if (phase >= 1 && phase <= 3) 168.0 else 0.0
+        if (model.scroll.offset.y != expectedY) return
+        lastFrame = completed
+        frames.add(pixels)
+        when (phase) {
+            case 0 -> model.scroll.scrollTo(Point(0.0, 168.0))
+
+            case 1 -> {
+                // Only the list moved between these two accepted frames.
+                different(frames[0L], pixels, 0L, 35L)
+                different(frames[0L], pixels, 12L, 35L)
+                model.frosted.value = false
+            }
+
+            case 2 -> {
+                different(frames[1L], pixels, 0L, 6L)
+                same(frames[1L], pixels, 12L)
+                model.refracted.value = false
+            }
+
+            case 3 -> {
+                same(frames[2L], pixels, 0L)
+                different(frames[2L], pixels, 12L, 6L)
+                model.scroll.scrollTo(Point(0.0, 0.0))
+            }
+
+            case 4 -> {
+                different(frames[0L], pixels, 0L, 6L)
+                different(frames[0L], pixels, 12L, 6L)
+                model.frosted.value = true
+                model.refracted.value = true
+            }
+
+            case 5 -> {
+                same(frames[0L], pixels, 0L)
+                same(frames[0L], pixels, 12L)
+                active.requestExit()
+            }
+
+            else -> fail()
+        }
+        phase += 1
+    }
+    private fun difference(a: Long, b: Long): Long {
+        assertTrue(a >= 0L && b >= 0L, Some("window pixel read failed"))
+        return abs(a % 256L - b % 256L) +
+            abs(a / 256L % 256L - b / 256L % 256L) +
+            abs(a / 65536L - b / 65536L)
+    }
+    private fun different(before: Array<Long>, after: Array<Long>, start: Long, threshold: Long) {
+        var changed = 0
+        for (i in start until start + 12L) {
+            if (difference(before[i], after[i]) >= threshold) changed += 1
+        }
+        assertTrue(
+            changed >= 3,
+            Some(f"phase ${phase}, panel ${start}, only ${changed} samples changed")
+        )
+    }
+    private fun same(before: Array<Long>, after: Array<Long>, start: Long) {
+        for (i in start until start + 12L) {
+            assertTrue(
+                difference(before[i], after[i]) <= 3L,
+                Some(f"phase ${phase}, unexpected change at sample ${i}")
+            )
+        }
+    }
+}
+
+private class ObservedGallery(private val probe: GlassWindowProbe, scope: ComponentScope) :
+    Component(scope) {
+    public override fun render(): View = element(
+        { mount -> PixelReader(probe, mount) },
+        [component({ mount -> GlassGallery(probe.model, mount) })]
+    )
+}
+
+private class PixelReader(private val probe: GlassWindowProbe, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(size, Unit)
+    }
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+        val panelWidth = min(272.0, (context.size.width - 40.0) * 0.5)
+        val left = (context.size.width - panelWidth * 2.0 - 12.0) * 0.5
+        val samples = MutableArray<Long>(24L) { _ -> -1L }
+        context
+            .draw { paint ->
+                @Unsafe {
+                    paint
+                        .canvas
+                        .withSkiaCanvas { native ->
+                            @Unsafe {
+                                for (i in 0L until 24L) {
+                                    val x = left +
+                                        (i / 12L).toDouble() *
+                                        (panelWidth + 12.0) +
+                                        34.0 +
+                                        (i % 12L).toDouble() *
+                                        13.0
+                                    // The lens's lower rim displaces pixels without adding a glint.
+                                    val y = (if (i < 12L) 22.0 else 77.0) +
+                                        (i % 3L).toDouble() *
+                                        2.0
+                                    samples[i] = readNativePixel(native, x, y)
+                                }
+                            }
+                        }
+                }
+            }
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) {
+                    probe.pixels = samples.toArray()
+                    probe.completed += 1
+                }
+            }
+    }
+}

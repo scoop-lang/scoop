@@ -1,0 +1,187 @@
+package scoop.graphics
+
+import scoop.graphics.native.RenderTarget
+import scoop.test.*
+
+private val blendInputs = """
+uniform shader source;
+uniform shader overlay;
+half4 main(float2 p) {
+    return mix(source.eval(p), overlay.eval(p), 0.5);
+}
+"""
+
+private fun solidGpuShader(target: RenderTarget, color: Color): Shader = target
+    .draw { canvas -> canvas.createSurface(4, 4) }
+    .use { surface ->
+        surface.draw { canvas -> canvas.clear(color) }
+        surface.snapshot().use { image -> image.toShader() }
+    }
+
+@Test
+private class ShaderFilterTest {
+    @Test
+    fun layerSourceIsIsolatedAndFilteredBeforeRestore() {
+        ShaderProgram
+            .compile(
+                "uniform shader src; half4 main(float2 p) { return src.eval(p + float2(4, 0)); }"
+            )
+            .use { program ->
+                ImageFilter
+                    .runtimeShader(program, "src", 4.0)
+                    .use { filter ->
+                        RasterSurface(24, 16)
+                            .use { surface ->
+                                surface
+                                    .draw { canvas ->
+                                        canvas.clear(Color.White)
+                                        canvas
+                                            .drawRect(
+                                                Rect(16.0, 0.0, 8.0, 16.0),
+                                                Paint(Color.Black)
+                                            )
+                                        canvas.saveLayer(filter = Some(filter))
+                                        canvas
+                                            .drawRect(
+                                                Rect(8.0, 4.0, 4.0, 6.0),
+                                                Paint(Color(1.0, 0.0, 0.0))
+                                            )
+                                        canvas.restore()
+                                    }
+                                val pixels = surface.readPixels()
+                                assertEquals(255, channel(pixels, 24, 5, 6, 0))
+                                assertEquals(0, channel(pixels, 24, 5, 6, 1))
+                                assertEquals(255, channel(pixels, 24, 10, 6, 1))
+                                assertEquals(255, channel(pixels, 24, 14, 6, 1))
+                                assertEquals(0, channel(pixels, 24, 17, 6, 0))
+                            }
+                    }
+            }
+    }
+
+    @Test
+    fun bindingsTrackOnlyTheirCurrentGpuImages() {
+        ShaderProgram
+            .compile(blendInputs)
+            .use { program ->
+                withGpuTestTarget { target ->
+                    solidGpuShader(target, Color(1.0, 0.0, 0.0))
+                        .use { red ->
+                            val filter = ImageFilter
+                                .runtimeShader(program, "source", 0.0) { setChild("overlay", red) }
+                            filter
+                                .use { gpuFilter ->
+                                    withGpuTestTarget { other ->
+                                        solidGpuShader(other, Color(0.0, 0.0, 1.0))
+                                            .use { blue ->
+                                                assertFailsWith<IllegalArgumentException> {
+                                                    program
+                                                        .makeShader {
+                                                            setChild("source", red);
+                                                            setChild("overlay", blue)
+                                                        }
+                                                }
+                                                val otherFilter = ImageFilter
+                                                    .runtimeShader(program, "source", 0.0) {
+                                                        setChild("overlay", blue)
+                                                    }
+                                                otherFilter
+                                                    .use { otherGpu ->
+                                                        assertFailsWith<IllegalArgumentException> {
+                                                            gpuFilter.then(otherGpu)
+                                                        }
+                                                    }
+                                                other
+                                                    .draw { canvas ->
+                                                        assertFailsWith<IllegalArgumentException> {
+                                                            canvas
+                                                                .drawRect(
+                                                                    Rect(0.0, 0.0, 4.0, 4.0),
+                                                                    shader = Some(red)
+                                                                )
+                                                        }
+                                                        assertFailsWith<IllegalArgumentException> {
+                                                            canvas
+                                                                .saveLayer(filter = Some(gpuFilter))
+                                                        }
+                                                        path { addRect(Rect(0.0, 0.0, 4.0, 4.0)) }
+                                                            .use { outline ->
+                                                                assertFailsWith<
+                                                                    IllegalArgumentException
+                                                                > {
+                                                                    canvas
+                                                                        .drawBackdrop(
+                                                                            outline,
+                                                                            gpuFilter
+                                                                        )
+                                                                }
+                                                            }
+                                                    }
+                                            }
+                                    }
+                                    target
+                                        .draw { canvas ->
+                                            canvas.clear(Color.Transparent)
+                                            canvas
+                                                .saveLayer(
+                                                    filter = Some(gpuFilter),
+                                                    bounds = Some(Rect(0.0, 0.0, 4.0, 4.0))
+                                                )
+                                            canvas
+                                                .drawRect(
+                                                    Rect(0.0, 0.0, 4.0, 4.0),
+                                                    Paint(Color.White)
+                                                )
+                                            canvas.restore()
+                                        }
+                                    val bytes = target.readPixels()
+                                    assertEquals(255, channel(bytes, 64, 2, 2, 0))
+                                    assertTrue(channel(bytes, 64, 2, 2, 1) in 127..128)
+                                }
+                            Image
+                                .fromRgba(1, 1, [0, 255.toByte(), 0, 255.toByte()])
+                                .use { image ->
+                                    image
+                                        .toShader()
+                                        .use { green ->
+                                            program
+                                                .makeShader {
+                                                    setChild("source", red)
+                                                    setChild("source", green)
+                                                    setChild("overlay", green)
+                                                }
+                                                .use { portable ->
+                                                    RasterSurface(4, 4)
+                                                        .use { raster ->
+                                                            raster
+                                                                .draw { canvas ->
+                                                                    canvas
+                                                                        .drawRect(
+                                                                            Rect(
+                                                                                0.0,
+                                                                                0.0,
+                                                                                4.0,
+                                                                                4.0
+                                                                            ),
+                                                                            shader = Some(portable)
+                                                                        )
+                                                                }
+                                                            assertEquals(
+                                                                255,
+                                                                channel(
+                                                                    raster.readPixels(),
+                                                                    4,
+                                                                    1,
+                                                                    1,
+                                                                    1
+                                                                )
+                                                            )
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+            }
+    }
+}

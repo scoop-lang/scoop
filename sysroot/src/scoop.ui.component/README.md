@@ -272,6 +272,8 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 
 `retention = ItemRetention.KeepAlive(32L)` 额外保留最近使用的 32 个离屏实例，复用其局部 State 与资源。它不改变 viewport／overscan 和交互固定范围，也不创建绘制缓存；默认 Dispose。容量缩小和真实删除在隐藏窗口中也会处理。`tests-cones/retention` 覆盖缓存淘汰、状态及 shape 更新、嵌套缓存、动画停帧和模态输入边界的保留。
 
+[Glass studies](examples/glass/README.md) 在滚动色样上放置固定工具栏，可独立切换高斯背景模糊和自定义 SkSL 折射。
+
 [主题展示示例](examples/themes/README.md)并列展示公共绘图部件，提供三风格、明暗、系统跟随和真实控件／效果切换。
 
 [下载与后台校验示例](examples/download/README.md)展示 UI owner 的异步 HTTP 与真实后台 Thread 如何协作，通过 ApplicationProxy 合并发布进度；覆盖共享业务 State、组件自有状态、取消／替换以及应用退出后的线程回收。

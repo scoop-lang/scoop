@@ -1,0 +1,90 @@
+package scoop.graphics
+
+/** A synchronous configuration scope. Numeric uniforms start at zero. */
+public class ShaderBindings internal constructor(private val resource: GraphicsResource) {
+    public fun setFloat(name: String, value: Float) {
+        @Unsafe {
+            numbers(name, addressOf(value).cast<Unit>(), 1L, false, true)
+        }
+    }
+    public fun setInt(name: String, value: Int) {
+        @Unsafe {
+            numbers(name, addressOf(value).cast<Unit>(), 1L, true, true)
+        }
+    }
+    /** Writes all components of a floating-point scalar, vector, column-major matrix or array. */
+    public fun setFloats(name: String, values: Array<Float>) {
+        @Unsafe {
+            values
+                .withDataPointer { data, count ->
+                    @Unsafe {
+                        numbers(name, data.cast<Unit>(), count, false, false)
+                    }
+                }
+        }
+    }
+    /** Writes all components of an integer scalar, vector or array. */
+    public fun setInts(name: String, values: Array<Int>) {
+        @Unsafe {
+            values
+                .withDataPointer { data, count ->
+                    @Unsafe {
+                        numbers(name, data.cast<Unit>(), count, true, false)
+                    }
+                }
+        }
+    }
+    /** Supplies an unpremultiplied sRGB value for a layout(color) uniform. */
+    public fun setColor(name: String, value: Color) {
+        checkColor(value)
+        write(name) { handle, bytes, length ->
+            @Unsafe {
+                return@write shaderColor(handle, bytes, length, value)
+            }
+        }
+    }
+    public fun setChild(name: String, shader: Shader) {
+        write(name) { handle, bytes, length ->
+            @Unsafe {
+                return@write shaderChild(handle, bytes, length, shader.resource.getForClose())
+            }
+        }
+    }
+    private fun numbers(
+        name: String,
+        data: Ptr<Unit>,
+        count: Long,
+        integers: Boolean,
+        scalar: Boolean
+    ) {
+        write(name) { handle, bytes, length ->
+            @Unsafe {
+                return@write shaderNumbers(handle, bytes, length, data, count, integers, scalar)
+            }
+        }
+    }
+    private fun write(name: String, action: (Ptr<Unit>, Ptr<UInt8>, Long) -> Int) {
+        val handle = resource.get()
+        @Unsafe {
+            val result = name.withUtf8Bytes { bytes, length -> action(handle, bytes, length) }
+            if (result != 1) graphicsResult(result, "invalid shader binding: " + name)
+        }
+    }
+}
+
+@Extern(name = "scoop_graphics_shader_numbers")
+private fun shaderNumbers(
+    handle: Ptr<Unit>,
+    name: Ptr<UInt8>,
+    length: Long,
+    data: Ptr<Unit>,
+    count: Long,
+    integers: Boolean,
+    scalar: Boolean
+): Int
+
+@Extern(name = "scoop_graphics_shader_color")
+private fun shaderColor(handle: Ptr<Unit>, name: Ptr<UInt8>, length: Long, color: Color): Int
+
+@Extern(name = "scoop_graphics_shader_child")
+private fun shaderChild(handle: Ptr<Unit>, name: Ptr<UInt8>, length: Long, shader: Ptr<Unit>): Int

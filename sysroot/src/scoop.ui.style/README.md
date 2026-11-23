@@ -27,7 +27,7 @@ styled 始终保留包装，包括空 Style；增加或移除效果不重建内�
 
 Border.Physical 接收四边 BorderEdges，Border.Logical 使用 start／top／end／bottom 的 BorderEdge；Corners.Physical 接收 graphics.CornerRadii，Corners.Logical 明确四个逻辑角。scene 按当前 LayoutDirection 解析，再统一计算外轮廓与各边内缩；半透明接合、背景、内容 clip、shadow 和主题 focus 共用轮廓。独立离屏 paint 可传入 direction，Surface／Checkbox 的 metrics 和 geometry 也接收同一方向。
 
-sigma 是 Gaussian 标准差，sigma 和 offset 使用局部逻辑单位。根 DPI 只施加一次，图层没有按布局框添加隐式 crop，因此向外的光晕和阴影可以显示。祖先 clip 和实际目标仍限制可见范围。普通内容 Blur 不采样背后的画面，Backdrop blur 另行设计。
+sigma 是 Gaussian 标准差，sigma 和 offset 使用局部逻辑单位。根 DPI 只施加一次，图层没有按布局框添加隐式 crop，因此向外的光晕和阴影可以显示。祖先 clip 和实际目标仍限制可见范围。`StylePainter.scene(context, style, Some(filter)) { local -> local.children() }` 在样式圆角内处理已绘制的背景，随后填充、绘制前景并描边。filter 可以是 ImageFilter.blur 或 runtimeShader，由调用者持有。[工具栏示例](../scoop.ui.component/examples/glass/README.md)
 
 完全自绘 Element 在 onMount 中保存 `scope.resource { StylePainter() }`，在 scene 中调用 `painter.scene(context, style) { content -> ... }`；回调使用 SceneContext，可调用 children 或提交 draw 块。也提供显式 Rect，以及独立的 paint(Canvas, Rect, Style, direction = LayoutDirection.Ltr, content) 入口，供离屏使用。原生滤镜／轮廓由 painter 缓存并及时替换关闭，组件卸载或窗口关闭由 scope 清理。回调内不能重入或提前关闭同一 painter，另一个 painter 可以正常嵌套。
 

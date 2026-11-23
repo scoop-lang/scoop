@@ -1,38 +1,25 @@
-# scoop.graphics：SkSL 与组件效果的后续设计
+# scoop.graphics 的 SkSL 与组件效果
 
-日期：2026-11-02。状态：调研与后续设计，尚未实现 Scoop 接口或运行效果原型；下方 SkSL 仅为用法示例。本设计不增加首期 UI 的交付前置。现有绘图合同见 [Surface 规范](../../specs/SCOOP-SURFACE-SPEC.md)，组件接入见 [UI 设计第 14 节](../../ui/DESIGN.md#14-后续增强sksl-与组件效果)，帧需求遵守 [UI 静止合同](../../specs/SCOOP-UI-SPEC.md#61-静止时停止渲染工作)。
+2026-11-23。形状着色、子树滤镜与背景采样采用同一份 SkSL 程序和 Skia 公共接口。公开合同见 [graphics 效果规范第 5 节](../../specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样)。[独立窗口示例](../../../sysroot/src/scoop.ui.component/examples/glass/README.md)展示高斯毛玻璃与圆角折射。
 
-## 1. 当前基础与职责
+## 1. 程序与输入
 
-固定 Skia revision `f326a1e25fc736704063922b9ce76b527b1c5efe` 提供 SkRuntimeEffect，可将 SkSL 编译为 SkShader、SkColorFilter 或 SkBlender；SkImageFilters::RuntimeShader 另提供图像滤镜接入。已核对公开源码，具体后端行为仍需运行验证。当前 Scoop 的 [Paint](../../../sysroot/src/scoop.graphics/src/drawing/paint.scoop) 仅开放颜色、渐变和描边等参数，[Canvas](../../../sysroot/src/scoop.graphics/src/drawing/canvas.scoop) 已按[图像滤镜规范](../../specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md)提供基础滤镜与图层，macOS aarch64 与 x86_64 Rosetta 的真实 Raster／Metal 验证均已通过。SkRuntimeEffect 尚无公开入口。
+`ShaderProgram.compile(source)` 将普通字符串交给 SkRuntimeEffect 编译并保留诊断。组件在挂载时编译一次，也可以借用应用持有的程序。每次 makeShader 或 runtimeShader 均在同步配置块内根据 Skia 反射绑定 uniform 和 shader 输入，结果保存独立快照。数值绑定不要求业务代码计算字节偏移。已有 Image 可调用 toShader 作为输入。程序、shader、滤镜均由创建线程管理，记录重放持有实际依赖。
 
-计划在 scoop.graphics 提供 effect、uniform／输入 shader 绑定和 Paint 接入。SkSL 源码可由普通字符串或资源提供，通过 graphics 的 native 薄层交给 Skia 编译；编译诊断、参数检查和资源包装由该库处理。Skia C++ ABI 保留在绑定内部，不增加 Scoop 语法、编译器特判、runtime 通道或 UI 内置 Shader 节点，公开类型和签名在实施时确定。
+## 2. 绘制入口
 
-现有[构建配置](../../../scripts/build_skia.py)启用 Ganesh Metal，Windows 切换为 D3D12；SkSL 接入可从这些后端开展，不以前置实现 GL／GLES／Vulkan 为条件。这里使用的是 Skia 绘制流程中的 runtime effect，具体 3D 场景仍由[独立渲染接入](../../ui/DESIGN.md#133-在自绘组件内显示-3d-场景)负责。
+| 需要处理的像素 | 接入方式 |
+| --- | --- |
+| 形状覆盖区域 | 将 Shader 传给 Canvas.drawRect、drawPath 等形状绘制方法 |
+| 已有图像 | 用 setChild 绑定 Image.toShader，在 SkSL 中用 eval 采样 |
+| 一组子项 | 用 ImageFilter.runtimeShader 创建滤镜，在 saveLayer 与 restore 之间绘制子项 |
+| 当前组件背后的内容 | 在 SceneContext.draw 中调用 Canvas.drawBackdrop，或向 StylePainter.scene 传入 backdrop，然后绘制前景 |
 
-本期 UI 扩展中的 Gaussian blur、外框阴影、内容 drop shadow／glow 使用 Skia 现有滤镜，先于本设计实施；[scoop.ui.style](../../specs/SCOOP-UI-STYLE-SPEC.md)负责普通 UI 应用。公共[主题绘图协议](../../specs/SCOOP-UI-THEME-SPEC.md)及三套风格消费相同效果，控件提供视觉状态并使用主题几何／绘图，UI 核心不依赖 style。后续 SkSL 可复用图层与资源适配，不重新建立效果节点。Backdrop blur 另需背后内容采样合同，不与当前内容 blur 混同。
+## 3. 生命周期与刷新
 
-## 2. 三种使用方式
+程序在同一 owner 上复用。小型参数变化只创建新的实例，已录制的命令保留原有参数。组件作用域持有长期资源，尺寸相关的资源也可以随 LayoutResult 释放。图像与滤镜持有的 GPU 输入沿用创建图像时的 context。
 
-| 使用方式 | 典型场景 | 接入要求 |
-| --- | --- | --- |
-| shader 填充形状 | 扫光、动态渐变、波纹、程序化背景 | 在 Paint 中使用着色来源，经普通 Rect／Path 绘制和裁剪 |
-| shader 处理图像 | 图片转场、颜色处理、图像局部扭曲 | 将 Image 对应的 shader 绑定为输入；SkSL 通过输入的 eval 取得颜色 |
-| 组件子树整体效果 | 卡片溶解、页面波动、组合内容滤镜 | 取得子树的图层结果，经过图像滤镜后合成，复用基础滤镜图层，再增加 RuntimeShader 输入与采样范围 |
-
-输入 shader 可以来自图片、渐变或另一个 runtime effect，组合不必一律先绘成纹理。给背景 Paint 设置 shader 只改变该次绘图的着色，不会自动处理后面绘制的文字或子组件。先完成形状填充和已有 Image 输入，再按实际场景接入整体效果；ColorFilter／Blender 也按实际颜色处理或混合需求推进。
-
-视频帧和 3D 颜色纹理以后可以作为效果输入，但仍依赖[外部 GPU 图像接入](../../ui/DESIGN.md#134-gpu-接入的共同边界)。普通程序化填充和已有 Image 的效果可以独立交付，不等待视频播放或离屏 UI 宿主。
-
-## 3. 组件、uniform 与资源
-
-编译后的 effect 与每次使用的参数分开。相同程序可以在同一 owner 上复用，各组件维护自己的 uniform 与输入绑定；多组件共用程序不能共用一份不断被覆盖的参数。提交给一次绘制的数据保存当次快照，不因后续修改 builder 或动画值而改变已记录的绘图。
-
-编译和 uniform／输入名称解析在加载、挂载或源码确实变化时完成，不在每次 render 或 paint 中重复编译。绑定根据 Skia 反射检查名称、类型、数组长度及所需输入，复用解析结果，调用方不手工计算字节偏移。SkSL 编译失败保留诊断；源码未变时只更新参数。Skia 仍可能在首次实际绘制时创建 GPU 管线，不能把源码编译完成等同于所有后端准备已结束。
-
-组件自有的 effect 与缓存通过 ComponentScope 登记；应用共享的程序由其长期所有者管理，单个组件卸载只结束自己的绑定和借用。绘制调用产生的短命原生绑定由 graphics 接入处理，所需 GPU 引用保持到实际使用结束；可复用缓存替换旧值时及时释放，不逐帧向 scope 追加旧 shader。Canvas 仍只在当前 paint 回调内借用，编译结果或快照也不自动获得跨线程使用许可。
-
-基础框架只提供 Element、Props、ComponentScope 和 Surface 动画接入。扫光按钮、波纹面板等成品效果可以由控件库或第三方库实现，使用相同公开能力。
+工具栏在滚动视口之后绘制。Skia 在同一帧、同一合成层读取此前的像素，在抗锯齿路径内替换滤镜结果。背景跨出轮廓的采样按滤镜的实际邻域申请。路径、滤镜和绘图命令可以跨帧复用，新的背景来自当前目标。含背景读取的绘图记录按整段命令重放，瓦片缓存跳过该段。
 
 ## 4. 动画示例与停帧
 
@@ -70,21 +57,13 @@ SkSL main 收到 shader 的局部坐标；没有额外 shader 局部矩阵时，
 
 颜色 uniform 使用 layout(color) 标记时，按 Skia 约定传入非预乘 sRGB 颜色并转换到绘制工作色彩空间；普通数值 uniform 不自动按颜色转换。shader 返回预乘 alpha，示例中先算 alpha 再乘 RGB；已经通过图像 shader 取得的预乘颜色不能重复乘 alpha。效果继续遵守当前 sRGB 输出合同，不因 SkSL 可以计算任意数值而自动扩展为 HDR 输出。
 
-对子树整体施加自定义效果时，复用基础滤镜图层并接入 SkImageFilters::RuntimeShader 等实际入口，将子树绘制结果作为输入。采样范围、输出边界、裁剪与缓存失效需要明确；影响像素范围和采样次数的成本随真实场景验证。仅处理自己的子树不自动取得组件背后的背景。基础 Gaussian／阴影滤镜的交付不代表 RuntimeShader 已接入，也不需要先建立通用 render graph。
+runtimeShader 通过 sourceChild 指定源输入，sampleRadius 用局部逻辑单位声明该输入在每个轴上的最大采样位移。子树使用 saveLayer，并在 restore 时滤镜合成。背景效果由 drawBackdrop 在当前层立即处理，外层隔离组决定可见的背后内容。
 
 着色器改变像素，不自动改变组件布局、子项位置或 InputArea 命中。扫光、变色等效果通常沿用原几何；涉及位移或非线性扭曲时，要明确保留原输入区域，或由效果适配提供对应坐标映射。不能从任意 SkSL 程序自动推导可交互几何、caret 位置或逆变换；普通几何动画优先沿现有 Canvas／Surface 共享变换处理。
 
-## 6. 后续批次与验证
+## 6. 验证入口
 
-| 批次 | 交付 | 必要验证 |
-| --- | --- | --- |
-| effect 与 Paint 接入 | 编译、uniform／输入绑定、程序化填充及已有 Image 效果 | 实际后端输出、参数与编译诊断、颜色／alpha／坐标、多实例参数隔离、源程序复用及资源关闭 |
-| 自绘组件与动画组合 | 普通 Element 通过 Animatable 驱动效果，scope 管理资源 | 扫光或波纹的真实输入触发、尺寸／DPI 变化、动画结束／暂停后停帧、隐藏恢复和卸载 |
-| 自定义子树效果 | 复用基础图层，增加明确输入、采样范围和输出边界的 RuntimeShader 接入 | 文字／图片／子控件整体效果、裁剪边缘、命中策略、缓存失效和失败时资源收尾 |
-
-使用成熟 Skia 能力和现有后端先完成代表性闭环，再扩展效果类型；不先导出空 shader／filter 接口。普通行为归 graphics，UI 组合归相应组件或集成测试。记录实际验证的后端与目标，不把上游接口存在或示例源码检查当成 Scoop 已运行验证。
-
-性能与能耗验证观察源程序编译次数、参数更新、实际绘图和提交：连续动画复用程序，不逐帧重新编译或读回 CPU；静止区间既没有新增 GPU 提交，也没有空的帧回调和 UI 遍历。GPU 资源完成实际使用后释放，不能用提前关闭或强制每帧同步等待来满足测试。
+graphics 的 Cone 测试覆盖编译诊断、反射类型、参数快照、输入寿命、GPU context、分组滤镜及半透明背景重放。Glass studies 的窗口测试使用同一工具栏与真实滚动列表，对比两种滤镜单独开关时的帧，并在复位后核对像素。运行命令见[示例说明](../../../sysroot/src/scoop.ui.component/examples/glass/README.md)。
 
 ## 7. 调研依据
 

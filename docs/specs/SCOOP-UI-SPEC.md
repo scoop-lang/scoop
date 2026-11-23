@@ -20,7 +20,7 @@ macOS aarch64 与 x86_64 已完成原有功能验证。Linux GNU 阶段沿用同
 
 离屏 UI 根、外部 GPU 图像、UI 与 3D 场景的双向合成及视频展示列为后续增强，调研结论见 [UI 设计第 13 节](../ui/DESIGN.md#13-后续增强gpu-互操作3d-与视频)。这些能力尚未实现，不属于本文件的首期合同；进入相应实施阶段时再补充具体 API、线程与资源交付规则。
 
-SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../graphics/sksl/DESIGN.md)及 [UI 设计第 14 节](../ui/DESIGN.md#14-后续增强sksl-与组件效果)。组件通过普通 Element 使用效果，Surface Animatable 驱动 uniform；持有 shader 或声明时间参数不产生隐式帧需求，继续遵守第 6.1 节的停帧要求。
+组件通过普通 Element 在 SceneContext.draw 中使用[graphics 的 SkSL 和背景滤镜](SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样)。Surface Animatable 驱动动态 uniform，静止时遵守 §6.1。
 
 弹层／模态、滚动及绘制／实例缓存、虚拟子项、键盘导航、快捷键、路由扩展与公共编辑的后续方案见[基础交互能力设计](../ui/foundations/DESIGN.md)。该方案分批实施；场景与纯绘制协议见第 7.2 节，其他能力进入相应批次时再修订当前合同。
 

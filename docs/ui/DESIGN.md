@@ -242,7 +242,7 @@ scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable �
 
 顺序为外框阴影、背景、经过有序效果的完整内容、边框。外框阴影使用圆角外框；内容阴影／glow 使用真实 alpha，文字无需转 Path。Glow 是零 offset 的着色 alpha 模糊与原内容 SrcOver 组合。内容效果数组区分先模糊再投影和投影后整体模糊；本节点装饰不进入其自身内容效果，嵌套装饰则属于子树内容。显式 clipContent 裁最终内容输出和子输入，不裁自己的外框阴影。
 
-样式原样传递约束、尺寸和基线，不产生点击区域或隐式 padding。图层不以布局框裁掉向外扩展像素；sigma／offset 使用局部逻辑单位，由根 DPI 变换一次。首批仅缓存当前滤镜与轮廓，不缓存子树像素；替换及时关闭旧资源，文字、图片和子动画持续使用当帧内容。参数动画由 Surface Animatable 采样，静态样式及缓存没有时钟、空投递或帧需求。Backdrop blur 采样背后内容，留为独立后续增强。
+样式原样传递约束、尺寸和基线，不产生点击区域或隐式 padding。图层不以布局框裁掉向外扩展像素；sigma／offset 使用局部逻辑单位，由根 DPI 变换一次。首批仅缓存当前滤镜与轮廓，不缓存子树像素；替换及时关闭旧资源，文字、图片和子动画持续使用当帧内容。参数动画由 Surface Animatable 采样，静态样式及缓存没有时钟、空投递或帧需求。Backdrop blur 通过 StylePainter.scene 的 backdrop 参数采样当前层的背景。
 
 `scoop.ui.component` 的公开 Label／Button／Checkbox 等是普通 Component class。便利函数 label／button／checkbox 等保存变化输入并延迟构造这些组件；对应 render 使用公开 Element 实现及子组件组合。
 
@@ -376,7 +376,7 @@ UiHost 的 onRootError(WindowId, Throwable) 在失败窗口的输入、内容、
 
 图文绕排／分栏、离屏 UI、GPU 互操作、3D 与视频属于上述首期批次之后的增强方向，分别见[文本排版设计第 8 节](../graphics/text/DESIGN.md#8-后续增强图文绕排分栏与区域续排)和[本文第 13 节](#13-后续增强gpu-互操作3d-与视频)。这些调研结论不增加首期验收前置；相应阶段从实际场景出发补充规范、实现和验证。
 
-基础阴影、glow、内容 blur 及其动画组合已纳入本期 3b／3c；先补 graphics 再由 style 消费。公共主题和三套绘图风格纳入 3d／3e。SkSL 自定义填充／滤镜仍是[第 14 节](#14-后续增强sksl-与组件效果)的后续增强，复用已有图层合同，不阻塞基础效果，也不依赖 3D／媒体库。
+基础阴影、glow、内容 blur 及其动画组合已纳入本期 3b／3c；先补 graphics 再由 style 消费。公共主题和三套绘图风格纳入 3d／3e。SkSL 自定义填充、滤镜和背景采样复用既有图层，见[第 14 节](#14-sksl-与组件效果)。
 
 ## 12. 现有底层的命名迁移
 
@@ -467,13 +467,11 @@ Surface 提供绘制机会，媒体适配协调下一帧到期时间与重绘需
 
 以上验证随各自后续能力实施，先完成实际端到端场景，再按具体需求扩展；不把全部 GPU API、HDR 或多媒体平台组合加入首期 UI 验收。高级文本排版按[文本设计第 8 节](../graphics/text/DESIGN.md#8-后续增强图文绕排分栏与区域续排)独立推进。新增后端及媒体依赖遵循普通 Cone、FFI、native 资源与发行流程，不增加 UI 专用编译器或 runtime 通道。
 
-## 14. 后续增强：SkSL 与组件效果
+## 14. SkSL 与组件效果
 
-SkSL 的职责、参数与资源模型、扫光示例及分批验证见 [graphics 接入设计](../graphics/sksl/DESIGN.md)。固定 Skia 已有 SkRuntimeEffect，Scoop 尚未暴露相关接口。后续在 graphics 提供 effect、uniform／输入 shader 和 Paint 接入；普通 Element 在 paint 中使用，基础 UI 不增加专用 Shader 节点或编译器机制。
+graphics 的 ShaderProgram 负责编译，ShaderBindings 为每个 Shader 或 ImageFilter 保存独立输入。Element 使用 Canvas 绘制形状，或用 saveLayer 处理子树。背景效果使用 Canvas.drawBackdrop 或 StylePainter.scene 的 backdrop 参数。组件在绘制效果之后呈现文字与子项，布局、输入和 IME 几何沿用原有描述。[graphics 接入设计](../graphics/sksl/DESIGN.md)
 
-组件在挂载或加载时准备程序和绑定，使用 Props 传入业务参数，在实际帧读取 Surface Animatable 的采样值更新 uniform。程序复用，组件参数独立；自有资源由 ComponentScope 收尾，共享程序由长期所有者维护。有限动画完成后停帧，声明 time uniform 或持有 shader 不产生隐式时钟，遵守[第 7.1 节](#71-静止唤醒与能耗)。
-
-本期先完成无须 SkSL 的 graphics 滤镜与公共 style；后续 SkSL 先支持形状填充和已有图像，再扩展自定义子树滤镜并复用图层接入。背景 Paint 的 shader 不自动处理文字／子项；像素扭曲不自动改变布局、命中或 IME 几何，交互映射必须明确。验证包括多实例参数隔离、颜色／alpha／坐标、连续动画不重复编译、暂停／完成后停止提交以及卸载释放。
+组件可以在挂载时准备程序，在实际帧按 Surface Animatable 的采样值绑定 uniform。组件作用域关闭自有资源，程序与已绑定参数本身均无帧需求。[静止与唤醒](#71-静止唤醒与能耗)
 
 ## 15. 后续增强：基础交互与控件扩充
 

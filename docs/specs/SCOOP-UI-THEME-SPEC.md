@@ -218,7 +218,7 @@ Component 的挂载工厂在该入口构造实例，因此可以在构造阶段�
 
 ## 7. 效果、缓存与能耗
 
-保留 [Style 规范第 3～4 节](SCOOP-UI-STYLE-SPEC.md#3-绘制布局与输入)的完整合同：外框阴影与内容 alpha 效果不同，有序 blur／drop shadow／glow、显式 clip、扩展输出和一次 DPI；Backdrop blur 后续独立实现。主题使用同一 graphics／Style 能力，不能复制滤镜实现或要求先完成 SkSL。
+保留 [Style 规范第 3～4 节](SCOOP-UI-STYLE-SPEC.md#3-绘制布局与输入)的完整合同：外框阴影与内容 alpha 效果不同，有序 blur／drop shadow／glow、显式 clip、扩展输出和一次 DPI；背景滤镜通过 StylePainter 的 backdrop 参数借用。主题使用同一 graphics／Style 能力，不能复制滤镜实现或要求先完成 SkSL。
 
 ThemePainter 缓存考虑本轮主题参数、几何、效果和本帧采样值，正确替换并关闭旧资源。首批不缓存子树像素，文字／图像变化与子项动画不会因主题对象未变而失效。Painter 不建立任何任务或时钟；动画参数由控件交给 Surface Animatable，完成、暂停、取消、隐藏或卸载后恢复等待。
 

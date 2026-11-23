@@ -5,19 +5,32 @@ public enum ImageSampling {
 }
 
 /** Immutable pixels with a color space; GPU images retain their compatible context. */
-public class Image internal constructor(internal val resource: GraphicsResource): Closeable {
-    public val width: Int get() {
-        @Unsafe
-        {
-            return imageDimension(resource.get(), false)
+public class Image internal constructor(internal val resource: GraphicsResource) : Closeable {
+    /** Samples this image in pixel coordinates, clamping at its edges. */
+    public fun toShader(sampling: ImageSampling = ImageSampling.Linear): Shader {
+        @Unsafe {
+            return Shader(
+                ownedGraphics(
+                    imageShader(resource.get(), sampling == ImageSampling.Linear),
+                    "create image shader"
+                )
+            )
         }
     }
-    public val height: Int get() {
-        @Unsafe
-        {
-            return imageDimension(resource.get(), true)
+    public val width: Int
+        get() {
+            @Unsafe
+            {
+                return imageDimension(resource.get(), false)
+            }
         }
-    }
+    public val height: Int
+        get() {
+            @Unsafe
+            {
+                return imageDimension(resource.get(), true)
+            }
+        }
     public val isClosed: Boolean get() = resource.isClosed
     public override fun close() {
         resource.close()
@@ -31,30 +44,30 @@ public class Image internal constructor(internal val resource: GraphicsResource)
             )
             @Unsafe
             {
-                return pixels.withDataPointer {
-                    bytes,
-                    _ -> @Unsafe
-                    {
-                        return@withDataPointer Image(
-                            ownedGraphics(imageRgba(width, height, bytes), "create RGBA image")
-                        )
+                return pixels
+                    .withDataPointer { bytes, _ ->
+                        @Unsafe
+                        {
+                            return@withDataPointer Image(
+                                ownedGraphics(imageRgba(width, height, bytes), "create RGBA image")
+                            )
+                        }
                     }
-                }
             }
         }
         /** Decodes PNG or JPEG; malformed data reports GraphicsException. */
         public fun decode(encoded: Array<Byte>): Image {
             @Unsafe
             {
-                return encoded.withDataPointer {
-                    bytes,
-                    count -> @Unsafe
-                    {
-                        return@withDataPointer Image(
-                            ownedGraphics(imageDecode(bytes, count), "decode image")
-                        )
+                return encoded
+                    .withDataPointer { bytes, count ->
+                        @Unsafe
+                        {
+                            return@withDataPointer Image(
+                                ownedGraphics(imageDecode(bytes, count), "decode image")
+                            )
+                        }
                     }
-                }
             }
         }
     }
@@ -75,3 +88,6 @@ private fun imageRgba(width: Int, height: Int, pixels: Ptr<Byte>): Ptr<Unit>?
 
 @Extern(name = "scoop_graphics_image_decode")
 private fun imageDecode(bytes: Ptr<Byte>, count: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_image_shader")
+private fun imageShader(image: Ptr<Unit>, linear: Boolean): Ptr<Unit>?

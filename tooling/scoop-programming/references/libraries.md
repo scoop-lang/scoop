@@ -80,6 +80,7 @@
 | 日志与控制台 provider                             | `scoop.log`、`scoop.log.console` 的 README／示例                                               |
 | 终端、异步终端与交互行编辑                        | `terminal/output`；`scoop.terminal`、`scoop.terminal.asyncio`、`scoop.readline` 的示例           |
 | UI、组件及桌面应用                               | `ui/state`；`scoop.ui` 及实际使用的组件/桌面 Cone 的 README 与 examples；独立控件修改借用模型前可调用 `State.checkMutation()`，`SceneContext.drawTextLayout` 在既有文字缓存路径绘制自有排版；使用当前目标可用的库  |
+| SkSL、毛玻璃与折射 | 在 scoop.graphics 用 ShaderProgram.compile 和 makeShader 绑定每个实例的参数，形状可直接传 shader。ImageFilter.runtimeShader 可消费子树或当前层的背景。固定工具栏在列表之后调用 StylePainter.scene 并保持前景清晰。示例位于 `src/scoop.ui.component/examples/glass`。 |
 | 原生宿主的几何与文本查询 | `scoop.graphics.native` 的 `@Unsafe CanvasGeometry.withNativeGeometry` 借出 NativeGeometry，提供精确 contains、toLocal 和完整／可见 mapRect；`scoop.graphics.text.native` 的 `@Unsafe TextLayout.withNativeLayout` 借出同一排版的 hit／caret／boxes／单位与行查询。仿射点查询以 Double 保留远端间距，完整范围在大平移导致原生尺寸归零时仍保留实际局部尺寸；离屏范围不因此具有可见交集或命中。原生消费者以配套 retain／release 管理跨借用和跨线程寿命，不回调 Scoop；普通 struct 复制不拥有额外引用。文本偏移仍为布局正文 UTF-8，投影、层叠、内容版本及 Accepted 发布由宿主负责；完整合同见 graphics／text README 和对应规范 |
 
 ## JSON 与 DTO

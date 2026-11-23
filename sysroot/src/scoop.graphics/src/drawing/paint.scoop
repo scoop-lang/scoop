@@ -51,42 +51,39 @@ public class Paint public constructor(
     public val gradient: Gradient? = None,
     public val antiAlias: Boolean = true
 ) {
-    internal fun <T> withNative(block: (Ptr<Unit>) -> T): T {
+    internal fun <T> withNative(canvas: Ptr<Unit>, shader: Shader?, block: (Ptr<Unit>) -> T): T {
         checkColor(color);
         checkScalar(strokeWidth);
         checkScalar(miterLimit)
         requireGraphics(strokeWidth >= 0.0 && miterLimit >= 0.0, "invalid stroke")
-        val capCode =
-            when (cap) {
-                case Butt -> 0;
-                case Round -> 1;
-                case Square -> 2
-            }
-        val joinCode =
-            when (join) {
-                case Miter -> 0;
-                case Round -> 1;
-                case Bevel -> 2
-            }
+        val capCode = when (cap) {
+            case Butt -> 0;
+            case Round -> 1;
+            case Square -> 2
+        }
+        val joinCode = when (join) {
+            case Miter -> 0;
+            case Round -> 1;
+            case Bevel -> 2
+        }
         @Unsafe
         {
-            val pointer =
-                paintCreate(
-                    color,
-                    if (style == PaintingStyle.Fill)
-                        0
-                    else
-                        1,
-                    strokeWidth,
-                    capCode,
-                    joinCode,
-                    miterLimit,
-                    antiAlias
-                ) ?:
-                    throw GraphicsException("create paint")
+            val pointer = paintCreate(
+                color,
+                if (style == PaintingStyle.Fill) 0 else 1,
+                strokeWidth,
+                capCode,
+                joinCode,
+                miterLimit,
+                antiAlias
+            ) ?:
+                throw GraphicsException("create paint")
             try {
-                when (gradient) {
-                    case Some(val value) -> {
+                when ((gradient, shader)) {
+                    case(Some(_), Some(_)) ->
+                        throw IllegalArgumentException(Some("choose one paint shader or gradient"))
+
+                    case(Some(val value), None) -> {
                         for (stop in value.stops)
                             graphicsResult(
                                 paintStop(pointer, stop.offset, stop.color),
@@ -103,7 +100,13 @@ public class Paint public constructor(
                             "create gradient"
                         )
                     }
-                    case None -> {}
+
+                    case(None, Some(val value)) ->
+                        graphicsResult(
+                            paintShader(canvas, pointer, value.resource.getForClose()),
+                            "draw incompatible shader"
+                        )
+                    case(None, None) -> {}
                 }
                 return block(pointer)
             } finally {
@@ -157,3 +160,6 @@ private fun paintGradient(
     end: Point,
     radius: Double
 ): Int
+
+@Extern(name = "scoop_graphics_paint_shader")
+private fun paintShader(canvas: Ptr<Unit>, paint: Ptr<Unit>, shader: Ptr<Unit>): Int

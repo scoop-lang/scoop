@@ -107,4 +107,4 @@ StylePainter 的一个 scene／paint 回调结束前，不能重入同一 painte
 - Surface 参数动画的真实帧与最终值，完成／暂停／取消／隐藏／卸载后逻辑及底层帧需求停止。
 - 缓存复用、替换、构造／绘制异常、卸载和原生窗口关闭，确认资源及时释放。
 
-Backdrop blur／毛玻璃是采样背后画面的独立能力，本批只记录为后续增强。普通内容 blur 不取得背景。SkSL 接入继续由 graphics 的[后续设计](../graphics/sksl/DESIGN.md)负责，将来可复用已建立的图层与适配，而不是重新引入效果节点或动画时钟。
+背景毛玻璃与自定义折射使用 [Canvas.drawBackdrop](SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样)。StylePainter.scene／paint 可通过可选 backdrop 参数借用 ImageFilter，在外框阴影之后、背景填充之前按同一圆角轮廓合成。Style 保存可复用的描述，资源由调用方管理。

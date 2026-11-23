@@ -1,0 +1,100 @@
+package scoop.examples.glass
+
+import scoop.graphics.*
+import scoop.math.max
+import scoop.math.min
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.material.materialTheme
+
+fun main() {
+    val model = GlassModel()
+    context(ThemeSource(materialTheme())) {
+        runUiApplication(
+            "Glass studies — scroll to compare",
+            { mount -> GlassGallery(model, mount) }
+        )
+    }
+}
+
+internal class GlassModel {
+    val scroll = ScrollState()
+    val frosted = state(true)
+    val refracted = state(true)
+}
+
+internal class GlassGallery(private val model: GlassModel, scope: ComponentScope) :
+    Component(scope) {
+    private val pattern = scope.resource { ShaderProgram.compile(patternSource) }
+    private val lens = scope.resource { ShaderProgram.compile(lensSource) }
+
+    public override fun render(): View {
+        val scroll = model.scroll
+        val pattern = this.pattern
+        val list = scrollArea(
+            column {
+                for (swatch in swatches) {
+                    add(element({ mount -> ColorRow(swatch, pattern, mount) }))
+                }
+            }
+        ) {
+            this.state = Some(scroll)
+            scrollbars = ScrollbarVisibility.Auto
+        }
+        return element(
+            { mount -> GalleryLayout(mount) },
+            [
+                list,
+                panel("Gaussian blur", None, model.frosted),
+                panel("Refraction", Some(lens), model.refracted)
+            ]
+        )
+    }
+
+    private fun panel(name: String, program: ShaderProgram?, enabled: State<Boolean>): View {
+        val active = enabled.value
+        val action = button(if (active) "On" else "Off", { enabled.value = !enabled.value }) {
+            size = ButtonSize.Sm
+            variant = ButtonVariant.Secondary
+            semantics = ComponentSemantics(name = Some(name + (if (active) " on" else " off")))
+        }
+        return element(
+            active,
+            { props, mount -> GlassPanel(name, program, props, mount) },
+            [action]
+        )
+    }
+}
+
+/** Child order also establishes the backdrop sampled by the two fixed toolbar panels. */
+private class GalleryLayout(scope: ComponentScope) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints
+            .constrain(Size(constraints.maxWidth ?: 760.0, constraints.maxHeight ?: 560.0))
+        context.measureChild(0L, Constraints.tight(size))
+        context.placeChild(0L, Point(0.0, 0.0))
+        val stacked = size.width < 420.0
+        val available = if (stacked) size.width - 28.0 else (size.width - 40.0) * 0.5
+        val width = min(272.0, max(0.0, available))
+        val toolbarWidth = if (stacked) width else width * 2.0 + 12.0
+        val left = (size.width - toolbarWidth) * 0.5
+        for (i in 0 until 2) {
+            val child = (i + 1).toLong()
+            context.measureChild(child, Constraints.tight(Size(width, 68.0)))
+            val offset = i.toDouble()
+            val origin = if (stacked)
+                Point(left, 18.0 + offset * 76.0)
+            else
+                Point(left + offset * (width + 12.0), 18.0)
+            context.placeChild(child, origin)
+        }
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+
+    public override fun scene(context: SceneContext, layout: Unit) {
+        context.children()
+    }
+}

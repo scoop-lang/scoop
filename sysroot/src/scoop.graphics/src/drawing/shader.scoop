@@ -1,0 +1,139 @@
+package scoop.graphics
+
+/** A reusable, owner-thread SkSL shader program. */
+public class ShaderProgram private constructor(private val resource: GraphicsResource) : Closeable {
+    public val isClosed: Boolean get() = resource.isClosed
+    public override fun close() {
+        resource.close()
+    }
+
+    public companion object {
+        /** Compiles SkSL and reports the compiler's diagnostic on failure. */
+        public fun compile(source: String): ShaderProgram {
+            @Unsafe {
+                val handle = source
+                    .withUtf8Bytes { bytes, length ->
+                        @Unsafe {
+                            return@withUtf8Bytes ownedGraphics(
+                                shaderCompile(bytes, length),
+                                "compile SkSL"
+                            )
+                        }
+                    }
+                try {
+                    val error = shaderDiagnostic(handle.get()).message()
+                    when (error) {
+                        case Some(val message) -> throw GraphicsException(message)
+                        case None -> return ShaderProgram(handle)
+                    }
+                } catch (error: Throwable) {
+                    handle.close()
+                    throw error
+                }
+            }
+        }
+    }
+
+    /** Freezes this configuration as a shader for shape fills or another program's input. */
+    public fun makeShader(configure: ShaderBindings.() -> Unit = {}): Shader = bind(-1, configure) {
+        handle
+        ->
+        @Unsafe {
+            return@bind Shader(ownedGraphics(shaderMake(handle), "create shader"))
+        }
+    }
+
+    internal fun filter(
+        sourceChild: String,
+        radius: Double,
+        configure: ShaderBindings.() -> Unit
+    ): ImageFilter {
+        checkScalar(radius)
+        requireGraphics(radius >= 0.0, "negative shader sample radius")
+        @Unsafe {
+            val program = resource.get()
+            val source = sourceChild
+                .withUtf8Bytes { name, length ->
+                    @Unsafe {
+                        return@withUtf8Bytes shaderSource(program, name, length)
+                    }
+                }
+            requireGraphics(source >= 0, "unknown shader source: " + sourceChild)
+            return bind(source, configure) { handle ->
+                @Unsafe {
+                    return@bind ImageFilter(
+                        ownedGraphics(shaderFilter(handle, radius), "create shader filter")
+                    )
+                }
+            }
+        }
+    }
+
+    private fun <T> bind(
+        source: Int,
+        configure: ShaderBindings.() -> Unit,
+        finish: (Ptr<Unit>) -> T
+    ): T {
+        @Unsafe {
+            val handle = ownedGraphics(
+                shaderBindings(resource.get(), source),
+                "create shader bindings"
+            )
+            return handle
+                .use { value ->
+                    ShaderBindings(value).configure()
+                    val pointer = value.get()
+                    @Unsafe {
+                        when (shaderMissing(pointer).message()) {
+                            case Some(val name) ->
+                                throw IllegalArgumentException(
+                                    Some("missing shader input: " + name)
+                                )
+                            case None -> return@use finish(pointer)
+                        }
+                    }
+                }
+        }
+    }
+}
+
+/** Immutable shader retaining its bound inputs. */
+public class Shader internal constructor(internal val resource: GraphicsResource) : Closeable {
+    public val isClosed: Boolean get() = resource.isClosed
+    public override fun close() {
+        resource.close()
+    }
+}
+
+@CLayout
+private struct ShaderText(val data: Ptr<UInt8>?, val length: Long) {
+    fun message(): String? {
+        @Unsafe {
+            return when (data) {
+                case Some(val bytes) -> Some(String.fromUtf8(bytes, length))
+                case None -> None
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_graphics_shader_compile")
+private fun shaderCompile(source: Ptr<UInt8>, length: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_shader_diagnostic")
+private fun shaderDiagnostic(program: Ptr<Unit>): ShaderText
+
+@Extern(name = "scoop_graphics_shader_source")
+private fun shaderSource(program: Ptr<Unit>, name: Ptr<UInt8>, length: Long): Int
+
+@Extern(name = "scoop_graphics_shader_bindings")
+private fun shaderBindings(program: Ptr<Unit>, source: Int): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_shader_missing")
+private fun shaderMissing(bindings: Ptr<Unit>): ShaderText
+
+@Extern(name = "scoop_graphics_shader_make")
+private fun shaderMake(bindings: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_shader_filter")
+private fun shaderFilter(bindings: Ptr<Unit>, radius: Double): Ptr<Unit>?

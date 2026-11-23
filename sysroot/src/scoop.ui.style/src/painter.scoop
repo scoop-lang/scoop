@@ -13,7 +13,7 @@ private struct DecorationDrawing(
 )
 
 /** Owns just the current filters and outlines; register once in the using element's scope. */
-public class StylePainter public constructor(): Closeable {
+public class StylePainter public constructor() : Closeable {
     private val owner = currentThreadId()
     private var closed = false
     private var painting = false
@@ -24,10 +24,8 @@ public class StylePainter public constructor(): Closeable {
 
     private fun checkOpen() {
         checkThread()
-        if (closed)
-            throw IllegalStateException(Some("style painter is closed"))
-        if (painting)
-            throw IllegalStateException(Some("style painter has an active draw"))
+        if (closed) throw IllegalStateException(Some("style painter is closed"))
+        if (painting) throw IllegalStateException(Some("style painter has an active draw"))
     }
     private fun checkThread() {
         if (owner != currentThreadId())
@@ -35,8 +33,17 @@ public class StylePainter public constructor(): Closeable {
     }
 
     public fun scene(context: SceneContext, style: Style, content: (SceneContext) -> Unit) {
+        scene(context, style, None, content)
+    }
+    /** Draws the borrowed backdrop between the outer shadows and foreground fill. */
+    public fun scene(
+        context: SceneContext,
+        style: Style,
+        backdrop: ImageFilter?,
+        content: (SceneContext) -> Unit
+    ) {
         val size = context.size
-        scene(context, Rect(0.0, 0.0, size.width, size.height), style, content)
+        scene(context, Rect(0.0, 0.0, size.width, size.height), style, backdrop, content)
     }
     public fun scene(
         context: SceneContext,
@@ -44,25 +51,33 @@ public class StylePainter public constructor(): Closeable {
         style: Style,
         content: (SceneContext) -> Unit
     ) {
+        scene(context, bounds, style, None, content)
+    }
+    public fun scene(
+        context: SceneContext,
+        bounds: Rect,
+        style: Style,
+        backdrop: ImageFilter?,
+        content: (SceneContext) -> Unit
+    ) {
         checkOpen()
         painting = true
         try {
-            val drawing = prepare(bounds, style, context.layoutDirection)
-            context.draw { paint -> background(paint.canvas, bounds, style, drawing) }
-            context.withState {
-                local ->
-                if (style.clipContent)
-                    local.clipPath(drawing.paths!!.outline)
-                when (drawing.filter) {
-                    case Some(val value) -> local.saveLayer(filter = Some(value))
-                    case None -> {}
+            val drawing = prepare(bounds, style, context.layoutDirection, backdrop)
+            context.draw { paint -> background(paint.canvas, bounds, style, drawing, backdrop) }
+            context
+                .withState { local ->
+                    if (style.clipContent) local.clipPath(drawing.paths!!.outline)
+                    when (drawing.filter) {
+                        case Some(val value) -> local.saveLayer(filter = Some(value))
+                        case None -> {}
+                    }
+                    local.withState(content)
+                    when (drawing.filter) {
+                        case Some(_) -> local.restore()
+                        case None -> {}
+                    }
                 }
-                local.withState(content)
-                when (drawing.filter) {
-                    case Some(_) -> local.restore()
-                    case None -> {}
-                }
-            }
             context.draw { paint -> border(paint.canvas, bounds, drawing) }
         } finally {
             painting = false
@@ -75,58 +90,91 @@ public class StylePainter public constructor(): Closeable {
         direction: LayoutDirection = LayoutDirection.Ltr,
         content: (Canvas) -> Unit
     ) {
+        paint(canvas, bounds, style, None, direction, content)
+    }
+    public fun paint(
+        canvas: Canvas,
+        bounds: Rect,
+        style: Style,
+        backdrop: ImageFilter?,
+        direction: LayoutDirection = LayoutDirection.Ltr,
+        content: (Canvas) -> Unit
+    ) {
         checkOpen()
         painting = true
         try {
-            val drawing = prepare(bounds, style, direction)
-            canvas.withState {
-                local ->
-                background(local, bounds, style, drawing)
-                local.save()
-                if (style.clipContent)
-                    local.clipPath(drawing.paths!!.outline)
-                when (drawing.filter) {
-                    case Some(val value) -> local.saveLayer(filter = Some(value))
-                    case None -> {}
+            val drawing = prepare(bounds, style, direction, backdrop)
+            canvas
+                .withState { local ->
+                    background(local, bounds, style, drawing, backdrop)
+                    local.save()
+                    if (style.clipContent) local.clipPath(drawing.paths!!.outline)
+                    when (drawing.filter) {
+                        case Some(val value) -> local.saveLayer(filter = Some(value))
+                        case None -> {}
+                    }
+                    local.withState(content)
+                    when (drawing.filter) {
+                        case Some(_) -> local.restore()
+                        case None -> {}
+                    }
+                    local.restore()
+                    border(local, bounds, drawing)
                 }
-                local.withState(content)
-                when (drawing.filter) {
-                    case Some(_) -> local.restore()
-                    case None -> {}
-                }
-                local.restore()
-                border(local, bounds, drawing)
-            }
         } finally {
             painting = false
         }
     }
 
-    private fun prepare(bounds: Rect, style: Style, direction: LayoutDirection): DecorationDrawing {
+    private fun prepare(
+        bounds: Rect,
+        style: Style,
+        direction: LayoutDirection,
+        backdrop: ImageFilter?
+    ): DecorationDrawing {
         when (style.background) {
-            case Some(val value) -> requireStyle(
-                value.style == PaintingStyle.Fill,
-                "style background must be a fill"
-            )
+            case Some(val value) ->
+                requireStyle(
+                    value.style == PaintingStyle.Fill,
+                    "style background must be a fill"
+                )
             case None -> {}
         }
         return DecorationDrawing(
-            geometry.update(bounds, style, direction),
+            geometry
+                .update(
+                    bounds,
+                    style,
+                    direction,
+                    when (backdrop) {
+                        case Some(_) -> true;
+                        case None -> false
+                    }
+                ),
             physicalEdges(style, direction),
             boxFilters.update(style.boxShadows),
             contentFilters.update(style.contentEffects)
         )
     }
-    private fun background(canvas: Canvas, bounds: Rect, style: Style, drawing: DecorationDrawing) {
-        if (bounds.width == 0.0 || bounds.height == 0.0)
-            return
+    private fun background(
+        canvas: Canvas,
+        bounds: Rect,
+        style: Style,
+        drawing: DecorationDrawing,
+        backdrop: ImageFilter?
+    ) {
+        if (bounds.width == 0.0 || bounds.height == 0.0) return
         for (shadow in drawing.shadows)
-            canvas.withState {
-                mask ->
-                mask.saveLayer(filter = Some(shadow), bounds = Some(bounds))
-                mask.drawPath(drawing.paths!!.outline, Paint(Color.White))
-                mask.restore()
-            }
+            canvas
+                .withState { mask ->
+                    mask.saveLayer(filter = Some(shadow), bounds = Some(bounds))
+                    mask.drawPath(drawing.paths!!.outline, Paint(Color.White))
+                    mask.restore()
+                }
+        when (backdrop) {
+            case Some(val filter) -> canvas.drawBackdrop(drawing.paths!!.outline, filter)
+            case None -> {}
+        }
         when (style.background) {
             case Some(val paint) -> canvas.drawPath(drawing.paths!!.outline, paint)
             case None -> {}
@@ -137,34 +185,32 @@ public class StylePainter public constructor(): Closeable {
         val ring = paths.border ?: return
         when (drawing.edges.uniformColor()) {
             case Some(val color) -> canvas.drawPath(ring, Paint(color))
-            case None -> canvas.withState {
-                local ->
-                local.clipRect(bounds)
-                local.saveLayer(bounds = Some(bounds))
-                val colors = drawing.edges.values()
-                for (index in 0L ..< paths.regions.size) {
-                    if (colors[index].width == 0.0)
-                        continue
-                    // Sum disjoint antialias coverage without darkening their shared joins.
-                    local.saveLayer(blendMode = BlendMode.Plus, bounds = Some(bounds))
-                    local.drawPath(paths.regions[index], Paint(colors[index].color))
-                    local.restore()
-                }
-                // Apply one common rounded ring to the assembled colors.
-                local.saveLayer(blendMode = BlendMode.DstIn, bounds = Some(bounds))
-                local.drawPath(ring, Paint(Color.White))
-                local.restore()
-                local.restore()
-            }
+            case None ->
+                canvas
+                    .withState { local ->
+                        local.clipRect(bounds)
+                        local.saveLayer(bounds = Some(bounds))
+                        val colors = drawing.edges.values()
+                        for (index in 0L..<paths.regions.size) {
+                            if (colors[index].width == 0.0) continue
+                            // Sum disjoint antialias coverage without darkening their shared joins.
+                            local.saveLayer(blendMode = BlendMode.Plus, bounds = Some(bounds))
+                            local.drawPath(paths.regions[index], Paint(colors[index].color))
+                            local.restore()
+                        }
+                        // Apply one common rounded ring to the assembled colors.
+                        local.saveLayer(blendMode = BlendMode.DstIn, bounds = Some(bounds))
+                        local.drawPath(ring, Paint(Color.White))
+                        local.restore()
+                        local.restore()
+                    }
         }
     }
 
     public override fun close() {
         checkThread()
-        if (painting)
-            throw IllegalStateException(Some("style painter has an active draw"))
-        if (closed)
-            return
+        if (painting) throw IllegalStateException(Some("style painter has an active draw"))
+        if (closed) return
         closed = true
         var failure = cleanupStyle(None) { contentFilters.close() }
         failure = cleanupStyle(failure) { boxFilters.close() }

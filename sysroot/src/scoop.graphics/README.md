@@ -33,9 +33,9 @@ Canvas 支持 save／restore、仿射变换、矩形／Path 裁剪、基本形�
 
 `ImageFilter.blur` 提供局部逻辑单位 sigma 的 Gaussian blur；`dropShadow`／`dropShadowOnly` 根据实际内容 alpha 生成带源／不带源阴影。`a.then(b)` 执行 b(a(source))，结果独立保留输入引用。滤镜不以布局矩形隐式裁剪扩展像素，源外采样透明黑；`PathBuilder.addRoundRect` 为绘制、clip 与输入提供共用圆角轮廓。详细参数、顺序、颜色和 clip 合同见[图像滤镜规范](../../../docs/specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md)。该扩展已在 macOS aarch64 验证，x86_64 及 Windows 的补验状态见 UI 实施记录。
 
-SkSL runtime effect、uniform／输入 shader、Paint 着色及自定义子树滤镜列为[后续增强设计](../../../docs/graphics/sksl/DESIGN.md)，目前未提供 Scoop 接口。计划复用 Skia 现有后端，程序与参数分开管理，动画显式驱动 uniform；持有效果不自动启动帧循环。
+`ShaderProgram.compile(source)` 编译 SkSL。`program.makeShader { … }` 绑定数值、颜色和图像输入，再以 `canvas.drawRect(rect, shader = Some(shader))` 绘制。用 `ImageFilter.runtimeShader(program, sourceChild, sampleRadius) { … }` 创建图像滤镜。`saveLayer` 可将子树送入该滤镜，`drawBackdrop(outline, filter)` 则采样当前层此前的内容。Gaussian 背景模糊可直接使用 ImageFilter.blur。参数快照可复用，静止时效果没有帧需求。[SkSL 合同](../../../docs/specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样) · [滚动工具栏示例](../scoop.ui.component/examples/glass/README.md)
 
-ImageFilter、Path、PathMeasure、Image、RasterSurface 与底层目标由使用者 close／use；显式创建的 PathBuilder 也由使用者关闭，`path { ... }` 的临时 builder 由入口关闭。原生资源限创建线程使用，Canvas 只在一次 draw 回调内有效，异常退出也会结束借用并恢复状态。Geometry 快照保留原生 Path 数据，可以在原 Path 或绘制作用域结束后继续使用；关闭快照后不可再查询。
+ShaderProgram、Shader、ImageFilter、Path、PathMeasure、Image、RasterSurface 与底层目标由使用者 close／use；显式创建的 PathBuilder 也由使用者关闭，`path { ... }` 的临时 builder 由入口关闭。原生资源限创建线程使用，Canvas 只在一次 draw 回调内有效，异常退出也会结束借用并恢复状态。Geometry 快照保留原生 Path 数据，可以在原 Path 或绘制作用域结束后继续使用；关闭快照后不可再查询。
 
 颜色采用 sRGB，绘制内部为预乘 alpha；RGBA8 输入和 `readPixels()` 返回值采用紧密排列的直通 alpha 字节。PNG／JPEG decode 会复制输入并实际解码；surface snapshot 保留独立图像内容，后续绘制不会修改旧快照。
 
