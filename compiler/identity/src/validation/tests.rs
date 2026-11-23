@@ -400,11 +400,7 @@ fn cycle_queue_uses_no_input_driven_recursion() {
         nodes.push(node);
         candidates.insert(
             node,
-            Candidate {
-                trusted_id: Arc::new(bytes),
-                canonical_key: None,
-                checking: true,
-                layer: Some(IdentityLayer::Hir),
+            ValidationState {
                 resolved: true,
                 dependency_count: u64::from(index != 0),
                 dependents: Vec::new(),
@@ -420,7 +416,7 @@ fn cycle_queue_uses_no_input_driven_recursion() {
     }
 
     assert_eq!(
-        find_cycle(&mut candidates, &nodes, &WirePath::default()).unwrap(),
+        find_cycle(&mut candidates, &WirePath::default()).unwrap(),
         None
     );
 }

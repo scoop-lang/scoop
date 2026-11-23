@@ -7,9 +7,9 @@ use super::{DecodedExternalShapeLinkImportV1, ExternalShapeLinkImportV1, ShapeLi
 
 mod replay;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CanonicalExternalShapeLinkImportsV1 {
-    records: Vec<ExternalShapeLinkImportV1>,
+    records: std::sync::Arc<[ExternalShapeLinkImportV1]>,
 }
 
 impl CanonicalExternalShapeLinkImportsV1 {
@@ -38,7 +38,9 @@ impl CanonicalExternalShapeLinkImportsV1 {
         let mut records = Vec::new();
         scoop_wire::allocation::try_reserve(&mut records, keyed.len(), &path)?;
         records.extend(keyed.into_iter().map(|(_, record)| record));
-        Ok(Self { records })
+        Ok(Self {
+            records: records.into(),
+        })
     }
     /// Code inputs retain the selected semantic contract; artifact imports only store references.
     pub fn code_projection(&self) -> impl WireEncode + '_ {
@@ -97,7 +99,7 @@ impl WireEncode for CodeProjection<'_> {
     fn encode(&self, encoder: &mut Encoder) -> EncodeResult {
         use super::wire::field;
         encoder.array(self.0.records.len() as u64)?;
-        for record in &self.0.records {
+        for record in self.0.records.iter() {
             encoder.map(5)?;
             field(encoder, 1, &record.provider())?;
             field(encoder, 2, &record.subject())?;

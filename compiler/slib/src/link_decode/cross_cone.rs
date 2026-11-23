@@ -57,6 +57,10 @@ impl ValidatedCrossConeStrongLinkArtifact {
     pub fn defined_symbols(&self) -> &crate::CanonicalDefinedLinkSymbolOwnerSetV1 {
         self.symbols.defined_symbols()
     }
+    pub(crate) fn into_definition_data(self) -> ArtifactDefinitionData {
+        self.symbols
+    }
+
     pub fn definition_data(&self) -> &ArtifactDefinitionData {
         &self.symbols
     }

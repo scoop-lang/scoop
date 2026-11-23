@@ -30,7 +30,15 @@ fn assigns_every_plan_and_bridge_unit_to_exactly_one_member() {
     assert_eq!(plan.generated_bridge_members().len(), 1);
     assert_eq!(plan.definition_assignments().len(), 3);
     for lir_plan in fixture.lir_plans {
-        assert!(plan.member_for_definition(lir_plan).is_some());
+        let member = plan.member_for_definition(lir_plan).unwrap();
+        assert!(
+            plan.scoop_lir_member(member)
+                .unwrap()
+                .units()
+                .units()
+                .contains(&lir_plan)
+        );
+        assert!(plan.generated_bridge_member(member).is_none());
     }
     let bridge_member = plan
         .member_for_generated_bridge_unit(fixture.bridge_unit)
@@ -39,6 +47,13 @@ fn assigns_every_plan_and_bridge_unit_to_exactly_one_member() {
         plan.member_for_definition(fixture.bridge_plan),
         Some(bridge_member)
     );
+    assert_eq!(
+        plan.generated_bridge_member(bridge_member)
+            .unwrap()
+            .member_id(),
+        bridge_member
+    );
+    assert!(plan.scoop_lir_member(bridge_member).is_none());
     assert!(
         plan.definition_assignments()
             .windows(2)

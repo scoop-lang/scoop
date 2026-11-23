@@ -512,6 +512,8 @@ PM 的缓存保存 manifest 展开记录、registry metadata、Git objects/check
 
 解析缓存区分 root/purpose/target 及实际依赖声明/来源；构建缓存继续区分实际依赖结果和 profile。配置、lock 或本地 manifest 改变才更新相应投影；源文件正文变化不应触发版本重新选择。普通缓存目录并发以文件锁协调；输入变化、缺失输入和实际失败按既有规则处理。
 
+manifest、用户配置与预编译 artifact 摘要的解析记录按各自输入键加锁；锁覆盖读取已有记录、未命中时的解析及原子发布。不同 prepare 请求或项目同时首次读取同一输入时，后取得锁的请求直接复用已经发布的记录，不再替换其他进程正在读取的同键文件。不同输入键独立并行；该协调不改变更新判断、不读回产物作内容复核，也不增加重试或缓存修复流程。
+
 prepare 的本地记录按规范化请求位置、成员选择、purpose/target、sysroot/search roots、有效 PM cache 和工具版本区分。更新记录保存本次读取的配置、manifest、artifact 和 lock 的 mtime/大小，以及成员发现过程中不存在的候选清单/用户配置；新增 workspace 或配置同样使记录失效。先检查这些更新信息，命中后直接读取并交付已有准备结果，不重读 TOML、不展开继承、不遍历版本约束，不读取 Scoop/native 源码正文。locked/offline 不改变已经成功准备且输入未变的结果；源文件内容变化留给 driver 的构建缓存处理。
 
 解析器测试使用内存 metadata 图；Git 测试使用本地仓库；registry 测试使用本地 HTTP 静态服务。绝大多数 PM 测试不需要 LLVM、runtime 或调用 `scoopc`。少量正式 CLI fixture 验证 prepare → driver → 编译/链接和离线消费；普通库行为继续放 Cone tests。不引入包授权、来源防伪、资源计费或通用任务执行框架。

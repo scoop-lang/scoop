@@ -168,7 +168,7 @@ fn classifies_actual_undefined_references() {
         verified.relocations()[0].shape(),
         &branch(VerifiedRelocationTargetV1::ExternalUndefined {
             table_index: 3,
-            name: b"_external".to_vec(),
+            name: b"_external".as_slice().into(),
         })
     );
 
@@ -206,7 +206,7 @@ fn assigns_local_machine_symbols_to_atom_owners() {
         verified.relocations()[0].shape(),
         &branch(VerifiedRelocationTargetV1::LocalDefinition {
             table_index: 0,
-            name: b"ltmp0".to_vec(),
+            name: b"ltmp0".as_slice().into(),
             owner_atom: Some(fixture.atom),
             section_ordinal: std::num::NonZeroU32::new(1).unwrap(),
             value: 2,
@@ -227,7 +227,7 @@ fn assigns_local_machine_symbols_to_atom_owners() {
         verified.relocations()[0].shape(),
         &branch(VerifiedRelocationTargetV1::LocalDefinition {
             table_index: 0,
-            name: b"ltmp0".to_vec(),
+            name: b"ltmp0".as_slice().into(),
             owner_atom: None,
             section_ordinal: std::num::NonZeroU32::new(1).unwrap(),
             value: 6,

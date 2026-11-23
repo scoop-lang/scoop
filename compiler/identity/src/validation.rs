@@ -24,6 +24,8 @@ use crate::{
 };
 
 mod canonical;
+mod index;
+use index::CandidateMap;
 mod decoded;
 mod external;
 use external::IdentitySource;
@@ -81,9 +83,13 @@ impl IdentityNode {
 struct Candidate {
     trusted_id: Arc<dyn Any>,
     canonical_key: Option<Arc<dyn ErasedCanonicalKey>>,
-    layer: Option<IdentityLayer>,
+}
+
+type LocalIdentityLayers = Rc<HashMap<IdentityNode, IdentityLayer>>;
+
+#[derive(Default)]
+struct ValidationState {
     resolved: bool,
-    checking: bool,
     dependency_count: u64,
     dependents: Vec<IdentityNode>,
 }
@@ -97,6 +103,16 @@ struct CanonicalKeySlot {
 }
 
 impl Candidate {
+    fn matches_external(&self, source: &Self) -> bool {
+        self.trusted_id.as_ref().type_id() == source.trusted_id.as_ref().type_id()
+            && match (&self.canonical_key, &source.canonical_key) {
+                (Some(existing), Some(key)) => {
+                    Arc::ptr_eq(existing, key) || existing.equals(key.as_ref())
+                }
+                _ => true,
+            }
+    }
+
     fn key<I: PersistentId + 'static, K: Send + Sync + 'static>(&self) -> Option<Arc<K>> {
         self.trusted_id.is::<I>().then_some(())?;
         Arc::clone(self.canonical_key.as_ref()?)
@@ -158,14 +174,15 @@ enum ValidationPhase {
 /// registered record. No trusted id or canonical record is exposed until
 /// [`Self::finish`] succeeds.
 pub struct PendingIdentityValidation {
-    candidates: HashMap<IdentityNode, Candidate>,
+    candidates: CandidateMap,
+    local_layers: LocalIdentityLayers,
     declared: Vec<IdentityNode>,
-    checking: Vec<IdentityNode>,
+    checking: HashMap<IdentityNode, ValidationState>,
     phase: ValidationPhase,
     link: bool,
     local_nodes: Vec<IdentityNode>,
     external_sources: Vec<IdentitySource>,
-    imported_sources: HashSet<*const HashMap<IdentityNode, Candidate>>,
+    imported_sources: HashSet<*const CandidateMap>,
     #[cfg(test)]
     external_candidate_visits: usize,
 
@@ -182,9 +199,10 @@ impl Default for PendingIdentityValidation {
 impl PendingIdentityValidation {
     pub fn new() -> Self {
         Self {
-            candidates: HashMap::default(),
+            candidates: CandidateMap::default(),
+            local_layers: LocalIdentityLayers::default(),
             declared: Vec::new(),
-            checking: Vec::new(),
+            checking: HashMap::default(),
             phase: ValidationPhase::Registering,
             link: false,
             local_nodes: Vec::new(),
@@ -243,18 +261,12 @@ impl PendingIdentityValidation {
             });
         }
 
-        self.reserve_candidate_slot()?;
         self.local_nodes.push(node);
         self.candidates.insert(
             node,
             Candidate {
                 trusted_id: Arc::new(record.id()),
                 canonical_key: Some(record.into_shared_key()),
-                layer: None,
-                resolved: true,
-                checking: false,
-                dependency_count: 0,
-                dependents: Vec::new(),
             },
         );
         Ok(())
@@ -309,13 +321,20 @@ impl PendingIdentityValidation {
         self.require_registration_phase()?;
         let fingerprint = self.verify_native_external_contract(record)?;
         let node = IdentityNode::trusted(fingerprint);
-        match self.candidates.get(&node) {
-            None => self.insert_candidate(layer, fingerprint),
-            Some(candidate) if candidate.layer == Some(layer) && !candidate.resolved => Ok(()),
-            Some(_) => self.fail(IdentityValidationError::DuplicateIdentity {
+        if !self.candidates.contains_key(&node) {
+            self.insert_candidate(layer, fingerprint)
+        } else if self.local_layers.get(&node) == Some(&layer)
+            && self
+                .checking
+                .get(&node)
+                .is_some_and(|state| !state.resolved)
+        {
+            Ok(())
+        } else {
+            self.fail(IdentityValidationError::DuplicateIdentity {
                 kind: node.kind,
                 id: node.bytes,
-            }),
+            })
         }
     }
 
@@ -330,18 +349,12 @@ impl PendingIdentityValidation {
                 id: node.bytes,
             });
         }
-        self.reserve_candidate_slot()?;
         self.local_nodes.push(node);
         self.candidates.insert(
             node,
             Candidate {
                 trusted_id: Arc::new(id),
                 canonical_key: None,
-                layer: None,
-                resolved: true,
-                checking: false,
-                dependency_count: 0,
-                dependents: Vec::new(),
             },
         );
         Ok(())
@@ -472,7 +485,9 @@ impl PendingIdentityValidation {
         let resolved = {
             let mut resolver = PendingIdentityResolver {
                 current: node,
-                candidates: &mut self.candidates,
+                candidates: &self.candidates,
+                local_layers: &self.local_layers,
+                checking: &mut self.checking,
 
                 resource_error: &mut self.resource_error,
                 resource_path: &self.resource_path,
@@ -517,7 +532,9 @@ impl PendingIdentityValidation {
         let resolved = {
             let mut resolver = PendingIdentityResolver {
                 current: node,
-                candidates: &mut self.candidates,
+                candidates: &self.candidates,
+                local_layers: &self.local_layers,
+                checking: &mut self.checking,
 
                 resource_error: &mut self.resource_error,
                 resource_path: &self.resource_path,
@@ -565,7 +582,9 @@ impl PendingIdentityValidation {
         let resolved = {
             let mut resolver = PendingIdentityResolver {
                 current: node,
-                candidates: &mut self.candidates,
+                candidates: &self.candidates,
+                local_layers: &self.local_layers,
+                checking: &mut self.checking,
 
                 resource_error: &mut self.resource_error,
                 resource_path: &self.resource_path,
@@ -643,7 +662,9 @@ impl PendingIdentityValidation {
         let resolved = {
             let mut resolver = PendingIdentityResolver {
                 current: node,
-                candidates: &mut self.candidates,
+                candidates: &self.candidates,
+                local_layers: &self.local_layers,
+                checking: &mut self.checking,
 
                 resource_error: &mut self.resource_error,
                 resource_path: &self.resource_path,
@@ -690,7 +711,9 @@ impl PendingIdentityValidation {
         let resolved = {
             let mut resolver = PendingIdentityResolver {
                 current: node,
-                candidates: &mut self.candidates,
+                candidates: &self.candidates,
+                local_layers: &self.local_layers,
+                checking: &mut self.checking,
 
                 resource_error: &mut self.resource_error,
                 resource_path: &self.resource_path,
@@ -717,8 +740,7 @@ impl PendingIdentityValidation {
         if let Some(node) = self
             .checking
             .iter()
-            .copied()
-            .filter(|node| !self.candidates[node].resolved)
+            .filter_map(|(node, state)| (!state.resolved).then_some(*node))
             .min()
         {
             return Err(IdentityValidationError::UnresolvedIdentity {
@@ -726,7 +748,7 @@ impl PendingIdentityValidation {
                 id: node.bytes,
             });
         }
-        if let Some(node) = find_cycle(&mut self.candidates, &self.checking, &self.resource_path)? {
+        if let Some(node) = find_cycle(&mut self.checking, &self.resource_path)? {
             return Err(IdentityValidationError::DependencyCycle {
                 kind: node.kind,
                 id: node.bytes,
@@ -739,6 +761,7 @@ impl PendingIdentityValidation {
             .retain(|node| self.declared.binary_search(node).is_err());
         Ok(ValidatedIdentityGraph {
             candidates: Rc::new(self.candidates),
+            local_layers: self.local_layers,
             declared: self.declared.into(),
             local_nodes: self.local_nodes.into(),
             external_sources: self.external_sources.into(),
@@ -852,24 +875,19 @@ impl PendingIdentityValidation {
                 id: node.bytes,
             });
         }
-        self.reserve_candidate_slot()?;
         scoop_wire::allocation::try_reserve(&mut self.declared, 1, &self.resource_path)
             .and_then(|()| {
-                scoop_wire::allocation::try_reserve(&mut self.checking, 1, &self.resource_path)
+                scoop_wire::allocation::try_reserve_map(&mut self.checking, 1, &self.resource_path)
             })
             .map_err(|error| self.poison(IdentityValidationError::Resource(error)))?;
         self.declared.push(node);
-        self.checking.push(node);
+        self.checking.insert(node, ValidationState::default());
+        Rc::make_mut(&mut self.local_layers).insert(node, layer);
         self.candidates.insert(
             node,
             Candidate {
                 trusted_id: Arc::new(id),
                 canonical_key: None,
-                layer: Some(layer),
-                resolved: false,
-                checking: true,
-                dependency_count: 0,
-                dependents: Vec::new(),
             },
         );
         Ok(())
@@ -880,16 +898,22 @@ impl PendingIdentityValidation {
             return Err(IdentityValidationError::Poisoned);
         }
         self.phase = ValidationPhase::Resolving;
-        match self.candidates.get(&node) {
-            Some(candidate) if candidate.layer.is_some() && !candidate.resolved => Ok(()),
-            Some(_) => self.fail(IdentityValidationError::AlreadyResolved {
+        if self
+            .checking
+            .get(&node)
+            .is_some_and(|state| !state.resolved)
+        {
+            Ok(())
+        } else if self.candidates.contains_key(&node) {
+            self.fail(IdentityValidationError::AlreadyResolved {
                 kind: node.kind,
                 id: node.bytes,
-            }),
-            None => self.fail(IdentityValidationError::UnregisteredIdentity {
+            })
+        } else {
+            self.fail(IdentityValidationError::UnregisteredIdentity {
                 kind: node.kind,
                 id: node.bytes,
-            }),
+            })
         }
     }
 
@@ -901,16 +925,21 @@ impl PendingIdentityValidation {
             return Err(IdentityValidationError::Poisoned);
         }
         self.phase = ValidationPhase::Resolving;
-        match self.candidates.get(&node) {
-            Some(candidate) if candidate.layer.is_some() => Ok(!candidate.resolved),
-            Some(_) => self.fail(IdentityValidationError::AlreadyResolved {
+        if self.local_layers.contains_key(&node) {
+            Ok(self
+                .checking
+                .get(&node)
+                .is_some_and(|state| !state.resolved))
+        } else if self.candidates.contains_key(&node) {
+            self.fail(IdentityValidationError::AlreadyResolved {
                 kind: node.kind,
                 id: node.bytes,
-            }),
-            None => self.fail(IdentityValidationError::UnregisteredIdentity {
+            })
+        } else {
+            self.fail(IdentityValidationError::UnregisteredIdentity {
                 kind: node.kind,
                 id: node.bytes,
-            }),
+            })
         }
     }
 
@@ -935,7 +964,7 @@ impl PendingIdentityValidation {
         I: PersistentId + 'static,
         K: Eq + Send + Sync + 'static,
     {
-        let Some(candidate) = self.candidates.get_mut(&node) else {
+        let Some(candidate) = self.candidates.get(&node) else {
             return self.fail(IdentityValidationError::UnregisteredIdentity {
                 kind: node.kind,
                 id: node.bytes,
@@ -953,18 +982,12 @@ impl PendingIdentityValidation {
                 id: node.bytes,
             });
         }
-        candidate.canonical_key = Some(key);
-        candidate.resolved = true;
+        self.candidates.set_key(&node, key);
+        self.checking
+            .get_mut(&node)
+            .expect("registered identity state")
+            .resolved = true;
         Ok(())
-    }
-
-    fn reserve_candidate_slot(&mut self) -> Result<(), IdentityValidationError> {
-        let result =
-            scoop_wire::allocation::try_reserve_map(&mut self.candidates, 1, &self.resource_path);
-        match result {
-            Ok(()) => Ok(()),
-            Err(error) => self.fail(IdentityValidationError::Resource(error)),
-        }
     }
 
     fn require_matching_resolved_key<I, K>(
@@ -979,7 +1002,7 @@ impl PendingIdentityValidation {
         match self
             .candidates
             .get(&node)
-            .and_then(Candidate::key_ref::<I, K>)
+            .and_then(|candidate| candidate.key_ref::<I, K>())
         {
             Some(existing) if existing == key => Ok(()),
             Some(_) => self.fail(IdentityValidationError::IdentityCollision {
@@ -1015,7 +1038,9 @@ impl PendingIdentityValidation {
 #[doc(hidden)]
 pub struct PendingIdentityResolver<'validation> {
     current: IdentityNode,
-    candidates: &'validation mut HashMap<IdentityNode, Candidate>,
+    candidates: &'validation CandidateMap,
+    local_layers: &'validation LocalIdentityLayers,
+    checking: &'validation mut HashMap<IdentityNode, ValidationState>,
 
     resource_error: &'validation mut Option<WireError>,
     resource_path: &'validation WirePath,
@@ -1029,22 +1054,19 @@ where
 
     fn resolve(&mut self, id: DecodedPersistentId<I>) -> Result<I, Self::Error> {
         let target = IdentityNode::decoded(id);
-        let target_layer = self
-            .candidates
-            .get(&target)
-            .ok_or(IdentityReferenceError::Missing {
+        if !self.candidates.contains_key(&target) {
+            return Err(IdentityReferenceError::Missing {
                 kind: target.kind,
                 id: target.bytes,
-            })?
-            .layer;
-        let source_layer = self
-            .candidates
-            .get(&self.current)
-            .and_then(|candidate| candidate.layer)
-            .ok_or(IdentityReferenceError::Missing {
+            });
+        }
+        let target_layer = self.local_layers.get(&target).copied();
+        let source_layer = self.local_layers.get(&self.current).copied().ok_or(
+            IdentityReferenceError::Missing {
                 kind: self.current.kind,
                 id: self.current.bytes,
-            })?;
+            },
+        )?;
         if let Some(target_layer) = target_layer
             && target_layer > source_layer
         {
@@ -1055,10 +1077,10 @@ where
                 id: target.bytes,
             });
         }
-        if !self.candidates[&target].checking {
+        if !self.checking.contains_key(&target) {
             return Ok(I::from_digest(Digest256::from_array(target.bytes)));
         }
-        let Some(source_candidate) = self.candidates.get(&self.current) else {
+        let Some(source_candidate) = self.checking.get(&self.current) else {
             return Err(IdentityReferenceError::Missing {
                 kind: self.current.kind,
                 id: self.current.bytes,
@@ -1076,7 +1098,7 @@ where
             }
         };
 
-        let Some(target_candidate) = self.candidates.get_mut(&target) else {
+        let Some(target_candidate) = self.checking.get_mut(&target) else {
             return Err(IdentityReferenceError::Missing {
                 kind: target.kind,
                 id: target.bytes,
@@ -1091,7 +1113,7 @@ where
             return Err(IdentityReferenceError::StorageFailure);
         }
         target_candidate.dependents.push(self.current);
-        let Some(source_candidate) = self.candidates.get_mut(&self.current) else {
+        let Some(source_candidate) = self.checking.get_mut(&self.current) else {
             return Err(IdentityReferenceError::Missing {
                 kind: self.current.kind,
                 id: self.current.bytes,
@@ -1113,7 +1135,7 @@ where
         let resolved = <Self as PersistentIdResolver<I>>::resolve(self, id)?;
         self.candidates
             .get(&IdentityNode::trusted(resolved))
-            .and_then(Candidate::key::<I, K>)
+            .and_then(|candidate| candidate.key::<I, K>())
             .ok_or(IdentityReferenceError::KeyUnavailable {
                 kind: I::KIND,
                 id: *resolved.as_array(),
@@ -1128,7 +1150,8 @@ where
 /// the saved declarations without replaying that production work.
 #[derive(Clone)]
 pub struct ValidatedIdentityGraph {
-    candidates: Rc<HashMap<IdentityNode, Candidate>>,
+    candidates: Rc<CandidateMap>,
+    local_layers: LocalIdentityLayers,
     declared: Rc<[IdentityNode]>,
     local_nodes: Rc<[IdentityNode]>,
     external_sources: Rc<[IdentitySource]>,
@@ -1160,7 +1183,6 @@ impl ValidatedIdentityGraph {
         let candidate = self
             .candidates
             .get(&node)
-            .filter(|candidate| candidate.resolved)
             .ok_or(IdentityReferenceError::Missing {
                 kind: node.kind,
                 id: node.bytes,
@@ -1179,16 +1201,13 @@ impl ValidatedIdentityGraph {
         K: Send + Sync + 'static,
     {
         self.candidates
-            .get(&IdentityNode::trusted(id))
-            .filter(|candidate| candidate.resolved)?
+            .get(&IdentityNode::trusted(id))?
             .key_ref::<I, K>()
     }
 
     /// Tests whether an already typed identity is present in this graph.
     pub fn contains_resolved_identity<I: PersistentId>(&self, id: I) -> bool {
-        self.candidates
-            .get(&IdentityNode::trusted(id))
-            .is_some_and(|candidate| candidate.resolved)
+        self.candidates.contains_key(&IdentityNode::trusted(id))
     }
 
     /// Returns the already checked record while sharing its canonical key.
@@ -1267,7 +1286,6 @@ where
         let node = IdentityNode::decoded(id);
         self.candidates
             .get(&node)
-            .filter(|candidate| candidate.resolved)
             .ok_or(IdentityReferenceError::Missing {
                 kind: node.kind,
                 id: node.bytes,
@@ -1287,7 +1305,7 @@ where
         let resolved = <Self as PersistentIdResolver<I>>::resolve(self, id)?;
         self.candidates
             .get(&IdentityNode::trusted(resolved))
-            .and_then(Candidate::key::<I, K>)
+            .and_then(|candidate| candidate.key::<I, K>())
             .ok_or(IdentityReferenceError::KeyUnavailable {
                 kind: I::KIND,
                 id: *resolved.as_array(),
@@ -1472,42 +1490,38 @@ impl fmt::Display for IdentityKeyResolutionError {
 impl std::error::Error for IdentityKeyResolutionError {}
 
 fn find_cycle(
-    candidates: &mut HashMap<IdentityNode, Candidate>,
-    nodes: &[IdentityNode],
+    checking: &mut HashMap<IdentityNode, ValidationState>,
     path: &WirePath,
 ) -> Result<Option<IdentityNode>, IdentityValidationError> {
     let mut ready = Vec::new();
-    scoop_wire::allocation::try_reserve(&mut ready, nodes.len(), path)
+    scoop_wire::allocation::try_reserve(&mut ready, checking.len(), path)
         .map_err(IdentityValidationError::Resource)?;
     ready.extend(
-        nodes
+        checking
             .iter()
-            .copied()
-            .filter(|node| candidates[node].dependency_count == 0),
+            .filter_map(|(node, state)| (state.dependency_count == 0).then_some(*node)),
     );
     let mut completed = 0;
     while let Some(node) = ready.pop() {
         completed += 1;
-        let candidate = candidates.get_mut(&node).expect("registered cycle node");
-        candidate.checking = false;
-        let dependents = std::mem::take(&mut candidate.dependents);
+        let state = checking.get_mut(&node).expect("registered cycle node");
+        let dependents = std::mem::take(&mut state.dependents);
         for dependent in dependents {
-            let candidate = candidates.get_mut(&dependent).expect("resolved dependent");
-            candidate.dependency_count = candidate
+            let state = checking.get_mut(&dependent).expect("resolved dependent");
+            state.dependency_count = state
                 .dependency_count
                 .checked_sub(1)
                 .ok_or_else(|| resource_error(WireErrorKind::IntegerOutOfRange, path))?;
-            if candidate.dependency_count == 0 {
+            if state.dependency_count == 0 {
                 ready.push(dependent);
             }
         }
     }
-    Ok((completed != nodes.len())
+    Ok((completed != checking.len())
         .then(|| {
-            nodes
+            checking
                 .iter()
-                .copied()
-                .filter(|node| candidates[node].dependency_count != 0)
+                .filter_map(|(node, state)| (state.dependency_count != 0).then_some(*node))
                 .min()
         })
         .flatten())

@@ -61,11 +61,12 @@ impl Lowerer {
         let definition_path = self
             .definition_paths
             .next(scoop_identity::StructuralDefinitionSiteRole::CallbackConversion);
+        let definition_root = self.current_definition_root();
         let registration =
             self.foreign_callback_registrations
                 .alloc(hir::ForeignCallbackRegistration {
                     definition: hir::ForeignCallbackDefinition::Source {
-                        root: self.current_definition_root(),
+                        root: definition_root,
                         path: definition_path,
                     },
                     native_function_type,

@@ -569,6 +569,8 @@ pub fn concretize_output(
     concretize::lower_output(&mut export.clone(), None, &world)
 }
 
+// Candidate snapshots share declaration tables and detach only tables they write.
+// Body-local control state remains private to each speculative candidate.
 #[derive(Clone)]
 pub(crate) struct Lowerer {
     cancellation: Option<pipeline::cancellation::FrontendCancellation>,
@@ -601,33 +603,34 @@ pub(crate) struct Lowerer {
     /// owner-local counters persist between those regions so source-order
     /// sites never fall back to a pass-local or arena-local ordinal.
     pub(crate) constructor_definition_paths:
-        HashMap<class::ConstructorSource, definition_paths::DefinitionPathContext>,
+        Shared<HashMap<class::ConstructorSource, definition_paths::DefinitionPathContext>>,
     pub(crate) imports: Shared<imports::CurrentUnitImports>,
     /// Published once after every source callable signature is resolved.
     /// Rejected ids remain diagnostic-only and never enter body resolution.
-    pub(crate) declaration_surface: declaration_surface::DeclarationSurface,
+    pub(crate) declaration_surface: Shared<declaration_surface::DeclarationSurface>,
     /// Original identities established before each declaration's application.
-    pub(crate) nominal_declaration_identities: HashMap<Owner, hir::HirNominalIdentity>,
+    pub(crate) nominal_declaration_identities: Shared<HashMap<Owner, hir::HirNominalIdentity>>,
     /// The arena-aligned projection completed after declaration collection.
-    pub(crate) nominal_identities: Option<hir::HirNominalIdentities>,
-    pub(crate) enum_member_identities: Option<hir::HirEnumMemberIdentities>,
-    pub(crate) nominal_owners: HashMap<hir::SourceNominalId, Owner>,
+    pub(crate) nominal_identities: Option<Shared<hir::HirNominalIdentities>>,
+    pub(crate) enum_member_identities: Option<Shared<hir::HirEnumMemberIdentities>>,
+    pub(crate) nominal_owners: Shared<HashMap<hir::SourceNominalId, Owner>>,
     pub(crate) value_layout_relevance:
-        HashMap<hir::SourceNominalId, std::collections::HashSet<hir::TypeParamId>>,
+        Shared<HashMap<hir::SourceNominalId, std::collections::HashSet<hir::TypeParamId>>>,
     pub(crate) local_type_declaration: Option<local_types::DeclarationContext>,
-    pub(crate) local_types: HashMap<Owner, local_types::LocalType>,
-    pub(crate) local_types_by_source: HashMap<(usize, u32), Owner>,
+    pub(crate) local_types: Shared<HashMap<Owner, local_types::LocalType>>,
+    pub(crate) local_types_by_source: Shared<HashMap<(usize, u32), Owner>>,
     pub(crate) local_type_capture_scope: Option<local_types::CaptureScope>,
-    pub(crate) property_identity_records: HashMap<hir::PropertyId, hir::HirPropertyIdentity>,
+    pub(crate) property_identity_records:
+        Shared<HashMap<hir::PropertyId, hir::HirPropertyIdentity>>,
     pub(crate) struct_constructor_identity_records:
-        HashMap<hir::StructConstructorId, hir::HirSourceConstructorIdentity>,
+        Shared<HashMap<hir::StructConstructorId, hir::HirSourceConstructorIdentity>>,
     pub(crate) class_constructor_identity_records:
-        HashMap<hir::ClassConstructorId, hir::HirSourceConstructorIdentity>,
+        Shared<HashMap<hir::ClassConstructorId, hir::HirSourceConstructorIdentity>>,
     pub(crate) getter_identity_records:
-        HashMap<hir::PropertyGetterId, hir::HirPropertyAccessorIdentity>,
+        Shared<HashMap<hir::PropertyGetterId, hir::HirPropertyAccessorIdentity>>,
     pub(crate) setter_identity_records:
-        HashMap<hir::PropertySetterId, hir::HirPropertyAccessorIdentity>,
-    pub(crate) field_identity_builder: hir::HirFieldIdentityBuilder,
+        Shared<HashMap<hir::PropertySetterId, hir::HirPropertyAccessorIdentity>>,
+    pub(crate) field_identity_builder: Shared<hir::HirFieldIdentityBuilder>,
     pub(crate) types: Shared<Arena<Type>>,
     type_by_kind: imbl::HashMap<Type, TypeId>,
     pub(crate) function_types: Shared<Arena<hir::FunctionType>>,
@@ -646,64 +649,69 @@ pub(crate) struct Lowerer {
     pub(crate) next_virtual_method_identity: u32,
     /// Declaration root captured when each virtual family is created.
     pub(crate) virtual_method_roots:
-        HashMap<hir::VirtualMethodId, persistent_dispatch::VirtualMethodRoot>,
+        Shared<HashMap<hir::VirtualMethodId, persistent_dispatch::VirtualMethodRoot>>,
     pub(crate) next_constructor_parameter_identity: u32,
     /// Cone-wide identity allocator for structured loop occurrences. The
     /// active target stack below is callable-local, but identities remain
     /// unique when declaration-bound templates are materialized repeatedly.
     pub(crate) next_loop_identity: u32,
     pub(crate) local_functions: SnapshotArena<hir::LocalFunction>,
-    pub(crate) local_function_by_function: HashMap<FunctionId, hir::LocalFunctionId>,
-    pub(crate) callable_references: Arena<hir::CallableReference>,
-    pub(crate) imported_derived_equalities: Arena<hir::ImportedDerivedEquality>,
-    pub(crate) imported_dependency_callables: Arena<hir::ImportedDependencyCallableUse>,
+    pub(crate) local_function_by_function: Shared<HashMap<FunctionId, hir::LocalFunctionId>>,
+    pub(crate) callable_references: Shared<Arena<hir::CallableReference>>,
+    pub(crate) imported_derived_equalities: Shared<Arena<hir::ImportedDerivedEquality>>,
+    pub(crate) imported_dependency_callables: Shared<Arena<hir::ImportedDependencyCallableUse>>,
     pub(crate) imported_constructor_templates: imported_constructors::ImportedConstructorTemplates,
     pub(crate) imported_generic_templates: imported_generics::ImportedGenericTemplates,
-    pub(crate) imported_generic_delegate_templates: Arena<hir::ImportedGenericDelegateTemplate>,
-    pub(crate) imported_companion_templates: Arena<hir::ImportedCompanionTemplate>,
+    pub(crate) imported_generic_delegate_templates:
+        Shared<Arena<hir::ImportedGenericDelegateTemplate>>,
+    pub(crate) imported_companion_templates: Shared<Arena<hir::ImportedCompanionTemplate>>,
     pub(crate) imported_generic_applications:
         SnapshotArena<hir::ImportedGenericCallableApplication>,
     pub(crate) retained_binding_witness_uses: Vec<hir::ExternalHirBindingWitnessUse>,
     pub(crate) member_requirement_owners:
-        HashMap<hir::MemberRequirementId, hir::MemberRequirementOwner>,
-    pub(crate) member_requirement_implementations: Arena<hir::MemberRequirementImplementation>,
-    pub(crate) checked_member_requirements:
+        Shared<HashMap<hir::MemberRequirementId, hir::MemberRequirementOwner>>,
+    pub(crate) member_requirement_implementations:
+        Shared<Arena<hir::MemberRequirementImplementation>>,
+    pub(crate) checked_member_requirements: Shared<
         HashMap<scoop_identity::MemberRequirementKey<TypeId>, hir::MemberRequirementBindingValue>,
+    >,
     pub(crate) active_member_requirements: HashSet<hir::MemberRequirementId>,
-    pub(crate) bound_callable_refs: Arena<hir::BoundCallableRef>,
-    pub(crate) function_coercions: Arena<hir::FunctionCoercion>,
-    pub(crate) foreign_callback_registrations: Arena<hir::ForeignCallbackRegistration>,
+    pub(crate) bound_callable_refs: Shared<Arena<hir::BoundCallableRef>>,
+    pub(crate) function_coercions: Shared<Arena<hir::FunctionCoercion>>,
+    pub(crate) foreign_callback_registrations: Shared<Arena<hir::ForeignCallbackRegistration>>,
     pub(crate) source_parameter_interfaces: Shared<Vec<hir::ExportParameterInterface>>,
     pub(crate) export_default_exprs: Shared<Arena<hir::ExportDefaultExpr>>,
     pub(crate) default_local_value_scopes: Shared<Arena<defaults::PendingDefaultLocalScope>>,
     pub(crate) loaded_default_expressions:
-        HashMap<defaults::DefaultExpressionKey, std::sync::Arc<hir::DefaultExpression>>,
-    pub(crate) export_default_sources: Arena<hir::ExportDefaultSource>,
-    pub(crate) export_vararg_parameter_types: Arena<hir::ExportVarargParameterType>,
+        Shared<HashMap<defaults::DefaultExpressionKey, std::sync::Arc<hir::DefaultExpression>>>,
+    pub(crate) export_default_sources: Shared<Arena<hir::ExportDefaultSource>>,
+    pub(crate) export_vararg_parameter_types: Shared<Arena<hir::ExportVarargParameterType>>,
     pub(crate) local_default_exprs: Shared<Arena<defaults::LocalDefaultExpr>>,
     pub(crate) default_templates:
-        HashMap<(defaults::SourceParameterOwner, u32), defaults::DefaultExprTemplateRef>,
+        Shared<HashMap<(defaults::SourceParameterOwner, u32), defaults::DefaultExprTemplateRef>>,
     pub(crate) default_preparation: Shared<defaults::DefaultPreparation>,
     /// True only while constructing a declaration-bound default template.
     /// Nested omissions remain definition-only until the outer template is
     /// instantiated at an actual call site.
     pub(crate) lowering_default_template: bool,
     pub(crate) function_coercion_by_types:
-        HashMap<(hir::FunctionTypeId, hir::FunctionTypeId), hir::FunctionCoercionId>,
+        Shared<HashMap<(hir::FunctionTypeId, hir::FunctionTypeId), hir::FunctionCoercionId>>,
     pub(crate) structs: Shared<Arena<StructDecl>>,
     /// Source locations aligned with the checked source-field refs. Field
     /// resolution may reject individual AST entries, so raw source ordinals
     /// are not a valid substitute for this typed relation.
-    pub(crate) struct_field_spans: HashMap<hir::StructFieldRef, Span>,
+    pub(crate) struct_field_spans: Shared<HashMap<hir::StructFieldRef, Span>>,
     pub(crate) struct_constructors: SnapshotArena<hir::StructConstructor>,
-    pub(crate) struct_constructor_applications: Arena<hir::StructConstructorApplication>,
-    pub(crate) struct_constructor_application_by_key: HashMap<
-        (hir::StructConstructorDefinition, hir::StructApplicationId),
-        hir::StructConstructorApplicationId,
+    pub(crate) struct_constructor_applications: Shared<Arena<hir::StructConstructorApplication>>,
+    pub(crate) struct_constructor_application_by_key: Shared<
+        HashMap<
+            (hir::StructConstructorDefinition, hir::StructApplicationId),
+            hir::StructConstructorApplicationId,
+        >,
     >,
-    pub(crate) struct_applications: Arena<hir::StructApplication>,
+    pub(crate) struct_applications: Shared<Arena<hir::StructApplication>>,
     pub(crate) struct_application_by_key:
-        HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::StructApplicationId>,
+        Shared<HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::StructApplicationId>>,
     pub(crate) enums: Shared<Arena<EnumDecl>>,
     pub(crate) loaded_enum_definitions:
         Shared<HashMap<hir::SourceNominalId, hir::LoadedEnumDefinition>>,
@@ -714,106 +722,114 @@ pub(crate) struct Lowerer {
         Shared<HashMap<hir::SourceNominalId, hir::LoadedClassDefinition>>,
     pub(crate) loaded_interface_definitions:
         Shared<HashMap<hir::SourceNominalId, hir::LoadedInterfaceDefinition>>,
-    pub(crate) enum_variant_spans: HashMap<hir::EnumVariantRef, Span>,
-    pub(crate) enum_variant_field_spans: HashMap<hir::EnumVariantFieldRef, Span>,
-    pub(crate) enum_applications: Arena<hir::EnumApplication>,
+    pub(crate) enum_variant_spans: Shared<HashMap<hir::EnumVariantRef, Span>>,
+    pub(crate) enum_variant_field_spans: Shared<HashMap<hir::EnumVariantFieldRef, Span>>,
+    pub(crate) enum_applications: Shared<Arena<hir::EnumApplication>>,
     pub(crate) enum_application_by_key:
-        HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::EnumApplicationId>,
+        Shared<HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::EnumApplicationId>>,
     pub(crate) classes: Shared<Arena<ClassDecl>>,
     pub(crate) release_hooks: SnapshotArena<hir::ExportReleaseHook>,
-    pub(crate) class_fields: Arena<hir::ClassField>,
+    pub(crate) class_fields: Shared<Arena<hir::ClassField>>,
     pub(crate) class_constructors: SnapshotArena<hir::ClassConstructor>,
-    pub(crate) class_constructor_applications: Arena<hir::ClassConstructorApplication>,
-    pub(crate) class_constructor_application_by_key: HashMap<
-        (hir::ClassConstructorDefinition, hir::ClassApplicationId),
-        hir::ClassConstructorApplicationId,
+    pub(crate) class_constructor_applications: Shared<Arena<hir::ClassConstructorApplication>>,
+    pub(crate) class_constructor_application_by_key: Shared<
+        HashMap<
+            (hir::ClassConstructorDefinition, hir::ClassApplicationId),
+            hir::ClassConstructorApplicationId,
+        >,
     >,
-    pub(crate) class_applications: Arena<hir::ClassApplication>,
+    pub(crate) class_applications: Shared<Arena<hir::ClassApplication>>,
     pub(crate) class_application_by_key:
-        HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::ClassApplicationId>,
+        Shared<HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::ClassApplicationId>>,
     pub(crate) interfaces: Shared<Arena<InterfaceDecl>>,
-    pub(crate) interface_applications: Arena<hir::InterfaceApplication>,
+    pub(crate) interface_applications: Shared<Arena<hir::InterfaceApplication>>,
     pub(crate) interface_application_by_key:
-        HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::InterfaceApplicationId>,
+        Shared<HashMap<(hir::SourceNominalId, Vec<TypeId>), hir::InterfaceApplicationId>>,
     pub(crate) functions: FunctionDeclarations,
     pub(crate) query_source_function_identities:
-        HashMap<FunctionId, hir::HirSourceFunctionIdentity>,
+        Shared<HashMap<FunctionId, hir::HirSourceFunctionIdentity>>,
     pub(crate) query_imported_method_parameters:
-        HashMap<scoop_identity::CallableTemplateOrigin, Vec<hir::TypeParamDecl>>,
-    pub(crate) query_alias_identities: HashMap<hir::ExportTypeAliasId, hir::HirTypeAliasIdentity>,
+        Shared<HashMap<scoop_identity::CallableTemplateOrigin, Vec<hir::TypeParamDecl>>>,
+    pub(crate) query_alias_identities:
+        Shared<HashMap<hir::ExportTypeAliasId, hir::HirTypeAliasIdentity>>,
     /// Complete source relation for every validated intrinsic kind. Duplicate
     /// declarations are diagnosed at insertion; core contract validation reads
     /// this map directly and never scans functions or compares names.
     pub(crate) intrinsic_functions:
-        HashMap<hir::IntrinsicFunctionKind, (FunctionId, hir::IntrinsicProviderId)>,
+        Shared<HashMap<hir::IntrinsicFunctionKind, (FunctionId, hir::IntrinsicProviderId)>>,
     intrinsic_type_owners:
-        HashMap<hir::IntrinsicTypeKind, (IntrinsicTypeOwner, hir::IntrinsicProviderId)>,
+        Shared<HashMap<hir::IntrinsicTypeKind, (IntrinsicTypeOwner, hir::IntrinsicProviderId)>>,
     imported_intrinsic_types:
-        std::collections::BTreeMap<hir::IntrinsicTypeKind, hir::ImportedIntrinsicType>,
+        Shared<std::collections::BTreeMap<hir::IntrinsicTypeKind, hir::ImportedIntrinsicType>>,
     imported_bound_interfaces: HashSet<hir::SourceNominalId>,
-    pub(crate) extern_functions: Arena<hir::ExternFunction>,
-    pub(crate) globals: Arena<hir::Global>,
-    pub(crate) initialization_units: Arena<hir::InitializationUnit>,
-    pub(crate) initialization_failure_roots: Arena<hir::InitializationFailureRoot>,
-    pub(crate) objects: Arena<hir::ObjectDecl>,
-    pub(crate) object_types: Arena<hir::ObjectType>,
-    pub(crate) companion_relations: Arena<hir::CompanionRelation>,
-    pub(crate) companion_by_host: HashMap<Owner, hir::CompanionRelationId>,
-    pub(crate) singleton_values: Arena<hir::SingletonValue>,
-    pub(crate) singleton_published_roots: Arena<hir::SingletonPublishedRoot>,
+    pub(crate) extern_functions: Shared<Arena<hir::ExternFunction>>,
+    pub(crate) globals: Shared<Arena<hir::Global>>,
+    pub(crate) initialization_units: Shared<Arena<hir::InitializationUnit>>,
+    pub(crate) initialization_failure_roots: Shared<Arena<hir::InitializationFailureRoot>>,
+    pub(crate) objects: Shared<Arena<hir::ObjectDecl>>,
+    pub(crate) object_types: Shared<Arena<hir::ObjectType>>,
+    pub(crate) companion_relations: Shared<Arena<hir::CompanionRelation>>,
+    pub(crate) companion_by_host: Shared<HashMap<Owner, hir::CompanionRelationId>>,
+    pub(crate) singleton_values: Shared<Arena<hir::SingletonValue>>,
+    pub(crate) singleton_published_roots: Shared<Arena<hir::SingletonPublishedRoot>>,
     pub(crate) properties: SnapshotArena<hir::Property>,
-    pub(crate) extension_properties: Arena<hir::ExtensionProperty>,
+    pub(crate) extension_properties: Shared<Arena<hir::ExtensionProperty>>,
     pub(crate) property_getters: SnapshotArena<hir::PropertyGetter>,
     pub(crate) property_setters: SnapshotArena<hir::PropertySetter>,
-    pub(crate) delegate_storages: Arena<hir::DelegateStorage>,
-    pub(crate) generic_delegate_templates: Arena<hir::GenericDelegateTemplate>,
+    pub(crate) delegate_storages: Shared<Arena<hir::DelegateStorage>>,
+    pub(crate) generic_delegate_templates: Shared<Arena<hir::GenericDelegateTemplate>>,
     /// Resolver-only alias declarations. Their ids and resolution state never
     /// cross the Export HIR boundary.
-    pub(crate) source_type_aliases: Arena<aliases::SourceTypeAlias>,
+    pub(crate) source_type_aliases: Shared<Arena<aliases::SourceTypeAlias>>,
     pub(crate) imported_alias_templates:
-        HashMap<scoop_identity::PersistentTypeAliasId, aliases::AliasTemplate>,
-    pub(crate) source_annotations: std::collections::BTreeMap<
-        scoop_identity::PersistentAnnotationId,
-        user_annotations::SourceAnnotationInput,
+        Shared<HashMap<scoop_identity::PersistentTypeAliasId, aliases::AliasTemplate>>,
+    pub(crate) source_annotations: Shared<
+        std::collections::BTreeMap<
+            scoop_identity::PersistentAnnotationId,
+            user_annotations::SourceAnnotationInput,
+        >,
     >,
-    pub(crate) annotation_metadata: hir::SourceAnnotations,
+    pub(crate) annotation_metadata: Shared<hir::SourceAnnotations>,
     pub(crate) test_containers: Vec<hir::TestContainer>,
     pub(crate) test_compilation: Option<test_entry::TestCompilation>,
     pub(crate) type_annotations: user_annotations::type_uses::PendingTypeAnnotations,
-    pub(crate) annotation_resolution:
+    pub(crate) annotation_resolution: Shared<
         HashMap<scoop_identity::PersistentAnnotationId, user_annotations::AnnotationResolution>,
+    >,
     pub(crate) defined_intrinsic_type_core: Option<hir::IntrinsicTypeCore>,
     pub(crate) nested_annotations_by_owner:
-        HashMap<(Owner, String), scoop_identity::PersistentAnnotationId>,
+        Shared<HashMap<(Owner, String), scoop_identity::PersistentAnnotationId>>,
     pub(crate) top_level_namespaces: Shared<namespace::TopLevelNamespaces>,
-    pub(crate) type_aliases: Arena<hir::TypeAliasDecl>,
+    pub(crate) type_aliases: Shared<Arena<hir::TypeAliasDecl>>,
     pub(crate) type_alias_resolution_stack: Vec<aliases::SourceTypeAliasId>,
     /// Generic definitions are separate HIR entities. Every function carries
     /// the matching typed id in `Function::genericity`, so this arena is never
     /// reverse-scanned and no parallel reverse map can drift out of sync.
     pub(crate) generic_functions: Shared<Arena<GenericFunction>>,
-    pub(crate) method_applications: Arena<hir::MethodApplication>,
+    pub(crate) method_applications: Shared<Arena<hir::MethodApplication>>,
     pub(crate) method_application_by_key:
-        HashMap<(FunctionId, hir::MethodOwnerApplication), hir::MethodApplicationId>,
-    pub(crate) generic_methods: Arena<hir::GenericMethod>,
-    pub(crate) generic_method_applications: Arena<hir::GenericMethodApplication>,
-    pub(crate) generic_method_application_by_key: HashMap<
-        (
-            hir::GenericMethodId,
-            hir::GenericMethodOwner,
-            hir::NonEmptyVec<TypeId>,
-        ),
-        hir::GenericMethodApplicationId,
+        Shared<HashMap<(FunctionId, hir::MethodOwnerApplication), hir::MethodApplicationId>>,
+    pub(crate) generic_methods: Shared<Arena<hir::GenericMethod>>,
+    pub(crate) generic_method_applications: Shared<Arena<hir::GenericMethodApplication>>,
+    pub(crate) generic_method_application_by_key: Shared<
+        HashMap<
+            (
+                hir::GenericMethodId,
+                hir::GenericMethodOwner,
+                hir::NonEmptyVec<TypeId>,
+            ),
+            hir::GenericMethodApplicationId,
+        >,
     >,
     pub(crate) derived_equality_applications: SnapshotArena<hir::DerivedEqualityApplication>,
     pub(crate) derived_equality_application_by_type:
-        HashMap<TypeId, hir::DerivedEqualityApplicationId>,
+        Shared<HashMap<TypeId, hir::DerivedEqualityApplicationId>>,
     /// Ordinary encode members awaiting their complete bodies, paired with
     /// the selected core protocol declaration.
     derived_inspection_methods: Vec<(FunctionId, hir::SourceNominalId)>,
-    generation: generation::PendingGeneration,
-    interface_delegates: HashMap<ClassId, Vec<class::InterfaceDelegateSource>>,
-    interface_forwarders: HashMap<FunctionId, class::InterfaceForwarder>,
+    generation: Shared<generation::PendingGeneration>,
+    interface_delegates: Shared<HashMap<ClassId, Vec<class::InterfaceDelegateSource>>>,
+    interface_forwarders: Shared<HashMap<FunctionId, class::InterfaceForwarder>>,
     invalid_override_methods: HashSet<FunctionId>,
     pub(crate) top_level: Shared<Vec<FunctionId>>,
     pub(crate) unit: TypeId,
@@ -827,36 +843,37 @@ pub(crate) struct Lowerer {
     pub(crate) any: TypeId,
     /// Resolved extension receiver type for each extension function. The HIR
     /// body represents it structurally as the first immutable `this` param.
-    pub(crate) extension_receivers: HashMap<FunctionId, TypeId>,
+    pub(crate) extension_receivers: Shared<HashMap<FunctionId, TypeId>>,
     /// The file each top-level function was declared in, for the
     /// layering of overload resolution (user file → core implicit
     /// imports, milestone7 DESIGN.md 1.2).
     pub(crate) function_files: Shared<HashMap<FunctionId, usize>>,
     /// Direct typed relation used after getter overload resolution; accessor
     /// function names are never parsed to recover a logical property.
-    pub(crate) extension_property_by_getter: HashMap<FunctionId, hir::PropertyId>,
-    pub(crate) property_files: HashMap<hir::PropertyId, usize>,
-    pub(crate) property_name_spans: HashMap<hir::PropertyId, ast::Span>,
+    pub(crate) extension_property_by_getter: Shared<HashMap<FunctionId, hir::PropertyId>>,
+    pub(crate) property_files: Shared<HashMap<hir::PropertyId, usize>>,
+    pub(crate) property_name_spans: Shared<HashMap<hir::PropertyId, ast::Span>>,
     pub(crate) property_accessor_sources: Shared<Vec<properties::PropertyAccessorSource>>,
-    pub(crate) runtime_accessor_units: HashMap<FunctionId, hir::InitializationUnitId>,
+    pub(crate) runtime_accessor_units: Shared<HashMap<FunctionId, hir::InitializationUnitId>>,
     pub(crate) pending_runtime_initializers: Vec<globals::PendingRuntimeInitializer>,
     pub(crate) current_initialization_unit: Option<hir::InitializationUnitId>,
-    pub(crate) local_delegate_plans: HashMap<hir::BindingId, properties::LocalDelegatePlan>,
+    pub(crate) local_delegate_plans: Shared<HashMap<hir::BindingId, properties::LocalDelegatePlan>>,
     /// Physical class representation -> semantic singleton declaration.
     /// The relation is typed and established when the object is declared;
     /// constructor/body lowering never recovers it from a generated name.
-    pub(crate) object_by_backing_class: HashMap<ClassId, ObjectId>,
+    pub(crate) object_by_backing_class: Shared<HashMap<ClassId, ObjectId>>,
     /// Owner-scoped static nested nominal namespace. The owner and target
     /// retain distinct typed ids; qualified lookup never flattens this key
     /// into an FQN string.
-    pub(crate) nested_nominals_by_owner: HashMap<(Owner, String), NominalTarget>,
-    pub(crate) nested_aliases_by_owner: HashMap<(Owner, String), aliases::SourceTypeAliasId>,
+    pub(crate) nested_nominals_by_owner: Shared<HashMap<(Owner, String), NominalTarget>>,
+    pub(crate) nested_aliases_by_owner:
+        Shared<HashMap<(Owner, String), aliases::SourceTypeAliasId>>,
     /// Source-file ownership for validating compiler-known core contracts.
-    pub(crate) struct_files: HashMap<StructId, usize>,
-    pub(crate) enum_files: HashMap<EnumId, usize>,
-    pub(crate) class_files: HashMap<ClassId, usize>,
-    pub(crate) interface_files: HashMap<InterfaceId, usize>,
-    pub(crate) object_files: HashMap<ObjectId, usize>,
+    pub(crate) struct_files: Shared<HashMap<StructId, usize>>,
+    pub(crate) enum_files: Shared<HashMap<EnumId, usize>>,
+    pub(crate) class_files: Shared<HashMap<ClassId, usize>>,
+    pub(crate) interface_files: Shared<HashMap<InterfaceId, usize>>,
+    pub(crate) object_files: Shared<HashMap<ObjectId, usize>>,
     /// Core pointer declarations discovered after pass 1. Applications can
     /// then normalize while pass 2/2.5 resolves fields and signatures.
     pub(crate) ffi_ptr: Option<StructId>,
@@ -875,13 +892,13 @@ pub(crate) struct Lowerer {
     pub(crate) gc_leaf_fun_ptr_type_uses: Vec<(TypeId, usize, Span)>,
     /// Interface member functions in declaration order. Class/struct/enum
     /// declarations carry their member ids directly in export HIR.
-    pub(crate) interface_methods: HashMap<InterfaceId, Vec<FunctionId>>,
+    pub(crate) interface_methods: Shared<HashMap<InterfaceId, Vec<FunctionId>>>,
     /// Typed export identities for the functions in `interface_methods`.
     /// The map above is a lowering-time lookup index; this arena is the
     /// authoritative relation emitted to ExportHir.
-    pub(crate) interface_method_entities: Arena<hir::InterfaceMethod>,
+    pub(crate) interface_method_entities: Shared<Arena<hir::InterfaceMethod>>,
     /// The owner of every member function.
-    pub(crate) function_owner: HashMap<FunctionId, Owner>,
+    pub(crate) function_owner: Shared<HashMap<FunctionId, Owner>>,
     /// Actual overridden declarations and their default-parameter applications.
     pub(crate) override_default_sources:
         Shared<HashMap<FunctionId, Vec<defaults::DefaultOverrideSource>>>,
@@ -916,9 +933,11 @@ pub(crate) struct Lowerer {
     /// Source-call protocols for nominal constructor parameters. Layout
     /// fields intentionally do not carry call syntax; these typed owner maps
     /// preserve it until complete Export HIR parameter entities are built.
-    pub(crate) struct_parameter_calling: HashMap<hir::StructConstructorId, Vec<FnParamCalling>>,
-    pub(crate) class_parameter_calling: HashMap<hir::ClassConstructorId, Vec<FnParamCalling>>,
-    pub(crate) variant_parameter_calling: HashMap<(EnumId, u32), Vec<FnParamCalling>>,
+    pub(crate) struct_parameter_calling:
+        Shared<HashMap<hir::StructConstructorId, Vec<FnParamCalling>>>,
+    pub(crate) class_parameter_calling:
+        Shared<HashMap<hir::ClassConstructorId, Vec<FnParamCalling>>>,
+    pub(crate) variant_parameter_calling: Shared<HashMap<(EnumId, u32), Vec<FnParamCalling>>>,
     /// Resolved signatures of all functions (pass 2.5), consulted by
     /// call lowering and body lowering. Method signatures exclude the
     /// implicit `this` parameter.
@@ -958,11 +977,12 @@ pub(crate) struct Lowerer {
     /// Typed primary-constructor parameters visible only while lowering a
     /// base-constructor delegation expression.
     pub(crate) constructor_params_in_scope:
-        HashMap<String, (hir::ConstructorParamId, TypeId, hir::BindingId)>,
+        Shared<HashMap<String, (hir::ConstructorParamId, TypeId, hir::BindingId)>>,
     /// Cone-wide lexical identities for constructor parameters. They are
     /// separate from the typed parameter ids so nested callables can capture
     /// parameter values without turning a constructor into a function.
-    pub(crate) constructor_parameter_bindings: HashMap<hir::ConstructorParamId, hir::BindingId>,
+    pub(crate) constructor_parameter_bindings:
+        Shared<HashMap<hir::ConstructorParamId, hir::BindingId>>,
     /// Non-escaping receiver capability used only while checking constructor
     /// initialization plans. Successful reads and writes are immediately
     /// converted to typed field identities.
@@ -979,14 +999,14 @@ pub(crate) struct Lowerer {
     pub(crate) in_semantic_query: bool,
     intrinsic_sources: Shared<Vec<SourceProvider>>,
     test_dependencies: std::collections::BTreeSet<scoop_identity::ConeIdentity>,
-    source_names: std::collections::BTreeMap<scoop_identity::ConeIdentity, String>,
+    source_names: Shared<std::collections::BTreeMap<scoop_identity::ConeIdentity, String>>,
     compile_time_inputs: Option<std::sync::Arc<dyn hir::CompileTimeInputHost>>,
     constant_call_context: Option<expr::ConstantCallContext>,
     /// Dependency sources referenced by instantiated defaults and bodies.
     /// They are appended only after a winning candidate is committed and are
     /// never traversed as parser inputs.
-    imported_source_files: Vec<hir::SourceFileMetadata>,
-    imported_source_indices: HashMap<scoop_identity::SourceIdentity, u32>,
+    imported_source_files: imbl::Vector<std::rc::Rc<hir::SourceFileMetadata>>,
+    imported_source_indices: Shared<HashMap<scoop_identity::SourceIdentity, u32>>,
     intrinsic_policy: IntrinsicDeclarationPolicy,
     /// Locals of the body currently being lowered (taken into the
     /// finished `hir::Body`).

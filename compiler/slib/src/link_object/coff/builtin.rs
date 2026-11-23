@@ -18,7 +18,10 @@ pub(crate) fn sections(
             classify(section.section_name(), characteristics)
         })
         .collect();
-    Ok(ValidatedBuiltinObjectSectionInventoryV1 { envelope, roles })
+    Ok(ValidatedBuiltinObjectSectionInventoryV1 {
+        envelope: envelope.into(),
+        roles,
+    })
 }
 
 fn classify(name: &[u8], flags: u32) -> Role {

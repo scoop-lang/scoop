@@ -15,7 +15,7 @@ pub(super) use layout_references::collect_mir_references;
 pub(super) use layout_selection::select_lir_dependencies;
 use std::ops::ControlFlow;
 
-impl ParsedSingleConeBuildRequest<'_, '_> {
+impl ParsedSingleConeBuildRequest<'_> {
     pub fn build_and_publish(
         self,
         temporary_parent: &Path,
@@ -198,6 +198,7 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
         }
         drop(world);
         drop(self.sources);
+        let loaded = self.request.request;
         let artifact = (|| {
             let ControlFlow::Continue(artifact) = protocols::lower_machine(
                 hir,
@@ -212,8 +213,8 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
             };
             artifact
                 .publish(
-                    self.request
-                        .output()
+                    loaded
+                        .output
                         .artifact()
                         .expect("machine production has an artifact destination")
                         .as_path(),

@@ -8,36 +8,74 @@ mod error;
 use LayoutArtifactProductionError as Error;
 pub use error::LayoutArtifactProductionError;
 
-pub struct CrossConeLayoutArtifactMetadataInputV1<'ir> {
-    ordinary: CrossConeArtifactMetadataInputV1<'ir>,
-    hir_types: &'ir scoop_hir::CrossConeTypeSemanticsSectionV1,
-    mir_types: &'ir scoop_mir::CrossConeMirTypeBridgeSectionV1<'ir>,
-    lir_layout: &'ir scoop_lir::CrossConeLayoutAbiSectionV1<'ir>,
+pub struct CrossConeLayoutArtifactMetadataInputV1<'dependencies> {
+    producer: ProducerRecord,
+    cone: ConeRecord,
+    direct_dependencies: Vec<DependencyRecord>,
+    metadata: slib::PreparedCrossConeLayoutMetadataV1,
+    lir_cross_cone: scoop_lir::CrossConeLirBridgeSectionV1,
+    consumer: scoop_identity::ConeIdentity,
+    physical_imports: scoop_lir::CanonicalExternalShapeLinkImportsV1,
+    link_support: slib::LirLinkSupportSectionV1,
     native_objects: Vec<slib::UncompressedObjectMember>,
     native_libraries: Vec<scoop_lir::CanonicalNativeLibraryRequirementV1>,
     native_cxx: bool,
     test_directory: Option<slib::TestDirectory>,
-    dependencies: Option<&'ir slib::ValidatedCrossConeArtifactClosure>,
+    dependencies: Option<&'dependencies slib::CrossConePublicationDependencies>,
 }
 
-impl<'ir> CrossConeLayoutArtifactMetadataInputV1<'ir> {
-    pub const fn new(
-        ordinary: CrossConeArtifactMetadataInputV1<'ir>,
-        hir_types: &'ir scoop_hir::CrossConeTypeSemanticsSectionV1,
-        mir_types: &'ir scoop_mir::CrossConeMirTypeBridgeSectionV1<'ir>,
-        lir_layout: &'ir scoop_lir::CrossConeLayoutAbiSectionV1<'ir>,
-    ) -> Self {
-        Self {
-            ordinary,
-            hir_types,
-            mir_types,
-            lir_layout,
+impl<'dependencies> CrossConeLayoutArtifactMetadataInputV1<'dependencies> {
+    /// Encodes completed semantic sections before their readers and IR are released.
+    pub fn new(
+        ordinary: CrossConeArtifactMetadataInputV1<'_>,
+        hir_types: &scoop_hir::CrossConeTypeSemanticsSectionV1,
+        mir_types: &scoop_mir::CrossConeMirTypeBridgeSectionV1<'_>,
+        lir_layout: &scoop_lir::CrossConeLayoutAbiSectionV1<'_>,
+    ) -> Result<Self, Error> {
+        let descriptor = ordinary
+            .hir_core
+            .compiler_protocols()
+            .map(|protocols| {
+                lir_layout
+                    .descriptors()
+                    .get(protocols.string_exact_type())
+                    .ok_or_else(|| {
+                        slib::LinkSupportError("String descriptor missing from producer LIR".into())
+                    })
+            })
+            .transpose()
+            .map_err(Error::LinkSupport)?;
+        let link_support = slib::LirLinkSupportSectionV1::from_string_descriptor(descriptor)
+            .map_err(Error::LinkSupport)?;
+        let metadata =
+            slib::PreparedCrossConeLayoutMetadataV1::new(slib::CrossConeLayoutMetadataInputV1 {
+                hir_foundation: ordinary.hir_foundation,
+                hir_production: ordinary.hir_core,
+                hir_cross_cone: ordinary.hir_cross_cone,
+                hir_type_semantics: hir_types,
+                mir_foundation: ordinary.mir_foundation,
+                mir_production: ordinary.mir_core,
+                mir_cross_cone: ordinary.mir_cross_cone,
+                mir_type_bridge: mir_types,
+                lir_cross_cone: ordinary.lir_cross_cone,
+                lir_layout_abi: lir_layout,
+            })
+            .map_err(|error| Error::Assembly(Box::new(error)))?;
+        Ok(Self {
+            producer: ordinary.producer,
+            cone: ordinary.cone,
+            direct_dependencies: ordinary.direct_dependencies,
+            metadata,
+            lir_cross_cone: ordinary.lir_cross_cone.clone(),
+            consumer: lir_layout.selected().consumer(),
+            physical_imports: lir_layout.selected().physical_imports().clone(),
+            link_support,
             native_objects: Vec::new(),
             native_libraries: Vec::new(),
             native_cxx: false,
             test_directory: None,
             dependencies: None,
-        }
+        })
     }
 
     pub fn with_test_directory(mut self, directory: Option<slib::TestDirectory>) -> Self {
@@ -47,7 +85,7 @@ impl<'ir> CrossConeLayoutArtifactMetadataInputV1<'ir> {
 
     pub fn with_dependencies(
         mut self,
-        dependencies: &'ir slib::ValidatedCrossConeArtifactClosure,
+        dependencies: &'dependencies slib::CrossConePublicationDependencies,
     ) -> Self {
         self.dependencies = Some(dependencies);
         self
@@ -96,58 +134,33 @@ impl<'ir> CrossConeLayoutArtifactMetadataInputV1<'ir> {
             prepared.target_selection.target(),
             strong,
             dependency_owners,
-            self.ordinary.lir_cross_cone,
+            &self.lir_cross_cone,
         )
         .map_err(ObjectError::DependencyRequirements)?;
         let shape = slib::verify_external_shape_requirements_v1(
             &ordinary,
-            self.lir_layout.selected().consumer(),
-            self.lir_layout.selected().physical_imports(),
+            self.consumer,
+            &self.physical_imports,
         )
         .map_err(|error| Error::Layout(Box::new(error)))?;
         let undefined = objects::complete_requirements(&prepared, &native, &shape)?;
-        let finalized = prepared.finalize(&undefined, &self.ordinary.cone, self.native_objects)?;
-        let descriptor = self
-            .ordinary
-            .hir_core
-            .compiler_protocols()
-            .map(|protocols| {
-                self.lir_layout
-                    .descriptors()
-                    .get(protocols.string_exact_type())
-                    .ok_or_else(|| {
-                        slib::LinkSupportError("String descriptor missing from producer LIR".into())
-                    })
-            })
-            .transpose()
-            .map_err(Error::LinkSupport)?;
-        let support = slib::LirLinkSupportSectionV1::from_string_descriptor(descriptor)
-            .map_err(Error::LinkSupport)?;
+        let finalized = prepared.finalize(&undefined, &self.cone, self.native_objects)?;
         let code = slib::compute_cross_cone_layout_code_fingerprint_v1(
             finalized.projection.with_optimization(optimization),
             native,
             defined,
             undefined,
             &shape,
-            support,
+            self.link_support,
         )
         .map_err(|error| Error::Code(Box::new(error)))?;
         let artifact = slib::AssembledCrossConeLayoutArtifactV1::write(
             slib::CrossConeLayoutArtifactInputV1::new(
-                self.ordinary.producer,
-                self.ordinary.cone,
-                self.ordinary.direct_dependencies,
-                self.ordinary.hir_foundation,
-                self.ordinary.hir_core,
-                self.ordinary.hir_cross_cone,
-                self.hir_types,
-                self.ordinary.mir_foundation,
-                self.ordinary.mir_core,
-                self.ordinary.mir_cross_cone,
-                self.mir_types,
+                self.producer,
+                self.cone,
+                self.direct_dependencies,
+                self.metadata,
                 &finalized.foundation,
-                self.ordinary.lir_cross_cone,
-                self.lir_layout,
                 code,
                 finalized.members,
             )

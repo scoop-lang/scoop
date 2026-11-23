@@ -27,9 +27,9 @@ impl Catalog<'_> {
             backend_key.as_array().as_slice(),
         ]
         .concat();
-        let record = self
-            .cache
-            .input_record("artifacts-v1", &path, &stamp, &extra)?;
+        let (record, guard) =
+            self.cache
+                .locked_input_record("artifacts-v1", &path, &stamp, &extra)?;
         let summary: ArtifactManifestSummaryV1 = match fs::read(&record) {
             Ok(bytes) => scoop_wire::decode_canonical(&bytes).map_err(|error| {
                 PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())
@@ -52,6 +52,7 @@ impl Catalog<'_> {
             }
             Err(error) => return Err(PmError::io(&record, error)),
         };
+        drop(guard);
         let dependencies = summary
             .direct_dependencies()
             .iter()

@@ -5,18 +5,14 @@ use super::*;
 pub(in crate::object_production) fn final_members(
     member_plan: &PlannedLinkObjectMemberSetV1,
     generated_c_bridge_members: &[PlannedGeneratedCBridgeObjectInputV1],
-    objects: &[scoop_slib::FinalScoopLirObjectV1],
+    objects: &[scoop_slib::ScoopLirObjectCandidateV1<'_>],
 ) -> Result<Vec<UncompressedObjectMember>, BuiltinObjectProductionError> {
     let producer = member_plan.producer();
     let mut members = Vec::with_capacity(objects.len() + generated_c_bridge_members.len());
     for object in objects {
-        let plan = member_plan
-            .scoop_lir_members()
-            .iter()
-            .find(|plan| plan.member_id() == object.member())
-            .ok_or(BuiltinObjectProductionError::MissingFinalMemberPlan(
-                object.member(),
-            ))?;
+        let plan = member_plan.scoop_lir_member(object.member()).ok_or(
+            BuiltinObjectProductionError::MissingFinalMemberPlan(object.member()),
+        )?;
         let member = UncompressedObjectMember::new(
             producer,
             plan.stable_key().clone(),

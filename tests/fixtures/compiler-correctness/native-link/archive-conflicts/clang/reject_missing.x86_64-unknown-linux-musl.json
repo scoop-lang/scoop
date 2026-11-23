@@ -1,7 +1,7 @@
 [
   {
     "code": "E2308",
-    "message": "unresolved native symbol missing in default namespace (unresolved symbol missing); reference chain: missing <- native object $NATIVE_INPUT_0-member-1-1252 selected by helper <- native object $NATIVE_INPUT_0-member-0-8 selected by m23_add <- Cone dev.programlink:archive:0.1.0 member fcd25be30d0c02858ef98cc4a26b220910130ecdfd3a5cdfd66282f8ea972614",
+    "message": "unresolved native symbol missing in default namespace (unresolved symbol missing); reference chain: missing <- native object $NATIVE_INPUT_0-member-1-$NATIVE_HEADER selected by helper <- native object $NATIVE_INPUT_0-member-0-$NATIVE_HEADER selected by m23_add <- Cone dev.programlink:archive:0.1.0 member 043e6b52dd9524e54bfe24ef594e5c867fe1cd16d8b862f82ea1f42b9d7a1eb5",
     "notes": [],
     "origin": {
       "kind": "none"

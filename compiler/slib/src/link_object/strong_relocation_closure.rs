@@ -54,7 +54,7 @@ pub struct StrongRelocationBindingV1 {
     relocation_form: VerifiedObjectRelocationFormV1,
     encoded_value: u64,
     target_slot: RelocationTargetSlotV1,
-    symbol: Vec<u8>,
+    symbol: Arc<[u8]>,
     resolution: StrongRelocationResolutionV1,
 }
 
@@ -69,7 +69,7 @@ pub struct CanonicalUndefinedRelocationUseV1 {
     relocation_form: VerifiedObjectRelocationFormV1,
     encoded_value: u64,
     target_slot: RelocationTargetSlotV1,
-    symbol: Vec<u8>,
+    symbol: Arc<[u8]>,
 }
 
 impl CanonicalUndefinedRelocationUseV1 {
@@ -289,10 +289,10 @@ struct IndexedStrongSymbol<'a> {
     member: SlibMemberId,
     role: PlannedStrongObjectSymbolRoleV1,
     definition_owner: ObjectDefinitionPlanOwner,
-    name: &'a [u8],
+    name: &'a Arc<[u8]>,
 }
 
-type StrongSymbolByName<'a> = BTreeMap<Vec<u8>, IndexedStrongSymbol<'a>>;
+type StrongSymbolByName<'a> = BTreeMap<&'a [u8], IndexedStrongSymbol<'a>>;
 type StrongPrimaryByDefinition<'a> =
     BTreeMap<(SlibMemberId, ObjectDefinitionPlanId), IndexedStrongSymbol<'a>>;
 
@@ -310,12 +310,9 @@ fn index_strong_definitions(
                 member: member.member(),
                 role: symbol.role(),
                 definition_owner: symbol.definition_owner(),
-                name: symbol.macho_name(),
+                name: symbol.shared_name(),
             };
-            if symbols
-                .insert(symbol.macho_name().to_vec(), indexed)
-                .is_some()
-            {
+            if symbols.insert(symbol.macho_name(), indexed).is_some() {
                 return Err(
                     StrongRelocationClosureValidationError::DuplicateStrongSymbol {
                         name: symbol.macho_name().to_vec(),
@@ -455,7 +452,7 @@ fn collect_target_binding(
                 }
             })?;
             (
-                indexed.name.to_vec(),
+                indexed.name.clone(),
                 StrongRelocationResolutionV1::ObjectLocalStrong {
                     target_member: indexed.member,
                     definition: *definition,
@@ -464,7 +461,7 @@ fn collect_target_binding(
             )
         }
         VerifiedRelocationTargetV1::ExternalUndefined { table_index, name } => {
-            match symbols.get(name) {
+            match symbols.get(name.as_ref()) {
                 Some(indexed) => {
                     match indexed.role {
                         PlannedStrongObjectSymbolRoleV1::PrimaryDefinition {

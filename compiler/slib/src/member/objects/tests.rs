@@ -113,7 +113,8 @@ fn different_dictionaries_keep_native_content_and_code_projection_identical() {
             .unwrap()
     );
     let objects =
-        crate::link_decode::tests::layout_link_support::verified_layout_code_link_object_members();
+        crate::link_decode::tests::layout_link_support::verified_layout_code_link_object_members()
+            .0;
     let final_objects = objects.final_objects().clone();
     let left_code = crate::build_code_link_object_members_v2(
         final_objects.clone(),

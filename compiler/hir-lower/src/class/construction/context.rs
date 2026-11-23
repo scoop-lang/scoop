@@ -137,7 +137,8 @@ impl Lowerer {
                         ),
                     )
                 })
-                .collect(),
+                .collect::<std::collections::HashMap<_, _>>()
+                .into(),
         );
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_return_ty = std::mem::replace(&mut self.current_return_ty, self.unit);

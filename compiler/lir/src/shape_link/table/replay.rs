@@ -36,6 +36,8 @@ impl DecodedCanonicalExternalShapeLinkImportsV1 {
             }
             records.push(actual.read(terminal, subject, identities)?);
         }
-        Ok(CanonicalExternalShapeLinkImportsV1 { records })
+        Ok(CanonicalExternalShapeLinkImportsV1 {
+            records: records.into(),
+        })
     }
 }

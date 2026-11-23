@@ -17,7 +17,7 @@ pub fn validate_elf_object_envelope_v1(
     for section in file.sections() {
         let header = section.elf_section_header();
         sections.push(ObservedObjectSectionV1 {
-            segment_name: Vec::new(),
+            segment_name: Default::default(),
             section_name: section.name_bytes().map_err(error)?.to_vec(),
             virtual_address: section.address(),
             file_offset: section.file_range().map(|r| r.0),
@@ -36,7 +36,7 @@ pub fn validate_elf_object_envelope_v1(
         if index.0 == 0 {
             symbols.push(ObservedObjectSymbolV1 {
                 table_index: 0,
-                name: Vec::new(),
+                name: Default::default(),
                 kind: ObjectSymbolKindV1::FileMetadata,
                 section_ordinal: None,
                 value: 0,
@@ -49,7 +49,7 @@ pub fn validate_elf_object_envelope_v1(
             continue;
         }
         let symbol = file.symbol_by_index(index).map_err(error)?;
-        let name = symbol.name_bytes().map_err(error)?.to_vec();
+        let name = symbol.name_bytes().map_err(error)?.into();
         let section_ordinal = symbol
             .section_index()
             .map(|s| {

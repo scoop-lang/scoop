@@ -1,7 +1,8 @@
 use super::*;
 
 /// Exercise finalization with the V2 type and initialization semantic surface.
-pub(crate) fn verified_layout_code_link_object_members() -> crate::FinalCodeObjectSetV2 {
+pub(crate) fn verified_layout_code_link_object_members()
+-> (crate::FinalCodeObjectSetV2, crate::UncompressedObjectMember) {
     let fixture = link_object_fixture();
     let (production, previous, _, _) = finalized_link_object_fixture();
     let (canonical, _) =
@@ -34,16 +35,14 @@ pub(crate) fn verified_layout_code_link_object_members() -> crate::FinalCodeObje
         production.canonical_shape_definitions(),
     )
     .unwrap();
-    let patched = crate::collect_registration_objects_v2(
+    let patched = crate::RegistrationObjectSetV2::new(
         registrations.safepoints().clone(),
         registrations.callables().clone(),
         types,
         registrations.immortal_objects().clone(),
         registrations.static_storages().clone(),
         initializations,
-        &objects,
-    )
-    .unwrap();
+    );
     let compatibility =
         CompatibilityRecord::new(selection(), ArtifactCapabilityProfile::CROSS_CONE_GENERIC)
             .unwrap();
@@ -54,15 +53,15 @@ pub(crate) fn verified_layout_code_link_object_members() -> crate::FinalCodeObje
     )
     .unwrap();
     let final_objects = crate::FinalRuntimeObjectsV1::new(image, previous.entry().clone());
-    assert_eq!(final_objects.objects(), previous.objects());
     let member_plan = &fixture.plan.scoop_lir_members()[0];
-    let member = SlibMember::new(
+    let member = crate::UncompressedObjectMember::new(
         cone().identity(),
         member_plan.stable_key().clone(),
         crate::SlibMemberRole::LinkObject,
-        final_objects.objects()[0].bytes().to_vec(),
+        fixture.bytes,
     )
     .unwrap();
-    crate::build_code_link_object_members_v2(final_objects, &[member.record().content().clone()])
-        .unwrap()
+    let code = crate::build_code_link_object_members_v2(final_objects, &[member.content().clone()])
+        .unwrap();
+    (code, member)
 }

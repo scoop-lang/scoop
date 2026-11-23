@@ -16,7 +16,7 @@ pub use errors::LayoutProductionError;
 
 pub(super) fn assemble(
     hir: current_hir::CurrentConeHirArtifacts,
-    request: &ValidatedSingleConeBuildRequest<'_>,
+    request: ValidatedSingleConeBuildRequest<'_>,
     cone: slib::ConeRecord,
     temporary_parent: &Path,
     machine_dependencies: slib::ValidatedCrossConeArtifactClosure,
@@ -289,31 +289,10 @@ pub(super) fn assemble(
     drop(selected_layout);
     drop(identities);
     let (mir_foundation, mir_production) = mir.strong.into_metadata();
-    let backend = scoop_codegen::ValidatedBackendProfile::from_selection(
-        request.target().lir_target_selection(),
-        request.target().c_bridge_toolchain().profile().contract(),
-    )
-    .map_err(Error::Codegen)?
-    .with_optimization(request.optimization())
-    .with_debug_info(request.debug_info());
-    let objects = scoop_codegen::emit_object_set_v2(&lir, registration, backend, request.jobs())
-        .map_err(Error::Codegen)?;
-    let generated = crate::generated_c::emit_c_bridge_object_set(
-        &lir,
-        temporary_parent,
-        &request
-            .target()
-            .c_bridge_toolchain()
-            .clone()
-            .with_optimization(request.optimization()),
-    )
-    .map_err(Error::Codegen)?;
-    drop(lir);
     let producer = slib::ProducerRecord::new(concat!("scoopc/", env!("CARGO_PKG_VERSION")))
         .map_err(CurrentConeProductionFailure::Producer)?;
-    let native_objects = super::native::compile(request, cone.identity(), temporary_parent)
-        .map_err(CurrentConeProductionFailure::Native)?;
-    let metadata = crate::CrossConeArtifactMetadataInputV1::new(
+    let identity = cone.identity();
+    let ordinary = crate::CrossConeArtifactMetadataInputV1::new(
         producer,
         cone,
         request.dependencies().direct_dependencies().to_vec(),
@@ -325,19 +304,56 @@ pub(super) fn assemble(
         &mir.public,
         &lir_public,
     );
-    let owners = machine_dependencies
-        .dependency_symbol_owners()
-        .cloned()
-        .collect::<Vec<_>>();
-    crate::CrossConeLayoutArtifactMetadataInputV1::new(metadata, &source, &mir_section, &section)
-        .with_dependencies(&machine_dependencies)
-        .with_test_directory(hir.test_directory)
+    let metadata = crate::CrossConeLayoutArtifactMetadataInputV1::new(
+        ordinary,
+        &source,
+        &mir_section,
+        &section,
+    )
+    .map_err(Error::Artifact)?
+    .with_test_directory(hir.test_directory);
+    drop(mir_section);
+    drop(section);
+    drop(source);
+    drop(foundation);
+    drop(hir.production_section);
+    drop(mir_foundation);
+    drop(mir_production);
+    drop(mir.public);
+    drop(lir_public);
+    let publication_dependencies = machine_dependencies.into_publication_dependencies();
+    let loaded = request.request;
+    drop(request);
+    let target = loaded.target.production();
+    let backend = scoop_codegen::ValidatedBackendProfile::from_selection(
+        target.lir_target_selection(),
+        target.c_bridge_toolchain().profile().contract(),
+    )
+    .map_err(Error::Codegen)?
+    .with_optimization(loaded.optimization)
+    .with_debug_info(loaded.debug_info);
+    let objects = scoop_codegen::emit_object_set_v2(&lir, registration, backend, loaded.jobs)
+        .map_err(Error::Codegen)?;
+    let generated = crate::generated_c::emit_c_bridge_object_set(
+        &lir,
+        temporary_parent,
+        &target
+            .c_bridge_toolchain()
+            .clone()
+            .with_optimization(loaded.optimization),
+    )
+    .map_err(Error::Codegen)?;
+    drop(lir);
+    let native_objects = super::native::compile(loaded, identity, temporary_parent)
+        .map_err(CurrentConeProductionFailure::Native)?;
+    metadata
+        .with_dependencies(&publication_dependencies)
         .with_native_objects(native_objects)
         .with_native_libraries(
-            super::native::libraries(request).map_err(CurrentConeProductionFailure::Native)?,
+            super::native::libraries(loaded).map_err(CurrentConeProductionFailure::Native)?,
         )
-        .with_native_cxx(super::native::cxx(request))
-        .assemble(objects, generated, &owners)
+        .with_native_cxx(super::native::cxx(loaded))
+        .assemble(objects, generated, publication_dependencies.symbol_owners())
         .map(ControlFlow::Continue)
         .map_err(Error::Artifact)
         .map_err(Into::into)

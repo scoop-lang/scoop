@@ -56,29 +56,36 @@ fn write_artifact_from_fixture(
     lir: EmptyLayoutCodeFixture<'_>,
 ) -> Result<AssembledCrossConeLayoutArtifactV1, CrossConeLayoutArtifactWriteError> {
     let provider = lir.cone.identity();
-    let (hir_foundation, hir_production) = hir_foundation_and_production(&lir.cone);
-    let hir_type_semantics = empty_hir_type_semantics();
-    let (mir_foundation, mir_production, mir_ordinary) = mir_sections(provider);
-    let graph = scoop_identity::PendingIdentityValidation::new()
-        .finish()
-        .unwrap();
-    let mir_type_bridge = empty_mir_type_bridge(provider, &mir_production, &mir_ordinary, &graph);
+    let metadata = {
+        let (hir_foundation, hir_production) = hir_foundation_and_production(&lir.cone);
+        let hir_type_semantics = empty_hir_type_semantics();
+        let (mir_foundation, mir_production, mir_ordinary) = mir_sections(provider);
+        let graph = scoop_identity::PendingIdentityValidation::new()
+            .finish()
+            .unwrap();
+        let mir_type_bridge =
+            empty_mir_type_bridge(provider, &mir_production, &mir_ordinary, &graph);
+
+        PreparedCrossConeLayoutMetadataV1::new(CrossConeLayoutMetadataInputV1 {
+            hir_foundation: &hir_foundation,
+            hir_production: &hir_production,
+            hir_cross_cone: empty_hir_interface(),
+            hir_type_semantics: &hir_type_semantics,
+            mir_foundation: &mir_foundation,
+            mir_production: &mir_production,
+            mir_cross_cone: &mir_ordinary,
+            mir_type_bridge: &mir_type_bridge,
+            lir_cross_cone: lir.ordinary,
+            lir_layout_abi: lir.layout,
+        })?
+    };
 
     AssembledCrossConeLayoutArtifactV1::write(CrossConeLayoutArtifactInputV1::new(
         crate::ProducerRecord::new("layout-writer-test").unwrap(),
         lir.cone,
         lir.dependencies,
-        &hir_foundation,
-        &hir_production,
-        empty_hir_interface(),
-        &hir_type_semantics,
-        &mir_foundation,
-        &mir_production,
-        &mir_ordinary,
-        &mir_type_bridge,
+        metadata,
         lir.foundation,
-        lir.ordinary,
-        lir.layout,
         lir.code,
         lir.link_objects,
     ))

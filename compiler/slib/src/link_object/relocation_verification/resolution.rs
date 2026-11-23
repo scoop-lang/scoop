@@ -167,7 +167,7 @@ fn resolve_target(
                         )?;
                         Ok(VerifiedRelocationTargetV1::LocalDefinition {
                             table_index,
-                            name: symbol.name().to_vec(),
+                            name: symbol.shared_name().clone(),
                             owner_atom: Some(atom),
                             section_ordinal,
                             value: symbol.value(),
@@ -213,7 +213,7 @@ fn resolve_target(
                     )?;
                     Ok(VerifiedRelocationTargetV1::LocalDefinition {
                         table_index,
-                        name: symbol.name().to_vec(),
+                        name: symbol.shared_name().clone(),
                         owner_atom: local_symbol_owners.get(&table_index).copied(),
                         section_ordinal,
                         value: symbol.value(),
@@ -222,7 +222,7 @@ fn resolve_target(
                 ObjectSymbolKindV1::ExternalUndefined => {
                     Ok(VerifiedRelocationTargetV1::ExternalUndefined {
                         table_index,
-                        name: symbol.name().to_vec(),
+                        name: symbol.shared_name().clone(),
                     })
                 }
             }

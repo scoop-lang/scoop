@@ -62,6 +62,7 @@ pub(super) fn check(
         source.bridge,
         layout,
     )
+    .unwrap()
     .assemble(emitted, generated, provider.owners)
     .unwrap_or_else(|error| panic!("{} layout artifact assembly: {error:?}", destination.name));
     reader::check(destination.name, provider.artifact, &artifact, layout);

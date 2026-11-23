@@ -114,15 +114,16 @@ impl Lowerer {
             Some(coordinate) => format!("{coordinate}/{logical_path}"),
             None => logical_path.to_owned(),
         };
-        self.imported_source_files.push(hir::SourceFileMetadata {
-            provider,
-            identity: record.identity().clone(),
-            debug_path: name.as_str().into(),
-            name,
+        self.imported_source_files
+            .push_back(std::rc::Rc::new(hir::SourceFileMetadata {
+                provider,
+                identity: record.identity().clone(),
+                debug_path: name.as_str().into(),
+                name,
 
-            source: String::new(),
-            canonical_record: Some(record.clone()),
-        });
+                source: String::new(),
+                canonical_record: Some(record.clone()),
+            }));
         self.imported_source_indices
             .insert(record.identity().clone(), index);
         Ok(index)

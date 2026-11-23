@@ -108,9 +108,7 @@ pub(super) fn scoop_member_for_units<'plan>(
         return Err(BuiltinObjectProductionError::SplitObjectUnits(member));
     }
     member_plan
-        .scoop_lir_members()
-        .iter()
-        .find(|plan| plan.member_id() == member)
+        .scoop_lir_member(member)
         .ok_or(BuiltinObjectProductionError::MissingPlannedMember(member))
 }
 
@@ -122,8 +120,6 @@ pub(super) fn generated_bridge_member_for_unit(
         BuiltinObjectProductionError::UnassignedGeneratedBridgeUnit(unit),
     )?;
     member_plan
-        .generated_bridge_members()
-        .iter()
-        .find(|plan| plan.member_id() == member)
+        .generated_bridge_member(member)
         .ok_or(BuiltinObjectProductionError::MissingPlannedMember(member))
 }

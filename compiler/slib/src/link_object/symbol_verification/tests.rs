@@ -49,7 +49,7 @@ fn reads_definition_symbols_and_primary_atom_range() {
     for symbol in verified.symbols() {
         assert_eq!(
             verified.strong_symbol_by_table_index(symbol.table_index()),
-            Some(symbol.clone())
+            Some(symbol)
         );
     }
     assert!(verified.strong_symbol_by_table_index(u32::MAX).is_none());

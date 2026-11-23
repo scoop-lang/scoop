@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::num::NonZeroU32;
+use std::sync::Arc;
 
 use scoop_identity::{
     ConeIdentity, DefinitionAtomRole, ObjectDefinitionAtomId, ObjectDefinitionPlanId,
@@ -34,14 +35,14 @@ pub enum VerifiedRelocationTargetV1 {
     },
     LocalDefinition {
         table_index: u32,
-        name: Vec<u8>,
+        name: Arc<[u8]>,
         owner_atom: Option<ObjectDefinitionAtomId>,
         section_ordinal: NonZeroU32,
         value: u64,
     },
     ExternalUndefined {
         table_index: u32,
-        name: Vec<u8>,
+        name: Arc<[u8]>,
     },
     SectionBase {
         section_ordinal: NonZeroU32,
@@ -267,37 +268,43 @@ impl VerifiedRelocationUseV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedMemberObjectRelocationIndexV1 {
+    data: Arc<MemberObjectRelocationData>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct MemberObjectRelocationData {
     definitions: MemberObjectDefinitionIndexV1,
     relocations: Vec<VerifiedRelocationUseV1>,
     relocations_by_atom: BTreeMap<ObjectDefinitionAtomId, Vec<usize>>,
 }
 
 impl VerifiedMemberObjectRelocationIndexV1 {
-    pub const fn producer(&self) -> ConeIdentity {
-        self.definitions.producer()
+    pub fn producer(&self) -> ConeIdentity {
+        self.data.definitions.producer()
     }
 
-    pub const fn member(&self) -> SlibMemberId {
-        self.definitions.member()
+    pub fn member(&self) -> SlibMemberId {
+        self.data.definitions.member()
     }
 
-    pub const fn definitions(&self) -> &MemberObjectDefinitionIndexV1 {
-        &self.definitions
+    pub fn definitions(&self) -> &MemberObjectDefinitionIndexV1 {
+        &self.data.definitions
     }
 
     pub fn relocations(&self) -> &[VerifiedRelocationUseV1] {
-        &self.relocations
+        &self.data.relocations
     }
 
     pub(in crate::link_object) fn relocations_for_atom(
         &self,
         atom: ObjectDefinitionAtomId,
     ) -> impl Iterator<Item = (usize, &VerifiedRelocationUseV1)> {
-        self.relocations_by_atom
+        self.data
+            .relocations_by_atom
             .get(&atom)
             .into_iter()
             .flatten()
-            .map(|&index| (index, &self.relocations[index]))
+            .map(|&index| (index, &self.data.relocations[index]))
     }
 }
 
@@ -375,9 +382,11 @@ pub fn verify_member_object_relocations_v1(
         }
     }
     Ok(VerifiedMemberObjectRelocationIndexV1 {
-        definitions,
-        relocations,
-        relocations_by_atom,
+        data: Arc::new(MemberObjectRelocationData {
+            definitions,
+            relocations,
+            relocations_by_atom,
+        }),
     })
 }
 

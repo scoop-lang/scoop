@@ -88,15 +88,16 @@ impl Lowerer {
         );
         let context = self.source_contexts.alloc(file_context.clone());
         self.source_context_by_value.insert(file_context, context);
-        self.imported_source_files.push(hir::SourceFileMetadata {
-            provider: self.intrinsic_sources[lexical_file].provider,
-            identity: generated.source.identity,
-            debug_path: generated.source.name.as_str().into(),
-            name: generated.source.name,
+        self.imported_source_files
+            .push_back(std::rc::Rc::new(hir::SourceFileMetadata {
+                provider: self.intrinsic_sources[lexical_file].provider,
+                identity: generated.source.identity,
+                debug_path: generated.source.name.as_str().into(),
+                name: generated.source.name,
 
-            source: generated.source.text.as_str().to_owned(),
-            canonical_record: None,
-        });
+                source: generated.source.text.as_str().to_owned(),
+                canonical_record: None,
+            }));
         self.generation
             .source_scopes
             .insert(source_file, lexical_file);
@@ -161,7 +162,11 @@ impl Lowerer {
                 source: source.source.clone(),
                 canonical_record: None,
             })
-            .chain(self.imported_source_files.iter().cloned())
+            .chain(
+                self.imported_source_files
+                    .iter()
+                    .map(|source| source.as_ref().clone()),
+            )
             .collect()
     }
 

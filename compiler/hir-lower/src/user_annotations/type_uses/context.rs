@@ -16,7 +16,7 @@ pub(super) struct AnnotationContext {
     receiver_scopes: Vec<crate::ReceiverScope>,
     local_type_capture_scope: Option<crate::local_types::CaptureScope>,
     constructor_params_in_scope:
-        HashMap<String, (hir::ConstructorParamId, hir::TypeId, hir::BindingId)>,
+        crate::Shared<HashMap<String, (hir::ConstructorParamId, hir::TypeId, hir::BindingId)>>,
 }
 
 macro_rules! context_fields {

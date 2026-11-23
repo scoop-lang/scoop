@@ -28,6 +28,7 @@ pub(super) fn lower(
     .unwrap();
     let request = loaded.validate().unwrap();
     let parsed = request.parse_current_sources().unwrap();
+    let request = parsed.request();
     let world = request
         .dependencies()
         .semantic()

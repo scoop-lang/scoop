@@ -62,6 +62,7 @@ fn actual_generic_library_emits_shared_odr_objects() {
         .unwrap();
         let request = loaded.validate().unwrap();
         let parsed = request.parse_current_sources().unwrap();
+        let request = parsed.request();
         let world = request
             .dependencies()
             .semantic()

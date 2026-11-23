@@ -44,10 +44,11 @@ impl Lowerer {
                 continue;
             }
             let usage = &uses[&key];
+            let identity = self.type_use_identity(key);
             self.annotation_metadata
                 .type_uses
                 .push(hir::SourceAnnotatedTypeUse {
-                    identity: self.type_use_identity(key),
+                    identity,
                     ty: usage.ty,
                     parameters: usage.parameters.clone(),
                     nodes,

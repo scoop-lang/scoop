@@ -142,16 +142,14 @@ pub(super) fn finalized_link_object_fixture() -> (
     let image =
         crate::bind_cone_image_v1(&builtins.clone(), production.image_plan().clone()).unwrap();
     let entry = crate::bind_entry_production_v1(builtins, production.entry_plan().clone()).unwrap();
-    let patched = crate::collect_registration_objects_v1(
+    let patched = crate::RegistrationObjectSetV1::new(
         safepoints,
         callables,
         types,
         immortal_objects,
         static_storages,
         initializations,
-        &objects,
-    )
-    .unwrap();
+    );
     let compatibility =
         CompatibilityRecord::new(selection(), ArtifactCapabilityProfile::CROSS_CONE_GENERIC)
             .unwrap();

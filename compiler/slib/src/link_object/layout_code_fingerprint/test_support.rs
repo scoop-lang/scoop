@@ -35,21 +35,8 @@ pub(crate) fn with_empty_layout_code_fixture<R>(
 ) -> R {
     let cone = cone();
     let producer = cone.identity();
-    let objects =
+    let (objects, link_member) =
         crate::link_decode::tests::layout_link_support::verified_layout_code_link_object_members();
-    let member_plan = &objects
-        .final_objects()
-        .entry()
-        .builtins()
-        .member_plan()
-        .scoop_lir_members()[0];
-    let link_member = UncompressedObjectMember::new(
-        producer,
-        member_plan.stable_key().clone(),
-        crate::SlibMemberRole::LinkObject,
-        objects.final_objects().objects()[0].bytes().to_vec(),
-    )
-    .unwrap();
     let (canonical, v1) = crate::link_decode::tests::strong_production_fixture(
         cone.coordinate().clone(),
         &[scoop_identity::ConeIdentity::CORE],

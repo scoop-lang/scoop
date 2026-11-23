@@ -47,7 +47,7 @@ pub(super) fn registry(cache: &PackageCache) -> PmResult<LoadedConfig> {
             input: Some((path, None)),
         });
     };
-    let record = cache.input_record("config-v1", &path, &stamp, &[])?;
+    let (record, _guard) = cache.locked_input_record("config-v1", &path, &stamp, &[])?;
     let config: Config = match fs::read(&record) {
         Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| {
             PmError::new(scoop_source::DiagnosticCode::ICE2201, error.to_string())

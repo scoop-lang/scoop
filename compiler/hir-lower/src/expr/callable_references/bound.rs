@@ -248,7 +248,7 @@ impl Lowerer {
             .definition_paths
             .next(scoop_identity::StructuralDefinitionSiteRole::CallableConversion);
         let owner_type_arguments = self.ambient_type_args(self.type_params_in_scope.len());
-        let id = self.callable_references.alloc(hir::CallableReference {
+        let reference = hir::CallableReference {
             definition_root: hir::CallableReferenceRoot::Source(self.current_definition_root()),
             definition_path,
             target,
@@ -257,7 +257,8 @@ impl Lowerer {
             captures: Vec::new(),
             origin: self.definition_origin(span),
             span,
-        });
+        };
+        let id = self.callable_references.alloc(reference);
         BoundReferenceOutcome::Resolved(hir::Expr {
             kind: ExprKind::CallableReference(id),
             ty,

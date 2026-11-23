@@ -211,8 +211,25 @@ impl PlannedLinkObjectMemberSetV1 {
         &self.scoop_lir_members
     }
 
+    pub fn scoop_lir_member(&self, member: SlibMemberId) -> Option<&PlannedScoopLirObjectMemberV1> {
+        self.scoop_lir_members
+            .binary_search_by_key(&member, PlannedScoopLirObjectMemberV1::member_id)
+            .ok()
+            .map(|index| &self.scoop_lir_members[index])
+    }
+
     pub fn generated_bridge_members(&self) -> &[PlannedGeneratedBridgeObjectMemberV1] {
         &self.generated_bridge_members
+    }
+
+    pub fn generated_bridge_member(
+        &self,
+        member: SlibMemberId,
+    ) -> Option<&PlannedGeneratedBridgeObjectMemberV1> {
+        self.generated_bridge_members
+            .binary_search_by_key(&member, PlannedGeneratedBridgeObjectMemberV1::member_id)
+            .ok()
+            .map(|index| &self.generated_bridge_members[index])
     }
 
     pub fn definition_assignments(&self) -> &[DefinitionPlanMemberAssignmentV1] {

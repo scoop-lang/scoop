@@ -20,49 +20,38 @@ pub(crate) fn owned_builtin_types(module: &hir::Module) -> impl Iterator<Item = 
 /// covered without forcing unused LocalConcrete declarations into MIR.
 #[derive(Default)]
 pub(crate) struct SourceExactTypeRegistry {
-    entries: Vec<(hir::TypeId, mir::SourceExactTypeIdentity)>,
+    entries: Vec<mir::SourceExactTypeIdentity>,
+    by_source: la_arena::ArenaMap<hir::TypeId, usize>,
 }
 
 impl SourceExactTypeRegistry {
     pub(crate) fn record(&mut self, module: &hir::Module, source: hir::TypeId, lowered: mir::Type) {
-        if let Some((_, existing)) = self.entries.iter().find(|(found, _)| *found == source) {
+        if let Some(&index) = self.by_source.get(source) {
             assert_eq!(
-                existing.ty(),
+                self.entries[index].ty(),
                 &lowered,
                 "one LocalConcrete HIR type must always lower to the same MIR type"
             );
             return;
         }
-        assert!(
-            self.entries.iter().all(|(_, existing)| {
-                existing.ty() != &lowered
-                    && existing.identity_record().id() != module.exact_type_identities[source].id()
-            }),
-            "source exact types transpose one-to-one into MIR"
-        );
         let identity = mir::SourceExactTypeIdentity::checked(
             lowered,
             module.exact_type_identities[source].clone(),
             lower(module, source),
         )
         .expect("validated HIR exact types retain their complete provenance");
-        self.entries.push((source, identity));
+        self.by_source.insert(source, self.entries.len());
+        self.entries.push(identity);
     }
 
     pub(crate) fn get(&self, ty: &mir::Type) -> Option<&mir::SourceExactTypeIdentity> {
-        self.entries
-            .iter()
-            .find_map(|(_, entry)| (entry.ty() == ty).then_some(entry))
+        self.entries.iter().find(|entry| entry.ty() == ty)
     }
 
     pub(crate) fn finish(self) -> mir::SourceExactTypeIdentities {
-        mir::SourceExactTypeIdentities::checked(
-            self.entries
-                .into_iter()
-                .map(|(_, identity)| identity)
-                .collect(),
-        )
-        .expect("registered source exact types are one-to-one")
+        // The complete relation checks uniqueness once, after all registrations.
+        mir::SourceExactTypeIdentities::checked(self.entries)
+            .expect("registered source exact types are one-to-one")
     }
 }
 

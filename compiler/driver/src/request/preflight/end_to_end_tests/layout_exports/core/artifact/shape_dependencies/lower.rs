@@ -21,6 +21,7 @@ pub(super) fn with_mir(
     .unwrap();
     let request = loaded.validate().unwrap();
     let parsed = request.parse_current_sources().unwrap();
+    let request = parsed.request();
     let ValidatedCompilerProtocols::Imported(protocols) = request.protocols() else {
         panic!("the source imports the real provider declarations")
     };

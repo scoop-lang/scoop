@@ -144,7 +144,9 @@ class SuiteTests(unittest.TestCase):
                 handle = open_process(0x00100000, False, int(ready.read_text()))
                 if handle:
                     try:
-                        self.assertEqual(wait(handle, 0), 0)
+                        # A venv launcher adds a descendant whose Windows job
+                        # termination completes asynchronously.
+                        self.assertEqual(wait(handle, 5000), 0)
                     finally:
                         close_handle(handle)
                 else:

@@ -1,6 +1,7 @@
 //! Classify sections needed by object consumers without producer allowlists.
 
 use super::ValidatedMachOObjectEnvelopeV1;
+use crate::link_object::ValidatedObjectEnvelopeV1;
 use crate::link_object::object_sections::*;
 use object::macho;
 
@@ -19,7 +20,7 @@ pub fn read_builtin_object_sections_v1(
         })
         .collect();
     ValidatedBuiltinObjectSectionInventoryV1 {
-        envelope: envelope.into(),
+        envelope: ValidatedObjectEnvelopeV1::from(envelope).into(),
         roles,
     }
 }

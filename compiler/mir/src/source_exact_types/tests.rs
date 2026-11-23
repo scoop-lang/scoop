@@ -146,3 +146,69 @@ fn relation_rejects_duplicate_mir_types_and_exact_identities() {
         SourceExactTypeRelationError::DuplicateIdentity { first: 0, index: 1 }
     );
 }
+
+#[test]
+fn relation_queries_preserve_input_order_and_distinguish_structural_types() {
+    let unit = SourceExactTypeIdentity::checked(
+        Type::Unit,
+        unit(),
+        SourceExactTypeOrigin::Nominal(ConeIdentity::CORE),
+    )
+    .unwrap();
+    let any = SourceExactTypeIdentity::checked(
+        Type::Any,
+        CborIdentityRecord::from_key(ExactTypeKey::Nominal(
+            CoreBuiltinNominal::Any.identity_record().id(),
+        ))
+        .unwrap(),
+        SourceExactTypeOrigin::Nominal(ConeIdentity::CORE),
+    )
+    .unwrap();
+    let tuple = SourceExactTypeIdentity::checked(
+        Type::Tuple(vec![Type::Unit]),
+        CborIdentityRecord::from_key(ExactTypeKey::Tuple(NonEmptyVec::from_first(
+            unit.identity_record().id(),
+            [],
+        )))
+        .unwrap(),
+        SourceExactTypeOrigin::Structural,
+    )
+    .unwrap();
+    let entries = vec![tuple, any, unit];
+    let relation = SourceExactTypeIdentities::checked(entries.clone()).unwrap();
+    for entry in &entries {
+        assert_eq!(
+            relation.get(entry.ty()).unwrap().identity_record().id(),
+            entry.identity_record().id()
+        );
+        assert_eq!(
+            relation
+                .get_by_identity(entry.identity_record().id())
+                .unwrap()
+                .ty(),
+            entry.ty()
+        );
+    }
+    assert_eq!(
+        relation
+            .iter()
+            .map(SourceExactTypeIdentity::ty)
+            .collect::<Vec<_>>(),
+        entries
+            .iter()
+            .map(SourceExactTypeIdentity::ty)
+            .collect::<Vec<_>>()
+    );
+    assert!(relation.get(&Type::Tuple(vec![Type::Any])).is_none());
+    assert!(
+        SourceExactTypeIdentities::default()
+            .get(&Type::Unit)
+            .is_none()
+    );
+    let mut duplicate = entries;
+    duplicate.push(duplicate[1].clone());
+    assert_eq!(
+        SourceExactTypeIdentities::checked(duplicate).unwrap_err(),
+        SourceExactTypeRelationError::DuplicateType { first: 1, index: 3 }
+    );
+}

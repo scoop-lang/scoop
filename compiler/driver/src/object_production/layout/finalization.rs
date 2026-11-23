@@ -17,7 +17,7 @@ impl PreparedLayoutObjects {
         let mut members = final_members(
             &self.bindings.member_plan,
             &self.bindings.generated_c_bridge_members,
-            objects.objects(),
+            &self.candidates(),
         )?;
         members.extend(native_objects);
         members.sort_unstable_by_key(|member| member.content().id());

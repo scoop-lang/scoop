@@ -103,42 +103,52 @@ impl SourceExactTypeIdentity {
 #[derive(Clone, Debug, Default)]
 pub struct SourceExactTypeIdentities {
     entries: Vec<SourceExactTypeIdentity>,
+    by_type: Vec<usize>,
+    by_identity: Vec<usize>,
 }
 
 impl SourceExactTypeIdentities {
     pub fn checked(
         entries: Vec<SourceExactTypeIdentity>,
     ) -> Result<Self, SourceExactTypeRelationError> {
+        let mut by_type = std::collections::BTreeMap::new();
+        let mut by_identity = std::collections::BTreeMap::new();
         for (index, entry) in entries.iter().enumerate() {
-            if let Some((first, _)) = entries[..index]
-                .iter()
-                .enumerate()
-                .find(|(_, existing)| existing.ty == entry.ty)
-            {
+            if let Some(&first) = by_type.get(entry.ty()) {
                 return Err(SourceExactTypeRelationError::DuplicateType { first, index });
             }
-            if let Some((first, _)) = entries[..index]
-                .iter()
-                .enumerate()
-                .find(|(_, existing)| existing.identity.id() == entry.identity.id())
-            {
+            if let Some(&first) = by_identity.get(&entry.identity.id()) {
                 return Err(SourceExactTypeRelationError::DuplicateIdentity { first, index });
             }
+            by_type.insert(entry.ty(), index);
+            by_identity.insert(entry.identity.id(), index);
         }
-        Ok(Self { entries })
+        let by_type = by_type.into_values().collect();
+        let by_identity = by_identity.into_values().collect();
+        Ok(Self {
+            entries,
+            by_type,
+            by_identity,
+        })
     }
 
     pub fn get(&self, ty: &Type) -> Option<&SourceExactTypeIdentity> {
-        self.entries.iter().find(|entry| entry.ty() == ty)
+        self.by_type
+            .binary_search_by(|&index| self.entries[index].ty().cmp(ty))
+            .ok()
+            .map(|index| &self.entries[self.by_type[index]])
     }
 
     pub fn get_by_identity(
         &self,
         identity: PersistentExactTypeId,
     ) -> Option<&SourceExactTypeIdentity> {
-        self.entries
-            .iter()
-            .find(|entry| entry.identity_record().id() == identity)
+        self.by_identity
+            .binary_search_by_key(&identity, |&index| {
+                self.entries[index].identity_record().id()
+            })
+            .ok()
+            .map(|index| &self.entries[self.by_identity[index]])
     }
 
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &SourceExactTypeIdentity> {

@@ -11,7 +11,7 @@ impl ValidatedCompilerProtocols {
 
 pub(super) fn lower_machine(
     hir: current_hir::CurrentConeHirArtifacts,
-    request: &ValidatedSingleConeBuildRequest<'_>,
+    request: ValidatedSingleConeBuildRequest<'_>,
     cone: scoop_slib::ConeRecord,
     temporary_parent: &Path,
     dump: &mut Vec<EmittedStageDump>,

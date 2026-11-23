@@ -44,7 +44,7 @@ pub(crate) struct FnParam {
 pub(crate) enum FnParamCalling {
     Required,
     Default {
-        expression: ast::Expr,
+        expression: std::rc::Rc<ast::Expr>,
     },
     Vararg {
         element_ty: TypeId,
@@ -55,7 +55,7 @@ pub(crate) enum FnParamCalling {
 #[derive(Debug, Clone)]
 pub(crate) enum FnVarargOmission {
     EmptyArray,
-    Default { expression: ast::Expr },
+    Default { expression: std::rc::Rc<ast::Expr> },
 }
 
 #[derive(Clone, Default)]

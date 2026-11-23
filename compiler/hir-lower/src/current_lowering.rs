@@ -183,7 +183,7 @@ fn lower_current_export_inner<C>(
     let world = input.semantic_world();
     let mut lowerer = prepare_current_lowerer(sources, world)?;
     lowerer.cancellation = cancellation;
-    lowerer.source_names = input.source_names().clone();
+    lowerer.source_names = input.source_names().clone().into();
     lowerer.compile_time_inputs = input.compile_time_inputs().cloned();
     lowerer.test_dependencies = input.test_dependencies().clone();
     lowerer.documentation = input.documentation().map(|sources| {

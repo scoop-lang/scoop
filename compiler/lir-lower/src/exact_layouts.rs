@@ -36,12 +36,30 @@ pub fn lower_exact_layout_exports(
     if input.module().cone != output.foundation().producer() {
         return Err(ExactLayoutLoweringError::Provider);
     }
+    let mut physical_layouts = output
+        .module()
+        .meta
+        .layouts
+        .iter()
+        .map(|(id, layout)| (layout.identity.layout_record().id(), id))
+        .collect::<Vec<_>>();
+    physical_layouts.sort_unstable_by_key(|(layout, _)| *layout);
+    let mut physical_descriptors = output
+        .module()
+        .meta
+        .type_descriptors
+        .iter()
+        .map(|(id, descriptor)| (descriptor.instance_layout.layout_record().id(), id))
+        .collect::<Vec<_>>();
+    physical_descriptors.sort_unstable_by_key(|(layout, _)| *layout);
     let mut projection = Projection {
         module: input.module(),
         output,
         types,
         identities,
         dependencies,
+        physical_layouts,
+        physical_descriptors,
 
         roots: BTreeMap::new(),
         completed: BTreeMap::new(),
@@ -69,6 +87,8 @@ struct Projection<'a> {
     types: &'a mir::CanonicalParamFreeMirTypeExportsV1,
     identities: &'a ValidatedIdentityGraph,
     dependencies: &'a [&'a lir::CanonicalExactLayoutExportsV1],
+    physical_layouts: Vec<(PersistentLayoutId, lir::LayoutId)>,
+    physical_descriptors: Vec<(PersistentLayoutId, lir::TypeDescriptorId)>,
 
     roots: BTreeMap<PersistentLayoutId, LayoutKey>,
     completed: BTreeMap<PersistentLayoutId, lir::ExactLayoutExportV1>,

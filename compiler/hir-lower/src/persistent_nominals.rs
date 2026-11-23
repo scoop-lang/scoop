@@ -169,7 +169,7 @@ impl Lowerer {
             span: Span::new(0, 0),
             detail: PersistentNominalIdentityErrorDetail::MisalignedTable(error),
         })?;
-        self.nominal_identities = Some(identities);
+        self.nominal_identities = Some(identities.into());
         Ok(())
     }
 }

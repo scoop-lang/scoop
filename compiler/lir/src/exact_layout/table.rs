@@ -51,10 +51,10 @@ impl CanonicalExactLayoutExportsV1 {
                 return Err(ExactLayoutTableError::Identity(identity.layout()));
             }
 
-            if !foundation
+            if foundation
                 .scans()
-                .iter()
-                .any(|scan| scan.id() == record.scan())
+                .binary_search_by_key(&record.scan(), |scan| scan.id())
+                .is_err()
             {
                 return Err(ExactLayoutTableError::Scan(identity.layout()));
             }

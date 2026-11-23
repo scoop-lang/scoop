@@ -5,15 +5,16 @@ use crate::link_object::{
     ObjectSymbolAttributesV1, ObjectSymbolKindV1, ObservedObjectRelocationV1,
     ObservedObjectSymbolV1, ValidatedObjectEnvelopeV1,
 };
+use std::sync::Arc;
 
 #[test]
 fn distinct_referenced_tables_in_one_section_keep_their_own_bytes() {
     let (bytes, mut sections) = table();
     let mut second = sections.envelope.symbols[0].clone();
     second.table_index = 1;
-    second.name = b"second_table".to_vec();
+    second.name = b"second_table".as_slice().into();
     second.value = 12;
-    sections.envelope.symbols.push(second);
+    Arc::make_mut(&mut sections.envelope).symbols.push(second);
     let mut relocation = sections.envelope.relocations[0];
     relocation.shape = ObjectRelocationShapeV1::MachO {
         machine: scoop_lir::ObjectMachineV1::Aarch64,
@@ -22,7 +23,9 @@ fn distinct_referenced_tables_in_one_section_keep_their_own_bytes() {
             explicit_addend: None,
         },
     };
-    sections.envelope.relocations.push(relocation);
+    Arc::make_mut(&mut sections.envelope)
+        .relocations
+        .push(relocation);
     let pools = LiteralPools::read(&bytes, &sections, &[]).unwrap();
     let ordinal = NonZeroU32::new(2).unwrap();
     assert_eq!(pools.at(ordinal, 4).unwrap().bytes(), &bytes[4..12]);
@@ -45,15 +48,19 @@ fn local_table_preserves_the_complete_referenced_byte_span() {
 fn unreferenced_writable_and_relocated_data_are_not_local_tables() {
     let (bytes, sections) = table();
     let mut unreferenced = sections.clone();
-    unreferenced.envelope.relocations.clear();
+    Arc::make_mut(&mut unreferenced.envelope)
+        .relocations
+        .clear();
     let mut writable = sections.clone();
-    writable.envelope.sections[1].segment_name = b"__DATA".to_vec();
-    writable.envelope.sections[1].section_name = b"__data".to_vec();
-    writable.roles[1] = BuiltinObjectSectionRoleV1::WritableData;
+    Arc::make_mut(&mut writable.envelope).sections[1].segment_name = b"__DATA".to_vec();
+    Arc::make_mut(&mut writable.envelope).sections[1].section_name = b"__data".to_vec();
+    Arc::make_mut(&mut writable.roles)[1] = BuiltinObjectSectionRoleV1::WritableData;
     let mut relocated = sections;
     let mut relocation = relocated.envelope.relocations[0];
     relocation.containing_section_ordinal = NonZeroU32::new(2).unwrap();
-    relocated.envelope.relocations.push(relocation);
+    Arc::make_mut(&mut relocated.envelope)
+        .relocations
+        .push(relocation);
     for sections in [unreferenced, writable, relocated] {
         assert!(
             LiteralPools::read(&bytes, &sections, &[])
@@ -67,7 +74,7 @@ fn unreferenced_writable_and_relocated_data_are_not_local_tables() {
 #[test]
 fn fixed_width_literals_keep_their_element_bounds() {
     let (bytes, mut sections) = table();
-    sections.envelope.sections[1].section_name = b"__literal4".to_vec();
+    Arc::make_mut(&mut sections.envelope).sections[1].section_name = b"__literal4".to_vec();
     let pools = LiteralPools::read(&bytes, &sections, &[]).unwrap();
     let ordinal = NonZeroU32::new(2).unwrap();
     assert_eq!(pools.at(ordinal, 4).unwrap().bytes(), &[1, 2, 3, 4]);
@@ -79,7 +86,7 @@ fn fixed_width_literals_keep_their_element_bounds() {
 #[test]
 fn local_table_starts_at_its_referenced_symbol_after_other_constants() {
     let (bytes, mut sections) = table();
-    sections.envelope.symbols[0].value = 12;
+    Arc::make_mut(&mut sections.envelope).symbols[0].value = 12;
     let pools = LiteralPools::read(&bytes, &sections, &[]).unwrap();
     let ordinal = NonZeroU32::new(2).unwrap();
     assert_eq!(pools.at(ordinal, 12).unwrap().bytes(), &bytes[12..]);
@@ -113,7 +120,9 @@ fn several_table_payloads_and_their_relocations_remain_separate() {
 
     let mut relocation = sections.envelope.relocations[0];
     relocation.containing_section_ordinal = ordinal;
-    sections.envelope.relocations.push(relocation);
+    Arc::make_mut(&mut sections.envelope)
+        .relocations
+        .push(relocation);
     let pools = LiteralPools::read(&bytes, &sections, &[]).unwrap();
     assert!(pools.at(ordinal, 4).is_none());
     assert_eq!(pools.at(ordinal, 12).unwrap().bytes(), &bytes[12..]);
@@ -124,7 +133,7 @@ fn add_table(sections: &mut ValidatedBuiltinObjectSectionInventoryV1, address: u
     let mut symbol = sections.envelope.symbols[0].clone();
     symbol.table_index = index;
     symbol.value = address;
-    sections.envelope.symbols.push(symbol);
+    Arc::make_mut(&mut sections.envelope).symbols.push(symbol);
     let mut relocation = sections.envelope.relocations[0];
     relocation.shape = ObjectRelocationShapeV1::MachO {
         machine: scoop_lir::ObjectMachineV1::Aarch64,
@@ -133,7 +142,9 @@ fn add_table(sections: &mut ValidatedBuiltinObjectSectionInventoryV1, address: u
             explicit_addend: None,
         },
     };
-    sections.envelope.relocations.push(relocation);
+    Arc::make_mut(&mut sections.envelope)
+        .relocations
+        .push(relocation);
 }
 
 fn table() -> (Vec<u8>, ValidatedBuiltinObjectSectionInventoryV1) {
@@ -168,7 +179,7 @@ fn table() -> (Vec<u8>, ValidatedBuiltinObjectSectionInventoryV1) {
         sections,
         symbols: vec![ObservedObjectSymbolV1 {
             table_index: 0,
-            name: b"ltmp1".to_vec(),
+            name: b"ltmp1".as_slice().into(),
             kind: ObjectSymbolKindV1::LocalSectionDefinition,
             section_ordinal: NonZeroU32::new(2),
             value: 4,
@@ -193,11 +204,12 @@ fn table() -> (Vec<u8>, ValidatedBuiltinObjectSectionInventoryV1) {
     (
         bytes,
         ValidatedBuiltinObjectSectionInventoryV1 {
-            envelope,
+            envelope: envelope.into(),
             roles: vec![
                 BuiltinObjectSectionRoleV1::Text,
                 BuiltinObjectSectionRoleV1::ReadOnlyData,
-            ],
+            ]
+            .into(),
         },
     )
 }

@@ -71,6 +71,37 @@ fn verifies_the_complete_mixed_builtin_member_set() {
             .collect::<Vec<_>>(),
         expected_members
     );
+
+    let previous = verified.clone();
+    let changed_bytes = object_for_plan_with_deployment(
+        symbol_plan.member(scoop_member).unwrap(),
+        canonical_value,
+        &[],
+        None,
+        &[0xee, 0xff, 0xcc, 0xdd, 0, 0, 0, 0],
+    )
+    .bytes;
+    let updated = verified
+        .after_gc_compaction(
+            &symbol_plan,
+            &[ScoopLirObjectCandidateV1::new(scoop_member, &changed_bytes)],
+        )
+        .unwrap();
+    assert!(std::ptr::eq(
+        previous.member(bridge_member).unwrap().definitions(),
+        updated.member(bridge_member).unwrap().definitions(),
+    ));
+    let original = previous.member(scoop_member).unwrap().definitions();
+    let changed = updated.member(scoop_member).unwrap().definitions();
+    assert!(!std::ptr::eq(original, changed));
+    assert_eq!(
+        original.sections().envelope().content_digest(),
+        scoop_wire::sha256(&scoop_bytes)
+    );
+    assert_eq!(
+        changed.sections().envelope().content_digest(),
+        scoop_wire::sha256(&changed_bytes)
+    );
 }
 
 fn symbol_plan(

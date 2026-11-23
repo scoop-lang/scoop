@@ -108,9 +108,9 @@ impl<'input> ValidatedSingleConeBuildRequest<'input> {
         self.request.emit
     }
 
-    pub fn parse_current_sources<'request>(
-        &'request self,
-    ) -> Result<ParsedSingleConeBuildRequest<'request, 'input>, CurrentConeSourceStageError> {
+    pub fn parse_current_sources(
+        self,
+    ) -> Result<ParsedSingleConeBuildRequest<'input>, CurrentConeSourceStageError> {
         let sources = self.request.parse_sources()?;
         Ok(ParsedSingleConeBuildRequest {
             request: self,

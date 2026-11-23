@@ -15,7 +15,7 @@ pub(super) struct PendingDocumentation {
 
 impl PendingDocumentation {
     pub(super) fn prepare(
-        request: &ParsedSingleConeBuildRequest<'_, '_>,
+        request: &ParsedSingleConeBuildRequest<'_>,
         hir: &current_hir::CurrentConeHirArtifacts,
         coordinate: &ConeCoordinate,
         kind: scoop_identity::RequestedConeKind,

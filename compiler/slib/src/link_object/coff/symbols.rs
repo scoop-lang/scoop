@@ -74,7 +74,7 @@ pub(super) fn read<'data, H: CoffHeader>(
         };
         symbols.push(ObservedObjectSymbolV1 {
             table_index: u32::try_from(symbol.index().0).map_err(error)?,
-            name: symbol.name_bytes().map_err(error)?.to_vec(),
+            name: symbol.name_bytes().map_err(error)?.into(),
             kind,
             section_ordinal,
             value: u64::from(raw.value()),
@@ -87,7 +87,7 @@ pub(super) fn read<'data, H: CoffHeader>(
         while symbols.len() < end {
             symbols.push(ObservedObjectSymbolV1 {
                 table_index: u32::try_from(symbols.len()).map_err(error)?,
-                name: Vec::new(),
+                name: Default::default(),
                 kind: ObjectSymbolKindV1::FileMetadata,
                 section_ordinal: None,
                 value: 0,

@@ -1,4 +1,4 @@
-"""Native plan snapshots preserve selection, geometry, bindings and unknown fields."""
+"""Native plan snapshots preserve member selection, bindings and unknown fields."""
 
 import sys
 import tempfile
@@ -40,8 +40,16 @@ class NativePlanTests(unittest.TestCase):
             native_link_plan(PLAN),
             PLAN[PLAN.index(b"link inputs:") : PLAN.index(b"startup object references:")]
             .replace(b"ELF system imports=70\n", b"")
-            .replace(b"slice=0..4096", b"slice=0..$NATIVE_INPUT_SIZE"),
+            .replace(b"slice=0..4096", b"slice=0..$NATIVE_INPUT_SIZE")
+            .replace(b" header=8 payload=68..168", b"")
+            .replace(b" header=168 payload=228..328", b""),
         )
+
+    def test_compiler_metadata_size_does_not_change_member_selection(self):
+        changed = PLAN.replace(b"payload=68..168", b"payload=68..248").replace(
+            b"header=168 payload=228..328", b"header=248 payload=308..488"
+        )
+        self.assertEqual(native_link_plan(PLAN), native_link_plan(changed))
 
     def test_semantic_changes_fail_read_only_snapshot_comparison(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -50,7 +58,7 @@ class NativePlanTests(unittest.TestCase):
             golden.write_bytes(native_link_plan(PLAN))
             mutations = [
                 (b"selected=false", b"selected=true"),
-                (b"payload=228..328", b"payload=228..329"),
+                (b"member 1 ", b"member 2 "),
                 (b"slice=0..4096", b"slice=1..4096"),
                 (b"slice=0..4096", b"slice=0..0"),
                 (b'name="b.o"', b'name="c.o"'),

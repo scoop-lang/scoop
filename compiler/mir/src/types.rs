@@ -7,7 +7,7 @@ use std::num::NonZeroU32;
 /// runtime protocol outcomes, and coroutine synchronization words from
 /// acquiring source `Int`/`UInt` operations, boxing, or FFI behavior merely
 /// because their current physical representation is an integer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MachineScalarKind {
     EnumTag,
     InitializationOutcome,
@@ -165,7 +165,7 @@ impl MachineScalarValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Type {
     /// Compiler-owned GC values; they cannot be named by Scoop source.
     Context(ContextStorageType),

@@ -49,7 +49,7 @@ impl Lowerer {
             )
         }));
         definitions.retain(|(owner, _)| !self.value_layout_relevance.contains_key(owner));
-        let mut relevance = self.value_layout_relevance.clone();
+        let mut relevance = self.value_layout_relevance.clone().into_owned();
         relevance.extend(
             definitions
                 .iter()

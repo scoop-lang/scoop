@@ -5,13 +5,13 @@ use super::*;
 /// A dependency's own records, sharing the existing lookup storage.
 #[derive(Clone)]
 pub(super) struct IdentitySource {
-    candidates: Rc<HashMap<IdentityNode, Candidate>>,
+    candidates: Rc<CandidateMap>,
     nodes: Rc<[IdentityNode]>,
     declared: Rc<[IdentityNode]>,
 }
 
 impl IdentitySource {
-    pub(super) fn pointer(&self) -> *const HashMap<IdentityNode, Candidate> {
+    pub(super) fn pointer(&self) -> *const CandidateMap {
         Rc::as_ptr(&self.candidates)
     }
 }
@@ -25,6 +25,36 @@ impl PendingIdentityValidation {
     ) -> Result<(), IdentityValidationError> {
         self.require_registration_phase()?;
         let mut conflict = None;
+        // Most readers have only registered their own Cone before the first import.
+        // Share the dependency's compact index and overlay those local records.
+        let shared_base =
+            self.external_sources.is_empty() && self.candidates.len() < graph.candidates.len();
+        if shared_base {
+            let mut candidates = graph.candidates.as_ref().clone();
+            for (node, existing) in self.candidates.iter() {
+                #[cfg(test)]
+                {
+                    self.external_candidate_visits += 1;
+                }
+                let mut missing_key = None;
+                if !self.local_layers.contains_key(node)
+                    && let Some(source) = candidates.get(node)
+                {
+                    if !existing.matches_external(source) {
+                        conflict = Some(
+                            conflict.map_or(*node, |previous: IdentityNode| previous.min(*node)),
+                        );
+                    } else if existing.canonical_key.is_none() {
+                        missing_key.clone_from(&source.canonical_key);
+                    }
+                }
+                candidates.insert_shared(node, &self.candidates);
+                if let Some(key) = missing_key {
+                    candidates.set_key(node, key);
+                }
+            }
+            self.candidates = candidates;
+        }
         let local = IdentitySource {
             candidates: Rc::clone(&graph.candidates),
             nodes: Rc::clone(&graph.local_nodes),
@@ -34,36 +64,32 @@ impl PendingIdentityValidation {
             if !self.imported_sources.insert(source.pointer()) {
                 continue;
             }
-            for &node in source.nodes.iter().chain(source.declared.iter()) {
-                #[cfg(test)]
-                {
-                    self.external_candidate_visits += 1;
-                }
-                let source = &source.candidates[&node];
-                if let Some(candidate) = self.candidates.get_mut(&node) {
-                    if candidate.layer.is_some() {
-                        continue;
+            if !shared_base {
+                for &node in source.nodes.iter().chain(source.declared.iter()) {
+                    #[cfg(test)]
+                    {
+                        self.external_candidate_visits += 1;
                     }
-                    let matches = candidate.trusted_id.as_ref().type_id()
-                        == source.trusted_id.as_ref().type_id()
-                        && match (&candidate.canonical_key, &source.canonical_key) {
-                            (Some(existing), Some(key)) => {
-                                Arc::ptr_eq(existing, key) || existing.equals(key.as_ref())
-                            }
-                            _ => true,
-                        };
-                    if !matches {
-                        conflict = Some(
-                            conflict.map_or(node, |previous: IdentityNode| previous.min(node)),
-                        );
-                    } else if candidate.canonical_key.is_none() {
-                        candidate.canonical_key.clone_from(&source.canonical_key);
+                    let record = source
+                        .candidates
+                        .get(&node)
+                        .expect("source owns the listed identity");
+                    if let Some(candidate) = self.candidates.get(&node) {
+                        if self.local_layers.contains_key(&node) {
+                            continue;
+                        }
+                        if !candidate.matches_external(record) {
+                            conflict = Some(
+                                conflict.map_or(node, |previous: IdentityNode| previous.min(node)),
+                            );
+                        } else if candidate.canonical_key.is_none()
+                            && let Some(key) = &record.canonical_key
+                        {
+                            self.candidates.set_key(&node, Arc::clone(key));
+                        }
+                    } else {
+                        self.candidates.insert_shared(&node, &source.candidates);
                     }
-                } else {
-                    self.reserve_candidate_slot()?;
-                    let mut candidate = source.clone();
-                    candidate.layer = None;
-                    self.candidates.insert(node, candidate);
                 }
             }
             self.external_sources.push(source.clone());

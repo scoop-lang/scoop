@@ -85,14 +85,12 @@ pub(super) fn finalize(
     )
     .map_err(BuiltinObjectProductionError::InitializationFingerprints)?;
 
-    slib::collect_registration_objects_v2(
+    Ok(slib::RegistrationObjectSetV2::new(
         safepoints,
         callables,
         types,
         immortals,
         storages,
         initializations,
-        &candidates,
-    )
-    .map_err(BuiltinObjectProductionError::RegistrationObjects)
+    ))
 }

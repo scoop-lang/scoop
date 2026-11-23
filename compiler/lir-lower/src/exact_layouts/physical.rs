@@ -12,7 +12,7 @@ impl Projection<'_> {
     ) -> Result<()> {
         let id = record.identity().layout();
 
-        let actual = physical_layout(id, self.output)?;
+        let actual = self.physical_layout(id)?;
         if actual.is_some_and(|layout| layout.identity.scan_record().id() != record.scan()) {
             return Err(ExactLayoutLoweringError::PhysicalLayout(id));
         }
@@ -29,20 +29,22 @@ impl Projection<'_> {
                     self.validate_instance_layout(instance, actual)?;
                 }
 
-                let mut descriptors =
-                    self.output
-                        .module()
-                        .meta
-                        .type_descriptors
-                        .iter()
-                        .filter(|(_, descriptor)| {
-                            descriptor.instance_layout.layout_record().id() == id
-                        });
-                let (_, descriptor) = descriptors
-                    .next()
-                    .ok_or(ExactLayoutLoweringError::PhysicalDescriptor(source.exact()))?;
-                if descriptors.next().is_some()
-                    || descriptor.identity.exact_type() != source.exact()
+                let index = self
+                    .physical_descriptors
+                    .partition_point(|(layout, _)| *layout < id);
+                let Some(&(found, descriptor)) = self.physical_descriptors.get(index) else {
+                    return Err(ExactLayoutLoweringError::PhysicalDescriptor(source.exact()));
+                };
+                if found != id
+                    || self
+                        .physical_descriptors
+                        .get(index + 1)
+                        .is_some_and(|(layout, _)| *layout == id)
+                {
+                    return Err(ExactLayoutLoweringError::PhysicalDescriptor(source.exact()));
+                }
+                let descriptor = &self.output.module().meta.type_descriptors[descriptor];
+                if descriptor.identity.exact_type() != source.exact()
                     || descriptor.instance_layout.scan_record().id() != record.scan()
                     || !scan::shape_matches(instance.shape(), &descriptor.instance_shape)?
                 {
@@ -58,7 +60,8 @@ impl Projection<'_> {
         value: &lir::ExactValueLayoutV1,
     ) -> Result<()> {
         let id = value.identity().layout();
-        let actual = physical_layout(id, self.output)?
+        let actual = self
+            .physical_layout(id)?
             .ok_or(ExactLayoutLoweringError::PhysicalLayout(id))?;
         if !matches!(actual.kind, lir::LayoutKind::Plain { .. })
             || !actual.fields.is_empty()
@@ -280,19 +283,24 @@ impl Projection<'_> {
     }
 }
 
-fn physical_layout(
-    id: PersistentLayoutId,
-    output: &lir::ConeLirOutput,
-) -> Result<Option<&lir::Layout>> {
-    let mut matching = output
-        .module()
-        .meta
-        .layouts
-        .iter()
-        .filter(|(_, layout)| layout.identity.layout_record().id() == id);
-    let actual = matching.next().map(|(_, layout)| layout);
-    if matching.next().is_some() {
-        return Err(ExactLayoutLoweringError::PhysicalLayout(id));
+impl<'a> Projection<'a> {
+    fn physical_layout(&self, id: PersistentLayoutId) -> Result<Option<&'a lir::Layout>> {
+        let index = self
+            .physical_layouts
+            .partition_point(|(layout, _)| *layout < id);
+        let Some(&(found, layout)) = self.physical_layouts.get(index) else {
+            return Ok(None);
+        };
+        if found != id {
+            return Ok(None);
+        }
+        if self
+            .physical_layouts
+            .get(index + 1)
+            .is_some_and(|(layout, _)| *layout == id)
+        {
+            return Err(ExactLayoutLoweringError::PhysicalLayout(id));
+        }
+        Ok(Some(&self.output.module().meta.layouts[layout]))
     }
-    Ok(actual)
 }
