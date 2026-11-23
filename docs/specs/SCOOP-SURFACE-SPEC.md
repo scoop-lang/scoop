@@ -58,7 +58,7 @@ toLocal(context, x, y) 把窗口逻辑点转换到捕获时的局部坐标，返
 
 捕获后的仿射点坐标转换使用 Double 计算，不先把查询点降为 native scalar；远离原点的相邻点仍应保留局部间距。完整 bounds／mapRect 优先保留原生边界；若非退化的局部范围仅因大平移后的 native scalar 舍入折叠为零宽或零高，用捕获的同一仿射矩阵以 Double 求外接范围，不能因此阻止虚拟条目显露。可见交集、路径命中和绘制仍由原生形状、clip 与 viewport 决定；这不让离屏几何取得可交互区域，也不消除已捕获矩阵本身的 native scalar 精度限制。
 
-SkSL／SkRuntimeEffect 的公开接入列为后续 graphics 增强，见[SkSL 设计](../graphics/sksl/DESIGN.md)。本期先按[图像滤镜与图层规范](SCOOP-GRAPHICS-EFFECTS-SPEC.md)补齐 Skia Gaussian blur、alpha 阴影、混合与图层滤镜，供离屏和公共 UI style 消费；这批已在 macOS aarch64 实现并通过 Raster／Metal 定向验证，x86_64 的 Rosetta 补验也已通过，详见 [UI 实施记录](../ui/PROGRESS.md)。RuntimeEffect／shader 填充仍未接入，不作为基础效果前置。后续实现通过既有 Skia 后端与普通 FFI 扩展，不隐式创建时间驱动器，也不改变 Canvas 借用或第 4.1 节的按需停帧规则。
+SkSL 编译、shader 填充、图像滤镜与背景采样使用[图像滤镜与图层规范 §5](SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样)，遵守本节 Canvas 借用和 §4.1 的按需呈现。
 
 ### 2.1 绘制记录与兼容离屏图像
 
@@ -104,7 +104,7 @@ SurfaceHost.attach 成功返回 SurfaceWindow，未发布的附着失败完成�
 
 关闭覆盖 SurfaceHost 的事件处理器、内容 paint／帧完成通知和输入回调。回调内部请求关闭时先进入 Closing 并停止新工作，当前回调栈及 Canvas／frame 借用退出后才关闭 content；随后释放 renderer 和 lease。最外层 `SurfaceHost.use` 因而同时覆盖内容根、原生窗口关闭和异常退出。attach 尚未暴露给调用方的失败结果立即回滚，不等待另一个原生事件。
 
-主题绘图只消费 Canvas、几何和视觉数据，不创建 State／输入／任务；系统明暗跟随复用 window 的现有主题通知。公共 style、主题和滤镜没有独立时钟；参数动画复用 Surface Animatable，静态阴影／光晕／模糊不增加周期任务或帧需求。隐含的背景采样不属于普通内容滤镜；Backdrop blur 留待后续。
+主题绘图只消费 Canvas、几何和视觉数据，不创建 State／输入／任务；系统明暗跟随复用 window 的现有主题通知。公共 style、主题和滤镜没有独立时钟；参数动画复用 Surface Animatable，静态阴影／光晕／模糊不增加周期任务或帧需求。显式背景采样在当前合成层的绘制顺序中执行。
 
 每个 SurfaceWindow 合并重绘请求。只有 dirty 或活动动画需要新帧时才向平台请求帧机会；普通空闲保持 Wait。requestRedraw、WaitUntil 与 prePresentNotify 均不代表 vsync。
 

@@ -49,4 +49,14 @@ Canvas 根部仍只应用一次 DPI。滤镜参数保持局部逻辑单位，由
 
 所属 Cone 的 scoop.test 验证真实 RasterSurface 和 Metal 像素：透明内容的 alpha 投影、源与影的合成、滤镜顺序、零 sigma、整体 opacity／混合、边界扩展、clip 顺序、变换与一次 DPI，以及组合后关闭输入、异常层恢复和错误线程。使用带容差的像素／覆盖范围断言，不要求两个后端逐位一致，也不只检查编译成功。
 
-Backdrop blur 采样此前已绘制的背后内容，具有不同输入、可见性及缓存合同，本批不实现。SkSL、任意 RuntimeShader、自定义 Blender、高级阴影形态和外部 GPU 图像也不作为上述基础效果的前置；按实际后续需求独立扩展。
+## 5. SkSL 着色与背景采样
+
+`ShaderProgram.compile(source: String)` 在创建线程用 Skia 编译 shader 入口，失败时 GraphicsException 保留 SkSL 诊断。程序可以供多个实例复用。每次 `program.makeShader { … }` 或 `ImageFilter.runtimeShader(program, sourceChild, sampleRadius) { … }` 同步配置一份独立参数，保存不可变快照。ShaderProgram、Shader 和 ImageFilter 遵守 graphics 的 owner 线程和 close 合同。产生的对象与绘图记录持有实际原生依赖。
+
+接收者 ShaderBindings 在配置回调期间有效。setFloat／setInt 写单个标量，setFloats／setInts 按 SkSL 声明顺序写入相应数值类别的完整分量（矩阵按列，数组连续排列）。名称、标量类型、分量数与数组长度按程序反射检查。数值默认零。setColor 将 Color 作为非预乘 sRGB 输入写入单个 layout(color) 的三或四分量 uniform。setChild 绑定一个 shader 输入。每个 shader 槽需有绑定，图像滤镜中 sourceChild 由绘制目标提供，保持空出。编译入口支持 shader 类型的 child。错误的配置报告 IllegalArgumentException，回调结束后访问绑定报告状态错误。
+
+drawRect／drawOval／drawRoundRect／drawCircle／drawLine／drawPath 可在 paint 后借用可选的 shader。一次绘制使用一种着色来源，带渐变的 Paint 与显式 Shader 同用报告参数错误。SkSL 的坐标遵循当前局部变换，返回预乘 RGBA，Paint 的 alpha 参与绘制。`Image.toShader(sampling = ImageSampling.Linear)` 按图像像素坐标采样，边缘 clamp。shader 或滤镜持有的 GPU 图像沿用 Canvas 与 Image 的实际 context 相容性规则，组合只接受相容输入。
+
+runtimeShader 的 sourceChild 是隐式源图像的名称。sampleRadius 是有限非负的局部逻辑长度，覆盖程序沿任一轴偏移该输入的最大距离。saveLayer(filter = …) 以当前组的绘制结果作源。`Canvas.drawBackdrop(outline: Path, filter: ImageFilter)` 取当前合成层在该绘制点之前的像素作源，按滤镜所需邻域采样，在现有 clip 内按抗锯齿轮廓覆盖率替换背景。半透明背景只计算一次。祖先隔离图层限定背景的可见范围。绘图记录在回放时读取目标背景，含 backdrop 的记录将 canRasterizeTiles 置为 false。
+
+UI 在 SceneContext.draw 中绘制需要读取实际背景的效果，随后呈现清晰的前景内容。程序与参数可以跨帧复用，背景在实际呈现帧中采样。动画使用 Surface 现有调度。定向验证包括错误诊断、参数和输入生命周期、记录回放、半透明合成、裁剪及滚动列表上固定工具栏的背景刷新。
