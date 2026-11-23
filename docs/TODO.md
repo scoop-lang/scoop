@@ -46,10 +46,6 @@
 
   依据：原语言规范 11.4 的通用字节解码后续项；当前 [String 接口](../sysroot/lib/scoop.core/src/strings.scoop) 只有 `fromUtf8Unchecked`，调用者必须自行满足合法 UTF-8 前置条件。
 
-- [ ] **定义并实现 `CharRange`。** 明确 Unicode scalar 次序、跨代理项区间的行为、端点、step、正反向迭代与边界，再沿普通 Range/Iterator 接口实现并与 `for` 组合。不能直接把 UTF-16 code unit 或任意整数区间当作合法 Char 序列。
-
-  依据：原语言规范 11.8 明确留待后续的字符区间；当前 [ranges.scoop](../sysroot/lib/scoop.core/src/ranges.scoop) 仅有四种整数 Range，[Char](../sysroot/lib/scoop.core/src/characters.scoop) 已采用 Unicode scalar 语义。
-
 - [ ] **设计并实现 off-heap ByteBuffer 与必要的外部内存反馈。** 先确定所属普通库、容量增长、borrow/view 有效期、显式 close 和失败原子性，再用现有 FFI 与 release hook 完成资源管理。跟踪实际 native 分配与释放，向 managed GC 提供压力反馈；hook 路径只做允许的释放与扣减，不依赖及时 GC 或把 best-effort hook 当作确定性 close。
 
   依据：[从 M26 移出的事项](ROADMAP.md#从-m26-移出的后续事项) 及原运行时规范后续项。当前 sysroot 没有 ByteBuffer，runtime 没有对应外部内存反馈入口；现有 [GC/FFI 接口](../sysroot/lib/scoop.core/src/gc.scoop) 与 release hook 是可复用基础。

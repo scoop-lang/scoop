@@ -1631,9 +1631,9 @@ Managed 调用合同；NoGC 实现沿普通接口适配规则消费，不将 gen
 | `Decrement<Result : Decrement<Result>>` | `dec(): Result` | 同上 |
 | `Equals<Rhs>` | `equals(other: Rhs): Boolean` | 基本类型、String、Unit 与 Ptr<T>，见 11.11 |
 | `Compare<Rhs>` | `compareTo(other: Rhs): Long` | 八种整数、Float/Double、Char、String，同型 operand |
-| `RangeTo<Rhs, Result>` | `rangeTo(endpoint: Rhs): Result` | 八种整数，同型 endpoint；结果为对应整数 range |
+| `RangeTo<Rhs, Result>` | `rangeTo(endpoint: Rhs): Result` | 八种整数与 Char，同型 endpoint；结果为对应 range |
 | `RangeUntil<Rhs, Result>` | `rangeUntil(endpoint: Rhs): Result` | 同上 |
-| `Contains<Element>` | `contains(value: Element): Boolean` | IntRange/LongRange/UIntRange/ULongRange，对应 Int/Long/UInt/ULong |
+| `Contains<Element>` | `contains(value: Element): Boolean` | IntRange/LongRange/UIntRange/ULongRange/CharRange，对应 Int/Long/UInt/ULong/Char |
 
 Increment/Decrement 的递归上界使声明的结果符合 9.3.1 的 receiver 子类型要求；具体实现仍须返回其实际 receiver 的子类型。泛型 `T : Increment<T>` 可以对可写 T place 使用 `++`；仅持有 `Increment<T>` 视图时，写回的静态类型仍是该接口。接口不会放宽 place 可写性，也不使不可写回的结果合法。八种整数的区间结果沿用 11.8：Int8/Int16/Int 使用 IntRange，UInt8/UInt16/UInt 使用 UIntRange，Long/ULong 各使用同名 range。普通数值 `op=` 继续使用 9.3.3 的读写回退；不为值类型另外添加就地修改方法。
 
@@ -1999,7 +1999,7 @@ core整数的二元算术、逐bit运算和比较要求两个已定型operand为
 
 - 单引号字符字面量在转义后必须恰好含一个标量值，例如 `'A'`、`'雪'`、`'😀'`、`'\u{1F600}'`；空、多标量、未闭合或含物理换行的字符字面量非法。转义规则与第 6 章一致，surrogate pair 不作为两次转义合成为一个字符。
 - `Char.code: Int` 返回标量编号；普通 core extension `Int.toChar(): Char` 检查该编号属于上述域，否则抛 `IllegalArgumentException`。其他整数先显式转换为 Int；该转换仍遵守已有整数截断规则。
-- Char 声明同类型的 `operator fun equals`、`compareTo: Long`，并通过该成员显式实现 `Equals<Char>`，同时实现 `ToString` 和 `Hash`；相等与次序均按标量编号，`toString()` 编码为一个标量的 String，`hash()` 返回编号对应的 Long。没有隐式数字算术或 CharRange。
+- Char 声明同类型的 `operator fun equals`、`compareTo: Long`，并通过该成员显式实现 `Equals<Char>`，同时实现 `ToString` 和 `Hash`；相等与次序均按标量编号，`toString()` 编码为一个标量的 String，`hash()` 返回编号对应的 Long。字符区间见 11.8.1，Char 不提供隐式数字算术。
 - Char 字面量和同类型 const 引用可以用于 `const val`、默认值与递归 literal pattern；Char 普通方法调用不因此扩大既有 const-call 集合。模式覆盖遵守第 5 章的标量值有限域。
 - C ABI 使用 `uint32_t` 承载 Char，外部实现仍须保证入站值是合法标量；其余 by-value、array、aggregate、Option、boxing 与 FFI 布局沿各自既有规则。Char 的源码身份不能以同宽 UInt 代替。
 
@@ -2248,7 +2248,7 @@ while (true) {
 
 展开实际使用hygienic temporary、typed loop/interface/variant identity，不进行源码名称查找。`iterator()`若为suspend，只能在允许挂起的上下文选择，可在首轮前挂起但仍只调用一次；core `next()`固定ordinary。每轮binding都是新值，closure捕获对应轮次，不共享一个反复覆写的隐藏`var`。Array/MutableArray必须以普通public conformance实现`Iterable<T>`。
 
-integer range有四个canonical nominal type：`public final class IntRange : Iterable<Int>`、`public final class LongRange : Iterable<Long>`、`public final class UIntRange : Iterable<UInt>`与`public final class ULongRange : Iterable<ULong>`。四者是不同的nominal type，`LongRange`/`ULongRange`不是 alias。constructor与表示属性为core-internal，外部代码不能直接构造不满足step/方向不变量的实例；类型、分配、构造与成员本身仍遵守普通class规则，不是intrinsic或runtime opaque type。不提供 `CharRange`。
+integer range有四个canonical nominal type：`public final class IntRange : Iterable<Int>`、`public final class LongRange : Iterable<Long>`、`public final class UIntRange : Iterable<UInt>`与`public final class ULongRange : Iterable<ULong>`。四者是不同的nominal type，`LongRange`/`ULongRange`不是 alias。constructor与表示属性为core-internal，外部代码不能直接构造不满足step/方向不变量的实例；类型、分配、构造与成员本身仍遵守普通class规则，不是intrinsic或runtime opaque type。
 
 `Int8`/`Int16`/`Int`的四个range member返回`IntRange`，`Long`的四个成员返回`LongRange`；`UInt8`/`UInt16`/`UInt`返回`UIntRange`，`ULong`返回`ULongRange`。对这八个canonical integer owner分别令`O`为owner自己的exact type、`R`为上述结果type；每个owner必须按以下schema逐一声明四个普通、非generic、非suspend member，参数名`endpoint`属于可被named argument观察的public API：
 
@@ -2259,7 +2259,7 @@ public infix fun until(endpoint: O): R
 public infix fun downTo(endpoint: O): R
 ```
 
-每个range type `R` 都精确提供`public override operator fun iterator(): Iterator<E>`、`public infix fun step(value: E): R`与`public operator fun contains(value: E): Boolean`：`IntRange`的`E`/`R`为`Int`/`IntRange`，`LongRange`为`Long`/`LongRange`，`UIntRange`为`UInt`/`UIntRange`，`ULongRange`为`ULong`/`ULongRange`。它们都是member而非extension。range对象及其表示属性不可变；每次成功调用`rangeTo`、`rangeUntil`、`until`、`downTo`或`step`都构造fresh range对象，所以`step`结果与receiver不是同一引用。`step`结果保留first、方向与开/闭端点语义。每次`iterator()`都返回一个从first开始的全新cursor，不同cursor的进度彼此独立；cursor一旦耗尽，之后每次`next()`都返回`None`。Array/MutableArray同样以`public override operator fun iterator(): Iterator<T>`实现Iterable；internal array iterator的index固定为`Long`，`next`以显式`public override`满足slot，其effective domain仍受owner限制。
+每个整数 range type `R` 都精确提供`public override operator fun iterator(): Iterator<E>`、`public infix fun step(value: E): R`与`public operator fun contains(value: E): Boolean`：`IntRange`的`E`/`R`为`Int`/`IntRange`，`LongRange`为`Long`/`LongRange`，`UIntRange`为`UInt`/`UIntRange`，`ULongRange`为`ULong`/`ULongRange`。它们都是member而非extension。range对象及其表示属性不可变；每次成功调用`rangeTo`、`rangeUntil`、`until`、`downTo`或`step`都构造fresh range对象，所以`step`结果与receiver不是同一引用。`step`结果保留first、方向与开/闭端点语义。每次`iterator()`都返回一个从first开始的全新cursor，不同cursor的进度彼此独立；cursor一旦耗尽，之后每次`next()`都返回`None`。Array/MutableArray同样以`public override operator fun iterator(): Iterator<T>`实现Iterable；internal array iterator的index固定为`Long`，`next`以显式`public override`满足slot，其effective domain仍受owner限制。
 
 `Int8`/`Int16`的endpoint在已选core函数体内显式、无损扩展为`Int`，`UInt8`/`UInt16`同理扩展为`UInt`，所以窄range元素分别是`Int`/`UInt`。`Long`/`ULong`端点不截断且分别保留在`LongRange`/`ULongRange`中。这不建立一般隐式conversion，两个已定型且类型不同的endpoint仍不能混用。
 
@@ -2271,6 +2271,14 @@ public infix fun downTo(endpoint: O): R
 - iterator先判断下一步是否越过endpoint或发生机器溢出，再更新current；不得依赖wrapping sentinel，因而MIN/MAX端点也必须正确终止。
 
 range、iterator、`until`/`downTo`/`step`/`contains`均为普通public core声明，除9.3 operator展开和上述for协议外没有按type name识别的编译器旁路。`..`与rest pattern的消歧见4.6。
+
+#### 11.8.1 字符区间
+
+`CharRange` 是普通 `public final class`，实现 `Iterable<Char>` 和 `Contains<Char>`，构造和表示仅供 core 使用。`Char` 按 11.8 的成员签名声明 `rangeTo`、`rangeUntil`、`until` 和 `downTo`，参数为 `endpoint: Char`，结果均为 `CharRange`。前两个成员分别实现 `RangeTo<Char, CharRange>` 和 `RangeUntil<Char, CharRange>`。升降序、端点包含性、空区间及对象和游标的独立性沿用 11.8 的规则。
+
+`CharRange` 提供 `iterator(): Iterator<Char>`、`contains(value: Char): Boolean` 和 `public infix fun step(value: Int): CharRange`。步长必须为正，否则抛出 `IllegalArgumentException`。`step` 保留方向、起点及端点包含性，只替换步长。
+
+迭代和成员判断以 Unicode 标量顺序为准。U+D7FF 和 U+E000 是相邻标量，步长按合法标量位置计算。例如 `('\uD7FE'..'\uE002') step 3` 依次产生 U+D7FE 和 U+E001。`in` 只对迭代会产生的元素返回 `true`。U+0000 和 U+10FFFF 均可作为端点，迭代到达边界后正常耗尽。
 
 ### 11.9 协程原语
 

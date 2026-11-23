@@ -1,0 +1,50 @@
+private const val SURROGATE_START: Int = 0xD800
+
+private const val SURROGATE_COUNT: Int = 0x800
+
+/**
+ * An immutable range of Unicode scalar values. Iteration and step alignment skip the surrogate
+ * interval, so U+D7FF and U+E000 are adjacent.
+ */
+public class CharRange private constructor(private val indices: IntRange) :
+    Iterable<Char>,
+    Contains<Char> {
+    internal constructor(
+        first: Char,
+        endpoint: Char,
+        descending: Boolean = false,
+        inclusive: Boolean = true
+    ) : this(IntRange(first.scalarIndex(), endpoint.scalarIndex(), 1, descending, inclusive)) {}
+
+    /** Creates a fresh cursor over the range's scalar values. */
+    public override operator fun iterator(): Iterator<Char> = CharRangeIterator(indices.iterator())
+
+    /**
+     * Replaces the step in scalar positions, preserving the start, direction, and endpoint policy.
+     * Zero or negative steps throw [IllegalArgumentException].
+     */
+    public infix fun step(value: Int): CharRange = CharRange(indices step value)
+
+    /** Returns whether iteration with this range's bounds and step yields [value]. */
+    public override operator fun contains(value: Char): Boolean = value.scalarIndex() in indices
+}
+
+private class CharRangeIterator(private val indices: Iterator<Int>) : Iterator<Char> {
+    public override fun next(): Option<Char> = when (indices.next()) {
+        case Some(val index) -> Some(scalarAt(index))
+        case None -> None
+    }
+}
+
+private fun Char.scalarIndex(): Int {
+    val code = this.code
+    return if (code < SURROGATE_START) code else code - SURROGATE_COUNT
+}
+
+private fun scalarAt(index: Int): Char {
+    val code = if (index < SURROGATE_START) index else index + SURROGATE_COUNT
+    // The integer cursor only yields indices between the two valid scalar endpoints.
+    @Unsafe {
+        return code.characterUnchecked()
+    }
+}

@@ -11,4 +11,10 @@ fun main() {
         builder.append("|")
     }
     println(builder.toString())
+
+    val alphabet = StringBuilder()
+    for (letter in 'a'..'z') {
+        alphabet.append(letter)
+    }
+    println(alphabet.toString())
 }

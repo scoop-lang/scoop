@@ -15,6 +15,7 @@ Hello, Ada!
 ${name}
 scalars=2, bytes=4
 A|中|
+abcdefghijklmnopqrstuvwxyz
 ```
 
 ## 关键说明
@@ -22,6 +23,8 @@ A|中|
 只有带 f 前缀的字符串插值；普通字符串中的 `${name}` 保留原文。String 迭代产生 Unicode 标量 Char；StringBuilder 将字符和分隔符累积为新字符串。
 
 "A中" 有两个标量，UTF-8 编码有四个字节。charLength、字节数组 size 及常用索引使用 Long。用户看到的字素簇可能由多个标量组成，例如组合音标；不要把本例的标量计数概括成所有文字的显示宽度。
+
+`'a'..'z'` 产生包含两端的 `CharRange`，`for` 按 Unicode 标量顺序遍历。跨过代理项区段时，U+D7FF 的下一个元素是 U+E000。可以用 `('a'..'z') step 2` 每隔一个标量取值。
 
 ## 常见误用
 

@@ -317,9 +317,9 @@ files = [
 [[topics]]
 id = "text/strings"
 title = "插值和遍历 Unicode 文本"
-summary = "比较标量数与字节数，用 StringBuilder 累积字符。"
+summary = "比较标量数与字节数，遍历字符串和字符区间。"
 aliases = ["strings"]
-keywords = ["scoop.core", "String", "Char", "f-string", "StringBuilder", "UTF-8", "字素"]
+keywords = ["scoop.core", "String", "Char", "CharRange", "字符区间", "f-string", "StringBuilder", "UTF-8", "字素"]
 document = "topics/text/strings.md"
 requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。"]
 related = ["collections/list", "io/files"]
