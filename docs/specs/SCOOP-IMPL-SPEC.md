@@ -136,6 +136,8 @@ stage 只通过对应 IR/metadata 交换数据，不调用上游 stage 的实现
 
 driver 按最后一个实际消费者安排阶段数据的存活期：告警、测试目录及文档投影完成后释放 AST 和 HIR 查询世界；MIR 与类型桥导出完成后释放 HIR 正文；LIR 与布局导出完成后只转移后续打包需要的 MIR 规范记录；LLVM 与 generated-C 发射完成后释放 LIR 正文。产物需要的 foundation、公开 metadata 和生产记录继续保持完整，不为保留它们而延长整份上游 IR 的存活期。阶段观察、诊断与文档在各自输入释放前完成，不通过重读源码或重跑 stage 补回结果。
 
+当前 Cone 的语义导出与阶段观察完成后，driver 将不再变化的 HIR／MIR 和 LIR 接口编码为拥有型发布数据，并保存后续对象校验与 ODR 复用实际需要的依赖符号和对象摘要。随后在 LLVM 发射前释放依赖语义 reader、身份会话及导出查询数据；发布输入不通过借用选中记录而继续持有整份依赖闭包。最终 LIR foundation、对象生产记录与链接闭包仍在对象处理结束后编码，复用既有排序、指纹和归档格式，不重读依赖或重放已经完成的语义检查。
+
 ### 2.1 Parser / AST
 
 源码集合非空，文件具有唯一 `SourceIdentity { cone, logical_path }`。manifest Cone 的 logical path 为完整的标准化 Cone-relative source path；默认目录中的文件保持 `src/...`，显式源码根不截短路径或改变相同文件的身份。single-file 的原始入口文件为 `main.scoop`，由输入选择保证；2.20 的生成正文在同一 Cone 中另有按方法身份派生的逻辑来源。SourceIdentity 只组合已有 ConeIdentity 与标准化逻辑路径，不把单文件输入的选择规则施加给所有诊断／正文来源。host 路径只用于本次 I/O 与诊断。parser 只接收按语言规范 12.2.2 及本规范 2.7 选定的完整源码集合，不自行补扫目录。

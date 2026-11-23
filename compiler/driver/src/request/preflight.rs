@@ -160,7 +160,7 @@ impl SingleConeBuildRequest {
             .validate()
             .map_err(SingleConeProductionError::Validation)?;
         let parsed = ParsedSingleConeBuildRequest {
-            request: &validated,
+            request: validated,
             sources,
         };
         parsed
@@ -259,14 +259,14 @@ fn load_current_input(
     }
 }
 
-pub struct ParsedSingleConeBuildRequest<'request, 'artifact> {
-    request: &'request ValidatedSingleConeBuildRequest<'artifact>,
+pub struct ParsedSingleConeBuildRequest<'artifact> {
+    request: ValidatedSingleConeBuildRequest<'artifact>,
     sources: CurrentConeParsedSources,
 }
 
-impl<'request, 'artifact> ParsedSingleConeBuildRequest<'request, 'artifact> {
-    pub const fn request(&self) -> &'request ValidatedSingleConeBuildRequest<'artifact> {
-        self.request
+impl<'artifact> ParsedSingleConeBuildRequest<'artifact> {
+    pub const fn request(&self) -> &ValidatedSingleConeBuildRequest<'artifact> {
+        &self.request
     }
     pub const fn sources(&self) -> &CurrentConeParsedSources {
         &self.sources

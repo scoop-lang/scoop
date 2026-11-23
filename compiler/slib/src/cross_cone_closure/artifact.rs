@@ -114,6 +114,11 @@ impl ValidatedCompletedCrossConeArtifactClosure {
 }
 
 impl ValidatedCrossConeArtifactClosure {
+    /// Releases semantic readers while transferring the data used by object publication.
+    pub fn into_publication_dependencies(self) -> crate::CrossConePublicationDependencies {
+        crate::CrossConePublicationDependencies::from_links(self.links)
+    }
+
     pub const fn semantic(&self) -> &ValidatedCrossConeSemanticClosure {
         &self.semantic
     }

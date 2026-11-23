@@ -3,16 +3,16 @@ use std::path::Path;
 use scoop_identity::{ConeIdentity, NormalizedNativeSourcePath};
 use scoop_toolchain::ToolchainError;
 
-use super::{ValidatedCurrentConeInput, ValidatedSingleConeBuildRequest};
+use super::{LoadedCurrentConeInput, LoadedSingleConeBuildRequest};
 use crate::request::NativeInputOrigin;
 
 pub(super) fn compile(
-    request: &ValidatedSingleConeBuildRequest<'_>,
+    request: &LoadedSingleConeBuildRequest,
     cone: ConeIdentity,
     temporary_parent: &Path,
 ) -> Result<Vec<scoop_slib::UncompressedObjectMember>, ToolchainError> {
-    let ValidatedCurrentConeInput::Manifest { manifest } = request.current() else {
-        if let NativeInputOrigin::Objects(inputs) = &request.request.native_inputs
+    let LoadedCurrentConeInput::Manifest { manifest } = &request.current else {
+        if let NativeInputOrigin::Objects(inputs) = &request.native_inputs
             && !inputs.is_empty()
         {
             return Err(error(
@@ -22,20 +22,15 @@ pub(super) fn compile(
         }
         return Ok(Vec::new());
     };
-    let target = request.target();
+    let target = request.target.production();
     let selected =
-        scoop_toolchain::selected_native_object_sources(manifest, target, request.purpose());
-    if selected.is_empty()
-        && matches!(
-            &request.request.native_inputs,
-            NativeInputOrigin::Source { .. }
-        )
-    {
+        scoop_toolchain::selected_native_object_sources(manifest, target, request.purpose);
+    if selected.is_empty() && matches!(&request.native_inputs, NativeInputOrigin::Source { .. }) {
         return Ok(Vec::new());
     }
     let directory;
     let prepared;
-    let objects = match &request.request.native_inputs {
+    let objects = match &request.native_inputs {
         NativeInputOrigin::Objects(objects) => objects.as_slice(),
         NativeInputOrigin::Source { sysroot } => {
             let sysroot = scoop_toolchain::configured_sysroot_root(sysroot.clone())?;
@@ -47,10 +42,10 @@ pub(super) fn compile(
                 manifest,
                 target.lir_target(),
                 || Ok(target),
-                request.optimization(),
+                request.optimization,
                 &sysroot,
                 directory.path(),
-                request.purpose(),
+                request.purpose,
             )?;
             prepared.objects()
         }
@@ -87,19 +82,19 @@ fn error(code: scoop_source::DiagnosticCode, error: impl std::fmt::Display) -> T
 }
 
 pub(super) fn libraries(
-    request: &ValidatedSingleConeBuildRequest<'_>,
+    request: &LoadedSingleConeBuildRequest,
 ) -> Result<Vec<scoop_lir::CanonicalNativeLibraryRequirementV1>, ToolchainError> {
-    match request.current() {
-        ValidatedCurrentConeInput::Manifest { manifest } => manifest
+    match &request.current {
+        LoadedCurrentConeInput::Manifest { manifest } => manifest
             .parsed()
             .semantic()
             .native()
-            .library_requirements(request.target().id())
+            .library_requirements(request.target.production().id())
             .map_err(|cause| error(scoop_source::DiagnosticCode::E2017, cause)),
-        ValidatedCurrentConeInput::SingleFile { .. } => Ok(Vec::new()),
+        LoadedCurrentConeInput::SingleFile { .. } => Ok(Vec::new()),
     }
 }
 
-pub(super) fn cxx(request: &ValidatedSingleConeBuildRequest<'_>) -> bool {
-    matches!(request.current(), ValidatedCurrentConeInput::Manifest { manifest } if manifest.parsed().semantic().native().cxx(request.target().id()))
+pub(super) fn cxx(request: &LoadedSingleConeBuildRequest) -> bool {
+    matches!(&request.current, LoadedCurrentConeInput::Manifest { manifest } if manifest.parsed().semantic().native().cxx(request.target.production().id()))
 }

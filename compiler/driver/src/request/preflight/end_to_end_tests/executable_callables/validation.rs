@@ -4,6 +4,7 @@ pub(super) fn check_machine_input(request: SingleConeBuildRequest, selected_coun
     let loaded = request.load_preflight().unwrap();
     let request = loaded.validate().unwrap();
     let parsed = request.parse_current_sources().unwrap();
+    let request = parsed.request();
     let ValidatedCompilerProtocols::Imported(inputs) = request.protocols() else {
         panic!("ordinary source imports protocol declarations")
     };

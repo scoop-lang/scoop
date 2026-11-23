@@ -78,6 +78,7 @@ pub(super) fn with_pair(
     .unwrap();
     let request = loaded.validate().unwrap();
     let parsed = request.parse_current_sources().unwrap();
+    let request = parsed.request();
     let ValidatedCompilerProtocols::Imported(inputs) = request.protocols() else {
         panic!("ordinary source imports its actual language declarations")
     };

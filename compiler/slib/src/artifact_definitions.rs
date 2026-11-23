@@ -43,6 +43,10 @@ impl ArtifactDefinitionData {
         self.defined.producer()
     }
 
+    pub(crate) fn into_defined_symbols(self) -> CanonicalDefinedLinkSymbolOwnerSetV1 {
+        self.defined
+    }
+
     pub fn defined_symbols(&self) -> &CanonicalDefinedLinkSymbolOwnerSetV1 {
         &self.defined
     }

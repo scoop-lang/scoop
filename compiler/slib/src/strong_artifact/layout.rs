@@ -6,23 +6,14 @@ use crate::{
     FingerprintAvailability, LinkIdentityClosureSectionV1, ProducerRecord,
     SemanticFingerprintRecord, UncompressedObjectMember,
 };
-use scoop_hir::{
-    CoreBootstrapInterfaceSectionV1, CrossConeHirInterfaceSectionV1,
-    CrossConeTypeSemanticsSectionV1,
-};
-use scoop_lir::{
-    ConeLirFoundation, CrossConeLayoutAbiSectionV1, CrossConeLirBridgeSectionV1,
-    ValidatedLirTargetSelection,
-};
-use scoop_mir::{
-    CoreBootstrapBridgeSectionV1, CrossConeMirBridgeSectionV1, CrossConeMirTypeBridgeSectionV1,
-};
+use scoop_lir::{ConeLirFoundation, ValidatedLirTargetSelection};
 
 mod error;
 pub use error::CrossConeLayoutArtifactWriteError;
 mod sections;
-use sections::{LayoutMetadataInput, assemble_metadata};
+pub use sections::{CrossConeLayoutMetadataInputV1, PreparedCrossConeLayoutMetadataV1};
 mod odr_reuse;
+pub use odr_reuse::CrossConePublicationDependencies;
 
 /// Complete typed input for one `CrossConeLayoutStrong` archive.
 ///
@@ -32,21 +23,12 @@ pub struct CrossConeLayoutArtifactInputV1<'ir> {
     producer: ProducerRecord,
     cone: ConeRecord,
     direct_dependencies: Vec<DependencyRecord>,
-    hir_foundation: &'ir scoop_hir::CanonicalHirFoundation,
-    hir_production: &'ir CoreBootstrapInterfaceSectionV1,
-    hir_cross_cone: CrossConeHirInterfaceSectionV1,
-    hir_type_semantics: &'ir CrossConeTypeSemanticsSectionV1,
-    mir_foundation: &'ir scoop_mir::CanonicalMirFoundation,
-    mir_production: &'ir CoreBootstrapBridgeSectionV1,
-    mir_cross_cone: &'ir CrossConeMirBridgeSectionV1,
-    mir_type_bridge: &'ir CrossConeMirTypeBridgeSectionV1<'ir>,
+    metadata: PreparedCrossConeLayoutMetadataV1,
     lir_foundation: &'ir ConeLirFoundation,
-    lir_cross_cone: &'ir CrossConeLirBridgeSectionV1,
-    lir_layout_abi: &'ir CrossConeLayoutAbiSectionV1<'ir>,
     layout_code: CrossConeLayoutCodeDataV1,
     link_objects: Vec<UncompressedObjectMember>,
     test_directory: Option<crate::TestDirectory>,
-    dependencies: Option<&'ir crate::ValidatedCrossConeArtifactClosure>,
+    dependencies: Option<&'ir CrossConePublicationDependencies>,
 }
 
 impl<'ir> CrossConeLayoutArtifactInputV1<'ir> {
@@ -57,7 +39,7 @@ impl<'ir> CrossConeLayoutArtifactInputV1<'ir> {
 
     pub fn with_dependencies(
         mut self,
-        dependencies: Option<&'ir crate::ValidatedCrossConeArtifactClosure>,
+        dependencies: Option<&'ir CrossConePublicationDependencies>,
     ) -> Self {
         self.dependencies = dependencies;
         self
@@ -68,17 +50,8 @@ impl<'ir> CrossConeLayoutArtifactInputV1<'ir> {
         producer: ProducerRecord,
         cone: ConeRecord,
         direct_dependencies: Vec<DependencyRecord>,
-        hir_foundation: &'ir scoop_hir::CanonicalHirFoundation,
-        hir_production: &'ir CoreBootstrapInterfaceSectionV1,
-        hir_cross_cone: CrossConeHirInterfaceSectionV1,
-        hir_type_semantics: &'ir CrossConeTypeSemanticsSectionV1,
-        mir_foundation: &'ir scoop_mir::CanonicalMirFoundation,
-        mir_production: &'ir CoreBootstrapBridgeSectionV1,
-        mir_cross_cone: &'ir CrossConeMirBridgeSectionV1,
-        mir_type_bridge: &'ir CrossConeMirTypeBridgeSectionV1<'ir>,
+        metadata: PreparedCrossConeLayoutMetadataV1,
         lir_foundation: &'ir ConeLirFoundation,
-        lir_cross_cone: &'ir CrossConeLirBridgeSectionV1,
-        lir_layout_abi: &'ir CrossConeLayoutAbiSectionV1<'ir>,
         layout_code: CrossConeLayoutCodeDataV1,
         link_objects: Vec<UncompressedObjectMember>,
     ) -> Self {
@@ -86,17 +59,8 @@ impl<'ir> CrossConeLayoutArtifactInputV1<'ir> {
             producer,
             cone,
             direct_dependencies,
-            hir_foundation,
-            hir_production,
-            hir_cross_cone,
-            hir_type_semantics,
-            mir_foundation,
-            mir_production,
-            mir_cross_cone,
-            mir_type_bridge,
+            metadata,
             lir_foundation,
-            lir_cross_cone,
-            lir_layout_abi,
             layout_code,
             link_objects,
             test_directory: None,
@@ -120,17 +84,8 @@ impl AssembledCrossConeLayoutArtifactV1 {
             producer,
             cone,
             direct_dependencies,
-            hir_foundation,
-            hir_production,
-            hir_cross_cone,
-            hir_type_semantics,
-            mir_foundation,
-            mir_production,
-            mir_cross_cone,
-            mir_type_bridge,
+            metadata,
             lir_foundation,
-            lir_cross_cone,
-            lir_layout_abi,
             layout_code,
             mut link_objects,
             test_directory,
@@ -148,34 +103,21 @@ impl AssembledCrossConeLayoutArtifactV1 {
         let mut link_identity_closure =
             LinkIdentityClosureSectionV1::from_verified_layout_code(&code);
         if let Some(dependencies) = dependencies {
-            let removed = odr_reuse::select(
+            let removed = dependencies.select(
                 &link_objects,
                 &link_identity_closure,
                 code.production().projection().odr_members(),
-                dependencies,
             );
             link_objects.retain(|object| !removed.contains(&object.content().id()));
             link_identity_closure.remove_members(&removed);
         }
 
-        let metadata = assemble_metadata(
+        let metadata = metadata.assemble(
             identity,
-            LayoutMetadataInput {
-                hir_foundation,
-                hir_production,
-                hir_cross_cone,
-                hir_type_semantics,
-                mir_foundation,
-                mir_production,
-                mir_cross_cone,
-                mir_type_bridge,
-                lir_foundation,
-                lir_cross_cone,
-                lir_layout_abi,
-                code: &code,
-                link_identity_closure: &link_identity_closure,
-                link_support: &link_support,
-            },
+            lir_foundation,
+            &code,
+            &link_identity_closure,
+            &link_support,
             &compatibility,
             &direct_dependencies,
         )?;
