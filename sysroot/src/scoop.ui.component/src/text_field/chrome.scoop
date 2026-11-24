@@ -12,13 +12,36 @@ internal fun textFieldOptions(
     theme: Theme,
     visual: InteractionVisual
 ): SurfaceOptions {
-    val surface = input.style.options(visual)
-    if (!input.options.multiline || surface.padding != None)
-        return surface
-    val density = theme.tokens.typography.body.fontSize / 14.0
-    return surface.copy {
-        this.padding = Some(Insets(10.0 * density, 8.0 * density, 10.0 * density, 8.0 * density))
+    var surface = input.style.options(visual)
+    if (theme.tokens.textField == TextFieldTreatment.Outlined && surface.validation == None) {
+        val error = theme.tokens.palette.destructive.background
+        surface = surface
+            .copy {
+                validation = Some(
+                    OutlineStyle(
+                        error, if (visual.focusVisible || theme.preferences.highContrast)
+                            2.0
+                        else
+                            1.0,
+                        0.0, Some(error)
+                    )
+                )
+            }
     }
+    if (!input.options.multiline || surface.padding != None) return surface
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val padding = theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Plain, visual), surface).padding
+    return surface
+        .copy {
+            this.padding = Some(
+                Insets(
+                    lowerBound(10.0 * density, padding.left),
+                    lowerBound(8.0 * density, padding.top),
+                    lowerBound(10.0 * density, padding.right),
+                    lowerBound(8.0 * density, padding.bottom)
+                )
+            )
+        }
 }
 
 internal fun bareTextFieldMetrics(base: SurfaceMetrics): SurfaceMetrics {

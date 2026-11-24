@@ -10,17 +10,16 @@ public fun surfacePart(
     foreground: StateColors,
     focus: OutlineStyle,
     configure: SurfacePartBuilder.() -> Unit = {}
-): SurfacePart =
-    configureSurfacePart(
-        SurfacePart(
-            metrics = metrics,
-            fill = fill,
-            border = border,
-            foreground = foreground,
-            focus = focus
-        ),
-        configure
-    )
+): SurfacePart = configureSurfacePart(
+    SurfacePart(
+        metrics = metrics,
+        fill = fill,
+        border = border,
+        foreground = foreground,
+        focus = focus
+    ),
+    configure
+)
 
 internal fun configureSurfacePart(
     initial: SurfacePart,
@@ -39,29 +38,35 @@ public class SurfacePartBuilder internal constructor(initial: SurfacePart) {
     public var foreground: StateColors = initial.foreground
     public var focus: OutlineStyle = initial.focus
     public var shadows: Array<BoxShadow> = initial.shadows
+    public var hoverShadows: Array<BoxShadow>? = initial.hoverShadows
 
-    internal fun snapshot(): SurfacePart =
-        SurfacePart(
-            metrics = metrics,
-            fill = fill,
-            border = border,
-            foreground = foreground,
-            focus = focus,
-            shadows = shadows
-        )
+    internal fun snapshot(): SurfacePart = SurfacePart(
+        metrics = metrics,
+        fill = fill,
+        border = border,
+        foreground = foreground,
+        focus = focus,
+        shadows = shadows,
+        hoverShadows = hoverShadows
+    )
 }
 
 /** Constructs a complete description and applies configuration once. */
 public fun surfaceParts(
     plain: SurfacePart,
     action: SurfacePart,
+    outlinedAction: SurfacePart,
     elevated: SurfacePart,
     configure: SurfacePartsBuilder.() -> Unit = {}
-): SurfaceParts =
-    configureSurfaceParts(
-        SurfaceParts(plain = plain, action = action, elevated = elevated),
-        configure
-    )
+): SurfaceParts = configureSurfaceParts(
+    SurfaceParts(
+        plain = plain,
+        action = action,
+        outlinedAction = outlinedAction,
+        elevated = elevated
+    ),
+    configure
+)
 
 internal fun configureSurfaceParts(
     initial: SurfaceParts,
@@ -76,6 +81,7 @@ internal fun configureSurfaceParts(
 public class SurfacePartsBuilder internal constructor(initial: SurfaceParts) {
     public var plain: SurfacePart = initial.plain
     public var action: SurfacePart = initial.action
+    public var outlinedAction: SurfacePart = initial.outlinedAction
     public var elevated: SurfacePart = initial.elevated
 
     public fun plain(configure: SurfacePartBuilder.() -> Unit): Unit {
@@ -86,10 +92,18 @@ public class SurfacePartsBuilder internal constructor(initial: SurfaceParts) {
         action = action.copy(configure)
     }
 
+    public fun outlinedAction(configure: SurfacePartBuilder.() -> Unit): Unit {
+        outlinedAction = outlinedAction.copy(configure)
+    }
+
     public fun elevated(configure: SurfacePartBuilder.() -> Unit): Unit {
         elevated = elevated.copy(configure)
     }
 
-    internal fun snapshot(): SurfaceParts =
-        SurfaceParts(plain = plain, action = action, elevated = elevated)
+    internal fun snapshot(): SurfaceParts = SurfaceParts(
+        plain = plain,
+        action = action,
+        outlinedAction = outlinedAction,
+        elevated = elevated
+    )
 }

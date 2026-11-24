@@ -38,10 +38,13 @@ private class ActionVariantTest {
             ) {
                 val visual = InteractionVisual(focusVisible = true, invalid = true)
                 val options = actionOptions(theme, shape, variant, buttonStyle(), visual)
-                val geometry =
-                    theme.surfaceGeometry(
+                val geometry = theme
+                    .surfaceGeometry(
                         bounds,
-                        SurfaceVisual(SurfaceKind.Action, visual),
+                        SurfaceVisual(
+                            actionSurfaceKind(shape, variant, SurfaceKind.Action),
+                            visual
+                        ),
                         options
                     )
                 assertEquals(theme.tokens.validation.color, geometry.ring!!.border.color)
@@ -49,15 +52,17 @@ private class ActionVariantTest {
                     theme.tokens.validation.borderColor!!,
                     geometry.style.border!!.resolve(LayoutDirection.Ltr).left.color
                 )
-                val custom =
-                    buttonStyle {
-                        surface { style { this.border(Some(Border.all(2.0, Color.White))) } }
-                        states { focused { this.border(Some(Border.all(3.0, Color.Black))) } }
-                    }
-                val overridden =
-                    theme.surfaceGeometry(
+                val custom = buttonStyle {
+                    surface { style { this.border(Some(Border.all(2.0, Color.White))) } }
+                    states { focused { this.border(Some(Border.all(3.0, Color.Black))) } }
+                }
+                val overridden = theme
+                    .surfaceGeometry(
                         bounds,
-                        SurfaceVisual(SurfaceKind.Action, visual),
+                        SurfaceVisual(
+                            actionSurfaceKind(shape, variant, SurfaceKind.Action),
+                            visual
+                        ),
                         actionOptions(theme, shape, variant, custom, visual)
                     )
                 assertEquals(Some(Border.all(3.0, Color.Black)), overridden.style.border)
@@ -69,51 +74,51 @@ private class ActionVariantTest {
     @Test
     fun `nova dimensions and content scaling preserve explicit local options`() {
         val theme = shadcnTheme()
-        val sizes =
-            [
-                ButtonSize.Xs,
-                ButtonSize.Sm,
-                ButtonSize.Default,
-                ButtonSize.Lg,
-                ButtonSize.IconXs,
-                ButtonSize.IconSm,
-                ButtonSize.Icon,
-                ButtonSize.IconLg
-            ]
+        val sizes = [
+            ButtonSize.Xs,
+            ButtonSize.Sm,
+            ButtonSize.Default,
+            ButtonSize.Lg,
+            ButtonSize.IconXs,
+            ButtonSize.IconSm,
+            ButtonSize.Icon,
+            ButtonSize.IconLg
+        ]
         val heights = [24.0, 28.0, 32.0, 36.0, 24.0, 28.0, 32.0, 36.0]
-        for (index in 0L ..< sizes.size) {
+        for (index in 0L..<sizes.size) {
             val shape = ActionShape.Button(sizes[index])
-            val options =
-                actionOptions(
-                    theme,
-                    shape,
-                    ButtonVariant.Outline,
-                    buttonStyle(),
-                    InteractionVisual()
-                )
-            val metrics = theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Action), options)
+            val options = actionOptions(
+                theme,
+                shape,
+                ButtonVariant.Outline,
+                buttonStyle(),
+                InteractionVisual()
+            )
+            val metrics = theme.surfaceMetrics(SurfaceVisual(SurfaceKind.OutlinedAction), options)
             assertEquals(heights[index], metrics.suggestedSize.height)
-            if (index >= 4L)
-                assertEquals(heights[index], metrics.suggestedSize.width)
-            val local =
-                buttonStyle {
-                    surface {
-                        this.suggestedSize = Some(Size(80.0, 44.0))
-                        this.padding = Some(Insets.all(7.0))
-                    }
+            if (index >= 4L) assertEquals(heights[index], metrics.suggestedSize.width)
+            val local = buttonStyle {
+                surface {
+                    this.suggestedSize = Some(Size(80.0, 44.0))
+                    this.padding = Some(Insets.all(7.0))
                 }
-            val custom =
-                actionOptions(theme, shape, ButtonVariant.Outline, local, InteractionVisual())
+            }
+            val custom = actionOptions(
+                theme,
+                shape,
+                ButtonVariant.Outline,
+                local,
+                InteractionVisual()
+            )
             assertEquals(local.surface.suggestedSize, custom.suggestedSize)
             assertEquals(local.surface.padding, custom.padding)
         }
-        val appearance =
-            actionContentStyle(
-                theme.tokens.typography.action.copy { this.fontSize = 28.0 },
-                ActionShape.Button(ButtonSize.Default),
-                ButtonVariant.Link,
-                InteractionVisual(hovered = true)
-            )
+        val appearance = actionContentStyle(
+            theme.tokens.typography.action.copy { this.fontSize = 28.0 },
+            ActionShape.Button(ButtonSize.Default),
+            ButtonVariant.Link,
+            InteractionVisual(hovered = true)
+        )
         assertEquals(32.0, appearance.iconSize)
         assertEquals(12.0, appearance.spacing)
         assertTrue(appearance.underline)
@@ -130,16 +135,15 @@ private class ActionVariantTest {
         assertEquals(Color.Transparent, secondaryHover(Color.Transparent, Color.Transparent))
         val theme = shadcnTheme(ThemeMode.Dark)
         val hover = InteractionVisual(hovered = true)
-        val outlined =
-            actionOptions(
-                theme,
-                ActionShape.Badge,
-                ButtonVariant.Outline,
-                buttonStyle(),
-                InteractionVisual()
-            )
-        val outline =
-            theme.surfaceGeometry(
+        val outlined = actionOptions(
+            theme,
+            ActionShape.Badge,
+            ButtonVariant.Outline,
+            buttonStyle(),
+            InteractionVisual()
+        )
+        val outline = theme
+            .surfaceGeometry(
                 Rect(0.0, 0.0, 80.0, 20.0),
                 SurfaceVisual(SurfaceKind.Action),
                 outlined
@@ -149,10 +153,15 @@ private class ActionVariantTest {
             outline.style.border!!.resolve(LayoutDirection.Ltr).top.color
         )
         for (shape in [ActionShape.Button(ButtonSize.Default), ActionShape.Badge]) {
-            val options =
-                actionOptions(theme, shape, ButtonVariant.Destructive, buttonStyle(), hover)
-            val geometry =
-                theme.surfaceGeometry(
+            val options = actionOptions(
+                theme,
+                shape,
+                ButtonVariant.Destructive,
+                buttonStyle(),
+                hover
+            )
+            val geometry = theme
+                .surfaceGeometry(
                     Rect(0.0, 0.0, 80.0, 32.0),
                     SurfaceVisual(SurfaceKind.Action, hover),
                     options

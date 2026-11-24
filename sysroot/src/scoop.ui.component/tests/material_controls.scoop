@@ -1,0 +1,111 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class MaterialControlIntegrationTest {
+    @Test
+    fun `outlined buttons consume the dedicated theme surface in all interaction states`() {
+        val shape = ActionShape.Button(ButtonSize.Default)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            for (
+                theme in [
+                    materialTheme(mode),
+                    macosTheme(mode),
+                    fluentTheme(mode),
+                    shadcnTheme(mode)
+                ]
+            ) {
+                val kind = actionSurfaceKind(shape, ButtonVariant.Outline, SurfaceKind.Action)
+                assertEquals(SurfaceKind.OutlinedAction, kind)
+                for (
+                    state in [
+                        InteractionVisual(),
+                        InteractionVisual(hovered = true),
+                        InteractionVisual(pressed = true),
+                        InteractionVisual(focusVisible = true),
+                        InteractionVisual(enabled = false)
+                    ]
+                ) {
+                    val visual = SurfaceVisual(kind, state)
+                    val bounds = Rect(10.0, 10.0, 140.0, 40.0)
+                    val expected = theme.surfaceGeometry(bounds, visual)
+                    val options = actionOptions(
+                        theme,
+                        shape,
+                        ButtonVariant.Outline,
+                        buttonStyle(),
+                        state
+                    )
+                    val actual = theme.surfaceGeometry(bounds, visual, options)
+                    assertEquals(expected.style.background!!.color, actual.style.background!!.color)
+                    assertEquals(expected.style.border, actual.style.border)
+                    assertEquals(expected.ring, actual.ring)
+                    assertEquals(expected.style.boxShadows.size, actual.style.boxShadows.size)
+                    assertEquals(
+                        theme.surfaceTextColor(visual),
+                        actionTextColor(theme, shape, ButtonVariant.Outline, visual)
+                    )
+                }
+            }
+            val material = materialTheme(mode)
+            val geometry = material
+                .surfaceGeometry(
+                    Rect(0.0, 0.0, 100.0, 40.0),
+                    SurfaceVisual(SurfaceKind.OutlinedAction)
+                )
+            assertEquals(Color.Transparent, geometry.style.background!!.color)
+            assertEquals(1.0, geometry.style.border!!.resolve(LayoutDirection.Ltr).left.width)
+            assertEquals(CornerRadii.all(20.0), geometry.outline.radii)
+        }
+    }
+
+    @Test
+    fun `selection marker layouts reserve circular focus without enlarging the drawn marker`() {
+        val theme = materialTheme()
+        val checkbox = theme.checkboxMetrics()
+        val check = markerLayout(
+            checkbox.suggestedSize, checkbox.minimumSize,
+            Insets.all(checkbox.focusOutset), Constraints()
+        )
+        val radio = theme.radioMetrics()
+        val dot = markerLayout(
+            radio.suggestedSize, radio.minimumSize,
+            Insets.all(radio.focusOutset), Constraints()
+        )
+        assertEquals(Size(50.0, 50.0), check.metrics.size)
+        assertEquals(Size(50.0, 50.0), dot.metrics.size)
+        assertEquals(Rect(16.0, 16.0, 18.0, 18.0), check.data)
+        assertEquals(Rect(15.0, 15.0, 20.0, 20.0), dot.data)
+        val focused = InteractionVisual(focusVisible = true, hovered = true)
+        val box = theme.checkboxGeometry(check.data, CheckboxVisual(CheckMark.On, focused))
+        val circle = theme.radioGeometry(dot.data, RadioVisual(true, focused))
+        assertEquals(Rect(0.0, 0.0, 50.0, 50.0), box.ring!!.outline.bounds)
+        assertEquals(box.ring!!.outline, circle.ring!!.outline)
+        assertEquals(Circle(Point(25.0, 25.0), 20.0), circle.stateLayer!!.circle)
+        val stretch = markerLayout(
+            checkbox.suggestedSize, checkbox.minimumSize, Insets.all(checkbox.focusOutset),
+            Constraints.tight(Size(100.0, 60.0))
+        )
+        assertEquals(Rect(41.0, 21.0, 18.0, 18.0), stretch.data)
+        val explicit = markerLayout(
+            checkbox.suggestedSize,
+            checkbox.minimumSize,
+            Insets(),
+            Constraints()
+        )
+        assertEquals(Size(18.0, 18.0), explicit.metrics.size)
+        val narrow = markerLayout(
+            radio.suggestedSize, radio.minimumSize, Insets.all(1.0),
+            Constraints.tight(Size(10.0, 12.0))
+        )
+        assertEquals(Rect(1.0, 2.0, 8.0, 8.0), narrow.data)
+    }
+}

@@ -3,273 +3,178 @@ package scoop.ui.style.macos
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.surface.AnimationSpec
+import scoop.surface.Easing
 import scoop.time.Duration
 import scoop.ui.style.*
 
-/** A self-drawn compact macOS preset; native window decorations remain a window option. */
+/** Sequoia Aqua controls; palette changes never opt into Liquid Glass or native chrome. */
 public fun macosTheme(
     mode: ThemeMode = ThemeMode.Light,
+    palette: ThemePalette? = None,
     configure: ShapeThemeBuilder.() -> Unit = {}
 ): ShapeTheme {
-    val dark = mode == ThemeMode.Dark
-    val palette =
-        if (dark)
-            ThemePalette(
-                background = ColorPair(Color(0.12, 0.12, 0.13), Color(0.94, 0.94, 0.96)),
-                card = ColorPair(Color(0.23, 0.23, 0.25), Color(0.94, 0.94, 0.96)),
-                popover = ColorPair(Color(0.28, 0.28, 0.30), Color(0.94, 0.94, 0.96)),
-                primary = ColorPair(Color(0.04, 0.52, 1.0), Color.White),
-                secondary = ColorPair(Color(0.23, 0.23, 0.25), Color(0.94, 0.94, 0.96)),
-                muted = ColorPair(Color(0.12, 0.12, 0.13), Color(0.70, 0.70, 0.73)),
-                accent = ColorPair(Color(0.28, 0.28, 0.30), Color(0.94, 0.94, 0.96)),
-                destructive = ColorPair(Color(1.0, 0.42, 0.38), Color.White),
-                border = Color(0.40, 0.40, 0.43),
-                input = Color(0.40, 0.40, 0.43),
-                ring = Color(0.20, 0.60, 1.0),
-                chart =
-                    ChartPalette(
-                        Color(0.04, 0.52, 1.0),
-                        Color(1.0, 0.42, 0.38),
-                        Color(0.70, 0.70, 0.73),
-                        Color(0.20, 0.60, 1.0),
-                        Color(0.94, 0.94, 0.96)
-                    ),
-                sidebar =
-                    SidebarPalette(
-                        ColorPair(Color(0.12, 0.12, 0.13), Color(0.94, 0.94, 0.96)),
-                        ColorPair(Color(0.04, 0.52, 1.0), Color.White),
-                        ColorPair(Color(0.28, 0.28, 0.30), Color(0.94, 0.94, 0.96)),
-                        Color(0.40, 0.40, 0.43),
-                        Color(0.20, 0.60, 1.0)
-                    ),
-                disabledText = Color(0.48, 0.48, 0.51),
-                shadow = Color.Black.withAlpha(0.42)
-            )
-        else
-            ThemePalette(
-                background = ColorPair(Color(0.94, 0.94, 0.96), Color(0.12, 0.12, 0.14)),
-                card = ColorPair(Color.White, Color(0.12, 0.12, 0.14)),
-                popover = ColorPair(Color.White, Color(0.12, 0.12, 0.14)),
-                primary = ColorPair(Color(0.0, 0.48, 1.0), Color.White),
-                secondary = ColorPair(Color.White, Color(0.12, 0.12, 0.14)),
-                muted = ColorPair(Color(0.94, 0.94, 0.96), Color(0.40, 0.40, 0.43)),
-                accent = ColorPair(Color.White, Color(0.12, 0.12, 0.14)),
-                destructive = ColorPair(Color(0.82, 0.14, 0.12), Color.White),
-                border = Color(0.70, 0.70, 0.73),
-                input = Color(0.70, 0.70, 0.73),
-                ring = Color(0.0, 0.48, 1.0),
-                chart =
-                    ChartPalette(
-                        Color(0.0, 0.48, 1.0),
-                        Color(0.82, 0.14, 0.12),
-                        Color(0.40, 0.40, 0.43),
-                        Color(0.0, 0.48, 1.0),
-                        Color(0.12, 0.12, 0.14)
-                    ),
-                sidebar =
-                    SidebarPalette(
-                        ColorPair(Color(0.94, 0.94, 0.96), Color(0.12, 0.12, 0.14)),
-                        ColorPair(Color(0.0, 0.48, 1.0), Color.White),
-                        ColorPair(Color.White, Color(0.12, 0.12, 0.14)),
-                        Color(0.70, 0.70, 0.73),
-                        Color(0.0, 0.48, 1.0)
-                    ),
-                disabledText = Color(0.62, 0.62, 0.65),
-                shadow = Color.Black.withAlpha(0.18)
-            )
+    val colors = palette ?: macosPalette(mode)
     val families = [".AppleSystemUIFont", "Helvetica Neue", "sans-serif"]
-    val fonts =
-        themeTypography(
-            body =
-                textStyle {
-                    this.families = families
-                    this.fontSize = 13.0
-                    this.color = palette.background.foreground
-                },
-            caption =
-                textStyle {
-                    this.families = families
-                    this.fontSize = 11.0
-                    this.color = palette.muted.foreground
-                },
-            action =
-                textStyle {
-                    this.families = families
-                    this.fontSize = 13.0
-                    this.color = palette.background.foreground
-                    this.weight = 500
-                }
-        )
-    val effects =
-        themeEffects {
-            this.raised = [BoxShadow(Point(0.0, 1.0), 0.8, 0.8, palette.shadow)]
-            this.floating = [BoxShadow(Point(0.0, 4.0), 8.0, 8.0, palette.shadow)]
-            this.emphasis =
-                [ContentEffect.Glow(3.0, 3.0, palette.primary.background.withAlpha(0.45))]
+    val fonts = themeTypography(
+        body = textStyle {
+            this.families = families
+            this.fontSize = 13.0
+            this.lineHeight = Some(16.0 / 13.0)
+            this.color = colors.background.foreground
+        },
+        caption = textStyle {
+            this.families = families
+            this.fontSize = 11.0
+            this.lineHeight = Some(14.0 / 11.0)
+            this.color = colors.muted.foreground
+        },
+        action = textStyle {
+            this.families = families
+            this.fontSize = 13.0
+            this.lineHeight = Some(16.0 / 13.0)
+            this.color = colors.background.foreground
+            this.weight = 400
         }
-    val tokens =
-        themeTokens(
-            palette = palette,
-            typography = fonts,
-            spacing = ThemeSpacing(4.0, 8.0, 12.0),
-            corners = ThemeCorners(3.0, 6.0, 10.0),
-            validation =
-                OutlineStyle(
-                    palette.destructive.background.withAlpha(0.72),
-                    2.0,
-                    2.0,
-                    Some(palette.destructive.background)
-                )
-        ) {
-            this.mode = mode
-            motion {
-                this.hover = tween(80L)
-                this.press = tween(55L)
-                this.selection = tween(100L)
-            }
-            this.effects = effects
+    )
+    val effects = themeEffects {
+        this.raised = [
+            BoxShadow(
+                Point(0.0, 1.0), 0.5, 0.5,
+                colors.shadow.withAlpha(colors.shadow.alpha * 0.5)
+            )
+        ]
+        this.floating = [
+            BoxShadow(Point(0.0, 6.0), 10.0, 10.0, colors.shadow),
+            BoxShadow(
+                Point(0.0, 0.0), 1.0, 1.0,
+                colors.shadow.withAlpha(colors.shadow.alpha * 0.5)
+            )
+        ]
+    }
+    val tokens = themeTokens(
+        palette = colors,
+        typography = fonts,
+        spacing = ThemeSpacing(4.0, 8.0, 12.0),
+        corners = ThemeCorners(3.0, 5.0, 8.0),
+        validation = OutlineStyle(
+            colors.destructive.background.withAlpha(0.72),
+            2.0, 2.0, Some(colors.destructive.background)
+        )
+    ) {
+        this.mode = mode
+        motion {
+            this.selection = Some(
+                AnimationSpec
+                    .Tween(
+                        Duration.milliseconds(100L),
+                        Easing.cubicBezier(0.42, 0.0, 0.58, 1.0)
+                    )
+            )
         }
-    val normal =
-        StateColors(
-            palette.card.background,
-            mixThemeColor(palette.card.background, palette.primary.background, 0.08),
-            mixThemeColor(palette.card.background, palette.background.foreground, 0.12),
-            mixThemeColor(palette.card.background, palette.background.background, 0.55)
-        )
-    val accent =
-        StateColors(
-            palette.primary.background,
-            mixThemeColor(palette.primary.background, Color.White, 0.12),
-            mixThemeColor(palette.primary.background, Color.Black, 0.18),
-            mixThemeColor(palette.background.background, palette.primary.background, 0.28)
-        )
-    val edges =
-        StateColors(
-            palette.border,
-            palette.border,
-            palette.muted.foreground,
-            mixThemeColor(palette.border, palette.background.background, 0.60)
-        )
-    val text =
-        StateColors(
-            palette.background.foreground,
-            palette.background.foreground,
-            palette.background.foreground,
-            palette.disabledText
-        )
-    val onAccent =
-        StateColors(
-            palette.primary.foreground,
-            palette.primary.foreground,
-            palette.primary.foreground,
-            palette.disabledText
-        )
-    val focus = OutlineStyle(palette.ring.withAlpha(0.72), 3.0, 4.0)
-    val plain =
-        surfacePart(
-            metrics =
-                SurfaceMetrics(
-                    Size(72.0, 28.0),
-                    Size(24.0, 24.0),
-                    Insets(10.0, 4.0, 10.0, 4.0),
-                    Insets.all(0.75),
-                    CornerRadii.all(6.0),
-                    focus.outset
-                ),
-            fill = normal,
-            border = edges,
-            foreground = text,
-            focus = focus
-        ) { this.shadows = effects.raised }
-    val action =
-        surfacePart(
-            metrics =
-                SurfaceMetrics(
-                    Size(72.0, 28.0),
-                    Size(32.0, 28.0),
-                    Insets(10.0, 4.0, 10.0, 4.0),
-                    Insets.all(0.75),
-                    CornerRadii.all(6.0),
-                    focus.outset
-                ),
-            fill = accent,
-            border = accent,
-            foreground = onAccent,
-            focus = focus
-        ) { this.shadows = effects.raised }
-    val elevated =
-        surfacePart(
-            metrics =
-                SurfaceMetrics(
-                    Size(96.0, 64.0),
-                    Size(0.0, 0.0),
-                    Insets.all(12.0),
-                    Insets.all(0.75),
-                    CornerRadii.all(10.0),
-                    focus.outset
-                ),
-            fill = StateColors.solid(palette.popover.background),
-            border = edges,
-            foreground = text,
-            focus = focus
-        ) { this.shadows = effects.floating }
-    val marker =
-        markerAppearance(
-            empty = normal,
-            selected = accent,
-            border = edges,
-            selectedBorder = accent,
-            mark = onAccent,
-            focus = OutlineStyle(palette.ring.withAlpha(0.72), 2.5, 3.5)
-        )
-    val track =
-        StateColors(
-            Color.Transparent,
-            palette.muted.foreground.withAlpha(0.12),
-            palette.muted.foreground.withAlpha(0.18),
-            Color.Transparent
-        )
-    val thumb =
-        StateColors(
-            palette.muted.foreground.withAlpha(0.58),
-            palette.muted.foreground.withAlpha(0.85),
-            palette.background.foreground,
-            palette.disabledText.withAlpha(0.3)
-        )
+        this.effects = effects
+    }
+    // Window, content and control backgrounds are separate Aqua semantic roles.
+    val control = colors.secondary.background
+    val disabledFill = control.withAlpha(control.alpha * 0.5)
+    val normal = StateColors(
+        control,
+        control,
+        mixThemeColor(control, colors.background.foreground, 0.12),
+        disabledFill
+    )
+    val accent = StateColors(
+        colors.primary.background,
+        colors.primary.background,
+        mixThemeColor(colors.primary.background, Color.Black, 0.16),
+        disabledFill
+    )
+    val edges = StateColors(
+        colors.input,
+        colors.input,
+        mixThemeColor(colors.input, colors.background.foreground, 0.12),
+        colors.input.withAlpha(colors.input.alpha * 0.5)
+    )
+    val text = StateColors(
+        colors.background.foreground, colors.background.foreground,
+        colors.background.foreground, colors.disabledText
+    )
+    val onAccent = StateColors(
+        colors.primary.foreground, colors.primary.foreground,
+        colors.primary.foreground, colors.disabledText
+    )
+    // Equal width/outset keeps the focus ring against the control, without an empty moat.
+    val focus = OutlineStyle(colors.ring, 3.0, 3.0)
+    val metrics = SurfaceMetrics(
+        Size(68.0, 22.0), Size(22.0, 22.0), Insets(10.0, 2.0, 10.0, 2.0),
+        Insets.all(0.5), CornerRadii.all(5.0), focus.outset
+    )
+    val plain = surfacePart(
+        metrics = metrics, fill = normal, border = edges, foreground = text, focus = focus
+    ) { this.shadows = effects.raised }
+    val action = surfacePart(
+        metrics = metrics,
+        fill = accent,
+        border = StateColors(
+            accent.normal, accent.hovered, accent.pressed, edges.disabled
+        ),
+        foreground = onAccent,
+        focus = focus
+    ) { this.shadows = effects.raised }
+    val elevated = surfacePart(
+        metrics = SurfaceMetrics(
+            Size(96.0, 64.0), Size(0.0, 0.0), Insets.all(12.0),
+            Insets.all(0.5), CornerRadii.all(8.0), focus.outset
+        ),
+        fill = StateColors.solid(colors.popover.background),
+        border = StateColors.solid(colors.border),
+        foreground = text,
+        focus = focus
+    ) { this.shadows = effects.floating }
+    val marker = markerAppearance(
+        empty = normal,
+        selected = accent,
+        border = edges,
+        selectedBorder = StateColors(
+            accent.normal, accent.hovered, accent.pressed, edges.disabled
+        ),
+        mark = onAccent,
+        focus = focus
+    )
+    val track = StateColors.solid(colors.muted.background)
+    val thumb = StateColors(
+        colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.55),
+        colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.70),
+        colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.85),
+        colors.disabledText
+    )
     return shapeTheme(
         tokens = tokens,
-        surfaces = surfaceParts(plain = plain, action = action, elevated = elevated),
-        checkbox =
-            checkboxPart(
-                metrics =
-                    CheckboxMetrics(
-                        Size(16.0, 16.0),
-                        Size(12.0, 12.0),
-                        Insets.all(1.0),
-                        CornerRadii.all(3.0),
-                        4.0,
-                        1.7,
-                        marker.focus.outset
-                    ),
-                appearance = marker
+        surfaces = surfaceParts(
+            plain = plain,
+            action = action,
+            outlinedAction = plain,
+            elevated = elevated
+        ),
+        checkbox = checkboxPart(
+            metrics = CheckboxMetrics(
+                Size(14.0, 14.0), Size(14.0, 14.0), Insets.all(0.5),
+                CornerRadii.all(3.0), 3.0, 1.5, focus.outset
             ),
-        radio =
-            radioPart(
-                metrics =
-                    RadioMetrics(Size(16.0, 16.0), Size(12.0, 12.0), 1.0, 5.0, marker.focus.outset),
-                appearance = marker
+            appearance = marker
+        ),
+        radio = radioPart(
+            metrics = RadioMetrics(
+                Size(14.0, 14.0), Size(14.0, 14.0), 0.5, 4.5, focus.outset
             ),
-        scrollbar =
-            scrollbarPart(
-                metrics = ScrollbarMetrics(10.0, 24.0, 0.0, 2.0, 6.0, None),
-                track = track,
-                thumb = thumb,
-                button = StateColors.solid(Color.Transparent),
-                arrow = text
-            ),
+            appearance = marker
+        ),
+        scrollbar = scrollbarPart(
+            metrics = ScrollbarMetrics(15.0, 24.0, 0.0, 3.0, 6.0, None),
+            track = track,
+            thumb = thumb,
+            button = StateColors.solid(Color.Transparent),
+            arrow = text
+        ),
         configure = configure
     )
 }
-
-private fun tween(milliseconds: Long): AnimationSpec? =
-    Some(AnimationSpec.Tween(Duration.milliseconds(milliseconds)))

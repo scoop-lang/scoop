@@ -10,8 +10,8 @@ public struct SurfaceMetrics(
     val corners: CornerRadii,
     val focusOutset: Double
 ) {
-    public val contentInsets: Insets get() =
-        Insets(
+    public val contentInsets: Insets
+        get() = Insets(
             padding.left + borderInsets.left,
             padding.top + borderInsets.top,
             padding.right + borderInsets.right,
@@ -40,8 +40,8 @@ public class SurfaceGeometry public constructor(
     public val style: Style,
     public val opacity: Double = 1.0
 ) {
-    public val contentStyle: Style get() =
-        Style(
+    public val contentStyle: Style
+        get() = Style(
             corners = Corners.Physical(outline.radii),
             contentEffects = style.contentEffects,
             clipContent = style.clipContent
@@ -82,7 +82,8 @@ public class CheckboxGeometry public constructor(
     public val style: Style,
     public val markColor: Color,
     public val selection: Double,
-    public val opacity: Double = 1.0
+    public val opacity: Double = 1.0,
+    public val stateLayer: MarkerStateLayerGeometry? = None
 )
 
 public struct RadioMetrics(
@@ -116,7 +117,8 @@ public class RadioGeometry public constructor(
     public val style: Style,
     public val dotColor: Color,
     public val selection: Double,
-    public val opacity: Double = 1.0
+    public val opacity: Double = 1.0,
+    public val stateLayer: MarkerStateLayerGeometry? = None
 )
 
 public struct ScrollbarMetrics(
@@ -155,14 +157,16 @@ public class ScrollbarGeometry public constructor(
     public val visibleFraction: Double
 )
 
-/** Concrete descriptions used by the three shape-based themes, also useful for custom presets. */
+/** Concrete descriptions shared by the shape-based themes and custom presets. */
 public class SurfacePart internal constructor(
     public val metrics: SurfaceMetrics,
     public val fill: StateColors,
     public val border: StateColors,
     public val foreground: StateColors,
     public val focus: OutlineStyle,
-    public val shadows: Array<BoxShadow> = []
+    public val shadows: Array<BoxShadow> = [],
+    /** None inherits shadows; an empty array removes the hover elevation. */
+    public val hoverShadows: Array<BoxShadow>? = None
 ) {
     public fun copy(configure: SurfacePartBuilder.() -> Unit = {}): SurfacePart =
         configureSurfacePart(this, configure)
@@ -171,18 +175,25 @@ public class SurfacePart internal constructor(
 public class SurfaceParts internal constructor(
     public val plain: SurfacePart,
     public val action: SurfacePart,
+    public val outlinedAction: SurfacePart,
     public val elevated: SurfacePart
 ) {
     public fun copy(configure: SurfacePartsBuilder.() -> Unit = {}): SurfaceParts =
         configureSurfaceParts(this, configure)
 
-    public fun get(kind: SurfaceKind): SurfacePart =
-        when (kind) {
-            case Plain -> plain;
-            case Action -> action;
-            case Elevated -> elevated
-        }
+    public fun get(kind: SurfaceKind): SurfacePart = when (kind) {
+        case Plain -> plain;
+        case Action -> action;
+        case OutlinedAction -> outlinedAction;
+        case Elevated -> elevated
+    }
 }
+
+/** A circular interaction layer behind a selection marker, independent of its hit target. */
+public struct MarkerStateLayer(val size: Double, val empty: StateColors, val selected: StateColors)
+
+/** Resolved drawing data; the painter does not recalculate interaction or selection. */
+public struct MarkerStateLayerGeometry(val circle: Circle, val color: Color)
 
 public class MarkerAppearance internal constructor(
     public val empty: StateColors,
@@ -191,7 +202,8 @@ public class MarkerAppearance internal constructor(
     public val selectedBorder: StateColors,
     public val mark: StateColors,
     public val focus: OutlineStyle,
-    public val shadows: Array<BoxShadow> = []
+    public val shadows: Array<BoxShadow> = [],
+    public val stateLayer: MarkerStateLayer? = None
 ) {
     public fun copy(configure: MarkerAppearanceBuilder.() -> Unit = {}): MarkerAppearance =
         configureMarkerAppearance(this, configure)
@@ -199,7 +211,10 @@ public class MarkerAppearance internal constructor(
 
 public class CheckboxPart internal constructor(
     public val metrics: CheckboxMetrics,
-    public val appearance: MarkerAppearance
+    public val appearance: MarkerAppearance,
+    /** None keeps the same appearance for checked and mixed states. */
+    public val mixedAppearance: MarkerAppearance? = None,
+    public val mixedShape: MixedMarkShape = MixedMarkShape.Bar
 ) {
     public fun copy(configure: CheckboxPartBuilder.() -> Unit = {}): CheckboxPart =
         configureCheckboxPart(this, configure)
@@ -209,8 +224,10 @@ public class RadioPart internal constructor(
     public val metrics: RadioMetrics,
     public val appearance: MarkerAppearance
 ) {
-    public fun copy(configure: RadioPartBuilder.() -> Unit = {}): RadioPart =
-        configureRadioPart(this, configure)
+    public fun copy(configure: RadioPartBuilder.() -> Unit = {}): RadioPart = configureRadioPart(
+        this,
+        configure
+    )
 }
 
 public class ScrollbarPart internal constructor(

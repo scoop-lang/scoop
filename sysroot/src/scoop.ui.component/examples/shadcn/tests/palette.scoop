@@ -13,18 +13,17 @@ private class GalleryPaletteTest {
     fun `palette selection keeps component state and rereads current system colors on refresh`() {
         val reads = state(0)
         val accent = state(Color(0.2, 0.4, 0.8))
-        val model =
-            GalleryModel(
-                Some(
-                    {
-                        mode ->
-                        reads.value += 1
-                        macosTheme(mode).tokens.palette.copy {
-                            this.primary = ColorPair(accent.value, Color.White)
-                        }
-                    }
-                )
+        val model = GalleryModel(
+            Some(
+                { mode ->
+                    reads.value += 1
+                    macosTheme(mode)
+                        .tokens
+                        .palette
+                        .copy { this.primary = ColorPair(accent.value, Color.White) }
+                }
             )
+        )
         assertTrue(model.usesSystemColors)
         assertEquals(1, reads.value)
         assertEquals(accent.value, model.source.current.value.tokens.palette.primary.background)

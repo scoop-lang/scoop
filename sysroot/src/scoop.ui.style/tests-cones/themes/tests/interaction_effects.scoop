@@ -1,0 +1,211 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.style.*
+import scoop.ui.style.material.materialTheme
+
+@Test
+private class ThemeInteractionEffectsTest {
+    @Test
+    fun `hover elevation consumes samples and preserves copy inheritance and explicit overrides`() {
+        val theme = materialTheme()
+        val bounds = Rect(20.0, 20.0, 96.0, 40.0)
+        val visual = SurfaceVisual(
+            SurfaceKind.Action,
+            InteractionVisual(hoverProgress = Some(0.5))
+        )
+        val half = theme.surfaceGeometry(bounds, visual)
+        assertEquals(2L, half.style.boxShadows.size)
+        near(0.15, half.style.boxShadows[0L].color.alpha)
+        near(0.075, half.style.boxShadows[1L].color.alpha)
+        val pressed = theme
+            .surfaceGeometry(
+                bounds,
+                SurfaceVisual(
+                    SurfaceKind.Action,
+                    InteractionVisual(hoverProgress = Some(0.5), pressProgress = Some(0.5))
+                )
+            )
+        near(0.075, pressed.style.boxShadows[0L].color.alpha)
+        val inherited = theme
+            .copy {
+                surfaces {
+                    action {
+                        shadows = [BoxShadow(Point(0.0, 2.0), 1.0, 1.0, Color.Black.withAlpha(0.2))]
+                        hoverShadows = None
+                    }
+                }
+            }
+        val inheritedShadow = inherited.surfaceGeometry(bounds, visual).style.boxShadows
+        assertEquals(1L, inheritedShadow.size)
+        near(0.2, inheritedShadow[0L].color.alpha)
+        val cleared = inherited.copy { surfaces { action { hoverShadows = Some([]) } } }
+        val hover = SurfaceVisual(SurfaceKind.Action, InteractionVisual(hovered = true))
+        assertEquals(0L, cleared.surfaceGeometry(bounds, hover).style.boxShadows.size)
+        assertEquals(
+            1L,
+            cleared.surfaceGeometry(bounds, SurfaceVisual(SurfaceKind.Action)).style.boxShadows.size
+        )
+        assertEquals(
+            0L,
+            theme
+                .surfaceGeometry(
+                    bounds, hover,
+                    surfaceOptions { style { boxShadows([]) } }
+                )
+                .style
+                .boxShadows
+                .size
+        )
+        for (
+            preferences in [
+                ThemePreferences(highContrast = true),
+                ThemePreferences(reduceTransparency = true)
+            ]
+        ) {
+            val resolved = theme.withPreferences(preferences)
+            assertEquals(0L, resolved.surfaceGeometry(bounds, hover).style.boxShadows.size)
+            assertEquals(
+                theme.surfaceMetrics(hover).suggestedSize,
+                resolved.surfaceMetrics(hover).suggestedSize
+            )
+        }
+    }
+
+    @Test
+    fun `marker layers use external colors and sampled selection without changing marker bounds`() {
+        val base = materialTheme()
+        val palette = base
+            .tokens
+            .palette
+            .copy {
+                primary = ColorPair(Color(0.1, 0.6, 0.2), Color.White)
+                shadow = Color(0.2, 0.1, 0.3, 0.4)
+            }
+        val theme = materialTheme(palette = Some(palette))
+        val bounds = Rect(31.0, 31.0, 18.0, 18.0)
+        val hover = CheckboxVisual(CheckMark.On, InteractionVisual(hovered = true))
+        val selected = theme.checkboxGeometry(bounds, hover)
+        assertEquals(palette.primary.background.withAlpha(0.08), selected.stateLayer!!.color)
+        val partial = theme
+            .checkboxGeometry(
+                bounds,
+                CheckboxVisual(
+                    CheckMark.On,
+                    InteractionVisual(hoverProgress = Some(0.5)), selectionProgress = Some(0.5)
+                )
+            )
+        assertEquals(bounds, partial.outline.bounds)
+        assertEquals(base.checkboxMetrics(), theme.checkboxMetrics())
+        near(0.04, partial.stateLayer!!.color.alpha)
+        val expected = mixThemeColor(palette.background.foreground, palette.primary.background, 0.5)
+        near(expected.red, partial.stateLayer!!.color.red)
+        near(expected.green, partial.stateLayer!!.color.green)
+        near(expected.blue, partial.stateLayer!!.color.blue)
+        val press = theme
+            .checkboxGeometry(
+                bounds,
+                CheckboxVisual(
+                    CheckMark.On,
+                    InteractionVisual(pressed = true)
+                )
+            )
+        assertEquals(palette.background.foreground.withAlpha(0.12), press.stateLayer!!.color)
+        val unselected = theme
+            .radioGeometry(
+                Rect(30.0, 30.0, 20.0, 20.0),
+                RadioVisual(false, InteractionVisual(pressed = true))
+            )
+        assertEquals(palette.primary.background.withAlpha(0.12), unselected.stateLayer!!.color)
+        val error = theme
+            .checkboxGeometry(
+                bounds,
+                CheckboxVisual(
+                    CheckMark.Off,
+                    InteractionVisual(hovered = true, invalid = true)
+                )
+            )
+        near(palette.destructive.background.red, error.stateLayer!!.color.red)
+        near(0.08, error.stateLayer!!.color.alpha)
+        val action = theme
+            .surfaceGeometry(
+                Rect(10.0, 10.0, 96.0, 40.0),
+                SurfaceVisual(SurfaceKind.Action, InteractionVisual(hovered = true))
+            )
+        assertEquals(palette.shadow.withAlpha(0.12), action.style.boxShadows[0L].color)
+    }
+
+    @Test
+    fun `circular focus survives hidden state layers and invalid geometry is rejected locally`() {
+        val bounds = Rect(31.0, 31.0, 18.0, 18.0)
+        val hoverFocus = CheckboxVisual(
+            CheckMark.Off,
+            InteractionVisual(hovered = true, focusVisible = true)
+        )
+        val theme = materialTheme()
+        val box = theme.checkboxGeometry(bounds, hoverFocus)
+        assertEquals(Rect(15.0, 15.0, 50.0, 50.0), box.ring!!.outline.bounds)
+        assertEquals(CornerRadii.all(25.0), box.ring!!.outline.radii)
+        assertEquals(3.0, box.ring!!.border.width)
+        assertEquals(theme.tokens.palette.ring, box.ring!!.border.color)
+        assertEquals(16.0, theme.checkboxMetrics().focusOutset)
+        assertEquals(15.0, theme.radioMetrics().focusOutset)
+        val radioVisual = RadioVisual(true, InteractionVisual(hovered = true, focusVisible = true))
+        val radioBounds = Rect(30.0, 30.0, 20.0, 20.0)
+        val radio = theme.radioGeometry(radioBounds, radioVisual)
+        assertEquals(box.ring!!.outline, radio.ring!!.outline)
+        val localFocus = checkboxOptions { focus = Some(OutlineStyle(Color.Black, 1.0, 2.0)) }
+        val localRing = theme.checkboxGeometry(bounds, hoverFocus, localFocus)
+        assertEquals(Rect(18.0, 18.0, 44.0, 44.0), localRing.ring!!.outline.bounds)
+        assertEquals(CornerRadii.all(22.0), localRing.ring!!.outline.radii)
+        assertEquals(BorderEdge(1.0, Color.Black), localRing.ring!!.border)
+        val localCorners = localFocus.copy { style { corners(Corners.all(1.0)) } }
+        val custom = theme.checkboxGeometry(bounds, hoverFocus, localCorners)
+        assertEquals(custom.outline.expanded(2.0), custom.ring!!.outline)
+        assertEquals(box.stateLayer, custom.stateLayer)
+        assertEquals(11.0, theme.checkboxMetrics(localCorners).focusOutset)
+        for (
+            preferences in [
+                ThemePreferences(highContrast = true),
+                ThemePreferences(reduceTransparency = true)
+            ]
+        ) {
+            val resolved = theme.withPreferences(preferences)
+            val next = resolved.checkboxGeometry(bounds, hoverFocus)
+            assertEquals(None, next.stateLayer)
+            assertEquals(box.ring!!.outline, next.ring!!.outline)
+            assertEquals(box.outline, next.outline)
+            assertEquals(
+                theme.checkboxMetrics().focusOutset,
+                resolved.checkboxMetrics().focusOutset
+            )
+            val nextRadio = resolved.radioGeometry(radioBounds, radioVisual)
+            assertEquals(None, nextRadio.stateLayer)
+            assertEquals(radio.ring!!.outline, nextRadio.ring!!.outline)
+        }
+        val noLayer = theme.copy { checkbox { appearance { stateLayer = None } } }
+        assertEquals(None, noLayer.checkboxGeometry(bounds, hoverFocus).stateLayer)
+        assertEquals(5.0, noLayer.checkboxMetrics().focusOutset)
+        assertEquals(40.0, theme.checkbox.appearance.stateLayer!!.size)
+        for (size in [-1.0, 1.0 / 0.0]) {
+            val invalid = theme
+                .copy {
+                    checkbox {
+                        appearance {
+                            stateLayer = Some(
+                                MarkerStateLayer(
+                                    size,
+                                    StateColors.solid(Color.Transparent), StateColors
+                                        .solid(Color.Transparent)
+                                )
+                            )
+                        }
+                    }
+                }
+            assertFailsWith<IllegalArgumentException> {
+                invalid.checkboxGeometry(bounds, hoverFocus)
+            }
+        }
+    }
+}

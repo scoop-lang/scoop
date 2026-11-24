@@ -9,42 +9,35 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.ui.text.*
 
-internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope): Component(scope) {
+internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope) : Component(scope) {
     public override fun render(): View {
         val generation = probe.version.value
         val callback = probe.callbackVersion
-        val props =
-            InputProps(
-                probe.main,
-                placeholder = "Your name",
-                enabled = probe.enabled,
-                readOnly = probe.readOnly,
-                invalid = probe.invalid,
-                description = probe.description,
-                fonts =
-                    if (probe.ownedFonts)
-                        None
-                    else
-                        Some(probe.fonts),
-                focus = FocusOptions(Some(probe.focus[0L])),
-                caretBlink = Some(Duration.milliseconds(0L)),
-                paintCache = PaintCachePolicy.Tiles(64, 0),
-                onEdited =
-                    {
-                        _ ->
-                        probe.edits += 1;
-                        probe.editedVersion = callback
-                    },
-                onSubmit = { _ -> probe.submits += 1 }
-            )
+        val props = InputProps(
+            probe.main,
+            placeholder = "Your name",
+            label = "Name",
+            enabled = probe.enabled,
+            readOnly = probe.readOnly,
+            invalid = probe.invalid,
+            description = probe.description,
+            fonts = if (probe.ownedFonts) None else Some(probe.fonts),
+            focus = FocusOptions(Some(probe.focus[0L])),
+            caretBlink = Some(Duration.milliseconds(0L)),
+            paintCache = PaintCachePolicy.Tiles(64, 0),
+            onEdited = { _ ->
+                probe.edits += 1;
+                probe.editedVersion = callback
+            },
+            onSubmit = { _ -> probe.submits += 1 }
+        )
         return element(
             generation,
             { current, mount -> FieldPanel(probe, current, scope = mount) },
             [
                 component(
                     props,
-                    {
-                        current, mount ->
+                    { current, mount ->
                         probe.inputCreates += 1;
                         Input(current, scope = mount)
                     }
@@ -54,6 +47,7 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                         TextareaProps(
                             probe.secondary,
                             rows = probe.editorRows,
+                            label = "Message",
                             wrap = probe.wrap,
                             fonts = Some(probe.fonts),
                             focus = FocusOptions(Some(probe.focus[1L])),
@@ -62,8 +56,7 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                             caretBlink = Some(Duration.milliseconds(0L)),
                             paintCache = PaintCachePolicy.Tiles(64, 0)
                         ),
-                        {
-                            current, mount ->
+                        { current, mount ->
                             probe.textareaCreates += 1;
                             Textarea(current, scope = mount)
                         }
@@ -73,8 +66,10 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                 input(probe.primary) {
                     this.readOnly = true
                     this.fonts = Some(this @FieldScene.probe.fonts)
-                    this.focus =
-                        FocusOptions(Some(this @FieldScene.probe.focus[2L]), tabStop = false)
+                    this.focus = FocusOptions(
+                        Some(this @FieldScene.probe.focus[2L]),
+                        tabStop = false
+                    )
                     this.caretBlink = Some(Duration.milliseconds(0L))
                 },
                 virtualList(probe.items, ItemExtent.Fixed(48.0)) {
@@ -91,8 +86,7 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                     portal(
                         binding(
                             { probe.dialogOpen },
-                            {
-                                value ->
+                            { value ->
                                 probe.dialogOpen = value;
                                 probe.change()
                             }
@@ -103,24 +97,25 @@ internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope):
                                 input(probe.dialog) {
                                     this.placeholder = "Dialog text"
                                     this.fonts = Some(this @FieldScene.probe.fonts)
-                                    this.focus =
-                                        FocusOptions(Some(this @FieldScene.probe.focus[3L]))
+                                    this.focus = FocusOptions(
+                                        Some(this @FieldScene.probe.focus[3L])
+                                    )
                                     this.caretBlink = Some(Duration.milliseconds(0L))
                                 }
                             ]
                         )
                     ) {
-                        this.options {
-                            this.handle = Some(this @FieldScene.probe.overlay)
-                            this.mode = OverlayMode.Modal
-                            this.focus =
-                                Some(
+                        this
+                            .options {
+                                this.handle = Some(this @FieldScene.probe.overlay)
+                                this.mode = OverlayMode.Modal
+                                this.focus = Some(
                                     OverlayFocusOptions(
                                         initialFocus = Some(this @FieldScene.probe.focus[3L])
                                     )
                                 )
-                            this.dismiss = OverlayDismiss(escape = true)
-                        }
+                                this.dismiss = OverlayDismiss(escape = true)
+                            }
                     }
                 else
                     empty()
@@ -133,7 +128,7 @@ private class FieldPanel(
     private val probe: FieldProbe,
     private val props: Props<Int>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     public override fun onMount() {
         probe.scope = Some(scope)
     }
@@ -156,20 +151,23 @@ private class FieldPanel(
         probe.passes += 1
         probe.horizontal = None
         probe.vertical = None
-        context.draw {
-            paint -> paint.canvas.clear(
-                probe.source.current.value.tokens.palette.background.background
-            )
-        }
+        context
+            .draw { paint ->
+                paint
+                    .canvas
+                    .clear(
+                        probe.source.current.value.tokens.palette.background.background
+                    )
+            }
         context.children()
-        context.onFrameComplete {
-            completion -> if (completion.submission == FrameSubmission.Accepted)
-                probe.accepted += 1
-        }
+        context
+            .onFrameComplete { completion ->
+                if (completion.submission == FrameSubmission.Accepted) probe.accepted += 1
+            }
     }
 }
 
-private class ScaledField(scope: ComponentScope): Element<Unit>(scope) {
+private class ScaledField(scope: ComponentScope) : Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -195,40 +193,34 @@ internal class FieldRow(val index: Long) {
     var unmounts = 0
 }
 
-internal class FieldItems(private val probe: FieldProbe): ItemSource {
+internal class FieldItems(private val probe: FieldProbe) : ItemSource {
     public override val count: Long get() = 60L
     public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
-    public override fun indexOfKey(key: ViewKey): Long? =
-        when (key) {
-            case Number(val index) -> if (index >= 0L && index < count)
-                Some(index)
-            else
-                None
-            else -> None
-        }
-    public override fun build(index: Long): View =
-        component(
-            probe.row(index),
-            { props, mount -> FieldRowComponent(probe, props, scope = mount) }
-        )
+    public override fun indexOfKey(key: ViewKey): Long? = when (key) {
+        case Number(val index) -> if (index >= 0L && index < count) Some(index) else None
+        else -> None
+    }
+    public override fun build(index: Long): View = component(
+        probe.row(index),
+        { props, mount -> FieldRowComponent(probe, props, scope = mount) }
+    )
 }
 
 private class FieldRowComponent(
     private val probe: FieldProbe,
     private val props: Props<FieldRow>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     public override fun onMount() {
         props.value.mounts += 1
     }
     public override fun onUnmount() {
         props.value.unmounts += 1
     }
-    public override fun render(): View =
-        input(props.value.model) {
-            this.fonts = Some(this @FieldRowComponent.probe.fonts)
-            this.focus = FocusOptions(Some(this @FieldRowComponent.props.value.focus))
-            this.caretBlink = Some(Duration.milliseconds(0L))
-            this.paintCache = PaintCachePolicy.Tiles(64, 0)
-        }
+    public override fun render(): View = input(props.value.model) {
+        this.fonts = Some(this @FieldRowComponent.probe.fonts)
+        this.focus = FocusOptions(Some(this @FieldRowComponent.props.value.focus))
+        this.caretBlink = Some(Duration.milliseconds(0L))
+        this.paintCache = PaintCachePolicy.Tiles(64, 0)
+    }
 }

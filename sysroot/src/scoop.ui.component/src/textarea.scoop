@@ -36,8 +36,9 @@ public class TextareaProps public constructor(
     public val group: GroupPosition? = None,
     public val chrome: TextFieldChrome = TextFieldChrome.Framed,
     public val contextMenu: TextContextMenuOptions = TextContextMenuOptions(),
-    public val scrollbarBehavior: ScrollbarBehavior =
-        scrollbarBehavior { placement = ScrollbarPlacement.Gutter },
+    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior {
+        placement = ScrollbarPlacement.Gutter
+    },
     public val protectedText: Boolean = false,
     public val semantics: ComponentSemantics = ComponentSemantics(),
     public val acceptDrops: Boolean = true,
@@ -48,7 +49,8 @@ public class TextareaProps public constructor(
     public val inputPurpose: TextInputPurpose = TextInputPurpose.Normal,
     public val softwareKeyboard: Boolean = true,
     public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions(),
-    public val automaticTextReplacement: Boolean = false
+    public val automaticTextReplacement: Boolean = false,
+    public val label: String = ""
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -59,57 +61,57 @@ public class TextareaProps public constructor(
 public class Textarea public constructor(
     private val props: Props<TextareaProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val field = TextFieldRenderer(scope)
     public override fun render(): View = field.render(multilineInput(props.value))
 }
 
-private fun multilineInput(input: TextareaProps): TextFieldInput =
-    TextFieldInput(
-        input.state,
-        input.placeholder,
-        input.invalid,
-        input.description,
-        input.fonts,
-        input.style,
-        input.theme,
-        input.focus,
-        TextEditOptions(
-            multiline = true,
-            wrap = input.wrap,
-            readOnly = input.readOnly,
-            enabled = input.enabled,
-            tab = input.tab,
-            submit = input.submit,
-            direction = input.direction,
-            alignment = input.alignment,
-            paintCache = input.paintCache,
-            caretBlink = input.caretBlink,
-            policy = input.policy,
-            projection = input.projection,
-            copy = input.copy,
-            contextMenu = input.contextMenu,
-            protectedText = input.protectedText,
-            acceptDrops = input.acceptDrops,
-            drag = input.drag,
-            touch = input.touch,
-            touchScroll = input.touchScroll,
-            scrollPhysics = input.scrollPhysics,
-            inputPurpose = input.inputPurpose,
-            softwareKeyboard = input.softwareKeyboard,
-            primarySelection = input.primarySelection,
-            automaticTextReplacement = input.automaticTextReplacement
-        ),
-        input.rows,
-        input.scrollbars,
-        input.onEdited,
-        input.onSubmit,
-        input.labelTarget,
-        input.group,
-        input.chrome,
-        input.scrollbarBehavior,
-        input.semantics
-    )
+private fun multilineInput(input: TextareaProps): TextFieldInput = TextFieldInput(
+    input.state,
+    input.placeholder,
+    input.invalid,
+    input.description,
+    input.fonts,
+    input.style,
+    input.theme,
+    input.focus,
+    TextEditOptions(
+        multiline = true,
+        wrap = input.wrap,
+        readOnly = input.readOnly,
+        enabled = input.enabled,
+        tab = input.tab,
+        submit = input.submit,
+        direction = input.direction,
+        alignment = input.alignment,
+        paintCache = input.paintCache,
+        caretBlink = input.caretBlink,
+        policy = input.policy,
+        projection = input.projection,
+        copy = input.copy,
+        contextMenu = input.contextMenu,
+        protectedText = input.protectedText,
+        acceptDrops = input.acceptDrops,
+        drag = input.drag,
+        touch = input.touch,
+        touchScroll = input.touchScroll,
+        scrollPhysics = input.scrollPhysics,
+        inputPurpose = input.inputPurpose,
+        softwareKeyboard = input.softwareKeyboard,
+        primarySelection = input.primarySelection,
+        automaticTextReplacement = input.automaticTextReplacement
+    ),
+    input.rows,
+    input.scrollbars,
+    input.onEdited,
+    input.onSubmit,
+    input.labelTarget,
+    input.group,
+    input.chrome,
+    input.scrollbarBehavior,
+    input.semantics,
+    label = input.label
+)
 
 public fun textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): View =
     makeTextarea(state, configure)

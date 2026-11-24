@@ -9,7 +9,7 @@ public enum ThemeMode {
 }
 
 public enum SurfaceKind {
-    Plain, Action, Elevated
+    Plain, Action, OutlinedAction, Elevated
 }
 
 public enum SurfaceLayer {
@@ -18,6 +18,10 @@ public enum SurfaceLayer {
 
 public enum CheckMark {
     Off, On, Mixed
+}
+
+public enum MixedMarkShape {
+    Bar, Square
 }
 
 public enum Orientation {
@@ -48,8 +52,8 @@ public struct Insets(
 }
 
 public struct Circle(val center: Point, val radius: Double) {
-    public val bounds: Rect get() =
-        Rect(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0)
+    public val bounds: Rect
+        get() = Rect(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0)
 }
 
 public struct StrokeSegment(val start: Point, val bend: Point, val end: Point, val width: Double)
@@ -163,7 +167,8 @@ public class ThemePalette public constructor(
 public class ThemeTypography internal constructor(
     public val body: TextStyle,
     public val caption: TextStyle,
-    public val action: TextStyle
+    public val action: TextStyle,
+    public val input: TextStyle
 ) {
     public fun copy(configure: ThemeTypographyBuilder.() -> Unit = {}): ThemeTypography =
         configureThemeTypography(this, configure)
@@ -192,14 +197,19 @@ public class ThemeMotion internal constructor(
     public val press: AnimationSpec? = None,
     public val selection: AnimationSpec? = None
 ) {
-    public fun resolve(spec: AnimationSpec?): AnimationSpec? =
-        if (preference == MotionPreference.Reduced)
-            None
-        else
-            spec
+    public fun resolve(spec: AnimationSpec?): AnimationSpec? = if (preference ==
+        MotionPreference.Reduced
+    )
+        None
+    else
+        spec
 
     public fun copy(configure: ThemeMotionBuilder.() -> Unit = {}): ThemeMotion =
         configureThemeMotion(this, configure)
+}
+
+public enum TextFieldTreatment {
+    Standard, Outlined
 }
 
 public class ThemeTokens internal constructor(
@@ -211,7 +221,8 @@ public class ThemeTokens internal constructor(
     public val corners: ThemeCorners,
     public val validation: OutlineStyle,
     public val effects: ThemeEffects = themeEffects(),
-    public val disabledOpacity: Double = 1.0
+    public val disabledOpacity: Double = 1.0,
+    public val textField: TextFieldTreatment = TextFieldTreatment.Standard
 ) {
     public fun copy(configure: ThemeTokensBuilder.() -> Unit = {}): ThemeTokens =
         configureThemeTokens(this, configure)
@@ -219,15 +230,12 @@ public class ThemeTokens internal constructor(
 
 public fun mixThemeColor(from: Color, to: Color, progress: Double): Color {
     val t = themeUnit(progress)
-    if (t == 0.0)
-        return from
-    if (t == 1.0)
-        return to
+    if (t == 0.0) return from
+    if (t == 1.0) return to
     val fromWeight = from.alpha * (1.0 - t)
     val toWeight = to.alpha * t
     val alpha = fromWeight + toWeight
-    if (alpha == 0.0)
-        return Color.Transparent
+    if (alpha == 0.0) return Color.Transparent
     // Interpolate premultiplied channels so invisible RGB cannot tint the transition.
     return Color(
         (from.red * fromWeight + to.red * toWeight) / alpha,

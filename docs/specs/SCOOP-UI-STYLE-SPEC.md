@@ -95,7 +95,7 @@ StylePainter 的一个 scene／paint 回调结束前，不能重入同一 painte
 
 ## 5. 主题实现与验证
 
-三套可切换的自绘主题由独立 scoop.ui.style.macos／material／fluent 实现，同一套公共协议覆盖表面、Checkbox 标记、Radio 标记和 Scrollbar。geometry 方法不依赖 Canvas；ThemePainter 的绘图只需要 Canvas、同一几何和普通视觉数据，资源由 scope 登记的可替换缓存拥有。完整主题来源、覆盖、几何和展示验收见[主题规范](SCOOP-UI-THEME-SPEC.md)，这些能力纳入本期。
+四套可切换的自绘主题由独立 scoop.ui.style.macos／material／fluent／shadcn 实现，同一套公共协议覆盖表面、Checkbox 标记、Radio 标记和 Scrollbar。geometry 方法不依赖 Canvas；ThemePainter 的绘图只需要 Canvas、同一几何和普通视觉数据，资源由 scope 登记的可替换缓存拥有。完整主题来源、覆盖、几何和展示验收见[主题规范](SCOOP-UI-THEME-SPEC.md)，这些能力纳入本期。
 
 ### 5.1 效果验证与后续
 

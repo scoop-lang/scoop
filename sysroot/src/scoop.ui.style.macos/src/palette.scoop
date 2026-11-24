@@ -1,0 +1,51 @@
+package scoop.ui.style.macos
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+/** Stable, non-vibrant Sequoia colors; current system colors are a separate input. */
+internal fun macosPalette(mode: ThemeMode): ThemePalette {
+    val dark = mode == ThemeMode.Dark
+    val label = (if (dark) Color.White else Color.Black).withAlpha(0.85)
+    val secondaryLabel = (if (dark) Color.White else Color.Black).withAlpha(if (dark) 0.55 else 0.5)
+    val disabled = (if (dark) Color.White else Color.Black).withAlpha(0.25)
+    val background = ColorPair(macosColor(if (dark) 0x323232 else 0xececec), label)
+    val content = ColorPair(if (dark) macosColor(0x1e1e1e) else Color.White, label)
+    val control = ColorPair(if (dark) macosColor(0x626262) else Color.White, label)
+    val popover = ColorPair(macosColor(if (dark) 0x282828 else 0xf6f6f6), label)
+    val primary = ColorPair(macosColor(if (dark) 0x0a84ff else 0x007aff), Color.White)
+    val muted = ColorPair(macosColor(if (dark) 0x2b2b2b else 0xe5e5e5), secondaryLabel)
+    val accent = ColorPair(macosColor(if (dark) 0x454545 else 0xdcdcdc), label)
+    val border = (if (dark) Color.White else Color.Black).withAlpha(0.1)
+    val input = (if (dark) Color.White else Color.Black).withAlpha(if (dark) 0.12 else 0.18)
+    val focus = macosColor(if (dark) 0x1aa9ff else 0x0067f4).withAlpha(0.5)
+    return ThemePalette(
+        background = background,
+        card = content,
+        popover = popover,
+        primary = primary,
+        secondary = control,
+        muted = muted,
+        accent = accent,
+        destructive = ColorPair(macosColor(if (dark) 0xff453a else 0xff3b30), Color.White),
+        border = border,
+        input = input,
+        ring = focus,
+        chart = ChartPalette(
+            primary.background,
+            macosColor(if (dark) 0x30d158 else 0x34c759),
+            macosColor(if (dark) 0xff9f0a else 0xff9500),
+            macosColor(if (dark) 0xbf5af2 else 0xaf52de),
+            macosColor(if (dark) 0x64d2ff else 0x5ac8fa)
+        ),
+        sidebar = SidebarPalette(background, primary, accent, border, focus),
+        disabledText = disabled,
+        shadow = Color.Black.withAlpha(if (dark) 0.5 else 0.24)
+    )
+}
+
+private fun macosColor(value: Int): Color = Color(
+    (value / 65536 % 256).toDouble() / 255.0,
+    (value / 256 % 256).toDouble() / 255.0,
+    (value % 256).toDouble() / 255.0
+)

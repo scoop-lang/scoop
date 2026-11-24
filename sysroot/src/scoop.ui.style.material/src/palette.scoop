@@ -1,0 +1,62 @@
+package scoop.ui.style.material
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+/** Material Web's baseline M3 color roles, independent of the current system palette. */
+internal fun materialPalette(mode: ThemeMode): ThemePalette {
+    val dark = mode == ThemeMode.Dark
+    val surface = materialColor(if (dark) 0x141218 else 0xfef7ff)
+    val onSurface = materialColor(if (dark) 0xe6e0e9 else 0x1d1b20)
+    val low = materialColor(if (dark) 0x1d1b20 else 0xf7f2fa)
+    val container = materialColor(if (dark) 0x211f26 else 0xf3edf7)
+    val variant = materialColor(if (dark) 0x49454f else 0xe7e0ec)
+    val onVariant = materialColor(if (dark) 0xcac4d0 else 0x49454f)
+    val primary = ColorPair(
+        materialColor(if (dark) 0xd0bcff else 0x6750a4),
+        materialColor(if (dark) 0x381e72 else 0xffffff)
+    )
+    val secondary = materialColor(if (dark) 0xccc2dc else 0x625b71)
+    val tonal = ColorPair(
+        materialColor(if (dark) 0x4a4458 else 0xe8def8),
+        materialColor(if (dark) 0xe8def8 else 0x1d192b)
+    )
+    val outline = materialColor(if (dark) 0x938f99 else 0x79747e)
+    val outlineVariant = materialColor(if (dark) 0x49454f else 0xcac4d0)
+    val error = ColorPair(
+        materialColor(if (dark) 0xf2b8b5 else 0xb3261e),
+        materialColor(if (dark) 0x601410 else 0xffffff)
+    )
+    return ThemePalette(
+        background = ColorPair(surface, onSurface),
+        card = ColorPair(low, onSurface),
+        popover = ColorPair(container, onSurface),
+        primary = primary,
+        secondary = tonal,
+        muted = ColorPair(variant, onVariant),
+        accent = tonal,
+        destructive = error,
+        border = outlineVariant,
+        input = outline,
+        ring = secondary,
+        chart = ChartPalette(
+            primary.background, secondary,
+            materialColor(if (dark) 0xefb8c8 else 0x7d5260), error.background, outline
+        ),
+        sidebar = SidebarPalette(
+            ColorPair(low, onSurface),
+            primary,
+            tonal,
+            outlineVariant,
+            secondary
+        ),
+        disabledText = onSurface.withAlpha(0.38),
+        shadow = Color.Black
+    )
+}
+
+private fun materialColor(value: Int): Color = Color(
+    (value / 65536).toDouble() / 255.0,
+    ((value / 256) % 256).toDouble() / 255.0,
+    (value % 256).toDouble() / 255.0
+)

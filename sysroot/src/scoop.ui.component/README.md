@@ -168,7 +168,11 @@ fun accountField(editor: TextEditorState, accountTarget: FieldTarget): View =
 
 Checkbox 可接收 `Binding<CheckState>`（Unchecked／Checked／Indeterminate）或 `State<Boolean>.binding()`，也可用 `checkbox(initialChecked = false)` 保留自己的状态。Button.enabled 是普通 Props，可在组合组件的 render 中从同一 checked State 计算。更换外部 Binding 后交互使用新绑定；initialChecked 只决定自有状态组件首次挂载的值。
 
+Checkbox 默认 padding 取主题 small spacing 与 focusOutset 的较大值，显式 padding 仍优先。Radio indicator 同样为 focusOutset 预留空间，自定义 choice 内容也使用相同的 indicator，避免圆形焦点与相邻标签重叠。Button 的 Outline 直接采用主题 OutlinedAction 表面和标签颜色，尺寸覆盖和局部样式在此基础上解析。
+
 `input(editor) { placeholder = "名称" }` 和 `textarea(editor) { rows = 4L }` 接收调用方持有的 `scoop.ui.text.TextEditorState`。通过 editor.text／selection 读取同一模型，外部整体替换使用 replaceAll；不需要在 onEdited 中把字符串写回控件。Input 的 Enter 提交，Textarea 的普通 Enter 换行、⌘Enter 提交，Tab 默认移动焦点。只读仍可聚焦和复制，enabled=false 停用输入。
+
+字段名称用独立的 `label`：`input(editor) { label = "First name" }` 或 `textarea(editor) { label = "Message"; rows = 4L }`。placeholder 只提供输入提示。Material 的标签在空值且失焦时位于框内，聚焦或已有内容时缩小到带缺口的上边框；其他风格和 Bare 输入将标签放在框外上方。标签不会随多行内容滚动，切换风格保留编辑器。`style { label { ... } }` 覆盖标签文字；未指定语义名称或外部 Field 标签时，它同时提供可访问名称。Material 输入正文采用 16／24，浮动标签为 12／16，错误描边在聚焦前后为 1／2 宽。
 
 Input／Textarea／InputOtp 默认提供原生文本菜单。使用 `contextMenu { mode = TextContextMenuMode.StandardNative; selection = TextContextMenuSelection.Preserve }` 可选择标准菜单并保留选区外点击的选择；Disabled 关闭内建入口，PreferSystem 尽量复用可执行的系统模板。相关类型位于 `scoop.ui.text`，可选标签覆盖使用 `scoop.window.TextContextMenuLabels`。InputGroup、ButtonGroup、Command、Combobox 和 SidebarInput 透传当前配置；需要应用自定义菜单时先关闭内建入口，再使用现有菜单包装。编辑动作始终进入同一个 TextEditorState，OTP 的长度与模式限制仍然有效。
 
@@ -186,7 +190,7 @@ Input／Textarea／InputOtp 的 Props 和 builder 提供 `touch = TextTouchOptio
 
 上述 touch 配置还包含 `selectionHandles = TextSelectionHandleOptions()`，默认显示触摸选区的 caret／双端点把手，并通过已有视口做边缘滚动。可单独关闭 enabled，或设置 radius、hitRadius 与 color；关闭把手保留短按、多击和长按。把手不新增 Tab 焦点或语义节点，文本选择仍由控件的同一模型与 accessibility provider 发布。
 
-两个输入控件在有界父容器中占满宽度，可用 Frame 指定尺寸；Textarea 的 rows 决定建议高度，默认内缩按 body 字号／14 缩放为横向 10、纵向 8。description 放在边框外，invalid 使用当前主题的错误色，业务自行决定验证结果。TextFieldStyle 可覆盖表面、字体、选择及光标颜色；caretBlink 缺省跟随系统，显式 `caretBlink = Some(Duration.ZERO)` 保持光标可见；光标宽度也默认跟随根系统偏好。Textarea 的 Auto／Always 滚动条预留稳定空间，Hidden 不预留；paintCache 独立控制正文像素缓存。`tests-cones/editing` 覆盖实际控件、三套主题、模态 IME、滚动条和虚拟编辑项的保留／卸载。
+两个输入控件在有界父容器中占满宽度，可用 Frame 指定尺寸；Textarea 的 rows 决定建议高度，默认内缩逐边取主题 Plain 内缩与按 body 字号／14 缩放的横向 10、纵向 8 的较大值。description 放在边框外，invalid 使用当前主题的错误色，业务自行决定验证结果。TextFieldStyle 可覆盖表面、字体、选择及光标颜色；caretBlink 缺省跟随系统，显式 `caretBlink = Some(Duration.ZERO)` 保持光标可见；光标宽度也默认跟随根系统偏好。Textarea 的 Auto／Always 滚动条预留稳定空间，Hidden 不预留；paintCache 独立控制正文像素缓存。`tests-cones/editing` 覆盖实际控件、三套主题、模态 IME、滚动条和虚拟编辑项的保留／卸载。
 
 `inputGroup { input(editor); addon { text("https://") }; addon(InputGroupAlign.InlineEnd) { button("打开", onOpen) } }` 使用一个外框和一个实际编辑宿主。必须且只能提供一个 input／textarea／control；addon 支持 InlineStart／InlineEnd／BlockStart／BlockEnd 和自定义 View，button 默认 Ghost／Xs。点击 addon 空白或文字请求输入焦点，内部按钮独立激活和参与 Tab。相同 key 的 addon 换位置保留实例，根 fonts／theme 为未明确配置的内置内容提供默认值。
 

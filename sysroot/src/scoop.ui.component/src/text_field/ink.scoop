@@ -7,15 +7,15 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
 import scoop.window.*
-import scoop.window.accessibility.SemanticRole
+import scoop.window.accessibility.*
 
 internal class TextFieldInk(
     internal val props: Props<TextFieldInkProps>,
     scope: ComponentScope
-): Element<TextFieldDrawing>(scope) {
+) : Element<TextFieldDrawing>(scope) {
     internal val fonts: FontCollection get() = props.value.fonts
-    internal val host =
-        scope.resource {
+    internal val host = scope
+        .resource {
             val value = props.value
             TextEditHost(
                 scope,
@@ -26,72 +26,70 @@ internal class TextFieldInk(
             )
         }
     internal val lineHeight = TextFieldLineHeight()
+    internal val labelHeight = TextFieldLineHeight()
     private val semantics = createComponentSemantics(scope, SemanticRole.TextField)
     private val padding = scope.createArea()
-    private val paddingPress =
-        scope.press(padding, PressOptions(props.value.input.options.enabled)) {
+    private val paddingPress = scope
+        .press(padding, PressOptions(props.value.input.options.enabled)) {
             host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)
         }
-    private val field =
-        scope.resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
-    internal val scrollbarFeedback =
-        scope.resource {
+    private val field = scope
+        .resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
+    internal val scrollbarFeedback = scope
+        .resource {
             ScrollbarFeedback(scope, { scrollbarProps() }, host.area) { feedbackChanged() }
         }
-    private val horizontal =
-        ScrollBarControl(
-            scope,
-            { scrollbarProps() },
-            host.area,
-            Orientation.Horizontal,
-            scrollbarFeedback,
-            semantics
-        ) { handle, orientation -> updateBar(handle, orientation) }
-    private val vertical =
-        ScrollBarControl(
-            scope,
-            { scrollbarProps() },
-            host.area,
-            Orientation.Vertical,
-            scrollbarFeedback,
-            semantics
-        ) { handle, orientation -> updateBar(handle, orientation) }
+    private val horizontal = ScrollBarControl(
+        scope,
+        { scrollbarProps() },
+        host.area,
+        Orientation.Horizontal,
+        scrollbarFeedback,
+        semantics
+    ) { handle, orientation -> updateBar(handle, orientation) }
+    private val vertical = ScrollBarControl(
+        scope,
+        { scrollbarProps() },
+        host.area,
+        Orientation.Vertical,
+        scrollbarFeedback,
+        semantics
+    ) { handle, orientation -> updateBar(handle, orientation) }
     private val painters = scope.resource { ThemePainterCache() }
     private val content = scope.resource { StylePainter() }
 
     private fun updateBar(handle: SemanticsHandle, orientation: Orientation) {
         val value = scrollbarProps()
-        handle.updateScrollBar(
-            host,
-            scrollSemanticOrientation(orientation),
-            value.lineStep,
-            scrollBarProperties(value, orientation)
-        )
+        handle
+            .updateScrollBar(
+                host,
+                scrollSemanticOrientation(orientation),
+                value.lineStep,
+                scrollBarProperties(value, orientation)
+            )
     }
 
     init {
         scope.routeChildren(host.area)
         scope.routeSemanticsChildren(semantics)
         padding.scope.parent = Some(host.area.scope)
-        padding.scope.defaultAction =
-            {
-                context,
-                event -> when (event) {
-                    case Pointer(
-                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
-                    ) -> {
-                        host.focus.handle.requestFocus(FocusOrigin.Pointer)
-                        context.consume()
-                    }
-                    else -> {}
+        padding.scope.defaultAction = { context, event ->
+            when (event) {
+                case Pointer(
+                    InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                ) -> {
+                    host.focus.handle.requestFocus(FocusOrigin.Pointer)
+                    context.consume()
                 }
+
+                else -> {}
             }
+        }
     }
     private fun feedbackChanged() {
         horizontal.feedbackChanged()
         vertical.feedbackChanged()
-        if (scope.isMounted)
-            scope.requestFrame()
+        if (scope.isMounted) scope.requestFrame()
     }
     private fun appearance(): TextEditAppearance {
         val value = props.value
@@ -101,10 +99,7 @@ internal class TextFieldInk(
         val value = props.value
         return ScrollControlProps(
             host.scroll,
-            if (value.input.options.wrap)
-                ScrollAxes.Vertical
-            else
-                ScrollAxes.Both,
+            if (value.input.options.wrap) ScrollAxes.Vertical else ScrollAxes.Both,
             value.text.fontSize,
             ScrollChain.Chain,
             value.input.scrollbars,
@@ -117,20 +112,25 @@ internal class TextFieldInk(
         )
     }
     public override fun update(): UiInvalidation {
-        paddingPress.update(PressOptions(props.value.input.options.enabled)) {
-            host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)
-        }
+        paddingPress
+            .update(PressOptions(props.value.input.options.enabled)) {
+                host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)
+            }
         val value = props.value
         val input = value.input
-        host.update(
-            input.state,
-            appearance(),
-            input.options,
-            input.focus,
-            input.placeholder,
-            input.onEdited,
-            input.onSubmit
-        )
+        host
+            .update(
+                input.state,
+                appearance(),
+                input.options,
+                input.focus,
+                if (value.label?.position == Some(FieldLabelPosition.Inline))
+                    ""
+                else
+                    input.placeholder,
+                input.onEdited,
+                input.onSubmit
+            )
         field.update(input.labelTarget, input.options.enabled)
         updateSemantics()
         padding.scope.enabled = input.options.enabled
@@ -142,31 +142,36 @@ internal class TextFieldInk(
     }
     private fun updateSemantics() {
         val handle = semantics ?: return
-        if (handle.isClosed)
-            return
+        if (handle.isClosed) return
         val input = props.value.input
-        val description =
-            if (input.description.byteLength == 0L)
-                None
-            else
-                Some(input.description)
+        val description = if (input.description.byteLength == 0L) None else Some(input.description)
         handle.bindReference(input.semantics.reference)
-        handle.updateTextEditor(
-            host,
-            input.semantics.properties(
-                description = description,
-                required = field.isRequired(handle),
-                invalid = input.invalid,
-                expanded = input.expansion?.expanded,
-                error =
-                    if (input.invalid)
-                        description
-                    else
-                        None
-            ),
-            field.relations(handle, input.semantics.relations),
-            input.expansion?.setExpanded
-        )
+        val relations = field.relations(handle, input.semantics.relations)
+        handle
+            .updateTextEditor(
+                host,
+                input
+                    .semantics
+                    .properties(
+                        description = description,
+                        required = field.isRequired(handle),
+                        invalid = input.invalid,
+                        expanded = input.expansion?.expanded,
+                        error = if (input.invalid) description else None
+                    )
+                    .copy {
+                        if (name ==
+                            None &&
+                            relations.labelledBy.size ==
+                            0L &&
+                            input.label.byteLength >
+                            0L
+                        )
+                            name = Some(input.label)
+                    },
+                relations,
+                input.expansion?.setExpanded
+            )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         TextFieldDrawing
@@ -179,48 +184,69 @@ internal class TextFieldInk(
             case None -> {}
         }
         val painter = painters.get(value.theme)
-        if (geometry.opacity < 1.0)
-            context.saveLayer(geometry.opacity)
+        if (geometry.opacity < 1.0) context.saveLayer(geometry.opacity)
         if (value.input.chrome == TextFieldChrome.Framed)
-            context.draw {
-                paint -> painter.drawSurface(
-                    paint.canvas,
-                    geometry,
-                    value.visual,
-                    SurfaceLayer.Background
-                )
-            }
-        context.place(padding, geometry.bounds)
-        content.scene(context, geometry.bounds, geometry.contentStyle) {
-            local ->
-            local.translate(geometry.content.x, geometry.content.y)
-            local.save()
-            try {
-                local.translate(current.viewport.x, current.viewport.y)
-                host.scene(local, current.editor)
-            } finally {
-                local.restore()
-            }
-            scrollbarFeedback.scene(
-                local,
-                Rect(0.0, 0.0, geometry.content.width, geometry.content.height),
-                current.horizontal,
-                current.vertical
+            context
+                .draw { paint ->
+                    painter
+                        .drawSurface(
+                            paint.canvas,
+                            geometry,
+                            value.visual,
+                            SurfaceLayer.Background
+                        )
+                }
+        context
+            .place(
+                padding,
+                if (!panelPresent(value.label))
+                    geometry.bounds
+                else
+                    Rect(
+                        geometry.bounds.x, 0.0, geometry.bounds.width,
+                        geometry.bounds.y + geometry.bounds.height
+                    )
             )
-            horizontal.scene(local, current.editor.scrollSnapshot, current.horizontal, painter)
-            vertical.scene(local, current.editor.scrollSnapshot, current.vertical, painter)
-        }
-        if (value.input.chrome == TextFieldChrome.Framed)
-            context.draw {
-                paint -> painter.drawSurface(
-                    paint.canvas,
-                    geometry,
-                    value.visual,
-                    SurfaceLayer.Foreground
-                )
+        content
+            .scene(context, geometry.bounds, geometry.contentStyle) { local ->
+                local.translate(geometry.content.x, geometry.content.y)
+                local.save()
+                try {
+                    local.translate(current.viewport.x, current.viewport.y)
+                    host.scene(local, current.editor)
+                } finally {
+                    local.restore()
+                }
+                scrollbarFeedback
+                    .scene(
+                        local,
+                        Rect(0.0, 0.0, geometry.content.width, geometry.content.height),
+                        current.horizontal,
+                        current.vertical
+                    )
+                horizontal.scene(local, current.editor.scrollSnapshot, current.horizontal, painter)
+                vertical.scene(local, current.editor.scrollSnapshot, current.vertical, painter)
             }
-        if (geometry.opacity < 1.0)
-            context.restore()
+        if (value.input.chrome == TextFieldChrome.Framed)
+            context
+                .draw { paint ->
+                    paint
+                        .canvas
+                        .withState { canvas ->
+                            when (current.outlineClip) {
+                                case Some(val clip) -> canvas.clipPath(clip)
+                                case None -> {}
+                            }
+                            painter
+                                .drawSurface(
+                                    canvas,
+                                    geometry,
+                                    value.visual,
+                                    SurfaceLayer.Foreground
+                                )
+                        }
+                }
+        if (geometry.opacity < 1.0) context.restore()
         context.children()
     }
 }

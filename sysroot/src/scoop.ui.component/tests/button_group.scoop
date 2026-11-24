@@ -14,100 +14,75 @@ private class ButtonGroupTest {
     fun `connected edges share layout border and focus geometry in both directions`() {
         val theme = shadcnTheme()
         val visual = SurfaceVisual(SurfaceKind.Action, InteractionVisual(focusVisible = true))
-        val local =
-            styleOverride {
-                this.border(
+        val local = styleOverride {
+            this
+                .border(
                     Some(
-                        Border.Logical(
-                            BorderEdge(2.0, Color.Black),
-                            BorderEdge(3.0, Color.White),
-                            BorderEdge(4.0, Color.Black),
-                            BorderEdge(5.0, Color.White)
-                        )
+                        Border
+                            .Logical(
+                                BorderEdge(2.0, Color.Black),
+                                BorderEdge(3.0, Color.White),
+                                BorderEdge(4.0, Color.Black),
+                                BorderEdge(5.0, Color.White)
+                            )
                     )
                 )
-                this.corners(
+            this
+                .corners(
                     Corners.Logical(Size(2.0, 3.0), Size(4.0, 5.0), Size(6.0, 7.0), Size(8.0, 9.0))
                 )
-            }
-        val options =
-            surfaceOptions {
-                this.style = local;
-                this.padding = Some(Insets.all(7.0))
-            }
+        }
+        val options = surfaceOptions {
+            this.style = local;
+            this.padding = Some(Insets.all(7.0))
+        }
         for (direction in [LayoutDirection.Ltr, LayoutDirection.Rtl]) {
-            val original =
-                theme.surfaceGeometry(Rect(0.0, 0.0, 100.0, 50.0), visual, options, direction)
+            val original = theme
+                .surfaceGeometry(Rect(0.0, 0.0, 100.0, 50.0), visual, options, direction)
             val base = theme.surfaceMetrics(visual, options, direction)
             assertSame(original, groupSurfaceGeometry(original, base, None, direction))
-            val positions =
-                [
-                    GroupPosition(FlexAxis.Horizontal, true, false),
-                    GroupPosition(FlexAxis.Horizontal, false, false),
-                    GroupPosition(FlexAxis.Horizontal, false, true)
-                ]
+            val positions = [
+                GroupPosition(FlexAxis.Horizontal, true, false),
+                GroupPosition(FlexAxis.Horizontal, false, false),
+                GroupPosition(FlexAxis.Horizontal, false, true)
+            ]
             for (position in positions) {
-                val metrics =
-                    groupSurfaceMetrics(
-                        base,
-                        Some(position),
-                        groupEndRadius(theme, local),
-                        direction
-                    )
+                val metrics = groupSurfaceMetrics(
+                    base,
+                    Some(position),
+                    groupEndRadius(theme, local),
+                    direction
+                )
                 val result = groupSurfaceGeometry(original, metrics, Some(position), direction)
                 val edges = result.style.border!!.resolve(direction)
                 assertEquals(3.0, edges.top.width)
                 assertEquals(5.0, edges.bottom.width)
                 assertEquals(
-                    if (position.first)
-                        2.0
-                    else
-                        0.0,
-                    if (direction == LayoutDirection.Ltr)
-                        edges.left.width
-                    else
-                        edges.right.width
+                    if (position.first) 2.0 else 0.0,
+                    if (direction == LayoutDirection.Ltr) edges.left.width else edges.right.width
                 )
                 assertEquals(
                     4.0,
-                    if (direction == LayoutDirection.Ltr)
-                        edges.right.width
-                    else
-                        edges.left.width
+                    if (direction == LayoutDirection.Ltr) edges.right.width else edges.left.width
                 )
                 assertEquals(
-                    if (position.first)
-                        80.0
-                    else
-                        82.0,
+                    if (position.first) 80.0 else 82.0,
                     result.content.width
                 )
                 assertEquals(28.0, result.content.height)
                 assertEquals(
-                    if (position.first)
-                        94.0
-                    else
-                        96.0,
+                    if (position.first) 94.0 else 96.0,
                     result.borderInner.bounds.width
                 )
                 assertEquals(result.outline.expanded(3.0), result.ring!!.outline)
                 assertEquals(original.ring!!.border, result.ring!!.border)
                 val corners = result.outline.radii
                 assertEquals(
-                    if (position.first)
-                        Size(2.0, 3.0)
-                    else
-                        Size(0.0, 0.0),
-                    if (direction == LayoutDirection.Ltr)
-                        corners.topLeft
-                    else
-                        corners.topRight
+                    if (position.first) Size(2.0, 3.0) else Size(0.0, 0.0),
+                    if (direction == LayoutDirection.Ltr) corners.topLeft else corners.topRight
                 )
                 assertEquals(
-                    if (position.last)
-                        Size(6.0, 7.0)
-                    else
-                        Size(0.0, 0.0),
+                    if (position.last) Size(6.0, 7.0) else Size(0.0, 0.0),
                     if (direction == LayoutDirection.Ltr)
                         corners.bottomRight
                     else
@@ -134,23 +109,21 @@ private class ButtonGroupTest {
     fun `default end corners use large while explicit control corners remain authoritative`() {
         val theme = shadcnTheme()
         val visual = InteractionVisual()
-        val options =
-            actionOptions(
-                theme,
-                ActionShape.Button(ButtonSize.Sm),
-                ButtonVariant.Outline,
-                buttonStyle(),
-                visual
-            )
-        val base = theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Action), options)
+        val options = actionOptions(
+            theme,
+            ActionShape.Button(ButtonSize.Sm),
+            ButtonVariant.Outline,
+            buttonStyle(),
+            visual
+        )
+        val base = theme.surfaceMetrics(SurfaceVisual(SurfaceKind.OutlinedAction), options)
         val position = Some(GroupPosition(FlexAxis.Horizontal, true, true))
-        val metrics =
-            groupSurfaceMetrics(
-                base,
-                position,
-                groupEndRadius(theme, styleOverride()),
-                LayoutDirection.Ltr
-            )
+        val metrics = groupSurfaceMetrics(
+            base,
+            position,
+            groupEndRadius(theme, styleOverride()),
+            LayoutDirection.Ltr
+        )
         assertEquals(
             Size(theme.tokens.corners.medium, theme.tokens.corners.medium),
             metrics.corners.topLeft
@@ -171,30 +144,33 @@ private class ButtonGroupTest {
         val handle = FocusHandle()
         val target = FieldTarget()
         val action = state(0)
-        builder.button("First", { action.value += 1 }) {
-            this.variant = ButtonVariant.Outline
-            this.key = ViewKey.Text("first")
-            this.focus { this.handle = Some(handle) }
-        }
+        builder
+            .button("First", { action.value += 1 }) {
+                this.variant = ButtonVariant.Outline
+                this.key = ViewKey.Text("first")
+                this.focus { this.handle = Some(handle) }
+            }
         builder.button(styledText { this.text("Styled") }, {}) {}
         builder.button(empty(), {}) {}
         builder.button({ _ -> empty() }, {}) {}
-        builder.input(editor) {
-            this.theme = Some(alternate)
-            this.readOnly = true
-            this.protectedText = true
-            this.primarySelection = TextPrimarySelectionOptions(publish = false)
-            this.automaticTextReplacement = true
-            contextMenu { mode = TextContextMenuMode.Disabled }
-            this.labelTarget = Some(target)
-        }
+        builder
+            .input(editor) {
+                this.theme = Some(alternate)
+                this.readOnly = true
+                this.protectedText = true
+                this.primarySelection = TextPrimarySelectionOptions(publish = false)
+                this.automaticTextReplacement = true
+                contextMenu { mode = TextContextMenuMode.Disabled }
+                this.labelTarget = Some(target)
+            }
         builder.text("https://") {}
         builder.text(styledText { this.text(".com") }) {}
         builder.text(empty()) {}
         builder.separator()
-        builder.item({ position -> button("Custom", {}) { this.group = Some(position) } }) {
-            this.grow = 2.0
-        }
+        builder
+            .item({ position -> button("Custom", {}) { this.group = Some(position) } }) {
+                this.grow = 2.0
+            }
         builder.add(empty()) { this.shrink = 0.0 }
         val snapshot = builder.snapshot()
         assertEquals(11L, snapshot.entries.size)
@@ -214,6 +190,7 @@ private class ButtonGroupTest {
                 assertEquals(ButtonVariant.Outline, grouped.variant)
                 assertEquals(position, grouped.group)
             }
+
             else -> fail(Some("missing typed button"))
         }
         when (snapshot.entries[4L].content) {
@@ -230,6 +207,7 @@ private class ButtonGroupTest {
                 assertEquals(TextContextMenuMode.Disabled, grouped.contextMenu.mode)
                 assertEquals(position, grouped.group)
             }
+
             else -> fail(Some("missing typed input"))
         }
         builder.group { this.button("Nested", {}) {} }

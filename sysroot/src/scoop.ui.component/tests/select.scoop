@@ -20,20 +20,57 @@ private class SelectModelTest {
         assertEquals(color, custom.surface.style.background.resolve(None)!!.color)
         assertEquals(color, custom.states.hovered.background.resolve(None)!!.color)
     }
+
+    @Test
+    fun `select content uses neutral text while preserving explicit text colors`() {
+        val shape = ActionShape.Button(ButtonSize.Default)
+        val explicit = Color(0.6, 0.2, 0.1, 0.4)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (theme in colorPreferenceThemes(mode))
+                for (enabled in [false, true]) {
+                    val visual = InteractionVisual(enabled = enabled)
+                    val text = theme
+                        .tokens
+                        .typography
+                        .action
+                        .copy {
+                            color = actionTextColor(
+                                theme, shape, ButtonVariant.Outline,
+                                SurfaceVisual(SurfaceKind.OutlinedAction, visual)
+                            )
+                        }
+                    val content = actionContentStyle(text, shape, ButtonVariant.Outline, visual)
+                    assertEquals(
+                        if (!enabled && theme.tokens.disabledOpacity >= 1.0)
+                            theme.tokens.palette.disabledText
+                        else
+                            theme.tokens.palette.background.foreground,
+                        selectTriggerContent(theme, buttonStyle(), content).text.color
+                    )
+                    val local = buttonStyle { text { color = Some(explicit) } }
+                    val custom = actionContentStyle(
+                        text.copy { color = explicit }, shape, ButtonVariant.Outline, visual
+                    )
+                    assertEquals(explicit, selectTriggerContent(theme, local, custom).text.color)
+                }
+    }
+
     @Test
     fun `typed choices preserve unknown disabled rejected and transformed selections`() {
         val value = state<Int?>(Some(99))
         val reported = state<Int?>(None)
-        val content =
-            SelectContent<Int>(
-                [
-                    SelectEntry.Item(SelectItem(Choice(ViewKey.Number(1L), 1, "Same"))),
-                    SelectEntry.Item(SelectItem(Choice(ViewKey.Number(2L), 2, "Same", false))),
-                    SelectEntry.Item(SelectItem(Choice(ViewKey.Number(3L), 3, "Third")))
-                ]
-            )
-        val input =
-            SelectProps(value.binding(), content, onValueChange = { next -> reported.value = next })
+        val content = SelectContent<Int>(
+            [
+                SelectEntry.Item(SelectItem(Choice(ViewKey.Number(1L), 1, "Same"))),
+                SelectEntry.Item(SelectItem(Choice(ViewKey.Number(2L), 2, "Same", false))),
+                SelectEntry.Item(SelectItem(Choice(ViewKey.Number(3L), 3, "Third")))
+            ]
+        )
+        val input = SelectProps(
+            value.binding(),
+            content,
+            onValueChange = { next -> reported.value = next }
+        )
         assertFalse(panelPresent(selectedChoice(content, value.value)))
         selectChoice(input, ViewKey.Number(2L));
         assertEquals(Some(99), value.value)

@@ -7,6 +7,9 @@ import scoop.text.contains
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
 import scoop.ui.text.TextEditorState
 import scoop.window.*
 
@@ -16,10 +19,6 @@ internal enum Demo {
 
 internal enum ControlDemo {
     Button, Input, Checkbox
-}
-
-internal enum GalleryColors {
-    Neutral, System
 }
 
 internal fun demoTitle(value: Demo): String = when (value) {
@@ -104,10 +103,11 @@ internal fun applicationDemo(value: Demo): Boolean = when (value) {
 
 internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePalette)? = None) {
     val source = ThemeSource(shadcnTheme())
+    val style = state(GalleryStyle.Shadcn)
     val colors = state(
         when (systemPalette) {
             case Some(_) -> GalleryColors.System
-            case None -> GalleryColors.Neutral
+            case None -> GalleryColors.Preset
         }
     )
     val hasSystemColors: Boolean
@@ -116,6 +116,7 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
             case None -> false
         }
     val usesSystemColors: Boolean get() = colors.value == GalleryColors.System
+    val styleFocus = FocusHandle()
     val fields = FieldExamplesModel()
     val groups = ButtonGroupExamplesModel()
     val items = ItemExamplesModel()
@@ -219,9 +220,22 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
         if (hasSystemColors) refreshTheme()
     }
 
+    fun styles(): Array<GalleryStyle> = [
+        GalleryStyle.Shadcn,
+        GalleryStyle.MacOS,
+        GalleryStyle.Material,
+        GalleryStyle.Fluent
+    ]
+
+    fun selectStyle(next: GalleryStyle) {
+        if (next == style.value) return
+        style.value = next
+        refreshTheme()
+    }
+
     fun toggleColors() {
         if (!hasSystemColors) return
-        colors.value = if (usesSystemColors) GalleryColors.Neutral else GalleryColors.System
+        colors.value = if (usesSystemColors) GalleryColors.Preset else GalleryColors.System
         refreshTheme()
     }
 
@@ -236,9 +250,13 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
             case Some(val read) -> if (usesSystemColors) Some(read(mode.value)) else None
             case None -> None
         }
-        source.current.value = shadcnTheme(mode.value, palette) {
-            tokens { motion { this.preference = preference } }
+        val theme = when (style.value) {
+            case Shadcn -> shadcnTheme(mode.value, palette)
+            case MacOS -> macosTheme(mode.value, palette)
+            case Material -> materialTheme(mode.value, palette)
+            case Fluent -> fluentTheme(mode.value, palette)
         }
+        source.current.value = theme.copy { tokens { motion { this.preference = preference } } }
     }
     fun toggleMotion() {
         reduced.value = !reduced.value

@@ -11,7 +11,8 @@ internal class TextFieldDrawing(
     val viewport: Rect,
     val horizontal: Rect?,
     val vertical: Rect?,
-    val editor: TextEditMeasurement
+    val editor: TextEditMeasurement,
+    val outlineClip: Path? = None
 )
 
 /** Only the scalar font metric is cached; both temporary native objects close immediately. */
@@ -21,22 +22,17 @@ internal class TextFieldLineHeight {
     private var style: TextStyle? = None
     private var height = 0.0
     fun measure(fonts: FontCollection, style: TextStyle): Double {
-        val sameFonts =
-            when (this.fonts) {
-                case Some(val previous) -> previous === fonts
-                case None -> false
-            }
-        val sameStyle =
-            when (this.style) {
-                case Some(val previous) -> previous === style
-                case None -> false
-            }
-        if (sameFonts && sameStyle && revision == fonts.revision)
-            return height
-        val next =
-            Paragraph(fonts, "", style).use {
-                paragraph -> paragraph.layoutUnwrapped().use { layout -> layout.size.height }
-            }
+        val sameFonts = when (this.fonts) {
+            case Some(val previous) -> previous === fonts
+            case None -> false
+        }
+        val sameStyle = when (this.style) {
+            case Some(val previous) -> previous === style
+            case None -> false
+        }
+        if (sameFonts && sameStyle && revision == fonts.revision) return height
+        val next = Paragraph(fonts, "", style)
+            .use { paragraph -> paragraph.layoutUnwrapped().use { layout -> layout.size.height } }
         this.fonts = Some(fonts)
         this.style = Some(style)
         revision = fonts.revision
@@ -53,103 +49,160 @@ internal fun measureTextField(
     val value = ink.props.value
     val input = value.input
     val base = value.theme.surfaceMetrics(value.visual, value.surface, context.layoutDirection)
-    val metrics =
-        if (input.chrome == TextFieldChrome.Bare)
-            bareTextFieldMetrics(base)
-        else
-            groupSurfaceMetrics(
-                base,
-                input.group,
-                groupEndRadius(value.theme, value.surface.style),
-                context.layoutDirection
-            )
+    val metrics = if (input.chrome == TextFieldChrome.Bare)
+        bareTextFieldMetrics(base)
+    else
+        groupSurfaceMetrics(
+            base,
+            input.group,
+            groupEndRadius(value.theme, value.surface.style),
+            context.layoutDirection
+        )
     val insets = metrics.contentInsets.totals()
     val naturalWidth = value.surface.suggestedSize?.width ?: 240.0
-    val width =
-        constraints.constrain(
+    val width = constraints
+        .constrain(
             Size(constraints.maxWidth ?: lowerBound(naturalWidth, metrics.minimumSize.width), 0.0)
-        ).width
-    val description =
-        if (context.childCount == 1L)
-            Some(context.measureChild(0L, Constraints(maxWidth = Some(width))))
-        else
-            None
-    val gap =
-        if (context.childCount == 1L)
-            value.theme.tokens.spacing.small
-        else
-            0.0
+        )
+        .width
+    val label = when (value.label) {
+        case Some(val appearance) -> {
+            val natural = context.measureChild(0L, Constraints())
+            val available = lowerBound(
+                width - if (appearance.position == FieldLabelPosition.Above) 0.0 else insets.width,
+                0.0
+            )
+            Some(
+                if (natural.size.width > available)
+                    context.measureChild(0L, Constraints(maxWidth = Some(available)))
+                else
+                    natural
+            )
+        }
+
+        case None -> None
+    }
+    val descriptionIndex = if (label == None) 0L else 1L
+    val outlined = value.theme.tokens.textField == TextFieldTreatment.Outlined
+    val support = if (outlined) metrics.contentInsets else Insets()
+    val description = if (input.description.byteLength > 0L)
+        Some(
+            context
+                .measureChild(
+                    descriptionIndex,
+                    Constraints(
+                        maxWidth = Some(lowerBound(width - support.totals().width, 0.0))
+                    )
+                )
+        )
+    else
+        None
+    val gap = if (description != None) value.theme.tokens.spacing.small else 0.0
     nonnegative(gap, "invalid text field description spacing")
     val after = (description?.size?.height ?: 0.0) + gap
-    val axes =
-        if (input.options.wrap)
-            ScrollAxes.Vertical
-        else
-            ScrollAxes.Both
-    val visibility =
-        if (input.options.multiline)
-            input.scrollbars
-        else
-            ScrollbarVisibility.Hidden
+    val before = when (value.label) {
+        case Some(val appearance) ->
+            if (appearance.position == FieldLabelPosition.Above)
+                label!!.size.height + value.theme.tokens.spacing.small
+            else
+                ink.labelHeight.measure(ink.fonts, appearance.compact) / 2.0
+        case None -> 0.0
+    }
+    val axes = if (input.options.wrap) ScrollAxes.Vertical else ScrollAxes.Both
+    val visibility = if (input.options.multiline) input.scrollbars else ScrollbarVisibility.Hidden
     val behavior = ink.scrollbarFeedback.options
     val gutter = scrollbarGutter(axes, visibility, behavior.thickness, behavior.input.placement)
     val rowHeight = ink.lineHeight.measure(ink.fonts, value.text)
-    val naturalHeight =
-        lowerBound(
-            rowHeight * input.rows.toDouble() + insets.height + gutter.height,
-            lowerBound(metrics.minimumSize.height, metrics.suggestedSize.height)
-        )
-    val size = constraints.constrain(Size(width, naturalHeight + after))
-    val fieldHeight = lowerBound(size.height - after, 0.0)
-    val original =
-        value.theme.surfaceGeometry(
-            Rect(0.0, 0.0, size.width, fieldHeight),
+    val naturalHeight = lowerBound(
+        rowHeight * input.rows.toDouble() + insets.height + gutter.height,
+        lowerBound(metrics.minimumSize.height, metrics.suggestedSize.height)
+    )
+    val size = constraints.constrain(Size(width, before + naturalHeight + after))
+    val fieldHeight = lowerBound(size.height - before - after, 0.0)
+    val original = value
+        .theme
+        .surfaceGeometry(
+            Rect(0.0, before, size.width, fieldHeight),
             value.visual,
             value.surface,
             context.layoutDirection
         )
-    val geometry =
-        if (input.chrome == TextFieldChrome.Bare)
-            bareTextFieldGeometry(original, metrics)
-        else
-            groupSurfaceGeometry(original, metrics, input.group, context.layoutDirection)
+    val geometry = if (input.chrome == TextFieldChrome.Bare)
+        bareTextFieldGeometry(original, metrics)
+    else
+        groupSurfaceGeometry(original, metrics, input.group, context.layoutDirection)
     val content = geometry.content
     val outer = Size(content.width, content.height)
     val viewport = scrollbarViewport(outer, gutter, context.layoutDirection)
-    if (context.childCount == 1L)
-        context.placeChild(0L, Point(0.0, fieldHeight + gap))
-    val text =
-        ink.host.measure(
+    if (description != None)
+        context.placeChild(descriptionIndex, Point(support.left, before + fieldHeight + gap))
+    val labelBounds = when (value.label) {
+        case Some(val appearance) -> {
+            val bounds = textFieldLabelBounds(
+                appearance, label!!.size, geometry, input.options.multiline, context.layoutDirection
+            )
+            context.placeChild(0L, bounds.origin)
+            Some(bounds)
+        }
+
+        case None -> None
+    }
+    val text = ink
+        .host
+        .measure(
             Constraints.tight(Size(viewport.width, viewport.height)),
-            scrollPadding =
-                {
+            scrollPadding = { size, body ->
+                scrollbarPadding(
                     size,
-                    body -> scrollbarPadding(
-                        size,
-                        body,
-                        axes,
-                        visibility,
-                        behavior.thickness,
-                        behavior.input.placement,
-                        context.layoutDirection
-                    )
-                }
+                    body,
+                    axes,
+                    visibility,
+                    behavior.thickness,
+                    behavior.input.placement,
+                    context.layoutDirection
+                )
+            }
         )
     val snapshot = text.scrollSnapshot
-    val bars =
-        ScrollBarsLayout(
-            outer,
-            snapshot,
-            axes,
-            visibility,
-            behavior.thickness,
-            context.layoutDirection,
-            behavior.input.placement
-        )
-    val drawing = TextFieldDrawing(geometry, viewport, bars.horizontal, bars.vertical, text)
+    val bars = ScrollBarsLayout(
+        outer,
+        snapshot,
+        axes,
+        visibility,
+        behavior.thickness,
+        context.layoutDirection,
+        behavior.input.placement
+    )
+    val outlineClip = try {
+        if (value.label?.position == Some(FieldLabelPosition.Notched))
+            Some(
+                textFieldLabelClip(
+                    geometry, labelBounds!!, 4.0 * value.theme.preferences.textScaleFactor
+                )
+            )
+        else
+            None
+    } catch (error: Throwable) {
+        text.close()
+        throw error
+    }
+    val drawing = TextFieldDrawing(
+        geometry,
+        viewport,
+        bars.horizontal,
+        bars.vertical,
+        text,
+        outlineClip
+    )
     return LayoutResult(
         offsetMetrics(text.metrics, size, content.y + viewport.y),
         drawing,
-        { text.close() }
+        {
+            try {
+                outlineClip?.close()
+            } finally {
+                text.close()
+            }
+        }
     )
 }

@@ -33,28 +33,25 @@ private class PanelColorPreferencesTest {
                 for (destructive in [false, true])
                     for (active in [false, true]) {
                         val visual = InteractionVisual(hovered = active)
-                        val local =
-                            menuRowStyle(
-                                buttonStyle { kind = SurfaceKind.Plain },
-                                theme,
-                                destructive,
-                                active
-                            )
-                        val geometry =
-                            theme.surfaceGeometry(
+                        val local = menuRowStyle(
+                            buttonStyle { kind = SurfaceKind.Plain },
+                            theme,
+                            destructive,
+                            active
+                        )
+                        val geometry = theme
+                            .surfaceGeometry(
                                 bounds,
                                 SurfaceVisual(local.kind, visual),
                                 actionOptions(theme, shape, ButtonVariant.Ghost, local, visual)
                             )
                         val colors = menuRowColors(theme, destructive, active)
                         assertEquals(colors.background, geometry.style.background!!.color)
-                        if (!active)
-                            assertEquals(0.0, colors.background.alpha)
-                        val background =
-                            if (colors.background.alpha == 0.0)
-                                theme.tokens.palette.popover.background
-                            else
-                                colors.background
+                        if (!active) assertEquals(0.0, colors.background.alpha)
+                        val background = if (colors.background.alpha == 0.0)
+                            theme.tokens.palette.popover.background
+                        else
+                            colors.background
                         assertColorContrast(colors.foreground, background, 7.0)
                         assertColorContrast(
                             componentForeground(
@@ -92,9 +89,12 @@ private class PanelColorPreferencesTest {
                         requested in [
                             palette.muted.foreground,
                             palette.destructive.background,
-                            palette.destructive.background.withAlpha(
-                                palette.destructive.background.alpha * 0.9
-                            )
+                            palette
+                                .destructive
+                                .background
+                                .withAlpha(
+                                    palette.destructive.background.alpha * 0.9
+                                )
                         ]
                     )
                         assertColorContrast(
@@ -114,7 +114,8 @@ private class PanelColorPreferencesTest {
                             reduced,
                             reduced.tokens.palette.destructive.background.withAlpha(0.9),
                             surface.background
-                        ).alpha
+                        )
+                            .alpha
                     )
                 }
                 assertEquals(
@@ -139,8 +140,8 @@ private class PanelColorPreferencesTest {
         for (mode in [ThemeMode.Light, ThemeMode.Dark])
             for (base in colorPreferenceThemes(mode))
                 for (contrast in [false, true]) {
-                    val theme =
-                        base.withPreferences(
+                    val theme = base
+                        .withPreferences(
                             ThemePreferences(
                                 highContrast = contrast,
                                 reduceTransparency = !contrast
@@ -156,9 +157,9 @@ private class PanelColorPreferencesTest {
                             InteractionVisual(enabled = false)
                         ]
                     ) {
-                        val surface = SurfaceVisual(local.kind, visual)
-                        val geometry =
-                            theme.surfaceGeometry(
+                        val surface = SurfaceVisual(SurfaceKind.OutlinedAction, visual)
+                        val geometry = theme
+                            .surfaceGeometry(
                                 bounds,
                                 surface,
                                 actionOptions(theme, shape, ButtonVariant.Outline, local, visual)
@@ -167,12 +168,26 @@ private class PanelColorPreferencesTest {
                         assertTrue(fill.alpha == 0.0 || fill.alpha == 1.0)
                         if (contrast)
                             assertColorContrast(
-                                actionTextColor(theme, shape, ButtonVariant.Outline, surface),
+                                selectTriggerContent(
+                                    theme,
+                                    local,
+                                    actionContentStyle(
+                                        theme
+                                            .tokens
+                                            .typography
+                                            .action
+                                            .copy {
+                                                color = actionTextColor(
+                                                    theme, shape, ButtonVariant.Outline, surface
+                                                )
+                                            },
+                                        shape, ButtonVariant.Outline, visual
+                                    )
+                                )
+                                    .text
+                                    .color,
                                 fill,
-                                if (visual.enabled)
-                                    7.0
-                                else
-                                    4.5
+                                if (visual.enabled) 7.0 else 4.5
                             )
                     }
                     val command = commandInputDecoration(theme).resolve(style())
@@ -198,17 +213,16 @@ private class PanelColorPreferencesTest {
     @Test
     fun `surface preferences preserve explicit menu trigger and input decoration overrides`() {
         val explicit = Color(0.3, 0.1, 0.7, 0.25)
-        val custom =
-            buttonStyle {
-                surface {
-                    style {
-                        background(Some(Paint(explicit)));
-                        border(Some(Border.all(2.0, explicit)))
-                    }
+        val custom = buttonStyle {
+            surface {
+                style {
+                    background(Some(Paint(explicit)));
+                    border(Some(Border.all(2.0, explicit)))
                 }
-                text { color = Some(explicit) }
-                states { pressed { background(Some(Paint(explicit))) } }
             }
+            text { color = Some(explicit) }
+            states { pressed { background(Some(Paint(explicit))) } }
+        }
         val shape = ActionShape.Button(ButtonSize.Default)
         val visual = InteractionVisual(pressed = true)
         for (mode in [ThemeMode.Light, ThemeMode.Dark])
@@ -226,10 +240,10 @@ private class PanelColorPreferencesTest {
                             selectTriggerStyle(custom, theme, SelectSize.Default, false)
                         ]
                     ) {
-                        val geometry =
-                            theme.surfaceGeometry(
+                        val geometry = theme
+                            .surfaceGeometry(
                                 Rect(0.0, 0.0, 144.0, 32.0),
-                                SurfaceVisual(local.kind, visual),
+                                SurfaceVisual(SurfaceKind.OutlinedAction, visual),
                                 actionOptions(theme, shape, ButtonVariant.Outline, local, visual)
                             )
                         assertEquals(explicit, geometry.style.background!!.color)
@@ -239,18 +253,16 @@ private class PanelColorPreferencesTest {
                             local.text!!.resolve(theme.tokens.typography.body).color
                         )
                     }
-                    val command =
-                        commandInputDecoration(theme).then(custom.surface.style).resolve(style())
+                    val command = commandInputDecoration(theme)
+                        .then(custom.surface.style)
+                        .resolve(style())
                     assertEquals(explicit, command.background!!.color)
                     assertEquals(Some(Border.all(2.0, explicit)), command.border)
                     if (preferences.reduceTransparency) {
                         for (active in [false, true]) {
                             val colors = menuRowColors(theme, true, active)
                             assertEquals(
-                                if (active)
-                                    1.0
-                                else
-                                    0.0,
+                                if (active) 1.0 else 0.0,
                                 colors.background.alpha
                             )
                             assertEquals(1.0, colors.foreground.alpha)

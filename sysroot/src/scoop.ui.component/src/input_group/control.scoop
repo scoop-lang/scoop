@@ -2,19 +2,17 @@ package scoop.ui.component
 
 import scoop.ui.*
 
-internal fun inputGroupControlEnabled(control: InputGroupControl): Boolean =
-    when (control) {
-        case Input(val value) -> value.enabled
-        case Textarea(val value) -> value.enabled
-        case Custom(_, _) -> true
-    }
+internal fun inputGroupControlEnabled(control: InputGroupControl): Boolean = when (control) {
+    case Input(val value) -> value.enabled
+    case Textarea(val value) -> value.enabled
+    case Custom(_, _) -> true
+}
 
-internal fun inputGroupControlInvalid(control: InputGroupControl): Boolean =
-    when (control) {
-        case Input(val value) -> value.invalid
-        case Textarea(val value) -> value.invalid
-        case Custom(_, _) -> false
-    }
+internal fun inputGroupControlInvalid(control: InputGroupControl): Boolean = when (control) {
+    case Input(val value) -> value.invalid
+    case Textarea(val value) -> value.invalid
+    case Custom(_, _) -> false
+}
 
 internal fun inputGroupFocus(control: InputGroupControl, own: FocusHandle): FocusHandle =
     when (control) {
@@ -28,27 +26,20 @@ internal fun inputGroupControlView(
     focus: FocusHandle,
     enabled: Boolean,
     invalid: Boolean
-): View =
-    when (group.control) {
-        case Input(val value) -> component(
+): View = when (group.control) {
+    case Input(val value) ->
+        component(
             InputProps(
                 value.state,
                 placeholder = value.placeholder,
+                label = value.label,
                 enabled = enabled,
                 readOnly = value.readOnly,
                 invalid = invalid,
                 description = value.description,
-                fonts =
-                    if (panelPresent(value.fonts))
-                        value.fonts
-                    else
-                        group.fonts,
+                fonts = if (panelPresent(value.fonts)) value.fonts else group.fonts,
                 style = value.style,
-                theme =
-                    if (panelPresent(value.theme))
-                        value.theme
-                    else
-                        group.theme,
+                theme = if (panelPresent(value.theme)) value.theme else group.theme,
                 focus = value.focus.copy { this.handle = Some(focus) },
                 direction = value.direction,
                 alignment = value.alignment,
@@ -76,10 +67,12 @@ internal fun inputGroupControlView(
             ),
             { current, mount -> Input(current, scope = mount) }
         )
-        case Textarea(val value) -> component(
+    case Textarea(val value) ->
+        component(
             TextareaProps(
                 value.state,
                 placeholder = value.placeholder,
+                label = value.label,
                 rows = value.rows,
                 wrap = value.wrap,
                 tab = value.tab,
@@ -88,17 +81,9 @@ internal fun inputGroupControlView(
                 readOnly = value.readOnly,
                 invalid = invalid,
                 description = value.description,
-                fonts =
-                    if (panelPresent(value.fonts))
-                        value.fonts
-                    else
-                        group.fonts,
+                fonts = if (panelPresent(value.fonts)) value.fonts else group.fonts,
                 style = value.style,
-                theme =
-                    if (panelPresent(value.theme))
-                        value.theme
-                    else
-                        group.theme,
+                theme = if (panelPresent(value.theme)) value.theme else group.theme,
                 focus = value.focus.copy { this.handle = Some(focus) },
                 direction = value.direction,
                 alignment = value.alignment,
@@ -128,5 +113,5 @@ internal fun inputGroupControlView(
             ),
             { current, mount -> Textarea(current, scope = mount) }
         )
-        case Custom(val view, _) -> view
-    }
+    case Custom(val view, _) -> view
+}

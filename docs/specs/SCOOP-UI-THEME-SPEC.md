@@ -71,7 +71,7 @@ SurfaceOptionsBuilder／CheckboxOptionsBuilder 提供真实成员 `style(configu
 
 ### 3.2 完整主题与部件外观的接收者配置
 
-四套预设的入口为 `macosTheme(mode: ThemeMode = ThemeMode.Light, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme`，materialTheme／fluentTheme／shadcnTheme 使用相同签名。先根据 mode 产生该风格的完整数据，再同步执行 configure 一次。返回的 ShapeTheme 继续实现 Theme；第三方 Theme 实现不需要采用这些 builder。
+四套预设的入口为 `macosTheme(mode: ThemeMode = ThemeMode.Light, palette: ThemePalette? = None, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme`，materialTheme／fluentTheme／shadcnTheme 使用相同签名。palette 为 None 时使用风格预设配色；提供 palette 时，文字、表面、标记、滚动条、焦点／验证与效果颜色从其语义角色生成，保留该风格的字体、尺寸、轮廓、阴影几何与动效。Fluent 的预设状态使用官方 token；外部配色的 hover／pressed 从所给语义色派生，不遗留固定品牌蓝。先产生完整数据，再同步执行 configure 一次。返回的 ShapeTheme 继续实现 Theme；第三方 Theme 实现不需要采用这些 builder。
 
 独立主题使用 `shapeTheme(tokens: ThemeTokens, surfaces: SurfaceParts, checkbox: CheckboxPart, radio: RadioPart, scrollbar: ScrollbarPart, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme`。五个必需参数都是完整描述，不使用未初始化字段、None 或虚构部件补足必需数据。
 
@@ -79,14 +79,14 @@ SurfaceOptionsBuilder／CheckboxOptionsBuilder 提供真实成员 `style(configu
 
 | 工厂 | 必需参数 | 其他可写属性与默认值 |
 | --- | --- | --- |
-| themeTypography | body／caption／action: TextStyle | 无 |
+| themeTypography | body／caption／action: TextStyle | input: TextStyle 初始取 body；可独立配置，表示可编辑正文 |
 | themeEffects | 无 | raised／floating: Array<BoxShadow> = []；emphasis: Array<ContentEffect> = [] |
 | themeMotion | 无 | hover／press／selection: AnimationSpec? = None；preference: MotionPreference = Full |
-| themeTokens | palette: ThemePalette；typography: ThemeTypography；spacing: ThemeSpacing；corners: ThemeCorners；validation: OutlineStyle | mode: ThemeMode = Light；motion: ThemeMotion = themeMotion()；effects: ThemeEffects = themeEffects()；disabledOpacity: Double = 1.0 |
-| surfacePart | metrics: SurfaceMetrics；fill／border／foreground: StateColors；focus: OutlineStyle | shadows: Array<BoxShadow> = [] |
-| surfaceParts | plain／action／elevated: SurfacePart | 无 |
-| markerAppearance | empty／selected／border／selectedBorder／mark: StateColors；focus: OutlineStyle | shadows: Array<BoxShadow> = [] |
-| checkboxPart | metrics: CheckboxMetrics；appearance: MarkerAppearance | 无 |
+| themeTokens | palette: ThemePalette；typography: ThemeTypography；spacing: ThemeSpacing；corners: ThemeCorners；validation: OutlineStyle | mode: ThemeMode = Light；motion: ThemeMotion = themeMotion()；effects: ThemeEffects = themeEffects()；disabledOpacity: Double = 1.0；textField: TextFieldTreatment = Standard |
+| surfacePart | metrics: SurfaceMetrics；fill／border／foreground: StateColors；focus: OutlineStyle | shadows: Array<BoxShadow> = []；hoverShadows: Array<BoxShadow>? = None |
+| surfaceParts | plain／action／outlinedAction／elevated: SurfacePart | 无 |
+| markerAppearance | empty／selected／border／selectedBorder／mark: StateColors；focus: OutlineStyle | shadows: Array<BoxShadow> = []；stateLayer: MarkerStateLayer? = None |
+| checkboxPart | metrics: CheckboxMetrics；appearance: MarkerAppearance | mixedAppearance: MarkerAppearance? = None；mixedShape: MixedMarkShape = Bar |
 | radioPart | metrics: RadioMetrics；appearance: MarkerAppearance | 无 |
 | scrollbarPart | metrics: ScrollbarMetrics；track／thumb／button／arrow: StateColors | arrowWidth: Double = 1.5 |
 
@@ -96,7 +96,7 @@ ThemePalette 的上述十五个字段均为必需数据，没有可适用于任�
 
 `shadcnTheme(mode: ThemeMode = Light, palette: ThemePalette? = None, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme` 遵循相同的完整描述及配置规则。palette=None 使用 Base Nova／Neutral，其颜色从上游 OKLCH 转为 sRGB，并保留 alpha；预设源码记录源 token。显式 palette 是完整语义配色，所有部件及文字从它生成，保留 shadcn 的尺寸、布局和动效；configure 最后覆盖。默认正文／操作文字为 14／20 逻辑单位、操作 weight 500；基准圆角 10，small／medium／large 为 6／8／10；常规表面边框 1、键盘焦点环 3 且 ring alpha 0.5。操作表面建议高 32、水平 padding 10；输入使用独立 input 边框；Checkbox 标记 16、圆角 4。所有长度均为逻辑单位，DPI 沿现有目标接入转换。其余 Button 变体在控件规范中定义，不增加按控件名查询的主题接口。
 
-macOS 上 `scoop.ui.style.macos.macosSystemPalette(mode: ThemeMode = Light): ThemePalette` 在主线程读取 AppKit 的系统语义色快照，按指定 Aqua／Dark Aqua 外观解析为 sRGB 并保留 alpha。背景、文字、控件、强调、选择、分隔线、焦点、禁用和图表颜色取自对应 NSColor；shadow 使用系统阴影色及主题所需透明度。返回普通不可变配色，不持有原生资源、监听器或全局主题状态；读取失败报告普通状态错误。该平台适配入口只在 macOS 提供，原有可跨平台使用的 macosTheme 预设不变。应用可将快照传给 shadcnTheme 或其他配色消费者，并在系统外观变化或窗口重新获得焦点时重新读取和发布 ThemeSource；不逐帧调用取色。
+macOS 上 `scoop.ui.style.macos.macosSystemPalette(mode: ThemeMode = Light): ThemePalette` 在主线程读取 AppKit 的系统语义色快照，按指定 Aqua／Dark Aqua 外观解析为 sRGB 并保留 alpha。背景、文字、控件、强调、选择、分隔线、焦点、禁用和图表颜色取自对应 NSColor；shadow 使用系统阴影色及主题所需透明度。返回普通不可变配色，不持有原生资源、监听器或全局主题状态；读取失败报告普通状态错误。该平台适配入口只在 macOS 提供，原有可跨平台使用的 macosTheme 预设不变。应用可将快照独立传给任意风格工厂或其他配色消费者，并在系统外观变化或窗口重新获得焦点时重新读取和发布 ThemeSource；不逐帧调用取色。
 
 ThemeMotion 增加 `preference: MotionPreference = Full`（Full／Reduced）。`resolve(spec: AnimationSpec?): AnimationSpec?` 在 Reduced 时返回 None，其余返回原参数；控件在解析局部 transition 后调用，切换 Reduced 时结束当前过渡。该配置是应用显式偏好，不表示已接入 OS 设置。
 
@@ -106,9 +106,10 @@ ThemeMotion 增加 `preference: MotionPreference = Full`（Full／Reduced）。`
 | --- | --- |
 | ShapeThemeBuilder | tokens: ThemeTokensBuilder；surfaces: SurfacePartsBuilder；checkbox: CheckboxPartBuilder；radio: RadioPartBuilder；scrollbar: ScrollbarPartBuilder |
 | ThemeTokensBuilder | palette: ThemePaletteBuilder；typography: ThemeTypographyBuilder；motion: ThemeMotionBuilder；effects: ThemeEffectsBuilder |
-| ThemeTypographyBuilder | body／caption／action: TextStyleBuilder |
-| SurfacePartsBuilder | plain／action／elevated: SurfacePartBuilder |
+| ThemeTypographyBuilder | body／caption／action／input: TextStyleBuilder |
+| SurfacePartsBuilder | plain／action／outlinedAction／elevated: SurfacePartBuilder |
 | CheckboxPartBuilder／RadioPartBuilder | appearance: MarkerAppearanceBuilder |
+| CheckboxPartBuilder | mixedAppearance: MarkerAppearanceBuilder（从当前覆盖或 appearance 派生） |
 
 所有嵌套配置基于当前字段调用其 copy，重复块累积，空块保留已有设置；直接给属性赋完整值表示替换。模式参数只负责选择预设起点；之后编辑 palette、typography 或某个部件，就只改变该显式字段，不隐式重新计算其他已经生成的文字颜色或部件外观，也不重放回调。需要统一改变多个描述时，由同一配置块明确设置它们。
 
@@ -128,11 +129,15 @@ Surface／Checkbox 的 metrics 与 geometry 方法接收最后一个 direction: 
 
 `mixThemeColor` 在预乘 alpha 的 sRGB 通道数值上插值，alpha 同步线性插值，再还原为普通 Color；两端均透明时返回透明色，进度端点保留原值。StateColors 依次混合 normal／hovered 和 pressed，禁用直接使用 disabled。透明色中不可见的 RGB 不能在过渡中造成先变暗再变亮的闪色。
 
+SurfacePart.hoverShadows 为 None 时沿用 shadows；Some([]) 显式清除悬停阴影。提供覆盖时，启用表面按 hoverProgress × (1 − pressProgress) 在两组投影之间淡入淡出，未提供采样时使用布尔状态；禁用或按下的稳定状态回到 shadows。最终阴影保存到 SurfaceGeometry.style，普通 StyleOverride.boxShadows 仍可覆盖。高对比度或减少透明度移除两组默认投影。
+
+MarkerAppearance.stateLayer 使用 `MarkerStateLayer(size: Double, empty: StateColors, selected: StateColors)` 描述标记背后的圆形交互底层，None 表示无此效果。size 为有限非负直径，实际直径不小于标记外框；颜色沿选择进度混合 empty／selected 各自解析的交互色，禁用时不绘制。invalid 时保留解析 alpha 并使用验证颜色。CheckboxGeometry／RadioGeometry 的 `stateLayer: MarkerStateLayerGeometry? = None` 保存最终 `circle: Circle` 和 `color: Color`，ThemePainter 先画状态层再画标记，不从 visual 重算尺寸或颜色。配置状态层时，普通焦点环围绕该圆形轮廓；Checkbox Options 显式覆盖 corners 时，焦点改用已经解析方向的标记轮廓，以保留局部形状覆盖。仅覆盖 focus 的颜色、宽度或外扩不会改变主题默认轮廓。验证环始终围绕标记本身。metrics.focusOutset 包含状态层及最终焦点所需的外扩，标记本体不扩张；控件使用该度量预留外围布局空间，主题本身不创建布局节点或输入区域。高对比度／减少透明度隐藏此装饰但保留轮廓尺寸和焦点；全程复用已有动画采样，不创建任务或时钟。
+
 `contrastThemeColors(pair: ColorPair, canvas: Color, minimum: Double = 7.0): ColorPair` 复用主题偏好的颜色配对算法，供实际底色不同于根背景的菜单、弹出层等默认装饰使用。颜色通道须有限，canvas 必须不透明，minimum 为有限的 1～21，非法参数抛出 IllegalArgumentException。计算按标准 sRGB 将颜色通道与源 alpha 截取到 0～1，先把 pair.background 合成到 canvas，再将前景向黑或白调整到指定相对亮度对比度；只有背景本身无法容纳该对比度时才调整背景。返回完整、不透明且满足 minimum 的配对；已经满足要求的颜色保留。它不读取系统偏好或改写主题，应用显式覆盖继续由调用方决定。
 
 `OutlineStyle(color, width, outset, borderColor: Color? = None)` 描述一个环及可选的外框颜色替换；None 表示保留部件自身边框，width=0 可省略环。它替代仅限焦点命名的旧描述，普通焦点仍通过部件及 Options 的 focus 配置。ThemeTokens.validation 是完整必需的 OutlineStyle，Surface／Checkbox／Radio Options 的 validation 可局部覆盖。四套主题显式提供验证外观；不根据具体主题名称分支。
 
-invalid 与 focusVisible 独立，前者是应用传入的展示状态，不改变焦点、输入资格或业务值。invalid 时选择 validation；否则只有 enabled 且 focusVisible 才选择 focus。禁用不显示普通焦点环；invalid 边框与环和控件一起合成，不单独再次降低 alpha。状态边框只替换颜色，保留同一份边宽，随后应用显式局部 Style 覆盖。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 ring: OutlineRing? 保存最终唯一的环，painter 直接绘制这个结果，不再自行重判焦点；invalid 与焦点不叠画两层环。metrics.focusOutset 为配置中焦点／验证两种环所需外扩的最大值，状态切换不改变内容布局。
+invalid 与 focusVisible 独立，前者是应用传入的展示状态，不改变焦点、输入资格或业务值。invalid 时选择 validation；否则只有 enabled 且 focusVisible 才选择 focus。禁用不显示普通焦点环；invalid 边框与环和控件一起合成，不单独再次降低 alpha。状态边框只替换颜色，保留同一份边宽，随后应用显式局部 Style 覆盖。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 ring: OutlineRing? 保存最终唯一的环，painter 直接绘制这个结果，不再自行重判焦点；invalid 与焦点不叠画两层环。metrics.focusOutset 取配置中最终焦点轮廓、验证环及标记状态层所需外扩的最大值，状态切换不改变内容布局。
 
 shadcn 的焦点环替换边框为 ring token；验证边框为 destructive，Dark 使用 0.5 alpha。验证环宽及外扩为 3，Light／Dark 的 destructive alpha 分别为 0.2／0.4；其他三个主题保留原输入错误颜色和 2 宽、2 外扩、0.72 alpha 的基线。
 
@@ -144,7 +149,7 @@ shadcn Action 表面的 normal 使用 primary 背景，hover／pressed 分别使
 
 ### 4.1 外框／表面
 
-SurfaceMetrics 给出建议／最小尺寸、内容 padding、边框内缩及焦点外扩。语义用途区分普通表面、强调操作面和提升表面，不引用 Button 或 Frame 类型。SurfaceGeometry 至少返回外边界、圆角外轮廓、边框内区域、内容区域和可选焦点轮廓；轮廓为 Rect／圆角等普通描述，原生 Path 留在 painter。
+SurfaceMetrics 给出建议／最小尺寸、内容 padding、边框内缩及焦点外扩。SurfaceKind 的 Plain／Action／OutlinedAction／Elevated 分别表达普通输入表面、填充操作面、描边操作面和提升表面，不引用具体控件类型。描边操作必须有独立部件，避免与输入框共享胶囊圆角、强调文字或状态底色；四套预设均显式提供这四种表面。SurfaceGeometry 至少返回外边界、圆角外轮廓、边框内区域、内容区域和可选焦点轮廓；轮廓为 Rect／圆角等普通描述，原生 Path 留在 painter。
 
 Surface 的绘制支持 Background／Foreground／All 阶段。Background 绘制外框阴影和背景；Foreground 绘制边框及焦点外框；All 依次完成两者，供独立展示使用。控件在两阶段间绘制内容，完整子树的 Style 效果仍由通用装饰适配负责。这样背景、内容、边框的顺序与既有 Style 合同一致，不要求主题方法理解挂载树。
 
@@ -156,7 +161,7 @@ Button 根据主题建议尺寸、自己的标签 metrics 和内容内缩决定�
 
 CheckboxVisual 包含 `CheckMark.Off／On／Mixed` 与交互视觉状态；可选采样参数控制标记显现等外观，主题不决定何时切换。CheckboxMetrics 给出建议／最小标记尺寸、内缩与焦点外扩。CheckboxGeometry 明确标记外框、内部区域、勾选／混合标记使用区域和焦点轮廓。
 
-绘制仅根据输入显示空框、勾选或混合横线及其状态外观，不读取 Checkbox.checked、不调用 onChange。菜单、树节点、表格和第三方自绘可直接使用同一能力。Checkbox 控件的 Boolean／CheckState Binding 与三态切换遵守 [控件规范第 5 节](SCOOP-UI-COMPONENT-SPEC.md#5-checkbox)，主题只消费对应标记。
+绘制仅根据输入显示空框、勾选或混合标记及其状态外观，不读取 Checkbox.checked、不调用 onChange。CheckboxPart.mixedAppearance 是半选状态的可选独立外观，None 继承 appearance；CheckboxPartBuilder.mixedAppearance { ... } 从当前覆盖或 appearance 派生，完整赋值 None 恢复继承。MixedMarkShape.Bar 使用原来的圆头横线，Square 使用 markBounds 内的方形；二者直接保存为 CheckboxGeometry.mixed 的最终轮廓。焦点留白取普通／半选外观与验证环的最大外扩，切换三态不改变布局；高对比度／减少透明度同时解析两种外观。菜单、树节点、表格和第三方自绘可直接使用同一能力。Checkbox 控件的 Boolean／CheckState Binding 与三态切换遵守 [控件规范第 5 节](SCOOP-UI-COMPONENT-SPEC.md#5-checkbox)，主题只消费对应标记。
 
 ### 4.3 Radio 标记
 
@@ -179,11 +184,29 @@ ScrollbarMetrics 包含建议厚度、最小滑块长度、轨道／滑块内缩
 | 风格 | 首批方向 |
 | --- | --- |
 | shadcn | Base Nova／Neutral，14／20 文字、32 高操作表面、10 基准圆角、3 宽焦点环；完整 Light／Dark、图表与侧栏语义配色 |
-| macOS | 系统风格字体与紧凑尺寸，柔和圆角、细边框、清晰焦点外框，较细且无端部按钮的滚动条 |
-| Material | 较大的触达／内容内缩、强调色选择状态、较大的圆角、明显提升阴影，较大的标记与滑块最小长度 |
-| Fluent | 独立的字体回退与字号组合、中等尺寸和圆角、分层表面／细边框、不同焦点和 hover／pressed 表现，支持端部按钮的滚动条几何 |
+| macOS | macOS Sequoia（15）的 Aqua／Dark Aqua；13／16 系统风格文字、22 高常规操作面、5 圆角与细边框、14 大小标记、贴边的 3 宽焦点外框及无端部按钮的中性滚动条 |
+| Material | Material Design 3／Material Web；Roboto 14／20 文字、40 高胶囊操作面与 24 水平留白、18 复选框／20 单选框、40 圆形交互状态层，按状态提升的阴影和中性滚动条 |
+| Fluent | Fluent 2 Web 的品牌与中性色状态、Segoe UI 字体回退、14／20 正文与操作文字、12／16 辅助文字；32 高操作面、4 圆角、16 大小标记、清晰的 2 宽焦点边框、分层浮动阴影及中性细滚动条 |
 
 这些是自绘预设，具体数字、颜色、轮廓与状态组合在各实现库中明确声明并测试。Light／Dark 调整整组语义颜色、边框／阴影强度和可读内容，而不只替换画布背景。共享字体描述使用系统存在的 family 回退列表；测试使用已有固定字体资源，不能依赖本机某一种商业字体一定安装。
+
+macOS 预设固定以 Sequoia 的窗口正文控件为基准，参考 Apple 的 [AppKit 外观说明](https://developer.apple.com/videos/play/wwdc2020/10104/)、[按钮](https://developer.apple.com/design/human-interface-guidelines/buttons)和[选择控件](https://developer.apple.com/design/human-interface-guidelines/toggles)。不采用 Liquid Glass 的透镜、折射、背景采样或玻璃高光，也不随运行系统升级改变轮廓。Light／Dark 默认窗口底色为 #ececec／#323232，内容底色为 #ffffff／#1e1e1e，强调色为 #007aff／#0a84ff；窗口、内容与普通控件底色分别承担不同角色。正文与操作文字采用 13 大小、16 行高及普通字重，辅助文字采用 11／14。
+
+macOS 普通按钮、默认操作按钮及 Checkbox／Radio 在 hover 时保留原有外观，按下立即显示压下色；不将普通按钮染为强调色。禁用状态不保留强调底色，使用中性控件底色与禁用文字，不再额外衰减整个控件。Checkbox 的 On／Mixed 均为强调色底，分别绘制对比色勾／横线；Radio 为强调色实心圆与对比色小圆点。3 宽焦点环直接贴合控件外缘，保留配色中焦点色的透明度，禁用时不绘制。选择标记使用短暂的 100ms ease-in-out 过渡；hover／press 不插值。按钮使用轻微投影，浮动面使用柔和分层阴影，默认不使用辉光。滚动条使用 15 宽条带、内缩的圆头中性滑块且不带端部按钮；显示／隐藏及条带预留继续由组件的 ScrollbarBehavior 决定。外部 palette 仍适用于全部部件，不改变上述尺寸、轮廓与动效。
+
+Fluent 预设以微软 [Fluent UI tokens](https://github.com/microsoft/fluentui/tree/master/packages/tokens/src) 和 [Fluent UI React components](https://github.com/microsoft/fluentui/tree/master/packages/react-components) 为配色及四类公共部件的对照。Action 的 Light／Dark 默认品牌背景分别为 #0f6cbd／#115ea3，标签均为白色；Checkbox／Radio 使用独立的 compound brand 状态色，不能在 Dark 中复用操作面的深蓝。普通和操作面不附加投影或辉光；浮动面使用环境与方向两层阴影，CSS blur 转换为本库的 Gaussian sigma。Checkbox 的 On 为品牌底色勾选，Mixed 为透明底色、品牌边框与方形；Radio 保持透明底色、品牌边框与实心品牌圆点。禁用颜色取独立中性 token，不由任意混色推导。滚动条默认不带端部按钮，hover／pressed 滑块均保持中性色；显式 buttonLength 覆盖仍由公共几何处理。
+
+Fluent 的 hover／press 使用 durationFaster（100ms）与 curveEasyEase（cubic-bezier(0.33, 0, 0.67, 1)）；Checkbox／Radio 的选择标记即时更新，与对应 Web 控件一致。减少动态仍通过公共 ThemeMotion.resolve 关闭过渡。
+
+Material 预设以 Google [Material Web 的 M3 tokens](https://github.com/material-components/material-web/tree/main/tokens/versions/v0_192) 及 [Checkbox](https://github.com/material-components/material-web/blob/main/checkbox/internal/_checkbox.scss)／[Radio](https://github.com/material-components/material-web/blob/main/radio/internal/_radio.scss) 为基准。Light／Dark 的 surface 为 #fef7ff／#141218，primary 为 #6750a4／#d0bcff，on-primary 为 #ffffff／#381e72；surface-container、secondary-container、outline／outline-variant 和 error／on-error 分别映射到对应语义角色，避免用近似紫色或背景色代替。正文使用 Roboto 回退的 14／20、0.25 字距，辅助文字为 12／16、0.4 字距，操作标签为 14／20、500 字重和 0.1 字距。
+
+Material Action 为无常驻阴影的 filled button，hover 混入 8% on-primary，pressed 混入 12% on-primary；仅 hover 使用一级提升的两层投影，默认不使用 glow。OutlinedAction 使用透明 outlined 表面、outline 边框与 primary 标签；hover／pressed 以 8%／12% primary 表达状态。填充／描边操作面均为 40 高、64 最小宽、24 水平内容留白和胶囊轮廓。禁用填充操作面以 12% on-surface 填充，描边操作面保持透明并使用 12% on-surface 边框；文字为独立 disabledText（预设 38% on-surface），不再施加整体透明度。浮动面使用 surface-container 和二级提升投影。操作焦点为 secondary 色的 3 宽外环，与轮廓间隔 2。Plain 输入表面为 56 建议高、固定 4 圆角、透明底色和 on-surface 正文，普通边框为 outline，hover 为 on-surface；焦点为贴边的 2 宽 primary 描边，验证为贴边 error 描边，不使用操作按钮的外围环。多行高度增加时圆角保持 4；单行输入和 Textarea 共用该输入表面。
+
+Material 的输入控件同时遵循 [Text fields 规格](https://m3.material.io/components/text-fields/specs)和[标签规则](https://m3.material.io/components/text-fields/guidelines)。`ThemeTokens.textField` 是视觉处理枚举 `TextFieldTreatment.Standard／Outlined`，Material 选择 Outlined，其余预设选择 Standard；控件不判断主题类型。Standard 使用普通外置标签，Outlined 使用位于框内或上边框缺口内的浮动标签。Material 的 typography.input 为 16／24、0.5 字距，浮动标签及辅助文字使用 12／16；输入正文与 placeholder 不再借用 14／20 的普通正文角色。输入文字缩放与其他 typography 角色一并解析。Outlined 的错误边框保持不透明，普通为 1 宽、聚焦为 2 宽，高对比度不低于 2；应用明确的 validation／border 覆盖仍优先。浮动标签、缺口布局及可访问名称由控件消费这些普通描述实现，不向 Theme 添加编辑状态或原生资源。
+
+Material Checkbox 使用 18 大小、2 圆角／边宽和 2 宽勾／横线；Radio 使用 20 大小、2 宽圆环和 10 直径圆点。未选中内部透明，普通边框取 on-surface-variant，hover／pressed 取 on-surface；选择后保持 primary 标记，Checkbox 的勾／半选线使用 on-primary。禁用标记使用 38% on-surface，选中 Checkbox 的标记使用 surface，边框不与半透明填充重复合成。两种标记共享 40 大小圆形状态层：未选中 hover 为 8% on-surface、pressed 为 12% primary，选中 hover 为 8% primary、pressed 为 12% on-surface；焦点轮廓跟随该圆形区域。hover／press 使用 100ms，选择变化使用 200ms，均采用 M3 standard easing（0.2, 0, 0, 1）。滚动条保留桌面的 14 宽条带和 32 最小滑块，以 on-surface-variant 中性色表达状态；不冒充 Material Web 未提供的滚动条组件。所有颜色仍从所给 palette 派生，外部配色不改变以上几何与动画。
+
+`scoop.ui.component/examples/shadcn` 的右上角 Style 下拉框只选择 shadcn、macOS、Material、Fluent。配色来源是独立的 Preset／System 设置，提供系统取色适配时默认 System，否则固定 Preset。System 适用于全部四种风格，通过相同的 palette 参数传入当前风格工厂；只在 System 被选中时读取系统颜色。切换风格保留配色来源，切换配色保留风格；二者通过同一个 ThemeSource 发布完整主题，并保留明暗、减少动态、布局方向、页面、编辑内容与业务状态。
 
 ## 6. 整体切换与局部主题
 

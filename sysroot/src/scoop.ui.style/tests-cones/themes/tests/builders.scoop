@@ -19,52 +19,50 @@ private class ThemeBuilderTest {
         val palettes = ArrayList<ThemePaletteBuilder>()
         val fonts = ArrayList<TextStyleBuilder>()
         val parts = ArrayList<SurfacePartBuilder>()
-        val configure: ShapeThemeBuilder.() -> Unit =
-            {
-                calls.add(1)
-                tokens {
-                    palette {
-                        palettes.add(this)
-                        destructive = ColorPair(Color.White, destructive.foreground)
-                    }
-                    palette {}
-                    typography {
-                        action {
-                            fonts.add(this)
-                            weight = 700
-                        }
-                    }
-                    typography { action { letterSpacing = 1.2 } }
-                    typography {}
-                    effects { emphasis = [] }
-                    effects {}
-                    motion { hover = None }
-                    motion {}
+        val configure: ShapeThemeBuilder.() -> Unit = {
+            calls.add(1)
+            tokens {
+                palette {
+                    palettes.add(this)
+                    destructive = ColorPair(Color.White, destructive.foreground)
                 }
-                tokens {}
-                surfaces {
+                palette {}
+                typography {
                     action {
-                        parts.add(this)
-                        fill = StateColors.solid(Color.Black)
-                        shadows = []
+                        fonts.add(this)
+                        weight = 700
                     }
-                    action {}
                 }
-                surfaces {}
-                checkbox { appearance { mark = StateColors.solid(Color.White) } }
-                checkbox {}
-                radio { appearance { mark = StateColors.solid(Color.Black) } }
-                radio {}
-                scrollbar { arrowWidth = 3.0 }
-                scrollbar {}
+                typography { action { letterSpacing = 1.2 } }
+                typography {}
+                effects { emphasis = [] }
+                effects {}
+                motion { hover = None }
+                motion {}
             }
-        val configured =
-            [
-                macosTheme(ThemeMode.Dark, configure),
-                materialTheme(ThemeMode.Dark, configure),
-                fluentTheme(ThemeMode.Dark, configure),
-                shadcnTheme(ThemeMode.Dark, configure = configure)
-            ]
+            tokens {}
+            surfaces {
+                action {
+                    parts.add(this)
+                    fill = StateColors.solid(Color.Black)
+                    shadows = []
+                }
+                action {}
+            }
+            surfaces {}
+            checkbox { appearance { mark = StateColors.solid(Color.White) } }
+            checkbox {}
+            radio { appearance { mark = StateColors.solid(Color.Black) } }
+            radio {}
+            scrollbar { arrowWidth = 3.0 }
+            scrollbar {}
+        }
+        val configured = [
+            macosTheme(ThemeMode.Dark, configure = configure),
+            materialTheme(ThemeMode.Dark, configure = configure),
+            fluentTheme(ThemeMode.Dark, configure = configure),
+            shadcnTheme(ThemeMode.Dark, configure = configure)
+        ]
         palettes[0L].destructive = ColorPair(Color.Black, Color.White)
         fonts[0L].fontSize = 90.0
         parts[0L].fill = StateColors.solid(Color.White)
@@ -83,14 +81,14 @@ private class ThemeBuilderTest {
                 }
             )
             assertEquals(0L, theme.surfaces.action.shadows.size)
-            val surface =
-                theme.surfaceGeometry(
+            val surface = theme
+                .surfaceGeometry(
                     Rect(0.0, 0.0, 120.0, 40.0),
                     SurfaceVisual(SurfaceKind.Action)
                 )
             assertEquals(Color.Black, surface.style.background!!.color)
-            val box =
-                theme.checkboxGeometry(Rect(0.0, 0.0, 24.0, 24.0), CheckboxVisual(CheckMark.On))
+            val box = theme
+                .checkboxGeometry(Rect(0.0, 0.0, 24.0, 24.0), CheckboxVisual(CheckMark.On))
             assertEquals(Color.White, box.markColor)
             val radio = theme.radioGeometry(Rect(0.0, 0.0, 24.0, 24.0), RadioVisual(true))
             assertEquals(Color.Black, radio.dotColor)
@@ -101,10 +99,12 @@ private class ThemeBuilderTest {
     @Test
     fun `copy preserves other descriptions while assignments replace only the selected field`() {
         val original = materialTheme()
-        val replacement =
-            original.tokens.palette.copy { primary = ColorPair(Color.White, primary.foreground) }
-        val derived =
-            original.copy {
+        val replacement = original
+            .tokens
+            .palette
+            .copy { primary = ColorPair(Color.White, primary.foreground) }
+        val derived = original
+            .copy {
                 tokens {
                     palette = replacement
                     palette { destructive = ColorPair(Color.Black, destructive.foreground) }
@@ -158,14 +158,13 @@ private class ThemeBuilderTest {
     @Test
     fun `standalone factories keep required seeds and snapshot ordered effects with disabled defaults`() {
         val seed = fluentTheme()
-        val defaults =
-            themeTokens(
-                seed.tokens.palette,
-                seed.tokens.typography,
-                seed.tokens.spacing,
-                seed.tokens.corners,
-                seed.tokens.validation
-            )
+        val defaults = themeTokens(
+            seed.tokens.palette,
+            seed.tokens.typography,
+            seed.tokens.spacing,
+            seed.tokens.corners,
+            seed.tokens.validation
+        )
         assertEquals(ThemeMode.Light, defaults.mode)
         assertEquals(0L, defaults.effects.raised.size)
         assertEquals(0L, defaults.effects.floating.size)
@@ -179,22 +178,24 @@ private class ThemeBuilderTest {
         val captured = ArrayList<ThemeEffectsBuilder>()
         val first = BoxShadow(Point(1.0, 2.0), 3.0, 4.0, Color.Black)
         val second = BoxShadow(Point(2.0, 3.0), 4.0, 5.0, Color.White)
-        val effects =
-            themeEffects {
-                captured.add(this)
-                raised = [first, second]
-                floating = [second]
-                emphasis = [ContentEffect.Glow(2.0, 2.0, Color.White), ContentEffect.Blur(3.0, 3.0)]
-            }
-        val configured =
-            defaults.copy {
+        val effects = themeEffects {
+            captured.add(this)
+            raised = [first, second]
+            floating = [second]
+            emphasis = [ContentEffect.Glow(2.0, 2.0, Color.White), ContentEffect.Blur(3.0, 3.0)]
+        }
+        val configured = defaults
+            .copy {
                 this.effects = effects
                 motion { hover = Some(AnimationSpec.Tween(Duration.milliseconds(150L))) }
             }
-        val complete =
-            shapeTheme(configured, seed.surfaces, seed.checkbox, seed.radio, seed.scrollbar) {
-                scrollbar { arrowWidth = 2.5 }
-            }
+        val complete = shapeTheme(
+            configured,
+            seed.surfaces,
+            seed.checkbox,
+            seed.radio,
+            seed.scrollbar
+        ) { scrollbar { arrowWidth = 2.5 } }
         captured[0L].raised = []
         captured[0L].emphasis = []
         assertEquals(first, complete.tokens.effects.raised[0L])
@@ -209,7 +210,8 @@ private class ThemeBuilderTest {
         assertEquals(seed.scrollbar.metrics.buttonLength, complete.scrollbar.metrics.buttonLength)
         assertEquals(2L, complete.copy().tokens.effects.raised.size)
         when (complete.tokens.motion.hover) {
-            case Some(Tween(val duration, _)) -> assertEquals(Duration.milliseconds(150L), duration);
+            case Some(Tween(val duration, _)) ->
+                assertEquals(Duration.milliseconds(150L), duration);
             else -> fail(Some("configured motion was lost"))
         }
         assertTrue(
@@ -229,14 +231,15 @@ private class ThemeBuilderTest {
         assertSame(
             failure,
             assertFailsWith<IllegalStateException> {
-                original.copy {
-                    tokens {
-                        palette {
-                            destructive = ColorPair(Color.White, destructive.foreground);
-                            throw failure
+                original
+                    .copy {
+                        tokens {
+                            palette {
+                                destructive = ColorPair(Color.White, destructive.foreground);
+                                throw failure
+                            }
                         }
                     }
-                }
             }
         )
         assertEquals(errorColor, original.tokens.palette.destructive.background)

@@ -1,0 +1,286 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.LayoutDirection
+import scoop.ui.style.*
+import scoop.ui.style.material.materialTheme
+
+@Test
+private class MaterialThemeTest {
+    @Test
+    fun `M3 roles and typography distinguish surfaces tonal containers and filled actions`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val dark = mode == ThemeMode.Dark
+            val theme = materialTheme(mode)
+            val palette = theme.tokens.palette
+            assertEquals(m3Color(if (dark) 0x141218 else 0xfef7ff), palette.background.background)
+            assertEquals(m3Color(if (dark) 0xe6e0e9 else 0x1d1b20), palette.background.foreground)
+            assertEquals(m3Color(if (dark) 0xd0bcff else 0x6750a4), palette.primary.background)
+            assertEquals(m3Color(if (dark) 0x381e72 else 0xffffff), palette.primary.foreground)
+            assertEquals(m3Color(if (dark) 0x4a4458 else 0xe8def8), palette.secondary.background)
+            assertEquals(m3Color(if (dark) 0x601410 else 0xffffff), palette.destructive.foreground)
+            assertEquals(m3Color(if (dark) 0x938f99 else 0x79747e), palette.input)
+            assertEquals(m3Color(if (dark) 0x49454f else 0xcac4d0), palette.border)
+            assertTrue(palette.card.background != palette.background.background)
+            assertTrue(palette.popover.background != palette.card.background)
+            val fonts = theme.tokens.typography
+            assertEquals("Roboto", fonts.body.families[0L])
+            assertEquals(14.0, fonts.body.fontSize)
+            assertEquals(Some(20.0 / 14.0), fonts.body.lineHeight)
+            assertEquals(0.25, fonts.body.letterSpacing)
+            assertEquals(12.0, fonts.caption.fontSize)
+            assertEquals(Some(16.0 / 12.0), fonts.caption.lineHeight)
+            assertEquals(0.4, fonts.caption.letterSpacing)
+            assertEquals(500, fonts.action.weight)
+            assertEquals(Some(20.0 / 14.0), fonts.action.lineHeight)
+            assertEquals(0.1, fonts.action.letterSpacing)
+            assertEquals(16.0, fonts.input.fontSize)
+            assertEquals(Some(24.0 / 16.0), fonts.input.lineHeight)
+            assertEquals(0.5, fonts.input.letterSpacing)
+            assertEquals(TextFieldTreatment.Outlined, theme.tokens.textField)
+            for (kind in [SurfaceKind.OutlinedAction, SurfaceKind.Action]) {
+                val visual = SurfaceVisual(kind)
+                val metrics = theme.surfaceMetrics(visual)
+                assertEquals(Size(64.0, 40.0), metrics.minimumSize)
+                assertEquals(Insets(24.0, 10.0, 24.0, 10.0), metrics.contentInsets)
+                val geometry = theme.surfaceGeometry(Rect(10.0, 10.0, 100.0, 40.0), visual)
+                assertEquals(CornerRadii.all(20.0), geometry.outline.radii)
+            }
+            assertEquals(Size(18.0, 18.0), theme.checkboxMetrics().suggestedSize)
+            assertEquals(Size(20.0, 20.0), theme.radioMetrics().suggestedSize)
+            assertEquals(0L, theme.tokens.effects.emphasis.size)
+        }
+    }
+
+    @Test
+    fun `filled buttons elevate only on hover while outlined buttons keep transparent interiors`() {
+        val bounds = Rect(20.0, 20.0, 96.0, 40.0)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = materialTheme(mode)
+            val palette = theme.tokens.palette
+            val normal = SurfaceVisual(SurfaceKind.Action)
+            val hover = SurfaceVisual(SurfaceKind.Action, InteractionVisual(hovered = true))
+            val press = SurfaceVisual(
+                SurfaceKind.Action,
+                InteractionVisual(hovered = true, pressed = true)
+            )
+            val plain = theme.surfaceGeometry(bounds, SurfaceVisual(SurfaceKind.OutlinedAction))
+            assertEquals(Color.Transparent, plain.style.background!!.color)
+            assertEquals(palette.input, plain.style.border!!.resolve(LayoutDirection.Ltr).top.color)
+            assertEquals(
+                palette.primary.background,
+                theme.surfaceTextColor(SurfaceVisual(SurfaceKind.OutlinedAction))
+            )
+            val idle = theme.surfaceGeometry(bounds, normal)
+            val hovered = theme.surfaceGeometry(bounds, hover)
+            val pressed = theme.surfaceGeometry(bounds, press)
+            assertEquals(0L, idle.style.boxShadows.size)
+            assertEquals(2L, hovered.style.boxShadows.size)
+            assertEquals(0L, pressed.style.boxShadows.size)
+            assertEquals(idle.content, hovered.content)
+            assertEquals(idle.content, pressed.content)
+            assertEquals(
+                mixThemeColor(palette.primary.background, palette.primary.foreground, 0.08),
+                hovered.style.background!!.color
+            )
+            assertEquals(
+                mixThemeColor(palette.primary.background, palette.primary.foreground, 0.12),
+                pressed.style.background!!.color
+            )
+            theme
+                .createPainter()
+                .use { painter ->
+                    val baseline = pixels { canvas -> painter.drawSurface(canvas, idle, normal) }
+                    val elevated = pixels { canvas -> painter.drawSurface(canvas, hovered, hover) }
+                    assertEquals(0, channel(baseline, 128, 60, 61, 3))
+                    assertTrue(channel(elevated, 128, 60, 61, 3) > 0)
+                }
+        }
+    }
+
+    @Test
+    fun `text fields keep small corners neutral text and an inset focus at every multiline height`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = materialTheme(mode)
+            val palette = theme.tokens.palette
+            assertEquals(56.0, theme.surfaceMetrics(SurfaceVisual()).suggestedSize.height)
+            val focus = SurfaceVisual(SurfaceKind.Plain, InteractionVisual(focusVisible = true))
+            for (height in [56.0, 96.0, 180.0]) {
+                val bounds = Rect(8.0, 8.0, 104.0, height)
+                val geometry = theme.surfaceGeometry(bounds, focus)
+                assertEquals(CornerRadii.all(4.0), geometry.outline.radii)
+                assertEquals(bounds, geometry.ring!!.outline.bounds)
+                assertEquals(2.0, geometry.ring!!.border.width)
+                assertEquals(palette.primary.background, geometry.ring!!.border.color)
+                assertEquals(Color.Transparent, geometry.style.background!!.color)
+                assertEquals(palette.background.foreground, theme.surfaceTextColor(focus))
+                val invalid = theme
+                    .surfaceGeometry(
+                        bounds, SurfaceVisual(SurfaceKind.Plain, InteractionVisual(invalid = true))
+                    )
+                assertEquals(bounds, invalid.ring!!.outline.bounds)
+                assertEquals(CornerRadii.all(4.0), invalid.ring!!.outline.radii)
+            }
+            val hovered = SurfaceVisual(SurfaceKind.Plain, InteractionVisual(hovered = true))
+            val bounds = Rect(8.0, 8.0, 104.0, 72.0)
+            assertEquals(
+                Color.Transparent,
+                theme.surfaceGeometry(bounds, hovered).style.background!!.color
+            )
+            theme
+                .createPainter()
+                .use { painter ->
+                    val geometry = theme.surfaceGeometry(bounds, focus)
+                    val painted = pixels { canvas -> painter.drawSurface(canvas, geometry, focus) }
+                    pixelColor(painted, 128, 9, 16, palette.primary.background)
+                }
+        }
+    }
+
+    @Test
+    fun `selection markers keep transparent interiors and paint circular state layers at two times DPI`() {
+        val box = Rect(31.0, 31.0, 18.0, 18.0)
+        val radioBounds = Rect(30.0, 30.0, 20.0, 20.0)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = materialTheme(mode)
+            val palette = theme.tokens.palette
+            val off = theme.checkboxGeometry(box, CheckboxVisual())
+            assertEquals(Color.Transparent, off.style.background!!.color)
+            val on = CheckboxVisual(CheckMark.On)
+            val mixed = CheckboxVisual(CheckMark.Mixed)
+            val checked = theme.checkboxGeometry(box, on)
+            val partial = theme.checkboxGeometry(box, mixed)
+            assertEquals(palette.primary.background, checked.style.background!!.color)
+            assertEquals(palette.primary.foreground, checked.markColor)
+            assertEquals(10.0, partial.mixed.bounds.width)
+            assertEquals(2.0, partial.mixed.bounds.height)
+            val radioVisual = RadioVisual(true)
+            val radio = theme.radioGeometry(radioBounds, radioVisual)
+            assertEquals(Color.Transparent, radio.style.background!!.color)
+            assertEquals(5.0, radio.dot.radius)
+            theme
+                .createPainter()
+                .use { painter ->
+                    val checkedPixels = pixels(dpi = 2.0) { canvas ->
+                        painter.drawCheckbox(canvas, checked, on)
+                    }
+                    val mixedPixels = pixels(dpi = 2.0) { canvas ->
+                        painter.drawCheckbox(canvas, partial, mixed)
+                    }
+                    pixelColor(checkedPixels, 128, 78, 88, palette.primary.foreground)
+                    pixelColor(mixedPixels, 128, 80, 80, palette.primary.foreground)
+                    val radioPixels = pixels(dpi = 2.0) { canvas ->
+                        painter.drawRadio(canvas, radio, radioVisual)
+                    }
+                    pixelColor(radioPixels, 128, 80, 80, palette.primary.background)
+                    pixelColor(radioPixels, 128, 98, 80, palette.primary.background)
+                    pixelColor(radioPixels, 128, 92, 80, Color.Transparent)
+                    for (selected in [false, true]) {
+                        val hover = InteractionVisual(hovered = true)
+                        val mark = if (selected) CheckMark.On else CheckMark.Off
+                        val geometry = theme.checkboxGeometry(box, CheckboxVisual(mark, hover))
+                        val base = if (selected)
+                            palette.primary.background
+                        else
+                            palette.background.foreground
+                        val tint = base.withAlpha(base.alpha * 0.08)
+                        assertEquals(Circle(Point(40.0, 40.0), 20.0), geometry.stateLayer!!.circle)
+                        assertEquals(tint, geometry.stateLayer!!.color)
+                        // The geometry owns sampled effects even when the painter gets a later visual.
+                        val painted = pixels(dpi = 2.0) { canvas ->
+                            painter.drawCheckbox(canvas, geometry, CheckboxVisual(mark))
+                        }
+                        pixelColor(painted, 128, 50, 80, tint)
+                        pixelColor(painted, 128, 38, 80, Color.Transparent)
+                        val radioHover = theme
+                            .radioGeometry(radioBounds, RadioVisual(selected, hover))
+                        val radioPainted = pixels(dpi = 2.0) { canvas ->
+                            painter.drawRadio(canvas, radioHover, RadioVisual(selected))
+                        }
+                        pixelColor(radioPainted, 128, 50, 80, tint)
+                    }
+                }
+        }
+    }
+
+    @Test
+    fun `disabled containers and markers composite once and lose their interaction decoration`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = materialTheme(mode)
+            val palette = theme.tokens.palette
+            val disabled = InteractionVisual(
+                enabled = false, hovered = true,
+                pressed = true, focusVisible = true
+            )
+            val action = SurfaceVisual(SurfaceKind.Action, disabled)
+            val surface = theme.surfaceGeometry(Rect(10.0, 10.0, 100.0, 40.0), action)
+            assertEquals(
+                palette.background.foreground.withAlpha(0.12),
+                surface.style.background!!.color
+            )
+            assertEquals(palette.disabledText, theme.surfaceTextColor(action))
+            assertEquals(0L, surface.style.boxShadows.size)
+            assertEquals(1.0, surface.opacity)
+            val visual = CheckboxVisual(CheckMark.On, disabled)
+            val box = theme.checkboxGeometry(Rect(20.0, 20.0, 18.0, 18.0), visual)
+            assertEquals(palette.disabledText, box.style.background!!.color)
+            assertEquals(
+                Color.Transparent,
+                box.style.border!!.resolve(LayoutDirection.Ltr).top.color
+            )
+            assertEquals(palette.background.background, box.markColor)
+            assertEquals(None, box.ring)
+            assertEquals(None, box.stateLayer)
+            assertEquals(1.0, box.opacity)
+            theme
+                .createPainter()
+                .use { painter ->
+                    val painted = pixels(dpi = 2.0) { canvas ->
+                        painter.drawCheckbox(canvas, box, visual)
+                    }
+                    // Border and interior must have the same 38% opacity.
+                    pixelColor(painted, 128, 41, 58, palette.disabledText)
+                    pixelColor(painted, 128, 44, 50, palette.disabledText)
+                }
+            val radio = theme
+                .radioGeometry(Rect(20.0, 20.0, 20.0, 20.0), RadioVisual(true, disabled))
+            assertEquals(palette.disabledText, radio.dotColor)
+            assertEquals(Color.Transparent, radio.style.background!!.color)
+            assertEquals(None, radio.stateLayer)
+        }
+    }
+
+    @Test
+    fun `M3 motion and neutral scrollbars retain the desktop scrolling geometry`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = materialTheme(mode)
+            for (spec in [theme.tokens.motion.hover, theme.tokens.motion.press])
+                when (spec!!) {
+                    case Tween(val duration, val easing) -> {
+                        assertEquals(Duration.milliseconds(100L), duration)
+                        assertTrue(easing.transform(0.5) > 0.8)
+                    }
+
+                    else -> fail(Some("M3 interaction must use standard easing"))
+                }
+            when (theme.tokens.motion.selection!!) {
+                case Tween(val duration, _) -> assertEquals(Duration.milliseconds(200L), duration)
+                else -> fail(Some("M3 selection must use a short tween"))
+            }
+            val neutral = theme.tokens.palette.muted.foreground
+            assertEquals(neutral.withAlpha(0.38), theme.scrollbar.thumb.normal)
+            assertEquals(neutral.withAlpha(0.5), theme.scrollbar.thumb.hovered)
+            assertEquals(14.0, theme.scrollbarMetrics().thickness)
+            assertEquals(32.0, theme.scrollbarMetrics().minimumThumbLength)
+            assertEquals(None, theme.scrollbarMetrics().buttonLength)
+        }
+    }
+}
+
+private fun m3Color(value: Int): Color = Color(
+    (value / 65536).toDouble() / 255.0,
+    ((value / 256) % 256).toDouble() / 255.0,
+    (value % 256).toDouble() / 255.0
+)
