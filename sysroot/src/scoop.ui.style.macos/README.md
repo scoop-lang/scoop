@@ -6,6 +6,8 @@ macOS 另提供 `macosSystemPalette(mode)`，在主线程读取指定明暗外�
 
 通过 Theme 查询表面、Checkbox／Radio 标记和 Scrollbar 的 metrics／geometry，再交给主题创建的 ThemePainter 绘制。离屏直接使用普通 Canvas；自绘 Element 通过 ComponentScope 持有 ThemePainterCache，换主题时替换并关闭旧 painter，应用无需逐组件 use。
 
+`macosTheme(mode, palette = Some(colors))` 可独立覆盖配色来源，系统配色同样通过此参数传入；文字、表面、选择标记、边框和交互状态使用所给语义色，字体、尺寸、轮廓与动效仍属于当前风格。省略 palette 使用风格预设。
+
 `macosTheme(mode) { ... }` 在所选模式的完整数据上配置 tokens、surfaces、checkbox、radio 和 scrollbar；`theme.copy { ... }` 从当前值继续修改。嵌套块保留未修改字段，完整赋值替换该字段；palette 的修改只修改该配色值，相关部件外观需要同时改变时显式配置。主题工厂返回不可变的普通描述。ThemeSource.current 是整体切换入口；主题及模式变化保留组件身份，实际使用者按新几何布局。公共语义颜色、字体、尺寸、圆角、效果与动画参数通过 tokens 提供。字体使用 family 回退，字体实际存在与 shaping 由 graphics.text 负责。
 
 四类部件共同使用公共 ShapeTheme 算法，各预设显式声明自己的参数，控件不按风格分支。完整 Radio 分组、滚动、动画驱动及点击行为仍属于控件或模型。

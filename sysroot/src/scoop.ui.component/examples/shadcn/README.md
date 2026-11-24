@@ -1,13 +1,13 @@
-# shadcn Gallery
+# Scoop UI Gallery
 
-真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。导航分为 Applications 和 Components，包含 65 项组件的独立页面，以及四个可操作的应用组合：
+真实原生窗口，使用同一套 `scoop.ui.component`，右上角 Style 下拉框可选择 shadcn、macOS、Material、Fluent 的完整主题。示例目录保留 `shadcn` 名称。导航分为 Applications 和 Components，包含 65 项组件的独立页面，以及四个可操作的应用组合：
 
 - **Settings app**：资料与偏好表单，组合中文输入、邮件与验证码校验、生日选择、勾选／开关／单选和存储滑块；固定操作区提交时会显露并聚焦错误字段。
 - **Workspace app**：侧栏、文档／预览页签和可调面板，配合 File 菜单、命令搜索、重命名 Dialog、嵌套 Sheet 和活动 Drawer；窗口变窄后使用移动侧栏，草稿随应用模型保留。
 - **Data app**：本地样例付款的筛选、排序、分页、选择和行内备注；行菜单的删除确认同时更新表格与图表，通知中的 Undo 恢复原记录及备注。
 - **Conversation app**：消息、附件、可编辑的嵌套 Trace、异步回复与图片，以及带条件分支的问卷；支持插入历史、保存／恢复阅读位置和答案、错误回跳与重复提交防护，切页取消任务。
 
-Bubble、Message、Marker、Attachment、Trace 页面提供窄宽、逻辑对齐、独立动作和真实异步更新。Bubble 展示全部变体及上下反应区；Message 可增删头像／页脚并保留草稿。Attachment 包含五种状态、三种尺寸、横纵媒体及可滚动图片组。Trace 支持嵌套编辑、受控／拒绝展开、链接动作及 Dialog／Sheet；页面和 Sheet 分别持有编辑器状态。切页取消任务，明暗、System／Neutral、RTL 与减少动态沿顶部设置。
+Bubble、Message、Marker、Attachment、Trace 页面提供窄宽、逻辑对齐、独立动作和真实异步更新。Bubble 展示全部变体及上下反应区；Message 可增删头像／页脚并保留草稿。Attachment 包含五种状态、三种尺寸、横纵媒体及可滚动图片组。Trace 支持嵌套编辑、受控／拒绝展开、链接动作及 Dialog／Sheet；页面和 Sheet 分别持有编辑器状态。切页取消任务，明暗、Style、RTL 与减少动态沿顶部设置。
 
 Message Scroller 页面使用稳定消息 key，提供新回合、真实异步流式回复、历史插入、延迟图片、保存／恢复阅读位置和清空恢复。Auto follow 显式启用末端跟随；拖选正文、输入备注或向上滚动后保持阅读位置。顶部主题／RTL 与 Narrow 可组合检查；切页取消示例任务并释放图片。
 
@@ -15,7 +15,7 @@ Table 展示有限发票、共享列宽、footer 和独立动作。Data Table �
 
 Tree 页面使用含 180 个组件文件的目录数据，展示同一模型的单列／多列、祖先整行吸顶、级联勾选、目录多选、过滤／高亮、连接线、固定／可变行高及窄宽横向滚动。Jump to file 60 显示三层祖先；Size 表头排序、列边缘调宽、Details column 显隐和 Inspect 行内操作可组合使用，F2 进入行内操作、Escape 返回行。Collapse branches 后可把 notes.scoop 拖入 archive，也可悬停 src 展开或沿正文边缘滚动；排序时仅保留 Inside 移动。Load Remote 的首次异步请求故意失败，点击原父行的重试箭头后成功；切页取消尚未完成的加载，已加载数据和选择保留。Reset tree 恢复演示数据；主题、RTL 与减少动态沿 Gallery 顶部设置。示例只修改内存数据，不访问真实文件系统。
 
-Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、长文换行及可拒绝的受控绑定；Hover Card 页展示可选文字、关注操作和嵌套 Popover。Popover 页可切换箭头，三页沿 Gallery 的 System／Neutral、明暗、RTL 与 Reduced Motion 配置。
+Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、长文换行及可拒绝的受控绑定；Hover Card 页展示可选文字、关注操作和嵌套 Popover。Popover 页可切换箭头，三页沿 Gallery 的 Style、明暗、RTL 与 Reduced Motion 配置。
 
 组件页面包括普通、invalid、disabled、真实焦点状态和各公开变体。组件及组合应用的实际验证范围见 [实施记录](../../../../../docs/ui/shadcn/PROGRESS.md)，Tree 的定向验证与系统拖放限制见 [Tree 实施记录](../../../../../docs/ui/tree/PROGRESS.md)。
 
@@ -27,9 +27,11 @@ SCOOP_SYSROOT="$PWD/sysroot" target/release/scoop run sysroot/src/scoop.ui.compo
 
 Gallery 的 macOS 入口在附着窗口前调用 `configureFpsReportingFromEnvironment()`。在同一命令前加 `SCOOP_SURFACE_FPS=1` 即可查看实际呈现帧率。Button 页可供静止对照，Spinner 或 Skeleton 页可测连续动画。输出字段见 [Surface README](../../../scoop.surface/README.md)。
 
-顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。切换主题、方向和页面保留应用模型；搜索不修改控件状态。此轮只在 macOS 验证。
+顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion，右上角 Style 下拉框选择整套视觉风格；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。Style 支持方向键、Enter 和文字搜索，切换后保留当前页面、文字、业务状态、方向、明暗及动态偏好；组件继续通过同一 ThemeSource 更新。此轮只在 macOS 验证。
 
-macOS 默认使用实际系统配色，顶部 `Colors: System／Neutral` 按钮切换配色。System 使用系统强调色、背景、文字及分隔线，按当前 Light／Dark 选择解析；切换配色、明暗或重新聚焦窗口时读取最新系统颜色。shadcn 的尺寸、布局和交互保持一致，Neutral 仍用于参考和固定配色测试。其他平台继续使用 Neutral，系统取色适配只在 macOS 提供。
+Style 始终提供 `shadcn`、`macOS`、`Material` 和 `Fluent`。其左侧的 `Colors: Preset／System` 独立选择配色来源：Preset 使用当前风格的预设配色，System 把系统强调色、背景、文字及分隔线应用于任意风格，同时保留该风格的字体、尺寸、轮廓及动效。切换 Style 保留配色来源，切换 Colors 保留 Style。macOS 默认 shadcn + System；只有启用 System 时，切换明暗或重新聚焦窗口才读取系统颜色。其他平台固定 Preset，系统取色适配只在 macOS 提供。
+
+窗口测试遵守每进程一个 Application 的合同，须串行、按单个用例启动；`--list` 可列出名称，再以 `scoop test sysroot/src/scoop.ui.component/examples/shadcn --release --filter 'real gallery retains'` 等命令分别运行。普通模型测试可按容器筛选，例如 `--filter GalleryStyleTest` 验证样式切换和状态保持。
 
 Badge 页面可以切换禁用、撤销动作和替换回调。Spinner 页面中的滚动面板用于观察离屏停帧与滚回恢复；切页、隐藏窗口、停止和减少动态均不会留下持续渲染。自定义 Button／Badge 内容通过 ActionContentStyle 消费解析后的文字、图标尺寸、颜色与间距。
 
@@ -46,11 +48,11 @@ Button Group 页面提供横纵按钮组、文字前缀加 Input、split action�
 Item 页面展示三种变体与尺寸、头像／图片／图标、可选头尾和分隔线。切换宽度时动作换行，切换详情保留可选择正文；整行动作和内部按钮分别计数。可以切换展示模式或整行禁用，检查明暗／RTL 下的排列与键盘行为。
 
 
-Checkbox 页面新增三态全选组合：部分选中显示横线，全选再清空使用同一组 Boolean 子项。Switch 页面包含两种尺寸及普通／invalid／disabled 状态，可点击关联标签、使用 Space，并切换减少动态。Toggle 页面展示两种变体、三种尺寸、图标／文字、自定义内容及 Preview 组合；按住与选中分别呈现，Space／Enter 读写同一绑定。
+Checkbox 页面新增三态全选组合：部分选中显示半选标记（Fluent 为方块，其他预设为横线），全选再清空使用同一组 Boolean 子项。Switch 页面包含两种尺寸及普通／invalid／disabled 状态，可点击关联标签、使用 Space，并切换减少动态。Toggle 页面展示两种变体、三种尺寸、图标／文字、自定义内容及 Preview 组合；按住与选中分别呈现，Space／Enter 读写同一绑定。
 
 Input OTP 页面展示六位分组、四位字母数字、Unicode grapheme 自定义策略、禁用、只读与单槽错误。可切换窄宽和禁用、通过标签聚焦，并观察正文与完成通知计数；粘贴数字中的空白和连字符被移除，一次 Undo 撤销整个粘贴。输入法 preedit 保持原文，最终提交才过滤并截断。
 
-Radio Group 页面包含空选／已选、禁用项、可切换方向／错误状态、外部选择、关联标签和自定义 plan 卡片。Toggle Group 页面包含可清空单选、多选、三种尺寸、连边／间距、横纵排列、重排及自定义图标正文；方向键只移动焦点，Space／Enter 激活。两页沿顶部切换 System／Neutral、明暗和 RTL。
+Radio Group 页面包含空选／已选、禁用项、可切换方向／错误状态、外部选择、关联标签和自定义 plan 卡片。Toggle Group 页面包含可清空单选、多选、三种尺寸、连边／间距、横纵排列、重排及自定义图标正文；方向键只移动焦点，Space／Enter 激活。两页沿顶部切换 Style、明暗和 RTL。
 
 Slider 页面提供单个、两个和三个 thumb、连续范围、竖向和禁用示例。可点击轨道、拖动 thumb、通过标签聚焦，或使用方向键、Home／End、PageUp／PageDown；minimumGap 保持相邻值的间距，Escape 取消拖动。页面可以切换反向、窄宽、invalid、禁用及减少动态，并分别统计提交与取消；配色、明暗和 RTL 继续沿用顶部设置。
 
@@ -58,7 +60,7 @@ Input 页面补充密码显隐、最多六位数字的编辑策略、只读复�
 
 Input Group 页面展示四种 addon 位置、文字前后缀、Kbd、Spinner、独立按钮、多行消息和显式自定义输入。可以移动 keyed addon、收窄宽度及切换错误／禁用／只读；点击 addon 文字聚焦编辑器，按钮各自激活。顶部配色、明暗和 RTL 设置同样适用。
 
-Field 页面提供带校验的设置表单，组合 FieldSet／FieldGroup、Input Group、六位 OTP、Textarea、Checkbox choice card、Switch、Radio Group、Slider 和 DatePicker。Save settings 首次显示业务错误并聚焦第一个无效输入，后续编辑更新错误，成功仅在示例内计数；Reset 恢复业务值。Layout 切换横／纵／响应式，Width 切换可用宽度；可同时检查 System／Neutral、明暗、RTL、只读和禁用。
+Field 页面提供带校验的设置表单，组合 FieldSet／FieldGroup、Input Group、六位 OTP、Textarea、Checkbox choice card、Switch、Radio Group、Slider 和 DatePicker。Save settings 首次显示业务错误并聚焦第一个无效输入，后续编辑更新错误，成功仅在示例内计数；Reset 恢复业务值。Layout 切换横／纵／响应式，Width 切换可用宽度；可同时检查 Style、明暗、RTL、只读和禁用。
 
 Direction 页面组合继承方向的文本、编号标签、方向键选择组和逻辑 Start 边框，以及局部 LTR 代码输入。顶部热切换保留文字、选区与点击计数。Scroll Area 页面提供垂直、水平、双轴及嵌套视口，可切换条可见性、宽度、禁用与内层残量策略；Focus viewport 和 Reveal last field 分别演示键盘翻页和自动显露，圆角视口与主题焦点环共用绘制／命中几何。
 
@@ -68,22 +70,22 @@ Tabs 页面包含 Default 草稿表单和 Line 自定义图标／加载正文。
 
 Breadcrumb 页面提供长路径、Chevron／Slash 分隔符、窄宽换行、禁用、展开中间路径和非交互省略号。Pagination 页面用页码驱动三条记录，比较自动范围与显式页码／本地化文字，并提供空数据、单页、外部越界值、拒绝 setter、禁用和 compact 切换；两页沿顶部切换主题、配色及 RTL。
 
-Popover 页面在弹层中编辑和保存尺寸，包含嵌套弹层。可切换 NonModal／FocusContained／Modal、方向与对齐、关闭 veto、拒绝绑定及禁用；外部按钮计数用于观察继续／消费策略，关闭完成与绑定变化分别计数。顶部明暗、System／Neutral、RTL 与减少动态继续适用。
+Popover 页面在弹层中编辑和保存尺寸，包含嵌套弹层。可切换 NonModal／FocusContained／Modal、方向与对齐、关闭 veto、拒绝绑定及禁用；外部按钮计数用于观察继续／消费策略，关闭完成与绑定变化分别计数。顶部明暗、Style、RTL 与减少动态继续适用。
 
-Dialog 页面编辑真实 profile 草稿，带固定操作区、滚动长正文和嵌套详情，可隐藏关闭按钮、拒绝绑定或 veto 关闭。Alert Dialog 展示默认／小尺寸和媒体、默认取消焦点，以及确认后保持打开的模拟请求；Sheet 展示四边、可调主轴尺寸、RTL、滚动表单和固定操作区。顶部系统／Neutral 明暗配色及减少动态继续适用。
+Dialog 页面编辑真实 profile 草稿，带固定操作区、滚动长正文和嵌套详情，可隐藏关闭按钮、拒绝绑定或 veto 关闭。Alert Dialog 展示默认／小尺寸和媒体、默认取消焦点，以及确认后保持打开的模拟请求；Sheet 展示四边、可调主轴尺寸、RTL、滚动表单和固定操作区。顶部 Style、明暗及减少动态继续适用。
 
 Dropdown Menu、Context Menu、Menubar 页面共用工作区命令、嵌套团队菜单、勾选和布局单选，提供禁用、模态切换、窄宽、拒绝绑定及关闭 veto。Dropdown Menu 同时展示 Breadcrumb 省略路径和 ButtonGroup split action，删除动作进入 AlertDialog；Context Menu 可在原按钮上右键或聚焦后按 Shift+F10，主动作计数保持独立。Menubar 支持左右／hover 切换、上下进入候选、嵌套方向导航和 Tab 退出续行。
 
 Select 页面包含分组单选、placeholder／未知值、禁用／校验、Default／Sm、选中行对齐与普通 popup、80 项长列表、hover 滚动、自定义候选／显示正文、Label 关联和 ButtonGroup 连接动作；宽度、方向、明暗和模态配置可直接切换。
 
-Carousel 页面提供横纵、单项／多项、循环、窄宽和自动播放。拖动正文或使用导航按钮切换，Tab 聚焦视口后可用主轴方向键、Home／End 和 PageUp／PageDown；第一项的草稿和其他项目的保存计数持续保留。自动播放在整组悬浮、焦点进入、拖动和窗口隐藏时暂停，离开后重新等待完整间隔；顶部明暗、System／Neutral、RTL 与减少动态配置同样适用。
+Carousel 页面提供横纵、单项／多项、循环、窄宽和自动播放。拖动正文或使用导航按钮切换，Tab 聚焦视口后可用主轴方向键、Home／End 和 PageUp／PageDown；第一项的草稿和其他项目的保存计数持续保留。自动播放在整组悬浮、焦点进入、拖动和窗口隐藏时暂停，离开后重新等待完整间隔；顶部明暗、Style、RTL 与减少动态配置同样适用。
 
-Drawer 页面提供 Bottom／Top／Start／End、垂直吸附、只拖把手、非模态和关闭 veto。正文包含草稿输入、长内容滚动和嵌套 Drawer；可以拖动、通过可聚焦把手的主轴方向键／Home／End 切换高度，或按 Escape 取消拖动。默认 450／400ms 进入退出、嵌套缩放与顶部 Reduced Motion 设置联动；明暗、System／Neutral 与 RTL 同样适用。
+Drawer 页面提供 Bottom／Top／Start／End、垂直吸附、只拖把手、非模态和关闭 veto。正文包含草稿输入、长内容滚动和嵌套 Drawer；可以拖动、通过可聚焦把手的主轴方向键／Home／End 切换高度，或按 Escape 取消拖动。默认 450／400ms 进入退出、嵌套缩放与顶部 Reduced Motion 设置联动；明暗、Style 与 RTL 同样适用。
 
 
-Sidebar 页面提供 Sidebar／Floating／Inset、Offcanvas／Icon／None、逻辑 Start／End、可点击 rail 和 Command+B。菜单包含独立项目动作、badge、可折叠子菜单、账号入口及 Skeleton；主区草稿使用外部编辑模型，宽窄布局切换后保留。窄布局使用 Drawer，可切换关闭拦截；明暗、System／Neutral、RTL 与减少动态沿顶部配置。
+Sidebar 页面提供 Sidebar／Floating／Inset、Offcanvas／Icon／None、逻辑 Start／End、可点击 rail 和 Command+B。菜单包含独立项目动作、badge、可折叠子菜单、账号入口及 Skeleton；主区草稿使用外部编辑模型，宽窄布局切换后保留。窄布局使用 Drawer，可切换关闭拦截；明暗、Style、RTL 与减少动态沿顶部配置。
 
-Toast 页面提供六种类型、六位置、展开／堆叠、可见数量、队列顺序和窄宽选择；可以一次排入五条、执行 Undo、关闭最新通知或暂时禁用交互。Save workspace／Simulate failure 运行应用作用域内的真实异步 Job，两秒后更新同一条 Loading 通知；提前关闭后，任务完成只更新页面结果，不复活通知。Gallery 使用既有 window.asyncio 宿主，正文输入、明暗、System／Neutral、RTL 和减少动态继续生效。
+Toast 页面提供六种类型、六位置、展开／堆叠、可见数量、队列顺序和窄宽选择；可以一次排入五条、执行 Undo、关闭最新通知或暂时禁用交互。Save workspace／Simulate failure 运行应用作用域内的真实异步 Job，两秒后更新同一条 Loading 通知；提前关闭后，任务完成只更新页面结果，不复活通知。Gallery 使用既有 window.asyncio 宿主，正文输入、明暗、Style、RTL 和减少动态继续生效。
 
 
 Calendar 页面展示单选、多选与范围、单／双月、窄宽、月／年下拉、周号、outside days、中文 locale、禁用日期和四周规划周期的自定义 CalendarPageSource。参考日期由示例模型明确提供；页面底部显示真实选择值。焦点与选择分别响应键盘操作，范围只有第二个端点接受后才提交。
@@ -91,4 +93,4 @@ Calendar 页面展示单选、多选与范围、单／双月、窄宽、月／�
 Date Picker 页面展示普通日期、生日、双月范围与 7／30 日预设、严格 ISO 草稿、显式自然语言 parser，以及独立时间输入组成的 LocalDateTime。可用 Enter、移开焦点、Reset 和外部日期更新观察草稿处理；解析错误保留原文，组合输入优先。设置表单也加入生日 Field，继承禁用、readonly、方向和主题配置。
 
 
-Questionnaire 页面提供中英文、单选／多选／文字、开发角色的条件题、明确 Skip、错误回跳、保存／恢复／重置、空问卷、禁用与真实异步提交。独立 Dialog 问卷在关闭后保留草稿，返回时继续填写；窄宽、明暗、System／Neutral 和 RTL 可直接切换。
+Questionnaire 页面提供中英文、单选／多选／文字、开发角色的条件题、明确 Skip、错误回跳、保存／恢复／重置、空问卷、禁用与真实异步提交。独立 Dialog 问卷在关闭后保留草稿，返回时继续填写；窄宽、明暗、Style 和 RTL 可直接切换。

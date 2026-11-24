@@ -20,9 +20,9 @@ private class ThemeGeometryTest {
             contains(geometry.bounds, geometry.borderInner.bounds)
             near(10.0 + metrics.contentInsets.left, geometry.content.x)
             near(20.0 + metrics.contentInsets.top, geometry.content.y)
-            assertTrue(geometry.ring!!.outline.bounds.width > geometry.bounds.width)
+            assertTrue(geometry.ring!!.outline.bounds.width >= geometry.bounds.width)
             assertTrue(theme.tokens.effects.raised.size > 0L)
-            assertTrue(theme.tokens.effects.emphasis.size > 0L)
+            assertTrue(theme.tokens.effects.floating.size > 0L)
             assertEquals(Corners.Physical(metrics.corners), geometry.style.corners)
             val box = theme.checkboxMetrics()
             assertTrue(box.suggestedSize.width >= box.minimumSize.width)
@@ -32,7 +32,7 @@ private class ThemeGeometryTest {
         }
         assertEquals(16.0, all[0L].checkboxMetrics().suggestedSize.width)
         assertEquals(20.0, all[2L].checkboxMetrics().suggestedSize.width)
-        assertEquals(18.0, all[4L].checkboxMetrics().suggestedSize.width)
+        assertEquals(16.0, all[4L].checkboxMetrics().suggestedSize.width)
         assertEquals(13.0, all[0L].tokens.typography.body.fontSize)
         assertEquals(14.0, all[2L].tokens.typography.body.fontSize)
         assertTrue(
@@ -55,14 +55,13 @@ private class ThemeGeometryTest {
 
     @Test
     fun `local overrides feed the final border content and marker geometry and keep inheritance`() {
-        val options =
-            surfaceOptions {
-                this.padding = Some(Insets.all(7.0))
-                style {
-                    this.border(Some(Border.all(3.0, Color.Black)))
-                    this.corners(Corners.all(9.0))
-                }
+        val options = surfaceOptions {
+            this.padding = Some(Insets.all(7.0))
+            style {
+                this.border(Some(Border.all(3.0, Color.Black)))
+                this.corners(Corners.all(9.0))
             }
+        }
         for (theme in themes()) {
             val visual = SurfaceVisual(SurfaceKind.Action)
             val geometry = theme.surfaceGeometry(Rect(20.0, 20.0, 80.0, 40.0), visual, options)
@@ -70,8 +69,8 @@ private class ThemeGeometryTest {
             assertEquals(Rect(23.0, 23.0, 74.0, 34.0), geometry.borderInner.bounds)
             assertEquals(CornerRadii.all(6.0), geometry.borderInner.radii)
             assertEquals(theme.tokens.palette.primary.background, geometry.style.background!!.color)
-            val mark =
-                theme.checkboxGeometry(
+            val mark = theme
+                .checkboxGeometry(
                     Rect(5.0, 5.0, 24.0, 20.0),
                     CheckboxVisual(CheckMark.On),
                     checkboxOptions {
@@ -82,8 +81,8 @@ private class ThemeGeometryTest {
             assertEquals(Rect(7.0, 5.0, 20.0, 20.0), mark.outline.bounds)
             assertEquals(mark.outline.bounds, mark.interior.bounds)
             assertEquals(Rect(12.0, 10.0, 10.0, 10.0), mark.markBounds)
-            val radio =
-                theme.radioGeometry(
+            val radio = theme
+                .radioGeometry(
                     Rect(10.0, 10.0, 20.0, 24.0),
                     RadioVisual(true),
                     radioOptions {
@@ -103,15 +102,14 @@ private class ThemeGeometryTest {
             for (axis in [Orientation.Horizontal, Orientation.Vertical])
                 for (length in [0.0, 1.0, 12.0, 180.0])
                     for (fraction in [0.0, 0.4, 1.0]) {
-                        val bounds =
-                            if (axis == Orientation.Horizontal)
-                                Rect(10.0, 20.0, length, 24.0)
-                            else
-                                Rect(10.0, 20.0, 24.0, length)
-                        val first =
-                            theme.scrollbarGeometry(bounds, ScrollbarVisual(axis, -0.5, fraction))
-                        val last =
-                            theme.scrollbarGeometry(bounds, ScrollbarVisual(axis, 1.5, fraction))
+                        val bounds = if (axis == Orientation.Horizontal)
+                            Rect(10.0, 20.0, length, 24.0)
+                        else
+                            Rect(10.0, 20.0, 24.0, length)
+                        val first = theme
+                            .scrollbarGeometry(bounds, ScrollbarVisual(axis, -0.5, fraction))
+                        val last = theme
+                            .scrollbarGeometry(bounds, ScrollbarVisual(axis, 1.5, fraction))
                         contains(bounds, first.track.bounds)
                         contains(bounds, first.thumb.bounds)
                         contains(bounds, last.thumb.bounds)
@@ -125,8 +123,7 @@ private class ThemeGeometryTest {
                             near(first.travelStart.y, first.thumb.bounds.y)
                             near(first.travel, last.thumb.bounds.y - first.thumb.bounds.y)
                         }
-                        if (fraction == 1.0)
-                            near(0.0, first.travel)
+                        if (fraction == 1.0) near(0.0, first.travel)
                         when (first.decrement) {
                             case Some(val button) -> contains(bounds, button.outline.bounds);
                             case None -> {}
@@ -138,21 +135,22 @@ private class ThemeGeometryTest {
                     }
         assertEquals(None, macosTheme().scrollbarMetrics().buttonLength)
         assertEquals(None, materialTheme().scrollbarMetrics().buttonLength)
-        assertEquals(Some(16.0), fluentTheme().scrollbarMetrics().buttonLength)
-        val full =
-            fluentTheme().scrollbarGeometry(
+        assertEquals(None, fluentTheme().scrollbarMetrics().buttonLength)
+        val full = fluentTheme()
+            .scrollbarGeometry(
                 Rect(0.0, 0.0, 16.0, 180.0),
-                ScrollbarVisual(visibleFraction = 0.0)
+                ScrollbarVisual(visibleFraction = 0.0),
+                scrollbarOptions { this.buttonLength(Some(16.0)) }
             )
-        assertEquals(28.0, full.thumbLength)
-        assertEquals(114.0, full.travel)
-        val noButtons =
-            fluentTheme().scrollbarGeometry(
+        assertEquals(24.0, full.thumbLength)
+        assertEquals(116.0, full.travel)
+        val noButtons = fluentTheme()
+            .scrollbarGeometry(
                 Rect(0.0, 0.0, 16.0, 180.0),
                 ScrollbarVisual(visibleFraction = 0.0),
                 scrollbarOptions { this.buttonLength(None) }
             )
-        assertEquals(146.0, noButtons.travel)
+        assertEquals(148.0, noButtons.travel)
     }
 
     @Test
@@ -168,22 +166,25 @@ private class ThemeGeometryTest {
             theme.surfaceGeometry(Rect(0.0, 0.0, -2.0, 10.0))
         }
         assertFailsWith<IllegalArgumentException> {
-            theme.scrollbarGeometry(
-                Rect(0.0, 0.0, 10.0, 50.0),
-                ScrollbarVisual(position = 0.0 / 0.0)
-            )
+            theme
+                .scrollbarGeometry(
+                    Rect(0.0, 0.0, 10.0, 50.0),
+                    ScrollbarVisual(position = 0.0 / 0.0)
+                )
         }
         assertFailsWith<IllegalArgumentException> {
-            theme.checkboxGeometry(
-                Rect(0.0, 0.0, 20.0, 20.0),
-                CheckboxVisual(selectionProgress = Some(1.0 / 0.0))
-            )
+            theme
+                .checkboxGeometry(
+                    Rect(0.0, 0.0, 20.0, 20.0),
+                    CheckboxVisual(selectionProgress = Some(1.0 / 0.0))
+                )
         }
         assertFailsWith<IllegalArgumentException> {
-            theme.surfaceGeometry(
-                Rect(0.0, 0.0, 20.0, 20.0),
-                SurfaceVisual(interaction = InteractionVisual(hoverProgress = Some(0.0 / 0.0)))
-            )
+            theme
+                .surfaceGeometry(
+                    Rect(0.0, 0.0, 20.0, 20.0),
+                    SurfaceVisual(interaction = InteractionVisual(hoverProgress = Some(0.0 / 0.0)))
+                )
         }
     }
 }

@@ -14,19 +14,18 @@ private fun preferenceStatePairs(
     val normal = preferencePair(ColorPair(fill.normal, foreground.normal), canvas, contrast)
     val hovered = preferencePair(ColorPair(fill.hovered, foreground.hovered), canvas, contrast)
     val pressed = preferencePair(ColorPair(fill.pressed, foreground.pressed), canvas, contrast)
-    val disabled =
-        preferencePair(
-            ColorPair(
-                fill.disabled,
-                if (contrast)
-                    foreground.disabled.withAlpha(foreground.disabled.alpha * disabledOpacity)
-                else
-                    foreground.disabled
-            ),
-            canvas,
-            contrast,
-            4.5
-        )
+    val disabled = preferencePair(
+        ColorPair(
+            fill.disabled,
+            if (contrast)
+                foreground.disabled.withAlpha(foreground.disabled.alpha * disabledOpacity)
+            else
+                foreground.disabled
+        ),
+        canvas,
+        contrast,
+        4.5
+    )
     return PreferenceStatePairs(
         StateColors(normal.background, hovered.background, pressed.background, disabled.background),
         StateColors(normal.foreground, hovered.foreground, pressed.foreground, disabled.foreground)
@@ -59,8 +58,7 @@ internal fun preferenceOutline(
     canvas: Color,
     contrast: Boolean
 ): OutlineStyle {
-    if (!contrast)
-        return value
+    if (!contrast) return value
     return OutlineStyle(
         contrastThemeColor(value.color, canvas, 3.0),
         themeMax(2.0, value.width),
@@ -73,12 +71,11 @@ internal fun preferenceSurfaces(
     canvas: Color,
     contrast: Boolean,
     disabledOpacity: Double
-): SurfaceParts =
-    SurfaceParts(
-        preferenceSurface(parts.plain, canvas, contrast, false, disabledOpacity),
-        preferenceSurface(parts.action, canvas, contrast, true, disabledOpacity),
-        preferenceSurface(parts.elevated, canvas, contrast, false, disabledOpacity)
-    )
+): SurfaceParts = SurfaceParts(
+    preferenceSurface(parts.plain, canvas, contrast, false, disabledOpacity),
+    preferenceSurface(parts.action, canvas, contrast, true, disabledOpacity),
+    preferenceSurface(parts.elevated, canvas, contrast, false, disabledOpacity)
+)
 
 private fun preferenceSurface(
     part: SurfacePart,
@@ -90,23 +87,22 @@ private fun preferenceSurface(
     val colors = preferenceStatePairs(part.fill, part.foreground, canvas, contrast, disabledOpacity)
     val base = part.metrics
     val insets = base.borderInsets
-    val metrics =
-        if (contrast && action)
-            SurfaceMetrics(
-                base.suggestedSize,
-                base.minimumSize,
-                base.padding,
-                Insets(
-                    themeMax(1.0, insets.left),
-                    themeMax(1.0, insets.top),
-                    themeMax(1.0, insets.right),
-                    themeMax(1.0, insets.bottom)
-                ),
-                base.corners,
-                themeMax(2.0, base.focusOutset)
-            )
-        else
-            base
+    val metrics = if (contrast && action)
+        SurfaceMetrics(
+            base.suggestedSize,
+            base.minimumSize,
+            base.padding,
+            Insets(
+                themeMax(1.0, insets.left),
+                themeMax(1.0, insets.top),
+                themeMax(1.0, insets.right),
+                themeMax(1.0, insets.bottom)
+            ),
+            base.corners,
+            themeMax(2.0, base.focusOutset)
+        )
+    else
+        base
     return SurfacePart(
         metrics,
         colors.fill,
@@ -123,8 +119,13 @@ private fun preferenceMarker(
     contrast: Boolean,
     disabledOpacity: Double
 ): MarkerAppearance {
-    val selected =
-        preferenceStatePairs(value.selected, value.mark, canvas, contrast, disabledOpacity)
+    val selected = preferenceStatePairs(
+        value.selected,
+        value.mark,
+        canvas,
+        contrast,
+        disabledOpacity
+    )
     val empty = preferenceStatePairs(value.empty, value.border, canvas, false).fill
     return MarkerAppearance(
         empty,
@@ -145,27 +146,34 @@ internal fun preferenceCheckbox(
 ): CheckboxPart {
     val base = value.metrics
     val edges = base.borderInsets
-    val metrics =
-        if (contrast)
-            CheckboxMetrics(
-                base.suggestedSize,
-                base.minimumSize,
-                Insets(
-                    themeMax(1.0, edges.left),
-                    themeMax(1.0, edges.top),
-                    themeMax(1.0, edges.right),
-                    themeMax(1.0, edges.bottom)
-                ),
-                base.corners,
-                base.markInset,
-                base.markWidth,
-                themeMax(2.0, base.focusOutset)
-            )
-        else
-            base
+    val metrics = if (contrast)
+        CheckboxMetrics(
+            base.suggestedSize,
+            base.minimumSize,
+            Insets(
+                themeMax(1.0, edges.left),
+                themeMax(1.0, edges.top),
+                themeMax(1.0, edges.right),
+                themeMax(1.0, edges.bottom)
+            ),
+            base.corners,
+            base.markInset,
+            base.markWidth,
+            themeMax(2.0, base.focusOutset)
+        )
+    else
+        base
     return CheckboxPart(
         metrics,
-        preferenceMarker(value.appearance, canvas, contrast, disabledOpacity)
+        preferenceMarker(value.appearance, canvas, contrast, disabledOpacity),
+        when (value.mixedAppearance) {
+            case Some(val appearance) ->
+                Some(
+                    preferenceMarker(appearance, canvas, contrast, disabledOpacity)
+                )
+            case None -> None
+        },
+        value.mixedShape
     )
 }
 
@@ -176,17 +184,16 @@ internal fun preferenceRadio(
     disabledOpacity: Double
 ): RadioPart {
     val base = value.metrics
-    val metrics =
-        if (contrast)
-            RadioMetrics(
-                base.suggestedSize,
-                base.minimumSize,
-                themeMax(1.0, base.ringWidth),
-                base.dotInset,
-                themeMax(2.0, base.focusOutset)
-            )
-        else
-            base
+    val metrics = if (contrast)
+        RadioMetrics(
+            base.suggestedSize,
+            base.minimumSize,
+            themeMax(1.0, base.ringWidth),
+            base.dotInset,
+            themeMax(2.0, base.focusOutset)
+        )
+    else
+        base
     return RadioPart(metrics, preferenceMarker(value.appearance, canvas, contrast, disabledOpacity))
 }
 

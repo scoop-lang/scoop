@@ -1,0 +1,230 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.LayoutDirection
+import scoop.ui.style.*
+import scoop.ui.style.fluent.fluentTheme
+
+@Test
+private class FluentThemeTest {
+    @Test
+    fun `web light and dark use distinct action and selection ramps with stable typography`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val dark = mode == ThemeMode.Dark
+            val theme = fluentTheme(mode)
+            val palette = theme.tokens.palette
+            assertEquals(color(if (dark) 0x115ea3 else 0x0f6cbd), palette.primary.background)
+            assertEquals(Color.White, palette.primary.foreground)
+            assertEquals(color(if (dark) 0x666666 else 0xd1d1d1), palette.input)
+            assertTrue(palette.border != palette.input)
+            val body = theme.tokens.typography.body
+            val caption = theme.tokens.typography.caption
+            val action = theme.tokens.typography.action
+            assertEquals("Segoe UI", body.families[0L])
+            assertEquals(14.0, body.fontSize)
+            assertEquals(Some(20.0 / 14.0), body.lineHeight)
+            assertEquals(Some(16.0 / 12.0), caption.lineHeight)
+            assertEquals(600, action.weight)
+            for (spec in [theme.tokens.motion.hover, theme.tokens.motion.press])
+                when (spec!!) {
+                    case Tween(val duration, val easing) -> {
+                        assertEquals(Duration.milliseconds(100L), duration)
+                        near(0.1573046694, easing.transform(0.25))
+                        near(0.8426953306, easing.transform(0.75))
+                    }
+
+                    else -> fail(Some("Fluent interaction must use the durationFaster tween"))
+                }
+            assertTrue(
+                when (theme.tokens.motion.selection) {
+                    case None -> true
+                    case Some(_) -> false
+                }
+            )
+            val visual = SurfaceVisual(SurfaceKind.Action)
+            val bounds = Rect(20.0, 20.0, 96.0, 32.0)
+            val pressed = SurfaceVisual(SurfaceKind.Action, InteractionVisual(pressed = true))
+            assertEquals(
+                color(0x0c3b5e),
+                theme.surfaceGeometry(bounds, pressed).style.background!!.color
+            )
+            val hovered = SurfaceVisual(SurfaceKind.Action, InteractionVisual(hovered = true))
+            assertEquals(
+                color(if (dark) 0x0f6cbd else 0x115ea3),
+                theme.surfaceGeometry(bounds, hovered).style.background!!.color
+            )
+            assertEquals(Size(96.0, 32.0), theme.surfaceMetrics(visual).suggestedSize)
+            assertEquals(CornerRadii.all(4.0), theme.surfaceMetrics(visual).corners)
+            assertEquals(0L, theme.surfaceGeometry(bounds, visual).style.boxShadows.size)
+            assertEquals(0L, theme.surfaceGeometry(bounds).style.boxShadows.size)
+            assertEquals(0L, theme.tokens.effects.emphasis.size)
+            assertEquals(2L, theme.tokens.effects.floating.size)
+            val focused = SurfaceVisual(SurfaceKind.Action, InteractionVisual(focusVisible = true))
+            val geometry = theme.surfaceGeometry(bounds, focused)
+            assertEquals(bounds, geometry.ring!!.outline.bounds)
+            assertEquals(2.0, geometry.ring!!.border.width)
+            assertEquals(theme.surfaceGeometry(bounds, visual).content, geometry.content)
+        }
+    }
+
+    @Test
+    fun `checked mixed and radio paint the different fluent silhouettes in both modes`() {
+        val bounds = Rect(20.0, 20.0, 16.0, 16.0)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = fluentTheme(mode)
+            val compound = color(if (mode == ThemeMode.Dark) 0x479ef5 else 0x0f6cbd)
+            val on = CheckboxVisual(CheckMark.On)
+            val mixed = CheckboxVisual(CheckMark.Mixed)
+            val radio = RadioVisual(true)
+            val checkedGeometry = theme.checkboxGeometry(bounds, on)
+            val mixedGeometry = theme.checkboxGeometry(bounds, mixed)
+            val radioGeometry = theme.radioGeometry(bounds, radio)
+            assertEquals(Size(16.0, 16.0), theme.checkboxMetrics().suggestedSize)
+            assertEquals(Size(16.0, 16.0), theme.radioMetrics().suggestedSize)
+            assertEquals(compound, checkedGeometry.style.background!!.color)
+            assertEquals(Color.Transparent, mixedGeometry.style.background!!.color)
+            assertEquals(Color.Transparent, radioGeometry.style.background!!.color)
+            assertEquals(compound, mixedGeometry.markColor)
+            assertEquals(compound, radioGeometry.dotColor)
+            assertEquals(5.0, radioGeometry.dot.radius)
+            assertEquals(mixedGeometry.markBounds, mixedGeometry.mixed.bounds)
+            theme
+                .createPainter()
+                .use { painter ->
+                    val checkedPixels = pixels { canvas ->
+                        painter.drawCheckbox(canvas, checkedGeometry, on)
+                    }
+                    val mixedPixels = pixels { canvas ->
+                        painter.drawCheckbox(canvas, mixedGeometry, mixed)
+                    }
+                    val radioPixels = pixels { canvas ->
+                        painter.drawRadio(canvas, radioGeometry, radio)
+                    }
+                    pixelColor(checkedPixels, 128, 24, 24, compound)
+                    pixelColor(mixedPixels, 128, 28, 24, compound)
+                    pixelColor(mixedPixels, 128, 22, 28, Color.Transparent)
+                    pixelColor(radioPixels, 128, 28, 28, compound)
+                    pixelColor(radioPixels, 128, 22, 28, Color.Transparent)
+                    assertTrue(differences(checkedPixels, mixedPixels) > 100)
+                    assertTrue(differences(mixedPixels, radioPixels) > 100)
+                }
+        }
+    }
+
+    @Test
+    fun `disabled selection stays hollow and neutral even when hovered pressed or focused`() {
+        val bounds = Rect(20.0, 20.0, 16.0, 16.0)
+        val disabled = InteractionVisual(
+            enabled = false,
+            hovered = true,
+            pressed = true,
+            focusVisible = true
+        )
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = fluentTheme(mode)
+            val edge = color(if (mode == ThemeMode.Dark) 0x424242 else 0xe0e0e0)
+            for (mark in [CheckMark.Off, CheckMark.On, CheckMark.Mixed]) {
+                val geometry = theme.checkboxGeometry(bounds, CheckboxVisual(mark, disabled))
+                assertEquals(Color.Transparent, geometry.style.background!!.color)
+                assertEquals(edge, geometry.style.border!!.resolve(LayoutDirection.Ltr).left.color)
+                assertEquals(theme.tokens.palette.disabledText, geometry.markColor)
+                assertEquals(None, geometry.ring)
+                assertEquals(1.0, geometry.opacity)
+            }
+            val radio = theme.radioGeometry(bounds, RadioVisual(true, disabled))
+            assertEquals(Color.Transparent, radio.style.background!!.color)
+            assertEquals(theme.tokens.palette.disabledText, radio.dotColor)
+            assertEquals(None, radio.ring)
+            val action = theme.surfaceGeometry(bounds, SurfaceVisual(SurfaceKind.Action, disabled))
+            assertEquals(
+                color(if (mode == ThemeMode.Dark) 0x141414 else 0xf0f0f0),
+                action.style.background!!.color
+            )
+            assertEquals(None, action.ring)
+        }
+    }
+
+    @Test
+    fun `scrollbars stay neutral across interaction and only add end buttons on request`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = fluentTheme(mode)
+            assertEquals(None, theme.scrollbarMetrics().buttonLength)
+            for (
+                interaction in [
+                    InteractionVisual(),
+                    InteractionVisual(hovered = true),
+                    InteractionVisual(pressed = true)
+                ]
+            ) {
+                val thumb = theme.scrollbar.thumb.resolve(interaction)
+                assertEquals(thumb.red, thumb.green)
+                assertEquals(thumb.green, thumb.blue)
+            }
+            for (axis in [Orientation.Horizontal, Orientation.Vertical]) {
+                val bounds = if (axis == Orientation.Horizontal)
+                    Rect(0.0, 0.0, 180.0, 12.0)
+                else
+                    Rect(0.0, 0.0, 12.0, 180.0)
+                val visual = ScrollbarVisual(axis, 1.0, 0.25)
+                val plain = theme.scrollbarGeometry(bounds, visual)
+                val buttons = theme
+                    .scrollbarGeometry(
+                        bounds,
+                        visual,
+                        scrollbarOptions { buttonLength(Some(12.0)) }
+                    )
+                assertEquals(None, plain.decrement)
+                assertTrue(buttons.decrement != None)
+                assertTrue(buttons.increment != None)
+                assertTrue(buttons.travel < plain.travel)
+                contains(bounds, plain.thumb.bounds)
+                contains(bounds, buttons.thumb.bounds)
+            }
+        }
+    }
+
+    @Test
+    fun `mixed overrides share local styles and reserve focus space without changing other markers`() {
+        val original = fluentTheme()
+        val theme = original
+            .copy { checkbox { mixedAppearance { focus = OutlineStyle(Color.Black, 2.0, 7.0) } } }
+        assertEquals(7.0, theme.checkboxMetrics().focusOutset)
+        assertEquals(2.0, original.checkboxMetrics().focusOutset)
+        val bounds = Rect(20.0, 20.0, 16.0, 16.0)
+        val mixed = CheckboxVisual(CheckMark.Mixed)
+        val local = theme
+            .checkboxGeometry(
+                bounds,
+                mixed,
+                checkboxOptions {
+                    markColor = Some(Color.Black)
+                    style { background(Some(Paint(Color.White))) }
+                }
+            )
+        assertEquals(Color.Black, local.markColor)
+        assertEquals(Color.White, local.style.background!!.color)
+        val inherited = theme.copy { checkbox { mixedAppearance = None } }
+        assertEquals(
+            inherited
+                .checkboxGeometry(bounds, CheckboxVisual(CheckMark.On))
+                .style
+                .background!!
+                .color,
+            inherited.checkboxGeometry(bounds, mixed).style.background!!.color
+        )
+        val reduced = theme.withPreferences(ThemePreferences(reduceTransparency = true))
+        assertEquals(
+            theme.checkboxGeometry(bounds, mixed).mixed,
+            reduced.checkboxGeometry(bounds, mixed).mixed
+        )
+        assertEquals(1.0, reduced.checkboxGeometry(bounds, mixed).style.background!!.color.alpha)
+    }
+}
+
+private fun color(value: Int): Color = Color(
+    (value / 65536 % 256).toDouble() / 255.0,
+    (value / 256 % 256).toDouble() / 255.0,
+    (value % 256).toDouble() / 255.0
+)

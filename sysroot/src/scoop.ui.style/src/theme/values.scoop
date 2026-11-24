@@ -20,6 +20,10 @@ public enum CheckMark {
     Off, On, Mixed
 }
 
+public enum MixedMarkShape {
+    Bar, Square
+}
+
 public enum Orientation {
     Horizontal, Vertical
 }
@@ -48,8 +52,8 @@ public struct Insets(
 }
 
 public struct Circle(val center: Point, val radius: Double) {
-    public val bounds: Rect get() =
-        Rect(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0)
+    public val bounds: Rect
+        get() = Rect(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0)
 }
 
 public struct StrokeSegment(val start: Point, val bend: Point, val end: Point, val width: Double)
@@ -192,11 +196,12 @@ public class ThemeMotion internal constructor(
     public val press: AnimationSpec? = None,
     public val selection: AnimationSpec? = None
 ) {
-    public fun resolve(spec: AnimationSpec?): AnimationSpec? =
-        if (preference == MotionPreference.Reduced)
-            None
-        else
-            spec
+    public fun resolve(spec: AnimationSpec?): AnimationSpec? = if (preference ==
+        MotionPreference.Reduced
+    )
+        None
+    else
+        spec
 
     public fun copy(configure: ThemeMotionBuilder.() -> Unit = {}): ThemeMotion =
         configureThemeMotion(this, configure)
@@ -219,15 +224,12 @@ public class ThemeTokens internal constructor(
 
 public fun mixThemeColor(from: Color, to: Color, progress: Double): Color {
     val t = themeUnit(progress)
-    if (t == 0.0)
-        return from
-    if (t == 1.0)
-        return to
+    if (t == 0.0) return from
+    if (t == 1.0) return to
     val fromWeight = from.alpha * (1.0 - t)
     val toWeight = to.alpha * t
     val alpha = fromWeight + toWeight
-    if (alpha == 0.0)
-        return Color.Transparent
+    if (alpha == 0.0) return Color.Transparent
     // Interpolate premultiplied channels so invisible RGB cannot tint the transition.
     return Color(
         (from.red * fromWeight + to.red * toWeight) / alpha,

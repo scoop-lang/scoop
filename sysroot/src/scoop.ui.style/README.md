@@ -1,6 +1,10 @@
 # scoop.ui.style
 
+四套风格工厂均支持独立的 `palette: ThemePalette?` 输入：None 使用风格预设，提供语义配色则同时生成对应的文字和各控件状态颜色，并保留该风格的几何与动效。系统配色与风格选择可以分别存储，再通过同一 ThemeSource 发布组合结果。
+
 普通 Scoop 库，提供公共主题绘图协议、几何、语义参数，以及可复用的装饰与内容效果。`scoop.ui` 不依赖本库，基础控件和第三方自绘使用同一套公开接入。macOS 验证见[实施记录](../../../docs/ui/PROGRESS.md)，场景协议迁移见[基础交互实施记录](../../../docs/ui/foundations/PROGRESS.md)，Linux GNU 验证见[Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
+
+CheckboxPart 可通过 `mixedAppearance { ... }` 独立配置半选外观，`mixedAppearance = None` 恢复继承普通 appearance；`mixedShape = MixedMarkShape.Square` 绘制方形半选标记，默认 Bar 保持横线。普通／半选外观共用几何、局部覆盖和主题偏好解析，焦点留白取两者最大值。Fluent 2 预设使用透明底色的方形半选及独立 Radio 配色；可在 [组件 Gallery](../scoop.ui.component/examples/shadcn/README.md) 的 Style 下拉框中与其余主题比较。
 
 ```toml
 [dependencies]

@@ -12,14 +12,15 @@ public class ShapeTheme internal constructor(
     public val scrollbar: ScrollbarPart,
     internal val preferenceBase: ShapeTheme? = None,
     public override val preferences: ThemePreferences = ThemePreferences()
-): Theme {
-    public fun copy(configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme =
-        configureShapeTheme(this, configure)
+) : Theme {
+    public fun copy(configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme = configureShapeTheme(
+        this,
+        configure
+    )
 
     public override fun withPreferences(preferences: ThemePreferences): Theme {
         preferences.check()
-        if (preferences == this.preferences)
-            return this
+        if (preferences == this.preferences) return this
         return resolveShapePreferences(preferenceBase ?: this, preferences)
     }
 
@@ -30,11 +31,12 @@ public class ShapeTheme internal constructor(
     ): Style {
         val part = surfaces.get(visual.kind)
         return physicalStyle(
-            options.style.resolve(
-                Style(
-                    background = Some(Paint(part.fill.resolve(visual.interaction))),
-                    border =
-                        Some(
+            options
+                .style
+                .resolve(
+                    Style(
+                        background = Some(Paint(part.fill.resolve(visual.interaction))),
+                        border = Some(
                             themeBorder(
                                 part.metrics.borderInsets,
                                 outlineBorder(
@@ -45,15 +47,17 @@ public class ShapeTheme internal constructor(
                                 )
                             )
                         ),
-                    corners = Corners.Physical(part.metrics.corners),
-                    boxShadows = part.shadows
-                )
-            ),
+                        corners = Corners.Physical(part.metrics.corners),
+                        boxShadows = part.shadows
+                    )
+                ),
             direction
         )
     }
-    public override fun surfaceTextColor(visual: SurfaceVisual): Color =
-        surfaces.get(visual.kind).foreground.resolve(visual.interaction)
+    public override fun surfaceTextColor(visual: SurfaceVisual): Color = surfaces
+        .get(visual.kind)
+        .foreground
+        .resolve(visual.interaction)
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,
@@ -62,15 +66,14 @@ public class ShapeTheme internal constructor(
         val part = surfaces.get(visual.kind)
         val style = surfaceStyle(visual, options, direction)
         val focus = options.focus ?: part.focus
-        val result =
-            SurfaceMetrics(
-                options.suggestedSize ?: part.metrics.suggestedSize,
-                options.minimumSize ?: part.metrics.minimumSize,
-                options.padding ?: part.metrics.padding,
-                physicalEdges(style).insets,
-                style.corners.resolve(direction),
-                outlineOutset(focus, options.validation ?: tokens.validation)
-            )
+        val result = SurfaceMetrics(
+            options.suggestedSize ?: part.metrics.suggestedSize,
+            options.minimumSize ?: part.metrics.minimumSize,
+            options.padding ?: part.metrics.padding,
+            physicalEdges(style).insets,
+            style.corners.resolve(direction),
+            outlineOutset(focus, options.validation ?: tokens.validation)
+        )
         themeSize(result.suggestedSize);
         themeSize(result.minimumSize);
         result.contentInsets.totals()
@@ -111,25 +114,30 @@ public class ShapeTheme internal constructor(
         val base = checkbox.metrics
         val size = options.size ?: base.suggestedSize.width
         val min = options.minimumSize ?: base.minimumSize.width
-        val corners =
-            options.style.corners.resolve(Corners.Physical(base.corners)).resolve(direction)
+        val corners = options
+            .style
+            .corners
+            .resolve(Corners.Physical(base.corners))
+            .resolve(direction)
         val edge = options.style.border.resolve(Some(themeBorder(base.borderInsets, Color.Black)))
-        val insets =
-            when (edge) {
-                case Some(val value) -> value.resolve(direction).insets
-                case None -> Insets()
-            }
+        val insets = when (edge) {
+            case Some(val value) -> value.resolve(direction).insets
+            case None -> Insets()
+        }
         val focus = options.focus ?: checkbox.appearance.focus
-        val result =
-            CheckboxMetrics(
-                Size(size, size),
-                Size(min, min),
-                insets,
-                corners,
-                options.markInset ?: base.markInset,
-                base.markWidth,
-                outlineOutset(focus, options.validation ?: tokens.validation)
+        val mixedFocus = options.focus ?: (checkbox.mixedAppearance ?: checkbox.appearance).focus
+        val result = CheckboxMetrics(
+            Size(size, size),
+            Size(min, min),
+            insets,
+            corners,
+            options.markInset ?: base.markInset,
+            base.markWidth,
+            themeMax(
+                outlineOutset(focus, options.validation ?: tokens.validation),
+                outlineOutset(mixedFocus, options.validation ?: tokens.validation)
             )
+        )
         for (value in [size, min, result.markInset, result.markWidth, focus.outset, focus.width])
             themeLength(value)
         corners.normalized(result.suggestedSize)
@@ -147,19 +155,29 @@ public class ShapeTheme internal constructor(
         val interior = insetOutline(outline, metrics.borderInsets)
         val mark = insetTheme(square, Insets.all(metrics.markInset))
         val width = themeMin(metrics.markWidth, themeMin(mark.width, mark.height))
-        val tick =
-            StrokeSegment(
-                Point(mark.x, mark.y + mark.height * 0.52),
-                Point(mark.x + mark.width * 0.38, mark.y + mark.height),
-                Point(mark.x + mark.width, mark.y),
-                width
-            )
-        val mixed = Rect(mark.x, square.y + (square.height - width) / 2.0, mark.width, width)
+        val tick = StrokeSegment(
+            Point(mark.x, mark.y + mark.height * 0.52),
+            Point(mark.x + mark.width * 0.38, mark.y + mark.height),
+            Point(mark.x + mark.width, mark.y),
+            width
+        )
+        val mixed = when (checkbox.mixedShape) {
+            case Bar ->
+                roundTheme(
+                    Rect(mark.x, square.y + (square.height - width) / 2.0, mark.width, width),
+                    width / 2.0
+                )
+            case Square -> RoundedOutline(mark)
+        }
         val amount = themeProgress(visual.selectionProgress, visual.mark != CheckMark.Off)
-        val appearance = checkbox.appearance
-        val style =
-            physicalStyle(
-                options.style.resolve(
+        val appearance = if (visual.mark == CheckMark.Mixed)
+            checkbox.mixedAppearance ?: checkbox.appearance
+        else
+            checkbox.appearance
+        val style = physicalStyle(
+            options
+                .style
+                .resolve(
                     markerStyle(
                         appearance,
                         visual.interaction,
@@ -170,15 +188,15 @@ public class ShapeTheme internal constructor(
                         options.validation ?: tokens.validation
                     )
                 ),
-                direction
-            )
+            direction
+        )
         return CheckboxGeometry(
             bounds,
             outline,
             interior,
             mark,
             tick,
-            roundTheme(mixed, width / 2.0),
+            mixed,
             outlineTheme(
                 outline,
                 visual.interaction,
@@ -196,20 +214,18 @@ public class ShapeTheme internal constructor(
         val size = options.size ?: base.suggestedSize.width
         val min = options.minimumSize ?: base.minimumSize.width
         val edge = options.border.resolve(Some(BorderEdge(base.ringWidth, Color.Black)))
-        val width =
-            when (edge) {
-                case Some(val value) -> value.width;
-                case None -> 0.0
-            }
+        val width = when (edge) {
+            case Some(val value) -> value.width;
+            case None -> 0.0
+        }
         val focus = options.focus ?: radio.appearance.focus
-        val result =
-            RadioMetrics(
-                Size(size, size),
-                Size(min, min),
-                width,
-                options.dotInset ?: base.dotInset,
-                outlineOutset(focus, options.validation ?: tokens.validation)
-            )
+        val result = RadioMetrics(
+            Size(size, size),
+            Size(min, min),
+            width,
+            options.dotInset ?: base.dotInset,
+            outlineOutset(focus, options.validation ?: tokens.validation)
+        )
         for (value in [size, min, width, result.dotInset, focus.outset, focus.width])
             themeLength(value)
         return result
@@ -221,25 +237,23 @@ public class ShapeTheme internal constructor(
     ): RadioGeometry {
         val metrics = radioMetrics(options)
         val square = squareTheme(bounds)
-        val outer =
-            Circle(
-                Point(square.x + square.width / 2.0, square.y + square.height / 2.0),
-                square.width / 2.0
-            )
+        val outer = Circle(
+            Point(square.x + square.width / 2.0, square.y + square.height / 2.0),
+            square.width / 2.0
+        )
         val interior = Circle(outer.center, themeMax(0.0, outer.radius - metrics.ringWidth))
         val amount = themeProgress(visual.selectionProgress, visual.selected)
         val dot = Circle(outer.center, themeMax(0.0, outer.radius - metrics.dotInset) * amount)
         val appearance = radio.appearance
-        val style =
-            markerStyle(
-                appearance,
-                visual.interaction,
-                amount,
-                Insets.all(metrics.ringWidth),
-                CornerRadii.all(outer.radius),
-                options.focus ?: appearance.focus,
-                options.validation ?: tokens.validation
-            )
+        val style = markerStyle(
+            appearance,
+            visual.interaction,
+            amount,
+            Insets.all(metrics.ringWidth),
+            CornerRadii.all(outer.radius),
+            options.focus ?: appearance.focus,
+            options.validation ?: tokens.validation
+        )
         return RadioGeometry(
             bounds,
             outer,
@@ -251,17 +265,18 @@ public class ShapeTheme internal constructor(
                 options.focus ?: appearance.focus,
                 options.validation ?: tokens.validation
             ),
-            style.copy {
-                this.background = options.background.resolve(this.background)
-                this.border =
-                    when (options.border) {
+            style
+                .copy {
+                    this.background = options.background.resolve(this.background)
+                    this.border = when (options.border) {
                         case Inherit -> this.border
-                        case Set(val value) -> when (value) {
-                            case Some(val edge) -> Some(Border.all(edge.width, edge.color))
-                            case None -> None
-                        }
+                        case Set(val value) ->
+                            when (value) {
+                                case Some(val edge) -> Some(Border.all(edge.width, edge.color))
+                                case None -> None
+                            }
                     }
-            },
+                },
             options.dotColor ?: appearance.mark.resolve(visual.interaction),
             amount,
             controlOpacity(visual.interaction.enabled)
@@ -269,15 +284,14 @@ public class ShapeTheme internal constructor(
     }
     public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics {
         val base = scrollbar.metrics
-        val result =
-            ScrollbarMetrics(
-                options.thickness ?: base.thickness,
-                options.minimumThumbLength ?: base.minimumThumbLength,
-                options.trackInset ?: base.trackInset,
-                options.thumbInset ?: base.thumbInset,
-                base.cornerRadius,
-                options.buttonLength.resolve(base.buttonLength)
-            )
+        val result = ScrollbarMetrics(
+            options.thickness ?: base.thickness,
+            options.minimumThumbLength ?: base.minimumThumbLength,
+            options.trackInset ?: base.trackInset,
+            options.thumbInset ?: base.thumbInset,
+            base.cornerRadius,
+            options.buttonLength.resolve(base.buttonLength)
+        )
         for (
             value in [
                 result.thickness,
@@ -296,16 +310,21 @@ public class ShapeTheme internal constructor(
         bounds: Rect,
         visual: ScrollbarVisual,
         options: ScrollbarOptions
-    ): ScrollbarGeometry =
-        makeScrollbarGeometry(bounds, visual, scrollbarMetrics(options), scrollbar.arrowWidth)
-    private fun controlOpacity(enabled: Boolean): Double =
-        if (enabled)
-            1.0
-        else
-            themeUnit(tokens.disabledOpacity)
+    ): ScrollbarGeometry = makeScrollbarGeometry(
+        bounds,
+        visual,
+        scrollbarMetrics(options),
+        scrollbar.arrowWidth
+    )
+    private fun controlOpacity(enabled: Boolean): Double = if (enabled)
+        1.0
+    else
+        themeUnit(tokens.disabledOpacity)
 
-    public override fun createPainter(): ThemePainter =
-        ShapeThemePainter(scrollbar, controlOpacity(false))
+    public override fun createPainter(): ThemePainter = ShapeThemePainter(
+        scrollbar,
+        controlOpacity(false)
+    )
 }
 
 private fun markerStyle(
@@ -316,34 +335,31 @@ private fun markerStyle(
     radii: CornerRadii,
     focus: OutlineStyle,
     validation: OutlineStyle
-): Style =
-    Style(
-        background =
-            Some(
-                Paint(
-                    mixThemeColor(
-                        appearance.empty.resolve(visual),
-                        appearance.selected.resolve(visual),
-                        selection
-                    )
-                )
-            ),
-        border =
-            Some(
-                themeBorder(
-                    insets,
-                    outlineBorder(
-                        mixThemeColor(
-                            appearance.border.resolve(visual),
-                            appearance.selectedBorder.resolve(visual),
-                            selection
-                        ),
-                        visual,
-                        focus,
-                        validation
-                    )
-                )
-            ),
-        corners = Corners.Physical(radii),
-        boxShadows = appearance.shadows
-    )
+): Style = Style(
+    background = Some(
+        Paint(
+            mixThemeColor(
+                appearance.empty.resolve(visual),
+                appearance.selected.resolve(visual),
+                selection
+            )
+        )
+    ),
+    border = Some(
+        themeBorder(
+            insets,
+            outlineBorder(
+                mixThemeColor(
+                    appearance.border.resolve(visual),
+                    appearance.selectedBorder.resolve(visual),
+                    selection
+                ),
+                visual,
+                focus,
+                validation
+            )
+        )
+    ),
+    corners = Corners.Physical(radii),
+    boxShadows = appearance.shadows
+)

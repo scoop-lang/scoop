@@ -11,18 +11,17 @@ public fun markerAppearance(
     mark: StateColors,
     focus: OutlineStyle,
     configure: MarkerAppearanceBuilder.() -> Unit = {}
-): MarkerAppearance =
-    configureMarkerAppearance(
-        MarkerAppearance(
-            empty = empty,
-            selected = selected,
-            border = border,
-            selectedBorder = selectedBorder,
-            mark = mark,
-            focus = focus
-        ),
-        configure
-    )
+): MarkerAppearance = configureMarkerAppearance(
+    MarkerAppearance(
+        empty = empty,
+        selected = selected,
+        border = border,
+        selectedBorder = selectedBorder,
+        mark = mark,
+        focus = focus
+    ),
+    configure
+)
 
 internal fun configureMarkerAppearance(
     initial: MarkerAppearance,
@@ -43,16 +42,15 @@ public class MarkerAppearanceBuilder internal constructor(initial: MarkerAppeara
     public var focus: OutlineStyle = initial.focus
     public var shadows: Array<BoxShadow> = initial.shadows
 
-    internal fun snapshot(): MarkerAppearance =
-        MarkerAppearance(
-            empty = empty,
-            selected = selected,
-            border = border,
-            selectedBorder = selectedBorder,
-            mark = mark,
-            focus = focus,
-            shadows = shadows
-        )
+    internal fun snapshot(): MarkerAppearance = MarkerAppearance(
+        empty = empty,
+        selected = selected,
+        border = border,
+        selectedBorder = selectedBorder,
+        mark = mark,
+        focus = focus,
+        shadows = shadows
+    )
 }
 
 /** Constructs a complete description and applies configuration once. */
@@ -60,8 +58,10 @@ public fun checkboxPart(
     metrics: CheckboxMetrics,
     appearance: MarkerAppearance,
     configure: CheckboxPartBuilder.() -> Unit = {}
-): CheckboxPart =
-    configureCheckboxPart(CheckboxPart(metrics = metrics, appearance = appearance), configure)
+): CheckboxPart = configureCheckboxPart(
+    CheckboxPart(metrics = metrics, appearance = appearance),
+    configure
+)
 
 internal fun configureCheckboxPart(
     initial: CheckboxPart,
@@ -76,12 +76,23 @@ internal fun configureCheckboxPart(
 public class CheckboxPartBuilder internal constructor(initial: CheckboxPart) {
     public var metrics: CheckboxMetrics = initial.metrics
     public var appearance: MarkerAppearance = initial.appearance
+    public var mixedAppearance: MarkerAppearance? = initial.mixedAppearance
+    public var mixedShape: MixedMarkShape = initial.mixedShape
 
     public fun appearance(configure: MarkerAppearanceBuilder.() -> Unit): Unit {
         appearance = appearance.copy(configure)
     }
 
-    internal fun snapshot(): CheckboxPart = CheckboxPart(metrics = metrics, appearance = appearance)
+    public fun mixedAppearance(configure: MarkerAppearanceBuilder.() -> Unit): Unit {
+        mixedAppearance = Some((mixedAppearance ?: appearance).copy(configure))
+    }
+
+    internal fun snapshot(): CheckboxPart = CheckboxPart(
+        metrics = metrics,
+        appearance = appearance,
+        mixedAppearance = mixedAppearance,
+        mixedShape = mixedShape
+    )
 }
 
 /** Constructs a complete description and applies configuration once. */

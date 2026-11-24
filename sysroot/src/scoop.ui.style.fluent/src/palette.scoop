@@ -1,0 +1,59 @@
+package scoop.ui.style.fluent
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+// Fluent UI webLightTheme/webDarkTheme, brandWeb and shared color ramps:
+// https://github.com/microsoft/fluentui/tree/master/packages/tokens/src
+internal fun fluentPalette(mode: ThemeMode): ThemePalette {
+    val dark = mode == ThemeMode.Dark
+    val foreground = if (dark) Color.White else fluentColor(0x242424)
+    val background = ColorPair(
+        if (dark) fluentColor(0x1f1f1f) else fluentColor(0xfafafa),
+        foreground
+    )
+    val card = ColorPair(if (dark) fluentColor(0x292929) else Color.White, foreground)
+    val primary = ColorPair(if (dark) fluentColor(0x115ea3) else fluentColor(0x0f6cbd), Color.White)
+    val accent = ColorPair(if (dark) fluentColor(0x3d3d3d) else fluentColor(0xf5f5f5), foreground)
+    val border = if (dark) fluentColor(0x525252) else fluentColor(0xe0e0e0)
+    val ring = if (dark) Color.White else Color.Black
+    return ThemePalette(
+        background = background,
+        card = card,
+        popover = card,
+        primary = primary,
+        secondary = card,
+        muted = ColorPair(
+            if (dark) fluentColor(0x141414) else fluentColor(0xf5f5f5),
+            if (dark) fluentColor(0xadadad) else fluentColor(0x616161)
+        ),
+        accent = accent,
+        destructive = ColorPair(
+            if (dark) fluentColor(0xe37d80) else fluentColor(0xd13438),
+            if (dark) fluentColor(0x242424) else Color.White
+        ),
+        border = border,
+        input = if (dark) fluentColor(0x666666) else fluentColor(0xd1d1d1),
+        ring = ring,
+        chart = if (dark)
+            ChartPalette(
+                fluentColor(0x479ef5), fluentColor(0x9470bd), fluentColor(0x4cb4b7),
+                fluentColor(0xf2c661), fluentColor(0xd957a8)
+            )
+        else
+            ChartPalette(
+                fluentColor(0x0f6cbd), fluentColor(0x5c2e91), fluentColor(0x038387),
+                fluentColor(0xeaa300), fluentColor(0xbf0077)
+            ),
+        sidebar = SidebarPalette(background, primary, accent, border, ring),
+        disabledText = if (dark) fluentColor(0x5c5c5c) else fluentColor(0xbdbdbd),
+        shadow = Color.Black.withAlpha(if (dark) 0.28 else 0.14)
+    )
+}
+
+/** Exact sRGB channels retain the upstream hexadecimal token values. */
+internal fun fluentColor(value: Int): Color = Color(
+    (value / 65536 % 256).toDouble() / 255.0,
+    (value / 256 % 256).toDouble() / 255.0,
+    (value % 256).toDouble() / 255.0
+)

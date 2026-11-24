@@ -9,7 +9,7 @@ import scoop.ui.component.frame as makeFrame
 import scoop.ui.component.scrollArea as makeScrollArea
 import scoop.ui.style.*
 
-internal class Gallery(private val model: GalleryModel, scope: ComponentScope): Component(scope) {
+internal class Gallery(private val model: GalleryModel, scope: ComponentScope) : Component(scope) {
     public override fun render(): View = galleryView(model)
 }
 
@@ -17,17 +17,17 @@ private fun galleryView(model: GalleryModel): View {
     val palette = model.source.current.value.tokens.palette
     val entries = model.entries()
     val current = model.current(entries)
-    val content =
-        when (current) {
-            case Some(val value) -> galleryDemo(model, value)
-            case None -> makeColumn {
+    val content = when (current) {
+        case Some(val value) -> galleryDemo(model, value)
+        case None ->
+            makeColumn {
                 spacing = 12.0
                 add(galleryText(model, "No matching examples", 24.0, 600))
                 add(
                     galleryText(model, "Try Card, Alert, Button, Input, or Empty.", 14.0, 400, true)
                 )
             }
-        }
+    }
     return cachedScene(
         direction(
             makeFrame(
@@ -54,7 +54,15 @@ private fun galleryView(model: GalleryModel): View {
                         grow = 1.0
                         basis = FlexBasis.Fixed(0.0)
                     }
-                    add(galleryText(model, "Base Nova  /  Native Scoop controls", 12.0, 400, true))
+                    add(
+                        galleryText(
+                            model,
+                            f"${galleryStyleTitle(model.style.value)}  /  Native Scoop controls",
+                            12.0,
+                            400,
+                            true
+                        )
+                    )
                 }
             ) { style { background(Some(Paint(palette.background.background))) } },
             model.direction.value
@@ -63,37 +71,46 @@ private fun galleryView(model: GalleryModel): View {
 }
 
 private fun galleryToolbar(model: GalleryModel): View {
-    val colors =
-        if (model.usesSystemColors)
-            "Colors: System"
-        else
-            "Colors: Neutral"
-    val theme =
-        if (model.mode.value == ThemeMode.Light)
-            "Dark theme"
-        else
-            "Light theme"
-    val direction =
-        if (model.direction.value == LayoutDirection.Ltr)
-            "Switch to RTL"
-        else
-            "Switch to LTR"
+    val theme = if (model.mode.value == ThemeMode.Light) "Dark theme" else "Light theme"
+    val direction = if (model.direction.value == LayoutDirection.Ltr)
+        "Switch to RTL"
+    else
+        "Switch to LTR"
     return makeRow {
         spacing = 12.0
         alignment = CrossAlignment.Center
-        add(galleryText(model, "Scoop / shadcn", 22.0, 700))
+        add(galleryText(model, "Scoop / UI Gallery", 22.0, 600))
         item(empty()) { grow = 1.0 }
-        if (model.hasSystemColors)
-            button(colors, { model.toggleColors() }) { variant = ButtonVariant.Outline }
         button(theme, { model.toggleTheme() }) { variant = ButtonVariant.Outline }
         button(direction, { model.toggleDirection() }) { variant = ButtonVariant.Outline }
         button(
-            if (model.reduced.value)
-                "Full motion"
-            else
-                "Reduce motion",
+            if (model.reduced.value) "Full motion" else "Reduce motion",
             { model.toggleMotion() }
         ) { variant = ButtonVariant.Outline }
+        if (model.hasSystemColors)
+            button(
+                if (model.usesSystemColors) "Colors: System" else "Colors: Preset",
+                { model.toggleColors() }
+            ) { variant = ButtonVariant.Outline }
+        select(
+            binding<GalleryStyle?>(
+                { Some(model.style.value) },
+                { next -> model.selectStyle(next ?: model.style.value) }
+            )
+        ) {
+            key = ViewKey.Text("gallery-style")
+            width = Some(190.0)
+            position = SelectPosition.Popup
+            focus { handle = Some(model.styleFocus) }
+            semantics = ComponentSemantics(
+                name = Some("Style"),
+                automationId = Some("gallery-style")
+            )
+            for (value in model.styles())
+                item(
+                    Choice(ViewKey.Text(galleryStyleTitle(value)), value, galleryStyleTitle(value))
+                )
+        }
     }
 }
 
@@ -103,21 +120,17 @@ private fun galleryNavigation(model: GalleryModel, entries: Array<Demo>, current
             makeColumn {
                 spacing = 12.0
                 alignment = CrossAlignment.Stretch
-                padding = Insets(4.0, 4.0, 12.0, 4.0)
+                padding = Insets(8.0, 4.0, 8.0, 4.0)
                 input(model.query) { placeholder = "Search examples..." }
                 for (applications in [true, false]) {
                     var present = false
                     for (entry in entries)
-                        if (applicationDemo(entry) == applications)
-                            present = true
+                        if (applicationDemo(entry) == applications) present = true
                     if (present)
                         add(
                             galleryText(
                                 model,
-                                if (applications)
-                                    "APPLICATIONS"
-                                else
-                                    "COMPONENTS",
+                                if (applications) "APPLICATIONS" else "COMPONENTS",
                                 11.0,
                                 600,
                                 true
@@ -126,16 +139,15 @@ private fun galleryNavigation(model: GalleryModel, entries: Array<Demo>, current
                     for (entry in entries)
                         if (applicationDemo(entry) == applications)
                             button(demoTitle(entry), { model.selected.value = entry }) {
-                                variant =
-                                    if (current == Some(entry))
-                                        ButtonVariant.Default
-                                    else
-                                        ButtonVariant.Outline
+                                variant = if (current == Some(entry))
+                                    ButtonVariant.Default
+                                else
+                                    ButtonVariant.Outline
                                 style { surface { suggestedSize = Some(Size(190.0, 32.0)) } }
                             }
                 }
             }
-        )
+        ) { scrollbarBehavior { placement = ScrollbarPlacement.Gutter } }
     ) {
         width = Some(190.0)
         alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
@@ -153,13 +165,9 @@ internal fun galleryText(
         style {
             fontSize = Some(size)
             this.weight = Some(weight)
-            color =
-                Some(
-                    if (muted)
-                        palette.muted.foreground
-                    else
-                        palette.background.foreground
-                )
+            color = Some(
+                if (muted) palette.muted.foreground else palette.background.foreground
+            )
         }
     }
 }

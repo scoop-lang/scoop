@@ -10,8 +10,8 @@ public struct SurfaceMetrics(
     val corners: CornerRadii,
     val focusOutset: Double
 ) {
-    public val contentInsets: Insets get() =
-        Insets(
+    public val contentInsets: Insets
+        get() = Insets(
             padding.left + borderInsets.left,
             padding.top + borderInsets.top,
             padding.right + borderInsets.right,
@@ -40,8 +40,8 @@ public class SurfaceGeometry public constructor(
     public val style: Style,
     public val opacity: Double = 1.0
 ) {
-    public val contentStyle: Style get() =
-        Style(
+    public val contentStyle: Style
+        get() = Style(
             corners = Corners.Physical(outline.radii),
             contentEffects = style.contentEffects,
             clipContent = style.clipContent
@@ -176,12 +176,11 @@ public class SurfaceParts internal constructor(
     public fun copy(configure: SurfacePartsBuilder.() -> Unit = {}): SurfaceParts =
         configureSurfaceParts(this, configure)
 
-    public fun get(kind: SurfaceKind): SurfacePart =
-        when (kind) {
-            case Plain -> plain;
-            case Action -> action;
-            case Elevated -> elevated
-        }
+    public fun get(kind: SurfaceKind): SurfacePart = when (kind) {
+        case Plain -> plain;
+        case Action -> action;
+        case Elevated -> elevated
+    }
 }
 
 public class MarkerAppearance internal constructor(
@@ -199,7 +198,10 @@ public class MarkerAppearance internal constructor(
 
 public class CheckboxPart internal constructor(
     public val metrics: CheckboxMetrics,
-    public val appearance: MarkerAppearance
+    public val appearance: MarkerAppearance,
+    /** None keeps the same appearance for checked and mixed states. */
+    public val mixedAppearance: MarkerAppearance? = None,
+    public val mixedShape: MixedMarkShape = MixedMarkShape.Bar
 ) {
     public fun copy(configure: CheckboxPartBuilder.() -> Unit = {}): CheckboxPart =
         configureCheckboxPart(this, configure)
@@ -209,8 +211,10 @@ public class RadioPart internal constructor(
     public val metrics: RadioMetrics,
     public val appearance: MarkerAppearance
 ) {
-    public fun copy(configure: RadioPartBuilder.() -> Unit = {}): RadioPart =
-        configureRadioPart(this, configure)
+    public fun copy(configure: RadioPartBuilder.() -> Unit = {}): RadioPart = configureRadioPart(
+        this,
+        configure
+    )
 }
 
 public class ScrollbarPart internal constructor(

@@ -1,0 +1,110 @@
+package scoop.examples.ui.shadcn
+
+import scoop.test.*
+import scoop.ui.LayoutDirection
+import scoop.ui.state
+import scoop.ui.style.*
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class GalleryStyleTest {
+    @Test
+    fun `style selection replaces the complete theme and retains the gallery model and preferences`() {
+        val model = GalleryModel()
+        val source = model.source
+        val editor = model.name
+        val inputFocus = model.inputFocus
+        model.name.replaceAll("Keep this draft")
+        model.query.replaceAll("Input")
+        model.selected.value = Demo.Input
+        model.clicks.value = 7
+        model.checked.value = true
+        model.toggleMotion()
+        model.toggleDirection()
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            if (model.mode.value != mode) model.toggleTheme()
+            for (style in model.styles()) {
+                model.selectStyle(style)
+                val expected = when (style) {
+                    case Shadcn -> shadcnTheme(mode)
+                    case MacOS -> macosTheme(mode)
+                    case Material -> materialTheme(mode)
+                    case Fluent -> fluentTheme(mode)
+                }
+                val actual = source.current.value
+                assertEquals(expected.tokens.palette.primary, actual.tokens.palette.primary)
+                assertEquals(
+                    expected.tokens.typography.body.families[0L],
+                    actual.tokens.typography.body.families[0L]
+                )
+                assertEquals(expected.surfaceMetrics().corners, actual.surfaceMetrics().corners)
+                assertEquals(
+                    expected.surfaceMetrics().suggestedSize,
+                    actual.surfaceMetrics().suggestedSize
+                )
+                assertEquals(
+                    expected.checkboxMetrics().suggestedSize,
+                    actual.checkboxMetrics().suggestedSize
+                )
+                assertEquals(mode, actual.tokens.mode)
+                assertEquals(MotionPreference.Reduced, actual.tokens.motion.preference)
+                assertEquals(LayoutDirection.Rtl, model.direction.value)
+                assertEquals(Demo.Input, model.selected.value)
+                assertEquals("Input", model.query.text)
+                assertEquals("Keep this draft", model.name.text)
+                assertEquals(7, model.clicks.value)
+                assertTrue(model.checked.value)
+                assertTrue(source === model.source)
+                assertTrue(editor === model.name)
+                assertTrue(inputFocus === model.inputFocus)
+                model.selectStyle(style)
+                assertTrue(actual === source.current.value)
+            }
+        }
+    }
+
+    @Test
+    fun `palette source and style remain independent in both modes`() {
+        val ordinary = GalleryModel()
+        assertEquals(4L, ordinary.styles().size)
+        assertEquals(GalleryStyle.Shadcn, ordinary.style.value)
+        ordinary.toggleColors()
+        assertFalse(ordinary.usesSystemColors)
+        assertEquals(GalleryStyle.Shadcn, ordinary.style.value)
+        val reads = state(0)
+        val model = GalleryModel(
+            Some { mode ->
+                reads.value += 1
+                macosTheme(mode).tokens.palette
+            }
+        )
+        assertEquals(4L, model.styles().size)
+        assertEquals(GalleryStyle.Shadcn, model.style.value)
+        assertTrue(model.usesSystemColors)
+        assertEquals(1, reads.value)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            if (model.mode.value != mode) model.toggleTheme()
+            for (style in model.styles()) {
+                model.selectStyle(style)
+                assertTrue(model.usesSystemColors)
+                assertEquals(
+                    macosTheme(mode).tokens.palette.primary,
+                    model.source.current.value.tokens.palette.primary
+                )
+                model.toggleColors()
+                assertEquals(style, model.style.value)
+                assertFalse(model.usesSystemColors)
+                val before = reads.value
+                model.refreshTheme()
+                assertEquals(before, reads.value)
+                model.toggleColors()
+                assertEquals(style, model.style.value)
+                assertTrue(model.usesSystemColors)
+                assertEquals(before + 1, reads.value)
+            }
+        }
+    }
+}

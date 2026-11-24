@@ -6,39 +6,42 @@ import scoop.window.*
 import scoop.window.asyncio.runWithAsyncio
 
 internal fun runGallery(model: GalleryModel) {
-    FontCollection().use {
-        fonts -> context(model.source) {
-            UiHost {
-                host,
-                active,
-                event -> when (event) {
-                    case Resumed -> {
-                        val window =
-                            active.createWindow(
-                                windowAttributes {
-                                    this.title = "Scoop — shadcn"
-                                    this.size = LogicalSize(1120.0, 780.0)
-                                }
-                            )
-                        host.attach(
-                            window,
-                            { mount -> Gallery(model, scope = mount) },
-                            fonts = Some(fonts)
-                        )
-                        window.requestFocus()
+    FontCollection()
+        .use { fonts ->
+            context(model.source) {
+                UiHost { host, active, event ->
+                    when (event) {
+                        case Resumed -> {
+                            val window = active
+                                .createWindow(
+                                    windowAttributes {
+                                        this.title = "Scoop — UI Gallery"
+                                        this.size = LogicalSize(1120.0, 780.0)
+                                    }
+                                )
+                            host
+                                .attach(
+                                    window,
+                                    { mount -> Gallery(model, scope = mount) },
+                                    fonts = Some(fonts)
+                                )
+                            window.requestFocus()
+                        }
+
+                        case Window(_, WindowEvent.CloseRequested) -> active.requestExit()
+
+                        case Window(_, WindowEvent.Focused(true)) -> {
+                            if (model.usesSystemColors) model.refreshTheme()
+                        }
+
+                        case Window(_, WindowEvent.ThemeChanged(_)) -> {
+                            if (model.usesSystemColors) model.refreshTheme()
+                        }
+
+                        else -> {}
                     }
-                    case Window(_, WindowEvent.CloseRequested) -> active.requestExit()
-                    case Window(_, WindowEvent.Focused(true)) -> {
-                        if (model.usesSystemColors)
-                            model.refreshTheme()
-                    }
-                    case Window(_, WindowEvent.ThemeChanged(_)) -> {
-                        if (model.usesSystemColors)
-                            model.refreshTheme()
-                    }
-                    else -> {}
                 }
-            }.use { host -> Application().runWithAsyncio(host) }
+                    .use { host -> Application().runWithAsyncio(host) }
+            }
         }
-    }
 }
