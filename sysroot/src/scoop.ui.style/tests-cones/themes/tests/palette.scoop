@@ -49,7 +49,14 @@ private class ThemePaletteOverrideTest {
                     base.tokens.typography.body.fontSize,
                     theme.tokens.typography.body.fontSize
                 )
-                for (kind in [SurfaceKind.Plain, SurfaceKind.Action, SurfaceKind.Elevated]) {
+                for (
+                    kind in [
+                        SurfaceKind.Plain,
+                        SurfaceKind.Action,
+                        SurfaceKind.OutlinedAction,
+                        SurfaceKind.Elevated
+                    ]
+                ) {
                     val visual = SurfaceVisual(kind)
                     assertEquals(base.surfaceMetrics(visual), theme.surfaceMetrics(visual))
                 }

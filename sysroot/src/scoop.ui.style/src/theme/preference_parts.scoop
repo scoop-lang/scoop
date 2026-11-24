@@ -74,6 +74,7 @@ internal fun preferenceSurfaces(
 ): SurfaceParts = SurfaceParts(
     preferenceSurface(parts.plain, canvas, contrast, false, disabledOpacity),
     preferenceSurface(parts.action, canvas, contrast, true, disabledOpacity),
+    preferenceSurface(parts.outlinedAction, canvas, contrast, false, disabledOpacity),
     preferenceSurface(parts.elevated, canvas, contrast, false, disabledOpacity)
 )
 
@@ -134,7 +135,17 @@ private fun preferenceMarker(
         preferenceStateColors(value.selectedBorder, selected.fill, 3.0, contrast),
         selected.foreground,
         preferenceOutline(value.focus, canvas, contrast),
-        []
+        [],
+        when (value.stateLayer) {
+            case Some(val layer) ->
+                Some(
+                    MarkerStateLayer(
+                        layer.size, StateColors.solid(Color.Transparent), StateColors
+                            .solid(Color.Transparent)
+                    )
+                )
+            case None -> None
+        }
     )
 }
 

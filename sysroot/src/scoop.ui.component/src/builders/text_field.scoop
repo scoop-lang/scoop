@@ -8,6 +8,7 @@ import scoop.ui.text.*
 import scoop.window.TextInputPurpose
 
 public open class InputBuilder internal constructor() {
+    public var label: String = ""
     public var placeholder: String = ""
     public var enabled: Boolean = true
     public var readOnly: Boolean = false
@@ -53,102 +54,102 @@ public open class InputBuilder internal constructor() {
     public fun contextMenu(configure: TextContextMenuOptionsBuilder.() -> Unit): Unit {
         contextMenu = contextMenu.copy(configure)
     }
-    internal fun inputProps(state: TextEditorState): InputProps =
-        InputProps(
-            state,
-            placeholder,
-            enabled,
-            readOnly,
-            invalid,
-            description,
-            fonts,
-            style,
-            theme,
-            focus,
-            direction,
-            alignment,
-            paintCache,
-            caretBlink,
-            onEdited,
-            onSubmit,
-            policy,
-            projection,
-            copy,
-            labelTarget,
-            group,
-            chrome,
-            contextMenu,
-            protectedText,
-            semantics,
-            acceptDrops,
-            drag,
-            touch,
-            touchScroll,
-            scrollPhysics,
-            expansion,
-            inputPurpose,
-            softwareKeyboard,
-            primarySelection,
-            automaticTextReplacement
-        )
+    internal fun inputProps(state: TextEditorState): InputProps = InputProps(
+        state,
+        placeholder,
+        enabled,
+        readOnly,
+        invalid,
+        description,
+        fonts,
+        style,
+        theme,
+        focus,
+        direction,
+        alignment,
+        paintCache,
+        caretBlink,
+        onEdited,
+        onSubmit,
+        policy,
+        projection,
+        copy,
+        labelTarget,
+        group,
+        chrome,
+        contextMenu,
+        protectedText,
+        semantics,
+        acceptDrops,
+        drag,
+        touch,
+        touchScroll,
+        scrollPhysics,
+        expansion,
+        inputPurpose,
+        softwareKeyboard,
+        primarySelection,
+        automaticTextReplacement,
+        label
+    )
 }
 
-public class TextareaBuilder internal constructor(): InputBuilder() {
+public class TextareaBuilder internal constructor() : InputBuilder() {
     public var rows: Long = 4L
     public var wrap: Boolean = true
     public var tab: TextTabBehavior = TextTabBehavior.Navigate
     public var submit: TextSubmitKeys = TextSubmitKeys.PrimaryEnter
     public var scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto
-    public var scrollbarBehavior: ScrollbarBehavior =
-        scrollbarBehavior().copy { placement = ScrollbarPlacement.Gutter }
+    public var scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior()
+        .copy { placement = ScrollbarPlacement.Gutter }
 
     public fun scrollbarBehavior(configure: ScrollbarBehaviorBuilder.() -> Unit): Unit {
         scrollbarBehavior = scrollbarBehavior.copy(configure)
     }
 
-    internal fun textareaProps(state: TextEditorState): TextareaProps =
-        TextareaProps(
-            state,
-            placeholder,
-            rows,
-            wrap,
-            tab,
-            submit,
-            enabled,
-            readOnly,
-            invalid,
-            description,
-            fonts,
-            style,
-            theme,
-            focus,
-            direction,
-            alignment,
-            scrollbars,
-            paintCache,
-            caretBlink,
-            onEdited,
-            onSubmit,
-            policy,
-            projection,
-            copy,
-            labelTarget,
-            group,
-            chrome,
-            contextMenu,
-            scrollbarBehavior,
-            protectedText,
-            semantics,
-            acceptDrops,
-            drag,
-            touch,
-            touchScroll,
-            scrollPhysics,
-            inputPurpose,
-            softwareKeyboard,
-            primarySelection,
-            automaticTextReplacement
-        )
+    internal fun textareaProps(state: TextEditorState): TextareaProps = TextareaProps(
+        state,
+        placeholder,
+        rows,
+        wrap,
+        tab,
+        submit,
+        enabled,
+        readOnly,
+        invalid,
+        description,
+        fonts,
+        style,
+        theme,
+        focus,
+        direction,
+        alignment,
+        scrollbars,
+        paintCache,
+        caretBlink,
+        onEdited,
+        onSubmit,
+        policy,
+        projection,
+        copy,
+        labelTarget,
+        group,
+        chrome,
+        contextMenu,
+        scrollbarBehavior,
+        protectedText,
+        semantics,
+        acceptDrops,
+        drag,
+        touch,
+        touchScroll,
+        scrollPhysics,
+        inputPurpose,
+        softwareKeyboard,
+        primarySelection,
+        automaticTextReplacement,
+        label
+    )
 }
 
 internal fun makeInput(state: TextEditorState, configure: InputBuilder.() -> Unit): View {

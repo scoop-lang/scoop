@@ -208,7 +208,12 @@ public fun fluentTheme(
     )
     return shapeTheme(
         tokens = tokens,
-        surfaces = surfaceParts(plain = plain, action = action, elevated = elevated),
+        surfaces = surfaceParts(
+            plain = plain,
+            action = action,
+            outlinedAction = plain,
+            elevated = elevated
+        ),
         checkbox = checkboxPart(
             metrics = CheckboxMetrics(
                 Size(16.0, 16.0), Size(16.0, 16.0), Insets.all(1.0),

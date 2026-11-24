@@ -26,8 +26,8 @@ private class ThemeValidationTest {
                 val plain = theme.surfaceGeometry(bounds, SurfaceVisual())
                 val error = InteractionVisual(invalid = true)
                 val invalid = theme.surfaceGeometry(bounds, SurfaceVisual(interaction = error))
-                val both =
-                    theme.surfaceGeometry(
+                val both = theme
+                    .surfaceGeometry(
                         bounds,
                         SurfaceVisual(
                             interaction = InteractionVisual(focusVisible = true, invalid = true)
@@ -41,8 +41,8 @@ private class ThemeValidationTest {
                 )
                 assertEquals(invalid.ring, both.ring)
                 assertEquals(plain.content, invalid.content)
-                val disabled =
-                    theme.surfaceGeometry(
+                val disabled = theme
+                    .surfaceGeometry(
                         bounds,
                         SurfaceVisual(
                             interaction = InteractionVisual(enabled = false, invalid = true)
@@ -53,33 +53,47 @@ private class ThemeValidationTest {
                     disabled.ring!!.border.color.alpha
                 )
                 assertEquals(theme.tokens.disabledOpacity, disabled.opacity)
-                val checkbox =
-                    theme.checkboxGeometry(
+                val checkbox = theme
+                    .checkboxGeometry(
                         Rect(20.0, 20.0, 16.0, 16.0),
                         CheckboxVisual(interaction = error)
                     )
-                val radio =
-                    theme.radioGeometry(
+                val radio = theme
+                    .radioGeometry(
                         Rect(20.0, 20.0, 16.0, 16.0),
                         RadioVisual(interaction = error)
                     )
                 assertEquals(invalid.ring!!.border, checkbox.ring!!.border)
                 assertEquals(invalid.ring!!.border, radio.ring!!.border)
-                theme.createPainter().use {
-                    painter ->
-                    val ordinary =
-                        pixels { canvas -> painter.drawSurface(canvas, plain, SurfaceVisual()) }
-                    val marked =
-                        pixels {
-                            canvas -> painter.drawSurface(
-                                canvas,
-                                invalid,
-                                SurfaceVisual(interaction = error)
-                            )
+                theme
+                    .createPainter()
+                    .use { painter ->
+                        val ordinary = pixels { canvas ->
+                            painter.drawSurface(canvas, plain, SurfaceVisual())
                         }
-                    assertTrue(differences(ordinary, marked) > 100)
-                    assertTrue(channel(marked, 128, 18, 36, 3) > channel(ordinary, 128, 18, 36, 3))
-                }
+                        val marked = pixels { canvas ->
+                            painter
+                                .drawSurface(
+                                    canvas,
+                                    invalid,
+                                    SurfaceVisual(interaction = error)
+                                )
+                        }
+                        assertTrue(differences(ordinary, marked) > 100)
+                        val ring = invalid.ring!!
+                        val x = (ring.outline.bounds.x + ring.border.width / 2.0).toInt()
+                        assertTrue(channel(marked, 128, x, 36, 3) > 0)
+                        assertTrue(
+                            channel(marked, 128, x, 36, 0) !=
+                                channel(ordinary, 128, x, 36, 0) ||
+                                channel(marked, 128, x, 36, 1) !=
+                                channel(ordinary, 128, x, 36, 1) ||
+                                channel(marked, 128, x, 36, 2) !=
+                                channel(ordinary, 128, x, 36, 2) ||
+                                channel(marked, 128, x, 36, 3) !=
+                                channel(ordinary, 128, x, 36, 3)
+                        )
+                    }
             }
         }
     }
@@ -95,11 +109,10 @@ private class ThemeValidationTest {
             geometry.style.border!!.resolve(LayoutDirection.Ltr).left.color
         )
         val error = SurfaceVisual(interaction = InteractionVisual(invalid = true))
-        val options =
-            surfaceOptions {
-                this.validation = Some(OutlineStyle(Color.Black, 1.0, 5.0, Some(Color.White)))
-                style { this.border(Some(Border.all(2.0, Color.Black))) }
-            }
+        val options = surfaceOptions {
+            this.validation = Some(OutlineStyle(Color.Black, 1.0, 5.0, Some(Color.White)))
+            style { this.border(Some(Border.all(2.0, Color.Black))) }
+        }
         val local = theme.surfaceGeometry(bounds, error, options)
         assertEquals(Some(Border.all(2.0, Color.Black)), local.style.border)
         assertEquals(
@@ -112,11 +125,13 @@ private class ThemeValidationTest {
         assertEquals(5.0, theme.surfaceMetrics(error, options).focusOutset)
         assertEquals(
             None,
-            theme.surfaceGeometry(
-                bounds,
-                error,
-                surfaceOptions { this.validation = Some(OutlineStyle(Color.Black, 0.0, 0.0)) }
-            ).ring
+            theme
+                .surfaceGeometry(
+                    bounds,
+                    error,
+                    surfaceOptions { this.validation = Some(OutlineStyle(Color.Black, 0.0, 0.0)) }
+                )
+                .ring
         )
     }
 }

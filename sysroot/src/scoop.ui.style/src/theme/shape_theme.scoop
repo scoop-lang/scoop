@@ -48,7 +48,7 @@ public class ShapeTheme internal constructor(
                             )
                         ),
                         corners = Corners.Physical(part.metrics.corners),
-                        boxShadows = part.shadows
+                        boxShadows = surfaceShadows(part, visual.interaction)
                     )
                 ),
             direction
@@ -134,8 +134,18 @@ public class ShapeTheme internal constructor(
             options.markInset ?: base.markInset,
             base.markWidth,
             themeMax(
-                outlineOutset(focus, options.validation ?: tokens.validation),
-                outlineOutset(mixedFocus, options.validation ?: tokens.validation)
+                markerFocusOutset(
+                    size,
+                    checkbox.appearance,
+                    focus,
+                    options.validation ?: tokens.validation,
+                    options.style.corners
+                ),
+                markerFocusOutset(
+                    size, checkbox.mixedAppearance ?: checkbox.appearance,
+                    mixedFocus, options.validation ?: tokens.validation,
+                    options.style.corners
+                )
             )
         )
         for (value in [size, min, result.markInset, result.markWidth, focus.outset, focus.width])
@@ -198,7 +208,7 @@ public class ShapeTheme internal constructor(
             tick,
             mixed,
             outlineTheme(
-                outline,
+                markerFocusOutline(outline, appearance, visual.interaction, options.style.corners),
                 visual.interaction,
                 options.focus ?: appearance.focus,
                 options.validation ?: tokens.validation
@@ -206,7 +216,11 @@ public class ShapeTheme internal constructor(
             style,
             options.markColor ?: appearance.mark.resolve(visual.interaction),
             amount,
-            controlOpacity(visual.interaction.enabled)
+            controlOpacity(visual.interaction.enabled),
+            markerLayerGeometry(
+                square, appearance, visual.interaction, amount,
+                options.validation ?: tokens.validation
+            )
         )
     }
     public override fun radioMetrics(options: RadioOptions): RadioMetrics {
@@ -224,7 +238,12 @@ public class ShapeTheme internal constructor(
             Size(min, min),
             width,
             options.dotInset ?: base.dotInset,
-            outlineOutset(focus, options.validation ?: tokens.validation)
+            markerFocusOutset(
+                size,
+                radio.appearance,
+                focus,
+                options.validation ?: tokens.validation
+            )
         )
         for (value in [size, min, width, result.dotInset, focus.outset, focus.width])
             themeLength(value)
@@ -260,7 +279,11 @@ public class ShapeTheme internal constructor(
             interior,
             dot,
             outlineTheme(
-                roundTheme(square, outer.radius),
+                markerFocusOutline(
+                    roundTheme(square, outer.radius),
+                    appearance,
+                    visual.interaction
+                ),
                 visual.interaction,
                 options.focus ?: appearance.focus,
                 options.validation ?: tokens.validation
@@ -279,7 +302,11 @@ public class ShapeTheme internal constructor(
                 },
             options.dotColor ?: appearance.mark.resolve(visual.interaction),
             amount,
-            controlOpacity(visual.interaction.enabled)
+            controlOpacity(visual.interaction.enabled),
+            markerLayerGeometry(
+                square, appearance, visual.interaction, amount,
+                options.validation ?: tokens.validation
+            )
         )
     }
     public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics {

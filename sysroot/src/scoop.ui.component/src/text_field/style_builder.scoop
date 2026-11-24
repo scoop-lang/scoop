@@ -23,6 +23,7 @@ public class TextFieldStyleBuilder internal constructor(initial: TextFieldStyle)
     public var text: SpanStyle? = initial.text
     public var placeholder: SpanStyle? = initial.placeholder
     public var description: SpanStyle? = initial.description
+    public var label: SpanStyle? = initial.label
     public var states: InteractionStyles = initial.states
     public var selectionColor: Color? = initial.selectionColor
     public var inactiveSelectionColor: Color? = initial.inactiveSelectionColor
@@ -49,6 +50,10 @@ public class TextFieldStyleBuilder internal constructor(initial: TextFieldStyle)
         description = Some(configureOptionalSpanStyle(description, configure))
     }
 
+    public fun label(configure: SpanStyleBuilder.() -> Unit): Unit {
+        label = Some(configureOptionalSpanStyle(label, configure))
+    }
+
     public fun states(configure: InteractionStylesBuilder.() -> Unit): Unit {
         states = states.copy(configure)
     }
@@ -57,20 +62,20 @@ public class TextFieldStyleBuilder internal constructor(initial: TextFieldStyle)
         scrollbar = scrollbar.copy(configure)
     }
 
-    internal fun snapshot(): TextFieldStyle =
-        TextFieldStyle(
-            surface = surface,
-            text = text,
-            placeholder = placeholder,
-            description = description,
-            states = states,
-            selectionColor = selectionColor,
-            inactiveSelectionColor = inactiveSelectionColor,
-            selectionTextColor = selectionTextColor,
-            inactiveSelectionTextColor = inactiveSelectionTextColor,
-            caretColor = caretColor,
-            markedColor = markedColor,
-            caretWidth = caretWidth,
-            scrollbar = scrollbar
-        )
+    internal fun snapshot(): TextFieldStyle = TextFieldStyle(
+        surface = surface,
+        text = text,
+        placeholder = placeholder,
+        description = description,
+        states = states,
+        selectionColor = selectionColor,
+        inactiveSelectionColor = inactiveSelectionColor,
+        selectionTextColor = selectionTextColor,
+        inactiveSelectionTextColor = inactiveSelectionTextColor,
+        caretColor = caretColor,
+        markedColor = markedColor,
+        caretWidth = caretWidth,
+        scrollbar = scrollbar,
+        label = label
+    )
 }

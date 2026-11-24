@@ -149,7 +149,12 @@ public fun macosTheme(
     )
     return shapeTheme(
         tokens = tokens,
-        surfaces = surfaceParts(plain = plain, action = action, elevated = elevated),
+        surfaces = surfaceParts(
+            plain = plain,
+            action = action,
+            outlinedAction = plain,
+            elevated = elevated
+        ),
         checkbox = checkboxPart(
             metrics = CheckboxMetrics(
                 Size(14.0, 14.0), Size(14.0, 14.0), Insets.all(0.5),

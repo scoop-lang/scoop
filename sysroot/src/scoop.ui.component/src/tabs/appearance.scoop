@@ -12,21 +12,27 @@ internal fun tabTextColor(
     val colors = theme.tokens.palette
     if (theme.preferences.highContrast)
         return tabContrastPair(theme, variant, selected, visual).foreground
-    if (!visual.enabled && theme.tokens.disabledOpacity >= 1.0)
-        return colors.disabledText
-    if (selected || (visual.enabled && (visual.hovered || visual.pressed)))
-        return colors.background.foreground
-    return if (theme.tokens.mode == ThemeMode.Dark)
+    val foreground = if (!visual.enabled && theme.tokens.disabledOpacity >= 1.0)
+        colors.disabledText
+    else if (selected || (visual.enabled && (visual.hovered || visual.pressed)))
+        colors.background.foreground
+    else if (theme.tokens.mode == ThemeMode.Dark)
         colors.muted.foreground
     else
-        componentTint(theme, colors.background.foreground, 0.6, tabBackground(theme, variant))
+        colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.6)
+    val fill = tabFill(theme, variant, selected, visual)
+    return componentBackground(
+        theme, foreground,
+        if (fill.alpha == 0.0) tabBackground(theme, variant) else fill
+    )
 }
 
-private fun tabBackground(theme: Theme, variant: TabsVariant): Color =
-    if (variant == TabsVariant.Default)
-        theme.tokens.palette.muted.background
-    else
-        theme.tokens.palette.background.background
+private fun tabBackground(theme: Theme, variant: TabsVariant): Color = if (variant ==
+    TabsVariant.Default
+)
+    theme.tokens.palette.muted.background
+else
+    theme.tokens.palette.background.background
 
 private fun tabContrastPair(
     theme: Theme,
@@ -38,22 +44,46 @@ private fun tabContrastPair(
     if (selected && variant == TabsVariant.Default)
         return ColorPair(
             colors.background.background,
-            if (visual.enabled)
-                colors.background.foreground
-            else
-                colors.disabledText
+            if (visual.enabled) colors.background.foreground else colors.disabledText
         )
-    if (visual.enabled && (visual.hovered || visual.pressed))
-        return colors.accent
-    if (variant == TabsVariant.Default)
-        return colors.muted
+    if (visual.enabled && (visual.hovered || visual.pressed)) return colors.accent
+    if (variant == TabsVariant.Default) return colors.muted
     return ColorPair(
         colors.background.background,
-        if (visual.enabled)
-            colors.background.foreground
-        else
-            colors.disabledText
+        if (visual.enabled) colors.background.foreground else colors.disabledText
     )
+}
+
+private fun tabFill(
+    theme: Theme,
+    variant: TabsVariant,
+    selected: Boolean,
+    visual: InteractionVisual
+): Color {
+    val colors = theme.tokens.palette
+    val dark = theme.tokens.mode == ThemeMode.Dark
+    val filled = selected && variant == TabsVariant.Default
+    val normal = if (!filled)
+        Color.Transparent
+    else if (dark)
+        colors.input.withAlpha(colors.input.alpha * 0.3)
+    else
+        colors.background.background
+    val pressed = if (!filled)
+        colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.08)
+    else
+        mixThemeColor(normal, colors.background.foreground, 0.08)
+    return if (theme.preferences.highContrast)
+        if (filled || (visual.enabled && (visual.hovered || visual.pressed)))
+            tabContrastPair(theme, variant, selected, visual).background
+        else
+            Color.Transparent
+    else
+        componentBackground(
+            theme,
+            StateColors(normal, normal, pressed, normal).resolve(visual),
+            tabBackground(theme, variant)
+        )
 }
 
 internal fun tabOptions(
@@ -67,55 +97,35 @@ internal fun tabOptions(
     val dark = theme.tokens.mode == ThemeMode.Dark
     val density = theme.tokens.typography.action.fontSize / 14.0
     val filled = selected && variant == TabsVariant.Default
-    val normal =
-        if (!filled)
-            Color.Transparent
-        else
-            if (dark)
-                colors.input.withAlpha(colors.input.alpha * 0.3)
-            else
-                colors.background.background
-    val pressed =
-        if (!filled)
-            colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.08)
-        else
-            mixThemeColor(normal, colors.background.foreground, 0.08)
-    val fill =
-        if (theme.preferences.highContrast)
-            if (filled || (visual.enabled && (visual.hovered || visual.pressed)))
-                tabContrastPair(theme, variant, selected, visual).background
-            else
-                Color.Transparent
-        else
-            componentBackground(
-                theme,
-                StateColors(normal, normal, pressed, normal).resolve(visual),
-                tabBackground(theme, variant)
-            )
-    val local =
-        styleOverride {
-            this.background(Some(Paint(fill)))
-            this.border(
+    val fill = tabFill(theme, variant, selected, visual)
+    val local = styleOverride {
+        this.background(Some(Paint(fill)))
+        this
+            .border(
                 Some(
-                    Border.all(
-                        density,
-                        if (filled && (dark || theme.preferences.highContrast))
-                            colors.input
-                        else
-                            Color.Transparent
-                    )
+                    Border
+                        .all(
+                            density,
+                            if (filled && (dark || theme.preferences.highContrast))
+                                colors.input
+                            else
+                                Color.Transparent
+                        )
                 )
             )
-            this.corners(Corners.all(theme.tokens.corners.medium))
-            this.boxShadows([])
-        }.then(style.surface.style)
-    return style.surface.copy {
-        if (this.suggestedSize == None)
-            this.suggestedSize = Some(Size(0.0, 26.0 * density))
-        if (this.minimumSize == None)
-            this.minimumSize = Some(Size(0.0, 0.0))
-        if (this.padding == None)
-            this.padding = Some(Insets(6.0 * density, 2.0 * density, 6.0 * density, 2.0 * density))
-        this.style = style.states.apply(local, visual)
+        this.corners(Corners.all(theme.tokens.corners.medium))
+        this.boxShadows([])
     }
+        .then(style.surface.style)
+    return style
+        .surface
+        .copy {
+            if (this.suggestedSize == None) this.suggestedSize = Some(Size(0.0, 26.0 * density))
+            if (this.minimumSize == None) this.minimumSize = Some(Size(0.0, 0.0))
+            if (this.padding == None)
+                this.padding = Some(
+                    Insets(6.0 * density, 2.0 * density, 6.0 * density, 2.0 * density)
+                )
+            this.style = style.states.apply(local, visual)
+        }
 }

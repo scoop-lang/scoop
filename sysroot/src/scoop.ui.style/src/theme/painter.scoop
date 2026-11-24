@@ -6,7 +6,7 @@ import scoop.platform.concurrent.currentThreadId
 internal class ShapeThemePainter(
     private val scrollbar: ScrollbarPart,
     private val disabledOpacity: Double
-): ThemePainter {
+) : ThemePainter {
     private val owner = currentThreadId()
     private var closed = false
     private var painting = false
@@ -37,31 +37,34 @@ internal class ShapeThemePainter(
         visual: SurfaceVisual,
         layer: SurfaceLayer
     ) {
-        draw(canvas) {
-            local ->
+        draw(canvas) { local ->
             if (layer == SurfaceLayer.All && geometry.opacity < 1.0)
                 local.saveLayer(geometry.opacity)
             val style = geometry.style
             if (layer != SurfaceLayer.Foreground)
-                background.paint(
-                    local,
-                    geometry.outline.bounds,
-                    Style(
-                        background = style.background,
-                        corners = Corners.Physical(geometry.outline.radii),
-                        boxShadows = style.boxShadows
-                    )
-                ) { _ -> }
+                background
+                    .paint(
+                        local,
+                        geometry.outline.bounds,
+                        Style(
+                            background = style.background,
+                            corners = Corners.Physical(geometry.outline.radii),
+                            boxShadows = style.boxShadows
+                        )
+                    ) { _ -> }
             if (layer != SurfaceLayer.Background) {
-                foreground.paint(
-                    local,
-                    geometry.outline.bounds,
-                    Style(border = style.border, corners = Corners.Physical(geometry.outline.radii))
-                ) { _ -> }
+                foreground
+                    .paint(
+                        local,
+                        geometry.outline.bounds,
+                        Style(
+                            border = style.border,
+                            corners = Corners.Physical(geometry.outline.radii)
+                        )
+                    ) { _ -> }
                 drawFocus(local, geometry.ring, focusPainter)
             }
-            if (layer == SurfaceLayer.All && geometry.opacity < 1.0)
-                local.restore()
+            if (layer == SurfaceLayer.All && geometry.opacity < 1.0) local.restore()
         }
     }
     public override fun drawCheckbox(
@@ -69,45 +72,47 @@ internal class ShapeThemePainter(
         geometry: CheckboxGeometry,
         visual: CheckboxVisual
     ) {
-        draw(canvas) {
-            local ->
-            if (geometry.opacity < 1.0)
-                local.saveLayer(geometry.opacity)
-            marker.paint(local, geometry.outline.bounds, geometry.style) {
-                content -> if (geometry.selection > 0.0) {
-                    val color =
-                        geometry.markColor.withAlpha(geometry.markColor.alpha * geometry.selection)
-                    when (visual.mark) {
-                        case Mixed -> drawRound(content, geometry.mixed, color)
-                        else -> drawStroke(content, geometry.tick, color)
+        draw(canvas) { local ->
+            if (geometry.opacity < 1.0) local.saveLayer(geometry.opacity)
+            drawMarkerLayer(local, geometry.stateLayer)
+            marker
+                .paint(local, geometry.outline.bounds, geometry.style) { content ->
+                    if (geometry.selection > 0.0) {
+                        val color = geometry
+                            .markColor
+                            .withAlpha(geometry.markColor.alpha * geometry.selection)
+                        when (visual.mark) {
+                            case Mixed -> drawRound(content, geometry.mixed, color)
+                            else -> drawStroke(content, geometry.tick, color)
+                        }
                     }
                 }
-            }
             drawFocus(local, geometry.ring, focusPainter)
-            if (geometry.opacity < 1.0)
-                local.restore()
+            if (geometry.opacity < 1.0) local.restore()
         }
     }
     public override fun drawRadio(canvas: Canvas, geometry: RadioGeometry, visual: RadioVisual) {
-        draw(canvas) {
-            local ->
-            if (geometry.opacity < 1.0)
-                local.saveLayer(geometry.opacity)
-            marker.paint(local, geometry.outer.bounds, geometry.style) {
-                content -> if (geometry.dot.radius > 0.0)
-                    content.drawCircle(
-                        geometry.dot.center,
-                        geometry.dot.radius,
-                        Paint(
-                            geometry.dotColor.withAlpha(
-                                geometry.dotColor.alpha * geometry.selection
+        draw(canvas) { local ->
+            if (geometry.opacity < 1.0) local.saveLayer(geometry.opacity)
+            drawMarkerLayer(local, geometry.stateLayer)
+            marker
+                .paint(local, geometry.outer.bounds, geometry.style) { content ->
+                    if (geometry.dot.radius > 0.0)
+                        content
+                            .drawCircle(
+                                geometry.dot.center,
+                                geometry.dot.radius,
+                                Paint(
+                                    geometry
+                                        .dotColor
+                                        .withAlpha(
+                                            geometry.dotColor.alpha * geometry.selection
+                                        )
+                                )
                             )
-                        )
-                    )
-            }
+                }
             drawFocus(local, geometry.ring, focusPainter)
-            if (geometry.opacity < 1.0)
-                local.restore()
+            if (geometry.opacity < 1.0) local.restore()
         }
     }
     public override fun drawScrollbar(
@@ -115,16 +120,9 @@ internal class ShapeThemePainter(
         geometry: ScrollbarGeometry,
         visual: ScrollbarVisual
     ) {
-        draw(canvas) {
-            local ->
-            val opacity =
-                themeUnit(visual.opacity) *
-                    if (visual.enabled)
-                        1.0
-                    else
-                        disabledOpacity
-            if (opacity < 1.0)
-                local.saveLayer(opacity)
+        draw(canvas) { local ->
+            val opacity = themeUnit(visual.opacity) * if (visual.enabled) 1.0 else disabledOpacity
+            if (opacity < 1.0) local.saveLayer(opacity)
             if (visual.showTrack)
                 drawRound(
                     local,
@@ -146,8 +144,7 @@ internal class ShapeThemePainter(
                 geometry.increment,
                 scrollbarVisual(visual, ScrollbarRegion.Increment)
             )
-            if (opacity < 1.0)
-                local.restore()
+            if (opacity < 1.0) local.restore()
         }
     }
     private fun drawButton(
@@ -160,15 +157,14 @@ internal class ShapeThemePainter(
                 drawRound(canvas, value.outline, scrollbar.button.resolve(visual))
                 drawStroke(canvas, value.arrow, scrollbar.arrow.resolve(visual))
             }
+
             case None -> {}
         }
     }
     public override fun close() {
         checkThread()
-        if (painting)
-            throw IllegalStateException(Some("theme painter has an active draw"))
-        if (closed)
-            return
+        if (painting) throw IllegalStateException(Some("theme painter has an active draw"))
+        if (closed) return
         closed = true
         var failure = cleanupStyle(None) { focusPainter.close() }
         failure = cleanupStyle(failure) { marker.close() }
@@ -190,9 +186,13 @@ private fun drawRound(canvas: Canvas, outline: RoundedOutline, color: Color) {
         canvas.drawRoundRect(outline.bounds, outline.radii, Paint(color))
 }
 
+private fun drawMarkerLayer(canvas: Canvas, layer: MarkerStateLayerGeometry?) {
+    val geometry = layer ?: return
+    canvas.drawCircle(geometry.circle.center, geometry.circle.radius, Paint(geometry.color))
+}
+
 private fun drawStroke(canvas: Canvas, stroke: StrokeSegment, color: Color) {
-    if (stroke.width <= 0.0)
-        return
+    if (stroke.width <= 0.0) return
     val paint = Paint(color, PaintingStyle.Stroke, stroke.width, StrokeCap.Round, StrokeJoin.Round)
     canvas.drawLine(stroke.start, stroke.bend, paint)
     canvas.drawLine(stroke.bend, stroke.end, paint)
@@ -200,14 +200,16 @@ private fun drawStroke(canvas: Canvas, stroke: StrokeSegment, color: Color) {
 
 private fun drawFocus(canvas: Canvas, focus: OutlineRing?, painter: StylePainter) {
     when (focus) {
-        case Some(val value) -> painter.paint(
-            canvas,
-            value.outline.bounds,
-            Style(
-                border = Some(Border.all(value.border.width, value.border.color)),
-                corners = Corners.Physical(value.outline.radii)
-            )
-        ) { _ -> }
+        case Some(val value) ->
+            painter
+                .paint(
+                    canvas,
+                    value.outline.bounds,
+                    Style(
+                        border = Some(Border.all(value.border.width, value.border.color)),
+                        corners = Corners.Physical(value.outline.radii)
+                    )
+                ) { _ -> }
         case None -> {}
     }
 }

@@ -28,7 +28,7 @@ public class ButtonGroupProps public constructor(
 public class ButtonGroup public constructor(
     private val props: Props<ButtonGroupProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
@@ -38,37 +38,29 @@ public class ButtonGroup public constructor(
         val theme = themes.read(value.theme)
         val nested = buttonGroupHasNested(value.entries)
         val slots = Array<GroupSlot>(value.entries.size) { _ -> GroupSlot() }
-        val items =
-            Array<FlexItem>(value.entries.size) {
-                index ->
-                val entry = value.entries[index]
-                val position =
-                    GroupPosition(
-                        value.axis,
-                        nested || index == 0L,
-                        nested || index == value.entries.size - 1L
-                    )
-                val child = groupContent(entry.content, position, !nested, value, theme)
-                FlexItem(
-                    element(
-                        slots[index],
-                        { current, mount -> GroupSlotInk(current, scope = mount) },
-                        [child],
-                        entry.key
-                    ),
-                    entry.layout
-                )
-            }
-        val layout =
-            LinearProps(
-                items,
-                spacing =
-                    if (nested)
-                        8.0 * theme.tokens.typography.body.fontSize / 14.0
-                    else
-                        0.0,
-                alignment = CrossAlignment.Stretch
+        val items = Array<FlexItem>(value.entries.size) { index ->
+            val entry = value.entries[index]
+            val position = GroupPosition(
+                value.axis,
+                nested || index == 0L,
+                nested || index == value.entries.size - 1L
             )
+            val child = groupContent(entry.content, position, !nested, value, theme)
+            FlexItem(
+                element(
+                    slots[index],
+                    { current, mount -> GroupSlotInk(current, scope = mount) },
+                    [child],
+                    entry.key
+                ),
+                entry.layout
+            )
+        }
+        val layout = LinearProps(
+            items,
+            spacing = if (nested) 8.0 * theme.tokens.typography.body.fontSize / 14.0 else 0.0,
+            alignment = CrossAlignment.Stretch
+        )
         val decoration = value.style.resolve(style())
         return styled(
             element(
@@ -96,34 +88,31 @@ private fun groupContent(
     props: ButtonGroupProps,
     theme: Theme
 ): View {
-    val group =
-        if (connected)
-            Some(position)
-        else
-            None
+    val group = if (connected) Some(position) else None
     return when (content) {
-        case Button(val value) -> component(
-            groupButtonProps(value, group, props.fonts, props.theme),
-            { current, mount -> Button(current, scope = mount) }
-        )
-        case Input(val value) -> component(
-            groupInputProps(value, group, props.fonts, props.theme),
-            { current, mount -> Input(current, scope = mount) }
-        )
-        case Text(val value, val fonts, val style) -> groupText(
-            value,
-            if (panelPresent(fonts))
-                fonts
-            else
-                props.fonts,
-            style,
-            group,
-            theme
-        )
-        case Separator(val color) -> groupSeparator(
-            position.axis,
-            color ?: theme.tokens.palette.input
-        )
+        case Button(val value) ->
+            component(
+                groupButtonProps(value, group, props.fonts, props.theme),
+                { current, mount -> Button(current, scope = mount) }
+            )
+        case Input(val value) ->
+            component(
+                groupInputProps(value, group, props.fonts, props.theme),
+                { current, mount -> Input(current, scope = mount) }
+            )
+        case Text(val value, val fonts, val style) ->
+            groupText(
+                value,
+                if (panelPresent(fonts)) fonts else props.fonts,
+                style,
+                group,
+                theme
+            )
+        case Separator(val color) ->
+            groupSeparator(
+                position.axis,
+                color ?: theme.tokens.palette.input
+            )
         case Custom(val render) -> render(position)
         case Plain(val view) -> view
         case Nested(val view) -> view
@@ -135,9 +124,8 @@ internal class GroupSlot {
     var input: InputScope? = None
 }
 
-internal class GroupSlotInk(private val props: Props<GroupSlot>, scope: ComponentScope): Element<
-    Unit
->(scope) {
+internal class GroupSlotInk(private val props: Props<GroupSlot>, scope: ComponentScope) :
+    Element<Unit>(scope) {
     private var input: InputScope? = None
     public override fun onMount() {
         input = Some(scope.input)
@@ -168,31 +156,25 @@ internal class GroupLayoutProps(
 internal class GroupLayout(
     private val props: Props<GroupLayoutProps>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private var input: InputScope? = None
     public override fun onMount() {
         val route = scope.input
         input = Some(route)
-        scope.resource {
-            route.observeActivity {
-                if (scope.isMounted)
-                    scope.requestFrame()
-            }
-        }
+        scope.resource { route.observeActivity { if (scope.isMounted) scope.requestFrame() } }
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
-    > =
-        LayoutResult(
-            measureFlex(
-                context,
-                constraints,
-                props.value.layout,
-                props.value.axis == FlexAxis.Vertical,
-                fitCross = props.value.fitCross
-            ),
-            Unit
-        )
+    > = LayoutResult(
+        measureFlex(
+            context,
+            constraints,
+            props.value.layout,
+            props.value.axis == FlexAxis.Vertical,
+            fitCross = props.value.fitCross
+        ),
+        Unit
+    )
     public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         if (!this.input!!.activity.hasFocus) {
@@ -200,12 +182,10 @@ internal class GroupLayout(
             return
         }
         val order = ArrayList<Long>()
-        for (index in 0L ..< input.slots.size)
-            if (!(input.slots[index].input?.activity?.hasFocus ?: false))
-                order.add(index)
-        for (index in 0L ..< input.slots.size)
-            if (input.slots[index].input?.activity?.hasFocus ?: false)
-                order.add(index)
+        for (index in 0L..<input.slots.size)
+            if (!(input.slots[index].input?.activity?.hasFocus ?: false)) order.add(index)
+        for (index in 0L..<input.slots.size)
+            if (input.slots[index].input?.activity?.hasFocus ?: false) order.add(index)
         context.children(order.toArray())
     }
 }
@@ -216,34 +196,29 @@ internal fun groupButtonProps(
     fonts: FontCollection?,
     theme: ThemeSource?
 ): ButtonProps {
-    val content =
-        when (input.content) {
-            case Label(val value) -> ButtonContent.Label(
-                LabelProps(
-                    value.text,
-                    if (panelPresent(value.fonts))
-                        value.fonts
-                    else
-                        fonts,
-                    value.settings,
-                    value.inlines,
-                    value.theme,
-                    value.baseStyle,
-                    value.underline,
-                    value.semantics
+    val content = when (input.content) {
+        case Label(val value) ->
+            ButtonContent
+                .Label(
+                    LabelProps(
+                        value.text,
+                        if (panelPresent(value.fonts)) value.fonts else fonts,
+                        value.settings,
+                        value.inlines,
+                        value.theme,
+                        value.baseStyle,
+                        value.underline,
+                        value.semantics
+                    )
                 )
-            )
-            else -> input.content
-        }
+        else -> input.content
+    }
     return ButtonProps(
         content,
         input.onClick,
         input.enabled,
         input.style,
-        if (panelPresent(input.theme))
-            input.theme
-        else
-            theme,
+        if (panelPresent(input.theme)) input.theme else theme,
         input.focus,
         input.invalid,
         input.variant,
@@ -259,46 +234,40 @@ internal fun groupInputProps(
     group: GroupPosition?,
     fonts: FontCollection?,
     theme: ThemeSource?
-): InputProps =
-    InputProps(
-        input.state,
-        input.placeholder,
-        input.enabled,
-        input.readOnly,
-        input.invalid,
-        input.description,
-        if (panelPresent(input.fonts))
-            input.fonts
-        else
-            fonts,
-        input.style,
-        if (panelPresent(input.theme))
-            input.theme
-        else
-            theme,
-        input.focus,
-        input.direction,
-        input.alignment,
-        input.paintCache,
-        input.caretBlink,
-        input.onEdited,
-        input.onSubmit,
-        input.policy,
-        input.projection,
-        input.copy,
-        input.labelTarget,
-        group,
-        input.chrome,
-        input.contextMenu,
-        input.protectedText,
-        input.semantics,
-        input.acceptDrops,
-        input.drag,
-        input.touch,
-        input.touchScroll,
-        input.scrollPhysics,
-        inputPurpose = input.inputPurpose,
-        softwareKeyboard = input.softwareKeyboard,
-        primarySelection = input.primarySelection,
-        automaticTextReplacement = input.automaticTextReplacement
-    )
+): InputProps = InputProps(
+    input.state,
+    input.placeholder,
+    input.enabled,
+    input.readOnly,
+    input.invalid,
+    input.description,
+    if (panelPresent(input.fonts)) input.fonts else fonts,
+    input.style,
+    if (panelPresent(input.theme)) input.theme else theme,
+    input.focus,
+    input.direction,
+    input.alignment,
+    input.paintCache,
+    input.caretBlink,
+    input.onEdited,
+    input.onSubmit,
+    input.policy,
+    input.projection,
+    input.copy,
+    input.labelTarget,
+    group,
+    input.chrome,
+    input.contextMenu,
+    input.protectedText,
+    input.semantics,
+    input.acceptDrops,
+    input.drag,
+    input.touch,
+    input.touchScroll,
+    input.scrollPhysics,
+    inputPurpose = input.inputPurpose,
+    softwareKeyboard = input.softwareKeyboard,
+    primarySelection = input.primarySelection,
+    automaticTextReplacement = input.automaticTextReplacement,
+    label = input.label
+)

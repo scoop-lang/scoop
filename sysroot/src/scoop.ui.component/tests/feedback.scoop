@@ -23,17 +23,21 @@ private class ControlFeedbackTest {
                         ButtonVariant.Destructive
                     ]
                 ) {
-                    val color =
-                        {
-                            visual: InteractionVisual ->
-                            val options =
-                                actionOptions(theme, shape, variant, buttonStyle(), visual)
-                            theme.surfaceGeometry(
+                    val color = { visual: InteractionVisual ->
+                        val options = actionOptions(theme, shape, variant, buttonStyle(), visual)
+                        theme
+                            .surfaceGeometry(
                                 Rect(0.0, 0.0, 100.0, 32.0),
-                                SurfaceVisual(SurfaceKind.Action, visual),
+                                SurfaceVisual(
+                                    actionSurfaceKind(shape, variant, SurfaceKind.Action),
+                                    visual
+                                ),
                                 options
-                            ).style.background!!.color
-                        }
+                            )
+                            .style
+                            .background!!
+                            .color
+                    }
                     assertFeedback(theme.tokens.palette.background.background, color)
                 }
             }
@@ -47,24 +51,27 @@ private class ControlFeedbackTest {
             val bounds = Rect(0.0, 0.0, 100.0, 32.0)
             for (variant in [ItemVariant.Default, ItemVariant.Outline, ItemVariant.Muted]) {
                 val input = ItemProps(variant = variant)
-                val color =
-                    {
-                        visual: InteractionVisual -> theme.surfaceGeometry(
+                val color = { visual: InteractionVisual ->
+                    theme
+                        .surfaceGeometry(
                             bounds,
                             SurfaceVisual(SurfaceKind.Plain, visual),
                             itemOptions(input, theme, visual, true)
-                        ).style.background!!.color
-                    }
+                        )
+                        .style
+                        .background!!
+                        .color
+                }
                 assertFeedback(theme.tokens.palette.background.background, color)
-                val normal =
-                    theme.surfaceGeometry(
+                val normal = theme
+                    .surfaceGeometry(
                         bounds,
                         SurfaceVisual(),
                         itemOptions(input, theme, InteractionVisual(), false)
                     )
                 val press = InteractionVisual(hovered = true, pressed = true)
-                val passive =
-                    theme.surfaceGeometry(
+                val passive = theme
+                    .surfaceGeometry(
                         bounds,
                         SurfaceVisual(SurfaceKind.Plain, press),
                         itemOptions(input, theme, press, false)
@@ -72,9 +79,9 @@ private class ControlFeedbackTest {
                 assertEquals(normal.style.background!!.color, passive.style.background!!.color)
             }
             for (selected in [false, true]) {
-                val color =
-                    {
-                        visual: InteractionVisual -> theme.surfaceGeometry(
+                val color = { visual: InteractionVisual ->
+                    theme
+                        .surfaceGeometry(
                             bounds,
                             SurfaceVisual(SurfaceKind.Plain, visual),
                             toggleOptions(
@@ -85,14 +92,14 @@ private class ControlFeedbackTest {
                                 buttonStyle(),
                                 visual
                             )
-                        ).style.background!!.color
-                    }
+                        )
+                        .style
+                        .background!!
+                        .color
+                }
                 assertFeedback(theme.tokens.palette.background.background, color)
                 assertEquals(
-                    if (selected)
-                        theme.tokens.palette.muted.background
-                    else
-                        Color.Transparent,
+                    if (selected) theme.tokens.palette.muted.background else Color.Transparent,
                     color(InteractionVisual())
                 )
             }
@@ -158,9 +165,8 @@ private fun assertFeedbackRange(from: Color, to: Color, background: Color, actua
     assertTrue((value.blue - a.blue) * (value.blue - b.blue) < 0.000001)
 }
 
-private fun feedbackComposite(color: Color, background: Color): Color =
-    Color(
-        color.red * color.alpha + background.red * (1.0 - color.alpha),
-        color.green * color.alpha + background.green * (1.0 - color.alpha),
-        color.blue * color.alpha + background.blue * (1.0 - color.alpha)
-    )
+private fun feedbackComposite(color: Color, background: Color): Color = Color(
+    color.red * color.alpha + background.red * (1.0 - color.alpha),
+    color.green * color.alpha + background.green * (1.0 - color.alpha),
+    color.blue * color.alpha + background.blue * (1.0 - color.alpha)
+)

@@ -29,7 +29,7 @@ public class ButtonProps public constructor(
 public class Button public constructor(
     private val props: Props<ButtonProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val button = ButtonControl({ props.value }, scope)
     public override fun onMount() {
         button.mount()
@@ -57,6 +57,7 @@ internal class ButtonControl(
                 handle.mergeLabels = true
                 scope.routeSemanticsChildren(Some(handle))
             }
+
             case None -> {}
         }
     }
@@ -67,11 +68,13 @@ internal class ButtonControl(
         val input = read()
         val theme = themes.read(input.theme)
         val interaction = control.press.interaction
-        val visual =
-            SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled, input.invalid))
         val shape = ActionShape.Button(input.size)
-        val base =
-            text.resolve(
+        val visual = SurfaceVisual(
+            actionSurfaceKind(shape, input.variant, input.style.kind),
+            interaction.asVisual(input.enabled, input.invalid)
+        )
+        val base = text
+            .resolve(
                 theme.tokens.typography.action,
                 actionTextColor(theme, shape, input.variant, visual),
                 input.style.text,

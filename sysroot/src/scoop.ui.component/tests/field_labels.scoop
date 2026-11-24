@@ -1,0 +1,200 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.text.*
+
+@Test
+private class TextFieldLabelTest {
+    @Test
+    fun `outlined labels stay visible through empty populated focused invalid and disabled states`() {
+        val field = labeledField()
+        val labels = TextFieldLabelStyle()
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = materialTheme(mode)
+            val empty = labels.resolve(field, theme, InteractionVisual(), false, false)!!
+            assertEquals(FieldLabelPosition.Inline, empty.position)
+            assertEquals(16.0, empty.text.fontSize)
+            assertEquals(theme.tokens.palette.muted.foreground, empty.text.color)
+            val focus = labels
+                .resolve(
+                    field, theme, InteractionVisual(focusVisible = true), true, false
+                )!!
+            assertEquals(FieldLabelPosition.Notched, focus.position)
+            assertEquals(12.0, focus.text.fontSize)
+            assertEquals(theme.tokens.palette.primary.background, focus.text.color)
+            val filled = labels.resolve(field, theme, InteractionVisual(), false, true)!!
+            assertEquals(FieldLabelPosition.Notched, filled.position)
+            assertEquals(theme.tokens.palette.muted.foreground, filled.text.color)
+            assertEquals(
+                theme.tokens.palette.destructive.background,
+                labels
+                    .resolve(field, theme, InteractionVisual(invalid = true), false, true)!!
+                    .text
+                    .color
+            )
+            assertEquals(
+                theme.tokens.palette.disabledText,
+                labels
+                    .resolve(field, theme, InteractionVisual(enabled = false), false, true)!!
+                    .text
+                    .color
+            )
+            assertFalse(
+                panelPresent(
+                    labels.resolve(labeledField(label = ""), theme, InteractionVisual(), true, true)
+                )
+            )
+            val scaled = theme.withPreferences(ThemePreferences(textScaleFactor = 2.0))
+            assertEquals(32.0, scaled.tokens.typography.input.fontSize)
+            assertEquals(
+                24.0,
+                labels.resolve(field, scaled, InteractionVisual(), true, true)!!.text.fontSize
+            )
+        }
+        assertEquals(
+            FieldLabelPosition.Above,
+            labels.resolve(field, macosTheme(), InteractionVisual(), false, false)!!.position
+        )
+        assertEquals(
+            FieldLabelPosition.Above,
+            labels
+                .resolve(
+                    labeledField(chrome = TextFieldChrome.Bare), materialTheme(),
+                    InteractionVisual(), false, false
+                )!!
+                .position
+        )
+    }
+
+    @Test
+    fun `notched labels follow logical content edges and expose the actual parent background`() {
+        val theme = materialTheme()
+        val field = labeledField()
+        val labels = TextFieldLabelStyle()
+        val focus = InteractionVisual(focusVisible = true)
+        val appearance = labels.resolve(field, theme, focus, true, true)!!
+        val visual = SurfaceVisual(SurfaceKind.Plain, focus)
+        val geometry = theme.surfaceGeometry(Rect(12.0, 20.0, 220.0, 96.0), visual)
+        val size = Size(60.0, 16.0)
+        val left = textFieldLabelBounds(appearance, size, geometry, true, LayoutDirection.Ltr)
+        val right = textFieldLabelBounds(appearance, size, geometry, true, LayoutDirection.Rtl)
+        assertEquals(Rect(28.0, 12.0, 60.0, 16.0), left)
+        assertEquals(Rect(156.0, 12.0, 60.0, 16.0), right)
+        val empty = labels.resolve(field, theme, InteractionVisual(), false, false)!!
+        assertEquals(
+            geometry.content.y,
+            textFieldLabelBounds(empty, Size(80.0, 24.0), geometry, true, LayoutDirection.Ltr).y
+        )
+        textFieldLabelClip(geometry, left, 4.0)
+            .use { clip ->
+                assertFalse(clip.contains(Point(50.0, 20.5)))
+                assertTrue(clip.contains(Point(110.0, 20.5)))
+                RasterSurface(256, 140)
+                    .use { surface ->
+                        theme
+                            .createPainter()
+                            .use { painter ->
+                                surface
+                                    .draw { canvas ->
+                                        canvas.clear(Color(0.0, 1.0, 0.0))
+                                        painter
+                                            .drawSurface(
+                                                canvas,
+                                                geometry,
+                                                visual,
+                                                SurfaceLayer.Background
+                                            )
+                                        canvas
+                                            .withState { local ->
+                                                local.clipPath(clip)
+                                                painter
+                                                    .drawSurface(
+                                                        local,
+                                                        geometry,
+                                                        visual,
+                                                        SurfaceLayer.Foreground
+                                                    )
+                                            }
+                                    }
+                            }
+                        val pixels = surface.readPixels()
+                        assertEquals(0, labelPixel(pixels, 50, 20, 0))
+                        assertEquals(255, labelPixel(pixels, 50, 20, 1))
+                        assertTrue(labelPixel(pixels, 110, 20, 0) > 0)
+                        assertEquals(255, labelPixel(pixels, 50, 60, 1))
+                    }
+            }
+    }
+
+    @Test
+    fun `outlined field errors thicken on focus without changing content bounds or local overrides`() {
+        val theme = materialTheme()
+        val field = labeledField()
+        val normal = InteractionVisual(invalid = true)
+        val focused = InteractionVisual(invalid = true, focusVisible = true)
+        val bounds = Rect(0.0, 0.0, 200.0, 96.0)
+        val error = theme
+            .surfaceGeometry(
+                bounds, SurfaceVisual(interaction = normal),
+                textFieldOptions(field, theme, normal)
+            )
+        val active = theme
+            .surfaceGeometry(
+                bounds, SurfaceVisual(interaction = focused),
+                textFieldOptions(field, theme, focused)
+            )
+        assertEquals(1.0, error.ring!!.border.width)
+        assertEquals(2.0, active.ring!!.border.width)
+        assertEquals(theme.tokens.palette.destructive.background, error.ring!!.border.color)
+        assertEquals(error.content, active.content)
+        val outline = OutlineStyle(Color.Black, 3.0, 4.0)
+        val local = labeledField(
+            style = textFieldStyle {
+                surface { validation = Some(outline) }
+                label { color = Some(Color(0.0, 0.5, 0.0)) }
+            }
+        )
+        assertEquals(Some(outline), textFieldOptions(local, theme, focused).validation)
+        assertEquals(
+            Color(0.0, 0.5, 0.0),
+            TextFieldLabelStyle().resolve(local, theme, focused, true, true)!!.text.color
+        )
+        val contrast = theme.withPreferences(ThemePreferences(highContrast = true))
+        assertEquals(2.0, textFieldOptions(field, contrast, normal).validation!!.width)
+    }
+
+    @Test
+    fun `label builders publish stable values and grouped inputs retain the label`() {
+        val model = TextEditorState()
+        val input = InputBuilder()
+        input.label = "Email"
+        val saved = input.inputProps(model)
+        input.label = "Changed"
+        assertEquals("Email", saved.label)
+        assertEquals("Email", groupInputProps(saved, None, None, None).label)
+        val area = TextareaBuilder()
+        area.label = "Message"
+        assertEquals("Message", area.textareaProps(model).label)
+    }
+}
+
+private fun labeledField(
+    label: String = "Message",
+    style: TextFieldStyle = textFieldStyle(),
+    chrome: TextFieldChrome = TextFieldChrome.Framed
+): TextFieldInput = TextFieldInput(
+    TextEditorState(), "Hint", false, "", None, style, None, FocusOptions(),
+    TextEditOptions(multiline = true), 4L, ScrollbarVisibility.Hidden,
+    { _ -> Unit }, { _ -> Unit }, None, None, chrome, label = label
+)
+
+private fun labelPixel(pixels: Array<Byte>, x: Int, y: Int, channel: Int): Int = pixels[
+    (y.toLong() * 256L + x.toLong()) * 4L + channel.toLong()
+]
+    .toUByte()
+    .toInt()

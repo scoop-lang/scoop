@@ -1,0 +1,83 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+
+internal fun surfaceShadows(part: SurfacePart, visual: InteractionVisual): Array<BoxShadow> {
+    val hovered = part.hoverShadows ?: return part.shadows
+    if (!visual.enabled) return part.shadows
+    val amount = themeProgress(visual.hoverProgress, visual.hovered) *
+        (1.0 - themeProgress(visual.pressProgress, visual.pressed))
+    if (amount == 0.0) return part.shadows
+    if (amount == 1.0) return hovered
+    return Array<BoxShadow>(part.shadows.size + hovered.size) { index ->
+        val normal = index < part.shadows.size
+        val shadow = if (normal) part.shadows[index] else hovered[index - part.shadows.size]
+        val alpha = if (normal) 1.0 - amount else amount
+        BoxShadow(
+            shadow.offset, shadow.sigmaX, shadow.sigmaY,
+            shadow.color.withAlpha(shadow.color.alpha * alpha)
+        )
+    }
+}
+
+internal fun markerFocusOutset(
+    size: Double,
+    appearance: MarkerAppearance,
+    focus: OutlineStyle,
+    validation: OutlineStyle,
+    corners: StyleValue<Corners> = StyleValue.Inherit
+): Double {
+    val base = outlineOutset(focus, validation)
+    val layer = appearance.stateLayer ?: return base
+    themeLength(layer.size)
+    val focusOutset = when (corners) {
+        case Inherit -> focus.outset
+        case Set(_) -> 0.0
+    }
+    return themeMax(base, themeMax(0.0, (layer.size - size) / 2.0) + focusOutset)
+}
+
+private fun markerLayerCircle(bounds: Rect, layer: MarkerStateLayer): Circle = Circle(
+    Point(bounds.x + bounds.width / 2.0, bounds.y + bounds.height / 2.0),
+    themeMax(layer.size, themeMax(bounds.width, bounds.height)) / 2.0
+)
+
+internal fun markerFocusOutline(
+    outline: RoundedOutline,
+    appearance: MarkerAppearance,
+    visual: InteractionVisual,
+    corners: StyleValue<Corners> = StyleValue.Inherit
+): RoundedOutline {
+    val layer = appearance.stateLayer ?: return outline
+    val inheritedCorners = when (corners) {
+        case Inherit -> true
+        case Set(_) -> false
+    }
+    if (visual.invalid || !inheritedCorners) return outline
+    val circle = markerLayerCircle(outline.bounds, layer)
+    return roundTheme(circle.bounds, circle.radius)
+}
+
+internal fun markerLayerGeometry(
+    bounds: Rect,
+    appearance: MarkerAppearance,
+    visual: InteractionVisual,
+    selection: Double,
+    validation: OutlineStyle
+): MarkerStateLayerGeometry? {
+    val layer = appearance.stateLayer ?: return None
+    if (!visual.enabled) return None
+    val color = mixThemeColor(
+        layer.empty.resolve(visual),
+        layer.selected.resolve(visual),
+        selection
+    )
+    if (color.alpha == 0.0) return None
+    val error = validation.borderColor ?: validation.color
+    return Some(
+        MarkerStateLayerGeometry(
+            markerLayerCircle(bounds, layer),
+            if (visual.invalid) error.withAlpha(error.alpha * color.alpha) else color
+        )
+    )
+}

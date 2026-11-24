@@ -63,7 +63,7 @@ val changed = theme.copy {
 }
 ```
 
-独立主题用 shapeTheme(tokens, surfaces, checkbox, radio, scrollbar) 提供完整必需数据；themeTokens、themeTypography、themeEffects、themeMotion 以及 surfacePart／surfaceParts、markerAppearance、checkboxPart／radioPart、scrollbarPart 提供各组构造与 copy。ThemePalette 的完整颜色对、input／ring、ChartPalette 和 SidebarPalette 没有通用默认值，完整配色一次给齐，后续通过 palette 块或 copy 修改。编辑配色、字体或某个部件只修改该字段，需要同步改变多个外观时显式配置它们。新增 [shadcn](../scoop.ui.style.shadcn/README.md) 预设沿用相同入口；显式减少动态通过 `motion { preference = MotionPreference.Reduced }` 配置。
+独立主题用 shapeTheme(tokens, surfaces, checkbox, radio, scrollbar) 提供完整必需数据；themeTokens、themeTypography、themeEffects、themeMotion 以及 surfacePart／surfaceParts、markerAppearance、checkboxPart／radioPart、scrollbarPart 提供各组构造与 copy。surfaceParts 必需提供 plain、action、outlinedAction、elevated，输入表面与描边操作面可分别配置；对应 SurfaceKind.Plain／Action／OutlinedAction／Elevated。ThemePalette 的完整颜色对、input／ring、ChartPalette 和 SidebarPalette 没有通用默认值，完整配色一次给齐，后续通过 palette 块或 copy 修改。编辑配色、字体或某个部件只修改该字段，需要同步改变多个外观时显式配置它们。新增 [shadcn](../scoop.ui.style.shadcn/README.md) 预设沿用相同入口；显式减少动态通过 `motion { preference = MotionPreference.Reduced }` 配置。
 
 第三方 Element 在 onMount 中保存 `scope.resource { ThemePainterCache() }`，在 paint 中使用当前 Props 的 Theme：
 
@@ -88,6 +88,10 @@ val geometry = theme.checkboxGeometry(bounds, options = changed)
 ```
 
 `theme.tokens` 提供 palette、typography、spacing、corners、effects 和 motion。文字覆盖用 SpanStyle.resolve；外框与内容效果继续使用本库 Style。Theme 不持有 native 资源；ThemePainterCache 保留当前 painter，换主题时先创建再替换，及时关闭旧资源。绘图中的临时 Canvas 不能保存，颜色和动画采样不会创建独立时钟。
+
+可编辑正文使用 `tokens.typography.input`，`themeTypography` 初始取 body，可通过 `typography { input { ... } }` 独立配置；文字缩放同时作用于该角色。`tokens.textField` 为 `TextFieldTreatment.Standard` 或 `Outlined`，前者使用外置标签，后者使用带缺口的浮动标签，由 Input／Textarea 消费普通描述并保留同一编辑宿主。Material 默认选用 Outlined。
+
+表面可用 `hoverShadows: Array<BoxShadow>?` 配置悬停投影，None 继承普通 shadows，Some([]) 清除悬停投影；按现有 hover／press 采样淡入淡出，按下或禁用时恢复普通投影。Checkbox／Radio 的 appearance 可提供 `stateLayer = Some(MarkerStateLayer(size, empty, selected))`，在标记背后绘制圆形交互状态层；size 表达直径，empty／selected 使用 StateColors。最终圆形与颜色通过 geometry.stateLayer 提供给 painter，普通焦点围绕该圆形；Checkbox Options 显式覆盖 corners 时，焦点跟随解析后的标记轮廓。仅覆盖焦点颜色、宽度或外扩保留主题轮廓，验证环始终围绕标记本身。这两种绘图配置不创建输入区域或动画时钟；标记控件按 metrics.focusOutset 为外围装饰预留空间，高对比度／减少透明度会隐藏这些默认装饰，并保留标记焦点的几何。
 
 默认装饰需要适配实际底色时，可调用 `contrastThemeColors(pair, canvas, minimum = 7.0)`。它把 ColorPair 的背景合成到不透明 canvas，再尽量保留原色并调整完整配对，返回两种不透明颜色；只有背景无法容纳目标对比度时才改变背景。minimum 是有限的 1～21，颜色通道须有限，canvas 必须不透明；非法值抛出 IllegalArgumentException。该函数与内置主题共用 sRGB 对比度算法，不读取系统设置。用于文字通常采用 7.0，边界采用 3.0；应用明确指定的局部样式仍由应用决定。
 

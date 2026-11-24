@@ -1,0 +1,108 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.LayoutDirection
+import scoop.ui.style.*
+
+internal enum FieldLabelPosition {
+    Above, Inline, Notched
+}
+
+internal class TextFieldLabelAppearance(
+    val position: FieldLabelPosition,
+    val text: TextStyle,
+    val compact: TextStyle
+)
+
+internal class TextFieldLabelStyle {
+    private val compact = ActionTextStyle()
+    private val inline = ActionTextStyle()
+
+    fun resolve(
+        input: TextFieldInput,
+        theme: Theme,
+        visual: InteractionVisual,
+        focused: Boolean,
+        populated: Boolean
+    ): TextFieldLabelAppearance? {
+        if (input.label.byteLength == 0L) return None
+        val outlined = input.chrome ==
+            TextFieldChrome.Framed &&
+            theme.tokens.textField ==
+            TextFieldTreatment.Outlined
+        val position = if (!outlined)
+            FieldLabelPosition.Above
+        else if (focused || populated) FieldLabelPosition.Notched else FieldLabelPosition.Inline
+        val colors = theme.tokens.palette
+        val foreground = if (!visual.enabled && theme.tokens.disabledOpacity >= 1.0)
+            colors.disabledText
+        else if (visual.enabled && visual.invalid)
+            colors.destructive.background
+        else if (outlined && visual.enabled && focused)
+            colors.primary.background
+        else if (!outlined || (visual.enabled && visual.hovered))
+            colors.background.foreground
+        else
+            colors.muted.foreground
+        val small = compact
+            .resolve(
+                if (outlined) theme.tokens.typography.caption else theme.tokens.typography.body,
+                foreground, input.style.label
+            )
+        val text = if (position == FieldLabelPosition.Inline)
+            inline.resolve(theme.tokens.typography.input, foreground, input.style.label)
+        else
+            small
+        val opacity = if (visual.enabled) 1.0 else theme.tokens.disabledOpacity
+        return Some(
+            TextFieldLabelAppearance(
+                position,
+                if (opacity < 1.0)
+                    text.copy { color = text.color.withAlpha(text.color.alpha * opacity) }
+                else
+                    text,
+                small
+            )
+        )
+    }
+}
+
+internal fun textFieldLabelBounds(
+    appearance: TextFieldLabelAppearance,
+    size: Size,
+    geometry: SurfaceGeometry,
+    multiline: Boolean,
+    direction: LayoutDirection
+): Rect {
+    val content = geometry.content
+    val above = appearance.position == FieldLabelPosition.Above
+    val x = if (direction == LayoutDirection.Rtl)
+        if (above)
+            geometry.bounds.x + geometry.bounds.width - size.width
+        else
+            content.x + content.width - size.width
+    else if (above) geometry.bounds.x else content.x
+    val y = when (appearance.position) {
+        case Above -> 0.0
+        case Notched -> geometry.bounds.y - size.height / 2.0
+        case Inline ->
+            if (multiline)
+                content.y
+            else
+                geometry.bounds.y + (geometry.bounds.height - size.height) / 2.0
+    }
+    return Rect(x, y, size.width, size.height)
+}
+
+internal fun textFieldLabelClip(
+    geometry: SurfaceGeometry,
+    label: Rect,
+    gap: Double
+): Path {
+    val bounds = geometry.ring?.outline?.bounds ?: geometry.bounds
+    return path(FillRule.EvenOdd) {
+        addRect(Rect(bounds.x - 1.0, bounds.y - 1.0, bounds.width + 2.0, bounds.height + 2.0))
+        addRect(Rect(label.x - gap, label.y, label.width + gap * 2.0, label.height))
+    }
+}

@@ -41,6 +41,7 @@ public class MarkerAppearanceBuilder internal constructor(initial: MarkerAppeara
     public var mark: StateColors = initial.mark
     public var focus: OutlineStyle = initial.focus
     public var shadows: Array<BoxShadow> = initial.shadows
+    public var stateLayer: MarkerStateLayer? = initial.stateLayer
 
     internal fun snapshot(): MarkerAppearance = MarkerAppearance(
         empty = empty,
@@ -49,7 +50,8 @@ public class MarkerAppearanceBuilder internal constructor(initial: MarkerAppeara
         selectedBorder = selectedBorder,
         mark = mark,
         focus = focus,
-        shadows = shadows
+        shadows = shadows,
+        stateLayer = stateLayer
     )
 }
 

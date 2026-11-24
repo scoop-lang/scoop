@@ -30,22 +30,20 @@ private class ThemePreferencesTest {
         assertEquals(ThemePreferences(), resolved.withPreferences(ThemePreferences()).preferences)
         val smaller = resolved.withPreferences(ThemePreferences(textScaleFactor = 1.25))
         near(base.tokens.typography.body.fontSize * 1.25, smaller.tokens.typography.body.fontSize)
-        val before =
-            [
-                base.tokens.typography.body,
-                base.tokens.typography.caption,
-                base.tokens.typography.action
-            ]
-        val after =
-            [
-                resolved.tokens.typography.body,
-                resolved.tokens.typography.caption,
-                resolved.tokens.typography.action
-            ]
-        for (index in 0L ..< before.size) {
+        val before = [
+            base.tokens.typography.body,
+            base.tokens.typography.caption,
+            base.tokens.typography.action
+        ]
+        val after = [
+            resolved.tokens.typography.body,
+            resolved.tokens.typography.caption,
+            resolved.tokens.typography.action
+        ]
+        for (index in 0L..<before.size) {
             near(before[index].fontSize * 1.5, after[index].fontSize)
             assertEquals(before[index].families.size, after[index].families.size)
-            for (family in 0L ..< before[index].families.size)
+            for (family in 0L..<before[index].families.size)
                 assertEquals(before[index].families[family], after[index].families[family])
             assertEquals(before[index].weight, after[index].weight)
             assertEquals(before[index].lineHeight, after[index].lineHeight)
@@ -65,9 +63,13 @@ private class ThemePreferencesTest {
         val reduced = base.copy { tokens { motion { preference = MotionPreference.Reduced } } }
         assertEquals(
             MotionPreference.Reduced,
-            reduced.withPreferences(
-                ThemePreferences(textScaleFactor = 2.0)
-            ).tokens.motion.preference
+            reduced
+                .withPreferences(
+                    ThemePreferences(textScaleFactor = 2.0)
+                )
+                .tokens
+                .motion
+                .preference
         )
         for (scale in [0.0, -1.0, 0.0 / 0.0, 1.0 / 0.0])
             assertFailsWith<IllegalArgumentException> {
@@ -119,14 +121,18 @@ private class ThemePreferencesTest {
                     )
                     val bounds = Rect(0.0, 0.0, 24.0, 24.0)
                     assertTrue(
-                        theme.checkboxGeometry(
-                            bounds,
-                            CheckboxVisual(CheckMark.On, enabled)
-                        ).markColor !=
-                            theme.checkboxGeometry(
+                        theme
+                            .checkboxGeometry(
                                 bounds,
-                                CheckboxVisual(CheckMark.On, disabled)
-                            ).markColor
+                                CheckboxVisual(CheckMark.On, enabled)
+                            )
+                            .markColor !=
+                            theme
+                                .checkboxGeometry(
+                                    bounds,
+                                    CheckboxVisual(CheckMark.On, disabled)
+                                )
+                                .markColor
                     )
                     assertTrue(
                         theme.radioGeometry(bounds, RadioVisual(true, enabled)).dotColor !=
@@ -146,12 +152,15 @@ private class ThemePreferencesTest {
                         InteractionVisual(hovered = true, focusVisible = true)
                     ]
                 ) {
-                    val minimum =
-                        if (state.enabled)
-                            7.0
-                        else
-                            4.5
-                    for (kind in [SurfaceKind.Plain, SurfaceKind.Action, SurfaceKind.Elevated]) {
+                    val minimum = if (state.enabled) 7.0 else 4.5
+                    for (
+                        kind in [
+                            SurfaceKind.Plain,
+                            SurfaceKind.Action,
+                            SurfaceKind.OutlinedAction,
+                            SurfaceKind.Elevated
+                        ]
+                    ) {
                         val visual = SurfaceVisual(kind, state)
                         val geometry = theme.surfaceGeometry(Rect(20.0, 20.0, 80.0, 40.0), visual)
                         val fill = geometry.style.background!!.color
@@ -175,8 +184,8 @@ private class ThemePreferencesTest {
                     }
                     val markBounds = Rect(20.0, 20.0, 24.0, 24.0)
                     for (mark in [CheckMark.Off, CheckMark.On, CheckMark.Mixed]) {
-                        val geometry =
-                            theme.checkboxGeometry(markBounds, CheckboxVisual(mark, state))
+                        val geometry = theme
+                            .checkboxGeometry(markBounds, CheckboxVisual(mark, state))
                         val fill = geometry.style.background!!.color
                         opaque(fill)
                         contrastAtLeast(
@@ -197,8 +206,7 @@ private class ThemePreferencesTest {
                             fill,
                             3.0
                         )
-                        if (selected)
-                            contrastAtLeast(geometry.dotColor, fill, minimum)
+                        if (selected) contrastAtLeast(geometry.dotColor, fill, minimum)
                         assertEquals(1.0, geometry.opacity)
                     }
                 }
@@ -225,26 +233,30 @@ private class ThemePreferencesTest {
                 assertEquals(0L, geometry.style.boxShadows.size)
                 assertEquals(0L, theme.tokens.effects.emphasis.size)
                 assertSame(base.tokens.typography.body, theme.tokens.typography.body)
-                theme.createPainter().use {
-                    painter ->
-                    val painted = pixels { canvas -> painter.drawSurface(canvas, geometry, visual) }
-                    pixelColor(painted, 128, 60, 40, fill)
-                    assertEquals(0, channel(painted, 128, 60, 65, 3))
-                    val barVisual = ScrollbarVisual(visibleFraction = 0.5)
-                    val bar = theme.scrollbarGeometry(Rect(20.0, 10.0, 20.0, 80.0), barVisual)
-                    val barPixels =
-                        pixels { canvas -> painter.drawScrollbar(canvas, bar, barVisual) }
-                    assertEquals(
-                        255,
-                        channel(
-                            barPixels,
-                            128,
-                            (bar.thumb.bounds.x + bar.thumb.bounds.width / 2.0).toInt(),
-                            (bar.thumb.bounds.y + bar.thumb.bounds.height / 2.0).toInt(),
-                            3
+                theme
+                    .createPainter()
+                    .use { painter ->
+                        val painted = pixels { canvas ->
+                            painter.drawSurface(canvas, geometry, visual)
+                        }
+                        pixelColor(painted, 128, 60, 40, fill)
+                        assertEquals(0, channel(painted, 128, 60, 65, 3))
+                        val barVisual = ScrollbarVisual(visibleFraction = 0.5)
+                        val bar = theme.scrollbarGeometry(Rect(20.0, 10.0, 20.0, 80.0), barVisual)
+                        val barPixels = pixels { canvas ->
+                            painter.drawScrollbar(canvas, bar, barVisual)
+                        }
+                        assertEquals(
+                            255,
+                            channel(
+                                barPixels,
+                                128,
+                                (bar.thumb.bounds.x + bar.thumb.bounds.width / 2.0).toInt(),
+                                (bar.thumb.bounds.y + bar.thumb.bounds.height / 2.0).toInt(),
+                                3
+                            )
                         )
-                    )
-                }
+                    }
                 assertSame(base, theme.withPreferences(ThemePreferences()))
             }
     }
@@ -258,11 +270,7 @@ private fun contrastAtLeast(foreground: Color, background: Color, minimum: Doubl
     opaque(foreground)
     val a = luminance(foreground)
     val b = luminance(background)
-    val ratio =
-        if (a >= b)
-            (a + 0.05) / (b + 0.05)
-        else
-            (b + 0.05) / (a + 0.05)
+    val ratio = if (a >= b) (a + 0.05) / (b + 0.05) else (b + 0.05) / (a + 0.05)
     assertTrue(
         ratio >= minimum - 0.000001,
         Some(
@@ -273,11 +281,14 @@ private fun contrastAtLeast(foreground: Color, background: Color, minimum: Doubl
     )
 }
 
-private fun luminance(color: Color): Double =
-    0.2126 * linear(color.red) + 0.7152 * linear(color.green) + 0.0722 * linear(color.blue)
+private fun luminance(color: Color): Double = 0.2126 *
+    linear(color.red) +
+    0.7152 *
+    linear(color.green) +
+    0.0722 *
+    linear(color.blue)
 
-private fun linear(value: Double): Double =
-    if (value <= 0.04045)
-        value / 12.92
-    else
-        pow((value + 0.055) / 1.055, 2.4)
+private fun linear(value: Double): Double = if (value <= 0.04045)
+    value / 12.92
+else
+    pow((value + 0.055) / 1.055, 2.4)

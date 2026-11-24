@@ -31,7 +31,7 @@ private class ThemeGeometryTest {
             )
         }
         assertEquals(14.0, all[0L].checkboxMetrics().suggestedSize.width)
-        assertEquals(20.0, all[2L].checkboxMetrics().suggestedSize.width)
+        assertEquals(18.0, all[2L].checkboxMetrics().suggestedSize.width)
         assertEquals(16.0, all[4L].checkboxMetrics().suggestedSize.width)
         assertEquals(13.0, all[0L].tokens.typography.body.fontSize)
         assertEquals(14.0, all[2L].tokens.typography.body.fontSize)

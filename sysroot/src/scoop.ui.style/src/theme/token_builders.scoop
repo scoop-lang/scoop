@@ -10,11 +10,10 @@ public fun themeTypography(
     caption: TextStyle,
     action: TextStyle,
     configure: ThemeTypographyBuilder.() -> Unit = {}
-): ThemeTypography =
-    configureThemeTypography(
-        ThemeTypography(body = body, caption = caption, action = action),
-        configure
-    )
+): ThemeTypography = configureThemeTypography(
+    ThemeTypography(body = body, caption = caption, action = action, input = body),
+    configure
+)
 
 internal fun configureThemeTypography(
     initial: ThemeTypography,
@@ -30,6 +29,7 @@ public class ThemeTypographyBuilder internal constructor(initial: ThemeTypograph
     public var body: TextStyle = initial.body
     public var caption: TextStyle = initial.caption
     public var action: TextStyle = initial.action
+    public var input: TextStyle = initial.input
 
     public fun body(configure: TextStyleBuilder.() -> Unit): Unit {
         body = body.copy(configure)
@@ -43,8 +43,16 @@ public class ThemeTypographyBuilder internal constructor(initial: ThemeTypograph
         action = action.copy(configure)
     }
 
-    internal fun snapshot(): ThemeTypography =
-        ThemeTypography(body = body, caption = caption, action = action)
+    public fun input(configure: TextStyleBuilder.() -> Unit): Unit {
+        input = input.copy(configure)
+    }
+
+    internal fun snapshot(): ThemeTypography = ThemeTypography(
+        body = body,
+        caption = caption,
+        action = action,
+        input = input
+    )
 }
 
 /** Constructs a complete description and applies configuration once. */
@@ -66,8 +74,11 @@ public class ThemeEffectsBuilder internal constructor(initial: ThemeEffects) {
     public var floating: Array<BoxShadow> = initial.floating
     public var emphasis: Array<ContentEffect> = initial.emphasis
 
-    internal fun snapshot(): ThemeEffects =
-        ThemeEffects(raised = raised, floating = floating, emphasis = emphasis)
+    internal fun snapshot(): ThemeEffects = ThemeEffects(
+        raised = raised,
+        floating = floating,
+        emphasis = emphasis
+    )
 }
 
 /** Constructs a complete description and applies configuration once. */
@@ -90,8 +101,12 @@ public class ThemeMotionBuilder internal constructor(initial: ThemeMotion) {
     public var press: AnimationSpec? = initial.press
     public var selection: AnimationSpec? = initial.selection
 
-    internal fun snapshot(): ThemeMotion =
-        ThemeMotion(preference = preference, hover = hover, press = press, selection = selection)
+    internal fun snapshot(): ThemeMotion = ThemeMotion(
+        preference = preference,
+        hover = hover,
+        press = press,
+        selection = selection
+    )
 }
 
 /** Constructs a complete description and applies configuration once. */
@@ -102,17 +117,16 @@ public fun themeTokens(
     corners: ThemeCorners,
     validation: OutlineStyle,
     configure: ThemeTokensBuilder.() -> Unit = {}
-): ThemeTokens =
-    configureThemeTokens(
-        ThemeTokens(
-            palette = palette,
-            typography = typography,
-            spacing = spacing,
-            corners = corners,
-            validation = validation
-        ),
-        configure
-    )
+): ThemeTokens = configureThemeTokens(
+    ThemeTokens(
+        palette = palette,
+        typography = typography,
+        spacing = spacing,
+        corners = corners,
+        validation = validation
+    ),
+    configure
+)
 
 internal fun configureThemeTokens(
     initial: ThemeTokens,
@@ -134,6 +148,7 @@ public class ThemeTokensBuilder internal constructor(initial: ThemeTokens) {
     public var validation: OutlineStyle = initial.validation
     public var effects: ThemeEffects = initial.effects
     public var disabledOpacity: Double = initial.disabledOpacity
+    public var textField: TextFieldTreatment = initial.textField
 
     public fun palette(configure: ThemePaletteBuilder.() -> Unit): Unit {
         palette = palette.copy(configure)
@@ -151,16 +166,16 @@ public class ThemeTokensBuilder internal constructor(initial: ThemeTokens) {
         effects = effects.copy(configure)
     }
 
-    internal fun snapshot(): ThemeTokens =
-        ThemeTokens(
-            mode = mode,
-            palette = palette,
-            typography = typography,
-            spacing = spacing,
-            motion = motion,
-            corners = corners,
-            validation = validation,
-            effects = effects,
-            disabledOpacity = disabledOpacity
-        )
+    internal fun snapshot(): ThemeTokens = ThemeTokens(
+        mode = mode,
+        palette = palette,
+        typography = typography,
+        spacing = spacing,
+        motion = motion,
+        corners = corners,
+        validation = validation,
+        effects = effects,
+        disabledOpacity = disabledOpacity,
+        textField = textField
+    )
 }

@@ -18,7 +18,8 @@ public class TextFieldStyle internal constructor(
     public val scrollbar: ScrollbarOptions = scrollbarOptions(),
     /** Uses the theme pair by default; a local selection background keeps original glyph colors. */
     public val selectionTextColor: Color? = None,
-    public val inactiveSelectionTextColor: Color? = None
+    public val inactiveSelectionTextColor: Color? = None,
+    public val label: SpanStyle? = None
 ) {
     public fun copy(configure: TextFieldStyleBuilder.() -> Unit = {}): TextFieldStyle =
         configureTextFieldStyle(this, configure)

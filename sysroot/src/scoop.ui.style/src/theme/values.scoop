@@ -9,7 +9,7 @@ public enum ThemeMode {
 }
 
 public enum SurfaceKind {
-    Plain, Action, Elevated
+    Plain, Action, OutlinedAction, Elevated
 }
 
 public enum SurfaceLayer {
@@ -167,7 +167,8 @@ public class ThemePalette public constructor(
 public class ThemeTypography internal constructor(
     public val body: TextStyle,
     public val caption: TextStyle,
-    public val action: TextStyle
+    public val action: TextStyle,
+    public val input: TextStyle
 ) {
     public fun copy(configure: ThemeTypographyBuilder.() -> Unit = {}): ThemeTypography =
         configureThemeTypography(this, configure)
@@ -207,6 +208,10 @@ public class ThemeMotion internal constructor(
         configureThemeMotion(this, configure)
 }
 
+public enum TextFieldTreatment {
+    Standard, Outlined
+}
+
 public class ThemeTokens internal constructor(
     public val mode: ThemeMode = ThemeMode.Light,
     public val palette: ThemePalette,
@@ -216,7 +221,8 @@ public class ThemeTokens internal constructor(
     public val corners: ThemeCorners,
     public val validation: OutlineStyle,
     public val effects: ThemeEffects = themeEffects(),
-    public val disabledOpacity: Double = 1.0
+    public val disabledOpacity: Double = 1.0,
+    public val textField: TextFieldTreatment = TextFieldTreatment.Standard
 ) {
     public fun copy(configure: ThemeTokensBuilder.() -> Unit = {}): ThemeTokens =
         configureThemeTokens(this, configure)

@@ -1,0 +1,28 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.Insets
+
+/** Keep the marker at its themed size while reserving space for outer focus and state layers. */
+internal fun markerLayout(
+    suggested: Size,
+    minimum: Size,
+    padding: Insets,
+    constraints: Constraints
+): LayoutResult<Rect> {
+    val preferred = Size(
+        lowerBound(suggested.width, minimum.width),
+        lowerBound(suggested.height, minimum.height)
+    )
+    val extra = padding.totals()
+    val size = constraints
+        .constrain(Size(preferred.width + extra.width, preferred.height + extra.height))
+    val width = lowerBound(size.width - extra.width, 0.0)
+    val height = lowerBound(size.height - extra.height, 0.0)
+    val side = upperBound(upperBound(preferred.width, preferred.height), upperBound(width, height))
+    return LayoutResult(
+        LayoutMetrics(size),
+        Rect(padding.left + (width - side) / 2.0, padding.top + (height - side) / 2.0, side, side)
+    )
+}

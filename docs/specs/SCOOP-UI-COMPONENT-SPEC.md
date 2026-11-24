@@ -257,7 +257,7 @@ fun checkbox(
 
 显式 Checkbox 接收 `Props<CheckboxProps>`，保存 Binding、enabled、CheckboxStyle 和可选显式主题来源。便利函数另可接收该样式；其尺寸、padding、标记颜色、Style 和动画输入都作为明确覆盖，未指定时使用主题 CheckboxMetrics／视觉外观。自有状态重载由独立的内部组件持有初始 State，并复用同一个 Checkbox。
 
-CheckboxStyle 使用 CheckboxOptions 和同一 InteractionStyles，并可明确覆盖外部 padding；默认 padding 来自主题 small spacing。建议／最小标记尺寸与 padding 决定测量，实际可用空间中的标记 bounds 交给主题计算。同一个 InputArea 包含显式留白，不因选择、glow、阴影或主题 painter 替换而重新创建。
+CheckboxStyle 使用 CheckboxOptions 和同一 InteractionStyles，并可明确覆盖外部 padding；默认 padding 取主题 small spacing 与当前 CheckboxMetrics.focusOutset 的较大值，为外侧状态层和焦点留出空间；显式 padding 仍原样生效。建议／最小标记尺寸与 padding 决定测量，实际可用空间中的标记 bounds 交给主题计算。同一个 InputArea 包含显式留白，不因选择、glow、阴影或主题 painter 替换而重新创建。
 
 外部绑定入口以当前 Binding 的 value 为显示和交互的状态来源。有效激活时读取当前值，按 Unchecked→Checked、Checked→Unchecked、Indeterminate→Checked 写入一次，随后由底层 State 通知读取者；绑定的业务 setter 可以按自身规则接受或拒绝修改，控件不先保存另一个乐观值。外部修改 checked 只更新显示，不合成用户激活。
 
@@ -480,7 +480,7 @@ transition／selectionTransition 还提供同名 Unit 设置方法，将同一�
 
 此前 ComponentDefaults 的固定视觉默认值方案由 ThemeSource／Theme 取代。应用在实际运行入口绑定稳定 ThemeSource；控件挂载保存来源，在 render 通过 ThemeSource.read(scope) 取得当前根偏好解析后的 Theme，其余局部属性继续继承主题。减少动画、高对比度、减少透明度和文字缩放的解析规则见主题规范第 6.1 节；来源的基础 State 不被根覆盖改写。显式来源可经 Props 提供，组合控件向子标签转交；不存在自动挂载树 Provider。切换风格、明暗或效果保持组件实例、State、区域和焦点，只更新 Props、必要布局及绘图资源。
 
-自绘菜单、弹出层、Card／Alert／Modal／Toast 的默认文字和边框以实际表面为背景解析：高对比度的文字配对至少 7:1，默认边界至少 3:1，危险操作尽量保留原有色调；标题、说明及快捷键不能只借用另一个底色上的对比度结果。必要的配对调整复用 Style.contrastThemeColors。减少透明度把默认半透明底色与装饰合成到对应表面。Select 触发器的文字与悬停／按下底色沿同一语义配对，默认占位和图标同步处理。无填充状态保留，用户的 surface、text、states、popupStyle 等明确覆盖最后应用；不改变菜单行为、输入、逻辑焦点、语义身份或生命周期。
+自绘菜单、弹出层、Card／Alert／Modal／Toast 的默认文字和边框以实际表面为背景解析：高对比度的文字配对至少 7:1，默认边界至少 3:1，危险操作尽量保留原有色调；标题、说明及快捷键不能只借用另一个底色上的对比度结果。必要的配对调整复用 Style.contrastThemeColors。减少透明度把默认半透明底色与装饰合成到对应表面。Select 触发器使用普通正文颜色，不继承描边操作按钮的强调色；文字与悬停／按下底色沿同一语义配对，默认占位和图标同步处理，自定义 valueContent 也取得相同的解析结果。无填充状态保留，用户的 surface、text、states、popupStyle 等明确覆盖最后应用；不改变菜单行为、输入、逻辑焦点、语义身份或生命周期。
 
 菜单及 Select 候选项禁用时，默认正文、快捷键和选择标记采用同一禁用文字色，不保留悬停底色；高对比度下对实际弹出表面的对比度至少 4.5:1。主题已经用整体 disabledOpacity 表达禁用时，不再重复衰减文字；显式文字和自定义内容仍由应用决定。
 
@@ -530,7 +530,9 @@ Input／Textarea／OTP 的 Props 与 builder 另提供 primarySelection=TextPrim
 
 三类输入 Props／builder 提供 drag=TextDragOptions()，上述包装透传同一不可变配置。共享宿主实现选区拖出、只读 Copy、受保护用途的默认导出限制、完整 Move 与 SourceRetained 通知；OTP 的清洗／裁剪仍属于同一策略，有损接收不能被报告为完整 Move。drag 与 acceptDrops 独立。
 
-两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时使用按 body 字号／14 缩放的横向 10、纵向 8，Input 保持主题内缩。
+两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时逐边取主题 Plain 内缩与按 body 字号／14 缩放的横向 10、纵向 8 的较大值，Input 保持主题内缩。
+
+InputProps／TextareaProps 及 builder 提供 `label: String = ""`，它是持续可见的字段标签，独立于 placeholder；TextFieldStyle／builder 提供 label: SpanStyle?。空 label 不创建标签，也不从 placeholder 猜测字段名称。Standard 主题及 Bare 输入将 label 放在容器前方；Outlined 主题的 Framed 输入在空值且未聚焦时将 label 放在首行位置，聚焦或已有文字（含组合文字）时缩小并移到上边框。首行正文采用 typography.input，浮动标签采用 caption；两侧缺口各留 4 个逻辑单位并随文字缩放。多行标签停在容器顶部，不随内部滚动。浮动标签所需上方留白在两种状态保持不变，切换焦点不改变编辑视口和相邻控件位置。缺口只裁剪边框及状态轮廓，不用不透明色块遮盖背景；RTL 根据最终内容区域的逻辑起点放置。说明文字在 Outlined 下与正文起点对齐，顶部间距保持 4。只读、禁用、错误和焦点状态同步作用于标签；显式 label 样式最后应用。没有显式语义名称或外部 labelledBy 时，label 作为同一编辑器的可访问名称，标签绘制不产生重复语义节点。InputGroup／ButtonGroup／SidebarInput 透传 label；切换主题保留同一 TextEditHost、选择、组合和撤销历史。
 
 projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；Props／builder 直接传给宿主。InputProps／TextareaProps／InputOtpProps 及各自 builder 另提供 `protectedText: Boolean = false`，独立于视觉显隐。受保护用途或内置遮罩默认禁用 Copy／Cut，Input／Textarea 明确 Copy Allow 时复制原文；允许复制不解除用途标记。InputGroup、ButtonGroup、Command、Combobox、SidebarInput 原样透传。切换显隐或保护标记保留模型、选择、历史与 IME 连接，控件不创建另一份显示文档；密码显隐示例必须始终设置 protectedText=true。
 
@@ -575,9 +577,9 @@ ChildrenBuilder 提供 svgView 与 icon 追加成员。两种展示均不创建�
 
 ## 11. 操作变体、Badge 与 Spinner
 
-ButtonProps／ContentButtonBuilder 增加 variant: ButtonVariant = Default、size: ButtonSize = Default。ButtonVariant 为 Default／Outline／Secondary／Ghost／Destructive／Link；ButtonSize 为 Xs／Sm／Default／Lg／IconXs／IconSm／Icon／IconLg。ButtonStyle.kind 继续选择主题基础表面的尺寸与外观，variant／size 在其上解析，随后依次应用显式 surface／text 及适用的 states；明确的局部覆盖优先。状态解析只消费公共 token、mode 和几何，不判断主题实现类型。
+ButtonProps／ContentButtonBuilder 增加 variant: ButtonVariant = Default、size: ButtonSize = Default。ButtonVariant 为 Default／Outline／Secondary／Ghost／Destructive／Link；ButtonSize 为 Xs／Sm／Default／Lg／IconXs／IconSm／Icon／IconLg。Default 与派生变体由 ButtonStyle.kind 选择基础表面；Button 的 Outline 使用主题 OutlinedAction 表面的尺寸、颜色、边框、焦点及投影，size 在所选表面上解析，随后依次应用显式 surface／text 及适用的 states；明确的局部覆盖优先。状态解析只消费公共 token、mode 和几何，不判断主题实现类型。
 
-Default 保留所选主题部件；Outline 使用背景与边框、hover 使用 muted（Dark 为 input 的 0.3／0.5 alpha）；Secondary 使用 secondary，Button hover 以 OKLCH 混入 5% foreground；Ghost 无底色、hover 使用 muted（Dark alpha 0.5）；Destructive 使用 destructive 的 0.1／0.2 alpha 底色及同色文字，Dark 为 0.2／0.3；Link 无底色与可见边框，使用 primary 文字，hover 时给文字入口加下划线。Destructive 的普通焦点边框 alpha 0.4，环 Light／Dark alpha 0.2／0.4，宽度与外扩沿主题 validation。invalid 优先于普通焦点，显式局部外框／状态环覆盖仍有效。无整体禁用衰减（disabledOpacity 截取后为 1）的主题，新增非 Default 变体使用 disabledText，并将底色与 muted 等量混合；采用整体衰减的主题保留未衰减颜色，避免重复衰减。颜色过渡沿现有 hover／press 采样并使用主题的预乘 alpha 插值；Outline／Secondary／Ghost 的 pressed 在 hover 背景上混入 8% background.foreground，Destructive 的 pressed alpha 为 Light 0.3／Dark 0.4，Link 保持透明。按下与悬停使用不同终点，松开后返回当前悬停或普通状态。Secondary 的 OKLCH 色彩混合只服务此处 hover 预设，不引入 CSS 解析器。
+Default 保留所选主题部件；Button Outline 保留主题 OutlinedAction 部件及其交互采样，不另套固定的深色填充或覆盖其标签颜色；Badge Outline 仍使用透明背景与 border 边框，hover 使用 muted；Secondary 使用 secondary，Button hover 以 OKLCH 混入 5% foreground；Ghost 无底色、hover 使用 muted（Dark alpha 0.5）；Destructive 使用 destructive 的 0.1／0.2 alpha 底色及同色文字，Dark 为 0.2／0.3；Link 无底色与可见边框，使用 primary 文字，hover 时给文字入口加下划线。Destructive 的普通焦点边框 alpha 0.4，环 Light／Dark alpha 0.2／0.4，宽度与外扩沿主题 validation。invalid 优先于普通焦点，显式局部外框／状态环覆盖仍有效。无整体禁用衰减（disabledOpacity 截取后为 1）的主题，派生变体使用 disabledText，并将底色与 muted 等量混合；Default 与 Button Outline 保留主题部件自身的禁用颜色；采用整体衰减的主题保留未衰减颜色，避免重复衰减。颜色过渡沿现有 hover／press 采样并使用主题的预乘 alpha 插值；Badge Outline／Secondary／Ghost 的 pressed 在 hover 背景上混入 8% background.foreground，Destructive 的 pressed alpha 为 Light 0.3／Dark 0.4，Link 保持透明。按下与悬停使用不同终点，松开后返回当前悬停或普通状态。Secondary 的 OKLCH 色彩混合只服务此处 hover 预设，不引入 CSS 解析器。
 
 上述派生颜色描述普通偏好。高对比度下，Button／Badge 的非 Default 变体、Toggle 和 Tabs 使用当前主题的完整语义前景／背景配对，不再对已解析的颜色套固定 alpha 或混入其他配对的文字颜色；稳定状态的启用文字保持至少 7:1、禁用文字至少 4.5:1。Switch 的关闭轨道与 thumb 保持至少 3:1，开启时采用 primary 配对。Slider 的 thumb、Sidebar 的标题和两者默认焦点外观同样采用已解析颜色，默认焦点环至少 2 个逻辑单位，包括文字缩小的情况。减少透明度把这些控件派生的半透明底色和装饰合成到其已知主题表面；完全透明的无填充保持无填充。应用显式的 surface／text／thumb／states 覆盖仍在默认解析之后生效，不修改输入、逻辑焦点、语义或模型。
 
@@ -813,7 +815,7 @@ InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: Sp
 
 `radioGroup(selected: Binding<T?>, configure: RadioGroupBuilder<T>.() -> Unit = {}): View` 及 ChildrenBuilder 成员使用 RadioGroupProps／RadioGroup。builder 的 `item(choice: Choice<T>, configure: RadioItemBuilder.() -> Unit = {})` 收集 RadioGroupEntry<T>，`add(entry)` 接受完整值。组属性为 entries、selected、axis=Vertical、spacing=8、loop=true、enabled=true、invalid=false、fonts=None、theme=None、style=styleOverride()，builder 另有 key。项属性为 choice、focus=FocusOptions()、labelTarget=None、invalid=false、marker=radioOptions()、content=None。
 
-默认项使用 16 单位圆形 indicator（尺寸由主题 RadioMetrics 决定），与 14／20 的标签相隔 8；选择圆点 8、边框 1、focus-visible 和 invalid 使用主题 ring，颜色／选择动画复用主题及 Surface 时间轴。禁用透明度只对整项叠加一次，包含 indicator 与文字。默认纵向项占用可用宽度，横向按内容布局；spacing 有限非负，父约束和 RTL 优先。所有主题使用既有 radioMetrics／radioGeometry／drawRadio 路径。
+默认项的圆形 indicator、圆点与边框使用主题 RadioMetrics／RadioGeometry，indicator 按 focusOutset 为外侧状态层及焦点预留四周空间，与 14／20 的标签相隔 8。自定义内容接收的 indicator 使用同一布局；focus-visible 和 invalid 使用主题 ring，颜色／选择动画复用主题及 Surface 时间轴。禁用透明度只对整项叠加一次，包含 indicator 与文字；转交绘图几何时保留已解析的 stateLayer。默认纵向项占用可用宽度，横向按内容布局；spacing 有限非负，父约束和 RTL 优先。所有主题使用既有 radioMetrics／radioGeometry／drawRadio 路径。
 
 项的自定义 `content: ((RadioItemContent) -> View)?` 收到 indicator: View、selected、enabled、invalid、textStyle: TextStyle，可组合说明与 choice card。indicator 是普通非交互绘制描述，整项拥有一套 Press／FocusTarget，子动作消费仍能取消整项动作；不检查或改写不透明 View。Pointer／Space／FieldLabel 激活选择该项，已选项不清空、不重复写入；Enter 不选择。方向／Home／End 接受组内焦点请求后选择目标；Tab 优先已选有效项，当前仍持有焦点的有效项优先，未知或禁用选择回退到历史／首项。直接请求焦点不改变选择。FieldTarget 关联使用与整项相同的最新选择动作。
 

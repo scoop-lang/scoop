@@ -49,60 +49,63 @@ public class InputProps public constructor(
     public val inputPurpose: TextInputPurpose = TextInputPurpose.Normal,
     public val softwareKeyboard: Boolean = true,
     public val primarySelection: TextPrimarySelectionOptions = TextPrimarySelectionOptions(),
-    public val automaticTextReplacement: Boolean = false
+    public val automaticTextReplacement: Boolean = false,
+    public val label: String = ""
 )
 
 /** A themed single-line view of the caller's editing model. */
 public class Input public constructor(
     private val props: Props<InputProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val field = TextFieldRenderer(scope)
     public override fun render(): View = field.render(singleLineInput(props.value))
 }
 
-private fun singleLineInput(input: InputProps): TextFieldInput =
-    TextFieldInput(
-        input.state,
-        input.placeholder,
-        input.invalid,
-        input.description,
-        input.fonts,
-        input.style,
-        input.theme,
-        input.focus,
-        TextEditOptions(
-            readOnly = input.readOnly,
-            enabled = input.enabled,
-            direction = input.direction,
-            alignment = input.alignment,
-            paintCache = input.paintCache,
-            caretBlink = input.caretBlink,
-            policy = input.policy,
-            projection = input.projection,
-            copy = input.copy,
-            contextMenu = input.contextMenu,
-            protectedText = input.protectedText,
-            acceptDrops = input.acceptDrops,
-            drag = input.drag,
-            touch = input.touch,
-            touchScroll = input.touchScroll,
-            scrollPhysics = input.scrollPhysics,
-            inputPurpose = input.inputPurpose,
-            softwareKeyboard = input.softwareKeyboard,
-            primarySelection = input.primarySelection,
-            automaticTextReplacement = input.automaticTextReplacement
-        ),
-        1L,
-        ScrollbarVisibility.Hidden,
-        input.onEdited,
-        input.onSubmit,
-        input.labelTarget,
-        input.group,
-        input.chrome,
-        semantics = input.semantics,
-        expansion = input.expansion
-    )
+private fun singleLineInput(input: InputProps): TextFieldInput = TextFieldInput(
+    input.state,
+    input.placeholder,
+    input.invalid,
+    input.description,
+    input.fonts,
+    input.style,
+    input.theme,
+    input.focus,
+    TextEditOptions(
+        readOnly = input.readOnly,
+        enabled = input.enabled,
+        direction = input.direction,
+        alignment = input.alignment,
+        paintCache = input.paintCache,
+        caretBlink = input.caretBlink,
+        policy = input.policy,
+        projection = input.projection,
+        copy = input.copy,
+        contextMenu = input.contextMenu,
+        protectedText = input.protectedText,
+        acceptDrops = input.acceptDrops,
+        drag = input.drag,
+        touch = input.touch,
+        touchScroll = input.touchScroll,
+        scrollPhysics = input.scrollPhysics,
+        inputPurpose = input.inputPurpose,
+        softwareKeyboard = input.softwareKeyboard,
+        primarySelection = input.primarySelection,
+        automaticTextReplacement = input.automaticTextReplacement
+    ),
+    1L,
+    ScrollbarVisibility.Hidden,
+    input.onEdited,
+    input.onSubmit,
+    input.labelTarget,
+    input.group,
+    input.chrome,
+    semantics = input.semantics,
+    expansion = input.expansion,
+    label = input.label
+)
 
-public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View =
-    makeInput(state, configure)
+public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View = makeInput(
+    state,
+    configure
+)

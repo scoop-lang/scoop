@@ -24,16 +24,13 @@ internal class FieldBar(
     val thumb: Rect
 )
 
-internal class FieldTheme(private val base: Theme, private val probe: FieldProbe): Theme {
+internal class FieldTheme(private val base: Theme, private val probe: FieldProbe) : Theme {
     val painters = ArrayList<ThemePainter>()
     public override val tokens: ThemeTokens get() = base.tokens
     public override val preferences: ThemePreferences get() = base.preferences
     public override fun withPreferences(preferences: ThemePreferences): Theme {
         val next = base.withPreferences(preferences)
-        return if (next === base)
-            this
-        else
-            FieldTheme(next, probe)
+        return if (next === base) this else FieldTheme(next, probe)
     }
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
@@ -56,22 +53,22 @@ internal class FieldTheme(private val base: Theme, private val probe: FieldProbe
         options: CheckboxOptions,
         direction: LayoutDirection
     ): CheckboxGeometry = base.checkboxGeometry(bounds, visual, options, direction)
-    public override fun radioMetrics(options: RadioOptions): RadioMetrics =
-        base.radioMetrics(options)
+    public override fun radioMetrics(options: RadioOptions): RadioMetrics = base
+        .radioMetrics(options)
     public override fun radioGeometry(
         bounds: Rect,
         visual: RadioVisual,
         options: RadioOptions
     ): RadioGeometry = base.radioGeometry(bounds, visual, options)
-    public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics =
-        base.scrollbarMetrics(options)
+    public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics = base
+        .scrollbarMetrics(options)
     public override fun scrollbarGeometry(
         bounds: Rect,
         visual: ScrollbarVisual,
         options: ScrollbarOptions
     ): ScrollbarGeometry = base.scrollbarGeometry(bounds, visual, options)
-    public override fun surfaceTextColor(visual: SurfaceVisual): Color =
-        base.surfaceTextColor(visual)
+    public override fun surfaceTextColor(visual: SurfaceVisual): Color = base
+        .surfaceTextColor(visual)
     public override fun createPainter(): ThemePainter {
         val painter = FieldPainter(base.createPainter(), probe)
         painters.add(painter)
@@ -82,7 +79,7 @@ internal class FieldTheme(private val base: Theme, private val probe: FieldProbe
 private class FieldPainter(
     private val base: ThemePainter,
     private val probe: FieldProbe
-): ThemePainter {
+) : ThemePainter {
     public override val isClosed: Boolean get() = base.isClosed
     public override fun drawSurface(
         canvas: Canvas,
@@ -91,31 +88,29 @@ private class FieldPainter(
         layer: SurfaceLayer
     ) {
         base.drawSurface(canvas, geometry, visual, layer)
-        if (layer != SurfaceLayer.Foreground)
-            return
+        if (layer != SurfaceLayer.Foreground) return
         val bounds = fieldMapped(canvas, geometry.bounds)
-        val model =
-            if (geometry.bounds.width == 320.0)
-                Some(probe.dialog)
-            else
-                if (geometry.bounds.width == 260.0 && bounds.x < 400.0)
-                    Some(probe.main)
-                else
-                    None
-        val text =
-            when (model) {
-                case Some(val value) -> Some(fieldText(canvas, geometry, probe, value))
-                case None -> None
-            }
+        val model = if (geometry.bounds.width == 320.0)
+            Some(probe.dialog)
+        else if (geometry.bounds.width == 260.0 && bounds.x < 400.0) Some(probe.main) else None
+        if (geometry.bounds.width ==
+            260.0 &&
+            bounds.x <
+            400.0 &&
+            probe.source.current.value.tokens.textField ==
+            TextFieldTreatment.Outlined
+        )
+            checkFieldNotch(canvas, geometry)
+        val text = when (model) {
+            case Some(val value) -> Some(fieldText(canvas, geometry, probe, value))
+            case None -> None
+        }
         val value = FieldSurface(geometry, visual, bounds, text)
         if (geometry.bounds.width == 320.0)
             probe.dialogDrawing = Some(value)
-        else
-            if (geometry.bounds.width == 360.0)
-                probe.secondaryDrawing = Some(value)
-            else
-                if (bounds.x < 400.0)
-                    probe.primaryDrawing = Some(value)
+        else if (geometry.bounds.width == 360.0)
+            probe.secondaryDrawing = Some(value)
+        else if (bounds.x < 400.0) probe.primaryDrawing = Some(value)
     }
     public override fun drawCheckbox(
         canvas: Canvas,
@@ -135,8 +130,12 @@ private class FieldPainter(
         base.drawScrollbar(canvas, geometry, visual)
         val bounds = fieldMapped(canvas, geometry.bounds)
         if (bounds.x < 400.0) {
-            val value =
-                FieldBar(geometry, visual, bounds, fieldMapped(canvas, geometry.thumb.bounds))
+            val value = FieldBar(
+                geometry,
+                visual,
+                bounds,
+                fieldMapped(canvas, geometry.thumb.bounds)
+            )
             if (visual.orientation == Orientation.Horizontal)
                 probe.horizontal = Some(value)
             else
@@ -145,6 +144,23 @@ private class FieldPainter(
     }
     public override fun close() {
         base.close()
+    }
+}
+
+private fun checkFieldNotch(canvas: Canvas, geometry: SurfaceGeometry) {
+    @Unsafe
+    {
+        captureGeometry(canvas, geometry.bounds)
+            .use { clip ->
+                val y = geometry.bounds.y + 0.5
+                assertFalse(clip.hitTest(clip.toWindow(Point(geometry.content.x + 2.0, y))))
+                assertTrue(
+                    clip
+                        .hitTest(
+                            clip.toWindow(Point(geometry.bounds.x + geometry.bounds.width / 2.0, y))
+                        )
+                )
+            }
     }
 }
 
@@ -161,27 +177,30 @@ private fun fieldText(
     probe: FieldProbe,
     model: TextEditorState
 ): FieldText {
-    val style = probe.source.current.value.tokens.typography.body
-    return Paragraph(probe.fonts, model.text, style).use {
-        paragraph -> paragraph.layoutUnwrapped().use {
-            layout ->
-            val caret = layout.caret(model.cursor)!!
-            // Apply the actual content transform and clip, including fractional caret overhang.
-            val visible =
-                canvas.withState {
-                    local ->
-                    local.translate(geometry.content.x, geometry.content.y)
-                    local.clipRect(Rect(0.0, 0.0, geometry.content.width, geometry.content.height))
-                    @Unsafe
-                    {
-                        return@withState captureGeometry(local, caret).use {
-                            value -> value.visibleBounds
+    val style = probe.source.current.value.tokens.typography.input
+    return Paragraph(probe.fonts, model.text, style)
+        .use { paragraph ->
+            paragraph
+                .layoutUnwrapped()
+                .use { layout ->
+                    val caret = layout.caret(model.cursor)!!
+                    // Apply the actual content transform and clip, including fractional caret overhang.
+                    val visible = canvas
+                        .withState { local ->
+                            local.translate(geometry.content.x, geometry.content.y)
+                            local
+                                .clipRect(
+                                    Rect(0.0, 0.0, geometry.content.width, geometry.content.height)
+                                )
+                            @Unsafe
+                            {
+                                return@withState captureGeometry(local, caret)
+                                    .use { value -> value.visibleBounds }
+                            }
                         }
-                    }
+                    FieldText(visible, geometry.content.y + layout.alphabeticBaseline)
                 }
-            FieldText(visible, geometry.content.y + layout.alphabeticBaseline)
         }
-    }
 }
 
 internal fun fieldCaret(probe: FieldProbe, model: TextEditorState, drawing: FieldSurface) {
