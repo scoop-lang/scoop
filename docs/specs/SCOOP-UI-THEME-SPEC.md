@@ -180,11 +180,15 @@ ScrollbarMetrics 包含建议厚度、最小滑块长度、轨道／滑块内缩
 | 风格 | 首批方向 |
 | --- | --- |
 | shadcn | Base Nova／Neutral，14／20 文字、32 高操作表面、10 基准圆角、3 宽焦点环；完整 Light／Dark、图表与侧栏语义配色 |
-| macOS | 系统风格字体与紧凑尺寸，柔和圆角、细边框、清晰焦点外框，较细且无端部按钮的滚动条 |
+| macOS | macOS Sequoia（15）的 Aqua／Dark Aqua；13／16 系统风格文字、22 高常规操作面、5 圆角与细边框、14 大小标记、贴边的 3 宽焦点外框及无端部按钮的中性滚动条 |
 | Material | 较大的触达／内容内缩、强调色选择状态、较大的圆角、明显提升阴影，较大的标记与滑块最小长度 |
 | Fluent | Fluent 2 Web 的品牌与中性色状态、Segoe UI 字体回退、14／20 正文与操作文字、12／16 辅助文字；32 高操作面、4 圆角、16 大小标记、清晰的 2 宽焦点边框、分层浮动阴影及中性细滚动条 |
 
 这些是自绘预设，具体数字、颜色、轮廓与状态组合在各实现库中明确声明并测试。Light／Dark 调整整组语义颜色、边框／阴影强度和可读内容，而不只替换画布背景。共享字体描述使用系统存在的 family 回退列表；测试使用已有固定字体资源，不能依赖本机某一种商业字体一定安装。
+
+macOS 预设固定以 Sequoia 的窗口正文控件为基准，参考 Apple 的 [AppKit 外观说明](https://developer.apple.com/videos/play/wwdc2020/10104/)、[按钮](https://developer.apple.com/design/human-interface-guidelines/buttons)和[选择控件](https://developer.apple.com/design/human-interface-guidelines/toggles)。不采用 Liquid Glass 的透镜、折射、背景采样或玻璃高光，也不随运行系统升级改变轮廓。Light／Dark 默认窗口底色为 #ececec／#323232，内容底色为 #ffffff／#1e1e1e，强调色为 #007aff／#0a84ff；窗口、内容与普通控件底色分别承担不同角色。正文与操作文字采用 13 大小、16 行高及普通字重，辅助文字采用 11／14。
+
+macOS 普通按钮、默认操作按钮及 Checkbox／Radio 在 hover 时保留原有外观，按下立即显示压下色；不将普通按钮染为强调色。禁用状态不保留强调底色，使用中性控件底色与禁用文字，不再额外衰减整个控件。Checkbox 的 On／Mixed 均为强调色底，分别绘制对比色勾／横线；Radio 为强调色实心圆与对比色小圆点。3 宽焦点环直接贴合控件外缘，保留配色中焦点色的透明度，禁用时不绘制。选择标记使用短暂的 100ms ease-in-out 过渡；hover／press 不插值。按钮使用轻微投影，浮动面使用柔和分层阴影，默认不使用辉光。滚动条使用 15 宽条带、内缩的圆头中性滑块且不带端部按钮；显示／隐藏及条带预留继续由组件的 ScrollbarBehavior 决定。外部 palette 仍适用于全部部件，不改变上述尺寸、轮廓与动效。
 
 Fluent 预设以微软 [Fluent UI tokens](https://github.com/microsoft/fluentui/tree/master/packages/tokens/src) 和 [Fluent UI React components](https://github.com/microsoft/fluentui/tree/master/packages/react-components) 为配色及四类公共部件的对照。Action 的 Light／Dark 默认品牌背景分别为 #0f6cbd／#115ea3，标签均为白色；Checkbox／Radio 使用独立的 compound brand 状态色，不能在 Dark 中复用操作面的深蓝。普通和操作面不附加投影或辉光；浮动面使用环境与方向两层阴影，CSS blur 转换为本库的 Gaussian sigma。Checkbox 的 On 为品牌底色勾选，Mixed 为透明底色、品牌边框与方形；Radio 保持透明底色、品牌边框与实心品牌圆点。禁用颜色取独立中性 token，不由任意混色推导。滚动条默认不带端部按钮，hover／pressed 滑块均保持中性色；显式 buttonLength 覆盖仍由公共几何处理。
 

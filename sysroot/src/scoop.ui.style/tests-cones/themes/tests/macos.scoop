@@ -1,0 +1,243 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+
+@Test
+private class MacosThemeTest {
+    @Test
+    fun `sequoia uses compact Aqua controls and separates window content and control colors`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val dark = mode == ThemeMode.Dark
+            val theme = macosTheme(mode)
+            val palette = theme.tokens.palette
+            assertEquals(aquaColor(if (dark) 0x323232 else 0xececec), palette.background.background)
+            assertEquals(aquaColor(if (dark) 0x1e1e1e else 0xffffff), palette.card.background)
+            assertEquals(aquaColor(if (dark) 0x0a84ff else 0x007aff), palette.primary.background)
+            assertEquals(palette.secondary.background, theme.surfaces.plain.fill.normal)
+            assertEquals(".AppleSystemUIFont", theme.tokens.typography.body.families[0L])
+            assertEquals(13.0, theme.tokens.typography.body.fontSize)
+            assertEquals(Some(16.0 / 13.0), theme.tokens.typography.body.lineHeight)
+            assertEquals(11.0, theme.tokens.typography.caption.fontSize)
+            assertEquals(Some(14.0 / 11.0), theme.tokens.typography.caption.lineHeight)
+            assertEquals(400, theme.tokens.typography.action.weight)
+            assertEquals(Some(16.0 / 13.0), theme.tokens.typography.action.lineHeight)
+            for (kind in [SurfaceKind.Plain, SurfaceKind.Action]) {
+                val metrics = theme.surfaceMetrics(SurfaceVisual(kind))
+                assertEquals(Size(68.0, 22.0), metrics.suggestedSize)
+                assertEquals(CornerRadii.all(5.0), metrics.corners)
+                assertEquals(Insets.all(0.5), metrics.borderInsets)
+            }
+            assertEquals(Size(14.0, 14.0), theme.checkboxMetrics().suggestedSize)
+            assertEquals(Size(14.0, 14.0), theme.radioMetrics().suggestedSize)
+            assertEquals(CornerRadii.all(3.0), theme.checkboxMetrics().corners)
+            assertEquals(0L, theme.tokens.effects.emphasis.size)
+            assertEquals(1L, theme.tokens.effects.raised.size)
+            assertEquals(2L, theme.tokens.effects.floating.size)
+        }
+    }
+
+    @Test
+    fun `body controls keep their colors on hover and respond immediately when pressed`() {
+        val bounds = Rect(20.0, 20.0, 68.0, 22.0)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = macosTheme(mode)
+            for (spec in [theme.tokens.motion.hover, theme.tokens.motion.press])
+                assertTrue(
+                    when (spec) {
+                        case None -> true
+                        case Some(_) -> false
+                    }
+                )
+            when (theme.tokens.motion.selection!!) {
+                case Tween(val duration, val easing) -> {
+                    assertEquals(Duration.milliseconds(100L), duration)
+                    near(0.5, easing.transform(0.5))
+                    assertTrue(easing.transform(0.25) < 0.25)
+                }
+
+                else -> fail(Some("Aqua selection must use a short ease-in-out tween"))
+            }
+            theme
+                .createPainter()
+                .use { painter ->
+                    for (kind in [SurfaceKind.Plain, SurfaceKind.Action]) {
+                        val normal = SurfaceVisual(kind)
+                        val hovered = SurfaceVisual(kind, InteractionVisual(hovered = true))
+                        val pressed = SurfaceVisual(kind, InteractionVisual(pressed = true))
+                        val baseline = pixels { canvas ->
+                            painter
+                                .drawSurface(
+                                    canvas, theme.surfaceGeometry(bounds, normal), normal,
+                                    SurfaceLayer.Background
+                                )
+                        }
+                        val hoverPixels = pixels { canvas ->
+                            painter
+                                .drawSurface(
+                                    canvas, theme.surfaceGeometry(bounds, hovered), hovered,
+                                    SurfaceLayer.Background
+                                )
+                        }
+                        val pressedPixels = pixels { canvas ->
+                            painter
+                                .drawSurface(
+                                    canvas, theme.surfaceGeometry(bounds, pressed), pressed,
+                                    SurfaceLayer.Background
+                                )
+                        }
+                        assertEquals(0, differences(baseline, hoverPixels))
+                        assertTrue(differences(baseline, pressedPixels) > 100)
+                    }
+                    val marker = Rect(20.0, 20.0, 14.0, 14.0)
+                    for (mark in [CheckMark.Off, CheckMark.On, CheckMark.Mixed]) {
+                        val normal = CheckboxVisual(mark)
+                        val hovered = CheckboxVisual(mark, InteractionVisual(hovered = true))
+                        val baseline = pixels { canvas ->
+                            painter
+                                .drawCheckbox(
+                                    canvas,
+                                    theme.checkboxGeometry(marker, normal),
+                                    normal
+                                )
+                        }
+                        val hoverPixels = pixels { canvas ->
+                            painter
+                                .drawCheckbox(
+                                    canvas,
+                                    theme.checkboxGeometry(marker, hovered),
+                                    hovered
+                                )
+                        }
+                        assertEquals(0, differences(baseline, hoverPixels))
+                    }
+                }
+        }
+    }
+
+    @Test
+    fun `checkbox mixed bar and radio dot stay light inside the Aqua accent silhouette`() {
+        val bounds = Rect(20.0, 20.0, 14.0, 14.0)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = macosTheme(mode)
+            val on = CheckboxVisual(CheckMark.On)
+            val mixed = CheckboxVisual(CheckMark.Mixed)
+            val selected = RadioVisual(true)
+            val checkbox = theme.checkboxGeometry(bounds, on)
+            val partial = theme.checkboxGeometry(bounds, mixed)
+            val radio = theme.radioGeometry(bounds, selected)
+            assertEquals(MixedMarkShape.Bar, theme.checkbox.mixedShape)
+            assertEquals(1.5, partial.mixed.bounds.height)
+            assertEquals(8.0, partial.mixed.bounds.width)
+            assertEquals(2.5, radio.dot.radius)
+            assertEquals(Color.White, checkbox.markColor)
+            assertEquals(Color.White, partial.markColor)
+            assertEquals(Color.White, radio.dotColor)
+            theme
+                .createPainter()
+                .use { painter ->
+                    val checkedPixels = pixels(dpi = 2.0) { canvas ->
+                        painter.drawCheckbox(canvas, checkbox, on)
+                    }
+                    val mixedPixels = pixels(dpi = 2.0) { canvas ->
+                        painter.drawCheckbox(canvas, partial, mixed)
+                    }
+                    val radioPixels = pixels(dpi = 2.0) { canvas ->
+                        painter.drawRadio(canvas, radio, selected)
+                    }
+                    pixelColor(checkedPixels, 128, 48, 48, theme.tokens.palette.primary.background)
+                    pixelColor(mixedPixels, 128, 54, 54, Color.White)
+                    pixelColor(mixedPixels, 128, 54, 48, theme.tokens.palette.primary.background)
+                    pixelColor(radioPixels, 128, 54, 54, Color.White)
+                    pixelColor(radioPixels, 128, 44, 54, theme.tokens.palette.primary.background)
+                    assertTrue(differences(checkedPixels, mixedPixels) > 30)
+                    assertTrue(differences(mixedPixels, radioPixels) > 30)
+                }
+        }
+    }
+
+    @Test
+    fun `disabled Aqua controls lose accent fills without multiplying their opacity`() {
+        val bounds = Rect(20.0, 20.0, 14.0, 14.0)
+        val disabled = InteractionVisual(
+            enabled = false, hovered = true, pressed = true, focusVisible = true
+        )
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = macosTheme(mode)
+            val plain = theme.surfaceGeometry(bounds, SurfaceVisual(SurfaceKind.Plain, disabled))
+            val action = theme.surfaceGeometry(bounds, SurfaceVisual(SurfaceKind.Action, disabled))
+            val fill = plain.style.background!!.color
+            assertEquals(fill, action.style.background!!.color)
+            assertEquals(fill.red, fill.green)
+            assertEquals(fill.green, fill.blue)
+            assertEquals(None, action.ring)
+            assertEquals(1.0, action.opacity)
+            for (mark in [CheckMark.Off, CheckMark.On, CheckMark.Mixed]) {
+                val geometry = theme.checkboxGeometry(bounds, CheckboxVisual(mark, disabled))
+                assertEquals(fill, geometry.style.background!!.color)
+                assertEquals(theme.tokens.palette.disabledText, geometry.markColor)
+                assertEquals(None, geometry.ring)
+                assertEquals(1.0, geometry.opacity)
+            }
+            val radio = theme.radioGeometry(bounds, RadioVisual(true, disabled))
+            assertEquals(fill, radio.style.background!!.color)
+            assertEquals(theme.tokens.palette.disabledText, radio.dotColor)
+            assertEquals(None, radio.ring)
+            assertEquals(1.0, radio.opacity)
+        }
+    }
+
+    @Test
+    fun `focus hugs the control and scrollbar geometry remains neutral in either orientation`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = macosTheme(mode)
+            val bounds = Rect(20.0, 20.0, 14.0, 14.0)
+            val focused = InteractionVisual(focusVisible = true)
+            val geometry = theme.checkboxGeometry(bounds, CheckboxVisual(CheckMark.On, focused))
+            val ring = geometry.ring!!
+            assertEquals(Rect(17.0, 17.0, 20.0, 20.0), ring.outline.bounds)
+            assertEquals(3.0, ring.border.width)
+            assertEquals(theme.tokens.palette.ring, ring.border.color)
+            assertEquals(0.5, ring.border.color.alpha)
+            val metrics = theme.scrollbarMetrics()
+            assertEquals(15.0, metrics.thickness)
+            assertEquals(None, metrics.buttonLength)
+            for (axis in [Orientation.Horizontal, Orientation.Vertical]) {
+                val area = if (axis == Orientation.Vertical)
+                    Rect(0.0, 0.0, 15.0, 90.0)
+                else
+                    Rect(0.0, 0.0, 90.0, 15.0)
+                val visual = ScrollbarVisual(axis, 0.5, 0.25, showTrack = false)
+                val scroll = theme.scrollbarGeometry(area, visual)
+                assertEquals(None, scroll.decrement)
+                assertEquals(None, scroll.increment)
+                contains(area, scroll.thumb.bounds)
+                val thumb = theme.scrollbar.thumb.normal
+                assertEquals(thumb.red, thumb.green)
+                assertEquals(thumb.green, thumb.blue)
+                theme
+                    .createPainter()
+                    .use { painter ->
+                        val result = pixels { canvas ->
+                            painter.drawScrollbar(canvas, scroll, visual)
+                        }
+                        val centerX = (scroll.thumb.bounds.x + scroll.thumb.bounds.width / 2.0)
+                            .toInt()
+                        val centerY = (scroll.thumb.bounds.y + scroll.thumb.bounds.height / 2.0)
+                            .toInt()
+                        pixelColor(result, 128, centerX, centerY, thumb)
+                        pixelColor(result, 128, 1, 1, Color.Transparent)
+                    }
+            }
+        }
+    }
+}
+
+private fun aquaColor(value: Int): Color = Color(
+    (value / 65536 % 256).toDouble() / 255.0,
+    (value / 256 % 256).toDouble() / 255.0,
+    (value % 256).toDouble() / 255.0
+)

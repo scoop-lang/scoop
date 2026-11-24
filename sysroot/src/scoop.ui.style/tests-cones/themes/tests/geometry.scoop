@@ -30,7 +30,7 @@ private class ThemeGeometryTest {
                 theme.radioMetrics().suggestedSize.width >= theme.radioMetrics().minimumSize.width
             )
         }
-        assertEquals(16.0, all[0L].checkboxMetrics().suggestedSize.width)
+        assertEquals(14.0, all[0L].checkboxMetrics().suggestedSize.width)
         assertEquals(20.0, all[2L].checkboxMetrics().suggestedSize.width)
         assertEquals(16.0, all[4L].checkboxMetrics().suggestedSize.width)
         assertEquals(13.0, all[0L].tokens.typography.body.fontSize)

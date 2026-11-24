@@ -62,7 +62,7 @@ private class ThemePaintingTest {
     }
 
     @Test
-    fun `checkbox off on mixed disabled hover press and focus are public offscreen drawing inputs`() {
+    fun `checkbox off on mixed disabled press and focus are public offscreen drawing inputs`() {
         for (theme in themes())
             theme
                 .createPainter()
@@ -101,7 +101,6 @@ private class ThemePaintingTest {
                     pixelColor(mixedPixels, 128, 64, 64, geometry.markColor)
                     for (
                         interaction in [
-                            InteractionVisual(hovered = true),
                             InteractionVisual(pressed = true),
                             InteractionVisual(enabled = false),
                             InteractionVisual(focusVisible = true)
