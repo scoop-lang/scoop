@@ -209,7 +209,7 @@ impl DecodedCanonicalMirDispatchSchemasV1 {
             types,
             callables,
         }
-        .validate_with_dependencies(&table, dependencies)?;
+        .validate_relationships_with_dependencies(&table, dependencies)?;
         Ok(table)
     }
 }

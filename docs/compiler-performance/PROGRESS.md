@@ -472,3 +472,19 @@ macOS 已清理约 20.5 GiB 退役尺寸／速度对照工具、重复库和缓�
 已排除直接复用 LLVM 22.1 的对象发射 pass manager：即使 AsmPrinter／MCStreamer／MachineModuleInfo 有逐模块收尾，带 GC statepoint 与异常展开的第二个函数模块仍残留前一模块的栈映射记录；仅数据流水线在 COFF debug → 无 debug 切换时也残留字符串表空间。独立的连续模块字节对照发现两者，实验实现均已撤下，未进入生产。本轮仅补齐数据发射入口自身的 LLVM pass 注册，并将测试顺序调整为先调用数据入口，避免测试依赖完整代码生成的先行初始化。格式检查、workspace all-targets Clippy 和七目标两配置的数据对象对照通过；不为撤下的实验记录性能收益。
 
 本机原始命令、采样、逐轮计时和验收日志保留在仓库外的 `/Volumes/Data/home/chenxu/scoop-performance-results/compiler-20261101`；Linux 日志在 `~/repos/scoop-work/compiler-20261101`，Windows 日志在 `E:\scoop-work\compiler-20261101`。七目标最终验收汇总为仓库外的 `speed-phase-final-closure.json`；临时目录 `tmp/compile-speed-20261101` 中只保留上述 SDK 与当前工具。
+
+## 2026-11-25：通用元数据查询与原生对象处理
+
+本轮缩小 MIR 继承遍历的临时分配范围，直接处理相同 receiver，并让 dispatch reader 复用单条记录检查；表组装继续检查继承环、前缀与接口闭合。LIR 布局表建立 exact type／representation role 索引，原生归档通过 member ordinal 和完整 identity 直接查询对象。三种对象格式的 reader 同时删除没有消费者的整对象摘要，保留实际定义、body 与归档所需的内容摘要。
+
+本机 Windows、Xeon W-2133（6 核／12 线程）、Rust 1.99.1 GNU-LLVM 宿主、外部 LLVM 22.1.8；对照工具为 `0.0.0-dev.20261124`，改进工具以相同 `target-cpu=x86-64` release 配置构建。`native-desktop` 使用同一份源码与预编译系统库，应用配置均为 `debug/full`、12 jobs、MSVC UCRT 目标。两组顺序运行，各用独立空缓存和构建目录，保留源码及工具，以进程采样观察耗时，不附加调试器。
+
+| 同一桌面示例的冷构建 | 改进前 | 改进后 | 耗时减少 |
+| --- | ---: | ---: | ---: |
+| 编译器报告耗时 | 238.20 s | 179.86 s | 24.5% |
+| 其余构建／链接时间（总耗时减编译器耗时） | 76.02 s | 72.30 s | 4.9% |
+| 完整构建 | 314.22 s | 252.16 s | 19.8% |
+
+这是本机单次配对结果，不代表其他宿主或工作负载。编译器累计 CPU 时间约从 512.1 s 降至 452.9 s；峰值 RSS 仍约 7.45 GiB。两份 `.slib` 均为 481,560,826 bytes，SHA-256 完全相同，完整调试信息与产物编码保持一致。两边均成功链接 executable 和 PDB；改进后的同参数热构建为 0.261 s，`child_invocations` 为空。
+
+本地格式化、workspace all-targets Clippy、release 工具构建通过；Clippy 的告警位于未修改的代码。MIR／LIR／slib／linker 共 913 项 Rust 测试通过，包含继承路径、错误记录、布局角色、对象范围和真实 MSVC／MinGW 归档／导入／runtime 验证。9 个正式 CLI fixture、10 个 variant 通过，覆盖跨产物接口、dispatch signature、section GC、PDB 行号及更新、资源、subsystem、静态库／DLL、导入库重叠和启动参数。初次运行缺少 MSVC 命令路径及 runtime 开发资源的项在配置现有工具、vendor 源码与 unwind 前缀后定向复测通过；本轮没有其他宿主的运行验收。原始命令、日志、采样和产物保存在仓库外的 `E:\scoop-dep\tmp\wcp`。

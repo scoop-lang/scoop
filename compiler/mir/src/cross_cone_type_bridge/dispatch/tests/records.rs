@@ -208,6 +208,16 @@ fn boxed_value_method_and_default_have_distinct_semantic_receivers() {
 #[test]
 fn diamond_receiver_paths_choose_shortest_then_canonical_exact_sequence() {
     let mut fixture = Fixture::new();
+    for owner in [BASE, DERIVED, ROOT, VALUE] {
+        let exact = fixture.exact(owner);
+        assert_eq!(
+            fixture
+                .authority()
+                .canonical_receiver_path(exact, exact)
+                .unwrap(),
+            vec![exact]
+        );
+    }
     assert_eq!(
         fixture
             .authority()

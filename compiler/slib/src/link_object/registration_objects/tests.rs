@@ -11,7 +11,6 @@ use crate::link_object::{
     compute_strong_safepoint_fingerprints_v1, compute_strong_static_storage_fingerprints_v1,
     compute_strong_static_storage_shape_fingerprints_v1, compute_strong_type_fingerprints_v1,
 };
-use scoop_wire::sha256;
 
 #[test]
 fn registration_fingerprints_outlive_the_original_object_buffers() {
@@ -37,7 +36,9 @@ fn registration_fingerprints_outlive_the_original_object_buffers() {
         scoop_identity::ConeIdentity::SINGLE_FILE
     );
     let member = fixture.member;
-    let digest = sha256(&fixture.object_bytes);
+    let byte_length = fixture.object_bytes.len() as u64;
+    let fingerprints = collected.callables().fingerprints().to_vec();
+    assert!(!fingerprints.is_empty());
     drop(fixture);
     let builtins = collected
         .callables()
@@ -51,9 +52,10 @@ fn registration_fingerprints_outlive_the_original_object_buffers() {
             .definitions()
             .sections()
             .envelope()
-            .content_digest(),
-        digest
+            .byte_length(),
+        byte_length
     );
+    assert_eq!(collected.callables().fingerprints(), fingerprints);
 }
 
 fn verified_fingerprints(

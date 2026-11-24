@@ -134,6 +134,8 @@ M51 的普通 native include 支持语言规范 12.2.1 的路径字符串或条�
 
 stage 只通过对应 IR/metadata 交换数据，不调用上游 stage 的实现。所有源码语义错误在 parser/HIR 结束；后续阶段报告自身的格式、引用、ABI、目标或链接错误。已验证且不变的数据在后续边界复用。
 
+MIR dispatch reader 在解析每条记录时检查其类型、槽位和 callable 引用，组装同一张表后只补做继承环、基类前缀、接口顺序与闭合等跨记录检查，不重放单条记录检查。独立构造表时仍按传入的类型和 callable 集合检查记录。继承路径查询的临时空间随实际可达节点增长，不按整个依赖类型表预分配。LIR 布局表在构造或读取时建立 exact type 与 representation role 的查询索引，后续查询复用索引；索引不改变规范记录顺序或 wire 格式。
+
 driver 按最后一个实际消费者安排阶段数据的存活期：告警、测试目录及文档投影完成后释放 AST 和 HIR 查询世界；MIR 与类型桥导出完成后释放 HIR 正文；LIR 与布局导出完成后只转移后续打包需要的 MIR 规范记录；LLVM 与 generated-C 发射完成后释放 LIR 正文。产物需要的 foundation、公开 metadata 和生产记录继续保持完整，不为保留它们而延长整份上游 IR 的存活期。阶段观察、诊断与文档在各自输入释放前完成，不通过重读源码或重跑 stage 补回结果。
 
 当前 Cone 的语义导出与阶段观察完成后，driver 将不再变化的 HIR／MIR 和 LIR 接口编码为拥有型发布数据，并保存后续对象校验与 ODR 复用实际需要的依赖符号和对象摘要。随后在 LLVM 发射前释放依赖语义 reader、身份会话及导出查询数据；发布输入不通过借用选中记录而继续持有整份依赖闭包。最终 LIR foundation、对象生产记录与链接闭包仍在对象处理结束后编码，复用既有排序、指纹和归档格式，不重读依赖或重放已经完成的语义检查。
@@ -715,6 +717,8 @@ GCLeaf 契约不意味着 pure、readnone、readonly 或 nosync，不能据此�
 发布直接接收本次 codegen 与 generated-C 的实际对象、成员分配及生成记录。C bridge 的编译器 profile、源码模板、flags 和 unit 集合不再与自行构造的生产记录重复比对；对象中的 SDK／工具版本也不作为来源证明。所需 section 与符号正常读取，Code 指纹继续消费实际生成记录。删除无生产调用的旧 single-Cone 分级资格流水线；不以另一套 `Verified` 包装保留这些入口。当前完整产物的投影直接采用已有生产计划与实际对象，不深比较它们的副本来证明同源。
 
 同一次对象生产中的定义、stackmap 与 registration 处理共享最初解析的 section、符号及 relocation 信息，直接借用原对象字节；不在每个步骤重新计算整包 SHA-256 来证明字节未变化。registration 直接关联 typed 计划与已有的 definition/member 分配，复用规范化 stackmap 和 canonical ABI；不另查符号表定位内容摘要。body 指纹按已解析的 primary／associated atom、实际 relocation 和该 body 的 stackmap 输入计算；runtime scan 同属 associated atom，不从计划重新生成 scan 字节或遍历闭合证明。runtime 从 callable 引用的紧凑表建立精确 PC 索引；完整 site identity 的检查由所选物理 body 的 Link 投影完成。image 与 root entry 直接使用生成计划；Library／Executable／NativeApp 分支由同一完整枚举表示。归档保留已完成紧凑 GC 表转换的对象，不为内容摘要复制、清零、回填或重新解析对象。首次对象格式检查、实际 definition/body 指纹及运行时记录编码继续保留。
+
+对象格式解析仅保存后续使用的格式、section、符号与 relocation 信息，不附带无消费者的整对象内容摘要。原生归档按实际 member ordinal 保存解析结果，链接选择通过完整 member identity 直接取得对应对象，不为每次查询重新收集整个归档的对象列表；导入成员与普通对象成员仍遵守各自的选择规则。
 
 immortal object 的登记身份与 ODR ABI 直接消费现有登记计划及 canonical shape ABI；RuntimeImage 编码同一计划中的对象大小、对齐与 type registration 引用。不为了取得发布资格再次读取 String payload、重建登记记录、核对指针目标或比较 digest 依赖图。实际对象生成、普通符号引用与 ODR 选择继续使用既有数据。
 

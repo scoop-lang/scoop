@@ -78,7 +78,7 @@ fn verifies_the_complete_mixed_builtin_member_set() {
         canonical_value,
         &[],
         None,
-        &[0xee, 0xff, 0xcc, 0xdd, 0, 0, 0, 0],
+        &[0xee, 0xff, 0xcc, 0xdd],
     )
     .bytes;
     let updated = verified
@@ -95,13 +95,15 @@ fn verifies_the_complete_mixed_builtin_member_set() {
     let changed = updated.member(scoop_member).unwrap().definitions();
     assert!(!std::ptr::eq(original, changed));
     assert_eq!(
-        original.sections().envelope().content_digest(),
-        scoop_wire::sha256(&scoop_bytes)
+        original.sections().envelope().byte_length(),
+        scoop_bytes.len() as u64
     );
     assert_eq!(
-        changed.sections().envelope().content_digest(),
-        scoop_wire::sha256(&changed_bytes)
+        changed.sections().envelope().byte_length(),
+        changed_bytes.len() as u64
     );
+    assert_eq!(original.sections().envelope().sections()[0].byte_size(), 8);
+    assert_eq!(changed.sections().envelope().sections()[0].byte_size(), 4);
 }
 
 fn symbol_plan(

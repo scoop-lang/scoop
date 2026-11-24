@@ -113,7 +113,6 @@ pub fn validate_elf_object_envelope_v1(
         .collect::<Result<_, ElfObjectError>>()?;
     Ok(ValidatedObjectEnvelopeV1 {
         byte_length: bytes.len() as u64,
-        content_digest: scoop_wire::sha256(bytes),
         format: ObjectEnvelopeFormatV1::new(target, object.object_target),
         sections,
         symbols,
