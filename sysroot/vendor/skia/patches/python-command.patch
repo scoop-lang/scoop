@@ -34,7 +34,7 @@
          rspfile_content = "{{inputs}}"
          rm_py = rebase_path("../rm.py")
 -        command = "$shell python3 \"$rm_py\" \"{{output}}\" && $ar rcs {{output}} @$rspfile"
-+        command = "$python_command \"$rm_py\" \"{{output}}\" && $ar rcs {{output}} @$rspfile"
++        command = "$python_command \"$rm_py\" \"{{output}}\" && \"$ar\" rcs {{output}} @$rspfile"
        }
  
        outputs =
