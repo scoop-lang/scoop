@@ -163,7 +163,7 @@ checks = [
 
 该期望应锁定小程序的 CFG、求值顺序或清理路径，而非展开整个 core。
 AST/HIR/MIR/LIR 的 typed IR 测试同样可承担结构职责；不要求每个功能保存四阶段输出。
-代表组和迁移理由见 [M40 迁移说明](../../docs/milestone40/MIGRATION.md)。
+代表组和迁移理由见 [M40 迁移说明](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone40/MIGRATION.md)。
 观察模式本身的 CLI 专测检查输出文件集合、已有观察复用和缺失观察补齐。
 普通语言组合用例直接运行 build 输出，检查语言结果及真实多 Cone 消费，不重复独立链接、
 复制产物或固定公共内部符号。build／独立链接一致性、Cone/image/root 关系和 mangling

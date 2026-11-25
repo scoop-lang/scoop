@@ -2,7 +2,7 @@
 
 日期：2026-10-17。状态：调研结论与公共接口建议，尚未实现或冻结 HTTP API。
 
-实施范围与集成决定已整理到 [M53 设计](../milestone53/DESIGN.md)。M53 明确只采用官方纯静态库构建与现有 archive 成员选择，函数级裁剪不属于本期；本文第 7 节的函数／数据段消除仅保留为后续技术背景。
+实施范围与集成决定已整理到 [M53 设计](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone53/DESIGN.md)。M53 明确只采用官方纯静态库构建与现有 archive 成员选择，函数级裁剪不属于本期；本文第 7 节的函数／数据段消除仅保留为后续技术背景。
 
 本文以已有 [异步 I/O](../specs/SCOOP-ASYNCIO-SPEC.md) 与 [TLS](../specs/SCOOP-TLS-SPEC.md) 为基础，考察成熟解析器实际提供的兼容能力。HTTP 作为普通库实现；没有新增编译器或 runtime 契约的需求。
 

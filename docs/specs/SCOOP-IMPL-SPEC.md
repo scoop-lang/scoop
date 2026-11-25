@@ -876,7 +876,7 @@ Export HIR 的当前目标测试目录按语言规范 16.4 保留 typed class／
 
 测试用途产物在可选 manifest section `org.scoop-lang.manifest/test-directory/1` 中保存该目录的展示投影：容器限定名、用例方法名与完整显示名、各自的 Cone-relative 源码路径及一基行列、忽略原因。目录按前端顺序嵌套保存容器与用例，不通过解析显示名恢复关系；可执行调用仍使用 HIR 中的 typed 引用。该 section 不参与 Compile／Link 的语义要求，受普通 ArtifactFingerprint 覆盖；生产产物不写入，测试产物即使无容器也写入空目录。manifest summary 在读取边界解码并复用该投影，缓存命中不重新发现测试或加载完整 HIR。
 
-入口的四种 ABI 形态、完整签名、root gateway 的实际 C ABI 与定义指纹随各层 typed entry 保留，并进入对应语义／ABI fingerprints 和承载它们的 section profile。Link 投影保留精确 entry、gateway 与 failure-root 引用，使 artifact-only 链接无需源码或名称推断。当前 runtime ABI contract 30、metadata ABI 9 同时进入兼容检查、runtime 与启动对象的构建输入；旧 ABI 的薄接口、物理签名、poll／card／初始化发布／Context 槽合同及产物必须重建或拒绝，不能用缺省字段或 bitcast 混用。contract 20 同时退役无生产消费者的标量格式化、hash、equals 及专用打印 C 入口；沿用现有 runtime 输入更新与 ABI 重建边界，不增加兼容分支。新 ABI 的 debug／release 仍互通；各批次的实际实现与 section 版本见 [M34 记录](../milestone34/PROGRESS.md)。
+入口的四种 ABI 形态、完整签名、root gateway 的实际 C ABI 与定义指纹随各层 typed entry 保留，并进入对应语义／ABI fingerprints 和承载它们的 section profile。Link 投影保留精确 entry、gateway 与 failure-root 引用，使 artifact-only 链接无需源码或名称推断。当前 runtime ABI contract 30、metadata ABI 9 同时进入兼容检查、runtime 与启动对象的构建输入；旧 ABI 的薄接口、物理签名、poll／card／初始化发布／Context 槽合同及产物必须重建或拒绝，不能用缺省字段或 bitcast 混用。contract 20 同时退役无生产消费者的标量格式化、hash、equals 及专用打印 C 入口；沿用现有 runtime 输入更新与 ABI 重建边界，不增加兼容分支。新 ABI 的 debug／release 仍互通；各批次的实际实现与 section 版本见 [M34 记录](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone34/PROGRESS.md)。
 
 operator equals 的成员签名、operator 标记、已绑定调用及必要的派生正文使用既有 callable、模板与 exact-type metadata。`Equals<T>.equals` 的显式 conformance、接口 slot、实现和分派适配使用普通 interface metadata；该 slot 使用源码显式声明的 operator 实现，不按结构比较补齐接口，也不保存 Equals 专用的 core protocol 或条件接口规则。
 
@@ -2150,7 +2150,7 @@ compiler protocol 的 diagnostic note 使用 field 3 保存 import 路径的标�
 
 LSP 的导入 code action 将上述路径转换为同版语法头中的普通 import 编辑，保留源码换行和已有注释。动作携带文档版本；解析延迟动作时也核对分析 revision，import、依赖或目标变化后不能应用旧候选。动作只返回编辑，是否应用由调用方决定。
 
-本节规定 M47 与 LSP 的共同基础。模块分工与查询边界见[公共基础设计](../language-service/DESIGN.md)，实际交付与验证见[实施与验收](../language-service/PROGRESS.md)；M47 的同步生成流程由[其主设计](../milestone47/DESIGN.md)及[协议](../milestone47/PROTOCOL.md)规定。合法源码的语言语义、成功 HIR 的完备性、产物和 runtime 合同保持。
+本节规定 M47 与 LSP 的共同基础。模块分工与查询边界见[公共基础设计](../language-service/DESIGN.md)，实际交付与验证见[实施与验收](../language-service/PROGRESS.md)；同步生成流程及消息格式见[生成器协议](../generator-protocol/PROTOCOL.md)。合法源码的语言语义、成功 HIR 的完备性、产物和 runtime 合同保持。
 
 M63中项目成员、workspace继承和精确依赖绑定统一来自独立PM的本地数据模型，见[包管理规范7](SCOOP-PACKAGE-SPEC.md#7-pm-与构建-driver-的接口)。analysis/LSP不自行解释第二套版本规则；初始化缺失的 lock 时使用既有 PM resolve，之后离线读取 metadata，不在每次编辑或补全时下载依赖。本地缺少锁定源码时提示执行fetch。编辑buffer仍由语言服务覆盖对应source，不能通过重写全局共享源码cache实现编辑态。
 
@@ -2374,21 +2374,21 @@ lambda 参数试探只有实际消费了所属 header 的 `->` 才提交；恢�
 
 固定查询按需准备并复用正文投影的持久身份及局部来源关系，同一正文／默认模板的重复读取复用已投影结果。投影借用普通编译图，查询额外产生的类型应用不进入这些输入。依赖调用引用只读取已绑定的完整签名，不要求完成其排队中的实现；读取查询不提前执行后续依赖正文阶段。普通生成结束后仍沿既有顺序完成依赖、效果与成功产物封装。
 
-正文 JSON 适配沿既有逻辑树逐节点编码完整表达式、语句、模式、存储目标、调用与 capture 引用，保留局部 selector、定义／求值来源及精确常量。原定义与默认值应用视图复用同一编码；类型位置通过已有应用映射投影，局部泛型函数签名保留自己引入的 binder 层，requirement 实现片段保持其独立定义类型并另传本次实参。正文查询不输出 arena 下标、Debug 文本或产物字节，不重放已完成的语义校验。具体 JSON 形状见 [M47 正文编码](../milestone47/BODY-JSON.md)。
+正文 JSON 适配沿既有逻辑树逐节点编码完整表达式、语句、模式、存储目标、调用与 capture 引用，保留局部 selector、定义／求值来源及精确常量。原定义与默认值应用视图复用同一编码；类型位置通过已有应用映射投影，局部泛型函数签名保留自己引入的 binder 层，requirement 实现片段保持其独立定义类型并另传本次实参。正文查询不输出 arena 下标、Debug 文本或产物字节，不重放已完成的语义校验。具体 JSON 形状见 [M47 正文编码](../generator-protocol/BODY-JSON.md)。
 
 默认值的应用视图由共享的原定义投影、原提供方的 binder 层级及本次应用的完整类型实参组成。原提供方取模板的 definition root，不能用继承该 default 的 callable 代替。读取应用后的类型时复用普通模板的类型替换；外部 callable／member 的声明身份保持，引用中携带的类型同样应用该映射。局部泛型声明新引入的 binder 保持原绑定，插入的应用实参相应提升层级，不能捕获查询方或局部声明中的同名参数。视图不执行默认值、不复制或改写原定义树。
 
-默认模板输入以实际 callable 与参数位置查找已有模板；必需参数、vararg 空省略或没有模板的引用返回未找到，合法参数不自动产生新的可移植模板。显式应用实参按 definition root 的完整 binder 顺序给出，其元数、种类和 bound 沿原泛型规则检查；缺省实参列表只读取定义。M47 八类查询的请求与结果 envelope 见[查询编码](../milestone47/QUERY-JSON.md)：成组结果保持输入顺序，未知声明与合法空列表分开；协议分发复用共享查询，不包含另一套名称绑定、模板选择或类型判定。
+默认模板输入以实际 callable 与参数位置查找已有模板；必需参数、vararg 空省略或没有模板的引用返回未找到，合法参数不自动产生新的可移植模板。显式应用实参按 definition root 的完整 binder 顺序给出，其元数、种类和 bound 沿原泛型规则检查；缺省实参列表只读取定义。M47 八类查询的请求与结果 envelope 见[查询编码](../generator-protocol/QUERY-JSON.md)：成组结果保持输入顺序，未知声明与合法空列表分开；协议分发复用共享查询，不包含另一套名称绑定、模板选择或类型判定。
 
 类型描述保留结构类型的完整组成、名义声明身份与实参、原声明参数及其 bound；开放参数必须属于所选 binder 上下文。父类型沿原有直接父关系计算，companion 描述沿实际声明关系形成类型应用，不读取或执行 singleton 初始化。成员描述保留声明处类型和当前名义应用替换后的类型；字段与 variant 引用使用原 typed 身份，不递归展开引用到的其他名义类型。
 
 类型投影区分查询位置的词法上下文与被描述声明的 binder 上下文。读取成员的 declarationType 或原泛型 bound 时，从已返回的真实名义／callable 参数取得声明上下文；宿主参数与方法参数沿原签名分别形成外层和内层 binder。即使查询方存在同名参数，也不能用它解释被描述声明的开放类型。该上下文仅用于类型描述和签名投影，不改变名称查找或成员访问域；M47 适配器在进程内从实际查询结果建立它，对端不提交 arena 参数身份。
 
-M47 的 JSON 投影属于 `scoop-generator-protocol`，其字段合同见[JSON 数据编码](../milestone47/JSON.md)。投影沿既有完整类型、声明引用和注解值形成显式分支，来源使用实际 SourceIdentity 与 byte range。跨进程引用保留 typed identity 的类别与 32 字节内容；读取十六进制引用不创建语言声明，后续查询仍在当前视图中按该类别查找。常量保留整数宽度／符号和精确十进制值，浮点保留 IEEE 位模式。
+M47 的 JSON 投影属于 `scoop-generator-protocol`，其字段合同见[JSON 数据编码](../generator-protocol/JSON.md)。投影沿既有完整类型、声明引用和注解值形成显式分支，来源使用实际 SourceIdentity 与 byte range。跨进程引用保留 typed identity 的类别与 32 字节内容；读取十六进制引用不创建语言声明，后续查询仍在当前视图中按该类别查找。常量保留整数宽度／符号和精确十进制值，浮点保留 IEEE 位模式。
 
 完整类型输入先解码为既有签名类型的结构与 typed 待解析引用，再在当前源码和已选依赖的声明索引中查找。该索引不以先前发送过哪些描述为依据；未知引用或引用类别不符直接报告查询错误，不按名称回退，也不重新派生或认证声明身份。binder 的 depth／index 只解释为本次真实签名上下文中的参数。类型应用复用原有名义应用、泛型实参数量／bound、函数指针、companion 和表示检查；结构类型使用原 interner。读取类型与声明元数据不赋予源码访问权限，实际名称查找与成员访问仍走普通规则。失败查询只返回本次诊断，不影响普通编译的诊断、使用记录或初始化请求。
 
-完整类型与成员消息沿上述查询保留名义声明的真实来源、注解、原参数及其约束，声明列表按原顺序返回。字段、属性、构造参数和方法签名分别给出声明类型与应用类型。应用泛型方法时，宿主实参属于查询位置，方法自身参数仍属于该方法；协议复用已有的 binder 替换与层级提升，不把两者拼成同一层，也不让同名或相同 arena 参数造成捕获。default 的实参同时保留声明侧映射与本次应用，供同一替换路径投影。访问结论与访问域直接来自普通前端，正文只报告已有可用性，不因读取成员而投影或执行正文。字段形状及上下文规则见 [M47 成员编码](../milestone47/MEMBERS-JSON.md)。
+完整类型与成员消息沿上述查询保留名义声明的真实来源、注解、原参数及其约束，声明列表按原顺序返回。字段、属性、构造参数和方法签名分别给出声明类型与应用类型。应用泛型方法时，宿主实参属于查询位置，方法自身参数仍属于该方法；协议复用已有的 binder 替换与层级提升，不把两者拼成同一层，也不让同名或相同 arena 参数造成捕获。default 的实参同时保留声明侧映射与本次应用，供同一替换路径投影。访问结论与访问域直接来自普通前端，正文只报告已有可用性，不因读取成员而投影或执行正文。字段形状及上下文规则见 [M47 成员编码](../generator-protocol/MEMBERS-JSON.md)。
 
 注解声明消息读取普通注解绑定已经确定的参数类型、默认常量、允许目标及 repeatable 规则；源码与依赖使用相同字段，不重新求值默认值。注解参数不继承查询方法的泛型作用域。target 消息保持既有名义／variant／字段／属性／扩展属性／callable／参数／receiver／alias／存储关系，局部 callable 使用其真实生成声明身份；解码 target 只取得 typed 引用，不凭消息创建实体或赋予可见性。
 
@@ -2418,13 +2418,13 @@ logical property 描述独立保留 getter／setter 身份、实现形式、访�
 
 生成钩子只在普通继承、override 和 default 选择之后保留仍需具体实现的普通方法；必要签名、参数名、实际 owner 与 requirement 映射在普通正文绑定前确定。属性访问器和允许保留的抽象声明不成为生成任务。没有生成钩子的入口保持直接报告缺失实现；有钩子时，未返回的必要方法在生成结束后报告同一语言错误。钩子借用当前前端查询，所有结果收齐后才按原方法作用域 lower 正文，不重跑先前源码的绑定。
 
-生成器的类型查询提供实际名义声明的源码路径、class 的修饰与应用后的基类，以及方法上下文可用的 companion 投影。它们取自普通声明与访问检查，协议字段见 [M47 成员查询](../milestone47/MEMBERS-JSON.md)。
+生成器的类型查询提供实际名义声明的源码路径、class 的修饰与应用后的基类，以及方法上下文可用的 companion 投影。它们取自普通声明与访问检查，协议字段见 [M47 成员查询](../generator-protocol/MEMBERS-JSON.md)。
 
 driver 的任务规划读取普通 GenerateWith 应用及数组逐元素来源，按实际 owner 与完整接口应用检测重复，再以原 conformance requirement 关系选择待填方法。同一 owner／generator 保留全部有效 bindings 并合并方法；不同 generator 只有争用同一待填方法时才冲突。没有待填方法的组不启动程序，错误配置仍正常诊断。接口方法引用使用原 dispatch slot 身份，源码查询与最终产物复用同一 slot 构造路径；任务消息保留完整接口应用、slot、原方法签名和请求位置。
 
 接口匹配读取继承检查已建立的实现关系，包括条件实现和沿基类实参代入的关系。选择字符串沿 owner 的词法作用域解析，需要条件才能成立的类型应用只与提供该条件的实现匹配。每个待填方法的语义查询与生成正文沿同一方法条件检查，继承条件保留原实现块和已代入的宿主应用。同批其他方法各自使用其定义环境。
 
-driver 使用既有宿主进程管理和 Content-Length JSON-RPC 分帧，逐组同步执行生成程序；查询上下文只能是该组已有的待填方法。各组成功结果收齐并检查输出结束及进程退出状态后，再沿严格函数体片段入口解析；最终响应后的额外字节、异常退出及错误诊断均使本次生成失败。warning 随正常正文保留。失败和成功诊断都与本次实际片段原文成对保存，不能仅保留逻辑文件名或将所有错误压到配置位置。具体消息及错误字段见 [M47 协议](../milestone47/PROTOCOL.md)2、5、6 节。
+driver 使用既有宿主进程管理和 Content-Length JSON-RPC 分帧，逐组同步执行生成程序；查询上下文只能是该组已有的待填方法。各组成功结果收齐并检查输出结束及进程退出状态后，再沿严格函数体片段入口解析；最终响应后的额外字节、异常退出及错误诊断均使本次生成失败。warning 随正常正文保留。失败和成功诊断都与本次实际片段原文成对保存，不能仅保留逻辑文件名或将所有错误压到配置位置。具体消息及错误字段见 [M47 协议](../generator-protocol/PROTOCOL.md)2、5、6 节。
 
 生成正文的词法输入文件与诊断文本可以不同：package、import 和访问域取原方法文件，表达式及局部声明的来源取该片段。片段使用由实际方法声明身份派生的普通逻辑源码名，并由 driver 保存原文和注解关联；名称不依赖 generator 路径或进程顺序。原方法参数仍保留声明处来源。此区别仅服务正常绑定、诊断及源码记录，不引入新的来源认证规则。
 

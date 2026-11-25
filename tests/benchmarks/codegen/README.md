@@ -16,4 +16,4 @@
 
 编译时间以 `scoopc build <source> --profile release --sysroot <sysroot> --out-slib <output>` 直接重复编译计量，避免应用缓存命中；预热后至少三对，顺序交替。报告宿主编译器自身的构建模式；dev 编译器的绝对耗时不能当作 release 编译器性能。生成代码差异不等于端到端加速。
 
-本批不改变 Managed poll 位置；需要测停稳尾部的频率变更另用 `../poll-response`。结果与启用范围见 `docs/milestone58/LLVM-CODEGEN.md`、`PERFORMANCE.md`。原始结果和临时产物保持仓库外。
+本批不改变 Managed poll 位置；需要测停稳尾部的频率变更另用 `../poll-response`。结果与启用范围见 [LLVM-CODEGEN.md](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone58/LLVM-CODEGEN.md)、`PERFORMANCE.md`。原始结果和临时产物保持仓库外。

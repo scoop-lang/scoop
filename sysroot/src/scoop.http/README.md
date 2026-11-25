@@ -1,6 +1,6 @@
 # HTTP 协议库
 
-`scoop:scoop.http:0.1.0` 是普通内存协议库。它不连接 socket、不进行 TLS 握手；传入／取出的字节使用既有 NativeByteBuffer，调用者串行操作同一实例并显式 close。公开合同见 [HTTP 规范](../../../docs/specs/SCOOP-HTTP-SPEC.md)，完成范围见 [M53 记录](../../../docs/milestone53/PROGRESS.md)。
+`scoop:scoop.http:0.1.0` 是普通内存协议库。它不连接 socket、不进行 TLS 握手；传入／取出的字节使用既有 NativeByteBuffer，调用者串行操作同一实例并显式 close。公开合同见 [HTTP 规范](../../../docs/specs/SCOOP-HTTP-SPEC.md)，完成范围见 [M53 记录](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone53/PROGRESS.md)。
 
 `AwsEventStreamDecoder` 读取 HTTP body 内的 AWS 二进制 EventStream，使用 receive／nextMessage／endInput，与 SSE 各有明确的 wire 格式。解码器验证帧长、前缀与消息 CRC，保留 typed headers 和原始 payload，最多保留一条待交付消息。异步 source 位于 scoop.http.asyncio，合同见 [EventStream 接收规范](../../../docs/specs/SCOOP-HTTP-EVENTSTREAM-SPEC.md)。
 

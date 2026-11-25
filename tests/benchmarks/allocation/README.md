@@ -4,7 +4,7 @@
 
 用相同编译器构建模式、core、runtime 和 release app，对比一次普通优化且关闭分配消除与当前三轮优化。基线是局部功能关闭对照，不是历史版本的整体性能。编译器临时开关只用于生成独立工具，结束后恢复源码并重建。
 
-固定 `SCOOP_GC_STATS=1`、`SCOOP_GC_WORKERS=1` 和 argv[0]，预热后交替运行至少十一对，校验输出并记录整程序耗时、分配、GC 次数／累计暂停和 RSS。独立重编 `.slib` 对照编译时间／内存及 text、文件大小；计时期间不并行构建或测试。原始数据置于仓库外，汇总见 `docs/milestone58/PERFORMANCE.md`。分配减少可能伴随根的活跃区间和机器代码改变，不能据此宣称每个遍历场景都加速。
+固定 `SCOOP_GC_STATS=1`、`SCOOP_GC_WORKERS=1` 和 argv[0]，预热后交替运行至少十一对，校验输出并记录整程序耗时、分配、GC 次数／累计暂停和 RSS。独立重编 `.slib` 对照编译时间／内存及 text、文件大小；计时期间不并行构建或测试。原始数据置于仓库外，汇总见 [PERFORMANCE.md](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone58/PERFORMANCE.md)。分配减少可能伴随根的活跃区间和机器代码改变，不能据此宣称每个遍历场景都加速。
 
 `classes.scoop` 用于普通 class 字段替换的历史版本对照。复用 `../interfaces/phases.c`，编译为 `libm34_interfaces.a` 后通过 `--library-path` 链接。`SCOOP_BENCH_KIND=0/1/2/3` 分别运行 Point、局部 Cursor、真实 ArrayList 迭代和无对象的 Point 算法对照；`SCOOP_BENCH_COUNT` 决定外层次数。Cursor 与 ArrayList 每轮消费 16 个值，xorshift 状态阻止把循环简化为闭式结果。
 

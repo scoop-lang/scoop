@@ -54,7 +54,7 @@ python3 tests/benchmarks/ffi/measure.py \
   --output tmp/m33/ffi-benchmark/errno-report.json
 ```
 
-先完成构建和功能测试，再运行计时，期间不要在被测机器上并行编译、清理目录或执行其他基准。结果归档到 `docs/milestone33/measurements/`。aggregate 或 errno bridge 的成本单独报告，不能归为 GCLeaf 状态切换。
+先完成构建和功能测试，再运行计时，期间不要在被测机器上并行编译、清理目录或执行其他基准。结果归档到 [measurements](https://github.com/scoop-lang/scoop/tree/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone33/measurements)。aggregate 或 errno bridge 的成本单独报告，不能归为 GCLeaf 状态切换。
 
 M34 DirectC 对照复用同一份源码和 native archive，只替换成前后两个配套编译器。可以只测 aggregate 的 C／NativeSafe／GCLeaf 三条路径，在 1、4 线程下各保留七轮；生产 runtime 不需要启用测试观测点。`--gc-stats` 同时保存每次运行的分配与 GC 计数，原有 C 计时区间不变：
 
@@ -65,4 +65,4 @@ python3 tests/benchmarks/ffi/measure.py \
   --output tmp/m34/direct-c-after/report.json
 ```
 
-M34 结果、构建参数及机器码归档到 `docs/milestone34/measurements/`。对照复用现有 core 缓存时，将首次构建记为 first build，不能称为冷构建。
+M34 结果、构建参数及机器码归档到 [measurements](https://github.com/scoop-lang/scoop/tree/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone34/measurements)。对照复用现有 core 缓存时，将首次构建记为 first build，不能称为冷构建。

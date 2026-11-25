@@ -1,6 +1,6 @@
 # Scoop HTTP/1 WebSocket 异步会话规范
 
-版本：M54，实施中。本文细化 [WebSocket 规范](SCOOP-HTTP-WEBSOCKET-SPEC.md)第 7 节，覆盖普通与 permessage-deflate 会话；实际实现与验证状态见 [M54 进度](../milestone54/PROGRESS.md)。
+本规范规定普通 WebSocket 异步会话和启用 permessage-deflate 的会话行为。帧和扩展协商见[WebSocket 规范](SCOOP-HTTP-WEBSOCKET-SPEC.md)。
 
 启动所有者的工厂必须等待子任务完成状态安装和取消监听登记后才交付对象；不能从 launch 返回或未立即写入的字段推断启动失败。等待初始化期间的取消先使子任务停止接管，再沿已有所有权边界清理；跨 executor 由同一状态锁与明确的初始化完成通知协调。
 

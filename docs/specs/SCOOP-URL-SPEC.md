@@ -1,6 +1,6 @@
 # Scoop URL 库规范
 
-版本：M54。提供独立普通 Cone `scoop:scoop.url:0.1.0`，依赖 core、std 和 [IDNA](SCOOP-IDNA-SPEC.md)。本库负责 URL 的解析、相对引用解析、组件修改与拼装，不执行 DNS、文件或网络 I/O。客户端行为另见 [HTTP client 规范](SCOOP-HTTP-CLIENT-SPEC.md)；实际目标验证范围见 [M54 进度](../milestone54/PROGRESS.md)。
+提供独立普通 Cone `scoop:scoop.url:0.1.0`，依赖 core、std 和 [IDNA](SCOOP-IDNA-SPEC.md)。本库负责 URL 的解析、相对引用解析、组件修改与拼装，不执行 DNS、文件或网络 I/O。客户端行为另见 [HTTP client 规范](SCOOP-HTTP-CLIENT-SPEC.md)。
 
 ## 1. 语法选择与实现
 

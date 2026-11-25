@@ -46,7 +46,7 @@ TMPDIR="$PWD/tmp" python3 -m unittest discover -s tests/benchmarks/tests
 
 M33 的真实 C FFI 调用与 collector 等待基准见 [ffi/README.md](ffi/README.md)。
 
-M34 的专项用例包括 [接口调用与转换](interfaces/README.md)、[纯计算循环的 GC 请求响应](poll-response/README.md)、[小值 ABI](small-values/README.md) 与 [容器存储](containers/README.md)。具体样本及取舍见 [M34 性能记录](../../docs/milestone34/PERFORMANCE.md)。
+M34 的专项用例包括 [接口调用与转换](interfaces/README.md)、[纯计算循环的 GC 请求响应](poll-response/README.md)、[小值 ABI](small-values/README.md) 与 [容器存储](containers/README.md)。具体样本及取舍见 [M34 性能记录](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone34/PERFORMANCE.md)。
 
 [资源作用域基准](abstractions/resources/README.md)对照 `Disposable.use` 和直接写法，测量闭包、正常清理、字段副作用及最后读取的完整成本；复用阶段计时与 A/B 工具，GC 诊断单独运行。
 
@@ -66,7 +66,7 @@ python3 tests/benchmarks/measure.py --tools target/release \
   --revision "$(git rev-parse HEAD)" --profile debug
 ```
 
-报告同时记录各次样本、中位数和最小/最大值。GC 统计由 runtime 的诊断输出提供时保留在每次 stderr；没有统计的旧 runtime 不推测扫描量或收集次数。数据与实际参数归档到 `docs/milestone31/`，源码使用同一输入规模比较各阶段。
+报告同时记录各次样本、中位数和最小/最大值。GC 统计由 runtime 的诊断输出提供时保留在每次 stderr；没有统计的旧 runtime 不推测扫描量或收集次数。数据与实际参数归档到 [milestone31](https://github.com/scoop-lang/scoop/tree/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone31)，源码使用同一输入规模比较各阶段。
 
 M31 使用 `--gc-stats --compare-full`：每个 profile 只构建一次，每轮交替运行默认 nursery 和 `SCOOP_GC_FULL_ONLY=1`，记录两组时间、实际 GC 计数及停顿分布。脚本清除继承的 GC stress 开关，检查两种模式输出一致、full-only 没有 minor，以及直方图与实际收集次数一致。分别运行 debug/release 得到四组控制；共同的 ABI、分配布局和必要 lowering 不计入 debug→release 因子。原有六个程序保持原输入，`old-graph-large` 将旧图增大八倍，`survivors` 另外覆盖高存活率、跨代引用和 pin。
 
@@ -82,7 +82,7 @@ Linux 例如追加 `--build-arg=--target --build-arg=x86_64-unknown-linux-gnu`�
 
 当前 Linux 复现使用 `ssh nuc12`，仓库为 `~/repos/scoop`；工作目录和 `TMPDIR` 都放在该仓库的 `tmp/` 下。先完成工具构建与功能验证，再串行计时，避免并行编译或清理目录干扰测量。
 
-M34 的 `mir-inlining.scoop` 用两千万次 xorshift 组合比较同一 release 配置下的 MIR 内联开关。kernel 与 helper 为 NoGC，使现有完整 poll 不掩盖调用和常量分支的差异；最终 checksum 为 `4062365736`。用 `--case mir-inlining --runs 7 --gc-stats` 单独运行，关闭内联的工具保存自 M34-3a。两套工具分别使用独立 cache，结果及热点机器码见 [M34 性能记录](../../docs/milestone34/PERFORMANCE.md)。
+M34 的 `mir-inlining.scoop` 用两千万次 xorshift 组合比较同一 release 配置下的 MIR 内联开关。kernel 与 helper 为 NoGC，使现有完整 poll 不掩盖调用和常量分支的差异；最终 checksum 为 `4062365736`。用 `--case mir-inlining --runs 7 --gc-stats` 单独运行，关闭内联的工具保存自 M34-3a。两套工具分别使用独立 cache，结果及热点机器码见 [M34 性能记录](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone34/PERFORMANCE.md)。
 
 M34 的 `region-stores.scoop` 在保活对象之间执行八百万次单槽写入，单独记录四级 page map 内联屏障的成本；输出为 `9`。配合 `allocation`、`old-graph-large` 与 `survivors` 测量分配、稀疏旧区写入和存活图的组合影响。对照使用相同 release 编译优化与源码，每组七次、逐轮交替旧／新 heap，保留 GC 计数与机器码；不把引入可扩展堆所需的屏障成本隐藏在整体平均值中。
 

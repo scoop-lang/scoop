@@ -3,8 +3,8 @@
 The C runtime implements a generational moving Immix collector and the
 runtime-owned exception ABI:
 
-- `src/boxing.c` and `src/arrays.c` execute descriptor-checked boxing,
-  unboxing and array cloning, including zero-sized payloads;
+- `src/boxing.c` implements descriptor-checked boxing and unboxing,
+  including zero-sized payloads;
 - `src/gc.h` exposes complete allocation, checked-value and lifecycle operations
   to ordinary runtime code, including an inline copy with its range barrier;
 - `src/value_shape.c` computes managed allocation sizes and checks dynamic
@@ -67,12 +67,11 @@ are prepared manually with [`scripts/prepare_sysroot.py`](../scripts/prepare_sys
 User native compilation reads the public headers from the selected sysroot's
 `include` directory. Runtime behavior is covered by `cargo test --workspace` and
 `python3 tests/run_fixtures.py --all`, including real moving-GC programs in
-addition to the fake-platform stack-map tests. The complete
-contracts live in `docs/specs/SCOOP-RUNTIME-SPEC.md` and
-`docs/milestone15/DESIGN.md`; the exception ABI and linking are described in
-`docs/milestone25/DESIGN.md`. Linux
-toolchain preparation and verification are documented in
-[`docs/milestone28/BUILDING.md`](../docs/milestone28/BUILDING.md).
+addition to the fake-platform stack-map tests. Layout, GC and exception handling are defined in the
+[runtime specification](../docs/specs/SCOOP-RUNTIME-SPEC.md).
+Target linking and toolchain preparation are covered by the
+[compiler specification](../docs/specs/SCOOP-IMPL-SPEC.md) and the
+[build instructions](../scripts/README.md).
 
 Generated Scoop programs use only the closed set of Itanium Level-I
 `_Unwind_*` entries supplied by Darwin `libSystem` or the selected Linux LLVM
@@ -127,7 +126,7 @@ Diagnostic metrics distinguish active block bytes, mapped virtual bytes,
 successful/failed discard calls, cumulative advised/unmapped bytes, and sampled
 process current/peak RSS. Advice success is not a promise of immediate RSS change.
 M34 implementation and measurement status is tracked in
-`docs/milestone34/PROGRESS.md`.
+[the parallel marking measurements](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone34/PROGRESS.md).
 
 Marking runs after all mutators stop. Collections with less than 4 MiB of
 candidate scan ranges use the coordinator alone. Full collection counts active

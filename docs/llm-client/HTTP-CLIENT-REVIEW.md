@@ -1,6 +1,6 @@
 # HTTP client API 评审：日常入口与 LLM 消费
 
-日期：2026-10-21。范围：当前规范、公开 API、实现与已有 fixture 的静态检查。本次没有修改 HTTP 实现或重新执行网络验收；历史完成状态以 [M54 进度](../milestone54/PROGRESS.md)为准。LLM 总体方案见[调研文档](INVESTIGATION.md)。
+日期：2026-10-21。范围：当前规范、公开 API、实现与已有 fixture 的静态检查。本次没有修改 HTTP 实现或重新执行网络验收；历史完成状态以 [M54 进度](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone54/PROGRESS.md)为准。LLM 总体方案见[调研文档](INVESTIGATION.md)。
 
 ## 1. 总体判断
 
@@ -66,7 +66,7 @@ withHttpClient suspend { client ->
 
 ### 4.1 SSE 支持 POST，但简易入口丢失握手失败正文
 
-`openSse` 接受完整 HttpRequest，会保留 method、body、认证与调用 options。已有 [SSE fixture](../../tests/fixtures/m54-client-sse/consumer/src/network.scoop)包含 POST、单次 body、重连和压缩组合。无需新增一个独立的“LLM POST SSE transport”。
+`openSse` 接受完整 HttpRequest，会保留 method、body、认证与调用 options。已有 [SSE fixture](../../tests/fixtures/libraries/client-sse/consumer/src/network.scoop)包含 POST、单次 body、重连和压缩组合。无需新增一个独立的“LLM POST SSE transport”。
 
 问题在错误入口：[openClientSseResponse](../../sysroot/src/scoop.http.client/src/sse/response.scoop)调用 `requireSuccess`，[openClientSse](../../sysroot/src/scoop.http.client/src/sse/operation.scoop)在失败时关闭响应；[HttpStatusException](../../sysroot/src/scoop.http.client/src/response.scoop)只有 head 与 URL。LLM 调用者因此取不到 `{"error": ...}` 中的详细 code、message 或 retry 信息。
 

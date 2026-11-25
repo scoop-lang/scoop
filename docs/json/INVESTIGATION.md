@@ -1,6 +1,6 @@
 # 序列化与 JSON 库改进调研：M57 完成后的库适配
 
-调研日期：2026-10-21。实现同步：2026-10-24。M55、[M57](../milestone57/PROGRESS.md)均已完成；M57 已交付 HashMap 的条件 codec、泛型字段 companion 投影及派生衔接。本轮补齐核心容器、JSON DOM／object codec 和默认入口，规范见[JSON库规范](../specs/SCOOP-JSON-SPEC.md)，本轮验证范围见第8节。字段级 codec 定制暂不实施。
+调研日期：2026-10-21。实现同步：2026-10-24。M55、[M57](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone57/PROGRESS.md)均已完成；M57 已交付 HashMap 的条件 codec、泛型字段 companion 投影及派生衔接。本轮补齐核心容器、JSON DOM／object codec 和默认入口，规范见[JSON库规范](../specs/SCOOP-JSON-SPEC.md)，本轮验证范围见第8节。字段级 codec 定制暂不实施。
 
 本次重点是 M57 对默认 codec、泛型容器和 DTO 的帮助，同时检查现有 JSON 库的可用性与实现。与 [LLM client 调研](../llm-client/INVESTIGATION.md)衔接，但这些改进服务普通序列化和 JSON 使用，不新增 LLM 专用编译器行为。
 
@@ -56,7 +56,7 @@ HTTP 同步增加 `RequestBody.fromJson(value, maxBytes)`、`HttpResponseBody.js
 - 泛型正文的普通重载在定义处绑定。无约束 helper 不会在实例化时突然找到具体类型的更优 codec。
 - 编码／解码能力属于 codec 值，数据实例不因此实现这些接口；`Any` 的运行期类型也不参与默认选择。
 
-上述边界见 [M55 设计 10.3～10.4](../milestone55/DESIGN.md)和[语言规范 3.2.2～3.2.4](../specs/SCOOP-SPEC.md)。
+上述边界见 [M55 设计 10.3～10.4](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone55/DESIGN.md)和[语言规范 3.2.2～3.2.4](../specs/SCOOP-SPEC.md)。
 
 ## 3. M57 落地后的直接收益
 
@@ -256,8 +256,8 @@ M57 的已完成范围见其进度记录；本轮库适配延续以下回归边�
 - [M55 companion JSON 消费者](../../tests/fixtures/language/companion/json/program/src/main.scoop)：两个方向独立、泛型转发、命名 companion、显式替换。
 - [M46 JsonValue](../../sysroot/src/scoop.json/tests/values/values/main.scoop)及[组合消费者](../../sysroot/src/scoop.json/tests/consumer/values-composition/main.scoop)：保存、复读、未知字段、字段冲突。
 - [容器组合](../../sysroot/src/scoop.json/tests/consumer/serialization-containers/main.scoop)：显式容器策略、路径、完整容器检查。
-- [M46 字段与默认值语义](../milestone46/SERIALIZE.md)：编码省略与解码 presence 的既有规则。
-- [M57 验收记录](../milestone57/PROGRESS.md)：已完成的语言能力与三目标验收范围。
+- [M46 字段与默认值语义](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone46/SERIALIZE.md)：编码省略与解码 presence 的既有规则。
+- [M57 验收记录](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone57/PROGRESS.md)：已完成的语言能力与三目标验收范围。
 
 最初调研另在本机 `aarch64-apple-darwin` 用现有 `scoop build`／`scoopc` 和已准备的 sysroot，构建并运行了一个仓库外的独立消费者。四组断言全部通过：
 

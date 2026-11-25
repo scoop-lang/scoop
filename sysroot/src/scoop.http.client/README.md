@@ -101,4 +101,4 @@ val request =
 
 URL 采用独立库的 RFC 3986／3987 profile，IDNA 固定 Unicode 15.1；兼容边界见 [URL](../scoop.url/README.md) 和 [IDNA](../scoop.idna/README.md)。压缩流见 [compression](../scoop.compression/README.md)。
 
-普通 API 与跨库组合见 [Cone 测试](tests/client/dsl_builders.scoop)，独立外部协议 peer 见 [外部 HTTP peer](../../../tests/fixtures/libraries/client-network/peer.py)；实施与三目标验收状态见 [M54 进度](../../../docs/milestone54/PROGRESS.md)。
+普通 API 与跨库组合见 [Cone 测试](tests/client/dsl_builders.scoop)，独立外部协议 peer 见 [外部 HTTP peer](../../../tests/fixtures/libraries/client-network/peer.py)；实施与三目标验收状态见 [M54 进度](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone54/PROGRESS.md)。

@@ -1,4 +1,4 @@
-//! Unified declaration-call resolution (M16, `docs/milestone16/DESIGN.md`).
+//! Overload candidate collection, applicability and selection for declaration calls.
 //! The caller probes lexical/member/import layers in priority order and stops
 //! at the first layer containing at least one applicable candidate. This
 //! module resolves one such layer:

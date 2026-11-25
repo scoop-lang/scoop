@@ -1,6 +1,6 @@
 # Scoop 异步 I/O 库规范
 
-版本：M49／M54／M59。本文规定普通 Cone `scoop:scoop.asyncio:0.1.0` 的合同；既有能力三目标验证见 [M49 验收](../milestone49/ACCEPTANCE.md)，第 9 节扩展见 [M54 实施记录](../milestone54/PROGRESS.md)，第 10 节 TTY 见 [M59 实施记录](../milestone59/PROGRESS.md)。
+本文规定普通 Cone `scoop.asyncio` 的异步 I/O、事件循环、缓冲区及终端流合同。
 
 第 1～10 节规定公共 I/O 语义，第 11 节规定平台后端与宿主接入合同。实施状态与验证范围见 [实施记录](../asyncio-backends/PROGRESS.md)。详细拆分、平台映射与验收见 [EventLoop 后端设计](../asyncio-backends/DESIGN.md)。
 
@@ -219,7 +219,7 @@ Windows 普通文件由 worker 以不可继承的 FILE_FLAG_OVERLAPPED HANDLE �
 
 native request 持有预留完成节点；C callback 仅存状态和进度、入 native 队列，managed 在 NativeSafe 返回握手后消费。操作编号在完成消费前不复用。managed 使用普通带类型操作与结果，不以可空字段猜测不同事件。提交同步失败走同一释放路径。后端及相关系统库按语言规范 12.2.1～12.2.3 的普通 native 输入链接。
 
-主要验收为同 Cone scoop.test：真实 loopback 动态端口、无公网 DNS、真实文件、Context、取消／关闭竞争、部分进度、原始错误、SIGPIPE 及 moving GC。竞争用明确同步点，测试源码和工具始终存在。详细边界见 [M49 设计第 14 节](../milestone49/DESIGN.md#142-异步-io)。
+主要验收为同 Cone scoop.test：真实 loopback 动态端口、无公网 DNS、真实文件、Context、取消／关闭竞争、部分进度、原始错误、SIGPIPE 及 moving GC。竞争用明确同步点，测试源码和工具始终存在。详细边界见 [M49 设计第 14 节](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone49/DESIGN.md#142-异步-io)。
 
 ## 9. M54 基础能力补齐
 

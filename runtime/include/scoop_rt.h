@@ -1,10 +1,6 @@
-/* Scoop runtime: object model and native FFI entry points.
- *
- * See docs/specs/SCOOP-RUNTIME-SPEC.md section 2 (object model) and
- * docs/milestone2/DESIGN.md section 3 (M2 runtime additions). M9
- * (docs/milestone9/DESIGN.md section 2) replaces the always-leak
- * allocator with the Immix-core GC in runtime/src/gc/ and widens the
- * object header to 16 bytes.
+/* Public C interface for Scoop's object model and runtime services.
+ * Object layout, rooting and call requirements are defined in
+ * docs/specs/SCOOP-RUNTIME-SPEC.md, sections 2 through 4.
  */
 #ifndef SCOOP_RT_H
 #define SCOOP_RT_H

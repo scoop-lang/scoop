@@ -14,4 +14,4 @@ driver 内部测试保留 source/provider 归属、完整选择集、helper 配�
 定点损坏检查继续执行；外来 helper 不在消费方重复发射本地定义。
 
 原重复的文件快照和更新环境变量已删除，完整迁移对照见
-`../../../docs/milestone23/stage11/CLI-LAYOUT-DEPENDENCIES.md`。
+[CLI-LAYOUT-DEPENDENCIES.md](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone23/stage11/CLI-LAYOUT-DEPENDENCIES.md)。

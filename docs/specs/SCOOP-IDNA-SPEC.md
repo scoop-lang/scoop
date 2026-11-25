@@ -1,6 +1,6 @@
 # Scoop IDNA 库规范
 
-版本：M61。提供独立普通 Cone `scoop:scoop.idna:0.1.0`，依赖 core、std；使用者包括 [URL 库](SCOOP-URL-SPEC.md)和 HTTP 域名处理。IDNA 不依赖 URL、HTTP、TLS 或 asyncio，不执行 DNS，也不维护公共后缀名单。迁移范围及实际验证进度见 [M61 设计](../milestone61/DESIGN.md)与[进度](../milestone61/PROGRESS.md)。
+普通 Cone `scoop.idna` 依赖 core 和 std，为 URL 与 HTTP 域名处理提供国际化域名转换。URL 解析规则见[URL 库规范](SCOOP-URL-SPEC.md)。
 
 ## 1. 实现选择
 

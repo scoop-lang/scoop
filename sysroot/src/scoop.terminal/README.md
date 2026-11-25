@@ -5,7 +5,7 @@ The compatibility baseline is crossterm 0.29.0. Production code uses Scoop and
 small native platform shims; Rust is used only by the PTY test host.
 
 Public contracts: [terminal specification](../../../docs/specs/SCOOP-TERMINAL-SPEC.md).
-Implementation status: [M59 progress](../../../docs/milestone59/PROGRESS.md).
+Implementation status: [M59 progress](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone59/PROGRESS.md).
 
 The translated terminal commands and protocol behavior derive from crossterm.
 Its MIT license is retained in `LICENSE-crossterm`.

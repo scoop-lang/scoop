@@ -34,4 +34,4 @@ ar rcs "$work/libm34_container_bench.a" "$work/phases.o"
 SCOOP_GC_STATS=1 SCOOP_BENCH_KIND=0 SCOOP_BENCH_COUNT=262144 "$work/containers"
 ```
 
-Linux 各个构建命令增加 `--target x86_64-unknown-linux-gnu` 和当前工具链的 `--unwind-prefix`。正式对照每组七轮，逐轮交换旧／新顺序；关闭继承的 stress、full-only 和 worker 覆盖，只保留默认 GC 策略。构建、测试与清理均在计时之外。原始构建命令、全部样本和结果见 [M34 性能记录](../../../docs/milestone34/PERFORMANCE.md)。
+Linux 各个构建命令增加 `--target x86_64-unknown-linux-gnu` 和当前工具链的 `--unwind-prefix`。正式对照每组七轮，逐轮交换旧／新顺序；关闭继承的 stress、full-only 和 worker 覆盖，只保留默认 GC 策略。构建、测试与清理均在计时之外。原始构建命令、全部样本和结果见 [M34 性能记录](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone34/PERFORMANCE.md)。

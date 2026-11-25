@@ -65,6 +65,6 @@ Unicode 无字节序名称仍要求 BOM 或显式字节序。ISO-8859-1 保留 C
 
 `ARMSCII-8`, `BIG5-HKSCS`, `BIG5-HKSCS:1999`, `BIG5-HKSCS:2001`, `BIG5-HKSCS:2004`, `C99`, `CP1131`, `CP1133`, `CP850`, `CP862`, `CP932`, `CP936`, `CP949`, `CP950`, `EUC-CN`, `EUC-TW`, `GB18030:2022`, `GB_1988-80`, `GB_2312-80`, `GEORGIAN-ACADEMY`, `GEORGIAN-PS`, `HP-ROMAN8`, `HZ`, `ISO-2022-CN`, `ISO-2022-CN-EXT`, `ISO-2022-JP-1`, `ISO-2022-JP-2`, `ISO-2022-JP-MS`, `ISO-2022-KR`, `ISO-8859-11`, `ISO-8859-9`, `ISO-IR-165`, `JAVA`, `JIS_C6220-1969-RO`, `JIS_X0201`, `JIS_X0208`, `JIS_X0212`, `JOHAB`, `KOI8-RU`, `KOI8-T`, `KSC_5601`, `MACARABIC`, `MACCENTRALEUROPE`, `MACCROATIAN`, `MACGREEK`, `MACHEBREW`, `MACICELAND`, `MACROMANIA`, `MACTHAI`, `MACTURKISH`, `MACUKRAINE`, `MULELAO-1`, `NEXTSTEP`, `PT154`, `RK1048`, `TCVN`, `TIS-620`, `UCS-2`, `UCS-2BE`, `UCS-2LE`, `UCS-4`, `UCS-4BE`, `UCS-4LE`, `UTF-7`, `VISCII`.
 
-另外移除原 GB18030 的年份别名 `GB18030:2005`。旧全集的逐项对照见 [M61 覆盖核对](../../../docs/milestone61/CHARSET-COVERAGE.md)。
+另外移除原 GB18030 的年份别名 `GB18030:2005`。旧全集的逐项对照见 [M61 覆盖核对](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone61/CHARSET-COVERAGE.md)。
 
 依据：[encoding_rs 0.8.42](https://docs.rs/encoding_rs/0.8.42/encoding_rs/)、[GB18030 映射说明](https://docs.rs/encoding_rs/0.8.42/encoding_rs/static.GB18030.html)、[WHATWG Encoding](https://encoding.spec.whatwg.org/)。

@@ -85,4 +85,4 @@ Source 读到 EOF 时完成相应的格式终结与检查；提前关闭 Source 
 
 需要自行管理输入／输出缓冲时，使用 `CompressionEncoder`／`CompressionDecoder` 的增量接口，并按 `NeedInput`、`NeedOutput`、`Finished` 推进。WebSocket 使用 `DeflateMessageEncoder`／`DeflateMessageDecoder` 表达 RFC 7692 消息边界、flush、窗口与 context takeover；协议库通过此公共接口组合压缩消息。
 
-完整合同见 [压缩规范](../../../docs/specs/SCOOP-COMPRESSION-SPEC.md)。可运行的内存、真实文件、TCP、取消和独立格式互操作组合见 `tests/fixtures/m54-compression`、`m54-compression-streams`、`m54-compression-async` 和 `m54-deflate-messages`；实际三目标状态见 [M54 进度](../../../docs/milestone54/PROGRESS.md)。
+完整合同见 [压缩规范](../../../docs/specs/SCOOP-COMPRESSION-SPEC.md)。可运行的内存、真实文件、TCP、取消和独立格式互操作组合见 `tests/fixtures/m54-compression`、`m54-compression-streams`、`m54-compression-async` 和 `m54-deflate-messages`；实际三目标状态见 [M54 进度](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone54/PROGRESS.md)。

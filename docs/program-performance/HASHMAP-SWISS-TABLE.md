@@ -486,4 +486,4 @@ AArch64 最终机器码中，每轮组探测只读取一次 64 位 control word�
 - [robin-hood-hashing](https://github.com/martinus/robin-hood-hashing)
 - [unordered_dense](https://github.com/martinus/unordered_dense)
 - [本仓库基础容器调研](CORE-CONTAINERS-RESEARCH.md#4-hashmap-与-swiss-table)
-- [M62 HashMap 槽位掩码对照](../milestone62/EVALUATION.md#hashmap-槽位掩码)
+- [M62 HashMap 槽位掩码对照](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone62/EVALUATION.md#hashmap-槽位掩码)

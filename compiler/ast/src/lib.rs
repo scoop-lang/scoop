@@ -1,7 +1,6 @@
 //! AST definitions: the data channel between parser and HIR.
 //!
-//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.1 and
-//! `docs/milestone2/DESIGN.md` for the M2 subset.
+//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.1.
 
 mod annotations;
 mod context;

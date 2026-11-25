@@ -1,10 +1,8 @@
 //! Parser stage: source text -> AST.
 //!
-//! Hand-written lexer + recursive-descent parser for the implemented language
-//! surface, including the M21 declaration syntax; see
-//! `docs/milestone21/DESIGN.md` and
-//! `docs/specs/SCOOP-IMPL-SPEC.md` section 2.1. Depends only on
-//! the source and AST data channels.
+//! The lexer and recursive-descent parser produce a spanned AST for compilation
+//! and a lossless syntax tree for editor recovery. The two outputs share token
+//! positions and diagnostics (implementation spec sections 2.1 and 2.20).
 
 mod decl;
 mod declaration_source;

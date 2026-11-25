@@ -1,7 +1,6 @@
 //! MIR definitions and MIR meta: the data channel between MIR and LIR.
 //!
-//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.3 and
-//! `docs/milestone2/DESIGN.md` section 2.3.
+//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.3.
 //!
 //! Structural equality on aggregates is already expanded by mir-lower into
 //! primitive comparisons and runtime calls. Source integers use the closed,

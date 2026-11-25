@@ -1,6 +1,6 @@
 # Scoop HTTP 消息工具规范
 
-版本：M54，实施中。实际实现与验证见 [M54 进度](../milestone54/PROGRESS.md)。本文补充 [HTTP 规范](SCOOP-HTTP-SPEC.md)第 9 节，所有能力在 `scoop.http` 或 `scoop.http.asyncio` 中交付，不在 web client 内另建协议实现。
+本文补充 HTTP 规范第 9 节。`scoop.http` 提供消息数据和内存协议处理，`scoop.http.asyncio` 提供异步适配。[HTTP 规范](SCOOP-HTTP-SPEC.md)
 
 ## 1. 字段与标准数据
 

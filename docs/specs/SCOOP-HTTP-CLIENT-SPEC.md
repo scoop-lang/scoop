@@ -1,6 +1,6 @@
 # Scoop HTTP client 库规范
 
-版本：M54 实施中；实际完成与验证范围见[实施进度](../milestone54/PROGRESS.md)。范围、底层缺口和实施次序见 [M54 设计](../milestone54/DESIGN.md)。本规范基于 [HTTP 协议库](SCOOP-HTTP-SPEC.md)、[异步 I/O](SCOOP-ASYNCIO-SPEC.md)、[TLS](SCOOP-TLS-SPEC.md)、[URL](SCOOP-URL-SPEC.md)、[IDNA](SCOOP-IDNA-SPEC.md)、[压缩](SCOOP-COMPRESSION-SPEC.md)与[字符集](SCOOP-CHARSET-SPEC.md)的公共合同。
+本规范基于 [HTTP 协议库](SCOOP-HTTP-SPEC.md)、[异步 I/O](SCOOP-ASYNCIO-SPEC.md)、[TLS](SCOOP-TLS-SPEC.md)、[URL](SCOOP-URL-SPEC.md)、[IDNA](SCOOP-IDNA-SPEC.md)、[压缩](SCOOP-COMPRESSION-SPEC.md)与[字符集](SCOOP-CHARSET-SPEC.md)的公共合同。
 
 启动所有者的工厂必须等待子任务完成状态安装和取消监听登记后才交付对象；不能从 launch 返回或未立即写入的字段推断启动失败。等待初始化期间的取消先使子任务停止接管，再沿已有所有权边界清理；跨 executor 由同一状态锁与明确的初始化完成通知协调。
 
