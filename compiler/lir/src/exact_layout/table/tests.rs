@@ -120,6 +120,25 @@ fn layout_table_canonicalizes_roles_without_collapsing_exact_identity() {
         )
         .unwrap();
     assert_eq!(actual, expected);
+    let absent = crate::exact_layout::tests::exact(&crate::exact_layout::tests::source(
+        "Absent",
+        SourceNominalKind::Struct,
+        0,
+    ))
+    .id();
+    for table in [&expected, &actual] {
+        for record in table.records() {
+            let identity = record.identity();
+            assert_eq!(
+                table.find_exact_role(identity.exact(), identity.layout_key().representation()),
+                Some(record)
+            );
+        }
+        assert_eq!(
+            table.find_exact_role(absent, RepresentationRole::ManagedValue),
+            None
+        );
+    }
 }
 
 #[test]
@@ -161,6 +180,10 @@ fn layout_table_preserves_empty_wire() {
     )
     .unwrap();
     assert_eq!(encode(&empty).unwrap(), [0x80]);
+    assert_eq!(
+        empty.find_exact_role(unit().identity().exact(), RepresentationRole::ManagedValue),
+        None
+    );
     let raw = decode_canonical::<DecodedCanonicalExactLayoutExportsV1>(&[0x80]).unwrap();
     assert_eq!(
         raw.read(

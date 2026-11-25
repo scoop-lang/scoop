@@ -118,7 +118,6 @@ fn envelope<'data, H: CoffHeader>(
     let relocations = relocations::read(file, &symbols, machine)?;
     Ok(ValidatedObjectEnvelopeV1 {
         byte_length: bytes.len() as u64,
-        content_digest: scoop_wire::sha256(bytes),
         format: ObjectEnvelopeFormatV1::new(target, object_target),
         sections,
         symbols,

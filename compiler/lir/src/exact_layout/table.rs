@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use scoop_identity::{ConeIdentity, PersistentExactTypeId, PersistentLayoutId, RepresentationRole};
 use scoop_wire::WireError;
@@ -21,6 +21,29 @@ struct LayoutTable {
     provider: ConeIdentity,
     target: LirTargetProfile,
     records: Vec<ExactLayoutExportV1>,
+    by_exact_role: BTreeMap<(PersistentExactTypeId, RepresentationRole), usize>,
+}
+
+impl LayoutTable {
+    fn new(
+        provider: ConeIdentity,
+        target: LirTargetProfile,
+        records: Vec<ExactLayoutExportV1>,
+    ) -> Self {
+        let mut by_exact_role = BTreeMap::new();
+        for (index, record) in records.iter().enumerate() {
+            let identity = record.identity();
+            by_exact_role
+                .entry((identity.exact(), identity.layout_key().representation()))
+                .or_insert(index);
+        }
+        Self {
+            provider,
+            target,
+            records,
+            by_exact_role,
+        }
+    }
 }
 
 impl CanonicalExactLayoutExportsV1 {
@@ -66,11 +89,11 @@ impl CanonicalExactLayoutExportsV1 {
                 return Err(ExactLayoutTableError::Scan(identity.layout()));
             }
         }
-        Ok(Self(Arc::new(LayoutTable {
-            provider: foundation.producer(),
+        Ok(Self(Arc::new(LayoutTable::new(
+            foundation.producer(),
             target,
             records,
-        })))
+        ))))
     }
 
     pub fn provider(&self) -> ConeIdentity {
@@ -95,10 +118,10 @@ impl CanonicalExactLayoutExportsV1 {
         exact: PersistentExactTypeId,
         role: RepresentationRole,
     ) -> Option<&ExactLayoutExportV1> {
-        self.0.records.iter().find(|record| {
-            record.identity().exact() == exact
-                && record.identity().layout_key().representation() == role
-        })
+        self.0
+            .by_exact_role
+            .get(&(exact, role))
+            .map(|&index| &self.0.records[index])
     }
 }
 

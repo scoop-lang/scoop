@@ -1,5 +1,8 @@
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) struct NativeArchiveMemberId {
     pub input: NativeInputId,
@@ -109,11 +112,25 @@ impl NativeInputs {
         &self,
         id: NativeObjectId,
     ) -> Result<(&NativeObjectInfo, Range<usize>), LinkError> {
-        self.files[&id.input()]
-            .objects()
-            .into_iter()
-            .find(|(candidate, _, _, _)| *candidate == id)
-            .map(|(_, index, range, _)| (index, range))
+        self.files
+            .get(&id.input())
+            .and_then(|file| match (&file.content, id) {
+                (NativeContent::Object(index), NativeObjectId::Direct(_)) => {
+                    Some((index, file.slice.clone()))
+                }
+                (NativeContent::Archive(members), NativeObjectId::ArchiveMember(id)) => {
+                    // The archive reader retains every member in ordinal order,
+                    // including import members that do not have an object index.
+                    let member = members.get(usize::try_from(id.ordinal).ok()?)?;
+                    if member.id != id {
+                        return None;
+                    }
+                    member
+                        .object_index()
+                        .map(|index| (index, member.range.clone()))
+                }
+                _ => None,
+            })
             .ok_or_else(|| {
                 error(
                     scoop_source::DiagnosticCode::ICE2201,

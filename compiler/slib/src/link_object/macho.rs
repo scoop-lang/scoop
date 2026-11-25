@@ -5,7 +5,6 @@ use std::fmt;
 use object::read::macho::MachHeader as _;
 use object::read::macho::{Section as _, Segment as _};
 use object::{Endianness, macho};
-use scoop_wire::{Digest256, sha256};
 
 mod architecture;
 pub use architecture::MachOArchitecture;
@@ -24,7 +23,6 @@ pub struct ValidatedMachOObjectEnvelopeV1 {
     target: scoop_identity::TargetProfileId,
     architecture: MachOArchitecture,
     byte_length: u64,
-    content_digest: Digest256,
     section_count: u32,
     symbol_count: u32,
     relocation_count: u64,
@@ -44,10 +42,6 @@ impl ValidatedMachOObjectEnvelopeV1 {
 
     pub const fn byte_length(&self) -> u64 {
         self.byte_length
-    }
-
-    pub const fn content_digest(&self) -> Digest256 {
-        self.content_digest
     }
 
     pub const fn section_count(&self) -> u32 {
@@ -219,7 +213,6 @@ pub fn validate_macho_object_envelope_v1(
         target,
         architecture,
         byte_length,
-        content_digest: sha256(bytes),
         section_count: observed_sections.len() as u32,
         symbol_count,
         relocation_count: observed_sections

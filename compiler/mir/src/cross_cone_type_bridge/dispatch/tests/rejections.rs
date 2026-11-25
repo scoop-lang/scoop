@@ -133,7 +133,7 @@ fn slot_positions_duplicates_and_concrete_abstract_obligations_are_rejected() {
 
 #[test]
 fn cross_record_prefix_provider_order_and_closure_are_checked() {
-    let fixture = Fixture::new();
+    let mut fixture = Fixture::new();
     for change in 0..4 {
         let mut records = fixture.table().records;
         let derived = records
@@ -155,15 +155,27 @@ fn cross_record_prefix_provider_order_and_closure_are_checked() {
                 records.retain(|record| record.owner() != fixture.exact(ROOT));
             }
         }
-        let error =
-            CanonicalMirDispatchSchemasV1::try_new(fixture.authority(), records).unwrap_err();
-        assert!(matches!(
-            (change, error),
-            (0, MirDispatchSchemaError::BasePrefix { .. })
-                | (1, MirDispatchSchemaError::InterfaceOrder { .. })
-                | (2, MirDispatchSchemaError::InterfaceClosure { .. })
-                | (3, MirDispatchSchemaError::MissingSchema { .. })
-        ));
+        let decoded: DecodedCanonicalMirDispatchSchemasV1 = decode_canonical(
+            &encode(&CanonicalMirDispatchSchemasV1 {
+                records: records.clone(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        for error in [
+            CanonicalMirDispatchSchemasV1::try_new(fixture.authority(), records).unwrap_err(),
+            decoded
+                .validate(&mut fixture.graph, &fixture.types, &fixture.callables)
+                .unwrap_err(),
+        ] {
+            assert!(matches!(
+                (change, error),
+                (0, MirDispatchSchemaError::BasePrefix { .. })
+                    | (1, MirDispatchSchemaError::InterfaceOrder { .. })
+                    | (2, MirDispatchSchemaError::InterfaceClosure { .. })
+                    | (3, MirDispatchSchemaError::MissingSchema { .. })
+            ));
+        }
     }
 }
 
@@ -178,8 +190,19 @@ fn canonical_tables_reject_inheritance_cycles_and_duplicate_owners() {
     ));
     let records = fixture.table().records;
     fixture.set_edges(ROOT, None, &[DIAMOND]);
+    let decoded: DecodedCanonicalMirDispatchSchemasV1 = decode_canonical(
+        &encode(&CanonicalMirDispatchSchemasV1 {
+            records: records.clone(),
+        })
+        .unwrap(),
+    )
+    .unwrap();
     assert!(matches!(
         CanonicalMirDispatchSchemasV1::try_new(fixture.authority(), records),
+        Err(MirDispatchSchemaError::InheritanceCycle { .. })
+    ));
+    assert!(matches!(
+        decoded.validate(&mut fixture.graph, &fixture.types, &fixture.callables),
         Err(MirDispatchSchemaError::InheritanceCycle { .. })
     ));
 }

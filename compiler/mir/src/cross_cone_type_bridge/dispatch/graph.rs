@@ -52,6 +52,9 @@ impl MirDispatchSchemaAuthority<'_> {
         receiver: PersistentExactTypeId,
     ) -> Result<Vec<PersistentExactTypeId>, MirDispatchSchemaError> {
         let backing = self.type_export(owner)?;
+        if owner == receiver {
+            return Ok(vec![owner]);
+        }
         if let MirTypeRepresentationV1::BoxedValue { payload } = backing.representation()
             && payload.value == receiver
         {
@@ -115,19 +118,20 @@ impl MirDispatchSchemaAuthority<'_> {
     }
 
     fn ancestry(&self, owner: PersistentExactTypeId) -> Result<Ancestry, MirDispatchSchemaError> {
-        let maximum = self.types.record_count();
-        let mut nodes = reserve(maximum)?;
-        let mut indexes = HashMap::new();
-        scoop_wire::allocation::try_reserve_map(&mut indexes, maximum, &WirePath::root())?;
         self.type_export(owner)?;
+        let mut nodes = reserve(1)?;
+        let mut indexes = HashMap::new();
+        scoop_wire::allocation::try_reserve_map(&mut indexes, 1, &WirePath::root())?;
         nodes.push((owner, None));
         indexes.insert(owner, 0);
         let mut cursor = 0;
         while cursor < nodes.len() {
             for next in self.neighbors(nodes[cursor].0)? {
                 self.type_export(next)?;
-                if let std::collections::hash_map::Entry::Vacant(entry) = indexes.entry(next) {
-                    entry.insert(nodes.len());
+                if !indexes.contains_key(&next) {
+                    scoop_wire::allocation::try_reserve(&mut nodes, 1, &WirePath::root())?;
+                    scoop_wire::allocation::try_reserve_map(&mut indexes, 1, &WirePath::root())?;
+                    indexes.insert(next, nodes.len());
                     nodes.push((next, Some(cursor)));
                 }
             }
@@ -148,11 +152,13 @@ impl MirDispatchSchemaAuthority<'_> {
         if done.contains(&owner) {
             return Ok(());
         }
+        scoop_wire::allocation::try_reserve(active, 1, &WirePath::root())?;
         active.push(owner);
         for next in self.neighbors(owner)? {
             self.check_cycles(next, active, done)?;
         }
         active.pop();
+        scoop_wire::allocation::try_reserve_set(done, 1, &WirePath::root())?;
         done.insert(owner);
         Ok(())
     }
@@ -162,8 +168,20 @@ impl MirDispatchSchemaAuthority<'_> {
         table: &CanonicalMirDispatchSchemasV1,
         dependencies: &[&CanonicalMirDispatchSchemasV1],
     ) -> Result<(), MirDispatchSchemaError> {
+        for record in table.records() {
+            self.validate_record(record)?;
+        }
+        self.validate_relationships_with_dependencies(table, dependencies)
+    }
+
+    // The reader has already checked each record against these same lookups.
+    pub(super) fn validate_relationships_with_dependencies(
+        &self,
+        table: &CanonicalMirDispatchSchemasV1,
+        dependencies: &[&CanonicalMirDispatchSchemasV1],
+    ) -> Result<(), MirDispatchSchemaError> {
         if dependencies.is_empty() {
-            return self.validate_table(table, table);
+            return self.validate_relationships(table, table);
         }
         let count = dependencies
             .len()
@@ -173,26 +191,20 @@ impl MirDispatchSchemaAuthority<'_> {
         tables.push(table);
         tables.extend_from_slice(dependencies);
         let lookup = MirTypeBridgeSchemaIndexV1::try_new(&tables)?;
-        self.validate_table(table, &lookup)
+        self.validate_relationships(table, &lookup)
     }
 
-    fn validate_table(
+    fn validate_relationships(
         &self,
         table: &CanonicalMirDispatchSchemasV1,
         schemas: &dyn MirTypeBridgeSchemaLookupV1,
     ) -> Result<(), MirDispatchSchemaError> {
-        let mut active = reserve(self.types.record_count())?;
+        let mut active = Vec::new();
         let mut done = HashSet::new();
-        scoop_wire::allocation::try_reserve_set(
-            &mut done,
-            self.types.record_count(),
-            &WirePath::root(),
-        )?;
         for record in table.records() {
             self.check_cycles(record.owner(), &mut active, &mut done)?;
         }
         for record in table.records() {
-            self.validate_record(record)?;
             let ty = self.type_export(record.owner())?;
             if let MirBaseClassV1::Base(base) = ty.base_and_interfaces().base {
                 let base = schemas

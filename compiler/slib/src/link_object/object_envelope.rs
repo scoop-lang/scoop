@@ -3,7 +3,6 @@
 use std::num::NonZeroU32;
 
 use scoop_identity::TargetProfileId;
-use scoop_wire::Digest256;
 
 use super::MachORelocationShapeV1;
 
@@ -52,7 +51,6 @@ impl ObjectEnvelopeFormatV1 {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedObjectEnvelopeV1 {
     pub(super) byte_length: u64,
-    pub(super) content_digest: Digest256,
     pub(super) format: ObjectEnvelopeFormatV1,
     pub(super) sections: Vec<ObservedObjectSectionV1>,
     pub(super) symbols: Vec<ObservedObjectSymbolV1>,
@@ -62,9 +60,6 @@ pub struct ValidatedObjectEnvelopeV1 {
 impl ValidatedObjectEnvelopeV1 {
     pub const fn byte_length(&self) -> u64 {
         self.byte_length
-    }
-    pub const fn content_digest(&self) -> Digest256 {
-        self.content_digest
     }
     pub const fn format(&self) -> &ObjectEnvelopeFormatV1 {
         &self.format

@@ -47,11 +47,11 @@ impl DecodedCanonicalExactLayoutExportsV1 {
             .into_iter()
             .map(|record| record.finish(foundation, identities))
             .collect::<Result<_, _>>()?;
-        Ok(CanonicalExactLayoutExportsV1(Arc::new(LayoutTable {
-            provider: foundation.producer(),
+        Ok(CanonicalExactLayoutExportsV1(Arc::new(LayoutTable::new(
+            foundation.producer(),
             target,
             records,
-        })))
+        ))))
     }
 }
 

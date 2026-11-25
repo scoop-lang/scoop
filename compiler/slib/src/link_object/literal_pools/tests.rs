@@ -171,7 +171,6 @@ fn table() -> (Vec<u8>, ValidatedBuiltinObjectSectionInventoryV1) {
     ];
     let envelope = ValidatedObjectEnvelopeV1 {
         byte_length: bytes.len() as u64,
-        content_digest: scoop_wire::sha256(&bytes),
         format: ObjectEnvelopeFormatV1::new(
             scoop_target_data::DARWIN_AARCH64_ID,
             scoop_lir::ObjectTargetProfileV1::MachOAarch64,

@@ -6,7 +6,6 @@ impl From<ValidatedMachOObjectEnvelopeV1> for ValidatedObjectEnvelopeV1 {
         let machine = envelope.architecture().object_machine();
         Self {
             byte_length: envelope.byte_length(),
-            content_digest: envelope.content_digest(),
             format: ObjectEnvelopeFormatV1::new(
                 envelope.target(),
                 match envelope.architecture() {
