@@ -10,7 +10,7 @@ import scoop.window.native.*
 
 @Test
 private class NativeGestureTest {
-    @Test
+    @Test(useProcess = true)
     fun `AppKit responders normalize gesture units and retire each native sequence once`() {
         val probe = NativeGestureProbe()
         Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(probe)

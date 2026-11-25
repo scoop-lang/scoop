@@ -14,7 +14,7 @@ import scoop.window.*
 
 @Test
 private class VirtualNavigationTest {
-    @Test
+    @Test(useProcess = true)
     fun `real Tab and arrows traverse lazy rows nested lists and roving history through accepted geometry`() {
         val probe = ItemNavigationProbe()
         try {

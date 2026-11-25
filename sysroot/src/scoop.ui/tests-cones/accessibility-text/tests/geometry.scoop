@@ -17,7 +17,7 @@ import scoop.window.native.*
 
 @Test
 private class AccessibleTextGeometryTest {
-    @Test
+    @Test(useProcess = true)
     fun `accepted transformed text follows scrolling content and binding lifetime`() {
         FontCollection(false).use {
             fonts ->

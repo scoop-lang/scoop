@@ -17,7 +17,7 @@ import scoop.window.native.*
 
 @Test
 private class ChartContactTest {
-    @Test
+    @Test(useProcess = true)
     fun `touch and pen select chart data without hover and cancelled drags do not select`() {
         val p = ChartContactProbe()
         try {

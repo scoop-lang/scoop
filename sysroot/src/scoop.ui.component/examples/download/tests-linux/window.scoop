@@ -23,7 +23,7 @@ import scoop.window.asyncio.*
 
 @Test
 private class LinuxDownloadWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `Linux GLES UI shares the I/O loop downloads verifies cancels and closes pending work`() {
         val probe = LinuxDownloadProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

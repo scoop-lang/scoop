@@ -1,5 +1,6 @@
 use scoop_manifest::package::{
-    DependencyDeclaration, GitReference, InheritableValue, PackageSource, PublishConfig,
+    DependencyDeclaration, DependencyValue, GitReference, InheritableValue, PackageSource,
+    PublishConfig,
 };
 
 use super::*;
@@ -95,6 +96,7 @@ pub fn published_manifest(
             .any(|dependency| dependency.key == core_key)
     {
         dependencies.push(RegistryDependency {
+            when: None,
             key: core_key,
             version: "=0.1.0".parse().expect("fixed core requirement is valid"),
             source: RegistrySource::Sysroot,
@@ -108,7 +110,7 @@ fn published_dependency(
     key: &DependencyCoordinateKey,
     declaration: &DependencyDeclaration,
 ) -> PmResult<RegistryDependency> {
-    let DependencyDeclaration::Request(request) = declaration else {
+    let DependencyValue::Request(request) = &declaration.value else {
         return Err(PmError::new(
             scoop_source::DiagnosticCode::E2121,
             format!("published dependency {key} must expand workspace inheritance"),
@@ -158,6 +160,7 @@ fn published_dependency(
         }
     };
     Ok(RegistryDependency {
+        when: declaration.when.clone(),
         key: key.clone(),
         version,
         source,

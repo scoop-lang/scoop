@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class RetainedVirtualListTest {
-    @Test
+    @Test(useProcess = true)
     fun `bounded item retention preserves state and resources while cached work stays off the display clock`() {
         val probe = RetentionProbe()
         try {

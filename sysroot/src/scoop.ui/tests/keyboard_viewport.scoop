@@ -9,7 +9,7 @@ import scoop.window.*
 
 @Test
 private class KeyboardViewportTest {
-    @Test
+    @Test(useProcess = true)
     fun `accepted scroll paths reveal around actual keyboard rectangles and retire their insets`() {
         val p = KeyboardViewportProbe()
         UiHost { host, active, event -> p.event(host, active, event) }.use {

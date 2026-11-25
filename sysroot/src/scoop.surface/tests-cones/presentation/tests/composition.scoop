@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class CompositionTest {
-    @Test
+    @Test(useProcess = true)
     fun `transparent windows preserve premultiplied alpha through desktop composition`() {
         val probe = CompositionProbe()
         val host = SurfaceHost { owner, active, event -> probe.event(owner, active, event) }

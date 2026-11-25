@@ -6,7 +6,7 @@ import scoop.window.platform.windows.*
 
 @Test
 private class NativeFrameTests {
-    @Test
+    @Test(useProcess = true)
     @Ignore("Requires a Windows desktop session; run separately with --ignored")
     fun `native frames regions and input uses survive mode changes and retire in order`() {
         runFrameProbe(verifyButtons = { window -> verifyWindowsButtonActions(window) }) {

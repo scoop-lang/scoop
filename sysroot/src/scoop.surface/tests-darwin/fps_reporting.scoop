@@ -29,7 +29,7 @@ private class SurfaceFpsReportingTest {
         checkReporting(true, Some("1"), true)
     }
 
-    @Test
+    @Test(useProcess = true)
     @Ignore("Launched in a separate process by the FPS reporting test")
     fun renderFrames() {
         if (environmentVariable(configureFps) != None) configureFpsReportingFromEnvironment()

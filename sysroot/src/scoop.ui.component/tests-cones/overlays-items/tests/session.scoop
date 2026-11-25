@@ -18,7 +18,7 @@ import scoop.window.*
 
 @Test
 private class OverlayItemUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `controlled exits hover corridors and virtual active items retain their input owners`() {
         val probe = InteractionProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

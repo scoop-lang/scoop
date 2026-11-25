@@ -59,7 +59,7 @@ impl Manifests {
         let cached_record = self
             .cache
             .as_ref()
-            .map(|cache| cache.locked_input_record("manifests-v5", &path, &stamp, &[]))
+            .map(|cache| cache.locked_input_record("manifests-v6", &path, &stamp, &[]))
             .transpose()?;
         let record_path = cached_record.as_ref().map(|(path, _guard)| path);
         let record = record_path.as_ref().map(std::fs::read).transpose();

@@ -142,44 +142,52 @@ impl Lowerer {
                 state.current_file = container.origin.file as usize;
                 state.set_source_context(hir::SourceContextSubject::Function(entry));
                 for case in &container.cases {
-                    let selected = state.test_case_selected(arguments.clone(), index, case, &mut statements);
+                    let selected =
+                        state.test_case_selected(arguments.clone(), index, case, &mut statements);
                     index += 1;
                     let Some(selected) = selected else {
                         continue;
                     };
                     let mut case_body = Vec::new();
-                    if let Some(result) =
-                        state.generate_test_case(entry, index - 1, &container, case, &mut case_body)
-                    {
+                    if let Some(result) = state.generate_test_case(
+                        entry,
+                        arguments.clone(),
+                        index - 1,
+                        &container,
+                        case,
+                        &mut case_body,
+                    ) {
                         let span = case.method.origin.span;
-                        let Some(passed) = state.named_enum_variant(result.ty, "Passed") else {
-                            state.error(scoop_source::DiagnosticCode::E1403, span, "test execution requires runReportedTestCase to return TestResult with a Passed variant".into());
+                        if !state.types_equal(result.ty, state.boolean) {
+                            state.error(
+                                scoop_source::DiagnosticCode::E1403,
+                                span,
+                                "test execution requires runSelectedTestCase to return Boolean"
+                                    .into(),
+                            );
                             continue;
-                        };
+                        }
                         case_body.push(hir::Statement {
                             span,
-                            kind: hir::StatementKind::When(hir::When::Subject {
-                                subject: result,
-                                arms: vec![hir::WhenArm {
-                                    condition: hir::WhenCondition::Case(hir::Pattern::Variant {
-                                        application: passed,
-                                        fields: Vec::new(),
-                                    }),
-                                    guard: None,
-                                    body: vec![hir::Statement {
-                                        span,
-                                        kind: hir::StatementKind::Expr(state.unit_expression(span)),
-                                    }],
+                            kind: hir::StatementKind::If {
+                                cond: hir::Expr {
+                                    kind: hir::ExprKind::Unary {
+                                        op: hir::UnOp::Not,
+                                        operand: Box::new(result),
+                                    },
+                                    ty: state.boolean,
                                     span,
-                                }],
-                                fallback: hir::WhenFallback::Else(vec![hir::Statement {
+                                    origin: state.expression_origin(span),
+                                },
+                                then_body: vec![hir::Statement {
                                     span,
                                     kind: hir::StatementKind::Assign {
                                         target: hir::AssignTarget::Local(status),
                                         value: state.test_integer(1, span),
                                     },
-                                }]),
-                            }),
+                                }],
+                                else_body: None,
+                            },
                         });
                         statements.push(hir::Statement {
                             span,
@@ -194,25 +202,34 @@ impl Lowerer {
             }
             state.current_file = file;
             state.set_source_context(hir::SourceContextSubject::Function(entry));
-            if index > 0 && state.diagnostics.is_empty()
-                && let Some(completed) = state.test_api_call("completeTestRun", Vec::new(), span, &mut statements)
+            let mut exit = hir::Expr {
+                kind: hir::ExprKind::Local(status),
+                ty: int,
+                span,
+                origin: state.expression_origin(span),
+            };
+            if index > 0
+                && state.diagnostics.is_empty()
+                && let Some(completed) = state.test_api_call(
+                    "finishTestRun",
+                    vec![arguments, exit.clone()],
+                    span,
+                    &mut statements,
+                )
             {
-                if !state.types_equal(completed.ty, state.unit) {
-                    state.error(scoop_source::DiagnosticCode::E1403, span, "test execution requires completeTestRun to return Unit".into());
+                if state.types_equal(completed.ty, int) {
+                    exit = completed;
                 } else {
-                    statements.push(hir::Statement { span, kind: hir::StatementKind::Expr(completed) });
+                    state.error(
+                        scoop_source::DiagnosticCode::E1403,
+                        span,
+                        "test execution requires finishTestRun to return Int".into(),
+                    );
                 }
             }
             statements.push(hir::Statement {
                 span,
-                kind: hir::StatementKind::Return {
-                    value: hir::Expr {
-                        kind: hir::ExprKind::Local(status),
-                        ty: int,
-                        span,
-                        origin: state.expression_origin(span),
-                    },
-                },
+                kind: hir::StatementKind::Return { value: exit },
             });
             statements
         });

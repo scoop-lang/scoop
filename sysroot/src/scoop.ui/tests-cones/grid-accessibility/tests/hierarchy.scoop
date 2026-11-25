@@ -13,11 +13,11 @@ import scoop.window.native.*
 
 @Test
 private class NativeHierarchyTest {
-    @Test
+    @Test(useProcess = true)
     fun `lazy table hierarchy actions use metadata without building or focusing rows`() {
         runHierarchy(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `data collection hierarchy actions share the same mutation and retirement boundary`() {
         runHierarchy(true)
     }

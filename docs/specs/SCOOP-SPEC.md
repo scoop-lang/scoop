@@ -3005,7 +3005,7 @@ kind = "library" # 或 "executable"、"native-app"
 - dependency key是exact `group:name`，version是包管理规范2.2的要求；`"1.2.3"`默认caret，`"=1.2.3"`才是精确固定。来源可为path、Git/GitHub、registry、显式artifact或默认系统库。PM按完整闭包选择版本，写入`Cone.lock`；driver与编译器只消费精确绑定；
 - 没有显式来源的普通依赖使用明确配置的registry；`group = "scoop"`继续使用显式artifact search roots及`<sysroot>/lib/<canonical-target-triple>/<name>.slib`，core另遵守12.6。系统库必须匹配key并满足版本要求，且为当前目标的普通library。显式来源失败或不兼容时直接报错，不切换来源、读取随包源码或自动重建；
 - locator及registry URL、Git commit用于依赖选择、lock与构建更新，不进入ConeIdentity、实体identity、`.slib`语言身份、初始化顺序或源码诊断identity。相对路径以声明它的manifest为基准，workspace共享值以定义处为基准。所选source/artifact必须匹配key和版本要求；同坐标不同来源不能被静默合并；
-- 首版不提供`latest`、optional/build dependency、feature、依赖platform条件或alias；测试依赖见12.2.4。workspace、获取、求解及lock由独立`scoop-pm`负责；`scoop`消费lock的精确图及本地输入并编排构建；`scoopc`只接收具体编译配置和依赖参数，不读取Cone.toml/Cone.lock或匹配版本要求。native C++模式见12.2.1；
+- 生产与测试依赖的表值支持可选的 `when`，按 12.2.2 的目标条件选择直接依赖，语法及求解顺序见[包管理规范 2.2](SCOOP-PACKAGE-SPEC.md#22-版本语义)。测试依赖的可见性见 12.2.4。workspace、获取、求解及 lock 由独立的 `scoop-pm` 负责，`scoop` 消费精确图及本地输入并编排构建。`scoopc` 只接收具体编译配置和依赖参数，不读取 Cone.toml/Cone.lock 或匹配版本要求。首版不提供 `latest`、optional/build dependency、feature 或 alias。native C++ 模式见 12.2.1。
 - `scoop build/run`省略root时，由PM从cwd向上定位最近Cone.toml及其所属workspace；成员内默认选该成员，workspace根使用default-members。`--workspace`或`-p group:name`显式选择，run要求唯一executable。显式`.scoop`继续使用下述独立单文件规则，不读取相邻workspace。低层`scoopc build`仍要求明确输入；
 - `scoop:single-file:0.0.0`是另一reserved coordinate，用户manifest不得声明它。`scoop build/run`收到basename扩展名精确为`.scoop`、跟随symlink后目标为已存在regular file的operand时，构造`kind = executable`、source set恰好为该文件、logical source path恒为`main.scoop`、direct Cone dependency为core、std及头部显式dep并集的typed synthetic projection；symlink cycle、dangling link或最终目标非regular file是输入错误，resolved host path不进入identity。显式文件operand即使位于某Cone目录中也不读取相邻`Cone.toml`、其他`.scoop`、C/C++ source或blob；额外依赖仅由头部 `//! dep: group:name:version` 声明，沿显式 cone-path 与 sysroot 的精确产物查找，不隐式构建相邻源码。该`.slib`可缓存，并可作为产生它的build/run或显式`scoop link --root-slib`的唯一executable root；但不能作为可分发artifact发布、作为dependency或被manifest artifact locator引用；
 - 单文件依赖头部仅到首个语言 token（包括被忽略的 package）之前；允许首行 shebang、空白和普通注释穿插。只有真实行注释 `//! dep: group:name:version` 指定精确坐标；不读取块注释、文档正文或字符串中的相似文本。dep 缺少冒号/坐标、非法 coordinate/SemVer、重复显式坐标均定位到原始注释行报错；其他 `//!` 与 token 后的所有注释按普通注释处理。默认依赖始终为 `scoop:scoop.core:0.1.0` 和 `scoop:scoop.std:0.1.0`，显式相同坐标只合并边，重复源码声明仍报错；不同版本沿现有版本冲突规则处理。普通 manifest build/test/doc 不解释这些注释。依赖不隐式导入名称，core prelude 保持；
@@ -3075,11 +3075,11 @@ when = { os = "darwin" }
 - **默认模式**：未出现顶层 `sources` 字段时，递归收集 `src/` 下扩展名精确为 `.scoop` 的 regular files。`native.sources` 不改变这一默认规则。
 - **显式模式**：出现 `sources` 字段后，它就是完整的 Scoop 源码选择清单，公共目录或公共文件也必须列出；不再隐式扫描或追加 `src/`。显式空数组、所有条件都不匹配或选中目录没有源码时，不回退到默认模式；最终源码集合为空是构建错误。
 - **路径**：`path` 是 Cone 相对的目录或单个 `.scoop` regular file，不限于 `src/`。使用 `/` 分隔，折叠重复分隔符和 `.`，并按词法消去不越出 Cone 根的 `..`；`.` 可选择 Cone 根。空路径、绝对路径、盘符前缀、反斜线、NUL 和 glob 元字符 `*?[]` 不合法，归一化结果也必须满足这些约束。目录递归收集 `.scoop` 文件。非 UTF-8、选中路径不存在或类型不符、实际 I/O 或目录遍历循环错误在 parse 前报告。symlink 按普通文件定位规则使用，不以目标是否位于 Cone 根下决定允许读取，也不审计 owner、权限或 inode。
-- **条件**：省略 `when` 表示无条件；`os ∈ {darwin, ios, linux, windows}`、`arch ∈ {aarch64, x86_64}`、`env ∈ {gnu, musl, none, simulator, msvc-ucrt, llvm-mingw-msvcrt, llvm-mingw-ucrt}`，均按构建 target 求值。`darwin` 选择 macOS 源码，`ios` 选择 iOS 源码，`env = "simulator"` 选择模拟器。多个键取“与”，同一键的字符串数组取“或”；未知字段、键、值或错误的数据类型是 manifest 错误。该谓词也用于 `native.sources` 和 `native.libraries`，不为 Cone dependency 增加平台条件。
+- **条件**：省略 `when` 表示无条件；`os ∈ {darwin, ios, linux, windows}`、`arch ∈ {aarch64, x86_64}`、`env ∈ {gnu, musl, none, simulator, msvc-ucrt, llvm-mingw-msvcrt, llvm-mingw-ucrt}`，均按构建 target 求值。`darwin` 选择 macOS 源码，`ios` 选择 iOS 源码，`env = "simulator"` 选择模拟器。多个键取“与”，同一键的字符串数组取“或”；未知字段、键、值或错误的数据类型是 manifest 错误。`native.sources`、`native.libraries` 及 12.2 的依赖条件共用该谓词。
 - **选择顺序**：先校验全部条目的字段、路径形式和 `when`，再按 target 筛选；只对选中的路径检查文件系统存在性、枚举源码并进行解析和语义检查。没有被任何匹配条目选中的文件不参与编译，不能由默认扫描补入。
 - **重叠与重复**：同一 target 下选中的目录不能相同或互相包含，选中的单文件不能同时被选中目录覆盖。重复的规范化路径、或经 symlink 解析到同一源文件的重复选择，均报构建错误并指出相关条目；不静默去重，不定义先后覆盖。互斥条件在不同 target 选中同一路径不构成重复。
 - **确定性**：最终文件按完整的 normalized Cone-relative `/` path 的 UTF-8 byte order 排序。相同文件的 source identity 不因显式/默认选择、清单顺序或源码根分组改变。源码选择与缓存规则见实现规范 2.1、2.7。
-- **范围**：single-file 模式继续只编译指定文件，不读取相邻清单。平台条件仅选择文件或目录，不提供 Scoop 文件内条件编译、声明级 `@Target` 或 `expect`/`actual`。
+- **范围**：single-file 模式继续只编译指定文件，不读取相邻清单。本节的 `sources` 条目选择整个文件或目录，不提供 Scoop 文件内条件编译、声明级 `@Target` 或 `expect`/`actual`。
 
 #### 12.2.3 Native 系统库
 
@@ -3971,7 +3971,9 @@ assertFailsWith 同步调用 block 一次，捕获 Throwable 后按普通 `is E`
 
 ### 16.3 测试标记与声明
 
-测试库在 `scoop.test` package 声明四个公开、不可重复的普通注解：`Test` 的 Target 为 Class 与 Function，`BeforeTest`、`AfterTest`、`Ignore` 的 Target 为 Function。前三者无参数，Ignore 有一个必需的 `val reason: String` 参数。参数求值、Target、重复应用与 import 沿用 9.4；编译器按 `scoop:scoop.test:0.1.0` 中这些真实声明的 typed annotation identity 识别测试语义，alias 与 re-export 保留作用，同名用户注解不因此变成测试标记。
+测试库在 `scoop.test` package 声明四个公开、不可重复的普通注解。`Test` 的 Target 为 Class 与 Function，`BeforeTest`、`AfterTest`、`Ignore` 的 Target 为 Function。`BeforeTest` 和 `AfterTest` 无参数，`Ignore` 有一个必需的 `val reason: String` 参数。参数求值、Target、重复应用与 import 沿用 9.4。编译器按 `scoop:scoop.test:0.1.0` 中这些真实声明的 typed annotation identity 识别测试语义，alias 与 re-export 保留作用，同名用户注解不因此变成测试标记。
+
+`Test` 的声明为 `public annotation class Test(val useProcess: Boolean = false)`。用例方法或其直接容器上的 `useProcess` 为 true 时，该方法的整个生命周期在一个新进程中执行。容器上的设置逐用例生效，两个方法分别得到两个进程。`@Test` 和 `@Test(useProcess = false)` 等价。
 
 四种标记的应用只允许出现在 12.2.4 的测试源码集合，普通生产源码上的应用是编译错误。声明这些 annotation class 的测试库源码仍属于普通生产输入。标记只产生编译期语义，不物化为运行期注解对象。
 
@@ -3991,6 +3993,8 @@ Test 用例、BeforeTest 和 AfterTest 必须是该容器直接声明、具有�
 
 每个选中用例串行完成实例初始化、可选 BeforeTest、测试正文与可选 AfterTest，再开始下一个用例。初始化包括默认实参、字段初始化、构造和 init；成功取得实例后，后续三个阶段使用同一实例。初始化抛出 Throwable 时跳过其余阶段；BeforeTest 抛出时跳过正文但仍执行 AfterTest；正文抛出时仍执行 AfterTest。AfterTest 至多执行一次；若已有失败，清理失败单独保留，不覆盖原失败。忽略或未选中用例不进入这一流程。
 
+按 16.3，生成的测试入口对选中的隔离用例启动同一个可执行文件，等待其退出并取得结构化结果与标准流。子进程中断归于该用例，父进程可继续执行本轮其余用例。直接运行测试程序同样执行注解指定的隔离。整 Cone 配置、捕获与退出状态的合并见[条件依赖与测试进程设计](../conditional-dependencies-and-test-processes/DESIGN.md#测试进程)。
+
 `scoop.test.execution` 提供入口适配使用的普通库接口，不增加编译器 intrinsic、反射或 fixture 工厂：
 
 ```scoop
@@ -4008,14 +4012,18 @@ public fun isTestSelected(arguments: Array<String>, caseIndex: String,
     ignored: Boolean, caseName: String = ""): Boolean
 public fun runReportedTestCase(caseIndex: String, location: SourceLocation,
     initialize: () -> TestActions): TestResult
+public fun runSelectedTestCase(arguments: Array<String>, caseIndex: String,
+    caseName: String, useProcess: Boolean, location: SourceLocation,
+    initialize: () -> TestActions): Boolean
 public fun completeTestRun(): Unit
+public fun finishTestRun(arguments: Array<String>, status: Int): Int
 ```
 
 调用适配在 initialize 回调实际执行时调用已解析的构造器，再将捕获该实例不可变引用的正文和可选 hooks 组成 TestActions 返回；不预建实例，也不捕获可变局部变量。TestAction 保存已解析方法的 typed 动作与声明位置。runTestCase 的 location 对应实例初始化位置；它和 TestAction 的默认位置供普通源码调用使用，合成适配显式传递对应的源码位置。runTestCase 同步调用初始化回调与后续动作，捕获普通 Throwable 并返回 Passed 或 Failed。Failed 的第一项保存首次失败，第二项仅保存该失败之后的 AfterTest 失败；只有清理失败时，第一项的阶段为 AfterTest，第二项为 None。
 
 TestFailure 保留捕获后的 managed Throwable，遵守 16.2 与运行时规范 5.3～5.4 的异常引用规则。cause 为 AssertionFailure 时 location 使用断言自己的位置，否则使用当前动作的位置；原始异常数据不渲染、不丢弃。finally、Context 与 GC 沿普通调用和异常规则执行。panic、abort、native crash 和进程退出不在此捕获范围内，进程结果由测试命令另行报告。
 
-合成入口通过 runReportedTestCase 包围上述执行：先记录开始，再调用 runTestCase，在完整生命周期结束后记录单调耗时、结果及首次／清理失败；全部选中用例结束后调用 completeTestRun。没有父命令设置的结果通道时，这两个适配不捕获输出或渲染结果，直接运行仍保持普通 stdout/stderr。事件 I/O、计时和串行 stdio 重定向由 scoop.test 自身的普通 native 源码提供，不增加公共 runtime ABI。Windows 使用所选 CRT 的 descriptor 复制／恢复、宽字符结果目录和二进制输出文件，并以 QueryPerformanceCounter 计时；Unicode 结果路径和标准流字节遵守相同测试报告合同。诊断保留断言 kind/message、expected/actual 的可用／渲染失败状态和 cause；普通 Exception 使用 message，其他 Throwable 可通过 ToString 提供说明，说明转换抛出时保留固定的渲染失败说明，不覆盖原测试失败。
+合成入口调用 runSelectedTestCase。普通用例经 runReportedTestCase 执行，先记录开始，再调用 runTestCase，在完整生命周期结束后记录单调耗时、结果及首次／清理失败；父入口在 finishTestRun 中写一次完成记录，子进程交付单用例结果后退出。独立运行或开启 --nocapture 时，子进程继承 stdout/stderr。事件 I/O、计时和串行 stdio 重定向由 scoop.test 自身的普通 native 源码提供，不增加公共 runtime ABI。Windows 使用所选 CRT 的 descriptor 复制／恢复、宽字符结果目录和二进制输出文件，并以 QueryPerformanceCounter 计时；Unicode 结果路径和标准流字节遵守相同测试报告合同。诊断保留断言 kind/message、expected/actual 的可用／渲染失败状态和 cause；普通 Exception 使用 message，其他 Throwable 可通过 ToString 提供说明，说明转换抛出时保留固定的渲染失败说明，不覆盖原测试失败。
 
 测试入口接受普通 `Array<String>` 参数并返回 Int，数组按 12.4.4 包含 `argv[0]` 的启动路径。`scoop` 按已编译目录的顺序选择用例，以 `--scoop-test-cases` 后跟扁平目录下零基序号的十进制字符串传给入口；该序号仅在当前测试程序内定位目录项，不代替 callable 的实体身份。`isTestSelected` 在没有用户参数时选择未忽略用例，在上述显式清单中跳过启动路径与标记，再按 caseIndex 是否出现选择；只有选中后才进入完整生命周期。过滤与忽略选择由 `scoop` 使用目录中的完整显示名及 Ignore 信息完成，列表复用同一选择结果。
 

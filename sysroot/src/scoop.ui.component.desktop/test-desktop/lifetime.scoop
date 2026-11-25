@@ -4,7 +4,7 @@ import scoop.test.*
 
 @Test
 private class NativeDesktopLifetimeTests {
-    @Test
+    @Test(useProcess = true)
     fun `desktop elements and notification callbacks follow their application scope`() {
         runUiDesktop()
     }

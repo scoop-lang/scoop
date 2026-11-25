@@ -10,7 +10,7 @@ import scoop.test.*
 
 @Test
 private class UiApplicationTests {
-    @Test
+    @Test(useProcess = true)
     fun `application mounts update native resources and retire failures without creating a window`() {
         val probe = ApplicationProbe()
         val host =

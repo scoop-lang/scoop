@@ -17,28 +17,28 @@ import scoop.window.native.*
 
 @Test
 private class TouchScrollComponentTest {
-    @Test
+    @Test(useProcess = true)
     fun `touch scroll area preserves taps bars and cancellation through native contacts`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `touch virtual list recycles old rows while preserving the active scroll`() {
         run(true)
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `elastic scroll area keeps content geometry and follows reduced motion`() {
         run(false, true)
     }
-    @Test
+    @Test(useProcess = true)
     fun `elastic virtual list preserves legal ranges row geometry and bounded realization`() {
         run(true, true)
     }
-    @Test
+    @Test(useProcess = true)
     fun `scroll area inertia follows shared physics theme changes and unmount`() {
         run(false, inertia = true)
     }
-    @Test
+    @Test(useProcess = true)
     fun `virtual list inertia survives row recycling and stops with its viewport`() {
         run(true, inertia = true)
     }

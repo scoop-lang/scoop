@@ -35,7 +35,7 @@ from compression_backends import PACKAGES as COMPRESSION_PACKAGES
 from download_support import download_directory
 from prepare_gtk import LINK_INPUTS as GTK_LINK_INPUTS
 from prepare_gtk import TARGET as GTK_TARGET
-from prepare_sysroot import cone_order
+from prepare_sysroot import cone_order, target_dependencies
 from prepare_tray import LINK_INPUTS as TRAY_LINK_INPUTS
 from prepare_tray import TARGET as TRAY_TARGET
 from target_catalog import TARGETS, current_host, host_definition, native_target_for_host
@@ -308,7 +308,7 @@ def assemble_vendor(root, args):
 GUI_ROOT_CONES = ("scoop.window", "scoop.graphics")
 
 
-def split_gui_cones(sysroot, order):
+def split_gui_cones(sysroot, order, target):
     """Split one target's Cone order into base Cones and GUI Cones.
 
     GUI Cones are the window and graphics roots and every Cone depending on them.
@@ -325,7 +325,7 @@ def split_gui_cones(sysroot, order):
     }
     gui = set()
     for directory in order:
-        dependencies = manifests[directory].get("dependencies", {})
+        dependencies = target_dependencies(manifests[directory], target)
         if directory in GUI_ROOT_CONES or any(
             directories.get(name) in gui for name in dependencies
         ):
@@ -469,7 +469,7 @@ def assemble_bin(root, targets, args, release, extension, orders, python_version
         manifest += [
             f"{key} = {json.dumps(value)}" for key, value in release["targets"][target].items()
         ]
-        base_cones, gui_cones = split_gui_cones(sysroot, orders[target])
+        base_cones, gui_cones = split_gui_cones(sysroot, orders[target], target)
         manifest.append(f"cones = {json.dumps(base_cones)}")
         manifest.append(f"gui_cones = {json.dumps(gui_cones)}")
         (plan / f"{target}.list").write_text("\n".join(base_cones) + "\n", encoding="utf-8")
@@ -805,7 +805,7 @@ def build_release(parser, args, release, host_system):
         publish(f"bin-{args.host}", bin_root)
         publish("sources", sources_root)
         for target in targets:
-            base_cones, gui_cones = split_gui_cones(sysroot, orders[target])
+            base_cones, gui_cones = split_gui_cones(sysroot, orders[target], target)
             lib_root = base / f"lib-base-{target}"
             assemble_base_libraries(lib_root, target, args, base_cones)
             publish(f"lib-base-{target}", lib_root)

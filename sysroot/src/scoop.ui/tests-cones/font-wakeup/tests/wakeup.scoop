@@ -15,7 +15,7 @@ import scoop.window.native.*
 
 @Test
 private class FontWakeTest {
-    @Test
+    @Test(useProcess = true)
     fun `font changes wake only their readers and preserve editing across layout and visibility`() {
         FontCollection(false).use {
             first -> FontCollection(false).use {

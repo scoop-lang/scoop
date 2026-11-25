@@ -15,7 +15,7 @@ import scoop.window.native.*
 
 @Test
 private class AccessibleSelectableTest {
-    @Test
+    @Test(useProcess = true)
     fun `native selection follows inline alternative text and the real read-only host`() {
         FontCollection().use {
             fonts ->

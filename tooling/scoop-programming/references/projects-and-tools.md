@@ -52,6 +52,7 @@ kind = "executable"
 ```
 
 - 普通 manifest 默认依赖 core；std 与其他使用的库需显式声明。`"1.2.3"` 是 caret 兼容范围，`"=1.2.3"` 才是精确版本，也可使用 tilde 或比较约束；不支持 `latest`。PM 在一个程序的完整依赖图中为每个 `group:name` 选择一个版本，默认保留有效 lock，新选择优先最新兼容版本。
+- 在生产或测试依赖的表值上写 `when = { os = "linux", arch = "x86_64", env = ["gnu", "musl"] }` 可按构建目标选库。使用库的文件通常在 `[[sources]]` 或 `[[test.sources]]` 上写相同条件。共享版本可由成员写 `{ workspace = true, when = { os = "windows" } }` 继承。
 - 依赖是 Cone coordinate，import 是源码 package／名称，二者不必同名。例如 `scoop.std` 提供 `scoop.collections`、`scoop.time` 等包。安装根内有库不代表当前 Cone 已声明它；传递依赖也不自动成为直接可访问 API。
 - 普通 Cone 的源码 package 必须等于 group 或位于其子包；同一 Cone 的文件可以互用 internal 声明，跨 Cone 需要公开 API。单文件不建立项目的 package 结构，package header 会被忽略并产生 warning。
 - 本地源码依赖的写法可从 `language/visibility` 取得，例如 `"example.lib:greeter" = { version = "0.1.0", path = "../library" }`。path 相对声明它的 manifest，coordinate 必须与被引用库一致。
@@ -85,7 +86,7 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 | 编译／链接   | `scoop build . --release`                      | 完成当前 Cone 产物及可执行 Cone 的链接，`-o` 选择输出位置。                          |
 | 仅生成产物   | `scoop build . --emit-slib --release`          | 发布根 `.slib`，不准备 runtime 或执行最终链接；测试产物可再加 `--tests`。            |
 | 执行         | `scoop run . --release -- Alice --count 2`     | `--` 后原样传给程序。程序的 `--help` 也放在分隔符后。                                |
-| 测试         | `scoop test . --release`                       | 编译并运行 manifest Cone 的测试，测试依赖放在 `[test-dependencies]`。独占进程的窗口测试可在 `[test]` 设置 `isolate = true`。              |
+| 测试         | `scoop test . --release`                       | 编译并运行 manifest Cone 的测试，测试依赖放在 `[test-dependencies]`。需要独占 Application 的测试方法使用 `@Test(useProcess = true)`。              |
 | 选择测试     | `scoop test . --release --filter "zero count"` | 按完整测试名称的子串筛选；`--list` 列举，`--no-run` 仅构建，`--nocapture` 显示输出。 |
 | API 文档     | `scoop doc . --no-deps --deny-doc-warnings`    | 生成所选根的离线文档；多根可同时传入，`--output-dir` 选择站点位置。                  |
 
@@ -167,7 +168,7 @@ VS Code 的 `Peek Type Hierarchy` 逐层展开直接父类型和子类型，`Pee
 
 ## 测试和诊断
 
-从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 提供名义与结构相等重载，具体规则见[语言参考](language.md)。遇到候选错误先核对实际参数及内层调用，不要将精确断言改成只报告 Boolean 的断言来绕过诊断。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。
+从 `scoop example test/assertions --format json` 查看完整 `Cone.toml`、生产文件和测试文件。`@Test` 用于测试容器与用例；`assertEquals` 提供名义与结构相等重载，具体规则见[语言参考](language.md)。遇到候选错误先核对实际参数及内层调用，不要将精确断言改成只报告 Boolean 的断言来绕过诊断。方法或容器上的 `@Test(useProcess = true)` 让每个选中用例在新进程中完成构造、hooks 与正文，适用于 `scoop.window.Application` 等进程唯一资源。普通用例仍可共享同一进程，`--nocapture` 可查看子进程的实时输出。正常返回、边界条件和预期异常用 Cone 测试验证；CLI 退出码、进程交互和编译失败才需要外部验证。
 
 编译器 human／`--message-format json` 诊断写 stderr，stdout 留给程序；同时检查退出状态。检查成功不等于测试执行成功，也不等于所有目标都已验证。已有源码依赖、generator 或 native 工具产生的日志可能同时出现在 stderr，不把整个流假定为单个 JSON 对象。
 

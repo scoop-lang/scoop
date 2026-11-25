@@ -39,9 +39,7 @@ pub fn load_cone_manifest(
     scoop_manifest::load_cone_manifest(locator, SOURCE_TARGETS)
 }
 
-pub(crate) fn source_target(
-    id: TargetProfileId,
-) -> Result<SourceTarget<'static>, crate::ToolchainError> {
+pub fn source_target(id: TargetProfileId) -> Result<SourceTarget<'static>, crate::ToolchainError> {
     SOURCE_TARGETS
         .iter()
         .find(|target| target.id == id)

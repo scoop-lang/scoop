@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class NativeShortcutTest {
-    @Test
+    @Test(useProcess = true)
     fun `native Command shortcuts work without area focus and respect modifiers and cancellation`() {
         val probe = NativeShortcutSession()
         SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {

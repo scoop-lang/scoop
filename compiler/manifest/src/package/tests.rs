@@ -32,8 +32,8 @@ fn windows_configuration_survives_package_binding_and_json_handoff() {
     let manifest = crate::ParsedConeManifest::bind_package(
         &document,
         scoop_identity::ConeCoordinate::new("dev.example", "app", "0.1.0").unwrap(),
-        &BTreeMap::new(),
-        false,
+        &[],
+        None,
     )
     .unwrap();
     let decoded: crate::ParsedConeManifest =
@@ -55,8 +55,8 @@ fn parses_sources_without_selecting_dependency_versions() {
         'dev.example:model' = {{ path = '../model' }}\n\
         'org.example:http' = {{ github = 'example/http', tag = 'v1.2.0', subdir = 'cones/http', version = '^1.2.0' }}\n\
         'org.vendor:codec' = {{ artifact = '../codec.slib', version = '=2.0.1' }}\n")).unwrap();
-    let DependencyDeclaration::Request(http) =
-        &doc.dependencies[&"org.example:http".parse().unwrap()]
+    let DependencyValue::Request(http) =
+        &doc.dependencies[&"org.example:http".parse().unwrap()].value
     else {
         panic!()
     };
@@ -165,11 +165,47 @@ fn bundle_metadata_is_tool_owned_and_does_not_change_compiler_input() {
         crate::ParsedConeManifest::bind_package(
             document,
             scoop_identity::ConeCoordinate::new("dev.example", "app", "0.1.0").unwrap(),
-            &BTreeMap::new(),
-            false,
+            &[],
+            None,
         )
         .unwrap()
     };
     assert_eq!(bind(&base), bind(&with_bundle));
     assert!(parse("schema = 1\n[workspace]\nmembers = []\n[bundle]\nschema = 1").is_err());
+}
+
+#[test]
+fn conditional_dependency_syntax_is_checked_before_selection() {
+    for condition in [
+        "{os='not-an-os'}",
+        "{arch=[] , env=[1]}",
+        "{cpu='aarch64'}",
+        "false",
+    ] {
+        let error = parse(&format!(
+            "{CONE}[test-dependencies]\n'org.example:x'={{path='x',when={condition}}}"
+        ))
+        .unwrap_err();
+        assert_eq!(
+            error.code(),
+            scoop_source::DiagnosticCode::E2013,
+            "{condition}: {error}"
+        );
+        assert!(error.span().is_some());
+    }
+    for table in ["workspace.dependencies", "overrides"] {
+        assert!(
+            parse(&format!(
+                "{CONE}[{table}]\n'org.example:x'={{path='x',when={{}}}}"
+            ))
+            .is_err()
+        );
+    }
+    let declaration = "'org.example:x'={path='x',when={os=[]}}";
+    assert!(
+        parse(&format!(
+            "{CONE}[dependencies]\n{declaration}\n[test-dependencies]\n{declaration}"
+        ))
+        .is_err()
+    );
 }

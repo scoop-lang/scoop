@@ -4,7 +4,7 @@ import scoop.test.*
 
 @Test
 private class UiDesktopTests {
-    @Test
+    @Test(useProcess = true)
     fun `native resources and window regions follow UI ownership and accepted frames`() {
         runDesktopProbe()
     }

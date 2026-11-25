@@ -27,6 +27,8 @@ Hello, Lin!
 
 manifest 模式显式声明依赖。本例的 `listOf` 来自 std，因此除 core 外还声明 `scoop.std`。import 仍负责名称导入。可以增加另一个 src 文件或替换名字列表，不要把程序源码移到默认发现范围外。
 
+如需引入只在某一目标提供的库，可以在该依赖的表值上写 `when = { os = "linux", env = "gnu" }`。在 `[[sources]]` 上给使用它的文件写同一条件，其他目标就可以使用自己的后端。
+
 ## 常见误用
 
 不要用 `scoop run src/main.scoop` 期待它加载整个项目：那会选择单文件入口。应传项目目录或 Cone.toml。跨 Cone 的 public 规则见 `language/visibility`。

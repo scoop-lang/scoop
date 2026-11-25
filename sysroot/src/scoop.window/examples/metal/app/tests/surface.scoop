@@ -4,7 +4,7 @@ import scoop.test.*
 
 @Test
 private class MetalWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `real Metal drawable completes before the native window lease is released`() {
         val result = runMetalWindow(true)
         assertTrue(result.frames > 0)

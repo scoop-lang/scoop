@@ -37,6 +37,22 @@ pub fn dependency(
             )
         })?;
         if let Some(previous) = table.get_mut(&name) {
+            if let Some(when) = previous.get("when").cloned() {
+                let mut fields = match value {
+                    Value::InlineTable(table) => table,
+                    version => {
+                        let mut fields = toml_edit::InlineTable::new();
+                        fields.insert("version", version);
+                        fields
+                    }
+                };
+                fields.insert(
+                    "when",
+                    when.into_value()
+                        .expect("a validated condition is a TOML table"),
+                );
+                value = Value::InlineTable(fields);
+            }
             if let Some(previous) = previous.as_value() {
                 *value.decor_mut() = previous.decor().clone();
             }

@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class ScrollViewportTest {
-    @Test
+    @Test(useProcess = true)
     fun `accepted ranges binding replacement animation and disposal share the normal UI lifetime`() {
         val probe = ScrollProbe()
         try {

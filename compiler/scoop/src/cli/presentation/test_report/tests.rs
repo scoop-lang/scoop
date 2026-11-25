@@ -68,6 +68,7 @@ fn human_report_keeps_failures_locations_ignored_reasons_and_raw_output() {
             status: Status::Failed,
             duration_ns: Some(17),
             interruption: None,
+            process: None,
             failures: vec![Failure {
                 phase: Phase::AfterTest,
                 location: Location {

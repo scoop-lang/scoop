@@ -19,6 +19,19 @@ WINDOWS = "x86_64-pc-windows-msvc-ucrt"
 
 
 class SysrootSelectionTests(unittest.TestCase):
+    def test_builtin_dependency_order_selects_production_target_edges(self):
+        manifest = {
+            "dependencies": {
+                "scoop:base": "=0.1.0",
+                "scoop:gui": {"when": {"os": "linux", "env": ["gnu"]}},
+            },
+            "test-dependencies": {"scoop:test": "=0.1.0"},
+        }
+        self.assertEqual(
+            prepare_sysroot.target_dependencies(manifest, LINUX), ["scoop:base", "scoop:gui"]
+        )
+        self.assertEqual(prepare_sysroot.target_dependencies(manifest, DARWIN), ["scoop:base"])
+
     def test_parallel_targets_share_header_publication_and_reuse(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

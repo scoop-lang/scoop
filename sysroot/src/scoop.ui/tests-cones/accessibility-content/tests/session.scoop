@@ -12,7 +12,7 @@ import scoop.window.native.*
 
 @Test
 private class ContentTest {
-    @Test
+    @Test(useProcess = true)
     fun `content merging preserves independent controls and changes without drawing`() {
         val probe = ContentProbe()
         try {

@@ -15,7 +15,7 @@ import scoop.window.*
 
 @Test
 private class ChoiceGroupWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native groups distinguish navigation selection binding changes keyed reuse and cancellation`() {
         val probe = ChoiceProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

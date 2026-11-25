@@ -12,8 +12,8 @@ fn catalogue_retains_direct_methods_hooks_ignored_cases_and_original_names() {
         r#"
         package example
         import scoop.test.*
-        @Test open class Base {
-            @Test open fun inherited() {}
+        @Test(useProcess = true) open class Base {
+            @Test(false) open fun inherited() {}
             @BeforeTest fun prepareBase() {}
         }
         @Test class Cases private constructor(val seed: Int = 1): Base() {
@@ -21,7 +21,7 @@ fn catalogue_retains_direct_methods_hooks_ignored_cases_and_original_names() {
             fun helper() {}
             @Test fun `雪 case`() {}
             @BeforeTest private fun prepare() {}
-            @Ignore(reason = "later 雪") @Test fun ignored() {}
+            @Ignore(reason = "later 雪") @Test(true) fun ignored() {}
         }
         @Test class Empty
     "#,
@@ -38,6 +38,9 @@ fn catalogue_retains_direct_methods_hooks_ignored_cases_and_original_names() {
         ["example.Base", "example.Cases", "example.Empty"]
     );
     let cases = &containers[1];
+    assert!(containers[0].cases[0].use_process);
+    assert!(!cases.cases[0].use_process);
+    assert!(cases.cases[1].use_process);
     assert_eq!(
         module.class_constructors[cases.constructor].owner,
         cases.class

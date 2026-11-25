@@ -8,7 +8,7 @@ import scoop.window.native.*
 
 @Test
 private class LinuxWatchTest {
-    @Test
+    @Test(useProcess = true)
     fun `readable watch stays idle and retires its ready snapshot before completing removal`() {
         @Unsafe
         {

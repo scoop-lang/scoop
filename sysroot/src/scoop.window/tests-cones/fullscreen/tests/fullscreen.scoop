@@ -9,7 +9,7 @@ import scoop.window.*
 
 @Test
 private class FullscreenTest {
-    @Test
+    @Test(useProcess = true)
     fun `fullscreen is observed on the same window and restores its layout`() {
         val probe = FullscreenProbe()
         Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(probe)

@@ -15,7 +15,7 @@ import scoop.window.*
 
 @Test
 private class MenuWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `menu families share real keyboard pointer focus and retained popup behavior`() {
         val p = MenuProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

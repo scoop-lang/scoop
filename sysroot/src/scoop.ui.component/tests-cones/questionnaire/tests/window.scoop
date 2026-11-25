@@ -17,7 +17,7 @@ import scoop.window.*
 
 @Test
 private class QuestionnaireWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native questionnaire preserves keyed answers focus IME validation and cancel through layout changes`() {
         val p = QuestionnaireProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

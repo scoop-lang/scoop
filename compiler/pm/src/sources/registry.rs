@@ -68,6 +68,8 @@ pub struct RegistryVersion {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RegistryDependency {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<scoop_manifest::TargetCondition>,
     pub key: DependencyCoordinateKey,
     pub version: VersionRequirement,
     pub source: RegistrySource,

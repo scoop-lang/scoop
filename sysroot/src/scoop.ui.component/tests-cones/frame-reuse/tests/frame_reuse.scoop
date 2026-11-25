@@ -19,7 +19,7 @@ import scoop.window.*
 
 @Test
 private class ComponentFrameReuseTest {
-    @Test
+    @Test(useProcess = true)
     fun `loading selection scrolling and caret frames retain stable component layouts`() {
         val probe = ComponentFrameProbe()
         val theme = ThemeSource(shadcnTheme())

@@ -19,7 +19,7 @@ import scoop.window.Theme as WindowTheme
 
 @Test
 private class ShowcaseWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `the complete showcase follows native theme notifications switches styles and stops frames`() {
         val probe = ShowcaseProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

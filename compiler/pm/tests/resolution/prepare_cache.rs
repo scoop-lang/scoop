@@ -81,7 +81,7 @@ fn concurrent_prepares_share_manifest_config_and_artifact_records() {
     };
     run();
     let cached_inputs = || {
-        ["manifests-v5", "config-v1", "artifacts-v1"]
+        ["manifests-v6", "config-v1", "artifacts-v1"]
             .into_iter()
             .map(|namespace| {
                 let entries: Vec<_> = fs::read_dir(root.join("cache/records").join(namespace))

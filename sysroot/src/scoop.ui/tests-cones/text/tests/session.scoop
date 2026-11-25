@@ -15,7 +15,7 @@ import scoop.window.*
 
 @Test
 private class PublicParagraphHostTest {
-    @Test
+    @Test(useProcess = true)
     fun `styled text images and interactive children share layout and retain identity through elision`() {
         FontCollection().use {
             fonts ->

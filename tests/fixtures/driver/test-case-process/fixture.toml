@@ -1,0 +1,23 @@
+schema = 1
+name = "test-case-process"
+inputs = ["suite", "probe"]
+support = ["verify.py"]
+tools = ["scoop"]
+when = { os = ["darwin", "linux", "windows"] }
+tags = ["driver", "test-command", "process", "capture"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "test", {each = "${link_args}"}, "${fixture}/suite", "--no-run", "--release", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--lockfile", "${work}/suite.lock", "--target-dir", "${work}/output", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "test-stderr"
+diagnostics = []
+
+[[steps]]
+name = "verify"
+argv = ["${python}", "${fixture}/verify.py", "${build.result.output}", "${work}", "${scoop}", "test", {each = "${link_args}"}, "${fixture}/suite", "--release", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--lockfile", "${work}/suite.lock", "--target-dir", "${work}/output", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""

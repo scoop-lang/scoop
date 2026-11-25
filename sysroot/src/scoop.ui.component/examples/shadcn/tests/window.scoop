@@ -23,19 +23,19 @@ import scoop.window.*
 
 @Test
 private class GalleryWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `real gallery retains input and actions while theme direction and animation changes preserve lifecycle`() {
         runGallery(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `content panels retain focused bodies across optional sections narrow layouts and theme changes`() {
         runGallery(true)
     }
-    @Test
+    @Test(useProcess = true)
     fun `loading controls retain content borrow images and stop invisible animation`() {
         runGallery(false, true)
     }
-    @Test
+    @Test(useProcess = true)
     fun `typography copies inline code retains selection and shares actual keyboard shortcuts`() {
         @Unsafe
         {

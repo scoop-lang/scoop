@@ -14,7 +14,7 @@ import scoop.window.*
 
 @Test
 private class ScrollAreaTest {
-    @Test
+    @Test(useProcess = true)
     fun `native nested scrolling bars keyboard and reveal keep geometry focus and content lifetime coherent`() {
         val probe = AreaProbe()
         try {

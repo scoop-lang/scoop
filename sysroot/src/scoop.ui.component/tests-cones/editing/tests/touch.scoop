@@ -18,7 +18,7 @@ import scoop.window.native.*
 
 @Test
 private class TextControlsTouchTest {
-    @Test
+    @Test(useProcess = true)
     fun `text touch options reach input textarea OTP and composed controls`() {
         val p = FieldTouchProbe()
         try {

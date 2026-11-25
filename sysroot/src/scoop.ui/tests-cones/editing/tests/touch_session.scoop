@@ -16,32 +16,32 @@ import scoop.window.native.*
 
 @Test
 private class TextTouchWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `text inertia keeps accepted caret geometry and selection through local cancellation`() {
         runTextTouch({ probe -> textInertiaStep(probe) }, 0)
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `elastic text viewport keeps caret input and accepted geometry together`() {
         runTextTouch({ probe -> textElasticStep(probe) }, 0)
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `native contacts select text open one menu and yield to scrolling`() {
         runTextTouch({ probe -> textTouchStep(probe) }, 1)
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `touch multi taps select words and lines with shared cancellation and projection`() {
         runTextTouch({ probe -> textTouchMultiTap(probe) }, 3)
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `touch handles adjust directional selections and scroll accepted text viewports`() {
         runTextTouch({ probe -> textTouchHandles(probe) }, 0)
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `touch handles follow RTL and finish queued input without reviving cancelled routes`() {
         runTextTouch({ probe -> textTouchHandleGeometry(probe) }, 0)
     }

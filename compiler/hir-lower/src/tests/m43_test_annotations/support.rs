@@ -81,9 +81,9 @@ pub(super) fn parsed_sources(
                 "src/execution/report.scoop",
                 "package scoop.test.execution\n\
                  @Extern(name = \"test_report\", abi = \"scoop\")\n\
-                 public fun runReportedTestCase(caseIndex: String, location: SourceLocation, initialize: () -> TestActions): TestResult\n\
+                 public fun runSelectedTestCase(arguments: Array<String>, caseIndex: String, caseName: String, useProcess: Boolean, location: SourceLocation, initialize: () -> TestActions): Boolean\n\
                  @Extern(name = \"test_complete\", abi = \"scoop\")\n\
-                 public fun completeTestRun(): Unit",
+                 public fun finishTestRun(arguments: Array<String>, status: Int): Int",
                 SourceRole::Production,
             ),
             (

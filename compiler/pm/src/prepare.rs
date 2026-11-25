@@ -1,6 +1,6 @@
 //! Project the selected portable graph onto local, fully bound compiler inputs.
 
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 
 use scoop_manifest::{DependencyCoordinateKey as Key, ParsedConeManifest};
 use scoop_protocol::{
@@ -121,12 +121,6 @@ fn project(resolved: ResolvedWorkspace) -> PmResult<PreparedWorkspaceV1> {
 }
 
 fn project_root(root: ResolvedRoot) -> PmResult<PreparedResolutionV1> {
-    let bindings: BTreeMap<_, _> = root
-        .solution
-        .packages
-        .iter()
-        .map(|(key, candidate)| (key.clone(), candidate.coordinate.clone()))
-        .collect();
     let mut nodes = Vec::new();
     for node in &root.resolution.nodes {
         let input = &root.inputs[&Key::from_coordinate(&node.coordinate)];
@@ -137,8 +131,8 @@ fn project_root(root: ResolvedRoot) -> PmResult<PreparedResolutionV1> {
                 let manifest = ParsedConeManifest::bind_package(
                     &member.document,
                     node.coordinate.clone(),
-                    &bindings,
-                    include_tests,
+                    &node.dependencies,
+                    include_tests.then_some(node.test_dependencies.as_slice()),
                 )
                 .map_err(|error| {
                     PmError::new(

@@ -20,7 +20,7 @@ import scoop.window.*
 
 @Test
 private class FeedbackWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `real pointer transitions do not flash and skeleton pulses are visible in both modes`() {
         val probe = FeedbackProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

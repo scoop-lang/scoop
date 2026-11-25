@@ -6,7 +6,7 @@ import scoop.window.*
 
 @Test
 private class ContactPressDragUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `contacts preserve tap intent source identity and independent cancellation through the native queue`() {
         val scenario = ContactScenario()
         val probe = GestureProbe(Some({ value, active -> scenario.advance(value, active) }))

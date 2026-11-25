@@ -8,7 +8,7 @@ import scoop.time.Duration
 
 @Test
 private class LinuxDragInputTest {
-    @Test
+    @Test(useProcess = true)
     @Ignore("Requires an isolated X11 display for protocol input; run separately with --ignored")
     fun `GTK retains threshold input and shows the prepared image at the hotspot during a system drag`() {
         val handler = GtkDragInputHandler()

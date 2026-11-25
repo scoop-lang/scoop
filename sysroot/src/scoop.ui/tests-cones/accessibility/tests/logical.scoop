@@ -13,7 +13,7 @@ internal class SemanticFailure: Exception(Some("expected UI semantic action fail
 
 @Test
 private class UiSemanticsTest {
-    @Test
+    @Test(useProcess = true)
     fun `hidden updates publish semantics and native actions preserve real ownership`() {
         val probe = LogicalProbe()
         try {

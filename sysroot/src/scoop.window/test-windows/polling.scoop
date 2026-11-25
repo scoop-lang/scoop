@@ -8,7 +8,7 @@ import scoop.window.native.*
 
 @Test
 private class WindowsPollingTest {
-    @Test
+    @Test(useProcess = true)
     fun `continuous application work does not starve a native window timer`() {
         val probe = WindowsPollingProbe()
         Application().run(probe)

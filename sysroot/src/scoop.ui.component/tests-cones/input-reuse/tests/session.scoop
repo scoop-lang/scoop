@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class ComponentInputReuseTest {
-    @Test
+    @Test(useProcess = true)
     fun `cached button text retains hover pixels and stops work after the final transition`() {
         val probe = ButtonInputProbe()
         val source = ThemeSource(probe.theme)

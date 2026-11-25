@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class PortalModesTest {
-    @Test
+    @Test(useProcess = true)
     fun `live portal modes retain editing and nested priority through discarded frames and interrupted close`() {
         val probe = ModeProbe()
         try {

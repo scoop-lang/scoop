@@ -16,7 +16,7 @@ import scoop.window.native.*
 
 @Test
 private class ModalSemanticBoundaryTest {
-    @Test
+    @Test(useProcess = true)
     fun `modal semantics name the close button exclude background actions and respect veto`() {
         val probe = ModalSemanticProbe()
         try {

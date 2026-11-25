@@ -37,10 +37,6 @@ when = { os = ["darwin", "windows"] }
 "scoop.tests:surface-native" = { version = "0.1.0", path = "../scoop.surface/test-native" }
 "scoop.tests:graphics-native" = { version = "0.1.0", path = "../scoop.graphics/test-native" }
 
-# Each native Application owns its process and main loop.
-[test]
-isolate = true
-
 [[test.sources]]
 path = "tests/semantic_reference.scoop"
 when = { os = ["linux", "windows"] }

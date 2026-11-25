@@ -102,3 +102,67 @@ fn root_overrides_replace_sources_but_keep_original_version_constraints() {
     );
     assert_eq!(fs::read(root.join("app/Cone.lock")).unwrap(), bytes);
 }
+
+#[test]
+fn target_edges_are_selected_before_sources_overrides_and_lock_binding() {
+    use super::prepare::{invoke, request};
+    use scoop_protocol::{CompilationPurpose, package::PreparedWorkspaceV1};
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    core(root);
+    write(
+        &root.join("Cone.toml"),
+        "schema=1\n[workspace]\nmembers=['app']\n[workspace.dependencies]\n'org.example:backend'={path='backend'}\n[overrides]\n'scoop:scoop.core'={path='core'}\n'org.example:missing'={path='absent'}",
+    );
+    for name in ["backend", "nested", "probe"] {
+        write(&root.join(name).join("Cone.toml"), &cone(name, "0.1.0"));
+    }
+    write(
+        &root.join("backend/Cone.toml"),
+        &(cone("backend", "0.1.0")
+            + "[dependencies]\n'org.example:nested'={path='../nested',when={env='gnu'}}"),
+    );
+    let manifest = cone("app", "0.1.0")
+        + "[dependencies]\n'org.example:backend'={workspace=true,when={os='linux',arch='x86_64',env=['gnu','musl']}}\n'org.example:missing'={path='../missing',when={arch=[]}}\n[test-dependencies]\n'org.example:probe'={path='../probe',when={env='gnu'}}";
+    write(&root.join("app/Cone.toml"), &manifest);
+    for (target, prod, test) in [
+        ("aarch64-apple-darwin", vec![], false),
+        ("x86_64-unknown-linux-musl", vec!["backend"], false),
+        ("x86_64-unknown-linux-gnu", vec!["backend", "nested"], true),
+    ] {
+        for purpose in [CompilationPurpose::Production, CompilationPurpose::Test] {
+            let mut req = request(root, &root.join("app"));
+            req.target = target.into();
+            req.purpose = purpose;
+            let prepared: PreparedWorkspaceV1 =
+                serde_json::from_str(&success(invoke(root, &req))).unwrap();
+            let mut names: Vec<_> = prepared.resolutions[0]
+                .nodes
+                .iter()
+                .map(|node| node.cone.coordinate().name())
+                .collect();
+            names.sort();
+            let mut expected = vec!["app", "scoop.core"];
+            expected.extend(&prod);
+            if test && purpose == CompilationPurpose::Test {
+                expected.push("probe");
+            }
+            expected.sort();
+            assert_eq!(names, expected);
+        }
+    }
+    assert_eq!(lock(root).resolutions.len(), 6);
+    let mut locked = request(root, &root.join("app"));
+    locked.locked = true;
+    write(
+        &root.join("app/Cone.toml"),
+        &manifest.replace("../missing", "../unselected"),
+    );
+    success(invoke(root, &locked));
+    write(
+        &root.join("app/Cone.toml"),
+        &manifest.replace("arch=[]", "os='darwin'"),
+    );
+    assert!(!invoke(root, &locked).status.success());
+}

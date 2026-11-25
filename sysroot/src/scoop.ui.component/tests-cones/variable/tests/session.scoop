@@ -15,11 +15,11 @@ import scoop.window.native.*
 
 @Test
 private class VariableListTest {
-    @Test
+    @Test(useProcess = true)
     fun `variable lists preserve reading keys and resolve explicit positions across data and geometry changes`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `variable reading anchors survive inertia rebound prepend growth and explicit reveals`() {
         run(true)
     }

@@ -41,27 +41,34 @@ def save_record(path, value):
     staged.replace(path)
 
 
+def matches_target(condition, target):
+    facts = TARGET_FACTS[target]
+    matches = True
+    for key, values in condition.items():
+        if key not in facts:
+            raise ValueError(f"unknown target predicate {key}")
+        if isinstance(values, str):
+            values = [values]
+        if not isinstance(values, list) or any(not isinstance(v, str) for v in values):
+            raise ValueError(f"target predicate {key} requires strings")
+        known = {entry[key] for entry in TARGET_FACTS.values()}
+        if any(value not in known for value in values):
+            raise ValueError(f"unknown target predicate {key} value in {values}")
+        matches = matches and facts[key] in values
+    return matches
+
+
 def has_target_sources(manifest, target):
     sources = manifest.get("sources")
-    if not sources:
-        return True
-    facts = TARGET_FACTS[target]
-    for source in sources:
-        matches = True
-        for key, values in source.get("when", {}).items():
-            if key not in facts:
-                raise ValueError(f"unknown target predicate {key}")
-            if isinstance(values, str):
-                values = [values]
-            if not isinstance(values, list) or any(not isinstance(v, str) for v in values):
-                raise ValueError(f"target predicate {key} requires strings")
-            known = {entry[key] for entry in TARGET_FACTS.values()}
-            if any(value not in known for value in values):
-                raise ValueError(f"unknown target predicate {key} value in {values}")
-            matches = matches and facts[key] in values
-        if matches:
-            return True
-    return False
+    return not sources or any(matches_target(source.get("when", {}), target) for source in sources)
+
+
+def target_dependencies(manifest, target):
+    return [
+        key
+        for key, value in manifest.get("dependencies", {}).items()
+        if not isinstance(value, dict) or matches_target(value.get("when", {}), target)
+    ]
 
 
 def cone_order(sysroot, work, target):
@@ -92,7 +99,7 @@ def cone_order(sysroot, work, target):
         if name in cones:
             raise ValueError(f"duplicate sysroot Cone {name}")
         cones[name] = path.parent.name
-        dependencies[name] = list(manifest.get("dependencies", {}))
+        dependencies[name] = target_dependencies(manifest, target)
         if name != "scoop:scoop.core" and "scoop:scoop.core" not in dependencies[name]:
             dependencies[name].append("scoop:scoop.core")
         dependencies[name].sort()

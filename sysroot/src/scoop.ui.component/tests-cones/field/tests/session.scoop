@@ -17,7 +17,7 @@ import scoop.window.*
 
 @Test
 private class FieldWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `fields preserve editing through layout slots and keyed groups and route choice card activation once`() {
         val p = FieldProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

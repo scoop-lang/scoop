@@ -11,7 +11,7 @@ import scoop.window.native.*
 @Test
 private class ShapedDemoTest {
     private var completed = false
-    @Test
+    @Test(useProcess = true)
     @Ignore("Requires an interactive Windows desktop")
     fun `default shaped demo publishes a borderless native circle and updates after resize and restore`() {
         val demo = DesktopDemo(false)

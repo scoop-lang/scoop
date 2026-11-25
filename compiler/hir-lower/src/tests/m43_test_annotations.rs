@@ -119,7 +119,14 @@ fn test_methods_require_a_direct_marked_container_and_a_safe_unit_signature() {
 fn marker_targets_arguments_repetition_and_roles_use_normal_annotation_rules() {
     for (source, message) in [
         ("@Test @Test class Cases", "must not be repeated"),
-        ("@Test(1) class Cases", "too many annotation arguments"),
+        (
+            "@Test(useProcess = \"yes\") class Cases",
+            "annotation argument must be Boolean, found String",
+        ),
+        (
+            "@Test(true, false) class Cases",
+            "too many annotation arguments",
+        ),
         (
             "@Test class Cases { @Test @Ignore fun check() {} }",
             "missing annotation argument `reason`",

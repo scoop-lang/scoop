@@ -9,7 +9,7 @@ import scoop.window.native.*
 
 @Test
 private class NativeTextSnapshotTest {
-    @Test
+    @Test(useProcess = true)
     fun `native document queries use applied revisions and explicit ranges remain atomic`() {
         val handler = SnapshotHandler()
         Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(

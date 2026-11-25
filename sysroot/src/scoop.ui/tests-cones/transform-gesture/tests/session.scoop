@@ -12,7 +12,7 @@ import scoop.window.native.*
 
 @Test
 private class TransformGestureUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `native transforms combine until both end and always retire prevented or cancelled sessions`() {
         val probe = TransformProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

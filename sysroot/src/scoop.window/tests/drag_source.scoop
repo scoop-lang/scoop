@@ -19,7 +19,7 @@ private class DragSourceTest {
         }
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `pending sources use real input and managed completion retires once`() {
         val probe = DragSourceProbe()
         var failed = false

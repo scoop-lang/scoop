@@ -8,7 +8,7 @@ import scoop.window.*
 
 @Test
 private class WindowTests {
-    @Test
+    @Test(useProcess = true)
     fun `native host mounts updates and releases the component scope`() {
         val probe = WindowProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

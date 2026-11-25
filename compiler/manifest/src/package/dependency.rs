@@ -21,6 +21,7 @@ struct Details {
 
 pub(super) fn declarations(
     values: raw::DependencyMap,
+    catalog: &[crate::SourceTarget<'_>],
 ) -> Result<BTreeMap<DependencyCoordinateKey, DependencyDeclaration>, ManifestParseError> {
     values
         .into_iter()
@@ -28,7 +29,28 @@ pub(super) fn declarations(
             let key = key.parse().map_err(|message| {
                 invalid(scoop_source::DiagnosticCode::E2010, message, value.span())
             })?;
-            Ok((key, declaration(value, false)?))
+            let span = value.span();
+            let mut raw = value.into_inner();
+            let when = raw
+                .as_table_mut()
+                .and_then(|table| table.remove("when"))
+                .map(|value| {
+                    let condition: crate::TargetCondition =
+                        value.try_into().map_err(|error: toml::de::Error| {
+                            invalid(
+                                scoop_source::DiagnosticCode::E2013,
+                                error.to_string(),
+                                span.clone(),
+                            )
+                        })?;
+                    condition.validate(catalog).map_err(|message| {
+                        invalid(scoop_source::DiagnosticCode::E2013, message, span.clone())
+                    })?;
+                    Ok::<_, ManifestParseError>(condition)
+                })
+                .transpose()?;
+            let value = declaration(Spanned::new(span, raw), false)?;
+            Ok((key, DependencyDeclaration { when, value }))
         })
         .collect()
 }
@@ -44,8 +66,8 @@ pub(super) fn requests(
                 invalid(scoop_source::DiagnosticCode::E2010, message, value.span())
             })?;
             match declaration(value, overrides)? {
-                DependencyDeclaration::Request(value) => Ok((key, value)),
-                DependencyDeclaration::Workspace { span } => Err(invalid(
+                DependencyValue::Request(value) => Ok((key, value)),
+                DependencyValue::Workspace { span } => Err(invalid(
                     scoop_source::DiagnosticCode::E2014,
                     "workspace dependencies and overrides must declare a value, not inherit one",
                     span,
@@ -58,7 +80,7 @@ pub(super) fn requests(
 fn declaration(
     raw: Spanned<toml::Value>,
     overrides: bool,
-) -> Result<DependencyDeclaration, ManifestParseError> {
+) -> Result<DependencyValue, ManifestParseError> {
     let span = raw.span();
     let details = match raw.into_inner() {
         toml::Value::String(value) => Details {
@@ -98,7 +120,7 @@ fn declaration(
                 "workspace = true must be the entire dependency declaration".into(),
             ));
         }
-        return Ok(DependencyDeclaration::Workspace { span });
+        return Ok(DependencyValue::Workspace { span });
     }
     let source_count = [
         &details.path,
@@ -179,7 +201,7 @@ fn declaration(
             "registry and system dependencies require a version requirement".into(),
         ));
     }
-    Ok(DependencyDeclaration::Request(DependencyRequest {
+    Ok(DependencyValue::Request(DependencyRequest {
         requirement,
         source,
         span,

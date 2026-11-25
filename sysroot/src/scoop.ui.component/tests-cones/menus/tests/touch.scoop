@@ -14,11 +14,11 @@ import scoop.window.native.*
 
 @Test
 private class MenuTouchTest {
-    @Test
+    @Test(useProcess = true)
     fun `context menus combine long press options with child text and ordinary activation`() {
         runTouchMenu(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `native context menus enter real tracking from long presses and preserve alternatives`() {
         runTouchMenu(true)
     }

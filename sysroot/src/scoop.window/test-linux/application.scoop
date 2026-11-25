@@ -10,7 +10,7 @@ import scoop.tests.window.*
 
 @Test
 private class LinuxApplicationTest {
-    @Test
+    @Test(useProcess = true)
     fun `native windows configure resize remap and drain cross-thread leases`() {
         val app = Application()
         val handler = LinuxHandler()

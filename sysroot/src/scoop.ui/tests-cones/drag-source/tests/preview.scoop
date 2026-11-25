@@ -13,7 +13,7 @@ private class UiDragSelectionPreviewTest {
     private var area: InputArea? = None
     private var checked = false
 
-    @Test
+    @Test(useProcess = true)
     fun `selection ink fades only at viewport and preview crop edges`() {
         SurfaceHost {
             host,

@@ -2,16 +2,22 @@ use super::*;
 
 pub(super) struct PendingContainer {
     class: hir::ClassId,
+    use_process: bool,
     pub(super) origin: hir::DefinitionOrigin,
     pub(super) before: Option<hir::TestMethod>,
     pub(super) after: Option<hir::TestMethod>,
-    pub(super) cases: Vec<(hir::TestMethod, Option<String>)>,
+    pub(super) cases: Vec<(hir::TestMethod, Option<String>, bool)>,
 }
 
 impl PendingContainer {
-    pub(super) fn new(class: hir::ClassId, origin: hir::DefinitionOrigin) -> Self {
+    pub(super) fn new(
+        class: hir::ClassId,
+        origin: hir::DefinitionOrigin,
+        use_process: bool,
+    ) -> Self {
         Self {
             class,
+            use_process,
             origin,
             before: None,
             after: None,
@@ -21,29 +27,6 @@ impl PendingContainer {
 }
 
 impl Lowerer {
-    pub(super) fn test_ignore_reason(&self, target: hir::SourceAnnotationTarget) -> Option<String> {
-        self.annotation_metadata
-            .targets
-            .iter()
-            .find(|entry| entry.target == target)?
-            .annotations
-            .iter()
-            .find_map(|application| {
-                if TestMarker::from_identity(application.annotation) != Some(TestMarker::Ignore) {
-                    return None;
-                }
-                let [
-                    hir::CanonicalAnnotationValueV1::Scalar(hir::CanonicalConstValueV1::String(
-                        reason,
-                    )),
-                ] = application.arguments.as_slice()
-                else {
-                    unreachable!("Ignore has one checked String argument")
-                };
-                Some(reason.clone())
-            })
-    }
-
     pub(super) fn finish_test_container(
         &mut self,
         pending: PendingContainer,
@@ -83,9 +66,10 @@ impl Lowerer {
         let cases = pending
             .cases
             .into_iter()
-            .map(|(method, ignore_reason)| hir::TestCase {
+            .map(|(method, ignore_reason, use_process)| hir::TestCase {
                 display_name: format!("{cone_name}::{qualified_name}::{}{suffix}", method.name),
                 method,
+                use_process: pending.use_process || use_process,
                 ignore_reason,
             })
             .collect();

@@ -3,7 +3,8 @@
 #else
 #define _POSIX_C_SOURCE 200809L
 #endif
-#include "test_io.h"
+#include "test_process.h"
+#include <inttypes.h>
 
 #include <errno.h>
 #include <stdlib.h>
@@ -19,7 +20,7 @@ static FILE *events;
 static int initialization;
 static uint64_t sequence;
 
-FILE *scoop_test_open_output(const char *name) {
+static FILE *open_output(const char *name) {
 #ifdef _WIN32
     size_t directory_length = wcslen(run_directory);
     size_t name_length = strlen(name);
@@ -56,6 +57,12 @@ FILE *scoop_test_open_output(const char *name) {
     return file;
 }
 
+FILE *scoop_test_open_stream(uint64_t ordinal, const char *stream) {
+    char name[64];
+    snprintf(name, sizeof(name), "%" PRIu64 ".%s", ordinal, stream);
+    return open_output(name);
+}
+
 static int initialize(void) {
     if (initialization)
         return initialization == 2 ? 0 : initialization;
@@ -76,7 +83,7 @@ static int initialize(void) {
 #endif
     if (!run_directory)
         return -1;
-    events = scoop_test_open_output("events.jsonl");
+    events = open_output("events.jsonl");
     initialization = events ? 1 : -1;
     return initialization;
 }
@@ -99,16 +106,21 @@ static int json_string(const uint8_t *bytes, int64_t length) {
     return fputc('"', events) == EOF ? -1 : 0;
 }
 
-int32_t scoop_test_begin(const uint8_t *key, int64_t length) {
+int scoop_test_begin_record(const uint8_t *key, int64_t length, uint64_t *ordinal) {
     int enabled = initialize();
     if (enabled <= 0)
         return enabled;
     if (fputs("{\"event\":\"begin\",\"case\":", events) == EOF || json_string(key, length) < 0 ||
         fputs("}\n", events) == EOF || fflush(events))
         return -1;
-    if (scoop_test_capture_begin(sequence++) < 0)
-        return -1;
+    *ordinal = sequence++;
     return 1;
+}
+
+int32_t scoop_test_begin(const uint8_t *key, int64_t length) {
+    uint64_t ordinal;
+    int enabled = scoop_test_begin_record(key, length, &ordinal);
+    return enabled == 1 && scoop_test_capture_begin(ordinal) < 0 ? -1 : enabled;
 }
 
 int64_t scoop_test_end(void) { return scoop_test_capture_end(); }
@@ -128,4 +140,25 @@ int32_t scoop_test_complete(void) {
         return enabled;
     const char record[] = "{\"event\":\"complete\"}\n";
     return fputs(record, events) == EOF || fflush(events) ? -1 : 0;
+}
+
+int scoop_test_end_isolated(const char *key, const struct TestRecord *record,
+                            const struct TestExit *status, const char *interruption) {
+    if (fprintf(events,
+                "{\"event\":\"end\",\"case\":\"%s\",\"duration_ns\":%" PRId64
+                ",\"failures\":%s,\"process\":",
+                key, record->duration_ns, record->failures ? record->failures : "[]") < 0)
+        return -1;
+    if (!status)
+        fputs("null", events);
+    else if (status->exited)
+        fprintf(events, "{\"code\":%" PRId32 ",\"signal\":null}", status->code);
+    else
+        fprintf(events, "{\"code\":null,\"signal\":%d}", status->signal);
+    if (interruption) {
+        fputs(",\"interruption\":", events);
+        if (json_string((const uint8_t *)interruption, (int64_t)strlen(interruption)) < 0)
+            return -1;
+    }
+    return fputs("}\n", events) == EOF || ferror(events) || fflush(events) ? -1 : 0;
 }

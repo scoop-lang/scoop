@@ -16,7 +16,7 @@ private fun actionContext(): Int = value.number
 
 @Test
 private class AccessibilityTest {
-    @Test
+    @Test(useProcess = true)
     fun `AppKit reads published nodes and completes real actions before retirement`() {
         val handler = AccessibilityHandler()
         try {

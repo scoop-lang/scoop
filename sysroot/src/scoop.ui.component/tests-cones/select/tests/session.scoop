@@ -16,7 +16,7 @@ import scoop.window.*
 
 @Test
 private class SelectWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `select aligns selected rows and shares native focus navigation scrolling and lifecycle`() {
         val p = SelectProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

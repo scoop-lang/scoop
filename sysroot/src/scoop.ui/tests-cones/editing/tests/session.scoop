@@ -15,7 +15,7 @@ import scoop.window.*
 
 @Test
 private class PublicTextEditHostTest {
-    @Test
+    @Test(useProcess = true)
     fun `native editing system IME projections selection and scrolling share one host`() {
         @Unsafe
         {

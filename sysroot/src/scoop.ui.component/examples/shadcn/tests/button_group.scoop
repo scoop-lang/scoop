@@ -15,7 +15,7 @@ import scoop.window.*
 
 @Test
 private class ButtonGroupWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `groups preserve editing mounts tab order and focus stacking across direction and keyed reordering`() {
         val probe = ButtonGroupProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

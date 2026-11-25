@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class LongPressUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `long presses share contact ownership preserve short taps and retire deadlines`() {
         val scenario = LongPressScenario()
         val probe = GestureProbe(Some({ value, active -> scenario.advance(value, active) }))

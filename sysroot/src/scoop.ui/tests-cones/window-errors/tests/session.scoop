@@ -35,7 +35,7 @@ internal class FailureRecord(val point: FailurePoint) {
 
 @Test
 private class WindowErrorUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `window callbacks retire and report once while a sibling continues until the error handler fails`() {
         val probe = FailureProbe()
         val host =

@@ -102,7 +102,7 @@ GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不�
 
 两个 Linux 目标的默认 C／C++、runtime 与 startup 编译显式使用 `-march=x86-64`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
 
-Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 6；PM 的清单解析记录使用 `manifests-v5`，含已解析清单的 registry 缓存使用 `registry-v2`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
+Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 6；PM 的清单解析记录使用 `manifests-v6`，含已解析清单的 registry 缓存使用 `registry-v3`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
 
 Linux GNU GUI 的维护准备通过 `pkg-config` 选择 GTK 4.18 以上和 libadwaita 1.4 以上的开发输入，将实际头文件和链接输入放入目标 sysroot。GNU target 组件包交付这些资源及相应许可，运行时依赖系统的 GTK/libadwaita SONAME；不复制一套私有桌面环境或驱动。输入未变化时复用准备结果，不重新调用 `pkg-config` 或复制输入。musl 不交付 GUI 资源。
 
@@ -878,6 +878,8 @@ M43 的 TestEntry generated key 使用 tag 17，HIR／MIR `identity-foundation` 
 
 Export HIR 的当前目标测试目录按语言规范 16.4 保留 typed class／constructor／function 引用、声明位置和忽略原因，不作为依赖的测试发现接口。构造重载选择与普通调用共享同一候选决议；默认实参的代码生成在入口合成的实际调用处完成，目录发现本身不创建可执行的初始化副作用。
 
+前端在 HIR 用例上保存由容器和方法注解算出的 `use_process: bool`。TestEntry 合成直接消费该值，为同一用例适配生成父进程调度与子进程直接执行两个入口分支。后端按普通调用编译。命令行和编辑器只需原展示目录中的用例序号。[语言规范 16.3](SCOOP-SPEC.md#163-测试标记与声明)
+
 测试用途产物在可选 manifest section `org.scoop-lang.manifest/test-directory/1` 中保存该目录的展示投影：容器限定名、用例方法名与完整显示名、各自的 Cone-relative 源码路径及一基行列、忽略原因。目录按前端顺序嵌套保存容器与用例，不通过解析显示名恢复关系；可执行调用仍使用 HIR 中的 typed 引用。该 section 不参与 Compile／Link 的语义要求，受普通 ArtifactFingerprint 覆盖；生产产物不写入，测试产物即使无容器也写入空目录。manifest summary 在读取边界解码并复用该投影，缓存命中不重新发现测试或加载完整 HIR。
 
 入口的四种 ABI 形态、完整签名、root gateway 的实际 C ABI 与定义指纹随各层 typed entry 保留，并进入对应语义／ABI fingerprints 和承载它们的 section profile。Link 投影保留精确 entry、gateway 与 failure-root 引用，使 artifact-only 链接无需源码或名称推断。当前 runtime ABI contract 30、metadata ABI 9 同时进入兼容检查、runtime 与启动对象的构建输入；旧 ABI 的薄接口、物理签名、poll／card／初始化发布／Context 槽合同及产物必须重建或拒绝，不能用缺省字段或 bitcast 混用。contract 20 同时退役无生产消费者的标量格式化、hash、equals 及专用打印 C 入口；沿用现有 runtime 输入更新与 ABI 重建边界，不增加兼容分支。新 ABI 的 debug／release 仍互通；各批次的实际实现与 section 版本见 [M34 记录](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone34/PROGRESS.md)。
@@ -1042,6 +1044,8 @@ scoopc build <file.scoop> [--direct-slib direct.slib]... [--support-slib support
 
 无 lock 的首次 build/run 与已有 lock 的构建使用同一个 prepare 入口，具体顺序见[包管理规范 7.2](SCOOP-PACKAGE-SPEC.md#72-自动准备与低层调用)。请求经 stdin 传入，成功响应经 stdout 返回，stderr 保留诊断；复用现有子进程并发管道管理，不创建 prepare IPC 文件。PM 完成解析、来源准备和 lock 发布后，driver 才调度编译；PM 失败则停止本次命令。后续编译或链接失败保留正确生成的 lock，run 不执行旧程序。
 
+按[包管理规范 2.2](SCOOP-PACKAGE-SPEC.md#22-版本语义)的条件依赖规则，prepare 交付针对请求用途与目标筛选过的精确生产和测试边。driver 从该图调度并形成 direct/support 输入，编译器与链接器消费通常的目标产物。
+
 低层 `scoop-link` 使用相同的普通产物链接合同。manifest build/run省略root时按包管理规范3.1从cwd定位最近清单及所属workspace，成员内默认该成员，workspace根采用default-members；`run -- args`也采用该选择，必须得到唯一executable。低层scoopc输入必需。single-file与artifact-only link不启动PM或读取相邻workspace。
 
 `scoop` 优先解析内置子命令；其余子命令名称必须是单个文件名，优先执行所选 `<SYSROOT>/commands/scoop-<名称>`，不存在时查找 `SCOOP_HOME/commands` 下的同名共享自定义命令（未设置 SCOOP_HOME 时为用户 `~/.scoop/commands`），Windows 使用 `scoop-<名称>.exe`。目标为宿主可直接执行的程序（Unix 包括带解释器声明的脚本），不经过 shell 解释或 PATH 搜索。子命令名称之后的全部参数原样传递，包含选项、`--`、空字符串及宿主原始参数字节；Windows 保留原 UTF-16 参数。`scoop` 自身的选项必须放在外部子命令之前。`--sysroot` 采用本节既有的显式参数、`SCOOP_SYSROOT`、安装根优先顺序，对内置子命令仍可放在子命令前后。外部程序继承 cwd、环境和标准输入输出，正常退出码与信号终止状态由 `scoop` 传回；程序缺失、不可执行或启动失败按实际路径报告，不触发编译、链接或工具探测。
@@ -1108,7 +1112,7 @@ Cone、package、类型、函数 overload 组与源码页在所属 catalog 内�
 
 `scoop test [root-input]` 使用同一构建图，只对 manifest 根 Cone 启用 Test 用途：发现根的生产与测试依赖，依赖节点仍按 Production 构建，不递归启用依赖自身的测试。根按 executable 产物规划和链接，保留源码 manifest 及 ConeIdentity。测试编译键包含用途、每个源码的角色、测试源码选择与测试依赖语义；本机源码实际路径、修改时间和大小参与更新判定，诊断显示 locator 与 span 不进入键；生产键不包含这些测试配置。测试源码或配置改变不使未改变的生产依赖缓存失效。
 
-测试根在 Cone.toml 的 `[test]` 中设置 `isolate = true` 时，驱动按现有测试目录顺序为每个选中的用例单独启动同一个已链接的测试程序。每次启动沿用用例序号、独立结果通道和输出捕获，最后按原目录汇总。普通断言失败继续执行后续用例，进程中断保留退出状态。默认让所选用例共享一个进程。该设置只影响运行，测试编译、链接、过滤和列举规则保持一致。
+按语言规范 16.3～16.5，驱动为非空选择启动一次测试程序，将 Cone.toml 的 `[test] isolate` 开关作为本次运行参数传给生成的 TestEntry。入口自行调度注解要求隔离的用例，开关为 true 时对所有选中用例应用同一机制。每个子进程只执行一个目录序号。父入口等待实际退出，将子进程的结果、退出状态与两路输出归到该用例，随后调度下一例。子进程中断算该用例失败，整轮中断仍按已有规则记录未运行用例。运行参数只影响调度，过滤、列举和 `--no-run` 继续使用现有目录。[测试进程与报告设计](../conditional-dependencies-and-test-processes/DESIGN.md#测试进程)
 
 测试程序发布到 `target/<canonical-target-triple>/<profile>/<group>/<cone-name>/tests/<cone-name>`，`--target-dir` 替换 target 根目录，`--no-run` 完成构建和链接后返回。运行直接使用本次成功构建确定的已有或新生成 executable，不制作 execution copy；失败构建不得运行旧文件。过滤和忽略选择不改变测试编译产物；最终报告需要独立的用例结果通道，不能仅凭进程退出码判定整轮执行完成。
 

@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class ComponentMeasureReuseTest {
-    @Test
+    @Test(useProcess = true)
     fun `nested auto grids and frames preserve geometry for every measured depth`() {
         val probe = MeasureReuseProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

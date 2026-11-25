@@ -15,7 +15,7 @@ import scoop.window.asyncio.*
 
 @Test
 private class SurfaceAsyncioTest {
-    @Test
+    @Test(useProcess = true)
     fun `Surface frames and modal loops keep progressing across worker executors and cleanup`() {
         multiThreadExecutor {
             workers = 2

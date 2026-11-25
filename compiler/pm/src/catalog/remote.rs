@@ -185,6 +185,7 @@ impl Catalog<'_> {
             .map_err(|error| {
                 PmError::new(scoop_source::DiagnosticCode::E2010, error.to_string())
             })?;
+            let dependencies = self.index_requirements(&coordinate, &version.dependencies)?;
             let candidate = Candidate {
                 coordinate,
                 kind: version.kind,
@@ -193,7 +194,7 @@ impl Catalog<'_> {
                     archive: version.archive.clone(),
                     sha256: version.sha256.clone(),
                 },
-                dependencies: self.index_requirements(&version.dependencies)?,
+                dependencies,
                 yanked: version.yanked,
             };
             self.versions

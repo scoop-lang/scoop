@@ -13,7 +13,7 @@ import scoop.window.native.*
 
 @Test
 private class PressDragUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `press composes with axis claims committed transforms and reentrant owner closure`() {
         val probe = GestureProbe()
         try {

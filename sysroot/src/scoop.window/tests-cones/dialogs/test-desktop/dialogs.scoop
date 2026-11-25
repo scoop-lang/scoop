@@ -4,7 +4,7 @@ import scoop.test.*
 
 @Test
 private class NativeFileDialogTests {
-    @Test
+    @Test(useProcess = true)
     fun `native file dialogs preserve scope and drain before windows and application exit`() {
         runDialogProbe()
     }

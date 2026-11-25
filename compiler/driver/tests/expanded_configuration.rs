@@ -21,13 +21,9 @@ fn child_checks_workspace_configuration_without_reinterpreting_the_manifest() {
     std::os::unix::fs::symlink(sources.join("src"), root.join("src")).unwrap();
     std::os::unix::fs::symlink(sources.join("platform"), root.join("platform")).unwrap();
     let document = parse_package_manifest(text, scoop_toolchain::SOURCE_TARGETS).unwrap();
-    let manifest = ParsedConeManifest::bind_package(
-        &document,
-        ConeCoordinate::reserved_core(),
-        &Default::default(),
-        false,
-    )
-    .unwrap();
+    let manifest =
+        ParsedConeManifest::bind_package(&document, ConeCoordinate::reserved_core(), &[], None)
+            .unwrap();
     let host = |path: &std::path::Path| HostPathCarrier::from_path(path).unwrap();
     let build = ScoopcBuildRequestV1::new(
         CurrentConeRequestV1::ExpandedCone {

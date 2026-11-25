@@ -20,7 +20,7 @@ import scoop.window.native.*
 
 @Test
 private class TableWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native table columns share scrolling resizing and virtual control ownership`() {
         val p = TableProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

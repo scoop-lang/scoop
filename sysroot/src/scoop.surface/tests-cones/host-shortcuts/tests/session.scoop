@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class NativeHostShortcutTest {
-    @Test
+    @Test(useProcess = true)
     fun `one host binding serves existing and later windows until the host closes`() {
         val probe = HostShortcutSession()
         SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {

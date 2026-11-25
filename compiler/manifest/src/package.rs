@@ -50,9 +50,24 @@ pub struct ConeMetadata {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum DependencyDeclaration {
+pub struct DependencyDeclaration {
+    pub when: Option<crate::TargetCondition>,
+    pub value: DependencyValue,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DependencyValue {
     Workspace { span: Range<usize> },
     Request(DependencyRequest),
+}
+
+impl DependencyDeclaration {
+    pub fn span(&self) -> &Range<usize> {
+        match &self.value {
+            DependencyValue::Workspace { span } => span,
+            DependencyValue::Request(request) => &request.span,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]

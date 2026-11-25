@@ -18,11 +18,11 @@ import scoop.window.native.*
 
 @Test
 private class SliderWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native slider preserves thumb identity and separates commit cancellation and external updates`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `contact slider shares keyboard commits cancellation geometry and focus behavior`() {
         run(true)
     }

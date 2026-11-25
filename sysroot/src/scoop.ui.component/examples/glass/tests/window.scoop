@@ -16,7 +16,7 @@ import scoop.window.*
 
 @Test
 private class GlassWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun scrollingRefreshesBothFixedPanels() {
         val probe = GlassWindowProbe()
         context(ThemeSource(materialTheme())) {

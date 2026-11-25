@@ -12,7 +12,7 @@ import scoop.window.*
 
 @Test
 private class ComponentThemePreferencesTest {
-    @Test
+    @Test(useProcess = true)
     fun `shared themes follow each root while scaling preserves editing and reduced motion stops frames`() {
         val probe = ThemePreferenceProbe()
         try {

@@ -4,7 +4,7 @@ import scoop.test.*
 
 @Test
 private class PrimarySelectionTest {
-    @Test
+    @Test(useProcess = true)
     fun `primary ownership remains separate and an old claim cannot clear its replacement`() {
         val handler = PrimarySelectionProbe()
         Application().run(handler)

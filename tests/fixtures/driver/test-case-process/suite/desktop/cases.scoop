@@ -1,0 +1,58 @@
+package dev.process
+
+import dev.process.probe.*
+import scoop.test.Test as Check
+import scoop.test.*
+
+private object Session {
+    var claimed = false
+}
+
+@Check
+private class Mixed {
+    init { trace(1) }
+    @BeforeTest fun before() { trace(2) }
+    @AfterTest fun after() {
+        trace(3)
+        if (cleanupFails) fail(Some("cleanup failure"))
+    }
+
+    private var cleanupFails = false
+
+    @Check fun parentFirst() {
+        trace(10)
+        assertFalse(Session.claimed)
+        Session.claimed = true
+    }
+
+    @Check(useProcess = true) fun isolated() {
+        trace(20)
+        assertFalse(Session.claimed)
+        Session.claimed = true
+        val mode = exercise()
+        if (mode >= 4) {
+            cleanupFails = true
+            assertEquals(1, 2, Some("body failure"))
+        }
+    }
+
+    @Check fun parentLast() {
+        trace(30)
+        assertTrue(Session.claimed)
+    }
+}
+
+@Check(useProcess = true)
+private class Exclusive {
+    @Check(false) fun first() {
+        trace(40)
+        assertFalse(Session.claimed)
+        Session.claimed = true
+    }
+    @Check fun second() {
+        trace(50)
+        assertFalse(Session.claimed)
+        Session.claimed = true
+    }
+    @Ignore("manual") @Check fun skipped() { trace(60) }
+}

@@ -10,7 +10,7 @@ import scoop.test.*
 
 @Test
 private class LinuxAsyncioTest {
-    @Test
+    @Test(useProcess = true)
     fun `io_uring notifications resume timers and cancellation drains window leases`() {
         val handler = LinuxSessionHandler()
         Application().runWithAsyncio(handler)

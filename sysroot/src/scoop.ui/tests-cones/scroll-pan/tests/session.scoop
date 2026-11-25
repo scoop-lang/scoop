@@ -14,31 +14,31 @@ import scoop.window.native.*
 
 @Test
 private class ScrollPanWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `direct scroll composes nested movement claims lifetime and newer position requests`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `direct scroll yields initial boundaries and preserves active containment`() {
         run(true)
     }
-    @Test
+    @Test(useProcess = true)
     fun `elastic contact boundaries keep nested geometry and settle on preferences and lifecycle changes`() {
         run(false, 1)
     }
-    @Test
+    @Test(useProcess = true)
     fun `elastic native scrolling respects momentum containment and discrete wheel boundaries`() {
         run(false, 2)
     }
-    @Test
+    @Test(useProcess = true)
     fun nativeMomentumReboundsAtTheBoundaryBeforeItsEnd() {
         run(false, 5)
     }
-    @Test
+    @Test(useProcess = true)
     fun `contact inertia shares one trajectory with ancestors and respects source options and scale`() {
         run(false, 3)
     }
-    @Test
+    @Test(useProcess = true)
     fun `contact inertia transfers boundary velocity and cancels without retaining a contact`() {
         run(false, 4)
     }

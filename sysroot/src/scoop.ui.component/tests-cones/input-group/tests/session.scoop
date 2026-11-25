@@ -17,7 +17,7 @@ import scoop.window.*
 
 @Test
 private class InputGroupWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `one editor survives addon reorder composition focus rebinding and chrome changes`() {
         @Unsafe
         {

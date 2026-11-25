@@ -25,8 +25,12 @@ public fun isTestSelected(
         }
         return false
     }
-    if (arguments[1L] != "--scoop-test-cases") return false
-    var index = 2L
+    if (arguments[1L] == "--scoop-test-child") {
+        return arguments.size == 3L && arguments[2L] == caseIndex
+    }
+    val marker = if (arguments[1L] == "--scoop-test-isolate-all") 2L else 1L
+    if (arguments.size <= marker || arguments[marker] != "--scoop-test-cases") return false
+    var index = marker + 1L
     while (index < arguments.size) {
         if (arguments[index] == caseIndex) { return true }
         index += 1L

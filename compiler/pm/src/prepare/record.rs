@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use super::*;
 use crate::cache::{FileStamp, PackageCache, atomic_write};

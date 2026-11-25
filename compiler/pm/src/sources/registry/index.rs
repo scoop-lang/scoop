@@ -120,6 +120,16 @@ impl RegistryVersion {
         }
         let mut keys = BTreeSet::new();
         for dependency in &self.dependencies {
+            if let Some(condition) = &dependency.when {
+                condition
+                    .validate(scoop_toolchain::SOURCE_TARGETS)
+                    .map_err(|error| {
+                        PmError::new(
+                            scoop_source::DiagnosticCode::E2120,
+                            format!("{coordinate} dependency {}: {error}", dependency.key),
+                        )
+                    })?;
+            }
             if !keys.insert(&dependency.key) {
                 return Err(PmError::new(
                     scoop_source::DiagnosticCode::E2120,

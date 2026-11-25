@@ -18,7 +18,7 @@ import scoop.window.*
 
 @Test
 private class ComboboxWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `combobox preserves native editing while selecting filtering removing chips and closing popups`() {
         val p = ComboProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

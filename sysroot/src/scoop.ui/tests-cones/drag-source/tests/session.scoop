@@ -13,7 +13,7 @@ import scoop.window.native.*
 
 @Test
 private class UiDragSourceSessionTest {
-    @Test
+    @Test(useProcess = true)
     fun `accepted source geometry preserves clicks and owns pending native completion`() {
         val probe = SourceSessionProbe()
         try {

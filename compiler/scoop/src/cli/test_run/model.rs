@@ -90,6 +90,7 @@ pub struct Output {
 pub struct CaseResult {
     pub status: Status,
     pub duration_ns: Option<u64>,
+    pub process: Option<ProcessStatus>,
     pub failures: Vec<Failure>,
     pub interruption: Option<String>,
     pub output: Option<Output>,
@@ -116,4 +117,10 @@ impl RunResult {
     pub fn failed(&self) -> bool {
         self.target_failure.is_some() || self.cases.iter().any(|case| case.status != Status::Passed)
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ProcessStatus {
+    pub code: Option<i32>,
+    pub signal: Option<i32>,
 }

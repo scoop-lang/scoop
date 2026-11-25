@@ -13,7 +13,7 @@ import scoop.window.native.*
 
 @Test
 private class StructuralRowsTest {
-    @Test
+    @Test(useProcess = true)
     fun `structural rows expose real children and retire former cell identities`() {
         val probe = StructuralProbe()
         try {

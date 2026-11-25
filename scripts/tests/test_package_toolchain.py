@@ -233,7 +233,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     )
                     assemble_sources(roots["sources"], args)
                     base_cones, gui_cones = package_toolchain.split_gui_cones(
-                        sysroot, orders[target]
+                        sysroot, orders[target], target
                     )
                     self.assertEqual(base_cones, ["scoop.core", "library"])
                     self.assertEqual(gui_cones, ["scoop.window", "widget"])

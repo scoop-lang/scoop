@@ -14,7 +14,7 @@ import scoop.window.*
 
 @Test
 private class VirtualListTest {
-    @Test
+    @Test(useProcess = true)
     fun `fixed virtual lists realize only needed keys and retain actual pointer focus and momentum owners`() {
         val probe = ListProbe()
         try {

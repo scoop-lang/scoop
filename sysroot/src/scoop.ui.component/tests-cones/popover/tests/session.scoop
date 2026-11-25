@@ -15,7 +15,7 @@ import scoop.window.*
 
 @Test
 private class PopoverWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `popovers retain controlled focus sessions through dismissal and reopening`() {
         val p = PopoverProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

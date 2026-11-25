@@ -14,7 +14,7 @@ import scoop.window.*
 
 @Test
 private class ScrollPaintCacheTest {
-    @Test
+    @Test(useProcess = true)
     fun `paint and instance retention remain independent with live input text and quiet frames`() {
         FontCollection(false).use {
             fonts ->

@@ -9,22 +9,14 @@ impl Lowerer {
         sink: &mut Vec<hir::Statement>,
     ) -> Option<hir::Expr> {
         let span = case.method.origin.span;
-        let key = self.test_case_key(index, span);
+        let key = self.test_string(index.to_string(), span);
         let ignored = hir::Expr {
             kind: hir::ExprKind::BoolLiteral(case.ignore_reason.is_some()),
             ty: self.boolean,
             span,
             origin: self.expression_origin(span),
         };
-        let name = hir::Expr {
-            kind: hir::ExprKind::StringLiteral {
-                value: case.display_name.clone(),
-                owner: hir::StringConstantOwner::CurrentDefinition,
-            },
-            ty: self.string,
-            span,
-            origin: self.expression_origin(span),
-        };
+        let name = self.test_string(case.display_name.clone(), span);
         let selected = self.test_api_call(
             "isTestSelected",
             vec![arguments, key, ignored, name],
@@ -42,10 +34,10 @@ impl Lowerer {
         Some(selected)
     }
 
-    pub(super) fn test_case_key(&self, index: usize, span: ast::Span) -> hir::Expr {
+    pub(super) fn test_string(&self, value: String, span: ast::Span) -> hir::Expr {
         hir::Expr {
             kind: hir::ExprKind::StringLiteral {
-                value: index.to_string(),
+                value,
                 owner: hir::StringConstantOwner::CurrentDefinition,
             },
             ty: self.string,

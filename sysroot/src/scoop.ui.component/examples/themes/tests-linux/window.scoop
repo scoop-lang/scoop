@@ -12,7 +12,7 @@ import scoop.window.*
 
 @Test
 private class LinuxShowcaseWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `the complete Linux UI presents all themes preserves models and stops hidden and idle frames`() {
         FontCollection().use {
             fonts ->

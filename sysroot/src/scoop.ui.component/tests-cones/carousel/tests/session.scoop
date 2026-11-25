@@ -19,11 +19,11 @@ import scoop.window.native.*
 
 @Test
 private class CarouselWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native carousel preserves slides through snapping dragging cancellation and timer pauses`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `contact carousel preserves snapping cancellation and autoplay pauses`() {
         run(true)
     }

@@ -9,7 +9,7 @@ import scoop.window.*
 
 @Test
 private class LinuxSurfaceHostTest {
-    @Test
+    @Test(useProcess = true)
     fun `two EGL windows retain in-paint demand present pixels idle remap resize and reattach`() {
         val probe = LinuxSurfaceProbe()
         val application =

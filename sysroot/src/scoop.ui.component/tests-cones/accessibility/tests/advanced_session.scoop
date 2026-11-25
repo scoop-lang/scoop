@@ -16,7 +16,7 @@ import scoop.window.native.*
 
 @Test
 private class AdvancedComponentSemanticsTest {
-    @Test
+    @Test(useProcess = true)
     fun `compound controls publish real states and reject refused changes without requiring activation`() {
         val probe = AdvancedProbe()
         try {

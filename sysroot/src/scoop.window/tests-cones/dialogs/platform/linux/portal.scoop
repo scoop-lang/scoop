@@ -8,7 +8,7 @@ import scoop.time.Duration
 
 @Test
 private class NativePortalTests {
-    @Test
+    @Test(useProcess = true)
     @Ignore(
         "Requires a real session portal and GDK_DEBUG=portals; run separately with --ignored --filter NativePortalTests"
     )

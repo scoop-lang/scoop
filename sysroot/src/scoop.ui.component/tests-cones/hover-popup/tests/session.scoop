@@ -14,7 +14,7 @@ import scoop.window.*
 
 @Test
 private class HoverPopupWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `hover popups preserve trigger actions and honor focus deadlines and controlled models`() {
         val p = HoverPopupProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

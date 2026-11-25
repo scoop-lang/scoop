@@ -20,11 +20,11 @@ import scoop.window.native.*
 
 @Test
 private class ResizableWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native splitters preserve keyed content and constrained state through drag and keyboard cancellation`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `contact splitters preserve constrained sizes cancellation and keyboard behavior`() {
         run(true)
     }

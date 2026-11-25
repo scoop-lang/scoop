@@ -4,7 +4,7 @@ import scoop.test.*
 
 @Test
 private class NativeDesktopTests {
-    @Test
+    @Test(useProcess = true)
     fun `native UI menus chrome and owned dialogs follow their mounted scopes`() {
         runNativeDesktop()
     }

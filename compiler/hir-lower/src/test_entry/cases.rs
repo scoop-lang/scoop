@@ -4,6 +4,7 @@ impl Lowerer {
     pub(super) fn generate_test_case(
         &mut self,
         entry: hir::FunctionId,
+        arguments: hir::Expr,
         index: usize,
         container: &hir::TestContainer,
         case: &hir::TestCase,
@@ -15,7 +16,7 @@ impl Lowerer {
             .replace(crate::Owner::Class(container.class));
         let outer_context = self.current_source_context;
         self.set_source_context(hir::SourceContextSubject::Function(entry));
-        let result = self.generate_test_case_inner(index, container, case, sink);
+        let result = self.generate_test_case_inner(arguments, index, container, case, sink);
         self.current_file = outer_file;
         self.current_owner = outer_owner;
         self.current_source_context = outer_context;
@@ -24,6 +25,7 @@ impl Lowerer {
 
     fn generate_test_case_inner(
         &mut self,
+        arguments: hir::Expr,
         index: usize,
         container: &hir::TestContainer,
         case: &hir::TestCase,
@@ -74,10 +76,17 @@ impl Lowerer {
                 })
             })?;
         let location = self.test_location(container.origin, sink)?;
-        let key = self.test_case_key(index, span);
+        let key = self.test_string(index.to_string(), span);
+        let name = self.test_string(case.display_name.clone(), span);
+        let use_process = hir::Expr {
+            kind: hir::ExprKind::BoolLiteral(case.use_process),
+            ty: self.boolean,
+            span,
+            origin: self.expression_origin(span),
+        };
         self.test_api_call(
-            "runReportedTestCase",
-            vec![key, location, initializer],
+            "runSelectedTestCase",
+            vec![arguments, key, name, use_process, location, initializer],
             span,
             sink,
         )

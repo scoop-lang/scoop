@@ -8,7 +8,7 @@ import scoop.time.Duration
 
 @Test
 private class NativeMenuTests {
-    @Test
+    @Test(useProcess = true)
     fun `native menus preserve identity and drain popup and borrowed uses`() {
         val handler = MenuHandler()
         @Unsafe
@@ -35,7 +35,7 @@ private class NativeMenuTests {
         assertEquals(1, handler.quitRequests)
     }
 
-    @Test
+    @Test(useProcess = true)
     @Ignore("Requires an unlocked foreground desktop; run separately with --ignored")
     fun `edit roles follow the native focus target and its validation`() {
         val handler = FocusedMenuHandler()

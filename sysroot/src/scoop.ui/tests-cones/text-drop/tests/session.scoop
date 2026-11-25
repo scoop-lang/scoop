@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class TextDropHostTest {
-    @Test
+    @Test(useProcess = true)
     fun `native destination uses accepted text geometry policies and bounded edge scrolling`() {
         FontCollection().use {
             fonts ->

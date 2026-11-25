@@ -1,0 +1,2 @@
+package dev.process
+public fun initial(): Int = 0

@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class AbsoluteUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `absolute z order changes pixels and hits while keyed instances tab order and ancestor clips stay logical`() {
         val probe = AbsoluteProbe()
         try {

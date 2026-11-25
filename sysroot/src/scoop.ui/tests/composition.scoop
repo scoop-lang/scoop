@@ -7,7 +7,7 @@ import scoop.window.*
 
 @Test
 private class UiCompositionTest {
-    @Test
+    @Test(useProcess = true)
     fun `hidden roots reconcile state props bindings and keys without waiting for a frame`() {
         val store = CompositionStore()
         val probe = CompositionProbe(store)

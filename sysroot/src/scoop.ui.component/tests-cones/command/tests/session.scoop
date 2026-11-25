@@ -18,7 +18,7 @@ import scoop.window.*
 
 @Test
 private class CommandWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `command keeps native editing focus through search navigation virtual rows and updates`() {
         val p = CommandProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

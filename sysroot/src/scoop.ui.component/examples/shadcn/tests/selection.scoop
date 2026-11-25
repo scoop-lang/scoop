@@ -14,7 +14,7 @@ import scoop.window.*
 
 @Test
 private class SelectionWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `selection controls use current bindings labels and one press while preserving mounts and stopping frames`() {
         val probe = SelectionProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

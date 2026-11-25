@@ -17,7 +17,7 @@ internal class ExpectedDeadlineFailure: Exception(Some("deadline callback failur
 
 @Test
 private class WindowDeadlineTest {
-    @Test
+    @Test(useProcess = true)
     fun `window deadlines share the native loop without consuming application deadlines or retaining closed owners`() {
         val probe = DeadlineProbe()
         val application = Application()

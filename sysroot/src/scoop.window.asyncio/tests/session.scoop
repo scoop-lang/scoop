@@ -11,7 +11,7 @@ import scoop.platform.time.MonotonicTimeSource
 
 @Test
 private class WindowAsyncioTest {
-    @Test
+    @Test(useProcess = true)
     fun `root cancellation closes windows before child cleanup and waits for leases`() {
         val application = Application()
         val handler = AsyncHandler()

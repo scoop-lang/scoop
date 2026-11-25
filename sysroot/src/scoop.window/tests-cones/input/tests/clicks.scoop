@@ -9,7 +9,7 @@ import scoop.window.native.*
 
 @Test
 private class NativeMouseClicksTest {
-    @Test
+    @Test(useProcess = true)
     fun `Win32 produces three consecutive press and release counts from real input messages`() {
         val handler = ClickHandler()
         Application().run(handler)

@@ -15,7 +15,7 @@ import scoop.window.*
 
 @Test
 private class FieldLabelWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `labels use current controls and reject disabled hidden detached foreign and modal targets`() {
         val probe = FieldLabelProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

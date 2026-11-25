@@ -19,7 +19,7 @@ import scoop.window.*
 
 @Test
 private class TextControlsTest {
-    @Test
+    @Test(useProcess = true)
     fun `themed text controls retain models across focus themes modal input and virtual eviction`() {
         val probe = FieldProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

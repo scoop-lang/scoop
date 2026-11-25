@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class FocusRevealTest {
-    @Test
+    @Test(useProcess = true)
     fun `mounted targets reveal through submitted scroll viewports and newer requests cancel old focus`() {
         val probe = RevealProbe()
         try {

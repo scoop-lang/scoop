@@ -17,7 +17,7 @@ internal const val initialText = "A😀é中\nZ"
 
 @Test
 private class AccessibleEditorTest {
-    @Test
+    @Test(useProcess = true)
     fun `native text ranges selection and writes share the editor and its policy`() {
         verifyEditor(true)
     }
@@ -25,7 +25,7 @@ private class AccessibleEditorTest {
 
 @Test
 private class AccessibleEditorWithoutSceneTest {
-    @Test
+    @Test(useProcess = true)
     fun `logical text transactions and retained document updates need no drawable`() {
         verifyEditor(false)
     }

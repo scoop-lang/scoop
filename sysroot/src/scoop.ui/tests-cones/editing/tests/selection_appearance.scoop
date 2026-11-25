@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class SelectionAppearanceTest {
-    @Test
+    @Test(useProcess = true)
     fun `selected glyph colors follow window activity child focus and cached selection changes`() {
         FontCollection(false).use {
             fonts ->

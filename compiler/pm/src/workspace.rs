@@ -21,6 +21,7 @@ use load::LoadedManifest;
 
 #[derive(Clone, Debug)]
 pub struct ExpandedDependency {
+    pub when: Option<scoop_manifest::TargetCondition>,
     pub request: DependencyRequest,
     pub origin: ManifestOrigin,
     pub inherited_at: Option<ManifestOrigin>,

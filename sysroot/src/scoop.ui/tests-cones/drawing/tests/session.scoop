@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class UiDrawingTest {
-    @Test
+    @Test(useProcess = true)
     fun `public self drawing supports geometry animation optional placement and safe async close`() {
         val application = Application()
         val probe = DrawingProbe()

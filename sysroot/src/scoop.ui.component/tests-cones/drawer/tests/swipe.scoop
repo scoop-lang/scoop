@@ -10,7 +10,7 @@ import scoop.window.native.*
 
 @Test
 private class DrawerSwipeWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native swipe drawer shares snaps close veto scrolling handles nesting and direction`() {
         val p = DrawerProbe(exercise = Some({ value -> advanceDrawerSwipe(value) }))
         p.observeGrips = true

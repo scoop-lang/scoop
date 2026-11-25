@@ -19,7 +19,7 @@ import scoop.window.asyncio.*
 
 @Test
 private class ToastWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native notifications queue pause update swipe and restore without stealing focus`() {
         val p = ToastProbe()
         val host =

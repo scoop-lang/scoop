@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class SharedViewportTest {
-    @Test
+    @Test(useProcess = true)
     fun `lazy focus and collection metadata share an ancestor viewport with a fixed sibling header`() {
         val probe = SharedViewportProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

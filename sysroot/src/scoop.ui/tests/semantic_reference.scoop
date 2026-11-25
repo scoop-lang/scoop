@@ -8,7 +8,7 @@ import scoop.window.accessibility.*
 
 @Test
 private class SemanticsReferenceTest {
-    @Test
+    @Test(useProcess = true)
     fun `retained semantic references stay idle while rebinding and retirement notify readers`() {
         val probe = SemanticReferenceProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

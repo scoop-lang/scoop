@@ -5,7 +5,7 @@ import scoop.platform.concurrent.Thread
 
 @Test
 private class DxgiWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `DXGI presents resized buffers and drains GPU work before HWND retirement`() {
         val result = runDxgiWindow(true)
         assertTrue(result.frames >= 2)

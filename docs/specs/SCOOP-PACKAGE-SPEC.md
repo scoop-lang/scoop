@@ -80,7 +80,9 @@ default = "https://packages.example.org/"
 
 `[test]` 可设置布尔值 `isolate = true`，让每个选中的测试用例在新进程运行，适用于进程独占的原生窗口或其他进程级状态。省略时为 false。该字段属于测试根的运行配置，详见[实现规范 2.7](SCOOP-IMPL-SPEC.md)。
 
-`[dependencies]` 是生产依赖；`[test-dependencies]` 仅加入所选测试根，依赖本身仍以 Production 构建。同一 manifest 两张表不得重复声明同一 key。普通 build/run/check/doc 不解析或获取测试依赖，不因只改变测试配置而更新生产解析或构建结果。首版不提供 optional/build dependency、feature、依赖平台条件或安装脚本。
+`[dependencies]` 是生产依赖。`[test-dependencies]` 仅加入所选测试根，依赖本身仍以 Production 构建。同一 manifest 两张表不得重复声明同一 key。普通 build/run/check/doc 不解析或获取测试依赖，不因只改变测试配置而更新生产解析或构建结果。首版不提供 optional/build dependency、feature 或安装脚本。
+
+这两张表中的依赖声明支持可选 `when`，例如 `{ version = "=1.2.0", when = { os = "linux", env = "gnu" } }`。各项声明先检查格式并展开 workspace 继承，再按请求的用途和 canonical target 选择边。只有选中的边参与来源覆盖、定位、获取和求解。谓词使用语言规范 12.2.2 的 `arch`、`os`、`env`，字符串简写仍表示无条件版本要求。依赖 key 的唯一性按声明检查。筛选后按原规则补齐生产依赖 core。完整示例、缓存与诊断见[条件依赖设计](../conditional-dependencies-and-test-processes/DESIGN.md#条件依赖)。
 
 ### 2.3 Bundle 工具 metadata
 
@@ -142,7 +144,7 @@ default-members 必须是成员子集；省略时，有根 Cone 则选根 Cone�
 
 ### 3.2 显式继承
 
-可继承的 Cone 字段仅为 group、version、license、repository；name、kind、源码/native 清单不继承。依赖的 `{ workspace = true }` 必须是完整 value，不允许再混入 version/source 字段；引用 `[workspace.dependencies]` 同 key 的完整声明。该表不自动添加依赖，也不覆盖传递依赖。成员依赖彼此必须使用显式 path（可经共享依赖声明）；同名 registry 依赖不自动变成本地 member。
+可继承的 Cone 字段仅为 group、version、license、repository，name、kind、源码/native 清单不继承。依赖的 `{ workspace = true }` 引用 `[workspace.dependencies]` 同 key 的完整版本与来源声明。成员可按 2.2 附加 `when`，版本与来源仍由共享声明完整给出。`when` 属于实际依赖边，只能写在 Cone 自己的生产或测试依赖上。`[workspace.dependencies]` 不自动添加依赖，也不覆盖传递依赖。成员间依赖仍须显式选择 path（可经共享依赖声明），同名 registry 依赖不自动变成本地成员。
 
 继承值中的相对路径以定义该值的清单为基准；成员自己的相对路径以成员为基准。PM 展开配置时保留定义和引用位置，用于诊断。成员要求继承但未找到所属 workspace 或对应键时直接报错。Git 仓库内的成员使用其所属远端 workspace 展开，不采用消费者的 workspace 字段。
 
@@ -150,7 +152,7 @@ default-members 必须是成员子集；省略时，有根 Cone 则选根 Cone�
 
 解析单位是 `(root member, purpose, target)`。每个单位产生完整依赖闭包，同一闭包中每个 `group:name` 只能有一个版本和一个实际来源。不同 executable、native-app 或独立 library 根可以使用不同版本；一次 `--workspace` 不把这些闭包强制合并。
 
-例如 server → json 1.x，cli → json 2.x 可以同时存在；若 server 同时依赖两个分别要求 json 1.x 和 2.x 的库，则解析失败。生产和测试根分别锁定，测试闭包必须整体满足生产与测试约束，不强制复用另一个生产闭包的版本。profile 不改变求解结果；target 作为解析键用于实际 sysroot/prebuilt 选择。
+例如 server → json 1.x，cli → json 2.x 可以同时存在；若 server 同时依赖两个分别要求 json 1.x 和 2.x 的库，则解析失败。生产和测试根分别锁定，测试闭包必须整体满足生产与测试约束，不强制复用另一个生产闭包的版本。profile 不改变求解结果。target 决定 sysroot/prebuilt 选择，也是 2.2 中每层条件依赖的求值目标。`Cone.lock` 只记录对该解析单位生效的精确边。
 
 ## 4. 依赖来源
 
@@ -405,6 +407,8 @@ archives/org.example/json/1.4.3.tar.zst
 
 每个版本记录必需完整版本、kind、生产依赖、archive、sha256、yanked。依赖条目必需key、version和source；source为`{kind="registry", registry=URL}`、`{kind="git", git=URL, commit=完整ID, subdir=目录}`或`{kind="sysroot"}`对应的JSON对象，不在索引内复制所依赖版本的归档位置。隐式core在索引中展开为普通精确边。只给消费者解析生产依赖，测试依赖保留在源包清单中但不参与传递求解。executable 和 native-app 版本可发布，但不能作为普通依赖候选。
 
+格式 1 的生产依赖记录可携带与清单同义的 `when` JSON 对象。源包和索引保留声明的所有目标分支，PM 在枚举候选的传递依赖时按消费目标筛选。若显式 core 带条件，索引保留该声明，未匹配时按隐式 core 规则取得精确生产边。索引和已选源码包的首次清单比对包含条件。
+
 `archive` 是 HTTP(S) URL 或按标准 URL 规则相对 registry base 解析的引用，不能包含内嵌凭据或 fragment；允许归档位于其他静态站点。它不相对包索引文件或重定向后的地址解析。`sha256` 是实际 tar.zst 归档字节的 64 位小写十六进制摘要，示例值需替换为真实摘要。索引的 group/name 必须匹配请求，versions 可为空，完整版本文本不得重复；数组顺序不影响求解。依赖 key 不得重复，版本要求沿用第 2 节，不另设 registry 版本语法。
 
 读取只需普通 HTTP GET：首次使用某个 registry 取得 config，求解时按需取得包索引，选定版本后取得其归档。不要求 HEAD、Range、ETag、条件请求、压缩索引或 POST API；可通过普通静态文件服务器、对象存储或 CDN 提供相同文件。服务端应返回完整 JSON 和归档内容；HTTP 客户端可跟随标准重定向，但静态站点无需配置重写或重定向。404 表示所请求的 registry 文件/归档不存在，其他 HTTP、TLS、JSON 或归档错误正常报告；不切换到另一个 registry 猜测同名包。
@@ -449,6 +453,8 @@ Swift 原生库第一阶段实现后，源码包同样包含 `native.swift.packa
 
 打包后的清单展开workspace继承和默认registry URL，移除workspace、overrides、publish配置和本机locator。生产与测试两张依赖表都必须能独立消费；path依赖只有同时声明发布用version要求与可确定的默认registry时才能转换成该registry依赖，因此path表本身无需允许第二种来源。Git依赖按原声明来源解析为完整commit，浮动tag/branch不能原样发布；未写version时补入该commit清单的精确版本要求。可复用来源匹配的lock选择，不能将根override的替换源写成原Git来源的发布结果。artifact依赖没有可移植源码替代，源码package拒绝它，作者需改成明确的源码依赖。消费者不继承发布者的Cone.lock或本地覆盖。
 
+生成独立清单时，2.2 的 `when` 随所属生产或测试依赖一起保留。发布来源的转换覆盖所有声明分支，实际消费和显式 `package --check` 使用各自请求的 target。
+
 `package --list` 输出最终文件清单和改写后的 manifest；默认 package 进行清单、依赖可发布性和归档检查，不隐式运行编译。`package --check` 先为已生成归档解包后的独立Cone解析消费者可用的来源，生成本次检查用的临时lock，再显式调用普通driver做一次`--locked`构建；不把发布者的path/override带入该检查。生产源码及工具保持原位，不通过隐藏原输入制造验收。该构建不会证明所有其他 target 都已验证，结果须标明实际 target。
 
 `scoop-pm registry add --root <directory> <archive>` 维护符合第 8 节的本地静态目录：读归档的展开清单生成 metadata，检查目标版本未存在，先落盘归档，再原子更新对应包索引。`registry yank/unyank` 只变更状态。并发写由普通文件锁协调。静态目录可由用户已有站点部署方式托管；首版交付这组维护工具和 HTTP 消费闭环，不提供远端 `scoop publish`、托管账号或自定义上传服务。
@@ -490,7 +496,7 @@ PM cache 默认根目录为 `~/.scoop/packages/`，与安装根下的 `bin`、`l
 
 ```text
 ~/.scoop/packages/
-  registry-v2/<registry-id>/
+  registry-v3/<registry-id>/
     index/<group>/<name>.json
     cache/<group>/<name>/<version>.tar.zst
     src/<group>/<name>/<version>/

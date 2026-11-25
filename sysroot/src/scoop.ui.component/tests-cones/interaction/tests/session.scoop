@@ -29,7 +29,7 @@ import scoop.window.setWindowLevel
 
 @Test
 private class ControlUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `real controls use public theme geometry retain state and focus and stop Metal work`() {
         val probe = ControlProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

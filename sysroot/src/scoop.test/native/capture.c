@@ -27,7 +27,7 @@ static int saved_stdout = -1;
 static int saved_stderr = -1;
 static int64_t started;
 
-static int64_t monotonic_ns(void) {
+int64_t scoop_test_monotonic_ns(void) {
 #ifdef _WIN32
     LARGE_INTEGER counter, frequency;
     if (!QueryPerformanceCounter(&counter) || !QueryPerformanceFrequency(&frequency) ||
@@ -79,11 +79,8 @@ int scoop_test_capture_begin(uint64_t sequence) {
             return -1;
         saved_stdout = dup(STDOUT_FILENO);
         saved_stderr = dup(STDERR_FILENO);
-        char name[64];
-        snprintf(name, sizeof(name), "%" PRIu64 ".stdout", sequence);
-        FILE *output = scoop_test_open_output(name);
-        snprintf(name, sizeof(name), "%" PRIu64 ".stderr", sequence);
-        FILE *error = scoop_test_open_output(name);
+        FILE *output = scoop_test_open_stream(sequence, "stdout");
+        FILE *error = scoop_test_open_stream(sequence, "stderr");
         int failed = saved_stdout < 0 || saved_stderr < 0 || !output || !error;
         if (!failed &&
             (dup2(fileno(output), STDOUT_FILENO) < 0 || dup2(fileno(error), STDERR_FILENO) < 0))
@@ -97,7 +94,7 @@ int scoop_test_capture_begin(uint64_t sequence) {
             return -1;
         }
     }
-    started = monotonic_ns();
+    started = scoop_test_monotonic_ns();
     if (started < 0) {
         restore();
         return -1;
@@ -106,7 +103,7 @@ int scoop_test_capture_begin(uint64_t sequence) {
 }
 
 int64_t scoop_test_capture_end(void) {
-    int64_t ended = monotonic_ns();
+    int64_t ended = scoop_test_monotonic_ns();
     int failed = ended < started;
     if (saved_stdout >= 0 || saved_stderr >= 0) {
         if (flush_streams() < 0)
