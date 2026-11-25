@@ -23,4 +23,4 @@ Scoop 尚未发布首个版本。语言、库和工具随主线一起演进。�
 
 ## 历史记录
 
-M1 至 M62 的设计、阶段验收、实验数据、原完整路线图及已完成的 JSON 库调研保存在相邻的 `../scoop-doc-archive/docs/`。历史版本也可从 Git 查阅。仍在使用的生成器协议和 JSON 消息定义保留在当前仓库。[归档时的文档目录](https://github.com/scoop-lang/scoop/tree/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs) · [生成器协议](generator-protocol/PROTOCOL.md)
+M1 至 M62 的设计、阶段验收、实验数据、原完整路线图、已完成的 JSON 库调研及 Windows／原生调试的历史进度与验收保存在相邻的 `../scoop-doc-archive/docs/`。历史版本也可从 Git 查阅。仍在使用的生成器协议和 JSON 消息定义保留在当前仓库。[归档时的文档目录](https://github.com/scoop-lang/scoop/tree/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs) · [生成器协议](generator-protocol/PROTOCOL.md)

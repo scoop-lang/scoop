@@ -448,7 +448,7 @@ Windows TTY 测试按 [asyncio 原生测试辅助库](../../sysroot/src/scoop.as
 - native 与 RC 共用的 include 不再枚举 canonical target 路径；准备、打包、文档、fixture 不再各维护一份完整 target 事实；库自己的适用条件继续由其 manifest 表达。
 - 缓存仍只判断更新，不新增内容验真、重放检查、输入隐藏或来源审计；所有新登记的 target 均有完整实现，没有空 handler。
 
-[windows-progress]: ../windows-targets/PROGRESS.md
+[windows-progress]: https://github.com/scoop-lang/scoop/blob/f93c4b46082def07aa51103567e2d6a2ea0978fc/docs/windows-targets/PROGRESS.md
 [windows-contract]: ../../compiler/lir/src/target/contract.rs
 [windows-machine-abi]: ../../compiler/lir/src/runtime_abi/machine.rs
 [windows-driver]: ../../compiler/toolchain/src/native_driver.rs

@@ -10,7 +10,7 @@
 
 库内 C shim 的完成记录 kind 与 Scoop 解码保持一致：既有通用／网络事件保留原编号，使用 `0x000–0x0ff` 段；文件／目录事件使用 `0x100–0x1ff` 段，依次为 Metadata `0x100`、Position `0x101`、Temporary `0x102`、DirectoryName `0x103`；TTY 事件使用 `0x200–0x2ff` 段，Resize 为 `0x200`、Timeout 为 `0x201`。两类新增事件分别在自己的段内追加，保留已有编号；未分配值仍按非法完成记录处理。此编号仅用于该 Cone 的 native 接口，不属于 runtime ABI 或公共 Scoop 枚举身份。
 
-首版支持 aarch64-apple-darwin、x86_64-unknown-linux-gnu、x86_64-unknown-linux-musl；三个 Windows target 的扩展按[Windows 进度](../windows-targets/PROGRESS.md)分批实施，未完成前不声明整个库可用。PlatformEventLoop 由目标平台选择后端：Darwin 使用系统 libdispatch，Linux 使用第 11 节规定的 io_uring，Windows 使用 IOCP。C11 shim 只管理 native I/O、稳定存储及完成记录，OS callback 不进入 managed 代码，阻塞任务由 managed worker 调用同步 shim。TLS、HTTP 属于各自库，文件监听、进程和任意 fd 接管不在本版范围；M54 为实际缓存与下载补齐第 9 节的基础能力；M59 增加第 10 节的自有 TTY。
+支持 aarch64-apple-darwin、x86_64-unknown-linux-gnu、x86_64-unknown-linux-musl，以及实现规范第 1 节列出的三个 Windows x64 target；Windows 工具链与库资源入口见[支持范围](../windows-targets/README.md)。PlatformEventLoop 由目标平台选择后端：Darwin 使用系统 libdispatch，Linux 使用第 11 节规定的 io_uring，Windows 使用 IOCP。C11 shim 只管理 native I/O、稳定存储及完成记录，OS callback 不进入 managed 代码，阻塞任务由 managed worker 调用同步 shim。TLS、HTTP 属于各自库，文件监听、进程和任意 fd 接管不在本版范围；文件与自有 TTY 能力分别见第 9、10 节。
 
 Linux C 工具链同时需要所选 libc 的开发头文件和对应架构的 Linux UAPI 头文件（包括 linux/errqueue.h）。只带 musl libc 的 musl-gcc 包装器须补齐内核头文件搜索路径，可通过普通 --cc 包装脚本配置；不把 glibc 用户态头文件加入 musl 的搜索路径。
 

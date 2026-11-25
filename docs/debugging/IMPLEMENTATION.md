@@ -1,10 +1,8 @@
-# 原生调试实施记录
+# 原生调试支持范围
 
-分支：`codex/native-debugging`。日期：2026-10-29。
+Windows／PDB 已与主线共享同一套源码记录和调试器交付流程，目标与工具链入口见 [Windows 支持范围](../windows-targets/README.md)。
 
-Windows／PDB 的后续整合位于 `codex/windows-targets`，补充验收记录见下文与 [Windows 实施记录](../windows-targets/PROGRESS.md)。
-
-本轮基础源码调试、Throwable 历史栈与 trap 栈打印、调试器打包和 VS Code 集成已完成。编译器与工具的具体能力、实际验收和平台限制如下；完整 Scoop 表达式求值及协程逻辑栈继续作为独立工作。
+基础源码调试、Throwable 历史栈与 trap 栈打印、调试器打包和 VS Code 集成已完成。编译器与工具的具体能力、维护入口和平台限制如下；完整 Scoop 表达式求值及协程逻辑栈继续作为独立工作。
 
 ## 编译接口与产物
 
@@ -54,71 +52,14 @@ VS Code 扩展 0.3.0 注册 Scoop debug type 和源码断点。构建／launch �
 
 发行包公开 `bin` 中的 LLVM／LLDB 命令统一带 `scoop-` 前缀，例如 `scoop-lldb`、`scoop-lldb-dap` 和 `scoop-llvm-symbolizer`，Windows 附加 `.exe`。编译器相邻工具查找、VS Code 默认 adapter 与性能分析脚本同步使用发行名称；私有 helper 和显式外部 LLVM 保留上游命名。
 
-## 验证范围与结果
+## 平台边界与维护入口
 
-先完成本地功能和定向验证，再使用 nuc12 的 `~/repos/scoop-native-debugging-20261029` 独立目录验证 Linux。未运行无关完整测试套件，原始日志、逐轮报告和临时程序存放仓库外。
+Windows 的 CodeView／PDB 可以表示源码位置、参数、全局、TLS 和可定位的聚合成员；部分纯计算值与聚合分片显示 unavailable，断点顺序随真实指令布局变化。调试观察使用程序已有存储和 GC 位置，不额外延长对象生命期。
 
-| 范围 | 结果 |
-| --- | --- |
-| Rust／Python／扩展 | workspace fmt／clippy、涉及来源与 lowering／ABI／后端的定向测试、fixture runner 规则测试、Python Ruff 0.16.10；扩展 Biome／TypeScript、15 项 Node 测试、构建与 VSIX 打包通过 |
-| 后端与链接 | O0／O2 × none／line-tables／full、真实对象／DWARF、参数分片与递归类型、GC 位置、跨 Cone 模板／ODR、全局／TLS；独立调试文件及缓存／basename／源码更新的定向用例通过 |
-| Throwable／trap | Darwin、GNU、musl 的 full／line-tables／none 实际程序通过：首次栈、catch 后保活、重抛、移动／minor GC、uncaught／trap 退出与源码行；同对象并发首次 throw 通过 |
-| GNU、musl 进程内 DAP | 两目标 launch、源码映射、断点／单步、栈、全局／TLS、String／数组／enum／interface／闭包，以及移动 GC 后变量检查通过；GNU 另通过真实 PTY 终端输入和 attach |
-| TLS 与离线归因 | musl 静态 TLS 的初始化／零初始化、64-byte 对齐及两个线程通过；ELF 两目标源码／精确符号查询通过，GNU PIE 使用 `/proc` 取得的真实非零 load bias 通过离线 CLI 符号化 |
-| 调试器发行资源 | Darwin／Linux 调试器包位于含空格路径，以系统 PATH 启动；Python 标准模块、formatter、真实 DWARF 和源码名断点通过；dyld／ELF loader 记录确认私有依赖来自包内。Linux 正式 LLDB recipe 构建及随后复用通过 |
-
-可重复的外部协议和静态值用例见[调试验收入口](../../tooling/vscode-scoop/test/debugger/README.md)，栈诊断用例位于 `tests/fixtures/compiler-correctness/debugging/`。
-
-本机 macOS 的进程 launch 仍受环境限制：系统及上游 LLDB 对普通 C 对照程序也会卡住。本机验收覆盖真实 Scoop 运行、对象／dSYM 校验、调试器加载和离线观察，进程内 DAP 结论来自 Linux。未运行 VS Code extension host 的图形调试会话；扩展通过构建／单元测试和实际 adapter 协议验证。发行验证针对调试器及其依赖，没有重跑全部 25 库的完整工具链发行构建。
-
-Windows 补充验收：真实 Python-enabled LLDB 包迁移到中文及空格路径、使用受限 PATH 后，MSVC/PDB 的 launch、源码映射、断点／单步、栈、参数、全局／TLS、String／数组／enum／对象、闭包和 moving GC 引用检查通过；离线源码名／原生符号名断点、ZST／匿名 union／空 interface 与数组布局通过。TLS 使用当前线程的 TEB 与 PE TLS index，测试先修改初始值，避免把模板误当成变量。CodeView 中部分纯计算值和聚合分片可显示 unavailable，断点顺序也可随真实指令布局变化；没有为调试增加目标存储、读取或保活。
-
-## 栈快照开关的定向验证与性能
-
-后续分支 `codex/stack-trace-toggle`（2026-10-29）在本地完成实现后验证：workspace fmt／clippy、29 项相关 Rust 测试、61 项 fixture runner 规则测试通过。Darwin 的调试专测 7 个变体通过，覆盖 profile 默认值、显式覆盖、三种调试信息级别、真实隐藏快照槽、预编译 core 抛出、两种产物链接入口、移动 GC、并发首次抛出和链接缓存。受默认输出变化影响的 22 个既有 fixture，以及 2 个启动生命周期 fixture 全部通过；未运行完整 fixture 套件。合并 main 的 compiler intrinsics 后，重新构建配套库，workspace lint、runtime ABI／CLI 定向测试及全部 7 个调试变体再次通过。
-
-随后使用 nuc12 的 `~/repos/scoop-stack-trace-toggle-20261029` 独立目录验证 Linux。相关 crate 的 fmt／clippy、编译器构建通过；重建匹配的系统库和 runtime 后，GNU、musl 各 7 个调试变体全部通过。启动边界测试另覆盖 GNU 动态、musl 静态及动态三种链接模式，确认新增开关值正确传入 runtime。验证复用已有 Cargo 和 libunwind 构建结果，未运行无关完整测试套件。
-
-性能对照基于功能提交 `dd6286231`，在 Apple M3 Ultra 上使用同一份 release／debug-info=none 机器产物，只切换最终链接开关。每轮预先构造 4,000 个异常对象，在计时区间执行 throw/catch；先预热 64 次，计时前主动 GC，排除对象构造及打印时间。每组交替开／关顺序执行 7 轮，以下为每次 throw/catch 的墙钟中位数，递归深度指额外的递归调用层数，0 仍有普通调用栈。
-
-| 额外递归层数 | 关闭快照 | 开启，首次抛出 | 首次捕获增加 |
-| --- | --- | --- | --- |
-| 0 | 4.29 µs | 12.53 µs | 8.24 µs（总耗时约 2.92 倍） |
-| 8 | 10.40 µs | 22.01 µs | 11.61 µs（约 2.12 倍） |
-| 32 | 28.78 µs | 50.05 µs | 21.27 µs（约 1.74 倍） |
-
-同一批对象先抛出一次、再计时其再次抛出时，三个深度的开／关中位数差异均在 1% 以内；短调用链分别为 4.28／4.27 µs。首次捕获的回溯、模块信息复制和快照分配有明显成本，但它不发生在没有 throw 的正常路径；本次数据不是所有平台或应用的固定比例。关闭后仍保留 Throwable 的 8-byte 可空引用槽及准备入口的常数开销，不改变实例布局、GC 或真正的异常展开流程。原始数据、基准源码和脚本保存在仓库外，未提交原始日志。
-
-## 完整测试回归
-
-随后按用户要求，在 macOS/AArch64 和 nuc12 的 Linux/amd64 环境运行完整测试。macOS 先完成修改及验证，Linux 复用已准备的 GNU、musl sysroot、LLVM 22.1 和原生依赖，在 `~/repos/scoop-full-test-fixed-20261029` 验证修复。完整 fixture 初跑在三个目标上各执行 4,313 个用例；随后新增并验证一个 Linux 原生归档回归，当前清单为 4,314 个。后续按失败项和变更影响范围复验，保留初跑报告，不将定向复验表述为重新完成一次全量运行。
-
-本次发现并修复的实际问题包括：PM 对 checkout 路径别名的缓存身份处理；Mach-O callback 错误字符串的私有符号重定位；导入常量作为 lambda 隐式返回值时的错误来源区间；CLI 对输入路径和 `.scoop` 后缀目录的处理；tree-sitter 对已支持语法的解析；以及 ELF 系统归档与显式原生输入重复提供 compiler builtins 时的选择规则。系统归档现在承担补足未解析符号的职责，显式输入之间的真实强符号冲突仍然报错。
-
-Linux 真实 DAP 还暴露了 debug profile 中的 InstCombine 将局部算术计算移动到后续语句的问题，导致声明行断点被跳过。debug 规范化改用不重组表达式的简化，并在原位置展开含 managed 引用的普通 aggregate load；release pass 保持原有策略。新增测试覆盖三个目标上的语句顺序、packed 字段偏移、对齐和 volatile 访问，GNU、musl 的实际断点与 GC 后变量观察再次通过。
-
-测试本身的修正包括按当前 ABI、CLI、IR 和链接合同更新预期；修正 UTF-8 字节长度、临时目录路径、测试 native helper 依赖和异步资源清理；同步 GC 并发测试的观察时机；使用实际外部文件写入验证 VS Code watcher。启动统计的内部符号探针显式请求 `--keep-symbols`，文档 fixture 显式传入目标。完整 core 的两个 LSP 集成测试使用独立的较长响应时限，普通小用例仍保留原时限。GC graph stress 的父子进程时限保持一致，并输出具体失败的子进程信息。JSON 全套用例在 Linux 冷构建耗时约 860–867 秒，其 fixture 时限由 600 秒调整为 1,800 秒；测试内容及断言保持不变。
-
-已完成的验收包括：
-
-| 范围 | 结果 |
-| --- | --- |
-| macOS Rust workspace | 完整运行 6,256 项通过；随后新增的两个 codegen 回归也通过，并复验相关后端、GC 和 LSP 用例 |
-| Linux Rust workspace | 完整运行 6,287 项，初跑的三个失败在修正测试时限后全部复验通过；新增的两个 codegen 回归另行通过 |
-| macOS fixtures | 初跑的 173 个失败和 6 个配置问题全部闭合；4,296 个适用用例均有通过结果，18 个按目标不适用 |
-| GNU fixtures | 初跑的 219 个失败和 6 个配置问题全部闭合；当前 4,281 个适用用例均有通过结果，33 个按目标不适用 |
-| musl fixtures | 初跑的 220 个失败和 6 个配置问题全部闭合；当前 4,278 个适用用例均有通过结果，36 个按目标不适用 |
-| macOS Cone tests | 34 套独立测试全部通过，1,447 项 passed；另 6 个 PTY 子用例由通过的父测试启动，顶层报告保留 ignored。另五套内置 Cone 测试由完整 fixture 覆盖 |
-| GNU、musl Cone tests | 两个目标各 34 套独立测试全部通过，各 1,451 项 passed；同样有 6 个由父测试启动的 PTY 子用例 |
-| Python 与编辑器 | fixture runner 61 项、发行脚本 9 项、benchmark 工具 23 项及进度工具 6 项在两台机器通过；macOS 的 tree-sitter corpus 11 项、Node 27 项、扩展 Node 15 项和真实 VS Code Extension Host 自动化通过 |
-| 独立入口与调试器 | terminal host、runtime builder、scoop-example 的适用检查及 26 个示例通过；GNU、musl 的离线格式化、launch、源码断点、单步、调用栈和移动 GC 后变量检查通过，GNU 终端与 attach、musl 静态 TLS 通过 |
-
-GNU HTTP 客户端整套测试的首次编译与其他大型构建并行时被内核 OOM 终止；等待其他大型构建完成后，原测试内容单独补跑通过，耗时约 17.6 分钟。测试命令及其子进程的最大单进程 RSS 约 29.36 GiB，后续阶段归因和优化见[体积与内存调查记录](../slib-storage/FOLLOW_UP.md)。
-
-完整初跑及后续复验报告已按用例名称逐项核对，三个目标的原始失败、新增回归及调整并发时未完成的项目均已闭合。原始日志和逐轮 JSON 报告保存在仓库外：macOS 为相邻的 `scoop-dist/full-test-20261029`，Linux 为 `~/repos/scoop-full-test-results-20261029`。macOS 的 LLDB live launch 环境限制仍按前述记录保留，不能用离线成功代替进程内验证。
+协议、静态值和进程内调试的维护入口见[调试验收说明](../../tooling/vscode-scoop/test/debugger/README.md)，栈诊断用例位于 `tests/fixtures/compiler-correctness/debugging/`。历史验收中的平台范围、macOS 主机 launch 限制、栈快照性能测量和逐轮回归已移到相邻归档 `../scoop-doc-archive/docs/debugging/IMPLEMENTATION.md`，也可从 [Git 历史](https://github.com/scoop-lang/scoop/blob/f93c4b46082def07aa51103567e2d6a2ea0978fc/docs/debugging/IMPLEMENTATION.md)查阅。
 
 ## 后续范围
 
-协程已有 owner、state、completion 和 saved value identity，但缺少可消费的状态到挂起行映射、当前 frame 参数和 adapter／终端 continuation 识别。完整逻辑栈还需验证线程迁移、合成帧选择及 saved locals，不能只靠重命名物理 helper 或打印任务树完成。本轮保留物理栈，后续按[主设计 10.4](DESIGN.md#104-异常协程和数据断点) 独立实施。
+协程已有 owner、state、completion 和 saved value identity，但缺少可消费的状态到挂起行映射、当前 frame 参数和 adapter／终端 continuation 识别。完整逻辑栈还需验证线程迁移、合成帧选择及 saved locals，不能只靠重命名物理 helper 或打印任务树完成。当前保留物理栈，后续按[主设计 10.4](DESIGN.md#104-异常协程和数据断点) 独立实施。
 
-完整 Scoop 求值／条件表达式、managed 写入、Scoop 异常筛选及 GC 感知数据断点均不属于本轮交付。复杂 `.slib` 优化保留在体积调查中。
+完整 Scoop 求值／条件表达式、managed 写入、Scoop 异常筛选及 GC 感知数据断点均不属于当前交付。复杂 `.slib` 优化保留在体积调查中。

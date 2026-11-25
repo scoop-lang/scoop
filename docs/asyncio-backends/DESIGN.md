@@ -1,12 +1,12 @@
 # EventLoop 平台后端与 GUI 主循环接入
 
-状态：Darwin、Linux GNU／musl 后端、宿主接入和消费者迁移已交付；Windows 扩展实施中。日期：2026-10-28。原有验证范围见[实施记录](PROGRESS.md)，性能与回退见[性能记录](PERFORMANCE.md)；Windows 的分批验收见[Windows 进度](../windows-targets/PROGRESS.md)。
+Darwin、Linux GNU／musl 与 Windows IOCP 后端、宿主接入和消费者迁移均已交付。平台语义见[异步 I/O 规范](../specs/SCOOP-ASYNCIO-SPEC.md)，Windows 工具链与库资源见[支持范围](../windows-targets/README.md)。早期实现范围和性能取舍保留在[实施记录](PROGRESS.md)与[性能记录](PERFORMANCE.md)。
 
 本设计对应[异步 I/O 库规范第 11 节](../specs/SCOOP-ASYNCIO-SPEC.md#11-平台后端与宿主主循环迁移合同)。沿用[语言规范](../specs/SCOOP-SPEC.md) 11.9～11.9.2 的协程与任务树、[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)第 4 章的 native／callback 边界，以及[平台库规范](../specs/SCOOP-PLATFORM-SPEC.md)的错误、buffer 与 TTY 所有权。编译器、runtime ABI 和 `.slib` 格式不变。
 
 ## 1. 决策与范围
 
-公共 `EventLoop` 继续表示异步 I/O 服务。提供 `PlatformEventLoop` 作为默认实现，macOS 使用系统 libdispatch，Linux 使用 io_uring 与 liburing。任务树、取消结果选择、buffer 借用、资源关闭和 continuation 恢复共用一份 Scoop 实现；平台后端只负责原生操作及其真实完成。
+公共 `EventLoop` 继续表示异步 I/O 服务。提供 `PlatformEventLoop` 作为默认实现，macOS 使用系统 libdispatch，Linux 使用 io_uring 与 liburing，Windows 使用 IOCP。任务树、取消结果选择、buffer 借用、资源关闭和 continuation 恢复共用一份 Scoop 实现；平台后端只负责原生操作及其真实完成。
 
 同一个实现支持两种驱动方式：命令行程序用现有同步 `run`；GUI 用 `attach` 把非阻塞处理接入宿主主循环。AppKit／其他 GUI 主循环继续负责窗口、输入、菜单和显示刷新，EventLoop 不接管这些职责。
 

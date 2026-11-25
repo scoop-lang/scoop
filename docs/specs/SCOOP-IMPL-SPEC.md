@@ -6,7 +6,7 @@
 
 ## 1. 范围与目标兼容性
 
-Windows 三环境扩展已按 [Windows targets 设计](../windows-targets/DESIGN.md) 完成 W0～W4，并随 `b0de037002`（#70）合入主线。三个完整 target 覆盖 MSVC＋UCRT、LLVM-MinGW＋MSVCRT 与 LLVM-MinGW＋UCRT 的 Win64、SEH／statepoint、C++ 和 Rust 文本后端组合；跨宿主回归、系统库及候选归档安装的实际验证范围见[实施记录](../windows-targets/PROGRESS.md)。项目仍处于未发布阶段；目标实现须满足本规范的编译／链接、运行时规范的 GC／异常合同及对应功能验收，不提供关闭异常或缺少精确根的临时 target。
+Windows 的三个完整 target 分别使用 MSVC＋UCRT、LLVM-MinGW＋MSVCRT 与 LLVM-MinGW＋UCRT，提供 Win64、SEH／statepoint、C++ 和 Rust 文本后端。构建与系统库入口见 [Windows 支持范围](../windows-targets/README.md)。项目仍处于未发布阶段；目标实现须满足本规范的编译／链接、运行时规范的 GC／异常合同及对应功能验收，不提供关闭异常或缺少精确根的临时 target。
 
 宿主 LLVM 准备同时安装 LLVM／Clang 动态库、Rust 构建所需的 llvm-config／头文件、Clang／clang-cl／Clang++、LLD 及所需 LLVM 对象／归档／资源工具。LLVM 与 inkwell 均只启用实际使用的 AArch64／X86 backend，不引用未构建 target 的初始化入口。Windows x64 宿主采用 LLVM-MinGW UCRT 开发环境构建，Rust 宿主为 `x86_64-pc-windows-gnullvm`；宿主身份不覆盖应用选择的完整 Scoop target。Windows 使用原生 Ninja 和 `.exe`／DLL 布局，必需的宿主 LLVM／Clang、C++／unwind DLL 与实际引用它们的工具相邻安装；Darwin／Linux 保持各自的 rpath 与动态库规则。开发安装与运行期工具包的组装仍由维护脚本负责，普通编译不构建宿主 LLVM。
 
@@ -50,7 +50,7 @@ Darwin/amd64 使用 `org.scoop-lang.backend-profile/llvm-22-1-darwin-x86-64/1`�
 
 Darwin 两个架构分别使用自身 target sysroot。amd64 的 generated-C、native、runtime 和 startup 同样显式选择 x86-64 CPU、目标 SDK 与部署版本。当前发行部署基线为 macOS 27.0.1／SDK 27.0，本机 Apple Silicon 可通过 Rosetta 验证 amd64 程序；这不构成更旧 macOS 或真实 Intel 硬件的验证声明。AArch64 宿主发行携带两个 Darwin 目标的 lib 组件包，amd64 宿主默认并携带 amd64 目标，发行组合与运行能力分别判断。
 
-Windows x64 宿主默认选择 `x86_64-pc-windows-msvc-ucrt`，不根据构建 Scoop 自身的 Rust ABI 或 PATH 上的 compiler 改选应用 target。显式 Windows target 使用上表完整名称，不将 LLVM machine triple 或缺少 native 环境／CRT 的简称当作别名。Windows 系统库及配套工具包的支持范围按 [Windows 实施记录](../windows-targets/PROGRESS.md) 标明，不从 target 可解析推定全部库已通过验收。
+Windows x64 宿主默认选择 `x86_64-pc-windows-msvc-ucrt`，不根据构建 Scoop 自身的 Rust ABI 或 PATH 上的 compiler 改选应用 target。显式 Windows target 使用上表完整名称，不将 LLVM machine triple 或缺少 native 环境／CRT 的简称当作别名。Windows 系统库、调试器和配套工具包的入口见 [Windows 支持范围](../windows-targets/README.md)，具体资源由发行配置按 target 选择。
 
 LIR 目标数据显式保存机器架构、过程 ABI、Scoop ABI classifier 与 EH 约定。过程 ABI 选择 Darwin AArch64、SysV AMD64 或 Win64 的完整签名分类器；Scoop classifier 不从 COFF 推导，SEH personality 的名称与签名不从对象格式推导。静态目录绑定这些已实现的规则，IR crate 只保存和编码数据，具体分类算法继续属于 codegen 的 ABI planner。
 
