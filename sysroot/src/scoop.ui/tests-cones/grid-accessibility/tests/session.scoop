@@ -12,7 +12,7 @@ import scoop.window.native.*
 
 @Test
 private class GridAccessibilityTest {
-    @Test
+    @Test(useProcess = true)
     fun `native cells realize reveal focus and retire across two lazy axes`() {
         val probe = AxGridProbe()
         try {

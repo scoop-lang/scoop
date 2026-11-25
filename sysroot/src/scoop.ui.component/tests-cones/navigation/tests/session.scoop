@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class NavigationWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `navigation uses current bindings and retains keyed focus and custom content`() {
         val p = NavigationProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

@@ -10,7 +10,7 @@ import scoop.time.Duration
 
 @Test
 private class AppKitTrayTests {
-    @Test
+    @Test(useProcess = true)
     fun `windowless status items retire callbacks and close with their application`() {
         val handler = TrayLifecycleHandler()
         Application().runWithAsyncio(handler)
@@ -22,7 +22,7 @@ private class AppKitTrayTests {
         assertTrue(handler.cleaned)
     }
 
-    @Test
+    @Test(useProcess = true)
     @Ignore("Requires an unlocked status bar; run separately with --ignored")
     fun `a tray popup can be cancelled and immediately shown again`() {
         val handler = TrayPopupHandler()

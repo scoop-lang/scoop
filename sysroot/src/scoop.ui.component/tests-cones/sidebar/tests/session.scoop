@@ -18,7 +18,7 @@ import scoop.window.*
 
 @Test
 private class SidebarWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native sidebar preserves workspace state through collapse menus and responsive drawers`() {
         val p = SidebarProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

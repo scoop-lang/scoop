@@ -12,7 +12,7 @@ import scoop.window.native.*
 
 @Test
 private class SwipeUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `swipes combine native directions with bounded contact releases and cancellation`() {
         val scenario = SwipeScenario()
         val probe = GestureProbe(Some({ value, active -> scenario.advance(value, active) }))

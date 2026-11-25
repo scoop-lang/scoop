@@ -59,7 +59,7 @@ private class UiDragSourceTest {
         assertEquals(DragEffects(true, false, false), DragSourceData(DragContent.Text("")).effects)
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `sources borrow same mount areas and retire without preparing data`() {
         val values = ArrayList<SourceResourceComponent>()
         UiHost {

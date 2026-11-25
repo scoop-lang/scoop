@@ -11,7 +11,7 @@ import scoop.window.native.*
 
 @Test
 private class NativeTreeTest {
-    @Test
+    @Test(useProcess = true)
     fun `tree and tree grid expose hierarchy and check the original offscreen model`() {
         val probe = TreeProbe()
         try {

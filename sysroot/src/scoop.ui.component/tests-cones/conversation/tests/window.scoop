@@ -18,7 +18,7 @@ import scoop.window.*
 
 @Test
 private class ConversationWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `conversation components preserve geometry content actions and native input through lifecycle changes`() {
         val p = ConversationProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

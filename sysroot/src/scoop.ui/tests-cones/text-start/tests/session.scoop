@@ -12,7 +12,7 @@ import scoop.window.*
 
 @Test
 private class TextStartWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native first input and system Pinyin continue into one real editor`() {
         val probe = StartProbe()
         try {

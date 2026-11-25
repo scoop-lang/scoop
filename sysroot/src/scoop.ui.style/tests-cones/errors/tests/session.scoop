@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class StyleFailureTest {
-    @Test
+    @Test(useProcess = true)
     fun `a failing filtered subtree releases native resources even when scope cleanup also fails`() {
         val probe = FailureProbe()
         val host =

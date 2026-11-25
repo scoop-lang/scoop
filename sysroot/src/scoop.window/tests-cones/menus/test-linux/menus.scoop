@@ -20,7 +20,7 @@ private fun activatePopup(view: Ptr<Unit>, activate: Int): Int
 
 @Test
 private class GtkMenuTests {
-    @Test
+    @Test(useProcess = true)
     fun `GTK menu models and popovers preserve actions and close with their window`() {
         val handler = GtkMenuHandler()
         Application().run(handler)

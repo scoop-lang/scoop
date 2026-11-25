@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class StyleUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `style changes retain state baseline and focus while real Metal frames stop after animation`() {
         val probe = StyleProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

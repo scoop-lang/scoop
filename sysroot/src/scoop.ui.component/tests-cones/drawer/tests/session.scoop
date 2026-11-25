@@ -20,11 +20,11 @@ import scoop.window.native.*
 
 @Test
 private class DrawerWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native drawer combines measured snaps scroll arbitration nesting and focus retention`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `contact drawer shares scroll boundaries handle admission and focus behavior`() {
         run(true)
     }

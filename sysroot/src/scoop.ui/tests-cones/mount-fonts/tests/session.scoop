@@ -12,7 +12,7 @@ import scoop.window.*
 
 @Test
 private class MountFontsTest {
-    @Test
+    @Test(useProcess = true)
     fun `construction resources and root font changes preserve mounted identities and borrowed lifetimes`() {
         FontCollection().use {
             external ->

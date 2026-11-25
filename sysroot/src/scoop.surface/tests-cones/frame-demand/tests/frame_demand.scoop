@@ -10,7 +10,7 @@ import scoop.window.asyncio.*
 
 @Test
 private class FrameDemandTest {
-    @Test
+    @Test(useProcess = true)
     fun `asyncio resumes frame demand after repeated discarded frames`() {
         val probe = FrameDemandProbe()
         val host =

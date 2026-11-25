@@ -5,7 +5,7 @@ import scoop.window.*
 
 @Test
 private class PrimaryTextOwnershipTest {
-    @Test
+    @Test(useProcess = true)
     fun `unchanged selection does not reclaim PRIMARY and stale cleanup preserves another owner`() {
         val probe = PrimaryTextOwnershipProbe()
         Application().run(probe)

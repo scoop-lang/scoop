@@ -9,7 +9,7 @@ import scoop.window.*
 
 @Test
 private class WindowTimingVisibilityTest {
-    @Test
+    @Test(useProcess = true)
     fun `hiding cancels pending hover and typeahead work without replay on restore`() {
         val probe = WindowTimingProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

@@ -15,7 +15,7 @@ import scoop.window.native.*
 
 @Test
 private class VirtualCollectionActionsTest {
-    @Test
+    @Test(useProcess = true)
     fun `explicit native item operations realize reveal cancel and retire actual rows`() {
         val probe = CollectionActionProbe()
         try {

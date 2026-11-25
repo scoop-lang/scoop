@@ -13,7 +13,7 @@ import scoop.window.native.*
 
 @Test
 private class ChoiceSemanticsTest {
-    @Test
+    @Test(useProcess = true)
     fun `native choices use actual bindings and retain keyed identities`() {
         val probe = ChoicesProbe()
         try {

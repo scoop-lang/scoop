@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class AnimationDeadlineWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `hidden and offscreen animation completions share the window loop and leave display link paused`() {
         val probe = DeadlineProbe()
         val host =

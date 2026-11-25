@@ -9,7 +9,7 @@ import scoop.time.Duration
 
 @Test
 private class WindowsInputTest {
-    @Test
+    @Test(useProcess = true)
     fun `native input preserves repeat focus releases wheel units and UTF16 batches`() {
         val handler = InputHandler()
         Application().run(handler)

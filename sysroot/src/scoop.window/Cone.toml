@@ -18,10 +18,6 @@ when = { os = "darwin" }
 path = "platform/windows"
 when = { os = "windows" }
 
-# Each native Application owns its process and main loop.
-[test]
-isolate = true
-
 [[test.sources]]
 path = "tests"
 when = { os = "darwin" }

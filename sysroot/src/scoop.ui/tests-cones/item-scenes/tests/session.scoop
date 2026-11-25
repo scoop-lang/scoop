@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class LazyItemScenesTest {
-    @Test
+    @Test(useProcess = true)
     fun `split lazy scenes move existing rows with shared clipping focus and presentation rules`() {
         val probe = ItemSceneProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }

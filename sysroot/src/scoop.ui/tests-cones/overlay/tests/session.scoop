@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class OverlayUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `portals escape scene clips retain logical input and manage anchor visibility and sessions`() {
         val probe = OverlayProbe()
         try {

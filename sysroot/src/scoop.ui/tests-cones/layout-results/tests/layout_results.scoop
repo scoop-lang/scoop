@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class UiLayoutResultTest {
-    @Test
+    @Test(useProcess = true)
     fun `A B A restores complete layouts for constraints and typed inputs with selected lazy items`() {
         val probe = LayoutResultProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }

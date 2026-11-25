@@ -23,7 +23,7 @@ private fun windowMenu(window: Ptr<Unit>): Int
 
 @Test
 private class WinMenuTests {
-    @Test
+    @Test(useProcess = true)
     @Ignore("Requires a Windows desktop session; run separately with --ignored")
     fun `Win32 popup selections and wide borrowed menus survive presentation changes`() {
         val handler = WinMenuHandler()

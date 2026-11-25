@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class NotificationSessionTest {
-    @Test
+    @Test(useProcess = true)
     fun `settings complete on the owner and cancellation needs no business window`() {
         assertFailsWith<IllegalArgumentException> { prepareNotifications("") }
         assertEquals(1L, JumpListTask("Open", ["arg"]).arguments.size)

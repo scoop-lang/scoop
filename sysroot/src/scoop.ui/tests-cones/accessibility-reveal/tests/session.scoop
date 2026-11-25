@@ -17,7 +17,7 @@ import scoop.window.native.*
 
 @Test
 private class SemanticRevealTest {
-    @Test
+    @Test(useProcess = true)
     fun `native reveal waits for accepted nested geometry and preserves the editing target`() {
         verifyReveal(true)
     }
@@ -25,7 +25,7 @@ private class SemanticRevealTest {
 
 @Test
 private class SemanticRevealWithoutActivationTest {
-    @Test
+    @Test(useProcess = true)
     fun `native reveal completes nested geometry and cancellation without activation`() {
         verifyReveal(false)
     }

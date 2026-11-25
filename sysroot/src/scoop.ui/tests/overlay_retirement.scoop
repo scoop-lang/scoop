@@ -10,7 +10,7 @@ import scoop.window.accessibility.*
 
 @Test
 private class OverlayRetirementApplicationTest {
-    @Test
+    @Test(useProcess = true)
     fun `hidden modal exits and owner removal restore semantic actions without drawing`() {
         val probe = OverlayRetirementProbe()
         UiHost(

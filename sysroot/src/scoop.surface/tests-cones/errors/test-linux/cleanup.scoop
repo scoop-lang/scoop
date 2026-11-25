@@ -9,7 +9,7 @@ import scoop.window.*
 
 @Test
 private class LinuxSurfaceErrorTest {
-    @Test
+    @Test(useProcess = true)
     fun `a failing GLES painter drains visible and pending surfaces and preserves cleanup errors`() {
         val application = Application()
         val primary = IllegalArgumentException(Some("GLES painter failed"))

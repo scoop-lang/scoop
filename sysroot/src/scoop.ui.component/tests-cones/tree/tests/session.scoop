@@ -18,7 +18,7 @@ import scoop.window.native.*
 
 @Test
 private class TreeViewTest {
-    @Test
+    @Test(useProcess = true)
     fun `sticky multi column tree keeps real row focus and virtual mounts through edits`() {
         val probe = TreeProbe()
         try {

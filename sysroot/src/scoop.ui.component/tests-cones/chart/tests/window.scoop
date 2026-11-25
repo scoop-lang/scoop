@@ -17,7 +17,7 @@ import scoop.window.*
 
 @Test
 private class ChartWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `six charts share native input cached geometry center IME and idle lifecycles`() {
         val p = ChartProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

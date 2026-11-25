@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class UiSceneCacheTest {
-    @Test
+    @Test(useProcess = true)
     fun `cached local scenes retain drawings and reassemble current input anchors and clipping`() {
         val probe = SceneCacheProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

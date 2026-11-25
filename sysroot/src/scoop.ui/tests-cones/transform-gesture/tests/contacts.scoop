@@ -13,11 +13,11 @@ import scoop.window.native.*
 
 @Test
 private class ContactTransformUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `direct transforms preserve thresholds geometry source identity and paired completion`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `direct transform cancellation preserves other owners and closes reentrant claims`() {
         run(true)
     }

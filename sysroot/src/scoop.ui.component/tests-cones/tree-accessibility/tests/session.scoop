@@ -15,7 +15,7 @@ import scoop.window.native.*
 
 @Test
 private class NativeComponentTreeTest {
-    @Test
+    @Test(useProcess = true)
     fun `real tree exposes virtual hierarchy loading and cell actions through AppKit`() {
         val probe = TreeProbe()
         try {

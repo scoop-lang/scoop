@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class SurfaceContentTest {
-    @Test
+    @Test(useProcess = true)
     fun `content ownership covers failed attachment callbacks native close and application exit`() {
         val application = Application()
         val probe = ContentProbe()

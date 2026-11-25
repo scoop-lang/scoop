@@ -16,7 +16,7 @@ import scoop.window.*
 private class TreeLinesTest {
     private var accepted = false
 
-    @Test
+    @Test(useProcess = true)
     fun `tree lines join across full rows in fixed and variable columns`() {
         UiHost { host, application, event ->
             when (event) {

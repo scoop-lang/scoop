@@ -16,7 +16,7 @@ import scoop.window.*
 
 @Test
 private class ItemWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `items preserve slots and selection while row and child actions keep separate input ownership`() {
         @Unsafe
         {

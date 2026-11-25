@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class SvgWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `SVG icons follow theme and size replace their source and preserve borrowed views`() {
         val probe = SvgUiProbe()
         try {

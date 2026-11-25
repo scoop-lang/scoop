@@ -18,7 +18,7 @@ import scoop.window.*
 
 @Test
 private class NavigationMenuWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `navigation panels preserve hover corridors ordinary focus and controlled lifetimes`() {
         val p = NavProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

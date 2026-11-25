@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class FlowLayoutUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `wrap and grid use final geometry in both directions without remounting their contents`() {
         val probe = FlowProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

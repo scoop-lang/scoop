@@ -21,7 +21,7 @@ private fun nativeRestore()
 
 @Test
 private class PreferencesNotificationsTest {
-    @Test
+    @Test(useProcess = true)
     fun `native preferences publish atomically and observers follow owner lifetime`() {
         val probe = PreferencesProbe()
         try {

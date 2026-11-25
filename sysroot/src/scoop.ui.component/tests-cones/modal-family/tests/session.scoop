@@ -16,7 +16,7 @@ import scoop.window.*
 
 @Test
 private class ModalFamilyWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `modal families retain content while isolating focus dismissal scrolling and sheet sides`() {
         val p = ModalFamilyProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class UiNavigationTest {
-    @Test
+    @Test(useProcess = true)
     fun `real keys navigate lists grids and roving groups without replacing focus or selection`() {
         val probe = NavigationProbe()
         try {

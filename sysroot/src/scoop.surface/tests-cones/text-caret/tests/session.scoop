@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class NativeCaretTest {
-    @Test
+    @Test(useProcess = true)
     fun `native document geometry follows successful frames and text connections`() {
         val probe = CaretSession()
         SurfaceHost { host, application, event -> probe.event(host, application, event) }.use {

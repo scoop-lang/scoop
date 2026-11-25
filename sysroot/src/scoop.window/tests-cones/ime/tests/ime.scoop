@@ -7,7 +7,7 @@ import scoop.window.native.*
 
 @Test
 private class WindowsImeTest {
-    @Test
+    @Test(useProcess = true)
     fun `TSF composition commit cancellation and disable use one ordered channel`() {
         val handler = WindowsImeHandler()
         Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(

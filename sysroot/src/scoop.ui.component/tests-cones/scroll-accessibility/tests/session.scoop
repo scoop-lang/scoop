@@ -14,7 +14,7 @@ import scoop.window.native.*
 
 @Test
 private class ScrollAccessibilityTest {
-    @Test
+    @Test(useProcess = true)
     fun `accepted scrollbars expose actual offsets across hidden chrome rebinding and readonly text`() {
         val probe = ScrollProbe()
         try {

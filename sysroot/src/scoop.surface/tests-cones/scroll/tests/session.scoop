@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class NativeScrollTest {
-    @Test
+    @Test(useProcess = true)
     fun `native line pixel and momentum events retain source units and the captured scroll route`() {
         val probe = NativeScrollSession()
         SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {

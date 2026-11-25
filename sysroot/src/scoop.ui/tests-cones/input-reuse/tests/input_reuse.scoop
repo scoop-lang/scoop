@@ -8,7 +8,7 @@ import scoop.window.*
 
 @Test
 private class UiInputReuseTest {
-    @Test
+    @Test(useProcess = true)
     fun `safe inputs skip while current actions independent state children and subscriptions advance`() {
         val probe = InputProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

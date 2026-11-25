@@ -10,7 +10,7 @@ import scoop.window.native.*
 
 @Test
 private class WindowsTextSnapshotTest {
-    @Test
+    @Test(useProcess = true)
     fun `TSF document queries wait for applied revisions and reject invalid batches atomically`() {
         val handler = WindowsSnapshotHandler()
         Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
@@ -224,7 +224,7 @@ private class WindowsSnapshotHandler: ApplicationHandler {
 
 @Test
 private class WindowsTextQueriesTest {
-    @Test
+    @Test(useProcess = true)
     fun `TSF pages Unicode text and queries insertion without editing the document`() {
         val handler = WindowsTextQueriesHandler()
         Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(

@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class OrthogonalRevealTest {
-    @Test
+    @Test(useProcess = true)
     fun `group and target focus reveal both axes through a stationary vertical viewport`() {
         val probe = RevealProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }

@@ -12,7 +12,7 @@ import scoop.window.native.*
 
 @Test
 private class UiContactDragSourceTest {
-    @Test
+    @Test(useProcess = true)
     fun `contact sources preserve real identity geometry and tap behavior when data is declined`() {
         val p = ContactSourceProbe()
         UiHost { host, active, event -> p.event(host, active, event) }.use {

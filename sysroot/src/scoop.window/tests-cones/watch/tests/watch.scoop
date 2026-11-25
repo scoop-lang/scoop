@@ -8,7 +8,7 @@ import scoop.time.Duration
 
 @Test
 private class WindowsWatchTest {
-    @Test
+    @Test(useProcess = true)
     fun `wait stays idle and removal inside ready retires before completing borrowed event lifetime`() {
         @Unsafe
         {

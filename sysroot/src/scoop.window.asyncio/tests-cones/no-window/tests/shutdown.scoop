@@ -12,7 +12,7 @@ import scoop.time.Duration
 
 @Test
 private class NoWindowShutdownTest {
-    @Test
+    @Test(useProcess = true)
     fun `an application without windows drains outstanding receive and executor cleanup`() {
         val app = Application()
         val handler = NoWindowHandler()

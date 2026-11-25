@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class UiFocusTest {
-    @Test
+    @Test(useProcess = true)
     fun `logical tab order scopes pending focus and handle lifetime use real routed input`() {
         val probe = FocusProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

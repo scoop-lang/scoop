@@ -4,7 +4,7 @@ import scoop.test.*
 
 @Test
 private class NativeDesktopTests {
-    @Test
+    @Test(useProcess = true)
     @Ignore("Requires a Windows desktop and GPU; run separately with --ignored")
     fun `native UI menus chrome and owned dialogs follow their mounted scopes`() {
         runNativeDesktop()

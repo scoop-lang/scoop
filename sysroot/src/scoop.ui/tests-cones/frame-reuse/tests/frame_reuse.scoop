@@ -16,7 +16,7 @@ import scoop.window.*
 
 @Test
 private class UiFrameReuseTest {
-    @Test
+    @Test(useProcess = true)
     fun `scene changes reuse layouts while animation resources and constraints invalidate their paths`() {
         FontCollection().use {
             fonts ->

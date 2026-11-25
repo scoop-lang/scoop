@@ -11,7 +11,7 @@ import scoop.window.*
 
 @Test
 private class SurfaceHostTest {
-    @Test
+    @Test(useProcess = true)
     fun `native frame opportunities preserve input views and retire windows safely`() {
         val application = Application(
             applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }

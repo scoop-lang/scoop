@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class SurfaceErrorTest {
-    @Test
+    @Test(useProcess = true)
     fun `paint and content cleanup failures preserve errors and close every root and lease`() {
         val application = Application()
         val probe = ErrorProbe()

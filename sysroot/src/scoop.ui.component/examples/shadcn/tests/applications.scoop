@@ -16,7 +16,7 @@ import scoop.window.asyncio.runWithAsyncio
 
 @Test
 private class ApplicationWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `four applications preserve native editing focus reading and resource lifetimes`() {
         val p = ApplicationProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

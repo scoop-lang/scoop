@@ -1,6 +1,6 @@
 # Cone 条件依赖与逐用例测试进程
 
-条件依赖解决平台后端只在部分目标上存在的问题。逐用例进程隔离让需要独占进程状态的测试获得一次全新的程序启动。例如 `scoop.window` 的原生测试需要各自创建 `Application`，同一 Cone 中的尺寸换算测试只需要普通实例。当前窗口库通过整个 Cone 的 `[test] isolate = true` 运行这两类测试。[窗口库清单](../../sysroot/src/scoop.window/Cone.toml) · [Application 测试](../../sysroot/src/scoop.window/tests/application.scoop) · [窗口值类型测试](../../sysroot/src/scoop.window/tests/values.scoop)
+条件依赖解决平台后端只在部分目标上存在的问题。逐用例进程隔离让需要独占进程状态的测试获得一次全新的程序启动。例如 `scoop.window` 的原生测试需要各自创建 `Application`，同一 Cone 中的尺寸换算测试只需要普通实例。窗口库将独占要求标在创建 `Application` 的用例上，值类型用例共享套件进程。[窗口库清单](../../sysroot/src/scoop.window/Cone.toml) · [Application 测试](../../sysroot/src/scoop.window/tests/application.scoop) · [窗口值类型测试](../../sysroot/src/scoop.window/tests/values.scoop)
 
 ## 条件依赖
 
@@ -114,4 +114,4 @@ private class SessionTests {
 | 失败与输出 | 同测正文和清理双失败、子进程提前退出 0、非零退出、信号及写完结果后的 shutdown 失败。后续普通用例仍能运行。分别验证双流大输出、非 UTF-8、看似事件的用户文本及 `--nocapture`。在可运行的 macOS、Linux、Windows 宿主用实际退出状态验收。 |
 | 两项组合 | 给原生窗口测试文件和它导入的测试辅助 Cone 配置同一目标条件。匹配目标上由子进程调用该库，未匹配目标的测试图排除该直接边，其他普通用例照常运行。 |
 
-普通库行为留在所属 Cone 测试，编译错误、进程边界和 CLI 报告使用相应的定向测试。实施时先让 `scoop.window` 的一组真实 `Application` 用例与值类型用例通过混合运行验证，再按该 Cone 的实际资源使用决定是否撤去整 Cone 开关。两项新写法可用后同步编程参考和示例。[编程材料更新流程](../scoop-programming/UPDATE-WORKFLOW.md)
+普通库行为留在所属 Cone 测试，编译错误、进程边界和 CLI 报告使用相应的定向测试。`scoop.window` 与 `scoop.ui` 的真实 `Application` 用例和普通用例混合运行。组件测试、窗口示例及平台专用测试在直接构造或通过辅助函数获取 `Application` 的方法上声明隔离。导航测试的 `surface-native` 依赖与使用它的源码共同匹配 Darwin。[编程材料更新流程](../scoop-programming/UPDATE-WORKFLOW.md)

@@ -9,7 +9,7 @@ private fun nativeMetadata(window: Ptr<Unit>): Int
 
 @Test
 private class WindowsDropMetadataTest {
-    @Test
+    @Test(useProcess = true)
     fun `OLE hover retains source formats and drop still validates actual data and lifetime`() {
         val handler = MetadataHandler()
         Application().run(handler)

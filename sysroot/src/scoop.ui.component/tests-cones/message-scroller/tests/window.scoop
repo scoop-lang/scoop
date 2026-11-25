@@ -18,11 +18,11 @@ import scoop.window.*
 
 @Test
 private class MessageScrollerWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `message turns preserve reading through native input streaming prepend restore and idle`() {
         run(false)
     }
-    @Test
+    @Test(useProcess = true)
     fun `message reading holds through moving content and resumes following at the actual end`() {
         run(true)
     }

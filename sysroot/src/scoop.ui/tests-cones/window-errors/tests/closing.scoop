@@ -7,7 +7,7 @@ import scoop.window.*
 
 @Test
 private class UiShutdownTest {
-    @Test
+    @Test(useProcess = true)
     fun `exit and terminal input notifications preserve state without queueing closing roots`() {
         verifyClosing()
     }

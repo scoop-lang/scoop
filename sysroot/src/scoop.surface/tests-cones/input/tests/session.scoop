@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class NativeInputTest {
-    @Test
+    @Test(useProcess = true)
     fun `native input retains its view while regions switch composition and close`() {
         val probe = InputSession()
         val application =

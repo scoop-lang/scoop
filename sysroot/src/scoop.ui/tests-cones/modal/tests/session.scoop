@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class ModalUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `modal domains dismiss once retain closing barriers and restore the latest valid focus`() {
         val probe = ModalProbe()
         try {

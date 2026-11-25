@@ -299,7 +299,7 @@ scoop test sysroot/src/scoop.ui/tests-cones/overlay --release --target aarch64-a
 scoop test sysroot/src/scoop.ui/tests-cones/text --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 ```
 
-普通测试验证状态／Binding、线程规则和约束，并以隐藏原生窗口验证多根组合；drawing Cone 从公开接口验证真实绘制、输入、动画、可选放置和回调关闭；errors Cone 验证构造、挂载、更新、布局和绘制失败下的清理。本 Cone 的 `[test] isolate = true` 让每个测试在独立进程中顺序运行，每个窗口场景拥有自己的 Application。开发时先按仓库 scripts 说明准备目标 sysroot，并显式使用同一套 scoop／scoopc。
+普通测试验证状态／Binding、线程规则和约束，并以隐藏原生窗口验证多根组合；drawing Cone 从公开接口验证真实绘制、输入、动画、可选放置和回调关闭；errors Cone 验证构造、挂载、更新、布局和绘制失败下的清理。创建 `Application` 的测试方法使用 `@Test(useProcess = true)`，每个窗口场景独占一个子进程及其主线程。普通状态和布局测试共享套件进程。开发时先按仓库 scripts 说明准备目标 sysroot，并显式使用同一套 scoop／scoopc。
 
 OverlayPlacementTest 检查有界定位、flip／shift 和参数错误；overlay Cone 检查真实像素与命中、嵌套层逻辑路由、Tab 与打开次序、resize、Hide／KeepVisible、Discarded、句柄替换、锚点重绑及停止渲染。自引用、依赖环、跨根和重复句柄同时覆盖正常错误处理与部分挂载清理。
 

@@ -11,7 +11,7 @@ import scoop.test.*
 
 @Test
 private class Win32AsyncioTest {
-    @Test
+    @Test(useProcess = true)
     fun `native dialog menu and resize keep timers alive and cancellation drains leases`() {
         val handler = WindowsSessionHandler()
         Application().runWithAsyncio(handler)

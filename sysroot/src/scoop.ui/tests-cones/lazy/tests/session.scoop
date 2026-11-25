@@ -9,7 +9,7 @@ import scoop.window.*
 
 @Test
 private class LazyItemsTest {
-    @Test
+    @Test(useProcess = true)
     fun `lazy items keep normal state lifetime identity and cleanup across on demand layouts`() {
         val probe = LazyProbe()
         try {

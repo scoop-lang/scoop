@@ -35,7 +35,7 @@ private class RecordedProjection : AccessibilityProjection {
 
 @Test
 private class SemanticPublicationTest {
-    @Test
+    @Test(useProcess = true)
     fun `a hidden window prepares native accessibility and drops before first configuration`() {
         val handler = InitialPublicationHandler()
         Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(handler)
@@ -48,7 +48,7 @@ private class SemanticPublicationTest {
         }
     }
 
-    @Test
+    @Test(useProcess = true)
     fun `announcements coalesce through busy ancestors and discarded targets never speak`() {
         val handler = PublicationHandler()
         Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }).run(handler)

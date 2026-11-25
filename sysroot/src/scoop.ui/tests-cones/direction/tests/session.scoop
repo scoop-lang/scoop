@@ -10,7 +10,7 @@ import scoop.window.*
 
 @Test
 private class DirectionUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `direction changes retain state and focus while portals and keys follow their logical owner`() {
         val probe = DirectionProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

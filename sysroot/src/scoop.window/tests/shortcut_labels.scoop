@@ -5,7 +5,7 @@ import scoop.test.*
 
 @Test
 private class ShortcutLabelTest {
-    @Test
+    @Test(useProcess = true)
     fun `labels share resolved chords and obey window ownership`() {
         val handler = ShortcutLabelHandler()
         Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.KeepRunning }).run(

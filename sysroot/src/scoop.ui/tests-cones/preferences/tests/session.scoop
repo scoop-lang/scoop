@@ -29,7 +29,7 @@ private fun currentNativeMotion(): Boolean {
 
 @Test
 private class UiPreferenceSessionTest {
-    @Test
+    @Test(useProcess = true)
     fun `live preferences invalidate readers preserve editor geometry and retire with their roots`() {
         val original = currentNativeMotion()
         val probe = PreferenceProbe(original)

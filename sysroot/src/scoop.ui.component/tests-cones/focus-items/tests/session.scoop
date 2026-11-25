@@ -14,7 +14,7 @@ import scoop.window.*
 
 @Test
 private class VirtualFocusTest {
-    @Test
+    @Test(useProcess = true)
     fun `keyed requests realize distant items and retire failed or superseded focus without eager handles`() {
         val probe = ItemFocusProbe()
         try {

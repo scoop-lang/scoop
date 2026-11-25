@@ -8,7 +8,7 @@ import scoop.time.Duration
 
 @Test
 private class Win32TrayTests {
-    @Test
+    @Test(useProcess = true)
     @Ignore("Requires a Windows desktop and Explorer; run separately with --ignored")
     fun `tray messages survive icon re-registration and close with a windowless application`() {
         val handler = WindowsTrayHandler()

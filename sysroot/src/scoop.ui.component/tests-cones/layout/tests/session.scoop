@@ -14,7 +14,7 @@ import scoop.window.*
 
 @Test
 private class ControlLayoutUiTest {
-    @Test
+    @Test(useProcess = true)
     fun `containers preserve keyed state use committed clip and compose real inline text controls`() {
         val probe = LayoutProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class UiFrameTest {
-    @Test
+    @Test(useProcess = true)
     fun `successive window frames erase pixels left by moved and removed UI content`() {
         val probe = MovingUiProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {

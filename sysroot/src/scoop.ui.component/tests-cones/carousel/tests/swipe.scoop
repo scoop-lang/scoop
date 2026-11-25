@@ -8,7 +8,7 @@ import scoop.window.native.*
 
 @Test
 private class CarouselSwipeWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native swipe carousel respects direction boundaries bindings and active drags`() {
         val p =
             CarouselProbe(exercise = Some({ value -> advanceCarouselSwipe(value) }), phases = 27)

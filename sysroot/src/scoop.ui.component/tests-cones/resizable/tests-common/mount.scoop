@@ -13,7 +13,7 @@ import scoop.window.*
 
 @Test
 private class ResizableMountWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun singleAndMultiplePanelsMountWithoutTrailingSplitters() {
         val app = Application()
         val probe = SplitMountProbe(app.proxy())

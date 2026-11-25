@@ -16,7 +16,7 @@ import scoop.window.native.*
 
 @Test
 private class VirtualCollectionTest {
-    @Test
+    @Test(useProcess = true)
     fun `native list and grid queries preserve exported items through recycling and retirement`() {
         val probe = CollectionProbe()
         try {

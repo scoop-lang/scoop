@@ -16,7 +16,7 @@ private fun callbackContext(): Int = value.number
 
 @Test
 private class DropTest {
-    @Test
+    @Test(useProcess = true)
     fun `AppKit destination negotiates metadata and completes owned payloads before retirement`() {
         val handler = DropHandler()
         try {

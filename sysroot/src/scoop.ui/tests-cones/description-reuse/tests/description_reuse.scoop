@@ -9,7 +9,7 @@ import scoop.window.*
 
 @Test
 private class DescriptionReuseTest {
-    @Test
+    @Test(useProcess = true)
     fun `all instance categories retain keyed and positional state and remount on type changes`() {
         val probe = DescriptionReuseProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

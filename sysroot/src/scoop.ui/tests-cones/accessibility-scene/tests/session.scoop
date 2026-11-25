@@ -12,7 +12,7 @@ import scoop.window.native.*
 
 @Test
 private class UiSemanticSceneTest {
-    @Test
+    @Test(useProcess = true)
     fun `accepted cached scenes publish clipping geometry and actual focus`() {
         val probe = SemanticSceneProbe()
         try {

@@ -6,7 +6,7 @@ import scoop.tests.window.setSystemDpiMode
 
 @Test
 private class WindowsDpiFailureTest {
-    @Test
+    @Test(useProcess = true)
     fun `an existing incompatible DPI mode fails before HWND creation`() {
         @Unsafe
         {

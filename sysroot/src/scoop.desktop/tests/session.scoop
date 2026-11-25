@@ -10,7 +10,7 @@ import scoop.window.native.*
 
 @Test
 private class DesktopTest {
-    @Test
+    @Test(useProcess = true)
     fun `native desktop bindings follow window and menu lifetimes without owning business windows`() {
         val probe = DesktopProbe()
         try {

@@ -55,7 +55,7 @@ internal class FailureRecord(val mode: FailureMode) {
 
 @Test
 private class UiFailureTest {
-    @Test
+    @Test(useProcess = true)
     fun `callback and protocol failures retire partial trees and preserve cleanup errors`() {
         val harness = FailureHarness()
         val application = Application()

@@ -15,7 +15,7 @@ private fun deliveryValue(): Int = value.value
 
 @Test
 private class AppKitApplicationTest {
-    @Test
+    @Test(useProcess = true)
     fun `real AppKit delivers serial callbacks and drains cross-thread native leases`() {
         val application =
             Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })

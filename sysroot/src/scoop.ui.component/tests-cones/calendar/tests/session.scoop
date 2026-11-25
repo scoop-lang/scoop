@@ -18,7 +18,7 @@ import scoop.window.*
 
 @Test
 private class CalendarWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `native dates share layout selection navigation drafts and popup ownership`() {
         val p = DateProbe()
         val host = UiHost { owner, active, event -> p.event(owner, active, event) }

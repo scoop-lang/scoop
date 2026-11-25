@@ -4,7 +4,7 @@ import scoop.test.*
 
 @Test
 private class NativeTrayTests {
-    @Test
+    @Test(useProcess = true)
     fun `native tray mounts update independently and clean up their application scope`() {
         runUiTray()
     }

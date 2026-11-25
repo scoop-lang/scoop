@@ -15,7 +15,7 @@ import scoop.window.native.*
 
 @Test
 private class ComponentSemanticsTest {
-    @Test
+    @Test(useProcess = true)
     fun `built-in controls expose actual actions and preserve semantics through composition`() {
         val probe = ControlsProbe()
         val theme = ThemeSource(shadcnTheme())

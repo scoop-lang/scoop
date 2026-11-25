@@ -8,7 +8,7 @@ import scoop.window.native.*
 
 @Test
 private class DragSourceInputTest {
-    @Test
+    @Test(useProcess = true)
     fun `queued and pending native input cannot start an ended drag sequence`() {
         val probe = DragInputProbe()
         Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(probe)

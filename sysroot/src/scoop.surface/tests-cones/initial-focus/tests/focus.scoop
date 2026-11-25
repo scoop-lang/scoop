@@ -9,7 +9,7 @@ import scoop.window.*
 
 @Test
 private class InitialFocusTest {
-    @Test
+    @Test(useProcess = true)
     fun `initial OS focus activates a placed input area without refocusing the window`() {
         val application = Application()
         val content = FocusContent()

@@ -8,7 +8,7 @@ import scoop.time.Duration
 
 @Test
 private class StatusNotifierTests {
-    @Test
+    @Test(useProcess = true)
     fun `SNI and DBusMenu preserve actions and recover after the watcher returns`() {
         val handler = StatusNotifierHandler()
         try {

@@ -6,7 +6,7 @@ import scoop.tests.window.*
 
 @Test
 private class ClipboardTest {
-    @Test
+    @Test(useProcess = true)
     fun `native text clipboard preserves Unicode and obeys application ownership`() {
         @Unsafe
         {

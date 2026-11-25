@@ -22,7 +22,7 @@ import scoop.window.asyncio.*
 
 @Test
 private class DownloadWindowTest {
-    @Test
+    @Test(useProcess = true)
     fun `real HTTP and workers update two Metal roots cancel replace close and stop frames`() {
         val probe = DownloadWindowProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }

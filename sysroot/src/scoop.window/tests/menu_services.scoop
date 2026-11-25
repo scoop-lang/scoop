@@ -6,7 +6,7 @@ import scoop.window.native.*
 
 @Test
 private class TextServicesMenuTest {
-    @Test
+    @Test(useProcess = true)
     fun `native Services preserve results and reject stale or read only replacements`() {
         val probe = MenuServicesProbe()
         Application().run(probe)
