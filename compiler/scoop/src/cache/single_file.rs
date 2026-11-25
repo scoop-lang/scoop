@@ -51,7 +51,7 @@ impl ArtifactCacheRoot {
         }
         let source = load_single_file_source(locator)?;
         let dependencies =
-            parse_single_file_dependencies(source.source_text()).map_err(|error| {
+            parse_single_file_dependencies(source.source_text().as_str()).map_err(|error| {
                 SingleFileInputError::header(locator.display_path().to_owned(), error)
             })?;
         let mut output = tempfile::NamedTempFile::new_in(&directory)

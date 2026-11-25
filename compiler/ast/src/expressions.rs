@@ -369,6 +369,12 @@ impl<T> NonEmptyVec<T> {
         self.values.iter()
     }
 
+    pub fn map<'a, U>(&'a self, f: impl FnMut(&'a T) -> U) -> NonEmptyVec<U> {
+        NonEmptyVec {
+            values: self.values.iter().map(f).collect(),
+        }
+    }
+
     pub fn as_slice(&self) -> &[T] {
         &self.values
     }

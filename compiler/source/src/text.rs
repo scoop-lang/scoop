@@ -67,3 +67,9 @@ impl From<String> for SourceText {
         Self::new(text)
     }
 }
+
+impl From<&str> for SourceText {
+    fn from(text: &str) -> Self {
+        Self::new(text.to_owned())
+    }
+}

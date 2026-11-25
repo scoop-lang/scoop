@@ -103,7 +103,7 @@ fn source_input(
 ) -> scoop_parser::CurrentConeSourceInput<'_> {
     scoop_parser::CurrentConeSourceInput::new(
         source.identity(),
-        source.source_text(),
+        source.source_text().clone(),
         source.display_locator().as_path(),
     )
     .with_role(source.role())

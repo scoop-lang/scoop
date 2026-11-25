@@ -31,7 +31,7 @@ fn with_core_input<R>(
         ))
         .unwrap(),
         ast::NonEmptyVec::new(
-            ast::CurrentSourceText::new(identity.clone(), source.into()),
+            ast::CurrentSourceText::new(identity.clone(), source),
             vec![],
         ),
         ast::NonEmptyVec::new(

@@ -268,7 +268,7 @@ mod tests {
         let locator = SingleFileLocator::from_path(&path).unwrap();
         let source = load_single_file_source(&locator).unwrap();
         assert_eq!(source.identity(), &SourceIdentity::single_file());
-        assert_eq!(source.source_text(), "fun main() {}\n");
+        assert_eq!(source.source_text().as_str(), "fun main() {}\n");
         assert_eq!(source.display_locator().as_path(), path);
     }
 

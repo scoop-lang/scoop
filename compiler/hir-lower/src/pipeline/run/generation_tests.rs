@@ -64,7 +64,7 @@ fn compile_files_with_core(
     lowerer
         .with_imported_dependencies(dependencies)
         .run(
-            &syntax,
+            &syntax.iter().collect::<Vec<_>>(),
             None,
             Some(generator),
             &crate::pipeline::cancellation::uninterrupted,

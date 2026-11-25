@@ -1,13 +1,13 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use scoop_identity::{ConeIdentity, SourceContentDigest, SourceIdentity};
+use scoop_identity::{ConeIdentity, SourceIdentity};
 use scoop_source::SourceText;
 
 use super::{AllParsedSources, IdentifiedParsedSource};
 use crate::NonEmptyVec;
 
-/// Owned UTF-8 text and content identity for one current-Cone source.
+/// Shared UTF-8 text for one current-Cone source.
 ///
 /// The semantic source identity is repeated so the enclosing checked table can
 /// prove exact coverage without relying on an external index or source order.
@@ -15,16 +15,13 @@ use crate::NonEmptyVec;
 pub struct CurrentSourceText {
     identity: SourceIdentity,
     text: SourceText,
-    content_digest: SourceContentDigest,
 }
 
 impl CurrentSourceText {
-    pub fn new(identity: SourceIdentity, text: String) -> Self {
-        let content_digest = SourceContentDigest::from_utf8(&text);
+    pub fn new(identity: SourceIdentity, text: impl Into<SourceText>) -> Self {
         Self {
             identity,
-            text: SourceText::new(text),
-            content_digest,
+            text: text.into(),
         }
     }
 
@@ -38,10 +35,6 @@ impl CurrentSourceText {
 
     pub fn source_text(&self) -> &SourceText {
         &self.text
-    }
-
-    pub const fn content_digest(&self) -> SourceContentDigest {
-        self.content_digest
     }
 }
 

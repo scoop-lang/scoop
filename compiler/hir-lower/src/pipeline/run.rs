@@ -9,7 +9,7 @@ impl Lowerer {
     #[cfg(test)]
     pub(crate) fn run_defined(
         self,
-        files: &[ast::SourceFile],
+        files: &[&ast::SourceFile],
     ) -> Result<(hir::Module, Vec<Diagnostic>), Vec<Diagnostic>> {
         let dependencies = hir::ImportedDependencySelectionPlan::empty(self.current_cone());
         let (module, warnings, _) = self
@@ -21,7 +21,7 @@ impl Lowerer {
 
     pub(crate) fn run_with_dependencies<C>(
         self,
-        files: &[ast::SourceFile],
+        files: &[&ast::SourceFile],
         world: &hir::ImportedSemanticWorld<'_>,
         generator: Option<&mut dyn hir::MethodBodyGenerator>,
         check: &impl Fn() -> Result<(), C>,
@@ -31,7 +31,7 @@ impl Lowerer {
 
     fn run<C>(
         mut self,
-        files: &[ast::SourceFile],
+        files: &[&ast::SourceFile],
         world: Option<&hir::ImportedSemanticWorld<'_>>,
         generator: Option<&mut dyn hir::MethodBodyGenerator>,
         check: &impl Fn() -> Result<(), C>,

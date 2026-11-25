@@ -4,8 +4,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use scoop_identity::{
-    NormalizedSourcePath, NormalizedSourcePathError, SourceContentDigest, SourceIdentity,
-    SourceRole, TargetProfileId,
+    NormalizedSourcePath, NormalizedSourcePathError, SourceIdentity, SourceRole, TargetProfileId,
 };
 
 use crate::{ConeRelativePath, LoadedConeManifest, SourceSelection};
@@ -38,8 +37,7 @@ impl SourceDisplayLocator {
 pub struct DiscoveredSource {
     identity: SourceIdentity,
     display_locator: SourceDisplayLocator,
-    source_text: String,
-    content_digest: SourceContentDigest,
+    source_text: scoop_source::SourceText,
     role: SourceRole,
 }
 
@@ -49,12 +47,10 @@ impl DiscoveredSource {
         display_locator: SourceDisplayLocator,
         source_text: String,
     ) -> Self {
-        let content_digest = SourceContentDigest::from_utf8(&source_text);
         Self {
             identity,
             display_locator,
-            source_text,
-            content_digest,
+            source_text: source_text.into(),
             role: SourceRole::Production,
         }
     }
@@ -71,30 +67,8 @@ impl DiscoveredSource {
         &self.display_locator
     }
 
-    pub fn source_text(&self) -> &str {
+    pub fn source_text(&self) -> &scoop_source::SourceText {
         &self.source_text
-    }
-
-    pub const fn content_digest(&self) -> SourceContentDigest {
-        self.content_digest
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        SourceIdentity,
-        SourceDisplayLocator,
-        String,
-        SourceContentDigest,
-        SourceRole,
-    ) {
-        (
-            self.identity,
-            self.display_locator,
-            self.source_text,
-            self.content_digest,
-            self.role,
-        )
     }
 }
 

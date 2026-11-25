@@ -75,10 +75,7 @@ fn recursively_discovers_sources_in_logical_path_order() {
         .map(|source| source.identity().logical_path().as_str())
         .collect::<Vec<_>>();
     assert_eq!(paths, ["src/a.scoop", "src/z/b.scoop"]);
-    assert_eq!(
-        sources.first().content_digest(),
-        SourceContentDigest::from_utf8("package a\n")
-    );
+    assert_eq!(sources.first().source_text().as_str(), "package a\n");
 }
 
 #[test]

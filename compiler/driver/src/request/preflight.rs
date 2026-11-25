@@ -243,13 +243,13 @@ fn load_current_input(
         CurrentConeInput::SingleFile { source } => {
             let input = load_single_file_source(&source)
                 .map_err(|error| SingleConePreflightError::SingleFile(Box::new(error)))?;
-            let dependencies = scoop_manifest::parse_single_file_dependencies(input.source_text())
-                .map_err(|error| {
-                    SingleConePreflightError::SingleFile(Box::new(SingleFileInputError::header(
-                        source.display_path().to_owned(),
-                        error,
-                    )))
-                })?;
+            let dependencies =
+                scoop_manifest::parse_single_file_dependencies(input.source_text().as_str())
+                    .map_err(|error| {
+                        SingleConePreflightError::SingleFile(Box::new(
+                            SingleFileInputError::header(source.display_path().to_owned(), error),
+                        ))
+                    })?;
             Ok(LoadedCurrentConeInput::SingleFile {
                 source,
                 input: Box::new(input),
@@ -332,7 +332,7 @@ fn parse_single_discovered_source(
 fn parser_source_input(source: &DiscoveredSource) -> CurrentConeSourceInput<'_> {
     CurrentConeSourceInput::new(
         source.identity(),
-        source.source_text(),
+        source.source_text().clone(),
         source.display_locator().as_path(),
     )
     .with_role(source.role())

@@ -144,6 +144,8 @@ driver 按最后一个实际消费者安排阶段数据的存活期：告警、�
 
 源码集合非空，文件具有唯一 `SourceIdentity { cone, logical_path }`。manifest Cone 的 logical path 为完整的标准化 Cone-relative source path；默认目录中的文件保持 `src/...`，显式源码根不截短路径或改变相同文件的身份。single-file 的原始入口文件为 `main.scoop`，由输入选择保证；2.20 的生成正文在同一 Cone 中另有按方法身份派生的逻辑来源。SourceIdentity 只组合已有 ConeIdentity 与标准化逻辑路径，不把单文件输入的选择规则施加给所有诊断／正文来源。host 路径只用于本次 I/O 与诊断。parser 只接收按语言规范 12.2.2 及本规范 2.7 选定的完整源码集合，不自行补扫目录。
 
+输入发现、解析器和编辑器语义分析共享同一份不可变源码文本。当前请求的诊断使用这份文本和它的行索引。构造持久 HIR 的 `SourceRecord` 时从原始 UTF-8 字节计算内容摘要。
+
 AST 保留原始源码顺序、byte span、显式类型实参、位置／命名／spread／尾随 lambda 实参，以及独立的声明、表达式、模式和控制转移结构。文件至多有一个开头 package，其后为 import，再后为声明。qualified path 为非空 identifier sequence；package、静态 owner 与实体的分界由名称解析决定。
 
 lambda 的 AST 挂起标记只记录源码是否显式写出 `suspend`；未写时表示效果尚未指定。匿名函数使用独立节点，其普通/挂起标记始终是显式效果。HIR 按语言规范 8.1.2、8.6 为每个候选分别完成 lambda 的期望类型与效果推导，包括编辑态恢复；成功 HIR 中函数签名及函数类型的挂起性均为确定值。对称回调重载的缺省比较复用声明类型与精确 binder 重命名，不比较已推导的具体类型，不在候选之间泄漏实体或诊断。MIR/LIR 和跨 Cone 模板继续消费已绑定的唯一 callable 类型，不重新推导效果，也不增加运行时效果检测或普通到 suspend 的 adapter。
