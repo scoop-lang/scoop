@@ -1,0 +1,146 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+
+/** Themed scrollbar presentation for a custom viewport. */
+public class ViewportScrollbarOptions public constructor(
+    public val theme: Theme,
+    public val axes: ScrollAxes = ScrollAxes.Both,
+    public val visibility: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    public val scrollbar: ScrollbarOptions = scrollbarOptions(),
+    public val scrollbarBehavior: ScrollbarBehavior = scrollbarBehavior(),
+    public val lineStep: Double = 40.0,
+    public val enabled: Boolean = true
+) {
+    init {
+        requireComponent(lineStep.isFinite() && lineStep > 0.0, "invalid scroll line step")
+    }
+}
+
+/** Draw after the owner's content. Its input area, focus and ScrollViewport remain the owner's. */
+public class ViewportScrollbars public constructor(
+    private val scope: ComponentScope,
+    private val viewport: ScrollViewport,
+    parent: InputArea,
+    parentSemantics: SemanticsHandle? = None,
+    private val options: () -> ViewportScrollbarOptions
+) {
+    private val painters = scope.resource { ThemePainterCache() }
+    private val feedback = scope
+        .resource {
+            ScrollbarFeedback(scope, { viewport.state }, options, parent) { feedbackChanged() }
+        }
+    private val horizontal = bar(parent, parentSemantics, Orientation.Horizontal)
+    private val vertical = bar(parent, parentSemantics, Orientation.Vertical)
+    private var direction = scope.layoutDirection
+    private var reserved = Size(0.0, 0.0)
+    public val gutter: Size get() = reserved
+
+    private fun bar(
+        parent: InputArea,
+        semantics: SemanticsHandle?,
+        orientation: Orientation
+    ): ScrollBarControl = ScrollBarControl(
+        scope,
+        { viewport.state },
+        options,
+        parent,
+        orientation,
+        feedback,
+        semantics
+    ) { handle, axis ->
+        val value = options()
+        handle
+            .updateScrollBar(
+                viewport,
+                scrollSemanticOrientation(axis),
+                value.lineStep,
+                scrollBarProperties(value, axis)
+            )
+    }
+
+    private fun feedbackChanged() {
+        horizontal.feedbackChanged()
+        vertical.feedbackChanged()
+        if (scope.isMounted) scope.requestFrame()
+    }
+
+    internal fun painter(): ThemePainter = painters.get(options().theme)
+
+    /** Returns whether this configuration changes the reserved viewport size. */
+    public fun update(): Boolean {
+        feedback.update()
+        horizontal.update()
+        vertical.update()
+        val value = options()
+        painters.get(value.theme)
+        val next = scrollbarGutter(
+            value.axes,
+            value.visibility,
+            feedback.options.thickness,
+            value.scrollbarBehavior.placement
+        )
+        val changed = next != gutter
+        reserved = next
+        return changed
+    }
+
+    public fun contentViewport(outer: Size, direction: LayoutDirection): Rect = scrollbarViewport(
+        outer,
+        gutter,
+        direction
+    )
+
+    public fun layout(
+        viewportSize: Size,
+        contentSize: Size,
+        adjustment: ScrollAdjustment? = None
+    ): ScrollLayout {
+        val value = options()
+        val padding = scrollbarPadding(
+            viewportSize,
+            contentSize,
+            value.axes,
+            value.visibility,
+            feedback.options.thickness,
+            value.scrollbarBehavior.placement,
+            scope.layoutDirection
+        )
+        return viewport.layout(viewportSize, contentSize, adjustment, padding)
+    }
+
+    public fun scene(context: SceneContext, layout: ScrollLayout) {
+        val size = context.size
+        val presentedDirection = context.layoutDirection
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
+                    if (direction != presentedDirection) {
+                        horizontal.cancel()
+                        vertical.cancel()
+                    }
+                    direction = presentedDirection
+                }
+            }
+        val value = options()
+        val snapshot = layout.snapshot
+        val bars = ScrollBarsLayout(
+            size,
+            snapshot,
+            value.axes,
+            value.visibility,
+            feedback.options.thickness,
+            presentedDirection,
+            value.scrollbarBehavior.placement
+        )
+        val bounds = Rect(0.0, 0.0, size.width, size.height)
+        val painter = painters.get(value.theme)
+        feedback.scene(context, bounds, bars.horizontal, bars.vertical)
+        horizontal.scene(context, snapshot, bars.horizontal, painter)
+        vertical.scene(context, snapshot, bars.vertical, painter)
+    }
+}

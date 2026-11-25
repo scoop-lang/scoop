@@ -11,7 +11,7 @@ internal fun scrollSemanticOrientation(value: Orientation): SemanticOrientation 
         SemanticOrientation.Vertical
 
 internal fun scrollBarProperties(
-    value: ScrollControlProps,
+    value: ViewportScrollbarOptions,
     orientation: Orientation
 ): SemanticProperties =
     SemanticProperties(

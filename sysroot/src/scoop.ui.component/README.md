@@ -266,6 +266,8 @@ scrollArea(content) {
 
 滚动条使用当前主题，默认覆盖在视口边缘，支持拖 thumb、轨道翻页和主题可选箭头。竖条随 LayoutDirection 位于逻辑 End，双轴条在同一角落让位；方向热切换保留内容和焦点，并取消旧位置的拖条；左侧留白变化通过 LayoutCorrection 尽可能保持正文位置，不生成用户滚动意图。ScrollArea 的 `style { corners(Corners.all(8.0)); border(Some(Border.all(1.0, color))) }` 可配置视口装饰和圆角裁剪，不改变内容尺寸；`focusOutline` 可覆盖主题焦点环，焦点指示遵守 FocusVisibility。ScrollbarVisibility.Auto／Always／Hidden 控制显示；点击条保留内容焦点，视口自身聚焦时可以用 PageUp／PageDown／Home／End；Home／End 只定位启用的滚动轴，其他轴保留当前偏移，水平 RTL 的起终点对应物理右侧／左侧。程序可用 scrollTo／scrollBy、内容局部 Rect 的 reveal，或显式 animateTo；用户滚动会取消旧平滑动画。`tests-cones/scroll` 通过真实窗口验证嵌套残量、双轴、取消、滚动条、主题切换、焦点和裁剪。
 
+自绘 Element 可用 `ViewportScrollbars(scope, viewport, inputArea, parentSemantics) { options }` 复用主题滚动条。传入已有视口和接收正文输入的区域。在属性更新时调用 `bars.update()`，用 `bars.contentViewport` 取正文边界，用 `bars.layout` 传入视口和文档的实际尺寸。呈现正文后调用 `bars.scene(context, layout)`，轨道、拖动和读屏动作都会更新原 ScrollState。选项由 `ViewportScrollbarOptions(theme, axes = ScrollAxes.Both)` 建立。
+
 ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(tileSize = 256, overscan = 1)`，默认 None。策略只缓存 UI drawLayer 声明的有限内容，公共 ParagraphHost 正文自动使用该入口；普通 draw 保持直接执行。绘制缓存与 retention 独立，切换不会替换 ScrollState 或子项实例。含滤镜的记录按 Graphics 的独立裁剪能力正常重放，滤镜也可放在完整内容合成阶段。`tests-cones/paint-cache` 验证四种缓存组合、真实输入、文字更新和停帧。
 
 已放置的内容目标通过 FocusHandle、Tab 或 KeyNavigation 聚焦时会自动显露；嵌套 ScrollArea 每次调整最近一层，等成功帧后继续外层。滚动条与 Portal 按自己的实际场景路径处理。`tests-cones/reveal` 用真实键盘和窗口覆盖这条路径、失败帧、不可显露目标、新位置请求与隐藏时取消。
