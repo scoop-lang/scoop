@@ -63,45 +63,25 @@ pub(crate) fn parse_predicate(
     when: Option<BTreeMap<String, Spanned<toml::Value>>>,
     catalog: &[SourceTarget<'_>],
 ) -> Result<TargetPredicate, ManifestParseError> {
-    let mut targets: Vec<_> = catalog.iter().collect();
+    let mut condition = TargetCondition::default();
     for (key, value) in when.into_iter().flatten() {
-        let error = |reason: String| {
-            ManifestParseError::new(
-                ManifestParseErrorKind::InvalidSelection(
-                    scoop_source::DiagnosticCode::E2013,
-                    reason,
-                ),
-                Some(value.span()),
-            )
-        };
-        let field: for<'a> fn(&SourceTarget<'a>) -> &'a str = match key.as_str() {
-            "os" => |target| target.os,
-            "arch" => |target| target.arch,
-            "env" => |target| target.env,
-            _ => return Err(error(format!("unknown target predicate key {key:?}"))),
-        };
-        let values = match value.get_ref() {
-            toml::Value::String(value) => vec![value.as_str()],
-            toml::Value::Array(values) => values
-                .iter()
-                .map(|value| value.as_str())
-                .collect::<Option<Vec<_>>>()
-                .ok_or_else(|| error(format!("target predicate {key:?} requires strings")))?,
-            _ => {
-                return Err(error(format!(
-                    "target predicate {key:?} requires a string or an array of strings"
-                )));
-            }
-        };
-        for value in &values {
-            if !catalog.iter().any(|target| field(target) == *value) {
-                return Err(error(format!(
-                    "unknown target predicate {key:?} value {value:?}"
-                )));
-            }
-        }
-        targets.retain(|target| values.contains(&field(target)));
+        let span = value.span();
+        condition
+            .insert(key, value.into_inner(), Some(catalog))
+            .map_err(|message| {
+                ManifestParseError::new(
+                    ManifestParseErrorKind::InvalidSelection(
+                        scoop_source::DiagnosticCode::E2013,
+                        message,
+                    ),
+                    Some(span),
+                )
+            })?;
     }
+    let mut targets: Vec<_> = catalog
+        .iter()
+        .filter(|target| condition.matches(target))
+        .collect();
     targets.sort_by(|a, b| a.triple.cmp(b.triple));
     Ok(TargetPredicate {
         targets: targets

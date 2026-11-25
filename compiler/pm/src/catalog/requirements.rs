@@ -9,29 +9,51 @@ impl Catalog<'_> {
         context: &Context,
         purpose: Purpose,
     ) -> PmResult<Vec<Requirement>> {
-        let mut result = member
-            .cone
-            .dependencies
-            .iter()
-            .map(|(key, dependency)| self.requirement(key, dependency, context, false))
-            .collect::<PmResult<Vec<_>>>()?;
-        if purpose == Purpose::Test {
-            for (key, dependency) in &member.cone.test_dependencies {
-                result.push(self.requirement(key, dependency, context, true)?);
+        let target = self.dependency_target()?;
+        let mut result = Vec::new();
+        let production = member.cone.dependencies.iter().map(|(k, v)| (k, v, false));
+        let tests = (purpose == Purpose::Test)
+            .then_some(&member.cone.test_dependencies)
+            .into_iter()
+            .flatten()
+            .map(|(k, v)| (k, v, true));
+        for (key, dependency, test) in production.chain(tests) {
+            if dependency
+                .when
+                .as_ref()
+                .is_none_or(|when| when.matches(&target))
+            {
+                result.push(self.requirement(key, dependency, context, test)?);
             }
         }
+        self.include_core(&member.cone.coordinate, &mut result)?;
+        Ok(result)
+    }
+
+    fn dependency_target(&self) -> PmResult<scoop_manifest::SourceTarget<'static>> {
+        scoop_toolchain::source_target(self.options.target.target().id())
+            .map_err(|error| PmError::new(error.code(), error.to_string()))
+    }
+
+    fn include_core(
+        &self,
+        coordinate: &ConeCoordinate,
+        result: &mut Vec<Requirement>,
+    ) -> PmResult<()> {
         let core = ConeCoordinate::reserved_core();
         let key = Key::from_coordinate(&core);
-        if member.cone.coordinate != core {
+        let fixed = "=0.1.0".parse().expect("core requirement is valid");
+        if *coordinate != core {
             if let Some(edge) = result.iter_mut().find(|edge| edge.key == key) {
                 // Core remains a production edge when a Test root selects its source.
                 edge.test = false;
-                edge.versions
-                    .push("=0.1.0".parse().expect("core requirement is valid"));
+                if !edge.versions.contains(&fixed) {
+                    edge.versions.push(fixed);
+                }
             } else {
                 let mut edge = Requirement {
                     key,
-                    versions: vec!["=0.1.0".parse().expect("core requirement is valid")],
+                    versions: vec![fixed],
                     source: SourceRequest::ImplicitCore,
                     origins: Vec::new(),
                     test: false,
@@ -41,7 +63,7 @@ impl Catalog<'_> {
                 result.push(edge);
             }
         }
-        Ok(result)
+        Ok(())
     }
 
     fn requirement(
@@ -151,10 +173,13 @@ impl Catalog<'_> {
 
     pub(super) fn index_requirements(
         &self,
+        coordinate: &ConeCoordinate,
         entries: &[registry::RegistryDependency],
     ) -> PmResult<Vec<Requirement>> {
-        entries
+        let target = self.dependency_target()?;
+        let mut result = entries
             .iter()
+            .filter(|entry| entry.when.as_ref().is_none_or(|when| when.matches(&target)))
             .map(|entry| {
                 let source = match &entry.source {
                     registry::RegistrySource::Registry { registry } => {
@@ -194,6 +219,8 @@ impl Catalog<'_> {
                 self.apply_override(&mut requirement)?;
                 Ok(requirement)
             })
-            .collect()
+            .collect::<PmResult<Vec<_>>>()?;
+        self.include_core(coordinate, &mut result)?;
+        Ok(result)
     }
 }

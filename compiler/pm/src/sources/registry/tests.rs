@@ -273,6 +273,7 @@ fn malformed_index_records_fail_before_any_archive_download() {
     abbreviated_git.versions[0]
         .dependencies
         .push(RegistryDependency {
+            when: None,
             key: "org.example:other".parse().unwrap(),
             version: "1.0.0".parse().unwrap(),
             source: RegistrySource::Git {

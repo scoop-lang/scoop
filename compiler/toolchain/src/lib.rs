@@ -30,7 +30,9 @@ mod windows_c;
 pub use windows_c::resolve_windows_c_toolchain;
 mod manifest;
 mod windows_machine;
-pub use manifest::{SOURCE_CATALOG_KEY, SOURCE_TARGETS, load_cone_manifest, parse_cone_manifest};
+pub use manifest::{
+    SOURCE_CATALOG_KEY, SOURCE_TARGETS, load_cone_manifest, parse_cone_manifest, source_target,
+};
 mod build_record;
 mod native;
 mod native_driver;

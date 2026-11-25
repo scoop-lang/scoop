@@ -41,7 +41,8 @@ pub use root::{
 };
 pub use scoop_identity::RequestedConeKind;
 pub use selection::{
-    ConditionalSourcePath, ConeRelativePath, SourceSelection, SourceTarget, TargetPredicate,
+    ConditionalSourcePath, ConeRelativePath, SourceSelection, SourceTarget, TargetCondition,
+    TargetPredicate,
 };
 pub use semantic::{
     ConeManifestSemantic, ConeManifestSpans, DependencyCoordinateKey, DependencyLocator,

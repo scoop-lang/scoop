@@ -110,7 +110,7 @@ fn real_registry_resolution_downloads_only_selected_versions_and_shares_across_p
         prepared_roots.push(config.root.to_path_buf().unwrap());
     }
     assert_eq!(prepared_roots[0], prepared_roots[1]);
-    assert!(prepared_roots[0].starts_with(root.join("cache/registry-v2")));
+    assert!(prepared_roots[0].starts_with(root.join("cache/registry-v3")));
     assert_eq!(server.total(), requests);
     let new = publish(
         &server,
@@ -180,4 +180,49 @@ fn real_registry_resolution_downloads_only_selected_versions_and_shares_across_p
             .version(),
         "1.4.0"
     );
+}
+
+#[test]
+fn registry_candidate_dependencies_follow_the_consumer_target() {
+    let server = Server::new();
+    let url = &server.url;
+    let dep = publish(&server, "optional-backend", "1.0.0", "");
+    index(&server, "optional-backend", vec![dep]);
+    let parent = publish(
+        &server,
+        "parent",
+        "1.0.0",
+        &format!(
+            "'org.example:optional-backend'={{version='1.0.0',registry='{url}',when={{os='linux',env='gnu'}}}}"
+        ),
+    );
+    index(&server, "parent", vec![parent]);
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    core(root);
+    app(
+        root,
+        "app",
+        &format!("'org.example:parent'={{version='1.0.0', registry='{url}'}}"),
+    );
+    let input = root.join("app");
+    success(pm(
+        root,
+        &input,
+        &["resolve", "--target", "aarch64-apple-darwin"],
+    ));
+    assert_eq!(
+        server.count("/packages/org.example/optional-backend.json"),
+        0
+    );
+    success(pm(
+        root,
+        &input,
+        &["resolve", "--target", "x86_64-unknown-linux-gnu"],
+    ));
+    assert_eq!(
+        server.count("/packages/org.example/optional-backend.json"),
+        1
+    );
+    assert_eq!(server.count("/archives/optional-backend-1.0.0.tar.zst"), 1);
 }

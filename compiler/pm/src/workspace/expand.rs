@@ -1,5 +1,5 @@
 use scoop_identity::{ConeCoordinateComponent, ConeCoordinateError};
-use scoop_manifest::package::{DependencyDeclaration, InheritableValue};
+use scoop_manifest::package::{DependencyDeclaration, DependencyValue, InheritableValue};
 
 use super::*;
 
@@ -126,9 +126,9 @@ fn dependencies(
     declarations
         .iter()
         .map(|(key, declaration)| {
-            let (request, definition, inherited_at) = match declaration {
-                DependencyDeclaration::Request(request) => (request, loaded, None),
-                DependencyDeclaration::Workspace { span } => {
+            let (request, definition, inherited_at) = match &declaration.value {
+                DependencyValue::Request(request) => (request, loaded, None),
+                DependencyValue::Workspace { span } => {
                     let (owner, ws) = workspace
                         .and_then(|owner| owner.document.workspace.as_ref().map(|ws| (owner, ws)))
                         .ok_or_else(|| {
@@ -160,6 +160,7 @@ fn dependencies(
                 key.clone(),
                 ExpandedDependency {
                     request: request.clone(),
+                    when: declaration.when.clone(),
                     origin: definition.origin(request.span.clone()),
                     inherited_at,
                     base: definition.directory.clone(),

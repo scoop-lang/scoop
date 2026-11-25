@@ -39,14 +39,11 @@ pub fn parse_package_manifest(
             raw.schema.span(),
         ));
     }
-    let dependencies = dependency::declarations(raw.dependencies)?;
-    let test_dependencies = dependency::declarations(raw.test_dependencies)?;
+    let dependencies = dependency::declarations(raw.dependencies, catalog)?;
+    let test_dependencies = dependency::declarations(raw.test_dependencies, catalog)?;
     for (key, declaration) in &test_dependencies {
         if dependencies.contains_key(key) {
-            let span = match declaration {
-                DependencyDeclaration::Workspace { span } => span,
-                DependencyDeclaration::Request(request) => &request.span,
-            };
+            let span = declaration.span();
             return Err(ManifestParseError::new(
                 ManifestParseErrorKind::DuplicateTestDependency(key.to_string()),
                 Some(span.clone()),

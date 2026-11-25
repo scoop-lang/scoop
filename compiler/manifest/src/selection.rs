@@ -4,8 +4,10 @@ use scoop_identity::TargetProfileId;
 use scoop_wire::{Encoder, WireEncode};
 
 mod catalog;
+mod condition;
 use catalog::SelectedSourceTarget;
 pub use catalog::SourceTarget;
+pub use condition::TargetCondition;
 mod parse;
 mod path;
 

@@ -97,6 +97,7 @@ impl<'a> Catalog<'a> {
                 (
                     key.clone(),
                     ExpandedDependency {
+                        when: None,
                         request: request.clone(),
                         origin: ManifestOrigin {
                             manifest: workspace.manifest.clone(),

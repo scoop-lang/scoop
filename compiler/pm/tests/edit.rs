@@ -4,7 +4,7 @@ use std::{
     process::{Command, Output},
 };
 
-use scoop_manifest::package::{DependencyDeclaration, PackageSource};
+use scoop_manifest::package::{DependencyValue, PackageSource};
 
 fn write(path: &Path, text: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -42,7 +42,7 @@ fn dependency(path: &Path, key: &str) -> scoop_manifest::package::DependencyRequ
     let document =
         scoop_manifest::package::parse_package_manifest(&text, scoop_toolchain::SOURCE_TARGETS)
             .unwrap();
-    let DependencyDeclaration::Request(value) = &document.dependencies[&key.parse().unwrap()]
+    let DependencyValue::Request(value) = &document.dependencies[&key.parse().unwrap()].value
     else {
         panic!()
     };
@@ -279,4 +279,28 @@ fn replacing_a_table_dependency_keeps_its_comment_and_drops_the_previous_source(
     assert!(matches!(value.source, PackageSource::Registry(_)));
     assert!(!fs::read_to_string(&path).unwrap().contains("github"));
     assert!(!root.join("Cone.lock").exists());
+}
+
+#[test]
+fn editing_the_version_preserves_the_target_condition() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let path = root.join("Cone.toml");
+    for declaration in [
+        "[dependencies]\n'org.example:lib' = {version='1.0.0',when={os='linux'}}",
+        "[dependencies.'org.example:lib']\nversion='1.0.0'\n[dependencies.'org.example:lib'.when]\nos='linux'",
+    ] {
+        write(&path, &format!("{}\n{declaration}\n", cone()));
+        success(pm(root, &["add", "org.example:lib", "--version", "=2.0.0"]));
+        let updated: toml::Value = fs::read_to_string(&path).unwrap().parse().unwrap();
+        let dependency = &updated["dependencies"]["org.example:lib"];
+        assert_eq!(dependency["when"]["os"].as_str(), Some("linux"));
+        assert_eq!(dependency["version"].as_str(), Some("=2.0.0"));
+        success(pm(root, &["remove", "org.example:lib"]));
+        assert!(
+            !fs::read_to_string(&path)
+                .unwrap()
+                .contains("org.example:lib")
+        );
+    }
 }

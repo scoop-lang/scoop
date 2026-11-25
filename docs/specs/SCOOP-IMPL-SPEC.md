@@ -102,7 +102,7 @@ GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不�
 
 两个 Linux 目标的默认 C／C++、runtime 与 startup 编译显式使用 `-march=x86-64`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
 
-Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 6；PM 的清单解析记录使用 `manifests-v5`，含已解析清单的 registry 缓存使用 `registry-v2`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
+Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 6；PM 的清单解析记录使用 `manifests-v6`，含已解析清单的 registry 缓存使用 `registry-v3`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
 
 Linux GNU GUI 的维护准备通过 `pkg-config` 选择 GTK 4.18 以上和 libadwaita 1.4 以上的开发输入，将实际头文件和链接输入放入目标 sysroot。GNU target 组件包交付这些资源及相应许可，运行时依赖系统的 GTK/libadwaita SONAME；不复制一套私有桌面环境或驱动。输入未变化时复用准备结果，不重新调用 `pkg-config` 或复制输入。musl 不交付 GUI 资源。
 
@@ -1044,7 +1044,7 @@ scoopc build <file.scoop> [--direct-slib direct.slib]... [--support-slib support
 
 无 lock 的首次 build/run 与已有 lock 的构建使用同一个 prepare 入口，具体顺序见[包管理规范 7.2](SCOOP-PACKAGE-SPEC.md#72-自动准备与低层调用)。请求经 stdin 传入，成功响应经 stdout 返回，stderr 保留诊断；复用现有子进程并发管道管理，不创建 prepare IPC 文件。PM 完成解析、来源准备和 lock 发布后，driver 才调度编译；PM 失败则停止本次命令。后续编译或链接失败保留正确生成的 lock，run 不执行旧程序。
 
-按[包管理规范 2.2](SCOOP-PACKAGE-SPEC.md#22-版本语义)的条件依赖设计，prepare 交付针对请求用途与目标筛选过的精确生产和测试边。driver 从该图调度并形成 direct/support 输入，编译器与链接器消费通常的目标产物。
+按[包管理规范 2.2](SCOOP-PACKAGE-SPEC.md#22-版本语义)的条件依赖规则，prepare 交付针对请求用途与目标筛选过的精确生产和测试边。driver 从该图调度并形成 direct/support 输入，编译器与链接器消费通常的目标产物。
 
 低层 `scoop-link` 使用相同的普通产物链接合同。manifest build/run省略root时按包管理规范3.1从cwd定位最近清单及所属workspace，成员内默认该成员，workspace根采用default-members；`run -- args`也采用该选择，必须得到唯一executable。低层scoopc输入必需。single-file与artifact-only link不启动PM或读取相邻workspace。
 

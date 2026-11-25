@@ -52,6 +52,7 @@ kind = "executable"
 ```
 
 - 普通 manifest 默认依赖 core；std 与其他使用的库需显式声明。`"1.2.3"` 是 caret 兼容范围，`"=1.2.3"` 才是精确版本，也可使用 tilde 或比较约束；不支持 `latest`。PM 在一个程序的完整依赖图中为每个 `group:name` 选择一个版本，默认保留有效 lock，新选择优先最新兼容版本。
+- 在生产或测试依赖的表值上写 `when = { os = "linux", arch = "x86_64", env = ["gnu", "musl"] }` 可按构建目标选库。使用库的文件通常在 `[[sources]]` 或 `[[test.sources]]` 上写相同条件。共享版本可由成员写 `{ workspace = true, when = { os = "windows" } }` 继承。
 - 依赖是 Cone coordinate，import 是源码 package／名称，二者不必同名。例如 `scoop.std` 提供 `scoop.collections`、`scoop.time` 等包。安装根内有库不代表当前 Cone 已声明它；传递依赖也不自动成为直接可访问 API。
 - 普通 Cone 的源码 package 必须等于 group 或位于其子包；同一 Cone 的文件可以互用 internal 声明，跨 Cone 需要公开 API。单文件不建立项目的 package 结构，package header 会被忽略并产生 warning。
 - 本地源码依赖的写法可从 `language/visibility` 取得，例如 `"example.lib:greeter" = { version = "0.1.0", path = "../library" }`。path 相对声明它的 manifest，coordinate 必须与被引用库一致。
