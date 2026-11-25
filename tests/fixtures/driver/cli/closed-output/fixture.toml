@@ -1,13 +1,13 @@
 schema = 1
-name = "scoopc-closed-output"
+name = "cli-closed-output"
 inputs = ["closed_output.py"]
-tools = ["scoopc"]
+tools = ["scoop", "scoopc", "scoop-link", "scoop-pm", "scoop-api", "python"]
 tags = ["cli", "diagnostics"]
 requires_target_execution = false
 
 [[steps]]
 name = "closed-pipe"
-argv = ["${python}", "${fixture}/closed_output.py", "${scoopc}"]
+argv = ["${python}", "${fixture}/closed_output.py", "${scoopc}", "${scoop-link}", "${scoop-pm}", "${scoop-api}", "${scoop}", "${repo}/sysroot/src/scoop.std"]
 exit = 0
 stdout = ""
 stderr = ""

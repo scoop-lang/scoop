@@ -88,7 +88,7 @@ pub(super) fn execute(args: DepsArgs, key: DependencyCoordinateKey) -> PmResult<
             format: u32,
             resolutions: Vec<Explanation>,
         }
-        println!(
+        print_line(format_args!(
             "{}",
             serde_json::to_string_pretty(&Output {
                 format: 1,
@@ -98,7 +98,7 @@ pub(super) fn execute(args: DepsArgs, key: DependencyCoordinateKey) -> PmResult<
                 scoop_source::DiagnosticCode::ICE2501,
                 error.to_string()
             ))?
-        );
+        ))?;
     } else {
         for explanation in resolutions {
             print_explanation(&explanation)?;
@@ -172,10 +172,16 @@ fn explain(root: &ResolvedRoot, key: &DependencyCoordinateKey) -> PmResult<Expla
 }
 
 fn print_explanation(value: &Explanation) -> PmResult<()> {
-    println!("{} [{} / {}]", value.root, value.purpose, value.target);
-    println!("  {} ({}): locked selection", value.selected, value.source);
+    print_line(format_args!(
+        "{} [{} / {}]",
+        value.root, value.purpose, value.target
+    ))?;
+    print_line(format_args!(
+        "  {} ({}): locked selection",
+        value.selected, value.source
+    ))?;
     if value.root == value.selected {
-        println!("    selected workspace root");
+        print_line(format_args!("    selected workspace root"))?;
     }
     for requirement in &value.requirements {
         let path = requirement
@@ -190,20 +196,20 @@ fn print_explanation(value: &Explanation) -> PmResult<()> {
             requirement.versions.join(" and ")
         };
         let test = if requirement.test { " [test]" } else { "" };
-        println!(
+        print_line(format_args!(
             "    {path}{test}: requires {versions} from {}",
             requirement.source
-        );
+        ))?;
         for origin in &requirement.origins {
             let path = origin.path.to_path_buf().map_err(|error| {
                 PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string())
             })?;
-            println!(
+            print_line(format_args!(
                 "      {} (bytes {}..{})",
                 path.display(),
                 origin.span.start,
                 origin.span.end
-            );
+            ))?;
         }
     }
     Ok(())

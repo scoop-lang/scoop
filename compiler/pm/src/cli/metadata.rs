@@ -88,14 +88,13 @@ pub(super) fn execute(args: MetadataArgs) -> PmResult<()> {
     } else {
         scoop_pm::prepare::metadata(request)?
     };
-    println!(
+    print_line(format_args!(
         "{}",
         serde_json::to_string_pretty(&result).map_err(|error| PmError::new(
             scoop_source::DiagnosticCode::ICE2501,
             error.to_string()
         ))?
-    );
-    Ok(())
+    ))
 }
 
 pub(super) fn read_overlays(enabled: bool) -> PmResult<scoop_pm::ManifestOverlays> {
