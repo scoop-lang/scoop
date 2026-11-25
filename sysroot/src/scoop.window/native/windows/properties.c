@@ -242,9 +242,19 @@ int64_t scoop_window_blur(SWWindow *window, int32_t value) {
   return value ? -1 : 0;
 }
 int64_t scoop_window_content_protection(SWWindow *window, int32_t value) {
-  return SetWindowDisplayAffinity(window->hwnd, value ? WDA_MONITOR : WDA_NONE)
-             ? 0
-             : GetLastError();
+  HWND hwnd = window->hwnd;
+  if (SetWindowDisplayAffinity(hwnd, value ? WDA_MONITOR : WDA_NONE))
+    return 0;
+  DWORD error = GetLastError();
+  BOOL composed;
+  if (SUCCEEDED(DwmIsCompositionEnabled(&composed)) && !composed) {
+    if (value)
+      return -1;
+    DWORD affinity;
+    if (GetWindowDisplayAffinity(hwnd, &affinity) && affinity == WDA_NONE)
+      return 0;
+  }
+  return error;
 }
 int64_t scoop_window_attention(SWWindow *window, int32_t value) {
   FLASHWINFO info = {
