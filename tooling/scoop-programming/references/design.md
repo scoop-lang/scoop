@@ -42,7 +42,7 @@ Option 的组合扩展由 `scoop.std` 提供，package 为 `scoop`；源码在 `
 
 `suspend` 不等于并行线程；`cancel` 不等于清理结束。按 API 等待 join/await，业务上的“已经启动”条件使用实际同步协议。睡眠时长不能充当通用同步条件。
 
-终端列宽不等于 byteLength 或 charLength。字符集库已有字素簇分割和标量宽度接口；组合字符、emoji 和控制字符需要明确显示策略，单纯相加标量宽度并不完整。按当前产品需要处理重定向与窄屏，不为简单输出引入完整布局框架。
+终端列宽不等于 byteLength 或 charLength。字符集库已有字素簇分割、`unicodeTextWidth` 完整文本列宽及 `unicodeScalarWidth` 标量接口；前两者共用固定 Unicode 数据，`ambiguousAsWide` 显式选择模糊宽度策略。组合字符、VS15/VS16 与 emoji 应使用完整文本宽度，不能相加标量宽度；控制字符返回 -1，由调用者处理 tab 和换行。按当前产品需要处理重定向与窄屏，不为简单输出引入完整布局框架。
 
 UI render 可以按真实区域提取普通 View 函数。显示快照用于当次显示，事件根据执行时的模型/Props 更新状态；不要捕获旧显示值计算下一状态。使用当前 receiver 的 builder、显式 key 和公开 Binding/模型，按生命周期关闭资源；只给确需独立生命周期的部分建立组件。
 
