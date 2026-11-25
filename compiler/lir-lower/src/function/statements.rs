@@ -96,22 +96,14 @@ impl<'a> FunctionLowerer<'a> {
             } => {
                 let object_ty = object.ty.clone();
                 let mir::Type::Class(class_id) = &object_ty else {
-                    unreachable!("a field store targets a class object")
-                };
-                let mir::ClassRepresentation::Declared(declared) =
-                    &self.module.classes[*class_id].representation
-                else {
                     return Err(StorageLoweringError::InvalidRepresentation(
-                        "source field store requires a declared class",
+                        "field store requires a class receiver",
                     ));
                 };
-                let field_ty = &declared.fields[*index as usize].ty;
-                assert_eq!(
-                    &value.ty, field_ty,
-                    "a field store value must match its declared field type"
-                );
-                let (offsets, _, _) = class_shape(self.context, self.module, self.enums, declared)?;
-                let offset = offsets[*index as usize];
+                let field_ty = &value.ty;
+                let offset = self
+                    .class_layouts
+                    .field_offset(*class_id, *index, field_ty)?;
                 let object = self.lower_expr(object)?;
                 let value = self.lower_expr(value)?;
                 self.store_heap_value(object, offset, value, field_ty)?;
@@ -124,34 +116,31 @@ impl<'a> FunctionLowerer<'a> {
             } => {
                 let object_ty = object.ty.clone();
                 let mir::Type::Class(class_id) = &object_ty else {
-                    unreachable!("an atomic field store targets a class object")
-                };
-                let mir::ClassRepresentation::Declared(declared) =
-                    &self.module.classes[*class_id].representation
-                else {
                     return Err(StorageLoweringError::InvalidRepresentation(
-                        "atomic state requires a declared class",
+                        "atomic field store requires a class receiver",
                     ));
                 };
-                assert!(kind.is_atomic_state(), "only coroutine state is atomic");
-                assert_eq!(
-                    declared.fields[*index as usize].ty,
-                    mir::Type::MachineScalar(*kind),
-                    "an atomic state operation must match its field domain"
-                );
-                assert_eq!(
-                    value.ty,
-                    mir::Type::MachineScalar(*kind),
-                    "an atomic store value must match its field domain"
-                );
-                let (offsets, _, _) = class_shape(self.context, self.module, self.enums, declared)?;
+                if !kind.is_atomic_state() {
+                    return Err(StorageLoweringError::InvalidRepresentation(
+                        "only coroutine state has atomic class storage",
+                    ));
+                }
+                if value.ty != mir::Type::MachineScalar(*kind) {
+                    return Err(StorageLoweringError::ClassFieldTypeMismatch {
+                        class: *class_id,
+                        index: *index,
+                    });
+                }
+                let offset = self
+                    .class_layouts
+                    .field_offset(*class_id, *index, &value.ty)?;
                 let object = self.lower_expr(object)?;
                 let value = self.lower_expr(value)?;
                 let kind = machine_scalar_kind(*kind);
                 self.push(lir::Instruction::MachineAtomicStore {
                     kind,
                     object,
-                    offset: offsets[*index as usize],
+                    offset,
                     value,
                 });
             }

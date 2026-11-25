@@ -1,12 +1,5 @@
 use super::*;
 
-fn declared_class(definition: &mir::ClassDef) -> &mir::DeclaredClass {
-    let mir::ClassRepresentation::Declared(declared) = &definition.representation else {
-        panic!("expected a declared test class")
-    };
-    declared
-}
-
 fn context() -> LoweringContext {
     LoweringContext::new(scoop_target_data::DARWIN_AARCH64)
 }
@@ -66,39 +59,19 @@ fn producer_preserves_base_tail_padding_and_elides_zst_fields_at_every_depth() {
     let module = finish(builder);
     let context = context();
     let enums = lower_enums(&context, &module).unwrap();
+    let layouts = ClassLayouts::new(&context, &module, &enums);
+    for (class, offsets, size) in [
+        (base, vec![16, 24], 32),
+        (child, vec![16, 24, 0, 32], 40),
+        (leaf, vec![16, 24, 0, 32, 40], 48),
+    ] {
+        let layout = layouts.get(class).unwrap();
+        assert_eq!(layout.offsets, offsets);
+        assert_eq!((layout.size, layout.align), (size, 8));
+    }
     assert_eq!(
-        class_shape(
-            &context,
-            &module,
-            &enums,
-            declared_class(&module.classes[base])
-        )
-        .unwrap(),
-        (vec![16, 24], 32, 8)
-    );
-    assert_eq!(
-        class_shape(
-            &context,
-            &module,
-            &enums,
-            declared_class(&module.classes[child])
-        )
-        .unwrap(),
-        (vec![16, 24, 0, 32], 40, 8)
-    );
-    assert_eq!(
-        class_shape(
-            &context,
-            &module,
-            &enums,
-            declared_class(&module.classes[leaf])
-        )
-        .unwrap(),
-        (vec![16, 24, 0, 32, 40], 48, 8)
-    );
-    assert_eq!(
-        class_layout(&context, &module, &enums, &module.classes[leaf]).unwrap(),
-        (48, 8, lir::RefScan::References(vec![40]))
+        layouts.get(leaf).unwrap().scan,
+        lir::RefScan::References(vec![40])
     );
 }
 
@@ -117,13 +90,10 @@ fn producer_rejects_changed_base_prefix_and_inheritance_cycles() {
     let context = context();
     let enums = lower_enums(&context, &module).unwrap();
     assert_eq!(
-        class_shape(
-            &context,
-            &module,
-            &enums,
-            declared_class(&module.classes[child])
-        ),
-        Err(StorageLoweringError::InvalidRepresentation(
+        ClassLayouts::new(&context, &module, &enums)
+            .get(child)
+            .err(),
+        Some(StorageLoweringError::InvalidRepresentation(
             "class fields do not preserve the complete base prefix"
         ))
     );
@@ -140,15 +110,52 @@ fn producer_rejects_changed_base_prefix_and_inheritance_cycles() {
         ))
     );
     assert_eq!(
-        class_shape(
-            &context,
-            &module,
-            &enums,
-            declared_class(&module.classes[child])
-        ),
-        Err(StorageLoweringError::InvalidRepresentation(
+        ClassLayouts::new(&context, &module, &enums)
+            .get(child)
+            .err(),
+        Some(StorageLoweringError::InvalidRepresentation(
             "class base cycle"
         ))
+    );
+}
+
+#[test]
+fn class_storage_reports_missing_bases_fields_and_type_mismatches() {
+    let mut builder = Builder::new();
+    let class = builder.class("Object", None, &[("value", LONG)], Vec::new(), Vec::new());
+    let mut module = finish(builder);
+    let context = context();
+    let enums = lower_enums(&context, &module).unwrap();
+    let layouts = ClassLayouts::new(&context, &module, &enums);
+    assert_eq!(layouts.field_offset(class, 0, &LONG), Ok(16));
+    assert_eq!(
+        layouts.field_offset(class, 1, &LONG),
+        Err(StorageLoweringError::MissingClassField { class, index: 1 })
+    );
+    assert_eq!(
+        layouts.field_offset(class, 0, &mir::Type::Boolean),
+        Err(StorageLoweringError::ClassFieldTypeMismatch { class, index: 0 })
+    );
+    let missing = mir::ClassId::from_raw(la_arena::RawIdx::from(999));
+    assert_eq!(
+        layouts.get(missing).err(),
+        Some(StorageLoweringError::MissingClass(missing))
+    );
+    drop(layouts);
+    let mir::ClassRepresentation::Declared(declared) = &mut module.classes[class].representation
+    else {
+        unreachable!()
+    };
+    declared.base_class = Some(missing);
+    assert_eq!(
+        class_order(&module),
+        Err(StorageLoweringError::MissingClass(missing))
+    );
+    assert_eq!(
+        ClassLayouts::new(&context, &module, &enums)
+            .get(class)
+            .err(),
+        Some(StorageLoweringError::MissingClass(missing))
     );
 }
 

@@ -12,6 +12,15 @@ pub enum StorageLoweringError {
     AbiValue(lir::AbiValueError),
     BoxDescriptor(lir::BoxDescriptorError),
     AbiClassification(lir::ScoopAbiClassificationError),
+    MissingClass(scoop_mir::ClassId),
+    MissingClassField {
+        class: scoop_mir::ClassId,
+        index: u32,
+    },
+    ClassFieldTypeMismatch {
+        class: scoop_mir::ClassId,
+        index: u32,
+    },
     InvalidRepresentation(&'static str),
 }
 
@@ -38,7 +47,21 @@ from_error!(lir::ScoopAbiClassificationError, AbiClassification);
 
 impl std::fmt::Display for StorageLoweringError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "LIR storage layout failed: {self:?}")
+        match self {
+            Self::MissingClass(class) => write!(
+                formatter,
+                "LIR object storage refers to missing class {class:?}"
+            ),
+            Self::MissingClassField { class, index } => write!(
+                formatter,
+                "LIR object storage refers to missing field {index} of class {class:?}"
+            ),
+            Self::ClassFieldTypeMismatch { class, index } => write!(
+                formatter,
+                "LIR operand type differs from field {index} of class {class:?}"
+            ),
+            _ => write!(formatter, "LIR storage layout failed: {self:?}"),
+        }
     }
 }
 impl std::error::Error for StorageLoweringError {}

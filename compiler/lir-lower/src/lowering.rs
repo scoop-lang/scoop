@@ -78,6 +78,7 @@ pub(super) fn lower_graph(
             (id, reference)
         })
         .collect::<HashMap<_, _>>();
+    let class_layouts = ClassLayouts::new(&context, module, &enums);
     let (type_descriptors, type_descriptor_refs, well_known_type_descriptors) = type_descriptors(
         &context,
         &identity_roots,
@@ -86,6 +87,7 @@ pub(super) fn lower_graph(
         &local_function_map,
         &external_callable_map,
         dependency_types,
+        &class_layouts,
     )?;
     let (arrays, array_type_map) = array_types(
         &context,
@@ -242,6 +244,7 @@ pub(super) fn lower_graph(
             &mut globals,
             &structs,
             &enums,
+            &class_layouts,
             &array_type_map,
             &type_descriptor_refs,
             &local_function_map,
@@ -367,12 +370,13 @@ pub(super) fn lower_graph(
         module,
         &enums,
         imported_runtime_string.is_none(),
+        &class_layouts,
     )?;
     let external_exact_types = external_type_descriptors
         .iter()
         .map(|(_, descriptor)| descriptor.target())
         .collect::<std::collections::HashSet<_>>();
-    let debug_types = debug::types(&context, module, &structs, &enums, &layouts, &arrays)?;
+    let debug_types = debug::types(&context, module, &structs, &enums, &arrays, &class_layouts)?;
     let module = lir::Module {
         cone: module.cone,
         globals,

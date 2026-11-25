@@ -141,6 +141,7 @@ pub(crate) fn class_type_descriptor(
     refs: &TypeDescriptorRefs,
     local_functions: &HashMap<mir::FunctionId, lir::LocalFunctionRef>,
     external_callables: &HashMap<mir::ExternalCallableUseId, lir::ExternalCallableId>,
+    class_layouts: &ClassLayouts<'_>,
 ) -> StorageResult<lir::TypeDescriptor> {
     let def = &module.classes[id];
     let descriptor_type = def.physical_type(id);
@@ -182,10 +183,10 @@ pub(crate) fn class_type_descriptor(
             lir::TypeDescriptorInlineScanV1::Null,
         ),
         mir::ClassRepresentation::Intrinsic(
-            mir::IntrinsicClassRepresentation::Array { .. }
-            | mir::IntrinsicClassRepresentation::MutableArray { .. },
+            mir::IntrinsicClassRepresentation::Array { element }
+            | mir::IntrinsicClassRepresentation::MutableArray { element },
         ) => {
-            let (size, align, scan) = class_layout(context, module, enums, def)?;
+            let (size, align, scan) = array_element_layout(context, module, enums, element)?;
             let inline_scan = typed_inline_scan(
                 &scan,
                 lir::LayoutIdentity::managed_array(
@@ -232,13 +233,13 @@ pub(crate) fn class_type_descriptor(
                     inline_scan,
                 )
             } else {
-                let (size, align, scan) = class_layout(context, module, enums, def)?;
+                let layout = class_layouts.get(id)?;
                 (
                     lir::TypeInstanceShapeV1::fixed_object(
                         context.target_profile(),
-                        size,
-                        align,
-                        scan,
+                        layout.size,
+                        layout.align,
+                        layout.scan.clone(),
                     )?,
                     lir::TypeDescriptorInlineScanV1::Null,
                 )
