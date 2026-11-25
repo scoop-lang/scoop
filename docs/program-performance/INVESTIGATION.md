@@ -29,7 +29,7 @@
 
 **本轮优化是一个长期、分批试验和交付的过程。** 成本低且收益比较稳定的方案，在验证后可直接纳入 release 默认设置；成本过高或收益不稳定的方案，通过独立开关或优化等级决定是否启用、启用哪一级。具体默认值随测量结果逐步调整，配置交付原则见 §11.1。
 
-沿用 [M56 的桌面用途](../milestone56/DESKTOP-GC.md)：低分配成本、短暂停、低配置机器和实际内存占用仍是主要约束；同时增加数值计算、文本处理和并发服务负载，检验综合竞争力。是否领先必须分别比较稳定吞吐、应用尾延迟、内存和启动，不能用一个混合总分掩盖短板。
+沿用 [M56 的桌面用途](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone56/DESKTOP-GC.md)：低分配成本、短暂停、低配置机器和实际内存占用仍是主要约束；同时增加数值计算、文本处理和并发服务负载，检验综合竞争力。是否领先必须分别比较稳定吞吐、应用尾延迟、内存和启动，不能用一个混合总分掩盖短板。
 
 ## 2. 当前基础及真正的缺口
 
@@ -57,9 +57,9 @@
 
 既有数据说明优化空间很大，但也说明不能只看分配数：
 
-- M62 的同机 V3 对照为原版本 1.309 s、自动内联 0.170 s、手工展开 0.170 s、禁止浮点融合的 C 0.134 s。主要损失曾来自未能内联；修复后仍有可定位的差距。这不是跨语言综合分数。[M62 验收](../milestone62/ACCEPTANCE.md)
-- M58 的局部 box／scope closure 样本分别从约 32／40 MB 分配降至 280 bytes；但某个 each 版本进一步消除 closure 后，耗时较前一版本增加约 15.6%。必须同时查看机器码、运行时间、内存和暂停。[M58 性能第 13 节](../milestone58/PERFORMANCE.md#13-局部装箱作用域闭包与嵌套遍历)
-- M62 的 16 MiB nursery 在高存活多线程样本中提高吞吐，却完全改变 minor/full 路径，并恶化部分短帧延迟；4 MiB 某样本出现约 382 MiB RSS 峰值。简单扩大 nursery 不能代替晋升策略设计。[M62 候选评估](../milestone62/EVALUATION.md)
+- M62 的同机 V3 对照为原版本 1.309 s、自动内联 0.170 s、手工展开 0.170 s、禁止浮点融合的 C 0.134 s。主要损失曾来自未能内联；修复后仍有可定位的差距。这不是跨语言综合分数。[M62 验收](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone62/ACCEPTANCE.md)
+- M58 的局部 box／scope closure 样本分别从约 32／40 MB 分配降至 280 bytes；但某个 each 版本进一步消除 closure 后，耗时较前一版本增加约 15.6%。必须同时查看机器码、运行时间、内存和暂停。[M58 性能第 13 节](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone58/PERFORMANCE.md#13-局部装箱作用域闭包与嵌套遍历)
+- M62 的 16 MiB nursery 在高存活多线程样本中提高吞吐，却完全改变 minor/full 路径，并恶化部分短帧延迟；4 MiB 某样本出现约 382 MiB RSS 峰值。简单扩大 nursery 不能代替晋升策略设计。[M62 候选评估](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone62/EVALUATION.md)
 
 ## 3. 对手已经具备什么
 
@@ -85,7 +85,7 @@ Java 稳态峰值需要充分预热后比较；启动和短命命令行程序则
 
 ## 4. 历史暂缓项重新归类
 
-以 [M31 后续清单](../milestone31/DESIGN.md#9-明确留待后续)、[M56 扩展](../milestone56/DESIGN.md)、[M58 设计](../milestone58/DESIGN.md)及 [M62 评估](../milestone62/EVALUATION.md)为来源，按当前代码更新状态：
+以 [M31 后续清单](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone31/DESIGN.md#9-明确留待后续)、[M56 扩展](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone56/DESIGN.md)、[M58 设计](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone58/DESIGN.md)及 [M62 评估](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone62/EVALUATION.md)为来源，按当前代码更新状态：
 
 | 历史方向 | 当前状态 | 本轮结论 |
 | --- | --- | --- |
@@ -258,7 +258,7 @@ GC 对代码质量的影响还包括保存／重载引用、寄存器压力和�
 
 ### 7.1 测量与归因：提前独立交付
 
-目标是回答“时间和内存花在哪里、为什么没有优化、修改后是否真正改善”。测量数据首先供开发者判断问题和改进通用实现，无需应用构建消费 profile。例如 [M62 的 V3 内联成本修正](../milestone62/PROGRESS.md#intrinsic-标量的内联复制成本)通过对照和机器码发现 intrinsic 标量被误计为 aggregate copy，修正后普通 release 构建直接受益；这已经形成了测量指导静态优化的闭环。
+目标是回答“时间和内存花在哪里、为什么没有优化、修改后是否真正改善”。测量数据首先供开发者判断问题和改进通用实现，无需应用构建消费 profile。例如 [M62 的 V3 内联成本修正](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone62/PROGRESS.md#intrinsic-标量的内联复制成本)通过对照和机器码发现 intrinsic 标量被误计为 aggregate copy，修正后普通 release 构建直接受益；这已经形成了测量指导静态优化的闭环。
 
 早期范围以现有 benchmark、GC 统计和成熟平台工具为起点，分批交付：
 

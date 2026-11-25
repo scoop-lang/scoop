@@ -1,4 +1,4 @@
-"""Source encoding errors belong to the compiler, not fixture discovery."""
+"""Fixture discovery attributes criteria errors to their carrier and preserves program bytes."""
 
 import sys
 import tempfile
@@ -48,3 +48,16 @@ class DiscoveryTests(unittest.TestCase):
             source.write_bytes(b"// fixture:begin\n// name = '\xff'\n// fixture:end\n")
             with self.assertRaisesRegex(ConfigurationError, "inline criteria must be UTF-8"):
                 discover(source.parent)
+
+    def test_malformed_toml_identifies_the_carrier(self):
+        for name, content in (
+            ("sample.fixture.toml", b"schema = ["),
+            ("sample.scoop", b"// fixture:begin\r// schema = [\r// fixture:end\r"),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                carrier = Path(temporary) / name
+                carrier.write_bytes(content)
+                with self.assertRaises(ConfigurationError) as raised:
+                    discover(carrier.parent)
+                self.assertIn(str(carrier), str(raised.exception))
+                self.assertIn("invalid fixture criteria", str(raised.exception))

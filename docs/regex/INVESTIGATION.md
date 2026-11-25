@@ -295,7 +295,7 @@ NativeSafe 使匹配期间 GC 可以继续协调，但不会让同步 C 匹配�
 
 上游源码与许可按现有 vendor 方式固定；维护脚本准备每目标 `sysroot/lib/<triple>/libpcre2-8.a` 与对应头文件，发行沿现有流程收集 PCRE2/SLJIT 许可。`scoop.regex` 通过 `native.libraries` 声明静态库 `pcre2-8`，薄 C 适配随 Cone 的 native source 构建；不重复编入上游对象。
 
-沿用已经完成的 [M52](../milestone52/DESIGN.md) 预编译 sysroot 与目标资源交付，以及 [M61](../milestone61/DESIGN.md) 使用的更新复用流程，具体入口见[准备脚本说明](../../scripts/README.md)。输入未变化且所需输出存在时直接复用；更新判断先于解包、源码复制、工具探测和构建。普通应用只消费目标 `.slib` 和 `.a`，不重新下载或构建 PCRE2，不执行 Cargo，也不新增来源审计、产物复核或工具隐藏测试。
+沿用已经完成的 [M52](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone52/DESIGN.md) 预编译 sysroot 与目标资源交付，以及 [M61](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone61/DESIGN.md) 使用的更新复用流程，具体入口见[准备脚本说明](../../scripts/README.md)。输入未变化且所需输出存在时直接复用；更新判断先于解包、源码复制、工具探测和构建。普通应用只消费目标 `.slib` 和 `.a`，不重新下载或构建 PCRE2，不执行 Cargo，也不新增来源审计、产物复核或工具隐藏测试。
 
 PCRE2 保持独立 C archive，不添加 Rust wrapper，不修改 `scoop_text_backend` 的依赖图或要求 Scoop final-link 读取 Rust bitcode。现有 FFI、借用、Closeable/release 与 native library 通道是本设计的基础，不预设新的编译器或 runtime 能力为前置工作。
 

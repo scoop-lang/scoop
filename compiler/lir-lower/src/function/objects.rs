@@ -7,10 +7,15 @@ impl FunctionLowerer<'_> {
         &mut self,
         class_id: &mir::ClassId,
     ) -> StorageResult<lir::Value> {
-        let size = match &self.module.classes[*class_id].representation {
-            mir::ClassRepresentation::Declared(declared) => {
-                class_shape(self.context, self.module, self.enums, declared)?.1
-            }
+        let size = match &self
+            .module
+            .classes
+            .values()
+            .nth(u32::from(class_id.into_raw()) as usize)
+            .ok_or(StorageLoweringError::MissingClass(*class_id))?
+            .representation
+        {
+            mir::ClassRepresentation::Declared(_) => self.class_layouts.get(*class_id)?.size,
             mir::ClassRepresentation::Intrinsic(mir::IntrinsicClassRepresentation::Throwable) => {
                 lir::throwable_instance_shape(self.context.target_profile())?.minimum_size()
             }
@@ -144,19 +149,8 @@ impl FunctionLowerer<'_> {
         let receiver_ty = receiver.ty.clone();
         let receiver = self.lower_expr(receiver)?;
         if let mir::Type::Class(class_id) = receiver_ty {
-            let mir::ClassRepresentation::Declared(declared) =
-                &self.module.classes[class_id].representation
-            else {
-                return Err(StorageLoweringError::InvalidRepresentation(
-                    "source field access requires a declared class",
-                ));
-            };
-            assert_eq!(
-                ty, &declared.fields[*index as usize].ty,
-                "a field access has its declared field type"
-            );
-            let (offsets, _, _) = class_shape(self.context, self.module, self.enums, declared)?;
-            self.load_heap_value(receiver, offsets[*index as usize], ty)
+            let offset = self.class_layouts.field_offset(class_id, *index, ty)?;
+            self.load_heap_value(receiver, offset, ty)
         } else {
             let c_layout = matches!(receiver_ty, mir::Type::Struct(id)
                 if self.structs[struct_def_id(id)].is_c_layout());
@@ -188,22 +182,18 @@ impl FunctionLowerer<'_> {
     ) -> StorageResult<lir::Value> {
         let object_ty = object.ty.clone();
         let mir::Type::Class(class_id) = &object_ty else {
-            unreachable!("an atomic field load targets a class object")
-        };
-        let mir::ClassRepresentation::Declared(declared) =
-            &self.module.classes[*class_id].representation
-        else {
             return Err(StorageLoweringError::InvalidRepresentation(
-                "atomic state requires a declared class",
+                "atomic field load requires a class receiver",
             ));
         };
-        assert!(kind.is_atomic_state(), "only coroutine state is atomic");
-        assert_eq!(
-            declared.fields[*index as usize].ty,
-            mir::Type::MachineScalar(*kind),
-            "an atomic state operation must match its field domain"
-        );
-        let (offsets, _, _) = class_shape(self.context, self.module, self.enums, declared)?;
+        if !kind.is_atomic_state() {
+            return Err(StorageLoweringError::InvalidRepresentation(
+                "only coroutine state has atomic class storage",
+            ));
+        }
+        let offset =
+            self.class_layouts
+                .field_offset(*class_id, *index, &mir::Type::MachineScalar(*kind))?;
         let object = self.lower_expr(object)?;
         let kind = machine_scalar_kind(*kind);
         let out = self.new_temp(lir::LirType::MachineScalar(kind));
@@ -211,7 +201,7 @@ impl FunctionLowerer<'_> {
             out,
             kind,
             object,
-            offset: offsets[*index as usize],
+            offset,
         });
         Ok(lir::Value::Temp(out))
     }
@@ -226,32 +216,26 @@ impl FunctionLowerer<'_> {
     ) -> StorageResult<lir::Value> {
         let object_ty = object.ty.clone();
         let mir::Type::Class(class_id) = &object_ty else {
-            unreachable!("an atomic compare-exchange targets a class object")
-        };
-        let mir::ClassRepresentation::Declared(declared) =
-            &self.module.classes[*class_id].representation
-        else {
             return Err(StorageLoweringError::InvalidRepresentation(
-                "atomic state requires a declared class",
+                "atomic compare-exchange requires a class receiver",
             ));
         };
-        assert!(kind.is_atomic_state(), "only coroutine state is atomic");
-        assert_eq!(
-            declared.fields[*index as usize].ty,
-            mir::Type::MachineScalar(*kind),
-            "an atomic state operation must match its field domain"
-        );
-        assert_eq!(
-            expected.ty,
-            mir::Type::MachineScalar(*kind),
-            "atomic expected value must match its field domain"
-        );
-        assert_eq!(
-            replacement.ty,
-            mir::Type::MachineScalar(*kind),
-            "atomic replacement value must match its field domain"
-        );
-        let (offsets, _, _) = class_shape(self.context, self.module, self.enums, declared)?;
+        if !kind.is_atomic_state() {
+            return Err(StorageLoweringError::InvalidRepresentation(
+                "only coroutine state has atomic class storage",
+            ));
+        }
+        if expected.ty != mir::Type::MachineScalar(*kind)
+            || replacement.ty != mir::Type::MachineScalar(*kind)
+        {
+            return Err(StorageLoweringError::ClassFieldTypeMismatch {
+                class: *class_id,
+                index: *index,
+            });
+        }
+        let offset =
+            self.class_layouts
+                .field_offset(*class_id, *index, &mir::Type::MachineScalar(*kind))?;
         let object = self.lower_expr(object)?;
         let expected = self.lower_expr(expected)?;
         let replacement = self.lower_expr(replacement)?;
@@ -261,7 +245,7 @@ impl FunctionLowerer<'_> {
             out,
             kind,
             object,
-            offset: offsets[*index as usize],
+            offset,
             expected,
             replacement,
         });

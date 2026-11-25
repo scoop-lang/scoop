@@ -16,7 +16,7 @@ use super::{LoweringContext, StorageLoweringError, StorageResult};
 
 mod cfg;
 mod constants;
-mod dataflow;
+
 mod identity;
 mod layout;
 mod leaf;
@@ -31,9 +31,12 @@ mod tests;
 
 use cfg::*;
 use constants::fold_constant_branches;
-use dataflow::*;
 use identity::*;
 pub(crate) use layout::lir_size_align;
+use lir::dataflow::{
+    ValueSlot as LiveValue, call_def, terminator_def, visit_instruction_defs,
+    visit_instruction_uses, visit_terminator_uses,
+};
 use plans::*;
 use roots::{
     caller_roots, exceptional_root_set, include_managed_operands, live_value_ty,
@@ -56,50 +59,6 @@ impl PendingSafepointSites {
 
     fn role(&self, site: lir::SafepointSiteRef) -> lir::SafepointSiteRole {
         self.roles[site.into_u32() as usize]
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum LiveValue {
-    Param(u32),
-    Local(lir::LocalId),
-    Temp(lir::TempId),
-}
-
-impl LiveValue {
-    fn from_value(value: lir::Value) -> Option<Self> {
-        match value {
-            lir::Value::Param(index) => Some(Self::Param(index)),
-            lir::Value::Local(id) => Some(Self::Local(id)),
-            lir::Value::Temp(id) => Some(Self::Temp(id)),
-            lir::Value::CArgumentStorage(storage) => Some(Self::Local(storage.local())),
-            lir::Value::FloatConst(_)
-            | lir::Value::IntegerConst(_)
-            | lir::Value::MachineScalar(_)
-            | lir::Value::BoolConst(_)
-            | lir::Value::NullPointer(_)
-            | lir::Value::TypeDescriptor(_)
-            | lir::Value::RootScan(_)
-            | lir::Value::ContextKeyCell(_)
-            | lir::Value::Global(_)
-            | lir::Value::InitializationUnit(_) => None,
-        }
-    }
-
-    fn source(self) -> lir::CallerRootSource {
-        match self {
-            Self::Param(index) => lir::CallerRootSource::Param(index),
-            Self::Local(id) => lir::CallerRootSource::Local(id),
-            Self::Temp(id) => lir::CallerRootSource::Temp(id),
-        }
-    }
-
-    fn sort_key(self) -> (u8, u32) {
-        match self {
-            Self::Param(index) => (0, index),
-            Self::Local(id) => (1, id.into_raw().into_u32()),
-            Self::Temp(id) => (2, id.into_raw().into_u32()),
-        }
     }
 }
 

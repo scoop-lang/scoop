@@ -4,34 +4,32 @@ use crate::cli::test_run::model::{AssertionValue, Failure, FailureDetail};
 pub(super) fn write(
     mut out: &mut impl Write,
     target: &str,
-    selected: &SelectedTests,
+    report: &Report<'_>,
     result: &RunResult,
-    report: &Value,
+    process: Option<ProcessStatus>,
 ) -> io::Result<()> {
-    let counts = &report["counts"];
+    let counts = &report.counts;
     writeln!(out, "{target}")?;
-    let mut cases = result.cases.iter();
-    for (index, container) in selected.report_directory.containers.iter().enumerate() {
+    for container in &report.containers {
         writeln!(
             out,
             "  {} [{}]",
-            container.qualified_name,
-            report["containers"][index]["status"].as_str().unwrap()
+            container.declaration.qualified_name, container.status
         )?;
-        for case in &container.cases {
+        for (case, outcome) in &container.cases {
             let location = &case.location;
             write!(
                 out,
                 "    {} ({}:{}:{})",
                 case.name, location.path, location.line, location.column
             )?;
-            if let Some(reason) = &case.ignore_reason
-                && !selected.run_ignored
-            {
-                writeln!(out, " ignored: {reason}")?;
-                continue;
-            }
-            let record = cases.next().expect("report uses selected order");
+            let record = match outcome {
+                Outcome::Ignored(reason) => {
+                    writeln!(out, " ignored: {reason}")?;
+                    continue;
+                }
+                Outcome::Executed(record) => record,
+            };
             let status = match record.status {
                 Status::Passed => "passed",
                 Status::Failed => "failed",
@@ -53,9 +51,9 @@ pub(super) fn write(
     }
     if let Some(failure) = &result.target_failure {
         writeln!(out, "  target failed: {failure}")?;
-        if let Some(signal) = report["process"]["signal"].as_i64() {
+        if let Some(signal) = process.as_ref().and_then(|p| p.signal) {
             writeln!(out, "  process signal: {signal}")?;
-        } else if let Some(code) = report["process"]["code"].as_i64() {
+        } else if let Some(code) = process.and_then(|p| p.code) {
             writeln!(out, "  process exit: {code}")?;
         }
     }
@@ -63,14 +61,14 @@ pub(super) fn write(
     write!(
         out,
         "{} containers, {} tests: {} passed, {} failed, {} ignored, {} not run",
-        counts["containers"],
-        counts["cases"],
-        counts["passed"],
-        counts["failed"],
-        counts["ignored"],
-        counts["not_run"]
+        report.containers.len(),
+        counts.cases(),
+        counts.passed,
+        counts.failed,
+        counts.ignored,
+        counts.not_run
     )?;
-    if let Some(reason) = selected.empty_reason {
+    if let Some(reason) = report.empty_reason {
         write!(out, " ({reason})")?;
     }
     writeln!(out)
@@ -78,11 +76,10 @@ pub(super) fn write(
 
 fn failure(out: &mut impl Write, failure: &Failure) -> io::Result<()> {
     let location = &failure.location;
-    let phase = serde_json::to_value(&failure.phase).expect("phase is a string");
     writeln!(
         out,
         "      {} at {}:{}:{}",
-        phase.as_str().unwrap(),
+        failure.phase.label(),
         location.file,
         location.line,
         location.column

@@ -18,7 +18,7 @@ impl SelectedImage {
         artifact: &ProgramLinkArtifact,
         selected: &BTreeSet<ObjectDefinitionPlanId>,
         profile: &ValidatedFinalLinkProfile,
-    ) -> Result<Self, LinkError> {
+    ) -> Self {
         let production = artifact.production();
         let coordinate = artifact.manifest().cone().coordinate();
         let tables = production.registrations.each_ref().map(|entries| {
@@ -38,7 +38,7 @@ impl SelectedImage {
                 b"array size overflow\0".as_slice(),
             ),
         ];
-        Ok(Self {
+        Self {
             name: object_symbol(production.image_symbol, profile),
             coordinate: [coordinate.group(), coordinate.name(), coordinate.version()]
                 .map(|part| part.as_bytes().to_vec()),
@@ -51,7 +51,7 @@ impl SelectedImage {
                 .collect(),
             tables,
             traps,
-        })
+        }
     }
 
     pub(super) fn defined_names(&self) -> impl Iterator<Item = &str> {

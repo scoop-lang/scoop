@@ -1,4 +1,4 @@
-// Exception hierarchy (spec 11.7, docs/milestone8/DESIGN.md section 2).
+// Exception hierarchy defined by language spec section 11.7.
 // Throwable / Exception are `open` so user code can define custom
 // exceptions; the built-in subclasses are final.
 

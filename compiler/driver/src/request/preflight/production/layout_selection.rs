@@ -16,15 +16,8 @@ pub(in crate::request::preflight) fn select_lir_dependencies<'a>(
 ) -> Result<lir::StrongProductionDependencySelectionV2<'a>, Error> {
     let mut roots = Vec::new();
     let mut physical = Vec::new();
-    collect_mir_references(
-        input,
-        &dependencies
-            .iter()
-            .map(|dependency| dependency.lir_exports())
-            .collect::<Vec<_>>(),
-        &mut roots,
-        &mut physical,
-    )?;
+    let exports: Vec<_> = dependencies.iter().map(|d| d.lir_exports()).collect();
+    collect_mir_references(input, &exports, &mut roots, &mut physical)?;
     physical.extend(initialization.into_iter().map(|(provider, unit)| {
         (
             provider,
@@ -32,13 +25,13 @@ pub(in crate::request::preflight) fn select_lir_dependencies<'a>(
         )
     }));
     for &id in input.materialization().immortals() {
-        let string = &input.module().immortals[id];
-        if let mir::ImmortalConstSource::Imported(provider) = string.source {
+        let immortal = &input.module().immortals[id];
+        if let mir::ImmortalConstSource::Imported(provider) = immortal.source {
             physical.push((
                 provider,
                 lir::ExternalStrongShapeSubjectV1::ImmortalObject(
-                    scoop_identity::PersistentImmortalObjectId::from_key(&string.identity)
-                        .expect("MIR string identities have canonical records"),
+                    scoop_identity::PersistentImmortalObjectId::from_key(&immortal.identity)
+                        .map_err(Error::ImmortalIdentity)?,
                 ),
             ));
         }
@@ -61,16 +54,16 @@ pub(in crate::request::preflight) fn select_lir_dependencies<'a>(
                 descriptors: exports.descriptors(),
                 dispatch: exports.dispatch(),
             })
+            .map(|provider| (provider.provider(), provider))
         })
-        .collect::<Result<Vec<_>, _>>()
+        .collect::<Result<std::collections::HashMap<_, _>, _>>()
         .map_err(Error::Shape)?;
     let imports = physical
         .into_iter()
         .map(|(identity, subject)| {
             let provider = providers
-                .iter()
-                .find(|provider| provider.provider() == identity)
-                .ok_or(lir::ShapeLinkError::Provider)?;
+                .get(&identity)
+                .ok_or(lir::ShapeLinkError::MissingProvider(identity))?;
             lir::ExternalShapeLinkImportV1::replay(provider, subject, input.module().cone)
         })
         .collect::<Result<Vec<_>, _>>()
@@ -78,10 +71,7 @@ pub(in crate::request::preflight) fn select_lir_dependencies<'a>(
     lir::StrongProductionDependencySelectionV2::try_new(
         input.module().cone,
         target,
-        &dependencies
-            .iter()
-            .map(|d| d.lir_exports())
-            .collect::<Vec<_>>(),
+        &exports,
         imports,
         &roots,
     )

@@ -111,20 +111,19 @@ impl LineIndex {
         encoding: PositionEncoding,
     ) -> Result<usize, PositionError> {
         let line = self.line_range(position.line)?;
-        let wide = self.wide_in(line.clone());
-        let excess: usize = wide.iter().map(|ch| ch.excess_bytes(encoding)).sum();
-        let column = position.column.min(line.len() - excess);
         let mut excess = 0;
-        for ch in wide {
+        for ch in self.wide_in(line.clone()) {
             let start_column = ch.start - line.start - excess;
-            if column <= start_column {
-                break;
+            if position.column <= start_column {
+                return Ok(line.start + position.column + excess);
             }
-            if column < start_column + ch.width(encoding) {
+            if position.column < start_column + ch.width(encoding) {
                 return Err(PositionError::InsideCharacter);
             }
             excess += ch.excess_bytes(encoding);
         }
+        // After the last wide character, bytes and encoded columns advance together.
+        let column = position.column.min(line.len() - excess);
         Ok(line.start + column + excess)
     }
 

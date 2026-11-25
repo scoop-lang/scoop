@@ -103,31 +103,31 @@ pub(super) fn execute(
                 .map(|root| root.resolution)
                 .collect(),
         };
-        println!(
+        print_line(format_args!(
             "{}",
             serde_json::to_string_pretty(&lock).map_err(|error| PmError::new(
                 scoop_source::DiagnosticCode::ICE2501,
                 error.to_string()
             ))?
-        );
+        ))?;
     } else {
         for root in result.roots {
-            println!(
+            print_line(format_args!(
                 "{} [{} / {}]: {} packages",
                 root.resolution.root_coordinate,
                 root.resolution.purpose,
                 root.resolution.target,
                 root.resolution.nodes.len()
-            );
+            ))?;
             for change in root.changes {
-                println!("  {change}");
+                print_line(format_args!("  {change}"))?;
             }
         }
-        println!(
+        print_line(format_args!(
             "{} {}",
             if result.changed { "Updated" } else { "Using" },
             result.lockfile.display()
-        );
+        ))?;
     }
     Ok(())
 }

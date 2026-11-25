@@ -12,4 +12,4 @@ driver 内部测试继续核对定义与用途分区、最终对象及登记、C
 并在重建 archive hash 后定点破坏 distribution、output 分支、两个 Code 字段、
 native 表和 dependency owner。两个 Code 值一致但都错误的反例也必须被拒绝。
 原重复的文件快照和更新环境变量已删除，迁移对照见
-`../../../docs/milestone23/stage11/CLI-LAYOUT-DEPENDENCIES.md`。
+[CLI-LAYOUT-DEPENDENCIES.md](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone23/stage11/CLI-LAYOUT-DEPENDENCIES.md)。

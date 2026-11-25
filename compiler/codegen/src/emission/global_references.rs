@@ -71,12 +71,14 @@ impl GlobalReferences {
         }
         for (_, block) in function.blocks.iter() {
             for instruction in &block.instructions {
-                for value in dataflow::instruction_uses(instruction, function) {
-                    references.value(value);
-                }
+                dataflow::visit_instruction_uses(instruction, &function.call_targets, |value| {
+                    references.value(value)
+                });
                 references.instruction(instruction);
             }
-            dataflow::terminator_uses(&block.terminator, function, |value| references.value(value));
+            dataflow::visit_terminator_uses(&block.terminator, &function.call_targets, |value| {
+                references.value(value)
+            });
         }
         for id in references.arrays.clone() {
             references.descriptor(module.meta.arrays[id].type_descriptor);

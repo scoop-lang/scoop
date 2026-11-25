@@ -5,7 +5,9 @@ impl Projection<'_> {
         &self,
         declaration: &hir::DocumentationDeclaration,
     ) -> Result<Vec<SignatureToken>> {
-        let source = &self.export.source_files[declaration.origin.file as usize].source;
+        let source = self.export.source_files[declaration.origin.file as usize]
+            .source
+            .as_str();
         declaration
             .signature
             .iter()

@@ -118,7 +118,7 @@ mod tests {
 
     use super::*;
     use crate::{PackageSyntax, Span};
-    use scoop_identity::{ConeCoordinate, NormalizedSourcePath, SourceContentDigest};
+    use scoop_identity::{ConeCoordinate, NormalizedSourcePath};
 
     fn identity(path: &str) -> SourceIdentity {
         identity_in("ast", path)
@@ -214,10 +214,6 @@ mod tests {
         assert_eq!(parsed.cone(), first.cone());
         let text = parsed.source_texts().get(&second).unwrap();
         assert_eq!(text.text(), "package second");
-        assert_eq!(
-            text.content_digest(),
-            SourceContentDigest::from_utf8("package second")
-        );
         assert_eq!(
             parsed.diagnostic_context().display_locator(&first),
             Some(Path::new("/tmp/first.scoop"))

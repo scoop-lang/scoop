@@ -174,5 +174,5 @@ fn test_symlinks_allow_external_roots_but_reject_duplicates_and_missing_targets(
         external.identity().logical_path().as_str(),
         "tests/case.scoop"
     );
-    assert_eq!(external.source_text(), "fun outsideTest() {}\n");
+    assert_eq!(external.source_text().as_str(), "fun outsideTest() {}\n");
 }

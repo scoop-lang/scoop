@@ -46,7 +46,7 @@ pub(super) fn complete(
         );
         texts.push(ast::CurrentSourceText::new(
             file.identity.clone(),
-            source.text.as_str().to_owned(),
+            source.text.clone(),
         ));
         contexts.push(ast::CurrentSourceDiagnosticContext::new(
             file.identity.clone(),

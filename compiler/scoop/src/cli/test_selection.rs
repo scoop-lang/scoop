@@ -1,57 +1,63 @@
-use scoop_slib::TestDirectory;
+use scoop_slib::{TestCaseListing, TestContainerListing, TestDirectory};
 
 #[cfg(test)]
 mod tests;
-use std::ffi::OsString;
 
-pub(super) struct SelectedTests {
-    pub directory: TestDirectory,
-    pub report_directory: TestDirectory,
+#[derive(Clone, Copy, PartialEq)]
+pub(super) enum Purpose {
+    List,
+    Run,
+}
+
+pub(super) struct SelectedContainer<'a> {
+    pub declaration: &'a TestContainerListing,
+    pub cases: Vec<&'a TestCaseListing>,
+}
+
+pub(super) struct SelectedTests<'a> {
+    pub containers: Vec<SelectedContainer<'a>>,
+    /// Indices in the compiled executable, including gaps left by the filter.
+    pub case_indices: Vec<usize>,
     pub run_ignored: bool,
-    pub arguments: Vec<OsString>,
     pub empty_reason: Option<&'static str>,
 }
 
-pub(super) fn select(
-    directory: &TestDirectory,
+pub(super) fn select<'a>(
+    directory: &'a TestDirectory,
     filter: Option<&str>,
     ignored: bool,
-) -> SelectedTests {
-    let mut arguments = vec![OsString::from("--scoop-test-cases")];
-    let mut selected = TestDirectory::default();
-    let mut report_directory = TestDirectory::default();
-    let mut index = 0usize;
-    let mut matching = 0usize;
-    for container in &directory.containers {
-        let mut report = container.clone();
-        report.cases.retain(|case| {
-            filter.is_none_or(|filter| case.display_name.contains(filter))
-                && (!ignored || case.ignore_reason.is_some())
-        });
-        if !report.cases.is_empty() {
-            report_directory.containers.push(report);
-        }
-        let mut copy = container.clone();
-        copy.cases.retain(|case| {
-            let current = index;
-            index += 1;
-            let matches = filter.is_none_or(|filter| case.display_name.contains(filter));
-            matching += usize::from(matches);
-            let keep = matches && case.ignore_reason.is_some() == ignored;
-            if keep {
-                arguments.push(current.to_string().into());
+    purpose: Purpose,
+) -> SelectedTests<'a> {
+    let mut containers = Vec::new();
+    let mut case_indices = Vec::new();
+    let mut next_index = 0;
+    let mut any_match = false;
+    for declaration in &directory.containers {
+        let mut cases = Vec::new();
+        for case in &declaration.cases {
+            let index = next_index;
+            next_index += 1;
+            if filter.is_some_and(|name| !case.display_name.contains(name)) {
+                continue;
             }
-            keep
-        });
-        if !copy.cases.is_empty() {
-            selected.containers.push(copy);
+            any_match = true;
+            if case.ignore_reason.is_some() == ignored {
+                case_indices.push(index);
+                cases.push(case);
+            } else if purpose == Purpose::Run && !ignored {
+                // Default run reports also explain which matching cases were skipped.
+                cases.push(case);
+            }
+        }
+        if !cases.is_empty() {
+            containers.push(SelectedContainer { declaration, cases });
         }
     }
-    let empty_reason = if !selected.containers.is_empty() {
+    let empty_reason = if !case_indices.is_empty() {
         None
-    } else if index == 0 {
+    } else if next_index == 0 {
         Some("no tests")
-    } else if matching == 0 {
+    } else if !any_match {
         Some("no matching tests")
     } else if ignored {
         Some("no ignored tests")
@@ -59,10 +65,9 @@ pub(super) fn select(
         Some("all matching tests ignored")
     };
     SelectedTests {
-        directory: selected,
-        report_directory,
+        containers,
+        case_indices,
         run_ignored: ignored,
-        arguments,
         empty_reason,
     }
 }

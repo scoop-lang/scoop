@@ -12,7 +12,8 @@ pub struct SourceFileMetadata {
     pub name: String,
     /// Debugger locator, separate from the semantic display name used by source observations.
     pub debug_path: std::sync::Arc<str>,
-    pub source: String,
+    /// Immutable current text and position indices shared with the parser input.
+    pub source: scoop_source::SourceText,
     /// Canonical metadata copied from a decoded dependency artifact.
     /// Current-source entries keep this absent and derive the record from
     /// `source`; imported entries need not retain the provider's source text.

@@ -44,7 +44,7 @@ fn compile_files_with_core(
         identity: crate::tests::core_source_identity("src/core.scoop"),
         name: "core.scoop".into(),
 
-        source: String::new(),
+        source: "".into(),
     }];
     for (index, &(path, source)) in files.iter().enumerate() {
         syntax.push(scoop_parser::parse(source).unwrap());
@@ -64,7 +64,7 @@ fn compile_files_with_core(
     lowerer
         .with_imported_dependencies(dependencies)
         .run(
-            &syntax,
+            &syntax.iter().collect::<Vec<_>>(),
             None,
             Some(generator),
             &crate::pipeline::cancellation::uninterrupted,
@@ -151,7 +151,9 @@ fn missing_method_keeps_one_signature_and_all_real_requirements() {
         panic!("generated return")
     };
     assert_eq!(
-        module.source_files[value.origin.definition().file as usize].source,
+        module.source_files[value.origin.definition().file as usize]
+            .source
+            .as_str(),
         "{ return value }"
     );
     for parameter in &module.functions[function].params {

@@ -64,7 +64,8 @@ pub(super) struct RawRegistry {
 
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
-pub(super) struct RawTest {
+pub(crate) struct RawTest {
+    pub isolate: Option<bool>,
     pub sources: Option<Vec<crate::selection::RawConditionalPath>>,
 }
 

@@ -1,6 +1,6 @@
 # Scoop 平台库规范
 
-本文件规定普通 `scoop.platform` 库的公共合同，实施进度与三目标验收见 [M45](../milestone45/DESIGN.md)。语言、core、GC、FFI 与构建规则分别以 [语言规范](SCOOP-SPEC.md)、[运行时规范](SCOOP-RUNTIME-SPEC.md)和[实现规范](SCOOP-IMPL-SPEC.md)为准；平台无关的数据类型沿用[标准基础库规范](SCOOP-STDLIB-SPEC.md)。
+本文件规定普通 `scoop.platform` 库的公共合同，实施进度与三目标验收见 [M45](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone45/DESIGN.md)。语言、core、GC、FFI 与构建规则分别以 [语言规范](SCOOP-SPEC.md)、[运行时规范](SCOOP-RUNTIME-SPEC.md)和[实现规范](SCOOP-IMPL-SPEC.md)为准；平台无关的数据类型沿用[标准基础库规范](SCOOP-STDLIB-SPEC.md)。
 
 ## 1. 库与 native 边界
 

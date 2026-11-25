@@ -161,7 +161,7 @@ String 的长度在构造时写入，发布后不变。普通 core 扫描可在�
 
 fromChars 的长度累计、UTF-8 编码以及严格／lossy 校验使用普通 core 正文。List 输入仍先按语言规范取得一次元素快照；严格校验成功后复制一次，失败返回首个非法子序列的起始偏移。lossy 按 maximal subpart 规则两遍确定精确结果长度并写入，fromChars 同样先计算长度、再编码一次，不分配临时托管输出数组。内部 typed String 零字节分配复用现有分配路径，构造期间的 String 字节 payload 不含引用，GC 只依赖已完成的对象头和长度；跨分配／poll 保活输入与结果，写入本身不需要引用屏障。编码和扫描不在 codegen 重复实现。
 
-语言规范 11.4 的三个有界表示 intrinsic 可在活动 Managed 状态直接读取，或调用内部 NoGC runtime leaf：`scoop_rt_string_byte_length_leaf(String*) -> i64`、`scoop_rt_string_byte_at_leaf(String*, i64) -> i8`、`scoop_rt_string_character_at_byte_leaf(String*, i64) -> u32`。leaf 不分配、park、转入 native、回调或保留传入地址，返回前最多读取一个 UTF-8 标量；调用期间对象不会移动。byte-at 和 cursor 解码保留索引检查；有效 String／标量起点是内部解码前置条件。内部 leaf 直接实现必要的有界读取和错误出口；无生产消费者的旧 native 字节读入口退役。普通显式 extern 声明仍遵守自身调用模式，不得按符号拼写把它改成 intrinsic。完整扫描不因这些有界入口而改变线程协调合同。
+语言规范 11.4 的三个有界表示 intrinsic 可在活动 Managed 状态直接读取，或调用内部 NoGC runtime leaf：`scoop_rt_string_byte_length_leaf(String*) -> i64`、`scoop_rt_string_byte_at_leaf(String*, i64) -> i8`、`scoop_rt_string_character_at_byte_leaf(String*, i64) -> u32`。leaf 不分配、park、转入 native、回调或保留传入地址，返回前最多读取一个 UTF-8 标量；调用期间对象不会移动。byte-at 和 cursor 解码保留索引检查；cursor 落在 UTF-8 续字节上时报告字符边界错误，不能把续字节当作前导字节继续读取。String 内容的合法 UTF-8 不变量由构造过程建立，leaf 不重复校验内容。内部 leaf 直接实现必要的有界读取和错误出口；无生产消费者的旧 native 字节读入口退役。普通显式 extern 声明仍遵守自身调用模式，不得按符号拼写把它改成 intrinsic。完整扫描不因这些有界入口而改变线程协调合同。
 
 短常量比较只在长度保护下读取完整有效范围，保持 UTF-8 无符号字节字典序。String hash 全部使用普通 core 正文：既有短输入分支与共享长输入循环使用相同 FNV-1a 初值、逐字节异或和 64-bit 回绕乘法；不得改变既有 hash 结果。旧 C hash 入口退役。上述操作不分配 String 或保留内部地址。
 

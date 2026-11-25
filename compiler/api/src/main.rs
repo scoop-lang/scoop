@@ -146,12 +146,13 @@ fn run(args: Args) -> Result<String, (u8, ApiError)> {
 
 fn report(code: u8, error: &ApiError, json: bool) -> ExitCode {
     if json {
-        eprintln!(
+        let _ = writeln!(
+            std::io::stderr(),
             "{}",
             serde_json::json!({"schema":2,"kind":"error","exitCode":code,"code":error.code,"message":error.message,"notes": error.help.iter().map(|(code, message)| serde_json::json!({"code":code,"kind":"help","message":message})).collect::<Vec<_>>()})
         );
     } else {
-        eprintln!("error[{}]: {error}", error.code);
+        let _ = writeln!(std::io::stderr(), "error[{}]: {error}", error.code);
     }
     ExitCode::from(code)
 }

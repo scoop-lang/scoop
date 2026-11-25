@@ -1,6 +1,6 @@
 # Scoop 包管理设计与实施步骤
 
-状态：本轮消费与工具接入已完成；对应 [ROADMAP M63](../ROADMAP.md#m63-独立包管理器与-workspace已完成)。更新日期：2026-10-28。规范合同见 [Scoop 包管理规范](../specs/SCOOP-PACKAGE-SPEC.md)，已完成范围与验证见[实施记录](PROGRESS.md)。
+状态：本轮消费与工具接入已完成；对应 [M63 历史路线图](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/ROADMAP.md#m63-独立包管理器与-workspace已完成)。更新日期：2026-10-28。规范合同见 [Scoop 包管理规范](../specs/SCOOP-PACKAGE-SPEC.md)，已完成范围与验证见[实施记录](PROGRESS.md)。
 
 当前静态目录的组织、手工打包与部署步骤见[如何组织和发布 registry](https://scoop-lang.org/guides/registry.html)。
 

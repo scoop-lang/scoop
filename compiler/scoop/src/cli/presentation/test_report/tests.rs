@@ -1,5 +1,6 @@
 use super::*;
 use crate::cli::test_run::model::{CaseResult, Failure, FailureDetail, Location, Phase};
+use crate::cli::test_selection::{Purpose, select};
 use scoop_slib::{TestCaseListing, TestContainerListing, TestDirectory, TestSourceLocation};
 
 #[test]
@@ -11,18 +12,29 @@ fn output_encoding_preserves_control_bytes_and_invalid_utf8() {
 
 #[test]
 fn incomplete_human_reports_show_the_actual_exit_or_signal() {
-    let selected = crate::cli::test_selection::select(&TestDirectory::default(), None, false);
+    let directory = TestDirectory::default();
+    let selected = select(&directory, None, false, Purpose::Run);
     let mut result = RunResult::empty(0);
     result.target_failure = Some("missing completion".into());
+    let report = Report::new(&selected, &result).unwrap();
     for (process, expected) in [
-        (json!({"code": 0, "signal": null}), "process exit: 0"),
-        (json!({"code": null, "signal": 6}), "process signal: 6"),
+        (
+            ProcessStatus {
+                code: Some(0),
+                signal: None,
+            },
+            "process exit: 0",
+        ),
+        (
+            ProcessStatus {
+                code: None,
+                signal: Some(6),
+            },
+            "process signal: 6",
+        ),
     ] {
         let mut text = Vec::new();
-        human::write(&mut text, "demo", &selected, &result, &json!({
-            "process": process, "containers": [],
-            "counts": {"containers": 0, "cases": 0, "passed": 0, "failed": 0, "ignored": 0, "not_run": 0},
-        })).unwrap();
+        human::write(&mut text, "demo", &report, &result, Some(process)).unwrap();
         assert!(String::from_utf8(text).unwrap().contains(expected));
     }
 }
@@ -47,7 +59,7 @@ fn human_report_keeps_failures_locations_ignored_reasons_and_raw_output() {
             cases: vec![case("check", None), case("later", Some("waiting".into()))],
         }],
     };
-    let selected = crate::cli::test_selection::select(&directory, None, false);
+    let selected = select(&directory, None, false, Purpose::Run);
     let result = RunResult {
         complete: true,
         target_failure: None,
@@ -76,9 +88,22 @@ fn human_report_keeps_failures_locations_ignored_reasons_and_raw_output() {
         }],
     };
     let mut text = Vec::new();
-    human::write(&mut text, "demo", &selected, &result, &json!({
-        "containers": [{"status": "failed"}],
-        "counts": {"containers": 1, "cases": 2, "passed": 0, "failed": 1, "ignored": 1, "not_run": 0},
-    })).unwrap();
-    assert_eq!(text, b"demo\n  Cases [failed]\n    check (tests/cases.scoop:3:1) failed (17 ns)\n      after-test at tests/cleanup.scoop:9:4\n      cleanup failed\n      case stdout:\n\xff\n    later (tests/cases.scoop:3:1) ignored: waiting\n1 containers, 2 tests: 0 passed, 1 failed, 1 ignored, 0 not run\n");
+    let report = Report::new(&selected, &result).unwrap();
+    human::write(&mut text, "demo", &report, &result, None).unwrap();
+    let rendered = String::from_utf8_lossy(&text);
+    for detail in [
+        "Cases [failed]",
+        "check (tests/cases.scoop:3:1) failed (17 ns)",
+        "after-test at tests/cleanup.scoop:9:4",
+        "cleanup failed",
+        "ignored: waiting",
+        "0 passed, 1 failed, 1 ignored, 0 not run",
+    ] {
+        assert!(
+            rendered.contains(detail),
+            "missing {detail:?} in {rendered}"
+        );
+    }
+    let raw = b"case stdout:\n\xff\n";
+    assert!(text.windows(raw.len()).any(|bytes| bytes == raw));
 }

@@ -1,6 +1,6 @@
 # Scoop 异步 I/O 库规范
 
-版本：M49／M54／M59。本文规定普通 Cone `scoop:scoop.asyncio:0.1.0` 的合同；既有能力三目标验证见 [M49 验收](../milestone49/ACCEPTANCE.md)，第 9 节扩展见 [M54 实施记录](../milestone54/PROGRESS.md)，第 10 节 TTY 见 [M59 实施记录](../milestone59/PROGRESS.md)。
+本文规定普通 Cone `scoop.asyncio` 的异步 I/O、事件循环、缓冲区及终端流合同。
 
 第 1～10 节规定公共 I/O 语义，第 11 节规定平台后端与宿主接入合同。实施状态与验证范围见 [实施记录](../asyncio-backends/PROGRESS.md)。详细拆分、平台映射与验收见 [EventLoop 后端设计](../asyncio-backends/DESIGN.md)。
 
@@ -10,7 +10,7 @@
 
 库内 C shim 的完成记录 kind 与 Scoop 解码保持一致：既有通用／网络事件保留原编号，使用 `0x000–0x0ff` 段；文件／目录事件使用 `0x100–0x1ff` 段，依次为 Metadata `0x100`、Position `0x101`、Temporary `0x102`、DirectoryName `0x103`；TTY 事件使用 `0x200–0x2ff` 段，Resize 为 `0x200`、Timeout 为 `0x201`。两类新增事件分别在自己的段内追加，保留已有编号；未分配值仍按非法完成记录处理。此编号仅用于该 Cone 的 native 接口，不属于 runtime ABI 或公共 Scoop 枚举身份。
 
-首版支持 aarch64-apple-darwin、x86_64-unknown-linux-gnu、x86_64-unknown-linux-musl；三个 Windows target 的扩展按[Windows 进度](../windows-targets/PROGRESS.md)分批实施，未完成前不声明整个库可用。PlatformEventLoop 由目标平台选择后端：Darwin 使用系统 libdispatch，Linux 使用第 11 节规定的 io_uring，Windows 使用 IOCP。C11 shim 只管理 native I/O、稳定存储及完成记录，OS callback 不进入 managed 代码，阻塞任务由 managed worker 调用同步 shim。TLS、HTTP 属于各自库，文件监听、进程和任意 fd 接管不在本版范围；M54 为实际缓存与下载补齐第 9 节的基础能力；M59 增加第 10 节的自有 TTY。
+支持 aarch64-apple-darwin、x86_64-unknown-linux-gnu、x86_64-unknown-linux-musl，以及实现规范第 1 节列出的三个 Windows x64 target；Windows 工具链与库资源入口见[支持范围](../windows-targets/README.md)。PlatformEventLoop 由目标平台选择后端：Darwin 使用系统 libdispatch，Linux 使用第 11 节规定的 io_uring，Windows 使用 IOCP。C11 shim 只管理 native I/O、稳定存储及完成记录，OS callback 不进入 managed 代码，阻塞任务由 managed worker 调用同步 shim。TLS、HTTP 属于各自库，文件监听、进程和任意 fd 接管不在本版范围；文件与自有 TTY 能力分别见第 9、10 节。
 
 Linux C 工具链同时需要所选 libc 的开发头文件和对应架构的 Linux UAPI 头文件（包括 linux/errqueue.h）。只带 musl libc 的 musl-gcc 包装器须补齐内核头文件搜索路径，可通过普通 --cc 包装脚本配置；不把 glibc 用户态头文件加入 musl 的搜索路径。
 
@@ -219,7 +219,7 @@ Windows 普通文件由 worker 以不可继承的 FILE_FLAG_OVERLAPPED HANDLE �
 
 native request 持有预留完成节点；C callback 仅存状态和进度、入 native 队列，managed 在 NativeSafe 返回握手后消费。操作编号在完成消费前不复用。managed 使用普通带类型操作与结果，不以可空字段猜测不同事件。提交同步失败走同一释放路径。后端及相关系统库按语言规范 12.2.1～12.2.3 的普通 native 输入链接。
 
-主要验收为同 Cone scoop.test：真实 loopback 动态端口、无公网 DNS、真实文件、Context、取消／关闭竞争、部分进度、原始错误、SIGPIPE 及 moving GC。竞争用明确同步点，测试源码和工具始终存在。详细边界见 [M49 设计第 14 节](../milestone49/DESIGN.md#142-异步-io)。
+主要验收为同 Cone scoop.test：真实 loopback 动态端口、无公网 DNS、真实文件、Context、取消／关闭竞争、部分进度、原始错误、SIGPIPE 及 moving GC。竞争用明确同步点，测试源码和工具始终存在。详细边界见 [M49 设计第 14 节](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone49/DESIGN.md#142-异步-io)。
 
 ## 9. M54 基础能力补齐
 

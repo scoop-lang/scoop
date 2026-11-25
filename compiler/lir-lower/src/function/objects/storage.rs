@@ -15,19 +15,9 @@ impl FunctionLowerer<'_> {
                 Ok(self.logical_zst_value(ty, representation))
             }
             abi::ValueStorage::NonZero(value) => {
-                let mir::ClassRepresentation::Declared(declared) =
-                    &self.module.classes[class].representation
-                else {
-                    return Err(StorageLoweringError::InvalidRepresentation(
-                        "release fields require a declared class",
-                    ));
-                };
-                let (offsets, _, _) = class_shape(self.context, self.module, self.enums, declared)?;
+                let offset = self.class_layouts.field_offset(class, index, ty)?;
                 let out = self.new_temp(value.storage_type().clone());
-                self.push(lir::Instruction::ReleaseFieldLoad {
-                    out,
-                    offset: offsets[index as usize],
-                });
+                self.push(lir::Instruction::ReleaseFieldLoad { out, offset });
                 Ok(lir::Value::Temp(out))
             }
         }

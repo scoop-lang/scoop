@@ -1,7 +1,6 @@
 //! HIR definitions and HIR meta: the data channel between HIR and MIR.
 //!
-//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.2 and
-//! `docs/milestone4/DESIGN.md` section 3.2.
+//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.2.
 //!
 //! Structural completeness rules (see AGENTS.md): every expression
 //! carries its resolved type (`Expr::ty`), every call carries its

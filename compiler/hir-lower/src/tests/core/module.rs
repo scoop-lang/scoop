@@ -4,13 +4,7 @@ use super::{
     ffi_core_declarations, gc_api_declarations, intrinsic_type_declarations,
 };
 
-/// The minimal `scoop.core` (sysroot): the `Option<T>` enum (spec 7.2),
-/// the complete compiler exception core (spec 11.7), the M10 coroutine
-/// protocol, the M22 iteration protocols, plus the M7
-/// `io.scoop` final shape
-/// (docs/milestone7/DESIGN.md section 2) — the managed `write` extern
-/// intrinsic and `print` / `println` as ordinary `Any`-parameter
-/// functions dispatching `toString()`.
+/// Core declarations used when checking types and overloads in HIR tests.
 pub(crate) fn core_file() -> SourceFile {
     let mut declarations = capability_interfaces();
     declarations.extend(iteration_core_declarations());

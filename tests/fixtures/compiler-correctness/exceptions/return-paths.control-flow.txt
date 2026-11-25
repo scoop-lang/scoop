@@ -77,7 +77,7 @@ bb4 try.exit_cleanup.4
 bb5 try.end.5
   unreachable
 bb6 try.body.6 unwind bb1
-  call external2 direct
+  call external direct
   call $prepared.throwable: UnwrapException = @scoop_rt_prepare_throwable direct
   throw unwind bb1
 bb7 scope.7 unwind bb3

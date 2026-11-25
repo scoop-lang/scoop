@@ -1,6 +1,6 @@
 # Scoop 字符集库规范
 
-版本：M61（分步迁移）。提供普通 Cone `scoop:scoop.charset:0.1.0`，依赖 core、std、platform。它补齐 HTTP text、字段参数和认证凭据所需的字符集转换与 NFC 规范化，负责字符集识别、内存转换和增量状态；公共 Cone 依赖为 core、std、platform。M54 的原验收范围见 [M54 进度](../milestone54/PROGRESS.md)，迁移状态见 [M61 进度](../milestone61/PROGRESS.md)。
+普通 Cone `scoop.charset` 提供字符集识别、内存转换、增量转换和 NFC 规范化。HTTP 文本、字段参数和认证凭据使用这些能力。公共依赖为 core、std 和 platform。
 
 ## 1. 后端与范围
 

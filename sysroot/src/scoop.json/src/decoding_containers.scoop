@@ -1,18 +1,17 @@
 package scoop.json
 
-internal class JsonKeyedDecoder(private val owner: JsonDecoder, private val members: ArrayList<JsonMember>)
-    : KeyedDecodingContainer {
-    public override val keys: List<String> get() = memberNames(members)
+import scoop.collections.Map
+import scoop.collections.toList
 
-    public override fun optional(name: String): Option<Decoder> {
-        for (member in members) {
-            if (member.name == name) {
-                val child = JsonDecoder(member.value, childPath(owner.path, name))
-                return Some(child)
-            }
+internal class JsonKeyedDecoder(private val owner: JsonDecoder, private val members: Map<String, JsonNode>)
+    : KeyedDecodingContainer {
+    public override val keys: List<String> get() = members.keys.toList()
+
+    public override fun optional(name: String): Option<Decoder> =
+        when (val node = members[name]) {
+            case Some(val value) -> Some(JsonDecoder(value, childPath(owner.path, name)))
+            case None -> None
         }
-        return None
-    }
 
     public override fun required(name: String): Decoder {
         val result = optional(name)
@@ -23,12 +22,6 @@ internal class JsonKeyedDecoder(private val owner: JsonDecoder, private val memb
     }
 
     public override fun end(): Unit = Unit
-}
-
-internal fun memberNames(members: ArrayList<JsonMember>): List<String> {
-    val result = ArrayList<String>()
-    for (member in members) { result.add(member.name) }
-    return result
 }
 
 internal class JsonUnkeyedDecoder(private val owner: JsonDecoder, private val elements: ArrayList<JsonNode>)

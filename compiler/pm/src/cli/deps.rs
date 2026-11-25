@@ -36,13 +36,12 @@ pub(super) fn locked_purposes(args: LockedPurposesArgs) -> PmResult<()> {
         version: PACKAGE_PROTOCOL_VERSION,
         purposes,
     };
-    println!(
+    print_line(format_args!(
         "{}",
         serde_json::to_string(&result).map_err(|error| {
             PmError::new(scoop_source::DiagnosticCode::ICE2501, error.to_string())
         })?
-    );
-    Ok(())
+    ))
 }
 
 #[derive(Args)]
@@ -113,7 +112,7 @@ pub(super) fn execute(args: DepsArgs) -> PmResult<()> {
         })
         .collect::<PmResult<Vec<_>>>()?;
     if args.members.json {
-        println!(
+        print_line(format_args!(
             "{}",
             serde_json::to_string_pretty(&Lockfile {
                 format: 1,
@@ -123,20 +122,20 @@ pub(super) fn execute(args: DepsArgs) -> PmResult<()> {
                 scoop_source::DiagnosticCode::ICE2501,
                 error.to_string()
             ))?
-        );
+        ))?;
     } else {
         for resolution in resolutions {
-            println!(
+            print_line(format_args!(
                 "{} [{} / {}]",
                 resolution.root_coordinate, resolution.purpose, resolution.target
-            );
+            ))?;
             for node in resolution.nodes {
-                println!("  {} ({})", node.coordinate, node.source);
+                print_line(format_args!("  {} ({})", node.coordinate, node.source))?;
                 for dependency in node.dependencies {
-                    println!("    -> {dependency}");
+                    print_line(format_args!("    -> {dependency}"))?;
                 }
                 for dependency in node.test_dependencies {
-                    println!("    -> {dependency} [test]");
+                    print_line(format_args!("    -> {dependency} [test]"))?;
                 }
             }
         }

@@ -1,6 +1,6 @@
 # Scoop HTTP multipart 规范
 
-版本：M54，实施中。本文细化 [HTTP 消息工具规范](SCOOP-HTTP-MESSAGE-SPEC.md)第 3 节；实际实现与验证见 [M54 进度](../milestone54/PROGRESS.md)。消息数据和内存引擎位于 scoop.http，异步适配位于 scoop.http.asyncio，client 只组合其公开能力。
+消息数据和内存引擎位于 `scoop.http`，异步适配位于 `scoop.http.asyncio`，HTTP 客户端使用这些公开接口。消息工具的整体合同见[HTTP 消息工具规范](SCOOP-HTTP-MESSAGE-SPEC.md)。
 
 ## 1. Boundary 与 part 元数据
 

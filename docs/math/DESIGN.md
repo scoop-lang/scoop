@@ -265,7 +265,7 @@ sysroot/src/scoop.math/
 - [语言规范：值类型、class、运算符、数组、数值与 FFI](../specs/SCOOP-SPEC.md)：4、9.1、9.3.6、10.4、11.2、11.11、13.2、13.4.1。
 - [运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)：2.1～2.4、3.1、3.2、6.1；不改 managed 对象及 strict FP 合同。
 - [实现规范](../specs/SCOOP-IMPL-SPEC.md)：2.7～2.9、2.18、2.19；普通库发布、调用与优化路径。
-- [库 API 风格](../specs/SCOOP-API-STYLE.md)、[std 规范](../specs/SCOOP-STDLIB-SPEC.md)、[M62](../milestone62/DESIGN.md)。
+- [库 API 风格](../specs/SCOOP-API-STYLE.md)、[std 规范](../specs/SCOOP-STDLIB-SPEC.md)、[M62](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone62/DESIGN.md)。
 - [Java Math](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/Math.html)、[StrictMath](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/StrictMath.html)：标量范围和精度/可复现性的区别。
 - [Java BigInteger](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/math/BigInteger.html)、[BigDecimal](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/math/BigDecimal.html)：大数功能、表示及边界对照。
 - [MathContext](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/math/MathContext.html)、[RoundingMode](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/math/RoundingMode.html)：有效数字与舍入模式参照。

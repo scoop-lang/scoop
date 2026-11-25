@@ -92,11 +92,10 @@ internal enum JsonNode {
     BooleanValue(Boolean),
     Number(String),
     Text(String),
-    Record(ArrayList<JsonMember>),
+    Record(Map<String, JsonNode>),
     Sequence(ArrayList<JsonNode>)
 }
 
-internal struct JsonMember(val name: String, val value: JsonNode)
 
 internal fun childPath(path: String, name: String): String {
     val result = StringBuilder().append(path).append("/")

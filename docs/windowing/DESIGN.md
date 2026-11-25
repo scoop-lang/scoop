@@ -268,7 +268,7 @@ WM 可以忽略状态或叠放建议，Requested 不冒充观察结果。透明�
 
 renderer 示例使用独立普通 Cone 的 Win32／DXGI surface，持有窗口 lease，实际提交后先释放 GPU／swapchain 再结束 lease。普通行为使用 scoop.test，三个 Windows target 共用源码；桌面交互、混合 DPI 和输入法验证分别记录实际证据与环境限制。
 
-Windows 平台移植的参考状态见[分支进度](https://github.com/scoop-lang/scoop/blob/0fa053fd11c11e641e2f17212ce4948d5d52447a/docs/windows-targets/PROGRESS.md)：目标、runtime、platform、IOCP 及 executable subsystem／RC 已有实现，整体移植仍在推进。窗口任务消费这些平台能力，补 Win32 消息、窗口、输入和显示系统后端；不重复开发另一套 target 或 I/O backend。
+Windows 的 target、runtime、platform、IOCP 及 executable subsystem／RC 已完成主线接入，见[支持范围](../windows-targets/README.md)。窗口库消费这些平台能力，实现 Win32 消息、窗口、输入和显示系统后端，不另建 target 或 I/O backend。
 
 | Windows 窗口工作 | 设计要求 |
 | --- | --- |

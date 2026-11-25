@@ -37,7 +37,7 @@ internal fun writeJson(value: JsonNode, output: StringBuilder) {
             for (member in members) {
                 if (!first) { output.append(',') }
                 first = false
-                writeJsonString(member.name, output)
+                writeJsonString(member.key, output)
                 output.append(':')
                 writeJson(member.value, output)
             }

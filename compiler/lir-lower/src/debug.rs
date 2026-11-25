@@ -28,18 +28,15 @@ pub(super) fn types(
     module: &mir::Module,
     structs: &lir::StructDefs,
     enums: &lir::EnumDefs,
-    layouts: &Arena<lir::Layout>,
     arrays: &Arena<lir::ArrayType>,
+    class_layouts: &ClassLayouts<'_>,
 ) -> StorageResult<lir::DebugTypes> {
     let mut builder = Types {
         context,
         module,
         structs,
         enums,
-        layouts: layouts
-            .values()
-            .map(|layout| (layout.identity.layout_record().key().exact_type(), layout))
-            .collect(),
+        class_layouts,
         arrays: arrays
             .values()
             .map(|array| (array.identity.layout_record().key().exact_type(), array))
@@ -84,7 +81,7 @@ struct Types<'a> {
     module: &'a mir::Module,
     structs: &'a lir::StructDefs,
     enums: &'a lir::EnumDefs,
-    layouts: HashMap<PersistentExactTypeId, &'a lir::Layout>,
+    class_layouts: &'a ClassLayouts<'a>,
     arrays: HashMap<PersistentExactTypeId, &'a lir::ArrayType>,
     visited: HashSet<PersistentExactTypeId>,
     types: lir::DebugTypes,

@@ -41,6 +41,32 @@ test("an array on the next line starts its own statement in a match arm", () => 
   );
 });
 
+test("multiline member calls stay in their when arm", () => {
+  check(
+    [
+      "fun f(x: Int) = when (x) {",
+      "  0 -> item",
+      "    ?.child",
+      "    .read<Int>()",
+      "  -1 -> fallback()",
+      "  else -> x",
+      "}",
+    ].join("\n"),
+    (root) => {
+      const entries = root.descendantsOfType("when_entry");
+      assert.equal(entries.length, 3);
+      const body = entries[0].childForFieldName("body");
+      assert.equal(body.type, "call_expression");
+      assert.deepEqual(
+        body.descendantsOfType("navigation_expression").map((node) => {
+          return node.childForFieldName("member").text;
+        }),
+        ["read", "child"],
+      );
+    },
+  );
+});
+
 test("all catch clauses remain part of the same try expression", () => {
   check(
     "fun f() { try { run() } catch (error: First) {} catch (_: Second) {} catch (error: Last) { throw error } finally { finish() } }",

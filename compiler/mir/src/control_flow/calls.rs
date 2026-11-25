@@ -118,13 +118,12 @@ pub enum RuntimeFn {
     IsInstance,
     /// `scoop_rt_itable_lookup(td, iface_td)`
     ITableLookup,
-    /// GC facilities (spec 14.1; M9 via intrinsics, see
-    /// docs/milestone9/DESIGN.md 5.2).
+    /// Pin an object for native access (language spec 14.1).
     Pin,
     Unpin,
     GetHandle,
     ReleaseHandle,
-    /// Test-only GC hooks (not in the spec, milestone9 DESIGN 5.2).
+    /// Request an explicit collection.
     GcCollect,
     GcStats,
     /// Prepare the first stack snapshot using this actual Array<UInt8> descriptor.

@@ -210,6 +210,9 @@ static void negative_string_cursor(void *value) {
 static void past_string_cursor(void *value) {
     (void)scoop_rt_string_character_at_byte_leaf(value, (int64_t)((ScoopString *)value)->len);
 }
+static void continuation_string_cursor(void *value) {
+    (void)scoop_rt_string_character_at_byte_leaf(value, (int64_t)((ScoopString *)value)->len - 1);
+}
 
 static void test_string_reads(void) {
     const unsigned char bytes[] = {'A', 0, 0xc3, 0xa9, 0xe9, 0x9b, 0xaa, 0xf0, 0x9f, 0x99, 0x82};
@@ -229,6 +232,7 @@ static void test_string_reads(void) {
     expect_abort(past_string_byte, value);
     expect_abort(negative_string_cursor, value);
     expect_abort(past_string_cursor, value);
+    expect_abort(continuation_string_cursor, value);
 }
 
 static void run_mode(bool stress) {

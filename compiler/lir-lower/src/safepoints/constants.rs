@@ -34,16 +34,16 @@ pub(super) fn fold_constant_branches(function: &mut lir::Function) {
         if let lir::Instruction::LocalAddress { local, .. } = instruction {
             address_taken.insert(*local);
         }
-        for value in instruction_uses(instruction, function) {
+        visit_instruction_uses(instruction, &function.call_targets, |value| {
             if let lir::Value::CArgumentStorage(storage) = value {
                 address_taken.insert(storage.local());
             }
-        }
+        });
     }
     let mut incoming = vec![0usize; function.blocks.len()];
     incoming[arena_index(function.entry)] = 1;
     for block in function.blocks.values() {
-        for successor in block_successors(block) {
+        for successor in block.terminator.successors() {
             incoming[arena_index(successor)] += 1;
         }
     }
@@ -74,14 +74,13 @@ pub(super) fn fold_constant_branches(function: &mut lir::Function) {
             {
                 block.terminator = lir::Terminator::Br(if value { then_block } else { else_block });
             }
-            let successors = block_successors(block);
-            let [next] = successors.as_slice() else {
+            let lir::Terminator::Br(next) = block.terminator else {
                 break;
             };
-            if incoming[arena_index(*next)] != 1 {
+            if incoming[arena_index(next)] != 1 {
                 break;
             }
-            id = *next;
+            id = next;
         }
     }
 }
@@ -167,9 +166,7 @@ impl BlockConstants {
             }
         }
         // Calls and unboxing can also write a local result slot.
-        for definition in instruction_defs(instruction) {
-            self.forget(definition);
-        }
+        visit_instruction_defs(instruction, |definition| self.forget(definition));
         if let Some((definition, value)) = result {
             self.values.insert(definition, value);
         }

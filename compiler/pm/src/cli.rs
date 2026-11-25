@@ -91,6 +91,15 @@ pub fn run() -> Result<(), (PmError, bool)> {
     execute(cli).map_err(|error| (error, machine))
 }
 
+fn print_line(line: std::fmt::Arguments<'_>) -> PmResult<()> {
+    writeln!(std::io::stdout().lock(), "{line}").map_err(|error| {
+        PmError::new(
+            scoop_source::DiagnosticCode::E2204,
+            format!("cannot write package manager output: {error}"),
+        )
+    })
+}
+
 fn execute(cli: Cli) -> PmResult<()> {
     match cli.command {
         Command::New { workspace } => create_workspace(&workspace),
@@ -156,8 +165,7 @@ fn create_workspace(directory: &std::path::Path) -> PmResult<()> {
             format!("{}: {error}", manifest.display()),
         )
     })?;
-    println!("Created workspace {}", directory.display());
-    Ok(())
+    print_line(format_args!("Created workspace {}", directory.display()))
 }
 
 fn members(args: LocalMembersArgs) -> PmResult<()> {
@@ -207,16 +215,16 @@ fn members(args: LocalMembersArgs) -> PmResult<()> {
             root: host_path(&workspace.root)?,
             members,
         };
-        println!(
+        print_line(format_args!(
             "{}",
             serde_json::to_string_pretty(&result).map_err(|error| PmError::new(
                 scoop_source::DiagnosticCode::ICE2501,
                 error.to_string()
             ))?
-        );
+        ))?;
     } else {
         for member in workspace.members.values() {
-            println!(
+            print_line(format_args!(
                 "{} {} ({})",
                 if selected.contains(&member.manifest) {
                     "*"
@@ -225,7 +233,7 @@ fn members(args: LocalMembersArgs) -> PmResult<()> {
                 },
                 member.cone.coordinate,
                 member.relative_path
-            );
+            ))?;
         }
     }
     Ok(())

@@ -1,6 +1,6 @@
 # Scoop HTTP/1 WebSocket 规范
 
-版本：M54，实施中。本文细化 [HTTP 消息工具规范](SCOOP-HTTP-MESSAGE-SPEC.md)第 6 节。握手与帧数据属于 scoop.http，传输、控制帧调度及压缩流组合属于 scoop.http.asyncio；实际实现和验证见 [M54 进度](../milestone54/PROGRESS.md)。
+握手与帧数据由 `scoop.http` 提供。传输、控制帧调度及压缩流组合由 `scoop.http.asyncio` 提供。[HTTP 消息工具规范](SCOOP-HTTP-MESSAGE-SPEC.md)
 
 ## 1. 升级握手
 

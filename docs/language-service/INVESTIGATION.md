@@ -20,7 +20,7 @@ Scoop 需要把“有错仍能继续报错”推进到“有错仍保留可查�
 | [Span 与诊断](../../compiler/source/src/diagnostic.rs) | 调研时位于 `compiler/ast/src/source.rs`：文件内 `u32` byte span、Error／Warning、主位置与 notes；CLI 逐次扫描文本得到一基行列 | 现已开始提取到共同源码 crate；不能把 CLI 的 Unicode 标量列当成 LSP UTF-16 列 |
 | [HIR pipeline](../../compiler/hir-lower/src/pipeline/run.rs) | 已分声明、签名、继承、正文等步骤，但多个错误出口会结束整轮 lowering | 需要逐步暴露独立的声明／正文分析结果，不能只在 LSP 外面捕获整个编译失败 |
 | [M60 文档视图](../../compiler/hir/src/documentation.rs)与[持久源码记录](../../compiler/hir/src/source_record.rs) | 已有实际声明、原始签名、文档与位置关联；持久记录不含完整源码 | hover 应复用现有事实；依赖位置缺少原文时不能凭 byte offset 伪造 UTF-16 范围 |
-| [M47 查询](../milestone47/PROTOCOL.md) | 从待填方法的 typed 引用出发，固定声明／已有正文视图，返回四类正文可用状态 | 保留其语义合同，增加编辑态的定位与分析宿主；不把 MethodId 或生成会话作为所有查询的必需输入 |
+| [M47 查询](../generator-protocol/PROTOCOL.md) | 从待填方法的 typed 引用出发，固定声明／已有正文视图，返回四类正文可用状态 | 保留其语义合同，增加编辑态的定位与分析宿主；不把 MethodId 或生成会话作为所有查询的必需输入 |
 
 当前的 `SnapshotArena` 用于前端候选状态共享，不等于文档版本数据库。M47 的 `PendingGeneration` 也不等于“源码打了一半”；二者不能因为都尚无正文就共用含混的状态。
 

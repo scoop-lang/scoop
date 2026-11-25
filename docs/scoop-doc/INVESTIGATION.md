@@ -29,7 +29,7 @@
 | [HIR 模型](../../compiler/hir/src/entities.rs) | 有源码声明身份、泛型定义、属性/构造器、public surface、re-export 和 source metadata | 使用这些真实关系投影文档；保留源码写法，并用 HIR 补全推断类型 |
 | [HIR 完成入口](../../compiler/hir-lower/src/lib.rs) | `finish_output` 同时生成 ExportHir、LocalConcreteHir 和 native-boundary 数据 | 首版接受这一既有成本；文档内容从源码/Export 视图取，不从 concrete 实例列表取 |
 | [driver 的 HIR 观察出口](../../compiler/driver/src/request/preflight/production.rs) | 已能在 HIR 后返回，不继续当前节点的 MIR/LIR/codegen | 借鉴该编排增加结构化文档输出，不能把现有文本 dump 作为数据接口 |
-| [注解规范](../specs/SCOOP-SPEC.md) §9.4 与 [core 声明](../../sysroot/lib/scoop.core/src/serialization_annotations.scoop) | 已有 typed annotation identity、Target、Repeatable、静态参数、use-site 和跨 Cone 保存 | 文档注解可以是普通 core annotation class，不必新增 annotation 语法 |
+| [注解规范](../specs/SCOOP-SPEC.md) §9.4 与 [core 声明](../../sysroot/src/scoop.core/src/serialization_annotations.scoop) | 已有 typed annotation identity、Target、Repeatable、静态参数、use-site 和跨 Cone 保存 | 文档注解可以是普通 core annotation class，不必新增 annotation 语法 |
 | [持久化源码信息](../../compiler/hir/src/source_record.rs) | `SourceRecord` 保存位置、长度等，明确不保存完整源码；现有格式也没有文档注释 | 不能从当前 `.slib` 恢复完整注释、Markdown 或源码页 |
 | [manifest parser](../../compiler/manifest/src/semantic/parse.rs) | 未知字段被拒绝，尚无 `[doc]` | 文档配置若进入 Cone.toml，需要正式定义字段及其用途投影 |
 
@@ -209,7 +209,7 @@ flowchart TD
 
 推荐先做第一条；为内置库分发采用第二条。第三条只在明确需要从预编译库生成完整文档时设计，不作为首版的隐含前置。
 
-[M52](../milestone52/DESIGN.md)计划默认使用预编译 `.slib`，同时在 `sysroot/src` 提供源码。不能把“源码目录存在”重新解释成普通构建图必须重建这些库。可在文档/发布流程中显式选择这些源码 Cone，或随工具链附带静态站点。M52 目前仍是设计，不能把计划中的安装布局当成已经可用的接口。
+[M52](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone52/DESIGN.md)计划默认使用预编译 `.slib`，同时在 `sysroot/src` 提供源码。不能把“源码目录存在”重新解释成普通构建图必须重建这些库。可在文档/发布流程中显式选择这些源码 Cone，或随工具链附带静态站点。M52 目前仍是设计，不能把计划中的安装布局当成已经可用的接口。
 
 ## 9. HTML、搜索与依赖选型
 

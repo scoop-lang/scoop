@@ -179,9 +179,15 @@ static bool continues_expression(TSLexer *lexer, bool arm) {
   }
   switch (lexer->lookahead) {
   case '.':
+    lexer->advance(lexer, false);
+    // Member selection continues the arm body, even across a newline.
+    // A range operator starts with two dots and follows the infix rules.
+    return !arm || lexer->lookahead != '.';
+  case '?':
+    lexer->advance(lexer, false);
+    return !arm || lexer->lookahead == '.';
   case ',':
   case ':':
-  case '?':
   case '+':
   case '-':
   case '*':

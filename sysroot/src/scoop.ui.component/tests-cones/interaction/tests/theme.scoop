@@ -30,7 +30,11 @@ internal class TraceTheme(
         visual: SurfaceVisual,
         options: SurfaceOptions,
         direction: LayoutDirection
-    ): SurfaceMetrics = base.surfaceMetrics(visual, options, direction)
+    ): SurfaceMetrics {
+        val metrics = base.surfaceMetrics(visual, options, direction)
+        probe.suggestedButtonHeight = Some(metrics.suggestedSize.height)
+        return metrics
+    }
     public override fun surfaceGeometry(
         bounds: Rect,
         visual: SurfaceVisual,

@@ -5,6 +5,8 @@ use crate::cli::test_run::model::{Output, RunResult, Status};
 use crate::cli::test_selection::SelectedTests;
 
 mod human;
+mod summary;
+use summary::{Outcome, Report};
 #[cfg(test)]
 mod tests;
 
@@ -16,86 +18,71 @@ impl Reporter {
         result: &RunResult,
         process: Option<ExitStatus>,
     ) -> io::Result<()> {
-        let mut cases = result.cases.iter();
-        let mut ignored = 0;
-        let containers = selected
-            .report_directory
-            .containers
-            .iter()
-            .map(|container| {
-                let cases = container
-                    .cases
-                    .iter()
-                    .map(|case| {
-                        let mut record = json!({
-                            "name": case.name, "display_name": case.display_name,
-                            "location": test_list::location(&case.location),
-                            "ignore_reason": case.ignore_reason,
-                        });
-                        if case.ignore_reason.is_some() && !selected.run_ignored {
-                            ignored += 1;
-                            record["status"] = json!("ignored");
-                        } else {
-                            let outcome = cases
-                                .next()
-                                .expect("selection and report preserve case order");
-                            record["status"] = json!(outcome.status);
-                            record["duration_ns"] = json!(outcome.duration_ns);
-                            record["failures"] = json!(outcome.failures);
-                            record["interruption"] = json!(outcome.interruption);
-                            record["output"] = output(outcome.output.as_ref());
-                        }
-                        record
-                    })
-                    .collect::<Vec<_>>();
-                let statuses = cases
-                    .iter()
-                    .map(|case| case["status"].as_str().unwrap())
-                    .collect::<Vec<_>>();
-                let status = ["failed", "not-run", "passed", "ignored"]
-                    .into_iter()
-                    .find(|status| statuses.contains(status))
-                    .unwrap_or("ignored");
-                json!({"name": container.qualified_name, "status": status,
-                "location": test_list::location(&container.location), "cases": cases})
-            })
-            .collect::<Vec<_>>();
-        let count = |status| {
-            result
-                .cases
-                .iter()
-                .filter(|case| case.status == status)
-                .count()
-        };
-        let record = json!({
-            "schema": 2, "kind": "test-report", "target": target,
-            "status": if result.failed() { "failed" } else { "passed" },
-            "complete": result.complete, "empty_reason": selected.empty_reason,
-            "containers": containers,
-            "counts": {"containers": containers.len(), "cases": result.cases.len() + ignored,
-                "passed": count(Status::Passed), "failed": count(Status::Failed),
-                "not_run": count(Status::NotRun), "ignored": ignored},
-            "target_failure": result.target_failure, "output": output(result.output.as_ref()),
-            "process": process.map(process_status),
-        });
+        let report = Report::new(selected, result)?;
+        let process = process.map(ProcessStatus::from);
         match self.0 {
-            MessageFormat::Json => write_json(&record),
             MessageFormat::Human => {
-                human::write(&mut io::stdout().lock(), target, selected, result, &record)
+                human::write(&mut io::stdout().lock(), target, &report, result, process)
             }
+            MessageFormat::Json => write_json(&json_report(target, &report, result, process)),
         }
     }
 }
 
-fn process_status(status: ExitStatus) -> Value {
-    #[cfg(unix)]
-    let signal = {
-        use std::os::unix::process::ExitStatusExt;
-        status.signal()
-    };
-    #[cfg(not(unix))]
-    let signal: Option<i32> = None;
-    json!({"code": status.code(), "signal": signal})
+fn json_report(
+    target: &str,
+    report: &Report<'_>,
+    result: &RunResult,
+    process: Option<ProcessStatus>,
+) -> Value {
+    let containers = report.containers.iter().map(|group| {
+        let cases = group.cases.iter().map(|(case, outcome)| {
+            let mut record = json!({
+                "name": case.name, "display_name": case.display_name,
+                "location": test_list::location(&case.location), "ignore_reason": case.ignore_reason,
+            });
+            match outcome {
+                Outcome::Ignored(_) => record["status"] = json!("ignored"),
+                Outcome::Executed(result) => {
+                    record["status"] = json!(result.status);
+                    record["duration_ns"] = json!(result.duration_ns);
+                    record["failures"] = json!(result.failures);
+                    record["interruption"] = json!(result.interruption);
+                    record["output"] = output(result.output.as_ref());
+                }
+            }
+            record
+        }).collect::<Vec<_>>();
+        json!({"name": group.declaration.qualified_name, "status": group.status,
+            "location": test_list::location(&group.declaration.location), "cases": cases})
+    }).collect::<Vec<_>>();
+    let counts = &report.counts;
+    json!({
+        "schema": 2, "kind": "test-report", "target": target,
+        "status": if result.failed() { "failed" } else { "passed" },
+        "complete": result.complete, "empty_reason": report.empty_reason, "containers": containers,
+        "counts": {"containers": containers.len(), "cases": counts.cases(), "passed": counts.passed,
+            "failed": counts.failed, "not_run": counts.not_run, "ignored": counts.ignored},
+        "target_failure": result.target_failure, "output": output(result.output.as_ref()), "process": process,
+    })
+}
+
+#[derive(serde::Serialize)]
+struct ProcessStatus {
+    code: Option<i32>,
+    signal: Option<i32>,
+}
+
+impl From<ExitStatus> for ProcessStatus {
+    fn from(status: ExitStatus) -> Self {
+        Self {
+            code: status.code(),
+            #[cfg(unix)]
+            signal: std::os::unix::process::ExitStatusExt::signal(&status),
+            #[cfg(not(unix))]
+            signal: None,
+        }
+    }
 }
 
 fn output(value: Option<&Output>) -> Value {

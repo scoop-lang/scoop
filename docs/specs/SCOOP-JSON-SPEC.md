@@ -6,7 +6,7 @@
 
 Json保留显式`encodeToString(value, codec)`、`decodeFromString(text, codec)`、`encodeToValue(value, codec)`、`decodeFromValue(value, codec)`。四个入口均有省略codec的普通泛型重载：编码要求`T.Companion : ValueEncoder<T>`，解码要求`T.Companion : ValueDecoder<T>`，分别转发T.Companion。显式codec不会被默认策略替换。
 
-`Json.parse(text: String): JsonValue`严格解析一个完整JSON文档，包括所有子树的语法、转义、重复key和尾随输入；错误为带JSON Pointer path的DecodingException。`Json.stringify(value: JsonValue): String`直接渲染已合法的值树，默认紧凑输出，不重新编码、复制或解析整棵树。它保留对象字段顺序、数组顺序及数字token，不承诺原始空白或字符串转义拼写。
+`Json.parse(text: String): JsonValue`严格解析一个完整JSON文档，包括所有子树的语法、转义、重复key和尾随输入；错误为带JSON Pointer path的DecodingException。语法诊断按从零开始的 Unicode 字符位置报告解析游标，转义中途到达文件末尾时使用文本的字符数。`Json.stringify(value: JsonValue): String`直接渲染已合法的值树，默认紧凑输出，不重新编码、复制或解析整棵树。它保留对象字段顺序、数组顺序及数字token，不承诺原始空白或字符串转义拼写。
 
 encodeToValue遵守根encoder完成／提交规则。decodeFromValue以空串作为新的根path，不保留该JsonValue在来源文档中的位置。用户codec、构造器和default抛出的异常照常传播。已有String入口的整数、浮点、null和未知字段规则不变。
 
@@ -24,7 +24,7 @@ JsonValue仍为内部节点构造器不可公开调用的class，companion仍实
 | `asLong()`／`asULong()`／`asFloat()`／`asDouble()` | 复用typed解码的范围、精度和负零规则，整数拒绝小数和指数token |
 | `asIntegralLong(): Long` | 显式读取数值恰为 Long 整数的 number；允许小数／指数写法，不接受 string 或经过浮点舍入 |
 | `asNumberToken(): String` | 返回原合法数字token，不经浮点转换，支持超出ULong／Double范围的数值 |
-| `get(name: String): JsonValue?`、`containsKey(name)` | 仅接受object。缺少key为None；显式null为Some(JsonValue)，kind为Null。线性查找 |
+| `get(name: String): JsonValue?`、`containsKey(name)` | 仅接受object。缺少key为None；显式null为Some(JsonValue)，kind为Null。按字段名进行哈希查找，对象保留字段插入顺序 |
 | `get(index: Long): JsonValue` | 仅接受array，O(1)；越界抛IndexOutOfBoundsException |
 | `keys(): Array<String>` | 按对象保存顺序返回独立数组，O(n) |
 | `members(): Array<(String, JsonValue)>` | 按对象保存顺序返回独立成员数组，O(n)，共享不可变子节点 |

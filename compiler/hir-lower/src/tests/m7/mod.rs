@@ -1,7 +1,4 @@
-//! M7 tests: function overloading (docs/milestone7/DESIGN.md) —
-//! declaration rules (1.1), the layered + most-specific resolution
-//! algorithm (1.2), and the `print` / `println` migration to ordinary
-//! core overloads (section 2).
+//! Function overload declaration rules, candidate selection and ambiguity diagnostics.
 
 use super::*;
 use ast::ClassModifier::*;

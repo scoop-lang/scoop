@@ -1,6 +1,6 @@
 # Scoop 压缩库规范
 
-版本：M54，实施中。内存、增量引擎、同步／异步流及 RawDeflate 消息接口已实现；HTTP 组合与三目标最终验证继续实施，实际结果见[进度](../milestone54/PROGRESS.md)。范围与实施次序见 [M54 设计](../milestone54/DESIGN.md)。公共命名、字节进度、资源和取消分别遵守[库 API 风格](SCOOP-API-STYLE.md)、[平台库](SCOOP-PLATFORM-SPEC.md)和[异步 I/O](SCOOP-ASYNCIO-SPEC.md)。
+本库提供内存压缩、增量引擎、同步与异步流适配，以及 RawDeflate 消息接口。字节进度、资源所有权和取消规则分别见[库 API 风格](SCOOP-API-STYLE.md)、[平台库](SCOOP-PLATFORM-SPEC.md)和[异步 I/O](SCOOP-ASYNCIO-SPEC.md)。
 
 ## 1. Cone、格式与后端
 

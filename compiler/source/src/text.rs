@@ -26,6 +26,14 @@ impl SourceText {
         &self.0.text
     }
 
+    /// Recover the text buffer for editing. Shared analysis snapshots keep their own text.
+    pub fn into_string(self) -> String {
+        match Arc::try_unwrap(self.0) {
+            Ok(owned) => owned.text,
+            Err(shared) => shared.text.clone(),
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.0.text.len()
     }
@@ -45,11 +53,17 @@ impl SourceText {
             .get_or_init(|| LineIndex::new(self.as_str(), true))
     }
 
-    /// Compiler diagnostics retain their original LF-only line convention.
-    pub fn diagnostic_position(&self, offset: u32) -> (usize, usize) {
+    /// Compiler locations use LF-only lines, including CR in the preceding line.
+    /// Source observations, diagnostics and debug metadata share this index.
+    pub fn compiler_line_index(&self) -> &LineIndex {
         self.0
             .compiler_lines
             .get_or_init(|| LineIndex::new(self.as_str(), false))
+    }
+
+    /// Compiler diagnostics retain their original LF-only line convention.
+    pub fn diagnostic_position(&self, offset: u32) -> (usize, usize) {
+        self.compiler_line_index()
             .diagnostic_position(offset as usize)
     }
 }
@@ -65,5 +79,11 @@ impl Eq for SourceText {}
 impl From<String> for SourceText {
     fn from(text: String) -> Self {
         Self::new(text)
+    }
+}
+
+impl From<&str> for SourceText {
+    fn from(text: &str) -> Self {
+        Self::new(text.to_owned())
     }
 }

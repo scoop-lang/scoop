@@ -1011,7 +1011,7 @@ pub enum ArrayAssemblyPart {
 }
 
 /// Primitive operations only: aggregate equality has been expanded by
-/// mir-lower (docs/milestone2/DESIGN.md 2.3).
+/// mir-lower.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinOp {
     /// Equality within one compiler-owned scalar domain. The kind is carried

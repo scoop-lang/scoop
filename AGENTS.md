@@ -4,12 +4,12 @@
 
 Scoop 是一门静态类型、编译到原生代码的语言：以 Kotlin 核心语法为基础，引入真正的值类型（struct / enum / tuple），泛型采用单态化，后端为 LLVM，runtime 用 C（含 Immix 分代 GC）。
 
-权威文档（先读这些再动手，均位于 `docs/specs/`）：
+开始工作前先读三份规范和路线图。
 
 - `docs/specs/SCOOP-SPEC.md` — 语言规范（语法、类型系统、核心库、FFI）；
 - `docs/specs/SCOOP-RUNTIME-SPEC.md` — 运行时规范（对象模型、GC 契约、FFI runtime functions）；
 - `docs/specs/SCOOP-IMPL-SPEC.md` — 编译器与产物规范（各 stage 的输入输出、实体身份、目标 ABI、`.slib` 格式、构建与链接契约）；
-- `docs/ROADMAP.md` — 实现路线图（纵向主线策略与里程碑序列）。
+- `docs/ROADMAP.md` — 实现路线图（当前能力、后续方向及历史里程碑入口）。
 
 三份文档用中文撰写；代码中的标识符与注释用英文。
 
@@ -38,7 +38,7 @@ Scoop 是一门静态类型、编译到原生代码的语言：以 Kotlin 核心
 ## 构建与测试
 
 - 编译器实现语言：**Rust**（edition 2024），LLVM 绑定用 **inkwell 0.10（feature `llvm22-1-prefer-dynamic`，包含 `llvm22-1`）**，Scoop 后端使用本机外部 **LLVM 22.1**，不要求与 Rust 工具链自带的 LLVM 版本相同。
-- 依赖本机 LLVM 22.1（`llvm-config` 在 `PATH` 中，或设置 `LLVM_SYS_221_PREFIX`）；`scoop-codegen` 与 `scoopc` 之外的其他 crate 无 LLVM 依赖。
+- 依赖本机 LLVM 22.1（`llvm-config` 在 `PATH` 中，或设置 `LLVM_SYS_221_PREFIX`）；`scoop-codegen` 与 `scoopc` 之外的其他 crate 无 LLVM 依赖。完整验收使用仓库补丁版 LLVM 22.1.8，涵盖完整调试信息下的异常处理、调试符号及 Windows 对象发射。构建与运行时指向同一 SDK，见[准备说明](scripts/README.md)。
 - 常用命令：
   - `cargo build` / `cargo test --workspace` — 构建 / Rust 单元与集成测试；
   - `cargo build -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-api -p scoop-generators --bins` — 构建文件 fixture 使用的配套命令；

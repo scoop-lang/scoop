@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -79,26 +80,41 @@ enum LinkMode {
 }
 
 fn main() -> ExitCode {
+    let status = run().unwrap_or_else(|error| {
+        let _ = writeln!(
+            io::stderr(),
+            "error[E2204]: cannot write linker output: {error}"
+        );
+        ExitCode::FAILURE
+    });
+    scoop_process::finish_interruption();
+    status
+}
+
+fn run() -> io::Result<ExitCode> {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(error) => {
             if error.use_stderr() {
-                eprint!("error[E2001]: {error}");
-                return ExitCode::from(2);
+                write!(io::stderr(), "error[E2001]: {error}")?;
+                return Ok(ExitCode::from(2));
             }
-            print!("{error}");
-            return ExitCode::SUCCESS;
+            write!(io::stdout().lock(), "{error}")?;
+            return Ok(ExitCode::SUCCESS);
         }
     };
     if let Err(error) = scoop_process::initialize() {
-        eprintln!("error[E2204]: cannot initialize process signal handling: {error}");
-        return ExitCode::FAILURE;
+        writeln!(
+            io::stderr(),
+            "error[E2204]: cannot initialize process signal handling: {error}"
+        )?;
+        return Ok(ExitCode::FAILURE);
     }
     let cache_dir = match scoop_toolchain::configured_cache_root(cli.cache_dir) {
         Ok(path) => path,
         Err(error) => {
-            eprintln!("error[{}]: {error}", error.code());
-            return ExitCode::FAILURE;
+            writeln!(io::stderr(), "error[{}]: {error}", error.code())?;
+            return Ok(ExitCode::FAILURE);
         }
     };
     let request = ArtifactLinkRequest {
@@ -136,17 +152,17 @@ fn main() -> ExitCode {
     };
     let result = match request.link() {
         Ok(output) => {
+            let mut stdout = io::stdout().lock();
             if cli.dump_plan {
-                print!("{}", output.plan_dump);
+                write!(stdout, "{}", output.plan_dump)?;
             }
-            println!("link-plan {}", output.fingerprint);
+            writeln!(stdout, "link-plan {}", output.fingerprint)?;
             ExitCode::SUCCESS
         }
         Err(error) => {
-            eprintln!("error[{}]: {error}", error.code());
+            writeln!(io::stderr(), "error[{}]: {error}", error.code())?;
             ExitCode::FAILURE
         }
     };
-    scoop_process::finish_interruption();
-    result
+    Ok(result)
 }

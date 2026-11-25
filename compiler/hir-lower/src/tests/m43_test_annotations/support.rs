@@ -122,7 +122,7 @@ pub(super) fn parsed_sources(
         .iter()
         .zip(&identities)
         .map(|((path, text, role), identity)| {
-            scoop_parser::CurrentConeSourceInput::new(identity, text, path.as_ref())
+            scoop_parser::CurrentConeSourceInput::new(identity, *text, path.as_ref())
                 .with_role(*role)
         })
         .collect::<Vec<_>>();

@@ -462,14 +462,14 @@ fn native_boundary_diagnostic(
 }
 
 #[cfg(test)]
-fn materialize_defined_test_sources(
-    input: &DefinedTestSources<'_>,
-) -> (Vec<ast::SourceFile>, Vec<SourceProvider>) {
+fn materialize_defined_test_sources<'a>(
+    input: &'a DefinedTestSources<'_>,
+) -> (Vec<&'a ast::SourceFile>, Vec<SourceProvider>) {
     let source_count = input.core.len() + input.user_sources.sources().len();
     let mut files = Vec::with_capacity(source_count);
     let mut sources = Vec::with_capacity(source_count);
     for source in &input.core {
-        files.push(source.source.clone());
+        files.push(source.source);
         sources.push(SourceProvider {
             provider: source.provider,
             kind: SourceKind::Core,
@@ -477,7 +477,7 @@ fn materialize_defined_test_sources(
             identity: source.identity.clone(),
             name: source.name.to_string(),
 
-            source: source.source_text.to_string(),
+            source: source.source_text.into(),
         });
     }
     for (source, details) in input
@@ -486,7 +486,7 @@ fn materialize_defined_test_sources(
         .iter()
         .zip(&input.source_details)
     {
-        files.push(source.ast().clone());
+        files.push(source.ast());
         sources.push(SourceProvider {
             provider: input.user_provider,
             kind: SourceKind::CurrentUnit,
@@ -494,7 +494,7 @@ fn materialize_defined_test_sources(
             identity: source.identity().clone(),
             name: details.display_locator.to_string(),
 
-            source: details.source_text.to_string(),
+            source: details.source_text.into(),
         });
     }
     (files, sources)
@@ -502,11 +502,11 @@ fn materialize_defined_test_sources(
 
 fn materialize_current_sources(
     input: &ast::CurrentConeParsedSources,
-) -> (Vec<ast::SourceFile>, Vec<SourceProvider>) {
+) -> (Vec<&ast::SourceFile>, Vec<SourceProvider>) {
     let mut files = Vec::with_capacity(input.sources().sources().len());
     let mut sources = Vec::with_capacity(input.sources().sources().len());
     for source in input.iter() {
-        files.push(source.source().ast().clone());
+        files.push(source.source().ast());
         sources.push(SourceProvider {
             provider: hir::IntrinsicProviderId::from_raw(0),
             kind: if input.cone() == scoop_identity::ConeIdentity::CORE {
@@ -518,7 +518,7 @@ fn materialize_current_sources(
             identity: source.source().identity().clone(),
             name: source.diagnostic().display_locator().display().to_string(),
 
-            source: source.text().text().to_owned(),
+            source: source.text().source_text().clone(),
         });
     }
     (files, sources)
@@ -538,7 +538,7 @@ struct SourceProvider {
     identity: scoop_identity::SourceIdentity,
     name: String,
 
-    source: String,
+    source: scoop_source::SourceText,
 }
 
 /// Source-visible named declarations, including synthesized nominal members.

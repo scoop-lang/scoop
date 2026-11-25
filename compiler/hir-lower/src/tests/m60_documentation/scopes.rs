@@ -32,7 +32,7 @@ fn m60_documentation_keeps_file_import_scopes_and_reports_ambiguous_names() {
             documentation: scoop_doc::prepare_source(&syntax, text),
         });
         parsed.push(ast::IdentifiedParsedSource::new(identity.clone(), syntax));
-        texts.push(ast::CurrentSourceText::new(identity.clone(), text.into()));
+        texts.push(ast::CurrentSourceText::new(identity.clone(), text));
         contexts.push(ast::CurrentSourceDiagnosticContext::new(
             identity,
             path.into(),

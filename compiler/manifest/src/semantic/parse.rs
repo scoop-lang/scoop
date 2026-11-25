@@ -14,18 +14,12 @@ struct RawManifest {
     dependencies: BTreeMap<String, Spanned<RawDependency>>,
     sources: Option<Vec<crate::selection::RawConditionalPath>>,
     #[serde(default)]
-    test: RawTestConfig,
+    test: crate::package::RawTest,
     #[serde(default, rename = "test-dependencies")]
     test_dependencies: BTreeMap<String, Spanned<RawDependency>>,
     #[serde(default)]
     native: crate::native::RawNativeConfig,
     windows: Option<Spanned<crate::windows::RawWindowsConfig>>,
-}
-
-#[derive(Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawTestConfig {
-    sources: Option<Vec<crate::selection::RawConditionalPath>>,
 }
 
 #[derive(Deserialize)]
@@ -147,6 +141,7 @@ pub fn parse_cone_manifest(
         tests: TestManifestConfig {
             sources: crate::selection::parse_sources(raw.test.sources, catalog)?,
             dependencies: test_dependencies,
+            isolate: raw.test.isolate.unwrap_or(false),
         },
         semantic: ConeManifestSemantic {
             coordinate,

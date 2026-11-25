@@ -6,7 +6,7 @@ use std::sync::Arc;
 use scoop_identity::{
     CallableMaterialization, CallableTemplateOwner, DefinitionOriginSubject, SourceIdentity,
 };
-use scoop_source::{DebugFile, DebugOrigin, DebugRecords, LineIndex, PositionEncoding};
+use scoop_source::{DebugFile, DebugOrigin, DebugRecords, PositionEncoding, SourceText};
 
 #[derive(Clone, Debug, Default)]
 pub struct DebugSources {
@@ -23,7 +23,7 @@ struct DebugSourceFile {
 
 #[derive(Clone, Debug)]
 enum SourceCoordinates {
-    Current(Arc<LineIndex>),
+    Current(SourceText),
     Imported(crate::SourceRecord),
 }
 
@@ -39,9 +39,7 @@ impl DebugSources {
                 }),
                 coordinates: match &file.canonical_record {
                     Some(record) => SourceCoordinates::Imported(record.clone()),
-                    None => {
-                        SourceCoordinates::Current(Arc::new(LineIndex::new(&file.source, false)))
-                    }
+                    None => SourceCoordinates::Current(file.source.clone()),
                 },
             })
             .collect();
@@ -143,8 +141,9 @@ impl DebugSources {
     fn position(&self, file: usize, offset: u64, records: &mut DebugRecords) -> DebugOrigin {
         let file = &self.files[file];
         let (line, column) = match &file.coordinates {
-            SourceCoordinates::Current(index) => {
-                let position = index
+            SourceCoordinates::Current(source) => {
+                let position = source
+                    .compiler_line_index()
                     .position(offset as usize, PositionEncoding::Utf32)
                     .expect("source origins point at UTF-8 token boundaries");
                 (position.line as u64 + 1, position.column as u64 + 1)
@@ -189,7 +188,7 @@ mod tests {
         let identity = SourceIdentity::single_file();
         let source = "fun main() {\r\n    val 中文 = 42\r\n}\r\n";
         let offset = source.find("42").unwrap() as u64;
-        let current = SourceCoordinates::Current(Arc::new(LineIndex::new(source, false)));
+        let current = SourceCoordinates::Current(source.into());
         let imported = SourceCoordinates::Imported(
             crate::SourceRecord::from_utf8(identity.clone(), source, [offset]).unwrap(),
         );

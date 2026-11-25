@@ -177,6 +177,7 @@ internal class ControlProbe {
     var buttonVisual = InteractionVisual()
     var checkVisual = CheckboxVisual()
     var ownedVisual = CheckboxVisual()
+    var suggestedButtonHeight: Double? = None
     var buttonGeometry: SurfaceGeometry? = None
     var buttonBounds = Rect(0.0, 0.0, 0.0, 0.0)
     var checkBounds = Rect(0.0, 0.0, 0.0, 0.0)
@@ -286,7 +287,7 @@ internal class ControlProbe {
             case 1 -> if (buttonVisual.enabled && checkFocus.hasFocus) {
                 assertFalse(checkVisual.interaction.focusVisible)
                 assertFalse(checkFocus.isFocusVisible)
-                assertEquals(28.0, buttonMetrics!!.size.height)
+                assertEquals(suggestedButtonHeight!!, buttonMetrics!!.size.height)
                 assertEquals(CornerRadii.all(9.0), buttonGeometry!!.outline.radii)
                 assertTrue(buttonMetrics!!.alphabeticBaseline!! > 0.0)
                 assertEquals(None, checkMetrics!!.alphabeticBaseline)
@@ -390,12 +391,7 @@ internal class ControlProbe {
                 assertEquals(CornerRadii.all(9.0), buttonGeometry!!.outline.radii)
                 assertEquals(buttonMetrics!!.size.width, buttonBounds.width)
                 assertEquals(buttonMetrics!!.size.height, buttonBounds.height)
-                val expected =
-                    themes[themeIndex.toLong()].surfaceMetrics(
-                        SurfaceVisual(SurfaceKind.Action),
-                        surfaceOptions()
-                    )
-                assertEquals(expected.suggestedSize.height, buttonBounds.height)
+                assertEquals(suggestedButtonHeight!!, buttonBounds.height)
                 assertTrue(previousPixel != buttonPixel)
                 if (themeIndex == 1) {
                     assertTrue(previousButton!!.size != buttonMetrics!!.size)

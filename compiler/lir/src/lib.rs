@@ -187,3 +187,5 @@ extern crate self as scoop_lir;
 mod target_fixtures;
 #[cfg(test)]
 use target_fixtures::*;
+
+pub mod dataflow;

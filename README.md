@@ -60,14 +60,14 @@ Windows 安装包的主命令为 `sco`，上述命令中的 `scoop` 替换为 `s
 编译器使用 Rust（edition 2024）和 inkwell 0.10。需要安装：
 
 - 支持 edition 2024 的 Rust 工具链和 Cargo。
-- 外部 LLVM 22.1；发行准备固定使用 LLVM 22.1.8。`llvm-config` 应在 `PATH` 中，或通过 `LLVM_SYS_221_PREFIX` 指向 LLVM 安装前缀。
+- 完整构建和验收使用 `scripts/build_llvm.py` 准备的 LLVM 22.1.8。设置 `LLVM_SYS_221_PREFIX` 指向该 SDK，并让编译器运行时加载同一套库。仓库补丁覆盖异常处理的调试代码、调试符号和 Windows statepoint 返回地址。[LLVM 准备说明](scripts/README.md)
 - 所选目标的 C/C++ 工具链、系统 SDK 和链接器。
 - Python 3.11+，用于开发准备脚本和 fixture runner；OpenSSL 准备需要 Python 3.12+。各 native 后端所需的其他工具见[准备脚本说明](scripts/README.md)。
 
 以下为 macOS／Linux shell 示例，在仓库根目录执行：
 
 ```sh
-cargo build --release -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-generators --bins
+cargo build --release -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-api -p scoop-generators --bins
 export PATH="$PWD/target/release:$PATH"
 ```
 
@@ -85,7 +85,7 @@ export SCOOP_SYSROOT="$PWD/sysroot"
 
 普通构建和测试消费已准备的系统库与 runtime；首次运行或内置库变更后需重新执行对应准备步骤。开发构建通过 `SCOOP_SYSROOT` 选择仓库资源，安装包则默认使用安装目录中的资源。
 
-目标包括 macOS AArch64／x86_64、Linux x86_64（glibc／musl），以及 Windows x86_64 的 MSVC UCRT、LLVM-MinGW MSVCRT／UCRT。目标与 ABI 规则见[编译器与产物规范](docs/specs/SCOOP-IMPL-SPEC.md)，构建环境基线见[发行配置](scripts/release.toml)；各目标需要匹配的 SDK 和 native 资源。
+目标包括 macOS AArch64／x86_64、iOS arm64 真机与模拟器、Linux x86_64（glibc／musl），以及 Windows x86_64 的 MSVC UCRT、LLVM-MinGW MSVCRT／UCRT。目标与 ABI 规则见[编译器与产物规范](docs/specs/SCOOP-IMPL-SPEC.md)，构建环境基线见[发行配置](scripts/release.toml)；各目标需要匹配的 SDK 和 native 资源。
 
 ## 开发与验证
 
@@ -100,7 +100,7 @@ cargo test --workspace
 正式 CLI fixture 使用配套命令和已准备的开发 sysroot。runner 默认从 `target/debug` 读取工具，因此另行构建这些命令：
 
 ```sh
-cargo build -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-generators --bins
+cargo build -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-api -p scoop-generators --bins
 export SCOOP_SYSROOT="$PWD/sysroot"
 python3 -m unittest discover -s tests/fixture_runner/tests
 python3 tests/run_fixtures.py --all
@@ -129,7 +129,7 @@ python3 tests/run_fixtures.py --all
 - [语言规范](docs/specs/SCOOP-SPEC.md)：语法、类型系统、核心库与 FFI。
 - [运行时规范](docs/specs/SCOOP-RUNTIME-SPEC.md)：对象模型、GC、异常与运行时契约。
 - [编译器与产物规范](docs/specs/SCOOP-IMPL-SPEC.md)：编译阶段、实体身份、目标 ABI、构建、链接与 `.slib`。
-- [实现路线图](docs/ROADMAP.md)：里程碑、实现进度和待完成事项。
+- [实现路线图](docs/ROADMAP.md)：当前交付范围、后续工作和历史里程碑入口。
 - [库 API 风格](docs/specs/SCOOP-API-STYLE.md)与[标准基础库规范](docs/specs/SCOOP-STDLIB-SPEC.md)。
 - [编辑器工具说明](tooling/README.md)与[VS Code 扩展说明](tooling/vscode-scoop/README.md)。
 

@@ -57,24 +57,22 @@ pub(super) fn add(args: AddArgs) -> PmResult<()> {
         &args.edit.dependency,
         Some(value),
     )?;
-    println!(
+    print_line(format_args!(
         "Added {} to {}",
         args.edit.dependency,
         member.manifest.display()
-    );
-    Ok(())
+    ))
 }
 
 pub(super) fn remove(args: EditArgs) -> PmResult<()> {
     let (_, workspace) = discover(&args)?;
     let member = selected(&workspace, &args)?;
     scoop_pm::edit::dependency(&workspace, member, args.purpose, &args.dependency, None)?;
-    println!(
+    print_line(format_args!(
         "Removed {} from {}",
         args.dependency,
         member.manifest.display()
-    );
-    Ok(())
+    ))
 }
 
 fn discover(args: &EditArgs) -> PmResult<(PathBuf, Workspace)> {

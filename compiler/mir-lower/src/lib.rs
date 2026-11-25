@@ -1,95 +1,11 @@
-//! MIR stage: concrete-HIR lowering, callable materialization, call-kind annotation,
-//! vtable/itable construction, suspend-to-state-machine lowering.
+//! Lower resolved HIR into MIR functions, globals and concrete types.
 //!
-//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.3 and
-//! `docs/milestone4/DESIGN.md` section 3.3.
+//! Function bodies become control-flow graphs with explicit evaluation order,
+//! calls, exceptional exits and cleanup. Capture lowering makes the storage
+//! of lambdas and suspended functions explicit. MIR optimizations operate on
+//! these representations before target-specific layout in LIR.
 //!
-//! M2: value types. HIR types are mapped onto MIR types (the struct
-//! arena is transposed in declaration order, field types recursively);
-//! String `+` becomes `scoop_rt_string_concat`. Equality has already
-//! been resolved in HIR to an ordinary explicit or generated method;
-//! MIR lowers that exact call and never reconstructs equality semantics.
-//! Since M10, a private structured construction tree is normalized into
-//! public MIR basic blocks: calls become explicit effects and `&&` / `||`
-//! become branch edges before this stage returns. This stage never fails:
-//! all errors were already reported by hir-lower.
-//!
-//! M3: generic templates are monomorphized by HIR lowering. MIR receives
-//! only local-concrete functions and records their typed source identities
-//! for metadata; no generic template or
-//! unresolved type parameter can enter this stage.
-//!
-//! M4: enums and pattern matching. Every concrete enum application has
-//! already acquired its own HIR identity and complete GC classification;
-//! MIR transposes it one-to-one. `when` becomes a structured decision sequence
-//! (the subject is evaluated once into a hidden local; each arm is a
-//! tag comparison, then the field bindings, then the guard nested so a
-//! failed guard falls through to the next arm). The HIR Option nodes
-//! (`SomeWrap` / `NoneLiteral` / `IsSome` / `Unwrap`) become generic enum
-//! construction plus representation-independent checked variant tests and
-//! payload projections; a trapping `Unwrap` (`!!`) becomes an if/else whose
-//! else branch throws `UnwrapException` (M8).
-//!
-//! M8: exceptions (docs/milestone8/DESIGN.md section 3.3). `try` /
-//! `catch` / `finally` and `throw` translate one-to-one — MIR keeps
-//! them structured; the control-flow expansion (invoke / landingpad)
-//! is LIR's job. The four trap paths of M3–M6 now throw core's
-//! built-in exceptions instead of calling `scoop_rt_trap`: `!!`
-//! throws `UnwrapException`, the array bounds checks (moved here from
-//! codegen for `ArrayGet` / `ArraySet`) throw
-//! `IndexOutOfBoundsException`, a failing `as` throws
-//! `ClassCastException`, and integer division gains a divisor check
-//! that throws `ArithmeticException`. The built-in exception classes
-//! (core's throwable.scoop) are ordinary classes, so construction is
-//! a plain call to the generated constructor function (M6). LocalConcrete
-//! HIR supplies the complete typed exception/constructor identities; MIR
-//! performs no class-arena name lookup or missing-core fallback.
-//! `Terminator::Trap` keeps exactly one generation path: the
-//! abstract-method stub, whose native diagnostic is not a managed String.
-//!
-//! M7/M14: print/println and primitive formatting/equality are ordinary core
-//! functions. Their representation-level helpers are ordinary Scoop-ABI
-//! extern declarations, so no formatting/equality runtime kind exists in the
-//! compiler. Dispatch is keyed by typed source identity: vtable / itable
-//! slots and call-kind annotation use the resolved virtual family, so each overload gets its
-//! own slot and an override replaces the base slot with the matching
-//! signature in place. `toString`, hashing, and equality are ordinary
-//! Scoop declarations; this stage has no capability-specific channels.
-//!
-//! M5: arrays (docs/milestone5/DESIGN.md). `Array<T>` /
-//! `MutableArray<T>` map onto the corresponding MIR types, and the
-//! array nodes translate one-to-one: literals, subscript reads, `size`,
-//! `m[i] = v` (an `ArraySet` statement), and constructor / method
-//! conversions between the two kinds (`ArrayClone`). Whether an array
-//! supports equality is determined solely by ordinary method resolution.
-//!
-//! M6: reference types (docs/milestone6/DESIGN.md). Classes land as
-//! `mir::ClassDef` with the object layout flattened (base-class
-//! fields first, then the constructor properties — the same indexing
-//! HIR's `ClassField` uses) and the dispatch layout fixed (impl spec
-//! 2.9): a root class starts with an empty vtable, and a derived vtable
-//! starts from the base's (ordinary overrides replace the base slot in place,
-//! new methods append in declaration order), and every implemented
-//! interface gets an itable record whose slots follow the interface's
-//! method declaration order. Method calls are annotated by the
-//! receiver's static type: class receiver → `Virtual`, interface
-//! receiver → `Interface`, value type → `Direct`; distinct source callables
-//! retain distinct typed identities even when their display names match. A direct
-//! `super` call carries a distinct HIR proof
-//! and always becomes `CallTarget::Direct`. Every value type that reaches `Any` / an
-//! interface (`Box`, `is`, `as`) gets a boxed `ClassDef` (`box<type>`):
-//! its vtable contains only ordinary virtual methods, and its itable
-//! slots point at adjust thunks that either unbox `this` for a value method or
-//! retype the box for an interface default body. The boxed itables cover the value
-//! type's *declared* interfaces (spec 4.4.3) no matter what it was
-//! boxed to. `as` throws `ClassCastException` on failure (M8); `as?`
-//! wraps in `Option` like `!!` does. Reference identity is expressed
-//! only by `===` / `!==` (`RefEq` / `RefNe`) and maps to a primitive
-//! pointer comparison. M19 class construction evaluates all arguments, emits
-//! one exact `ClassAlloc`, and direct-calls a Unit initializer with the new
-//! object as its hidden first parameter. Base and `this` initializer edges
-//! call another typed initializer on that same object. Struct constructors
-//! are separate value-returning hidden callables.
+//! See `docs/specs/SCOOP-IMPL-SPEC.md` sections 2.3 and 2.19.
 
 use std::collections::{HashMap, HashSet};
 

@@ -267,7 +267,7 @@ LLM 若管理重试，应在对应 HTTP 请求上关闭重复的 HTTP 重试，�
 
 `JsonValue` 并非完全不能保留未知内容：现有 codec 可以保存并再次编码它，也能通过 `KeyedDecodingContainer.keys` 自定义读取。缺口是公开、便利的动态操作，不是需要重写 JSON parser。部分工具参数解析若要新增增量 JSON 能力，应放在 JSON 所属层并证明实际收益；最初可先交付原文 delta 与完成后解析。
 
-后续的 [序列化与 JSON 库调研](../json/INVESTIGATION.md)进一步区分了 M55 已可支持的便利重载、M57 设计落地后的条件容器 codec，以及独立的 DOM／String-key object codec 工作。M57 不自动改变 Map、enum 或多模态字段的 wire 格式。
+默认 codec、JSON 值树和 String-key object codec 已由 JSON 库提供。LLM 协议的 Map、enum 和多模态字段仍须采用各自规定的 wire 格式。[JSON 库规范](../specs/SCOOP-JSON-SPEC.md)
 
 初始采用一个 LLM client Cone 内的消息、事件、协议、认证和媒体子模块。按真实依赖需要再拆 Cone，不给每个商业品牌复制一整套 client，也不先搭建通用插件框架。
 

@@ -3,9 +3,21 @@ use super::*;
 #[derive(Debug)]
 pub enum LayoutAbiSectionError {
     DuplicateProvider(ConeIdentity),
-    DependencyTarget { provider: ConeIdentity },
-    NonCanonicalSelected { index: usize },
+    DependencyTarget {
+        provider: ConeIdentity,
+    },
+    NonCanonicalSelected {
+        index: usize,
+    },
     SelectedCurrentProvider,
+    SelectionProvider {
+        selected: ConeIdentity,
+        exported: ConeIdentity,
+    },
+    SelectionTarget {
+        selected: crate::LirTargetProfile,
+        exported: crate::LirTargetProfile,
+    },
     MissingSemanticProvider(ConeIdentity),
     MissingPhysicalProvider(ConeIdentity),
     MissingPhysicalSubject(crate::ExternalStrongShapeSubjectV1),
@@ -51,7 +63,19 @@ from_error!(WireError, Resource);
 
 impl std::fmt::Display for LayoutAbiSectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid complete layout/ABI section: {self:?}")
+        match self {
+            Self::SelectionProvider { selected, exported } => write!(
+                formatter,
+                "layout/ABI imports belong to Cone {selected}, but local exports belong to {exported}"
+            ),
+            Self::SelectionTarget { selected, exported } => write!(
+                formatter,
+                "layout/ABI imports target {}, but local exports target {}",
+                selected.id().canonical_name(),
+                exported.id().canonical_name()
+            ),
+            _ => write!(formatter, "invalid complete layout/ABI section: {self:?}"),
+        }
     }
 }
 

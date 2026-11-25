@@ -1,0 +1,6 @@
+small_collect(parts<struct [[2xi64]@0+16/8]>) -> parts<struct [[2xi64]@0+16/8]> <scoop managed nounwind lib=fixture_native>
+small_mixed(parts<struct [[2xi64]@0+16/8]>) -> parts<struct [[2xi64]@0+16/8]> <scoop gc-leaf nounwind lib=fixture_native>
+small_padded(parts<struct [[2xi64]@0+16/8]>) -> parts<struct [[2xi64]@0+16/8]> <scoop gc-leaf nounwind lib=fixture_native>
+small_registers(i64, i64, i64, i64, i64, i64, parts<struct [[2xi64]@0+16/8]>, f64) -> parts<struct [[2xi64]@0+16/8]> <scoop gc-leaf nounwind lib=fixture_native>
+small_singles(parts<struct [[2xf32]@0+8/4]>) -> parts<struct [[2xf32]@0+8/4]> <scoop gc-leaf nounwind lib=fixture_native>
+small_three(parts<struct [i64@0+3/1]>) -> parts<struct [i24@0+3/1]> <scoop gc-leaf nounwind lib=fixture_native>

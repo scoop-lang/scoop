@@ -1,9 +1,9 @@
 schema = 1
 name = "inlining-decisions"
-inputs = ["program.scoop"]
-tools = ["scoop"]
+inputs = ["program.scoop", "../inspect_decisions.py"]
+tools = ["scoop", "python"]
 when = { os = ["darwin", "linux"] }
-tags = ["stage-golden", "inlining", "locals", "compiler-correctness"]
+tags = ["inlining", "locals", "compiler-correctness"]
 variants = [{name = "debug", vars = {profile = "debug"}}, {name = "release", vars = {profile = "release"}}]
 
 [[steps]]
@@ -14,9 +14,13 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [
-  {"file" = "${work}/dump/${build.result.root.identity}/mir.txt", "snapshot" = "program.${profile}.mir.txt"},
-]
+
+[[steps]]
+name = "inline-calls"
+argv = ["${python}", "${fixture}/../inspect_decisions.py", "${work}/dump/${build.result.root.identity}/mir.txt", "decisions", "${profile}"]
+exit = 0
+stdout = ""
+stderr = ""
 
 [[steps]]
 name = "run"

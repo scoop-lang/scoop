@@ -35,7 +35,7 @@ impl Parser {
                 let by_span = self.bump().span;
                 let outer = self
                     .supertype_expression_nesting
-                    .replace(self.expression_nesting[self.pos]);
+                    .replace(self.expression_depth());
                 let expression = self.parse_expr();
                 self.supertype_expression_nesting = outer;
                 let expression = expression?;

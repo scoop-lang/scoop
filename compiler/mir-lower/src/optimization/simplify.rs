@@ -25,32 +25,14 @@ fn fold_blocks(
     let incoming = analysis.solve();
     let mut blocks = Vec::new();
     let mut changed = false;
-    for (id, source) in function.body.blocks.iter() {
-        let Some(mut state) = incoming[index(id)].clone() else {
+    for ((id, source), state) in function.body.blocks.iter().zip(incoming) {
+        let Some(mut state) = state else {
             continue;
         };
         let mut block = source.clone();
         for statement in &mut block.statements {
             mir::visit_statement_exprs_mut(statement, &mut |expression| {
-                if !matches!(
-                    expression.kind,
-                    mir::ExprKind::BoolLiteral(_)
-                        | mir::ExprKind::IntegerLiteral(_)
-                        | mir::ExprKind::StringConst(_)
-                ) && let Some(value) = analysis.expression(expression, &state).constant
-                {
-                    *expression = value
-                        .expression()
-                        .with_debug_origin(expression.debug_origin.clone());
-                    changed = true;
-                } else if let mir::ExprKind::Local(local) = expression.kind
-                    && let Some(alias) = analysis.expression(expression, &state).alias
-                    && local != alias
-                    && expression.ty == function.body.locals[alias].ty
-                {
-                    expression.kind = mir::ExprKind::Local(alias);
-                    changed = true;
-                }
+                changed |= fold_expression(expression, &state, &analysis, function);
             });
             if let mir::StatementKind::Call(mir::CallEffect::Value { destination, call }) =
                 &statement.kind
@@ -67,25 +49,7 @@ fn fold_blocks(
             analysis.statement(statement, &mut state);
         }
         mir::visit_terminator_exprs_mut(&mut block.terminator, &mut |expression| {
-            if !matches!(
-                expression.kind,
-                mir::ExprKind::BoolLiteral(_)
-                    | mir::ExprKind::IntegerLiteral(_)
-                    | mir::ExprKind::StringConst(_)
-            ) && let Some(value) = analysis.expression(expression, &state).constant
-            {
-                *expression = value
-                    .expression()
-                    .with_debug_origin(expression.debug_origin.clone());
-                changed = true;
-            } else if let mir::ExprKind::Local(local) = expression.kind
-                && let Some(alias) = analysis.expression(expression, &state).alias
-                && local != alias
-                && expression.ty == function.body.locals[alias].ty
-            {
-                expression.kind = mir::ExprKind::Local(alias);
-                changed = true;
-            }
+            changed |= fold_expression(expression, &state, &analysis, function);
         });
         if let mir::Terminator::Branch {
             cond,
@@ -123,6 +87,38 @@ fn fold_blocks(
     (blocks, changed)
 }
 
+fn fold_expression(
+    expression: &mut mir::Expr,
+    state: &flow::State,
+    analysis: &flow::Analysis<'_>,
+    function: &mir::Function,
+) -> bool {
+    if matches!(
+        expression.kind,
+        mir::ExprKind::BoolLiteral(_)
+            | mir::ExprKind::IntegerLiteral(_)
+            | mir::ExprKind::StringConst(_)
+    ) {
+        return false;
+    }
+    let facts = analysis.expression(expression, state);
+    if let Some(value) = facts.constant {
+        *expression = value
+            .expression()
+            .with_debug_origin(expression.debug_origin.clone());
+        true
+    } else if let mir::ExprKind::Local(local) = expression.kind
+        && let Some(alias) = facts.alias
+        && local != alias
+        && expression.ty == function.body.locals[alias].ty
+    {
+        expression.kind = mir::ExprKind::Local(alias);
+        true
+    } else {
+        false
+    }
+}
+
 pub(super) fn body(module: &mir::Module, function: &mir::Function) -> (mir::Body, bool) {
     rewrite_body(module, function, false)
 }
@@ -147,21 +143,34 @@ fn rewrite_body(
     current_copies: bool,
 ) -> (mir::Body, bool) {
     let (blocks, mut changed) = fold_blocks(module, function, &[], current_copies);
-    let mut body = function.body.clone();
-    let mut reachable = vec![false; body.blocks.len()];
-    for (id, block) in blocks {
-        reachable[index(id)] = true;
-        body.blocks[id] = block;
-    }
-    for (id, block) in body.blocks.iter_mut() {
-        if !reachable[index(id)] {
-            changed |= !block.statements.is_empty()
-                || !matches!(block.terminator, mir::Terminator::Unreachable)
-                || block.unwind.is_some();
-            block.statements.clear();
-            block.terminator = mir::Terminator::Unreachable;
-            block.unwind = None;
-        }
+    let mut folded = blocks.into_iter().peekable();
+    let mut reachable = vec![false; function.body.blocks.len()];
+    let mut body = mir::Body {
+        locals: function.body.locals.clone(),
+        exception_states: function.body.exception_states.clone(),
+        blocks: la_arena::Arena::with_capacity(function.body.blocks.len()),
+        entry: function.body.entry,
+        loop_header_polls: function.body.loop_header_polls.clone(),
+    };
+    // Preserve arena order so every edge and exception-state block id stays valid.
+    // Reachable blocks are already rewritten; unreachable bodies need no copy.
+    for (id, source) in function.body.blocks.iter() {
+        let block = if let Some((_, block)) = folded.next_if(|(next, _)| *next == id) {
+            reachable[index(id)] = true;
+            block
+        } else {
+            changed |= !source.statements.is_empty()
+                || !matches!(source.terminator, mir::Terminator::Unreachable)
+                || source.unwind.is_some();
+            mir::BasicBlock {
+                name: source.name.clone(),
+                terminator_origin: source.terminator_origin.clone(),
+                statements: Vec::new(),
+                terminator: mir::Terminator::Unreachable,
+                unwind: None,
+            }
+        };
+        body.blocks.alloc(block);
     }
     let polls = body.loop_header_polls.len();
     body.loop_header_polls

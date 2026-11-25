@@ -30,6 +30,10 @@ Linux／macOS 交叉编译 Microsoft target 使用配套宿主 Clang 和显式 `
 
 Windows x64 宿主使用 LLVM-MinGW `20260616` 的 UCRT 环境与支持 UTF-8 build file 的 Ninja（1.11+，`ninja -t wincodepage` 输出 UTF-8），以 `--cc`、`--cxx` 分别选择该 prefix 中的 `clang.exe`、`clang++.exe`。脚本安装 `.exe`、LLVM／Clang DLL 与 import library，并将其 C++／unwind DLL 放在同一 `bin`；Rust 编译使用 `x86_64-pc-windows-gnullvm` 与安装根的 `LLVM_SYS_221_PREFIX`。这些是宿主开发工具，与应用 target 的 Microsoft／MinGW、MSVCRT／UCRT 选择独立。首次完整构建包括 Clang／LLD；重复执行只在输入更新或所需输出缺失时构建。
 
+完整调试信息会为合并到异常处理分支的局部变量生成位置记录。[异常入口补丁](../sysroot/vendor/llvm-project/22.1.8/patches/llvm-landingpad-debug-values.patch)确保异常跳转先执行保留这些值所需的指令。未应用补丁的 LLVM 22.1.8 可以成功构建程序，但 `catch` 可能读到错误的局部值。脚本也应用 [byval 参数调试修正](../sysroot/vendor/llvm-project/22.1.8/patches/llvm-byval-debug-values.patch)与 [dsymutil 重定位修正](../sysroot/vendor/llvm-project/22.1.8/patches/llvm-dsymutil-section-relocations.patch)。
+
+macOS 开发环境中，将 `LLVM_SYS_221_PREFIX` 指向脚本生成的安装目录。SDK 使用 `@rpath` 时，可在构建配套命令前设置 `export RUSTFLAGS="-C link-arg=-Wl,-rpath,$LLVM_SYS_221_PREFIX/lib"`。用 `otool -L target/release/scoopc` 检查依赖路径，使用 `@rpath` 时再用 `otool -l target/release/scoopc` 查看 `LC_RPATH`。构建驱动启动编译子进程时会重建环境，仅在终端设置 `DYLD_LIBRARY_PATH` 无法指定该子进程加载的 LLVM。
+
 发射 Windows target 的宿主 LLVM 必须包含 [statepoint 返回地址修正](../sysroot/vendor/llvm-project/22.1.8/patches/llvm-windows-statepoint-return-pc.patch)。`build_llvm.py` 在需要构建时通过 Git 将补丁应用到所选外部 source tree，已应用时保留原文件；未变化命中不读取补丁或源码内容。补丁将 stackmap 标签放在 WinEH NOP 之前，保留必要的 EH padding。更新宿主 LLVM 后重新构建配套 Scoop 命令和 Windows 系统库；不复用此前发射的错误 stackmap。
 
 构建期间仅在子进程环境中将显式选择的 compiler 目录放到 PATH 前面，不修改用户全局环境。安装必须包含实际依赖的 `libclang-cpp.dll`，否则 PATH 上的 ESP32 等另一套 Clang DLL 可能被 Windows 加载并导致入口点错误。新构建完成后运行安装目录中的 llvm-config 与 Clang；命中缓存时不重复运行。需要排查当前会话的工具选择时，检查 PATH、`CC`／`CXX`、`CFLAGS`／`CXXFLAGS`、`CPATH`／`LIBRARY_PATH` 和 `LLVM_SYS_221_PREFIX`，不以清空全局配置代替正确安装依赖。
@@ -42,7 +46,7 @@ python3 scripts/build_llvm_unwind.py --target x86_64-unknown-linux-musl \
   --cc clang-22 --cxx clang++-22 --musl-include /usr/include/x86_64-linux-musl
 ```
 
-两个 LLVM 准备脚本在复制输入、补丁、工具探测和 CMake 之前检查输入 metadata 与所需输出；构建后从实际 Make depfile 或 Ninja 依赖记录保存头文件输入，更新时仍由 CMake 的普通增量构建处理。命中只检查保存的输入 metadata 和输出存在，不执行 Ninja 或读回 archive、对象或 LLVM 动态库。libunwind 的三个 Linux 链接模式可按 [M28 说明](../docs/milestone28/BUILDING.md) 单独验证。
+两个 LLVM 准备脚本在复制输入、补丁、工具探测和 CMake 之前检查输入 metadata 与所需输出；构建后从实际 Make depfile 或 Ninja 依赖记录保存头文件输入，更新时仍由 CMake 的普通增量构建处理。命中只检查保存的输入 metadata 和输出存在，不执行 Ninja 或读回 archive、对象或 LLVM 动态库。libunwind 的三个 Linux 链接模式可按 [M28 说明](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone28/BUILDING.md) 单独验证。
 
 Windows 使用 `build_windows_unwind.py --target <完整目标> --source <LLVM-22.1.8-source> --cc <目标-Clang> --build-dir E:/scoop-work/unwind/<target>` 准备静态 LLVM libunwind。Microsoft 在 x64 SDK／MSVC 开发环境中使用同目录的 clang-cl 和 `/MD`；两个 LLVM-MinGW 目标使用各自 CRT prefix 的 Clang。脚本在工作目录中复制所需上游源码，Microsoft 配置应用限定为 Clang x64／静态 Level-I SEH 的 CMake 补丁，并保留 C unwind 函数的异常标记，关闭库自身的 C++ 异常／RTTI。头文件与 canonical `lib/libunwind.a` 发布到 `sysroot/lib/<target>/unwind`，可用 `--prefix` 覆盖；普通编译直接使用这些资源。命中更新记录时不复制源码、启动 CMake／Ninja或检查 archive 内容。
 
@@ -197,7 +201,7 @@ Windows 的宿主 DLL 通过同一归档内的硬链接放在实际使用它们�
 
 post-install 使用配套 `scoop`／`scoopc`，显式选择上述目标清单，以 `--no-deps --deny-doc-warnings` 为所选目标生成共同站点。嵌套测试／辅助 Cone 不进入发行清单。工作目录下的 `doc-target` 和普通 `cache` 保留中间结果；文档直接生成到安装根的 `docs/<target>`，保留普通文档更新记录，重复执行复用未变化的文档。文档失败使本次 post-install 返回非零状态，不将失败报告为安装成功。
 
-安装根的 `docs/index.html` 列出已经准备的目标，具体站点位于 `docs/<canonical-target-triple>/`。追加准备其他目标时保留已经生成的站点。源码原文嵌入 HTML，搜索和库内资源均在本地；指向仓库 `docs/`、`scripts/`、`tests/` 的 Markdown 链接在组装时改为本次源码 revision 的 GitHub 链接，作为设计及维护文档的外部参考。`.slib` 不保存完整源码。手工验收时检查安装后的目标及库清单、跨库链接、源码页、离线搜索与重复生成的复用情况；文档能力的详细范围见 [M60 设计](../docs/milestone60/DESIGN.md)。
+安装根的 `docs/index.html` 列出已经准备的目标，具体站点位于 `docs/<canonical-target-triple>/`。追加准备其他目标时保留已经生成的站点。源码原文嵌入 HTML，搜索和库内资源均在本地；指向仓库 `docs/`、`scripts/`、`tests/` 的 Markdown 链接在组装时改为本次源码 revision 的 GitHub 链接，作为设计及维护文档的外部参考。`.slib` 不保存完整源码。手工验收时检查安装后的目标及库清单、跨库链接、源码页、离线搜索与重复生成的复用情况；文档能力的详细范围见 [M60 设计](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone60/DESIGN.md)。
 
 手工验证发布包时，将同一版本的 bin、sources 与所选 lib 组件归档（MinGW 还需同目标 native）依次解压到同一个新目录，可使用带空格路径；保留源码、原工具和原产物。确认 lib 归档包含该目标的系统 `.slib`、所有包没有 `docs/`，再执行 post-install。运行五个命令的版本查询，检查实际加载的私有 LLVM，再用空缓存完成含 native／泛型／GC 的应用、crypto／TLS、普通库测试和两个 link 入口，重复构建检查复用。Linux 还应覆盖 GNU 与 musl 的既有链接模式。常规 fixture 使用已准备的开发 sysroot，不执行打包或解压步骤。
 

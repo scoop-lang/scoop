@@ -85,7 +85,7 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 | 编译／链接   | `scoop build . --release`                      | 完成当前 Cone 产物及可执行 Cone 的链接，`-o` 选择输出位置。                          |
 | 仅生成产物   | `scoop build . --emit-slib --release`          | 发布根 `.slib`，不准备 runtime 或执行最终链接；测试产物可再加 `--tests`。            |
 | 执行         | `scoop run . --release -- Alice --count 2`     | `--` 后原样传给程序。程序的 `--help` 也放在分隔符后。                                |
-| 测试         | `scoop test . --release`                       | 编译并运行 manifest Cone 的测试，保持测试依赖在 `[test-dependencies]`。              |
+| 测试         | `scoop test . --release`                       | 编译并运行 manifest Cone 的测试，测试依赖放在 `[test-dependencies]`。独占进程的窗口测试可在 `[test]` 设置 `isolate = true`。              |
 | 选择测试     | `scoop test . --release --filter "zero count"` | 按完整测试名称的子串筛选；`--list` 列举，`--no-run` 仅构建，`--nocapture` 显示输出。 |
 | API 文档     | `scoop doc . --no-deps --deny-doc-warnings`    | 生成所选根的离线文档；多根可同时传入，`--output-dir` 选择站点位置。                  |
 

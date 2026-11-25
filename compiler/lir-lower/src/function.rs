@@ -119,6 +119,7 @@ pub(super) fn lower_function<'a>(
     globals: &mut Arena<lir::Global>,
     structs: &lir::StructDefs,
     enums: &lir::EnumDefs,
+    class_layouts: &ClassLayouts<'_>,
     array_types: &'a HashMap<mir::ClassId, lir::ArrayTypeId>,
     type_descriptors: &'a TypeDescriptorRefs,
     local_function_map: &'a HashMap<mir::FunctionId, lir::LocalFunctionRef>,
@@ -278,6 +279,7 @@ pub(super) fn lower_function<'a>(
         cstr_count: 0,
         structs,
         enums,
+        class_layouts,
         array_types,
         type_descriptors,
         local_function_map,
@@ -422,6 +424,7 @@ struct FunctionLowerer<'a> {
     structs: &'a lir::StructDefs,
     /// Enum definitions with complete fixed value representations.
     enums: &'a lir::EnumDefs,
+    class_layouts: &'a ClassLayouts<'a>,
     /// Complete class-application to array-metadata mapping produced before
     /// any function is lowered.
     array_types: &'a HashMap<mir::ClassId, lir::ArrayTypeId>,

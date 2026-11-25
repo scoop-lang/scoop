@@ -22,7 +22,7 @@
 
 程序自身的异常／trap stack trace 是相关的独立能力，由 `--enable-stack-trace[=true|false]` 控制，源码构建 debug 默认开启、release 默认关闭。开启时 Throwable 在首次抛出时保存快照，printStackTrace 和未捕获报告读取原栈，trap 即时采集并打印；关闭时不采集，打印不可用提示。采集不依赖 LLDB 或 DWARF；源码符号化复用本设计的调试文件。其布局、GC、符号器与实施顺序见 [栈诊断设计](STACK_TRACES.md)。
 
-Windows target、COFF、调用 ABI、runtime、GC / EH 与链接支持由 [Windows 移植](../windows-targets/DESIGN.md)实现；调试信息复用本设计的共享源码记录，选择 CodeView／PDB 后端。实际 Windows 验收范围和剩余工作见[实施进度](../windows-targets/PROGRESS.md)。
+Windows target、COFF、调用 ABI、runtime、GC / EH 与链接支持由 [Windows 移植](../windows-targets/DESIGN.md)实现；调试信息复用本设计的共享源码记录，选择 CodeView／PDB 后端。Windows 工具链与当前支持范围见[维护入口](../windows-targets/README.md)。
 
 发行时 LLDB、配套 Python、Clang builtin headers、formatter 与 Scoop 命令统一进入宿主 bin 组件。只收集实际动态依赖，Windows 在所需加载位置使用同一归档内的硬链接共享相同文件；完整 LLVM 开发 SDK 留在维护 prefix。详见[发行组件设计](../distribution/DESIGN.md)。
 
@@ -69,7 +69,7 @@ LLVM 22.1 的标准调试元数据和 debug records 足以承担底层表示；i
 | DAP 初始化的异常过滤列表 | C++、Objective-C、Swift 的 catch / throw；没有 Scoop | Scoop 异常过滤需要额外支持 |
 | llvm-symbolizer 使用 executable、dSYM 和 linkage / JSON 输出 | 返回 main、probe.scoop 第 3 行第 5 列及函数起始地址 | 可用标准工具接替 map 的地址归因基础 |
 
-上述最小实验未覆盖 Linux 分离后的实际程序调试、复合类型、优化后的变量位置和 moving GC；后续 Scoop 验收的实际范围见实施记录。Windows PDB 的移植进度见 [Windows 实施记录](../windows-targets/PROGRESS.md)。编译器后端与 debugger 的 LLVM 主版本不必相同，兼容性应通过目标格式和实际调试行为确认。
+上述最小实验未覆盖 Linux 分离后的实际程序调试、复合类型、优化后的变量位置和 moving GC；后续 Scoop 验收的实际范围见实施记录。Windows PDB 的当前能力见[调试支持范围](IMPLEMENTATION.md)。编译器后端与 debugger 的 LLVM 主版本不必相同，兼容性应通过目标格式和实际调试行为确认。
 
 ## 4. 用户接口与默认行为
 

@@ -61,25 +61,17 @@ impl Types<'_> {
     pub(super) fn class_object(&mut self, id: mir::ClassId) -> StorageResult<DebugType> {
         let definition = &self.module.classes[id];
         let name = &definition.name;
-        let exact = exact_type_record(self.module, &mir::Type::Class(id)).id();
         match &definition.representation {
             mir::ClassRepresentation::Declared(declared) => {
-                let (offsets, size, align) = match self.layouts.get(&exact) {
-                    Some(layout) => (
-                        layout.fields.iter().map(|field| field.offset).collect(),
-                        layout.size,
-                        layout.align,
-                    ),
-                    None => class_shape(self.context, self.module, self.enums, declared)?,
-                };
+                let layout = self.class_layouts.get(id)?;
                 let mut fields = self.header_fields();
-                for (member, offset) in declared.fields.iter().zip(offsets) {
+                for (member, offset) in declared.fields.iter().zip(layout.offsets.iter().copied()) {
                     fields.push(field(&member.name, offset, self.source(&member.ty)?));
                 }
                 Ok(DebugType {
                     name: name.clone(),
-                    size,
-                    align,
+                    size: layout.size,
+                    align: layout.align,
                     kind: DebugTypeKind::Record(fields),
                 })
             }
@@ -104,6 +96,7 @@ impl Types<'_> {
                 }
                 mir::IntrinsicClassRepresentation::Array { element }
                 | mir::IntrinsicClassRepresentation::MutableArray { element } => {
+                    let exact = exact_type_record(self.module, &mir::Type::Class(id)).id();
                     let instance = match self.arrays.get(&exact) {
                         Some(array) => array.layout.instance().clone(),
                         None => {

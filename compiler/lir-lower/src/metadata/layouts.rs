@@ -1,11 +1,13 @@
 use super::*;
 mod atomics;
+mod classes;
 mod objects;
 mod shapes;
 mod task_context;
 mod values;
 
 pub(crate) use atomics::*;
+pub(crate) use classes::ClassLayouts;
 pub(crate) use objects::*;
 pub(crate) use shapes::*;
 pub(crate) use task_context::context_object_shape;
@@ -19,6 +21,7 @@ pub(crate) fn layouts(
     module: &mir::Module,
     enums: &lir::EnumDefs,
     emit_runtime_string: bool,
+    class_layouts: &ClassLayouts<'_>,
 ) -> StorageResult<Arena<lir::Layout>> {
     let mut layouts = Arena::new();
     task_context::append(context, identity_roots, module, enums, &mut layouts)?;
@@ -89,6 +92,8 @@ pub(crate) fn layouts(
                     enums,
                     managed_object_layout_identity(context, identity_roots, module, &ty),
                     def,
+                    id,
+                    class_layouts,
                 )?);
             }
             mir::ClassRepresentation::Intrinsic(
@@ -104,6 +109,8 @@ pub(crate) fn layouts(
                     enums,
                     managed_object_layout_identity(context, identity_roots, module, &ty),
                     def,
+                    id,
+                    class_layouts,
                 )?);
             }
         }

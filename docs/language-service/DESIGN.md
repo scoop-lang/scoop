@@ -2,7 +2,7 @@
 
 状态：公共基础 A～E 已完成。设计日期：2026-10-21；实施起始：2026-10-22，基线 `033dd9e1d`。原调研基线：`4de3ae9e8`。外部资料、依赖候选与功能清单见[调研](INVESTIGATION.md)；阶段合同见[实现规范 2.20](../specs/SCOOP-IMPL-SPEC.md#220-可恢复语法与语言服务公共基础)。实际交付、验收与当前限制见[实施记录](PROGRESS.md)，M47 的 codec 迁移仍按其设计独立推进。
 
-依据：[语言规范](../specs/SCOOP-SPEC.md)的语法、名称、类型与文档规则，[实现规范](../specs/SCOOP-IMPL-SPEC.md)2.1、2.2、2.7、2.11、2.20，[M47 设计](../milestone47/DESIGN.md)及[同步查询协议](../milestone47/PROTOCOL.md)。运行时继续遵守[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)，本设计没有 runtime 变更。
+依据：[语言规范](../specs/SCOOP-SPEC.md)的语法、名称、类型与文档规则，[实现规范](../specs/SCOOP-IMPL-SPEC.md)2.1、2.2、2.7、2.11、2.20，[M47 设计](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone47/DESIGN.md)及[同步查询协议](../generator-protocol/PROTOCOL.md)。运行时继续遵守[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)，本设计没有 runtime 变更。
 
 一次性终端查询使用配套的 [scoop-lsp query](CLI.md)，复用现有 LSP 传输及语义实现。
 

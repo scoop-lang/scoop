@@ -40,11 +40,13 @@ impl ParsedConeManifest {
         let declared = bind(&document.dependencies, bindings)?;
         let mut tests = if include_tests {
             TestManifestConfig {
+                isolate: document.isolate_tests,
                 sources: document.test_sources.clone(),
                 dependencies: bind(&document.test_dependencies, bindings)?,
             }
         } else {
             TestManifestConfig {
+                isolate: false,
                 sources: SourceSelection::Explicit(Vec::new()),
                 dependencies: BTreeMap::new(),
             }

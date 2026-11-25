@@ -150,7 +150,7 @@ impl<'a> ProgramInputs<'a> {
         let mut string_target = None;
         for (artifact, symbols) in closure.artifacts() {
             let cone = artifact.identity();
-            let image = image::SelectedImage::new(artifact, selected.definitions(cone), profile)?;
+            let image = image::SelectedImage::new(artifact, selected.definitions(cone), profile);
             images.push(image.name.clone());
             requirements.extend(image.references().cloned());
             for name in image.defined_names() {
@@ -159,8 +159,11 @@ impl<'a> ProgramInputs<'a> {
                     .owners()
                     .iter()
                     .find(|record| record.symbol() == name.as_bytes())
-                    .expect("verified image symbol owner");
-                definitions.insert(name.to_owned(), DefinitionOwner::Scoop(owner.owner()));
+                    .ok_or_else(|| error(
+                        scoop_source::DiagnosticCode::E2409,
+                        format!("Cone {cone} has no definition owner for generated image symbol {name}"),
+                    ))?;
+                register_scoop_definition(&mut definitions, name, owner.owner(), cone)?;
             }
             final_images.push(image);
             if let Some(entry) = artifact.production().entry_symbol {
@@ -202,17 +205,9 @@ impl<'a> ProgramInputs<'a> {
                 if !selected.contains(cone, definition.member()) {
                     continue;
                 }
-                let name = String::from_utf8(definition.symbol().to_vec())
+                let name = std::str::from_utf8(definition.symbol())
                     .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2401, cause))?;
-                let owner = DefinitionOwner::Scoop(definition.owner());
-                if let Some(previous) = definitions.insert(name.clone(), owner) {
-                    return Err(error(
-                        scoop_source::DiagnosticCode::E2412,
-                        format!(
-                            "multiple or conflicting selected owners for {name}: {previous:?}, {owner:?}; Cone {cone}"
-                        ),
-                    ));
-                }
+                register_scoop_definition(&mut definitions, name, definition.owner(), cone)?;
             }
             for alias in symbols.link_support().runtime_data_aliases() {
                 let record = symbols
@@ -364,6 +359,30 @@ impl<'a> ProgramInputs<'a> {
 
     pub fn linker_defined(&self, symbol: &str) -> bool {
         symbol == self.symbol("scoop_td_String") || symbol == self.symbol("__dso_handle")
+    }
+}
+
+/// Generated image symbols and selected object symbols occupy one linker namespace.
+fn register_scoop_definition(
+    definitions: &mut BTreeMap<String, DefinitionOwner>,
+    name: &str,
+    owner: LinkDefinitionOwnerV1,
+    cone: ConeIdentity,
+) -> Result<(), LinkError> {
+    use std::collections::btree_map::Entry;
+    let owner = DefinitionOwner::Scoop(owner);
+    match definitions.entry(name.to_owned()) {
+        Entry::Vacant(entry) => {
+            entry.insert(owner);
+            Ok(())
+        }
+        Entry::Occupied(entry) => Err(error(
+            scoop_source::DiagnosticCode::E2412,
+            format!(
+                "multiple or conflicting selected owners for {name}: {:?}, {owner:?}; Cone {cone}",
+                entry.get()
+            ),
+        )),
     }
 }
 

@@ -33,7 +33,7 @@ pub(crate) fn array_types(
             }
         };
         let (element_size, element_align, element_scan) =
-            class_layout(context, module, enums, class)?;
+            array_element_layout(context, module, enums, element)?;
         let id = arrays.alloc(lir::ArrayType {
             identity: lir::LayoutIdentity::managed_array(
                 exact_type_record(module, &ty).id(),

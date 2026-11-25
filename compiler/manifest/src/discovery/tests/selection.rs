@@ -117,7 +117,7 @@ fn accepts_external_source_symlinks_and_rejects_duplicate_selections() {
         discovered.first().identity().logical_path().as_str(),
         "src/escape.scoop"
     );
-    assert_eq!(discovered.first().source_text(), "fun api() {}\n");
+    assert_eq!(discovered.first().source_text().as_str(), "fun api() {}\n");
     std::fs::remove_file(cone.0.join("src/escape.scoop")).unwrap();
     cone.write("api.scoop", "fun api() {}\n");
     std::os::unix::fs::symlink("../api.scoop", cone.0.join("src/alias.scoop")).unwrap();

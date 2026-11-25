@@ -1,6 +1,6 @@
 # Scoop TLS 库规范
 
-版本：M51 已实施基线，含第 8 节的 M54 扩展。既有实现状态见 [M51 进度](../milestone51/PROGRESS.md)，新增范围与实施状态见 [M54 设计](../milestone54/DESIGN.md)及[进度](../milestone54/PROGRESS.md)。本规范与[密码库规范](SCOOP-CRYPTO-SPEC.md)共同规定三个普通库的边界。
+本规范与密码库规范共同规定证书、TLS 会话与异步流适配的职责。[密码库规范](SCOOP-CRYPTO-SPEC.md)
 
 ## 1. 分层
 

@@ -1,0 +1,4 @@
+Worker.apply(ptr<managed>, parts<struct [[2xi64]@0+16/8]>) -> parts<struct [[2xi64]@0+16/8]>
+floats(parts<struct [[3xf32]@0+12/4]>) -> parts<struct [[3xf32]@0+12/4]>
+identity(parts<struct [[2xi64]@0+16/8]>) -> parts<struct [[2xi64]@0+16/8]>
+registers(i64, i64, i64, i64, i64, i64, parts<struct [[2xi64]@0+16/8]>, f64) -> parts<struct [[2xi64]@0+16/8]>

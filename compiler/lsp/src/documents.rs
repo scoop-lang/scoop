@@ -97,8 +97,7 @@ impl Documents {
         let uri = &change.text_document.uri;
         let document = self
             .files
-            .get(uri)
-            .cloned()
+            .get_mut(uri)
             .ok_or_else(|| convert::error(ErrorCode::InvalidRequest, "document is not open"))?;
         let version = document
             .version
@@ -112,7 +111,12 @@ impl Documents {
         let mut text = self
             .host
             .source(document.source)
-            .expect("document owns its source")
+            .ok_or_else(|| {
+                convert::error(
+                    ErrorCode::InternalError,
+                    format!("open document {} has no analysis source", uri.as_str()),
+                )
+            })?
             .text
             .clone();
         for edit in change.content_changes {
@@ -125,7 +129,7 @@ impl Documents {
                         "edit range is reversed",
                     ));
                 }
-                let mut updated = text.as_str().to_owned();
+                let mut updated = text.into_string();
                 updated.replace_range(start..end, &edit.text);
                 text = SourceText::from(updated);
             } else {
@@ -133,14 +137,7 @@ impl Documents {
             }
         }
         self.host.set_text(document.source, text);
-        self.files.insert(
-            uri.clone(),
-            Document {
-                source: document.source,
-                version: Some(change.text_document.version),
-                path: document.path,
-            },
-        );
+        document.version = Some(change.text_document.version);
         Ok(())
     }
 

@@ -19,7 +19,7 @@ Windows 的[实施记录][windows-progress]确认 W0～W4 完成，包括高层 
 
 这些版本用于复现本次审查，后续按实际数据变化同步更新，不设为历史兼容边界。
 
-权威依据：[语言规范](../specs/SCOOP-SPEC.md)、[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)、[实现规范](../specs/SCOOP-IMPL-SPEC.md)。本设计承接 [M39](../milestone39/DESIGN.md)，保留其已经实现的 ABI 规划与完整 LIR 交接，继续整理尚未收口的登记、对象、工具链、runtime 和系统库职责。
+权威依据：[语言规范](../specs/SCOOP-SPEC.md)、[运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)、[实现规范](../specs/SCOOP-IMPL-SPEC.md)。本设计承接 [M39](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone39/DESIGN.md)，保留其已经实现的 ABI 规划与完整 LIR 交接，继续整理尚未收口的登记、对象、工具链、runtime 和系统库职责。
 
 ## 1. 目标与交付边界
 
@@ -448,7 +448,7 @@ Windows TTY 测试按 [asyncio 原生测试辅助库](../../sysroot/src/scoop.as
 - native 与 RC 共用的 include 不再枚举 canonical target 路径；准备、打包、文档、fixture 不再各维护一份完整 target 事实；库自己的适用条件继续由其 manifest 表达。
 - 缓存仍只判断更新，不新增内容验真、重放检查、输入隐藏或来源审计；所有新登记的 target 均有完整实现，没有空 handler。
 
-[windows-progress]: ../windows-targets/PROGRESS.md
+[windows-progress]: https://github.com/scoop-lang/scoop/blob/f93c4b46082def07aa51103567e2d6a2ea0978fc/docs/windows-targets/PROGRESS.md
 [windows-contract]: ../../compiler/lir/src/target/contract.rs
 [windows-machine-abi]: ../../compiler/lir/src/runtime_abi/machine.rs
 [windows-driver]: ../../compiler/toolchain/src/native_driver.rs

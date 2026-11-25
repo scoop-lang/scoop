@@ -10,19 +10,46 @@ use super::*;
 /// Class ids ordered base-before-derived (single inheritance: depth
 /// in the base chain; ties keep declaration order).
 pub(crate) fn class_order(module: &mir::Module) -> StorageResult<Vec<mir::ClassId>> {
+    #[derive(Clone, Copy)]
+    enum Depth {
+        Unknown,
+        Visiting,
+        Known(usize),
+    }
+    let mut depths = vec![Depth::Unknown; module.classes.len()];
+    let mut path = Vec::new();
     let mut order = Vec::with_capacity(module.classes.len());
     for (id, _) in module.classes.iter() {
-        let mut seen = std::collections::HashSet::new();
         let mut current = Some(id);
+        let mut depth = 0;
         while let Some(class) = current {
-            if !seen.insert(class) {
-                return Err(StorageLoweringError::InvalidRepresentation(
-                    "class base cycle",
-                ));
+            let definition = module
+                .classes
+                .values()
+                .nth(u32::from(class.into_raw()) as usize)
+                .ok_or(StorageLoweringError::MissingClass(class))?;
+            let state = &mut depths[u32::from(class.into_raw()) as usize];
+            match *state {
+                Depth::Known(known) => {
+                    depth = known;
+                    break;
+                }
+                Depth::Visiting => {
+                    return Err(StorageLoweringError::InvalidRepresentation(
+                        "class base cycle",
+                    ));
+                }
+                Depth::Unknown => *state = Depth::Visiting,
             }
-            current = module.classes[class].base_class();
+            path.push(class);
+            current = definition.base_class();
         }
-        order.push((seen.len(), id));
+        // Each base chain is resolved once; later children reuse its depth.
+        for class in path.drain(..).rev() {
+            depth += 1;
+            depths[u32::from(class.into_raw()) as usize] = Depth::Known(depth);
+        }
+        order.push((depth, id));
     }
     order.sort_by_key(|(depth, _)| *depth);
     Ok(order.into_iter().map(|(_, id)| id).collect())
@@ -118,6 +145,7 @@ pub(crate) fn dispatch_entry(
 /// Build the complete local TypeDescriptor graph before lowering any body.
 /// Parent, interface, dispatch and operand references can therefore use typed
 /// ids directly; symbols remain emission attributes only.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn type_descriptors(
     context: &LoweringContext,
     identity_roots: &IdentityRoots<'_>,
@@ -126,6 +154,7 @@ pub(crate) fn type_descriptors(
     local_functions: &HashMap<mir::FunctionId, lir::LocalFunctionRef>,
     external_callables: &HashMap<mir::ExternalCallableUseId, lir::ExternalCallableId>,
     dependencies: crate::dependency_types::DependencyTypeDescriptors,
+    class_layouts: &ClassLayouts<'_>,
 ) -> Result<
     (
         Arena<lir::TypeDescriptor>,
@@ -247,6 +276,7 @@ pub(crate) fn type_descriptors(
             &refs,
             local_functions,
             external_callables,
+            class_layouts,
         )?;
         refs.itable_interfaces.insert(
             id,

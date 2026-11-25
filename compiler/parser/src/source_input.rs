@@ -45,23 +45,23 @@ impl<'a> IdentifiedSourceInput<'a> {
 
 /// One canonical current-Cone parser input with its request-local display
 /// locator. The locator decorates diagnostics but has no semantic role.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CurrentConeSourceInput<'a> {
     identity: &'a SourceIdentity,
-    text: &'a str,
+    text: scoop_source::SourceText,
     display_locator: &'a Path,
     role: SourceRole,
 }
 
 impl<'a> CurrentConeSourceInput<'a> {
-    pub const fn new(
+    pub fn new(
         identity: &'a SourceIdentity,
-        text: &'a str,
+        text: impl Into<scoop_source::SourceText>,
         display_locator: &'a Path,
     ) -> Self {
         Self {
             identity,
-            text,
+            text: text.into(),
             display_locator,
             role: SourceRole::Production,
         }
@@ -76,8 +76,8 @@ impl<'a> CurrentConeSourceInput<'a> {
         self.identity
     }
 
-    pub const fn text(&self) -> &'a str {
-        self.text
+    pub fn text(&self) -> &str {
+        self.text.as_str()
     }
 
     pub const fn display_locator(&self) -> &'a Path {
@@ -203,42 +203,18 @@ pub fn parse_current_cone(
 ) -> Result<CurrentConeParsedSources, ParseCurrentConeError> {
     validate_current_cone_inputs(&inputs).map_err(ParseCurrentConeError::Input)?;
 
-    let first = inputs.first();
-    let source_texts = NonEmptyVec::new(
-        CurrentSourceText::new(first.identity().clone(), first.text().to_owned()),
-        inputs
-            .iter()
-            .skip(1)
-            .map(|input| CurrentSourceText::new(input.identity().clone(), input.text().to_owned()))
-            .collect(),
-    );
-    let diagnostic_context = NonEmptyVec::new(
-        CurrentSourceDiagnosticContext::new(
-            first.identity().clone(),
-            first.display_locator().to_path_buf(),
-        ),
-        inputs
-            .iter()
-            .skip(1)
-            .map(|input| {
-                CurrentSourceDiagnosticContext::new(
-                    input.identity().clone(),
-                    input.display_locator().to_path_buf(),
-                )
-            })
-            .collect(),
-    );
-    let parser_inputs = NonEmptyVec::new(
-        IdentifiedSourceInput::new(first.identity(), first.text()).with_role(first.role),
-        inputs
-            .iter()
-            .skip(1)
-            .map(|input| {
-                IdentifiedSourceInput::new(input.identity(), input.text()).with_role(input.role)
-            })
-            .collect(),
-    );
+    let parser_inputs = inputs.map(|input| {
+        IdentifiedSourceInput::new(input.identity(), input.text()).with_role(input.role)
+    });
     let parsed = parse_all(parser_inputs).map_err(ParseCurrentConeError::Diagnostics)?;
+    let source_texts =
+        inputs.map(|input| CurrentSourceText::new(input.identity().clone(), input.text.clone()));
+    let diagnostic_context = inputs.map(|input| {
+        CurrentSourceDiagnosticContext::new(
+            input.identity().clone(),
+            input.display_locator().to_path_buf(),
+        )
+    });
     CurrentConeParsedSources::try_new(parsed, source_texts, diagnostic_context)
         .map_err(ParseCurrentConeError::Output)
 }

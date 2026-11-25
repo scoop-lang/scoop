@@ -4,7 +4,7 @@ use scoop_ast as ast;
 impl Parser {
     pub(super) fn starts_trailing_lambda(&self) -> bool {
         if self.at_arm_body_newline()
-            || self.supertype_expression_nesting == Some(self.expression_nesting[self.pos])
+            || self.supertype_expression_nesting == Some(self.expression_depth())
         {
             return false;
         }

@@ -1,9 +1,9 @@
 schema = 1
 name = "devirtualization-artifacts"
-inputs = ["provider", "consumer"]
-tools = ["scoop", "scoopc", "scoop-link"]
+inputs = ["provider", "consumer", "../inspect_dispatch.py"]
+tools = ["scoop", "scoopc", "scoop-link", "python"]
 when = { os = ["darwin", "linux"] }
-tags = ["stage-golden", "devirtualization", "generics", "compiler-correctness"]
+tags = ["devirtualization", "generics", "compiler-correctness"]
 variants = [{"name" = "debug", "vars" = {"profile" = "debug", "provider_profile" = "release", "symbol_args" = ["--keep-symbols", "--emit-debug-file"], "stack_trace" = "true"}}, {"name" = "release", "vars" = {"profile" = "release", "provider_profile" = "debug", "symbol_args" = [], "stack_trace" = "false"}}]
 
 [[steps]]
@@ -15,16 +15,13 @@ files = [
 
 [[steps]]
 name = "provider"
-argv = ["${scoop}", "build", {"each" = "${link_args}"}, "${work}/sources/provider", "--profile", "${provider_profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-provider", "--message-format", "json", "-o", "${work}/artifacts/dev.m34/devirt-provider/0.1.0/cone.slib", "--emit", "mir", "--dump-dir", "${work}/dump"]
+argv = ["${scoop}", "build", {"each" = "${link_args}"}, "${work}/sources/provider", "--profile", "${provider_profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-provider", "--message-format", "json", "-o", "${work}/artifacts/dev.m34/devirt-provider/0.1.0/cone.slib"]
 timeout = 300
 exit = 0
 stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [
-  {"file" = "${work}/dump/${provider.result.root.identity}/mir.txt", "snapshot" = "provider.${provider_profile}.mir.txt"},
-]
 
 [[steps]]
 name = "consumer"
@@ -35,9 +32,13 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [
-  {"file" = "${work}/dump/${consumer.result.root.identity}/mir.txt", "snapshot" = "consumer.${profile}.mir.txt"},
-]
+
+[[steps]]
+name = "dispatch"
+argv = ["${python}", "${fixture}/../inspect_dispatch.py", "${work}/dump/${consumer.result.root.identity}/mir.txt", "artifacts", "${profile}"]
+exit = 0
+stdout = ""
+stderr = ""
 
 [[steps]]
 name = "link"

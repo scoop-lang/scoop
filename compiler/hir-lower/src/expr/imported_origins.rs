@@ -121,7 +121,7 @@ impl Lowerer {
                 debug_path: name.as_str().into(),
                 name,
 
-                source: String::new(),
+                source: "".into(),
                 canonical_record: Some(record.clone()),
             }));
         self.imported_source_indices

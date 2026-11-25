@@ -1,4 +1,5 @@
 //! Fixed templates for new manifest Cones.
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use clap::{Args, ValueEnum};
@@ -54,8 +55,13 @@ pub(super) fn execute(args: NewArgs) -> BuildResult<()> {
         }
         std::fs::write(&path, contents).map_err(|error| io_error(&path, error))?;
     }
-    eprintln!("created {}", args.path.display());
-    Ok(())
+    writeln!(std::io::stderr(), "created {}", args.path.display()).map_err(|error| {
+        BuildFailure::tool(
+            scoop_source::DiagnosticCode::E2204,
+            BuildFailurePhase::Request,
+            error,
+        )
+    })
 }
 
 fn template(args: &NewArgs) -> BuildResult<Vec<(&'static str, String)>> {

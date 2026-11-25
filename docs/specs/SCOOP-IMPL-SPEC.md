@@ -6,7 +6,7 @@
 
 ## 1. 范围与目标兼容性
 
-Windows 三环境扩展已按 [Windows targets 设计](../windows-targets/DESIGN.md) 完成 W0～W4，并随 `b0de037002`（#70）合入主线。三个完整 target 覆盖 MSVC＋UCRT、LLVM-MinGW＋MSVCRT 与 LLVM-MinGW＋UCRT 的 Win64、SEH／statepoint、C++ 和 Rust 文本后端组合；跨宿主回归、系统库及候选归档安装的实际验证范围见[实施记录](../windows-targets/PROGRESS.md)。项目仍处于未发布阶段；目标实现须满足本规范的编译／链接、运行时规范的 GC／异常合同及对应功能验收，不提供关闭异常或缺少精确根的临时 target。
+Windows 的三个完整 target 分别使用 MSVC＋UCRT、LLVM-MinGW＋MSVCRT 与 LLVM-MinGW＋UCRT，提供 Win64、SEH／statepoint、C++ 和 Rust 文本后端。构建与系统库入口见 [Windows 支持范围](../windows-targets/README.md)。项目仍处于未发布阶段；目标实现须满足本规范的编译／链接、运行时规范的 GC／异常合同及对应功能验收，不提供关闭异常或缺少精确根的临时 target。
 
 宿主 LLVM 准备同时安装 LLVM／Clang 动态库、Rust 构建所需的 llvm-config／头文件、Clang／clang-cl／Clang++、LLD 及所需 LLVM 对象／归档／资源工具。LLVM 与 inkwell 均只启用实际使用的 AArch64／X86 backend，不引用未构建 target 的初始化入口。Windows x64 宿主采用 LLVM-MinGW UCRT 开发环境构建，Rust 宿主为 `x86_64-pc-windows-gnullvm`；宿主身份不覆盖应用选择的完整 Scoop target。Windows 使用原生 Ninja 和 `.exe`／DLL 布局，必需的宿主 LLVM／Clang、C++／unwind DLL 与实际引用它们的工具相邻安装；Darwin／Linux 保持各自的 rpath 与动态库规则。开发安装与运行期工具包的组装仍由维护脚本负责，普通编译不构建宿主 LLVM。
 
@@ -50,7 +50,7 @@ Darwin/amd64 使用 `org.scoop-lang.backend-profile/llvm-22-1-darwin-x86-64/1`�
 
 Darwin 两个架构分别使用自身 target sysroot。amd64 的 generated-C、native、runtime 和 startup 同样显式选择 x86-64 CPU、目标 SDK 与部署版本。当前发行部署基线为 macOS 27.0.1／SDK 27.0，本机 Apple Silicon 可通过 Rosetta 验证 amd64 程序；这不构成更旧 macOS 或真实 Intel 硬件的验证声明。AArch64 宿主发行携带两个 Darwin 目标的 lib 组件包，amd64 宿主默认并携带 amd64 目标，发行组合与运行能力分别判断。
 
-Windows x64 宿主默认选择 `x86_64-pc-windows-msvc-ucrt`，不根据构建 Scoop 自身的 Rust ABI 或 PATH 上的 compiler 改选应用 target。显式 Windows target 使用上表完整名称，不将 LLVM machine triple 或缺少 native 环境／CRT 的简称当作别名。Windows 系统库及配套工具包的支持范围按 [Windows 实施记录](../windows-targets/PROGRESS.md) 标明，不从 target 可解析推定全部库已通过验收。
+Windows x64 宿主默认选择 `x86_64-pc-windows-msvc-ucrt`，不根据构建 Scoop 自身的 Rust ABI 或 PATH 上的 compiler 改选应用 target。显式 Windows target 使用上表完整名称，不将 LLVM machine triple 或缺少 native 环境／CRT 的简称当作别名。Windows 系统库、调试器和配套工具包的入口见 [Windows 支持范围](../windows-targets/README.md)，具体资源由发行配置按 target 选择。
 
 LIR 目标数据显式保存机器架构、过程 ABI、Scoop ABI classifier 与 EH 约定。过程 ABI 选择 Darwin AArch64、SysV AMD64 或 Win64 的完整签名分类器；Scoop classifier 不从 COFF 推导，SEH personality 的名称与签名不从对象格式推导。静态目录绑定这些已实现的规则，IR crate 只保存和编码数据，具体分类算法继续属于 codegen 的 ABI planner。
 
@@ -134,6 +134,10 @@ M51 的普通 native include 支持语言规范 12.2.1 的路径字符串或条�
 
 stage 只通过对应 IR/metadata 交换数据，不调用上游 stage 的实现。所有源码语义错误在 parser/HIR 结束；后续阶段报告自身的格式、引用、ABI、目标或链接错误。已验证且不变的数据在后续边界复用。
 
+LIR 定义指令及终结符的操作数和定义槽位遍历，调用目标包含间接调用的实际函数指针或 dispatch table。LIR lowering 的 GC 活跃性分析与 codegen 的局部存储、符号引用收集共用这些结构规则；遍历借用已有操作数，不为每条指令复制列表。分析与发射仍由各自 stage 完成。
+
+同一次 LIR lowering 中，声明类的对象布局按实际使用按需建立，固定目标和不可变 MIR 共用字段偏移、实例大小与引用扫描结果。描述符、布局产物、函数正文和调试信息消费同一结果；字段访问不重新遍历继承链或校验基类前缀。布局构造保留实际引用、继承环、前缀与溢出错误。
+
 MIR dispatch reader 在解析每条记录时检查其类型、槽位和 callable 引用，组装同一张表后只补做继承环、基类前缀、接口顺序与闭合等跨记录检查，不重放单条记录检查。独立构造表时仍按传入的类型和 callable 集合检查记录。继承路径查询的临时空间随实际可达节点增长，不按整个依赖类型表预分配。LIR 布局表在构造或读取时建立 exact type 与 representation role 的查询索引，后续查询复用索引；索引不改变规范记录顺序或 wire 格式。
 
 driver 按最后一个实际消费者安排阶段数据的存活期：告警、测试目录及文档投影完成后释放 AST 和 HIR 查询世界；MIR 与类型桥导出完成后释放 HIR 正文；LIR 与布局导出完成后只转移后续打包需要的 MIR 规范记录；LLVM 与 generated-C 发射完成后释放 LIR 正文。产物需要的 foundation、公开 metadata 和生产记录继续保持完整，不为保留它们而延长整份上游 IR 的存活期。阶段观察、诊断与文档在各自输入释放前完成，不通过重读源码或重跑 stage 补回结果。
@@ -143,6 +147,8 @@ driver 按最后一个实际消费者安排阶段数据的存活期：告警、�
 ### 2.1 Parser / AST
 
 源码集合非空，文件具有唯一 `SourceIdentity { cone, logical_path }`。manifest Cone 的 logical path 为完整的标准化 Cone-relative source path；默认目录中的文件保持 `src/...`，显式源码根不截短路径或改变相同文件的身份。single-file 的原始入口文件为 `main.scoop`，由输入选择保证；2.20 的生成正文在同一 Cone 中另有按方法身份派生的逻辑来源。SourceIdentity 只组合已有 ConeIdentity 与标准化逻辑路径，不把单文件输入的选择规则施加给所有诊断／正文来源。host 路径只用于本次 I/O 与诊断。parser 只接收按语言规范 12.2.2 及本规范 2.7 选定的完整源码集合，不自行补扫目录。
+
+输入发现、解析器和编辑器语义分析共享同一份不可变源码文本。当前请求的诊断使用这份文本和它的行索引。构造持久 HIR 的 `SourceRecord` 时从原始 UTF-8 字节计算内容摘要。
 
 AST 保留原始源码顺序、byte span、显式类型实参、位置／命名／spread／尾随 lambda 实参，以及独立的声明、表达式、模式和控制转移结构。文件至多有一个开头 package，其后为 import，再后为声明。qualified path 为非空 identifier sequence；package、静态 owner 与实体的分界由名称解析决定。
 
@@ -874,7 +880,7 @@ Export HIR 的当前目标测试目录按语言规范 16.4 保留 typed class／
 
 测试用途产物在可选 manifest section `org.scoop-lang.manifest/test-directory/1` 中保存该目录的展示投影：容器限定名、用例方法名与完整显示名、各自的 Cone-relative 源码路径及一基行列、忽略原因。目录按前端顺序嵌套保存容器与用例，不通过解析显示名恢复关系；可执行调用仍使用 HIR 中的 typed 引用。该 section 不参与 Compile／Link 的语义要求，受普通 ArtifactFingerprint 覆盖；生产产物不写入，测试产物即使无容器也写入空目录。manifest summary 在读取边界解码并复用该投影，缓存命中不重新发现测试或加载完整 HIR。
 
-入口的四种 ABI 形态、完整签名、root gateway 的实际 C ABI 与定义指纹随各层 typed entry 保留，并进入对应语义／ABI fingerprints 和承载它们的 section profile。Link 投影保留精确 entry、gateway 与 failure-root 引用，使 artifact-only 链接无需源码或名称推断。当前 runtime ABI contract 30、metadata ABI 9 同时进入兼容检查、runtime 与启动对象的构建输入；旧 ABI 的薄接口、物理签名、poll／card／初始化发布／Context 槽合同及产物必须重建或拒绝，不能用缺省字段或 bitcast 混用。contract 20 同时退役无生产消费者的标量格式化、hash、equals 及专用打印 C 入口；沿用现有 runtime 输入更新与 ABI 重建边界，不增加兼容分支。新 ABI 的 debug／release 仍互通；各批次的实际实现与 section 版本见 [M34 记录](../milestone34/PROGRESS.md)。
+入口的四种 ABI 形态、完整签名、root gateway 的实际 C ABI 与定义指纹随各层 typed entry 保留，并进入对应语义／ABI fingerprints 和承载它们的 section profile。Link 投影保留精确 entry、gateway 与 failure-root 引用，使 artifact-only 链接无需源码或名称推断。当前 runtime ABI contract 30、metadata ABI 9 同时进入兼容检查、runtime 与启动对象的构建输入；旧 ABI 的薄接口、物理签名、poll／card／初始化发布／Context 槽合同及产物必须重建或拒绝，不能用缺省字段或 bitcast 混用。contract 20 同时退役无生产消费者的标量格式化、hash、equals 及专用打印 C 入口；沿用现有 runtime 输入更新与 ABI 重建边界，不增加兼容分支。新 ABI 的 debug／release 仍互通；各批次的实际实现与 section 版本见 [M34 记录](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone34/PROGRESS.md)。
 
 operator equals 的成员签名、operator 标记、已绑定调用及必要的派生正文使用既有 callable、模板与 exact-type metadata。`Equals<T>.equals` 的显式 conformance、接口 slot、实现和分派适配使用普通 interface metadata；该 slot 使用源码显式声明的 operator 实现，不按结构比较补齐接口，也不保存 Equals 专用的 core protocol 或条件接口规则。
 
@@ -1102,6 +1108,8 @@ Cone、package、类型、函数 overload 组与源码页在所属 catalog 内�
 
 `scoop test [root-input]` 使用同一构建图，只对 manifest 根 Cone 启用 Test 用途：发现根的生产与测试依赖，依赖节点仍按 Production 构建，不递归启用依赖自身的测试。根按 executable 产物规划和链接，保留源码 manifest 及 ConeIdentity。测试编译键包含用途、每个源码的角色、测试源码选择与测试依赖语义；本机源码实际路径、修改时间和大小参与更新判定，诊断显示 locator 与 span 不进入键；生产键不包含这些测试配置。测试源码或配置改变不使未改变的生产依赖缓存失效。
 
+测试根在 Cone.toml 的 `[test]` 中设置 `isolate = true` 时，驱动按现有测试目录顺序为每个选中的用例单独启动同一个已链接的测试程序。每次启动沿用用例序号、独立结果通道和输出捕获，最后按原目录汇总。普通断言失败继续执行后续用例，进程中断保留退出状态。默认让所选用例共享一个进程。该设置只影响运行，测试编译、链接、过滤和列举规则保持一致。
+
 测试程序发布到 `target/<canonical-target-triple>/<profile>/<group>/<cone-name>/tests/<cone-name>`，`--target-dir` 替换 target 根目录，`--no-run` 完成构建和链接后返回。运行直接使用本次成功构建确定的已有或新生成 executable，不制作 execution copy；失败构建不得运行旧文件。过滤和忽略选择不改变测试编译产物；最终报告需要独立的用例结果通道，不能仅凭进程退出码判定整轮执行完成。
 
 测试可执行文件的 JSON `executable` 构建记录同时保存完整 `test_directory`，包含被忽略用例，保持静态目录的容器与用例顺序，不应用运行过滤；目录中的 `containers` 与 `test-list` 使用相同字段。编辑器用 `test --no-run --message-format json` 本次结果中的源码路径、容器名与方法名定位所点用例，再按完整目录的扁平序号生成语言规范 16.5 的 `--scoop-test-cases` 参数；名称只用于目录选择，不成为语言实体身份。缺少或无法唯一匹配用例时报告错误，不运行全部测试或旧程序。human 模式的 `--no-run` 仍只报告构建结果。
@@ -1256,7 +1264,7 @@ generator 的 stderr 沿 driver 日志目标输出。scoop 在取得合法的 ch
 
 显式观察使用 `scoop build --emit ast|generated|hir|mir|optimizations|lir|symbols|all --dump-dir dir [--dump-scope root|sources]`，默认 root；sources 覆盖源码节点，不从 prebuilt 反造 AST 或 LocalConcreteHir。输出按 `dir/<ConeIdentity>/` 分组。HIR dump 同时包含 Export、LocalConcrete 与共有跨 Cone 接口。当前输入已有相应 dump 时直接复用；缺失时只执行产生该观察所需的前置阶段，不重做仍有效的机器对象、归档或最终链接。源码变化使观察记录失效，诊断使用当前定位；观察失败不能报告成功。dump 文件保存在对应编译输入键的缓存目录，命中后按请求复制到输出目录；只为缺失阶段调用 observation-only child。dump 描述只保存阶段及文件位置，不保存或复核内容摘要，不要求私有空目录、来源隔离或持久化同步屏障。
 
-`generated` 使用 stage wire tag 7，输出 `generated.scoop`：按实际生成顺序汇总本 Cone 的 generator 方法体原文，每段之前以行注释注明其逻辑源码路径。该文件是供阅读的方法体片段集合，不添加或重建声明签名，不作为普通源码再次发现，也不写入 `.slib`。没有生成方法时仍输出空文件，以表示本次观察已完成。单独补充该观察只执行到当前 Cone 的 HIR 检查完成，不准备后续跨 Cone 输出、MIR、LIR 或机器产物。生成／检查失败沿现有诊断携带片段原文，不发布成功观察或缓存不完整的导出。`scoopc build` 支持相同的 `--emit` 取值；给出 `--dump-dir dir` 时直接写入 `dir/`，省略时沿用 stdout 输出。`--dump-dir` 必须与 `--emit` 一起使用。
+`generated` 使用 stage wire tag 7，输出 `generated.scoop`：按实际生成顺序汇总本 Cone 的 generator 方法体原文，每段之前以行注释注明其逻辑源码路径。该文件是供阅读的方法体片段集合，不添加或重建声明签名，不作为普通源码再次发现，也不写入 `.slib`。没有生成方法时仍输出空文件，以表示本次观察已完成。单独补充该观察只执行到当前 Cone 的 HIR 检查完成，不准备后续跨 Cone 输出、MIR、LIR 或机器产物。生成／检查失败沿现有诊断携带片段原文，不发布成功观察或缓存不完整的导出。`scoopc build` 支持相同的 `--emit` 取值；给出 `--dump-dir dir` 时直接写入 `dir/`，省略时沿用 stdout 输出。`--dump-dir` 必须与 `--emit` 一起使用。直接调用 `scoopc` 时，帮助文本、阶段输出和诊断的写入失败均以非零状态退出。标准错误仍可写时，输出 I/O 错误使用 E2204 报告系统原因。
 
 `optimizations` 在 MIR 优化完成后产生 `optimizations.json`；`all` 按 AST、generated、HIR、MIR、optimizations、LIR、symbols 顺序输出。既有 stage wire tag 1／2／3／4 保持，优化观察使用 tag 5，wire tag 不决定流水线顺序。该 JSON 是本机观察输出，schema 为 1，不写入 `.slib`、语言身份、ABI、Code 指纹或优化输入。不开启时不收集逐项决策；开启与关闭必须得到相同的 MIR、机器代码与程序行为。仅请求该观察时沿既有 observation-only 路径停在 MIR，不生成 LIR 或机器产物；命中观察缓存直接复制已有文件。文档模式只允许 AST／generated／HIR。
 
@@ -2148,7 +2156,7 @@ compiler protocol 的 diagnostic note 使用 field 3 保存 import 路径的标�
 
 LSP 的导入 code action 将上述路径转换为同版语法头中的普通 import 编辑，保留源码换行和已有注释。动作携带文档版本；解析延迟动作时也核对分析 revision，import、依赖或目标变化后不能应用旧候选。动作只返回编辑，是否应用由调用方决定。
 
-本节规定 M47 与 LSP 的共同基础。模块分工与查询边界见[公共基础设计](../language-service/DESIGN.md)，实际交付与验证见[实施与验收](../language-service/PROGRESS.md)；M47 的同步生成流程由[其主设计](../milestone47/DESIGN.md)及[协议](../milestone47/PROTOCOL.md)规定。合法源码的语言语义、成功 HIR 的完备性、产物和 runtime 合同保持。
+本节规定 M47 与 LSP 的共同基础。模块分工与查询边界见[公共基础设计](../language-service/DESIGN.md)，实际交付与验证见[实施与验收](../language-service/PROGRESS.md)；同步生成流程及消息格式见[生成器协议](../generator-protocol/PROTOCOL.md)。合法源码的语言语义、成功 HIR 的完备性、产物和 runtime 合同保持。
 
 M63中项目成员、workspace继承和精确依赖绑定统一来自独立PM的本地数据模型，见[包管理规范7](SCOOP-PACKAGE-SPEC.md#7-pm-与构建-driver-的接口)。analysis/LSP不自行解释第二套版本规则；初始化缺失的 lock 时使用既有 PM resolve，之后离线读取 metadata，不在每次编辑或补全时下载依赖。本地缺少锁定源码时提示执行fetch。编辑buffer仍由语言服务覆盖对应source，不能通过重写全局共享源码cache实现编辑态。
 
@@ -2372,21 +2380,21 @@ lambda 参数试探只有实际消费了所属 header 的 `->` 才提交；恢�
 
 固定查询按需准备并复用正文投影的持久身份及局部来源关系，同一正文／默认模板的重复读取复用已投影结果。投影借用普通编译图，查询额外产生的类型应用不进入这些输入。依赖调用引用只读取已绑定的完整签名，不要求完成其排队中的实现；读取查询不提前执行后续依赖正文阶段。普通生成结束后仍沿既有顺序完成依赖、效果与成功产物封装。
 
-正文 JSON 适配沿既有逻辑树逐节点编码完整表达式、语句、模式、存储目标、调用与 capture 引用，保留局部 selector、定义／求值来源及精确常量。原定义与默认值应用视图复用同一编码；类型位置通过已有应用映射投影，局部泛型函数签名保留自己引入的 binder 层，requirement 实现片段保持其独立定义类型并另传本次实参。正文查询不输出 arena 下标、Debug 文本或产物字节，不重放已完成的语义校验。具体 JSON 形状见 [M47 正文编码](../milestone47/BODY-JSON.md)。
+正文 JSON 适配沿既有逻辑树逐节点编码完整表达式、语句、模式、存储目标、调用与 capture 引用，保留局部 selector、定义／求值来源及精确常量。原定义与默认值应用视图复用同一编码；类型位置通过已有应用映射投影，局部泛型函数签名保留自己引入的 binder 层，requirement 实现片段保持其独立定义类型并另传本次实参。正文查询不输出 arena 下标、Debug 文本或产物字节，不重放已完成的语义校验。具体 JSON 形状见 [M47 正文编码](../generator-protocol/BODY-JSON.md)。
 
 默认值的应用视图由共享的原定义投影、原提供方的 binder 层级及本次应用的完整类型实参组成。原提供方取模板的 definition root，不能用继承该 default 的 callable 代替。读取应用后的类型时复用普通模板的类型替换；外部 callable／member 的声明身份保持，引用中携带的类型同样应用该映射。局部泛型声明新引入的 binder 保持原绑定，插入的应用实参相应提升层级，不能捕获查询方或局部声明中的同名参数。视图不执行默认值、不复制或改写原定义树。
 
-默认模板输入以实际 callable 与参数位置查找已有模板；必需参数、vararg 空省略或没有模板的引用返回未找到，合法参数不自动产生新的可移植模板。显式应用实参按 definition root 的完整 binder 顺序给出，其元数、种类和 bound 沿原泛型规则检查；缺省实参列表只读取定义。M47 八类查询的请求与结果 envelope 见[查询编码](../milestone47/QUERY-JSON.md)：成组结果保持输入顺序，未知声明与合法空列表分开；协议分发复用共享查询，不包含另一套名称绑定、模板选择或类型判定。
+默认模板输入以实际 callable 与参数位置查找已有模板；必需参数、vararg 空省略或没有模板的引用返回未找到，合法参数不自动产生新的可移植模板。显式应用实参按 definition root 的完整 binder 顺序给出，其元数、种类和 bound 沿原泛型规则检查；缺省实参列表只读取定义。M47 八类查询的请求与结果 envelope 见[查询编码](../generator-protocol/QUERY-JSON.md)：成组结果保持输入顺序，未知声明与合法空列表分开；协议分发复用共享查询，不包含另一套名称绑定、模板选择或类型判定。
 
 类型描述保留结构类型的完整组成、名义声明身份与实参、原声明参数及其 bound；开放参数必须属于所选 binder 上下文。父类型沿原有直接父关系计算，companion 描述沿实际声明关系形成类型应用，不读取或执行 singleton 初始化。成员描述保留声明处类型和当前名义应用替换后的类型；字段与 variant 引用使用原 typed 身份，不递归展开引用到的其他名义类型。
 
 类型投影区分查询位置的词法上下文与被描述声明的 binder 上下文。读取成员的 declarationType 或原泛型 bound 时，从已返回的真实名义／callable 参数取得声明上下文；宿主参数与方法参数沿原签名分别形成外层和内层 binder。即使查询方存在同名参数，也不能用它解释被描述声明的开放类型。该上下文仅用于类型描述和签名投影，不改变名称查找或成员访问域；M47 适配器在进程内从实际查询结果建立它，对端不提交 arena 参数身份。
 
-M47 的 JSON 投影属于 `scoop-generator-protocol`，其字段合同见[JSON 数据编码](../milestone47/JSON.md)。投影沿既有完整类型、声明引用和注解值形成显式分支，来源使用实际 SourceIdentity 与 byte range。跨进程引用保留 typed identity 的类别与 32 字节内容；读取十六进制引用不创建语言声明，后续查询仍在当前视图中按该类别查找。常量保留整数宽度／符号和精确十进制值，浮点保留 IEEE 位模式。
+M47 的 JSON 投影属于 `scoop-generator-protocol`，其字段合同见[JSON 数据编码](../generator-protocol/JSON.md)。投影沿既有完整类型、声明引用和注解值形成显式分支，来源使用实际 SourceIdentity 与 byte range。跨进程引用保留 typed identity 的类别与 32 字节内容；读取十六进制引用不创建语言声明，后续查询仍在当前视图中按该类别查找。常量保留整数宽度／符号和精确十进制值，浮点保留 IEEE 位模式。
 
 完整类型输入先解码为既有签名类型的结构与 typed 待解析引用，再在当前源码和已选依赖的声明索引中查找。该索引不以先前发送过哪些描述为依据；未知引用或引用类别不符直接报告查询错误，不按名称回退，也不重新派生或认证声明身份。binder 的 depth／index 只解释为本次真实签名上下文中的参数。类型应用复用原有名义应用、泛型实参数量／bound、函数指针、companion 和表示检查；结构类型使用原 interner。读取类型与声明元数据不赋予源码访问权限，实际名称查找与成员访问仍走普通规则。失败查询只返回本次诊断，不影响普通编译的诊断、使用记录或初始化请求。
 
-完整类型与成员消息沿上述查询保留名义声明的真实来源、注解、原参数及其约束，声明列表按原顺序返回。字段、属性、构造参数和方法签名分别给出声明类型与应用类型。应用泛型方法时，宿主实参属于查询位置，方法自身参数仍属于该方法；协议复用已有的 binder 替换与层级提升，不把两者拼成同一层，也不让同名或相同 arena 参数造成捕获。default 的实参同时保留声明侧映射与本次应用，供同一替换路径投影。访问结论与访问域直接来自普通前端，正文只报告已有可用性，不因读取成员而投影或执行正文。字段形状及上下文规则见 [M47 成员编码](../milestone47/MEMBERS-JSON.md)。
+完整类型与成员消息沿上述查询保留名义声明的真实来源、注解、原参数及其约束，声明列表按原顺序返回。字段、属性、构造参数和方法签名分别给出声明类型与应用类型。应用泛型方法时，宿主实参属于查询位置，方法自身参数仍属于该方法；协议复用已有的 binder 替换与层级提升，不把两者拼成同一层，也不让同名或相同 arena 参数造成捕获。default 的实参同时保留声明侧映射与本次应用，供同一替换路径投影。访问结论与访问域直接来自普通前端，正文只报告已有可用性，不因读取成员而投影或执行正文。字段形状及上下文规则见 [M47 成员编码](../generator-protocol/MEMBERS-JSON.md)。
 
 注解声明消息读取普通注解绑定已经确定的参数类型、默认常量、允许目标及 repeatable 规则；源码与依赖使用相同字段，不重新求值默认值。注解参数不继承查询方法的泛型作用域。target 消息保持既有名义／variant／字段／属性／扩展属性／callable／参数／receiver／alias／存储关系，局部 callable 使用其真实生成声明身份；解码 target 只取得 typed 引用，不凭消息创建实体或赋予可见性。
 
@@ -2416,13 +2424,13 @@ logical property 描述独立保留 getter／setter 身份、实现形式、访�
 
 生成钩子只在普通继承、override 和 default 选择之后保留仍需具体实现的普通方法；必要签名、参数名、实际 owner 与 requirement 映射在普通正文绑定前确定。属性访问器和允许保留的抽象声明不成为生成任务。没有生成钩子的入口保持直接报告缺失实现；有钩子时，未返回的必要方法在生成结束后报告同一语言错误。钩子借用当前前端查询，所有结果收齐后才按原方法作用域 lower 正文，不重跑先前源码的绑定。
 
-生成器的类型查询提供实际名义声明的源码路径、class 的修饰与应用后的基类，以及方法上下文可用的 companion 投影。它们取自普通声明与访问检查，协议字段见 [M47 成员查询](../milestone47/MEMBERS-JSON.md)。
+生成器的类型查询提供实际名义声明的源码路径、class 的修饰与应用后的基类，以及方法上下文可用的 companion 投影。它们取自普通声明与访问检查，协议字段见 [M47 成员查询](../generator-protocol/MEMBERS-JSON.md)。
 
 driver 的任务规划读取普通 GenerateWith 应用及数组逐元素来源，按实际 owner 与完整接口应用检测重复，再以原 conformance requirement 关系选择待填方法。同一 owner／generator 保留全部有效 bindings 并合并方法；不同 generator 只有争用同一待填方法时才冲突。没有待填方法的组不启动程序，错误配置仍正常诊断。接口方法引用使用原 dispatch slot 身份，源码查询与最终产物复用同一 slot 构造路径；任务消息保留完整接口应用、slot、原方法签名和请求位置。
 
 接口匹配读取继承检查已建立的实现关系，包括条件实现和沿基类实参代入的关系。选择字符串沿 owner 的词法作用域解析，需要条件才能成立的类型应用只与提供该条件的实现匹配。每个待填方法的语义查询与生成正文沿同一方法条件检查，继承条件保留原实现块和已代入的宿主应用。同批其他方法各自使用其定义环境。
 
-driver 使用既有宿主进程管理和 Content-Length JSON-RPC 分帧，逐组同步执行生成程序；查询上下文只能是该组已有的待填方法。各组成功结果收齐并检查输出结束及进程退出状态后，再沿严格函数体片段入口解析；最终响应后的额外字节、异常退出及错误诊断均使本次生成失败。warning 随正常正文保留。失败和成功诊断都与本次实际片段原文成对保存，不能仅保留逻辑文件名或将所有错误压到配置位置。具体消息及错误字段见 [M47 协议](../milestone47/PROTOCOL.md)2、5、6 节。
+driver 使用既有宿主进程管理和 Content-Length JSON-RPC 分帧，逐组同步执行生成程序；查询上下文只能是该组已有的待填方法。各组成功结果收齐并检查输出结束及进程退出状态后，再沿严格函数体片段入口解析；最终响应后的额外字节、异常退出及错误诊断均使本次生成失败。warning 随正常正文保留。失败和成功诊断都与本次实际片段原文成对保存，不能仅保留逻辑文件名或将所有错误压到配置位置。具体消息及错误字段见 [M47 协议](../generator-protocol/PROTOCOL.md)2、5、6 节。
 
 生成正文的词法输入文件与诊断文本可以不同：package、import 和访问域取原方法文件，表达式及局部声明的来源取该片段。片段使用由实际方法声明身份派生的普通逻辑源码名，并由 driver 保存原文和注解关联；名称不依赖 generator 路径或进程顺序。原方法参数仍保留声明处来源。此区别仅服务正常绑定、诊断及源码记录，不引入新的来源认证规则。
 

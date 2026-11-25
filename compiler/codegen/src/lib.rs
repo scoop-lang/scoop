@@ -1,8 +1,7 @@
 //! Codegen stage: mechanically translate LIR to LLVM IR, emit
 //! TypeDescriptors, expand codegen-stage intrinsics, produce `.o`.
 //!
-//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.5 and
-//! `docs/milestone2/DESIGN.md` section 2.5.
+//! See `docs/specs/SCOOP-IMPL-SPEC.md` section 2.5.
 //!
 //! All locals become `alloca`s at the top of the entry block; SSA
 //! construction is left to LLVM's mem2reg. Temps are SSA values kept in a
@@ -66,7 +65,7 @@ mod callable_constants;
 mod callable_runtime_scans;
 mod coff_llvm;
 mod coff_object;
-mod dataflow;
+use scoop_lir::dataflow;
 mod debug;
 mod declarations;
 mod elf_llvm;
