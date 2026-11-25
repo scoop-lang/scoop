@@ -1,0 +1,18 @@
+package test.provider
+
+import scoop.collections.HashMap
+
+public class Entry public constructor()
+
+public class Palette public constructor() {
+    public val items = HashMap<String, Entry>()
+
+    public fun roundTrip(): Boolean {
+        val entry = Entry()
+        items["entry"] = entry
+        return when (items["entry"]) {
+            case Some(val value) -> value === entry
+            case None -> false
+        }
+    }
+}
