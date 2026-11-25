@@ -44,7 +44,10 @@ impl Concretizer<'_> {
                     .expect("imported evaluation origins have canonical source points");
                 (point.line(), point.column())
             }
-            None => source_line_column(&file.source, evaluation.span.start),
+            None => {
+                let (line, column) = file.source.diagnostic_position(evaluation.span.start);
+                (line as u64, column as u64)
+            }
         };
         let file_name = file.name.clone();
         let context = &self.source.source_contexts[evaluation.context];
@@ -109,21 +112,4 @@ impl Concretizer<'_> {
             origin,
         })
     }
-}
-
-fn source_line_column(source: &str, offset: u32) -> (u64, u64) {
-    let mut line = 1;
-    let mut column = 1;
-    for (index, character) in source.char_indices() {
-        if index as u32 >= offset {
-            break;
-        }
-        if character == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    (line, column)
 }

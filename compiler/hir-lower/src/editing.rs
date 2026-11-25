@@ -149,7 +149,7 @@ pub fn analyze_declarations_with_inputs(
             identity: source.identity.clone(),
             name: source.identity.logical_path().as_str().to_owned(),
 
-            source: source.text.to_owned(),
+            source: source.text.into(),
         })
         .collect();
     let mut lowerer = crate::current_lowering::prepare_current_lowerer(providers, world)

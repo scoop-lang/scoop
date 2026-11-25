@@ -124,7 +124,7 @@ fn lowerer() -> (Lowerer, PackageId, PackageId) {
             identity: test_source_identity(path),
             name: "same.scoop".to_string(),
 
-            source: String::new(),
+            source: "".into(),
         })
         .collect(),
         IntrinsicDeclarationPolicy::CoreOnly,

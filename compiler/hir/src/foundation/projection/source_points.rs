@@ -102,12 +102,11 @@ pub(super) fn source_records_with_locations<'a>(
             })?;
             record.clone()
         } else {
-            SourceRecord::from_utf8(source.identity.clone(), &source.source, points).map_err(
-                |error| HirFoundationBuildError::SourceRecord {
+            SourceRecord::from_utf8(source.identity.clone(), source.source.as_str(), points)
+                .map_err(|error| HirFoundationBuildError::SourceRecord {
                     source: source.identity.clone(),
                     error,
-                },
-            )?
+                })?
         };
         records.push(record);
     }
@@ -158,7 +157,7 @@ mod tests {
             identity: source,
             name: "main.scoop".to_string(),
             debug_path: "main.scoop".into(),
-            source: "aé\nz".to_string(),
+            source: "aé\nz".into(),
             canonical_record: None,
         };
 
@@ -210,7 +209,7 @@ mod tests {
             identity: source.clone(),
             name: "main.scoop".to_string(),
             debug_path: "main.scoop".into(),
-            source: "abcd".to_string(),
+            source: "abcd".into(),
             canonical_record: None,
         };
         let completed = source_records(

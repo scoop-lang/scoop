@@ -380,7 +380,7 @@ fn source_context_relation_requires_one_file_context_per_source() {
         identity: test_source_identity("src/unrepresented.scoop"),
         name: "ignored display path".to_string(),
         debug_path: "ignored display path".into(),
-        source: String::new(),
+        source: "".into(),
         canonical_record: None,
     });
     let mut inputs = identity_inputs(module);

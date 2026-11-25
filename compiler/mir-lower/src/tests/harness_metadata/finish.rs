@@ -529,7 +529,7 @@ impl Harness {
             provider: hir::IntrinsicProviderId::from_raw(0),
             name: "<test>".to_string(),
             debug_path: "<test>".into(),
-            source: String::new(),
+            source: "".into(),
             canonical_record: None,
         }];
         for (id, constructor) in self.class_constructors.iter() {

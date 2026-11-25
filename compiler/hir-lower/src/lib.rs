@@ -477,7 +477,7 @@ fn materialize_defined_test_sources<'a>(
             identity: source.identity.clone(),
             name: source.name.to_string(),
 
-            source: source.source_text.to_string(),
+            source: source.source_text.into(),
         });
     }
     for (source, details) in input
@@ -494,7 +494,7 @@ fn materialize_defined_test_sources<'a>(
             identity: source.identity().clone(),
             name: details.display_locator.to_string(),
 
-            source: details.source_text.to_string(),
+            source: details.source_text.into(),
         });
     }
     (files, sources)
@@ -518,7 +518,7 @@ fn materialize_current_sources(
             identity: source.source().identity().clone(),
             name: source.diagnostic().display_locator().display().to_string(),
 
-            source: source.text().text().to_owned(),
+            source: source.text().source_text().clone(),
         });
     }
     (files, sources)
@@ -538,7 +538,7 @@ struct SourceProvider {
     identity: scoop_identity::SourceIdentity,
     name: String,
 
-    source: String,
+    source: scoop_source::SourceText,
 }
 
 /// Source-visible named declarations, including synthesized nominal members.

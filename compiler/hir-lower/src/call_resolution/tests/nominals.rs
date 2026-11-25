@@ -15,7 +15,7 @@ pub(super) fn lowerer() -> Lowerer {
             identity: crate::tests::test_source_identity("src/solver.scoop"),
             name: "solver.scoop".to_owned(),
 
-            source: String::new(),
+            source: "".into(),
         }],
         IntrinsicDeclarationPolicy::CoreOnly,
     );

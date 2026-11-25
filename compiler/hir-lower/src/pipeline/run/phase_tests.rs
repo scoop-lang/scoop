@@ -41,7 +41,7 @@ fn source_lowerer_files(user_sources: &[(&str, scoop_identity::SourceRole)]) -> 
         identity: crate::tests::core_source_identity("src/core.scoop"),
         name: "core.scoop".into(),
 
-        source: String::new(),
+        source: "".into(),
     }];
     sources.extend(
         user_sources

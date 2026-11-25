@@ -53,11 +53,17 @@ impl SourceText {
             .get_or_init(|| LineIndex::new(self.as_str(), true))
     }
 
-    /// Compiler diagnostics retain their original LF-only line convention.
-    pub fn diagnostic_position(&self, offset: u32) -> (usize, usize) {
+    /// Compiler locations use LF-only lines, including CR in the preceding line.
+    /// Source observations, diagnostics and debug metadata share this index.
+    pub fn compiler_line_index(&self) -> &LineIndex {
         self.0
             .compiler_lines
             .get_or_init(|| LineIndex::new(self.as_str(), false))
+    }
+
+    /// Compiler diagnostics retain their original LF-only line convention.
+    pub fn diagnostic_position(&self, offset: u32) -> (usize, usize) {
+        self.compiler_line_index()
             .diagnostic_position(offset as usize)
     }
 }

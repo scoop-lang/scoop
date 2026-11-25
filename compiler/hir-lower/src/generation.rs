@@ -95,7 +95,7 @@ impl Lowerer {
                 debug_path: generated.source.name.as_str().into(),
                 name: generated.source.name,
 
-                source: generated.source.text.as_str().to_owned(),
+                source: generated.source.text,
                 canonical_record: None,
             }));
         self.generation

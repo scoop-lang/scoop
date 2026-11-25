@@ -4,7 +4,7 @@ use scoop_identity::CallableTemplateOrigin;
 impl DeclarationAnalysis {
     pub fn function_source_text(&self, function: hir::FunctionId) -> Option<&str> {
         let file = self.lowerer.function_definition_file(function)?;
-        Some(&self.lowerer.intrinsic_sources[file].source)
+        Some(self.lowerer.intrinsic_sources[file].source.as_str())
     }
 
     pub fn imported_signature(

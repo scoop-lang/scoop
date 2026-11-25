@@ -93,7 +93,7 @@ pub fn project_cone(
                 key: SourceKey::new(&source.identity)?,
                 path: source.identity.logical_path().as_str().into(),
                 display_name: source.name.clone(),
-                text: source.source.clone(),
+                text: source.source.as_str().to_owned(),
             })
         })
         .collect::<Result<_>>()?;
@@ -170,11 +170,7 @@ impl Projection<'_> {
         Ok(SourceLocation {
             source: SourceKey::new(&source.identity)?,
             range: span.into(),
-            line: source.source.as_bytes()[..span.start as usize]
-                .iter()
-                .filter(|&&byte| byte == b'\n')
-                .count()
-                + 1,
+            line: source.source.diagnostic_position(span.start).0,
         })
     }
 }
