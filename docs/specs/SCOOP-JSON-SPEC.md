@@ -24,7 +24,7 @@ JsonValue仍为内部节点构造器不可公开调用的class，companion仍实
 | `asLong()`／`asULong()`／`asFloat()`／`asDouble()` | 复用typed解码的范围、精度和负零规则，整数拒绝小数和指数token |
 | `asIntegralLong(): Long` | 显式读取数值恰为 Long 整数的 number；允许小数／指数写法，不接受 string 或经过浮点舍入 |
 | `asNumberToken(): String` | 返回原合法数字token，不经浮点转换，支持超出ULong／Double范围的数值 |
-| `get(name: String): JsonValue?`、`containsKey(name)` | 仅接受object。缺少key为None；显式null为Some(JsonValue)，kind为Null。线性查找 |
+| `get(name: String): JsonValue?`、`containsKey(name)` | 仅接受object。缺少key为None；显式null为Some(JsonValue)，kind为Null。按字段名进行哈希查找，对象保留字段插入顺序 |
 | `get(index: Long): JsonValue` | 仅接受array，O(1)；越界抛IndexOutOfBoundsException |
 | `keys(): Array<String>` | 按对象保存顺序返回独立数组，O(n) |
 | `members(): Array<(String, JsonValue)>` | 按对象保存顺序返回独立成员数组，O(n)，共享不可变子节点 |

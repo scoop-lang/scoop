@@ -1,5 +1,8 @@
 package scoop.json
 
+import scoop.collections.Map
+import scoop.collections.LinkedHashMap
+
 /**
  * An immutable JSON value tree. Accessors check the JSON kind without coercion, collection
  * snapshots preserve order, and the codec preserves exact JSON number tokens.
@@ -45,7 +48,7 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
             else -> throw DecodingException("", "expected a number")
         }
 
-    private fun objectMembers(): ArrayList<JsonMember> =
+    private fun objectMembers(): Map<String, JsonNode> =
         when (node) {
             case JsonNode.Record(val members) -> members
             else -> throw DecodingException("", "expected an object")
@@ -57,25 +60,15 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
             else -> throw DecodingException("", "expected an array")
         }
 
-    /** Looks up an object member in linear time. A present JSON null is Some, not None. */
-    public operator fun get(name: String): JsonValue? {
-        for (member in objectMembers()) {
-            if (member.name == name) {
-                return Some(JsonValue(member.value))
-            }
+    /** Looks up a field by name. A present JSON null is returned as Some(JsonValue). */
+    public operator fun get(name: String): JsonValue? =
+        when (val node = objectMembers()[name]) {
+            case Some(val value) -> Some(JsonValue(value))
+            case None -> None
         }
-        return None
-    }
 
-    /** Tests object membership in linear time; non-object values throw DecodingException. */
-    public fun containsKey(name: String): Boolean {
-        for (member in objectMembers()) {
-            if (member.name == name) {
-                return true
-            }
-        }
-        return false
-    }
+    /** Tests object membership by name. Other kinds throw DecodingException. */
+    public fun containsKey(name: String): Boolean = objectMembers().containsKey(name)
 
     /** Reads an array element in constant time; invalid indices throw IndexOutOfBoundsException. */
     public operator fun get(index: Long): JsonValue = JsonValue(arrayElements()[index])
@@ -84,7 +77,7 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
     public fun keys(): Array<String> {
         val result = ArrayList<String>()
         for (member in objectMembers()) {
-            result.add(member.name)
+            result.add(member.key)
         }
         return result.toArray()
     }
@@ -93,7 +86,7 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
     public fun members(): Array<(String, JsonValue)> {
         val result = ArrayList<(String, JsonValue)>()
         for (member in objectMembers()) {
-            result.add((member.name, JsonValue(member.value)))
+            result.add((member.key, JsonValue(member.value)))
         }
         return result.toArray()
     }
@@ -147,11 +140,11 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
 
         /** Copies members in input order; duplicate names throw EncodingException. */
         public fun fromObject(members: List<(String, JsonValue)>): JsonValue {
-            return jsonObject {
-                for ((name, value) in members) {
-                    add(name, value)
-                }
+            val objectMembers = LinkedHashMap<String, JsonNode>()
+            for ((name, value) in members) {
+                addJsonMember(objectMembers, name, value)
             }
+            return JsonValue(JsonNode.Record(objectMembers))
         }
 
         /**
@@ -190,7 +183,7 @@ internal fun encodeJsonNode(node: JsonNode, encoder: JsonEncoder) {
         case JsonNode.Record(val members) -> {
             val fields = encoder.keyed()
             for (member in members) {
-                encodeJsonNode(member.value, fields.field(member.name) as JsonEncoder)
+                encodeJsonNode(member.value, fields.field(member.key) as JsonEncoder)
             }
             fields.end()
         }

@@ -1,6 +1,6 @@
 package scoop.json
 
-import scoop.collections.HashSet
+import scoop.collections.LinkedHashMap
 
 internal class JsonParser(text: String) {
     private val characters: Iterator<Char> = text.iterator()
@@ -81,23 +81,22 @@ internal class JsonParser(text: String) {
 
     private fun record(path: String): JsonNode {
         expect('{', path)
-        val members = ArrayList<JsonMember>()
+        val members = LinkedHashMap<String, JsonNode>()
         whitespace()
         if (accept('}')) {
             return JsonNode.Record(members)
         }
-        val names = HashSet<String>()
         var finished: Boolean = false
         while (!finished) {
             whitespace()
             val name = readJsonString(this, path)
             val child = childPath(path, name)
-            if (!names.add(name)) {
+            if (members.containsKey(name)) {
                 throw error(child, "duplicate object key")
             }
             whitespace()
             expect(':', child)
-            members.add(JsonMember(name, value(child)))
+            members.put(name, value(child))
             whitespace()
             finished = accept('}')
             if (!finished) {
