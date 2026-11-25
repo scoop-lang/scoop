@@ -2,6 +2,14 @@
 
 static bool polling_timer_fired;
 
+int32_t scoop_window_test_visible_station(void) {
+  USEROBJECTFLAGS flags;
+  if (!GetUserObjectInformationW(GetProcessWindowStation(), UOI_FLAGS, &flags,
+                                 sizeof(flags), NULL))
+    return -1;
+  return (flags.dwFlags & WSF_VISIBLE) != 0;
+}
+
 static void CALLBACK polling_timer(HWND hwnd, UINT message, UINT_PTR timer,
                                    DWORD time) {
   KillTimer(hwnd, timer);

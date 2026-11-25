@@ -291,7 +291,13 @@ Windows 窗口使用 Unicode HWND，创建前确认 owner 线程使用 Per-Monit
 
 通知的启动入口也会在 Application 之前创建 COM／消息窗口，因此与应用创建共用原生 DPI 准备函数，先确定 owner 使用 Per-Monitor V2 再创建该入口的 HWND。后续应用创建读取同一个线程／进程模式，不以已有隐藏窗口为理由改变 DPI 合同；见[系统通知规范](SCOOP-DESKTOP-NOTIFICATION-SPEC.md)。
 
-窗口属性通过正常 Win32／DWM API 实施，原生返回值在边界保留并转换为 WindowException。native 薄层的创建结果同时返回资源和状态码；setter 以状态码报告失败，不使用另一个错误缓存。Windows 8 起 DwmEnableBlurBehindWindow 不产生模糊效果，setBlur(true) 返回 Unsupported 且无副作用；要求 blur 的创建失败。主题建议使用 DWM 支持的暗色标题栏属性；缺少该属性时返回 Unsupported。透明背景供实际 renderer 使用，不承诺所有渲染设备都有 alpha 支持。内容保护为 WDA_MONITOR 系统提示，仍返回 Requested。
+窗口属性通过正常 Win32／DWM API 实施，原生返回值在边界保留并转换为 WindowException。native 薄层的创建结果同时返回资源和状态码；setter 以状态码报告失败，不使用另一个错误缓存。Windows 8 起 DwmEnableBlurBehindWindow 不产生模糊效果，setBlur(true) 返回 Unsupported 且无副作用；要求 blur 的创建失败。主题建议使用 DWM 支持的暗色标题栏属性；缺少该属性时返回 Unsupported。透明背景供实际 renderer 使用，不承诺所有渲染设备都有 alpha 支持。
+
+内容保护使用 Win32 的 `WDA_MONITOR` 显示提示，提交成功返回 `Requested`。会话缺少桌面合成且系统拒绝启用提示时，`setContentProtected(true)` 返回 `Unsupported`，创建时显式要求保护会失败。在同一会话中，如果系统确认窗口已经是 `WDA_NONE`，关闭保护返回 `Requested`，因此也可以使用默认属性创建普通窗口。其他设置错误保留 Win32 错误码。
+
+DWM 报告桌面合成已关闭时，普通系统边框和不透明的自绘边框仍可切换，两者需要的合成边距均为零。要求延伸标题栏或透明背景时返回 `Unsupported`，通过创建属性要求这些效果则以 `WindowErrorKind.Unsupported` 失败。
+
+服务会话也可以接收普通的 `WM_CHAR` 输入。如果会话无法启动 TSF，`setImeAllowed(true)` 以 `WindowErrorKind.Unavailable` 失败。生命周期测试在可见窗口站验证 TSF 启用、关闭与窗口连续重绘，在不可见窗口站验证隐藏窗口收到输入、保留重绘请求并完成关闭。
 
 键盘的物理位置来自扩展 scan code，NumLock 与 Pause 按 Win32 的扩展位区分；Lang1／Lang2 不混同 Kana／转换键，当前键集合没有对应项时保留 WindowsScanCode。同值的 VK_KANA／VK_HANGUL 只在 scan code 明确识别 Kana 时命名，否则保留 WindowsVirtualKey。逻辑文字查询当前布局且不改变系统 dead-key 状态。普通文字由 WM_CHAR／WM_UNICHAR 交付；完整 IME 文档连接只使用 TSF，不保留 IMM32 组合／候选窗后端或运行时降级。TSF 提交、WM_CHAR 与 WM_IME_CHAR 不得重复交付同一文本；失焦／禁用取消组合并补发已交付按下键的 synthetic release。
 

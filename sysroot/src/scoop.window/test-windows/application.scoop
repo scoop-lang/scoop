@@ -13,6 +13,15 @@ private class WindowContext(val value: Int)
 context(value: WindowContext)
 private fun contextValue(): Int = value.value
 
+private fun hasVisibleWindowStation(): Boolean {
+    @Unsafe
+    {
+        val visible = nativeWindowStationVisible()
+        assertTrue(visible >= 0)
+        return visible != 0
+    }
+}
+
 @Test
 private class Win32ApplicationTest {
     @Test(useProcess = true)
@@ -35,7 +44,10 @@ private class Win32ApplicationTest {
         }
         handler.worker!!.join()
         handler.releaser!!.join()
-        assertTrue(handler.redraws >= 2)
+        if (handler.visibleStation)
+            assertTrue(handler.redraws >= 2)
+        else
+            assertEquals(0, handler.redraws)
         assertEquals(2, handler.posts)
         assertEquals(2, handler.closing)
         assertEquals(2, handler.destroyed)
@@ -54,6 +66,7 @@ private class Win32ApplicationTest {
 }
 
 private class WindowsHandler: ApplicationHandler {
+    val visibleStation = hasVisibleWindowStation()
     val thread = currentThreadId()
     var window: Window? = None
     var lease: NativeWindowLease? = None
@@ -120,7 +133,7 @@ private class WindowsHandler: ApplicationHandler {
                                 window!!.acquireNativeWindow()
                             }
                         }
-                        val held = lease!!
+                        val held = lease ?: return
                         releaser =
                             Some(
                                 Thread.start {
@@ -133,8 +146,9 @@ private class WindowsHandler: ApplicationHandler {
                 case Window(_, WindowEvent.Destroyed) -> destroyed += 1
                 case Exiting -> exiting += 1
                 case AboutToWait -> {
+                    val redrawReady = !visibleStation || redraws >= 2
                     if (
-                        !requestedClose && text == "A😀" && redraws >= 2 && posts == 2 && keyUp == 1
+                        !requestedClose && text == "A😀" && redrawReady && posts == 2 && keyUp == 1
                     ) {
                         requestedClose = true
                         @Unsafe
@@ -178,8 +192,11 @@ private class WindowsHandler: ApplicationHandler {
         first.setResizeIncrements(Some(LogicalSize(2.0, 2.0)))
         first.setResizable(false);
         first.setResizable(true)
-        first.setFrame(WindowFrame.Client);
-        first.setFrame(WindowFrame.System(WindowContentMode.Standard))
+        assertEquals(RequestStatus.Applied, first.setFrame(WindowFrame.Client))
+        assertEquals(
+            RequestStatus.Applied,
+            first.setFrame(WindowFrame.System(WindowContentMode.Standard))
+        )
         first.setEnabledButtons(WindowButtons())
         first.setWindowLevel(WindowLevel.AlwaysOnTop)
         first.requestMinimized(true)
@@ -196,17 +213,48 @@ private class WindowsHandler: ApplicationHandler {
         first.requestAttention(AttentionKind.Informational)
         first.requestAttention(AttentionKind.Cancel)
         first.setVisible(false)
-        first.setTransparent(true);
-        first.setTransparent(false)
-        first.setContentProtected(true);
-        first.setContentProtected(false)
+        val transparency = first.setTransparent(true)
+        assertTrue(
+            transparency == RequestStatus.Applied || transparency == RequestStatus.Unsupported
+        )
+        assertEquals(RequestStatus.Applied, first.setTransparent(false))
+        if (transparency == RequestStatus.Unsupported) {
+            assertEquals(
+                RequestStatus.Unsupported,
+                first.setFrame(WindowFrame.System(WindowContentMode.Extended))
+            )
+            val error = assertFailsWith<WindowException> {
+                application.createWindow(windowAttributes { this.transparent = true })
+            }
+            assertEquals(WindowErrorKind.Unsupported, error.kind)
+        }
+        val protection = first.setContentProtected(true)
+        assertTrue(protection == RequestStatus.Requested || protection == RequestStatus.Unsupported)
+        assertEquals(RequestStatus.Requested, first.setContentProtected(false))
+        if (protection == RequestStatus.Unsupported) {
+            val error = assertFailsWith<WindowException> {
+                application
+                    .createWindow(
+                        windowAttributes {
+                            this.visible = false
+                            this.contentProtected = true
+                        }
+                    )
+            }
+            assertEquals(WindowErrorKind.Unsupported, error.kind)
+        }
         first.requestTheme(Some(Theme.Dark))
         first.setCursorIcon(CursorIcon.Text)
         first.setCursorVisible(false);
         first.setCursorVisible(true)
         first.setTitle("窗口 😀")
-        first.setImeAllowed(true);
-        first.setImeAllowed(false)
+        try {
+            assertEquals(RequestStatus.Applied, first.setImeAllowed(true))
+        } catch (error: WindowException) {
+            assertEquals(WindowErrorKind.Unavailable, error.kind)
+            assertFalse(visibleStation)
+        }
+        assertEquals(RequestStatus.Applied, first.setImeAllowed(false))
         first.setImeCursorArea(LogicalRect(LogicalPosition(20.0, 10.0), LogicalSize(4.0, 18.0)))
         first.requestRedraw()
         val second = application.createWindow(windowAttributes { this.visible = false })
@@ -238,7 +286,8 @@ private class WindowsHandler: ApplicationHandler {
                                 _ ->
                                 assertEquals(42, contextValue());
                                 posts += 1
-                                first.setVisible(true);
+                                first.setVisible(visibleStation)
+                                assertEquals(visibleStation, first.isVisible)
                                 first.requestRedraw()
                                 @Unsafe
                                 {

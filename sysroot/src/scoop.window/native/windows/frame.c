@@ -45,6 +45,8 @@ int64_t sw_frame_margins(SWWindow *window) {
                           GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
   }
   HRESULT status = DwmExtendFrameIntoClientArea(window->hwnd, &margins);
+  if (status == DWM_E_COMPOSITIONDISABLED)
+    return margins.cyTopHeight == 0 ? 0 : -1;
   return SUCCEEDED(status) ? 0 : (uint32_t)status;
 }
 

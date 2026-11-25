@@ -257,7 +257,9 @@ macOS 桌面测试须串行执行。AppKitApplicationTest 等待真实窗口焦�
 
 支持 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 三个 x86_64 target，要求 Windows 10 1703+ 的 Per-Monitor V2。应用可通过标准 RC manifest 声明 DPI awareness；未配置时窗口库在创建 HWND 前设置。启动环境已经使用 Per-Monitor V1 时仅把创建线程升级到 V2，既有窗口保留原 awareness；System Aware 等虚拟化模式仍明确抛出 WindowException。
 
-Win32 桌面坐标采用物理虚拟桌面单位；内容区按窗口 DPI 转换。遮挡快照报告最小化／DWM cloaked，不判断其他窗口的完全覆盖。主题与激活遵守系统限制；Windows 8+ 的 DwmEnableBlurBehindWindow 已无 blur 效果，因此 `setBlur(true)` 返回 Unsupported，创建时要求 blur 则失败。内容保护只是系统显示提示。
+Win32 桌面坐标采用物理虚拟桌面单位；内容区按窗口 DPI 转换。遮挡快照报告最小化／DWM cloaked，不判断其他窗口的完全覆盖。主题与激活遵守系统限制；Windows 8+ 的 DwmEnableBlurBehindWindow 已无 blur 效果，因此 `setBlur(true)` 返回 Unsupported，创建时要求 blur 则失败。内容保护是系统显示提示。缺少桌面合成时可按默认属性创建窗口；若系统无法启用保护，`setContentProtected(true)` 返回 `Unsupported`，创建时显式要求保护则失败。
+
+在这个会话中仍可切换普通系统边框和不透明的自绘边框。需要 DWM 延伸标题栏或透明背景的请求会返回 `Unsupported`，创建时可据此处理 `WindowException`。
 
 在已登录的 Windows 桌面串行运行以下普通 Cone 测试；真实模态／菜单／尺寸调整会使用前台窗口，不并行运行这些 GUI 测试。两个 MinGW target 另指定对应的 `--native-sysroot`：
 

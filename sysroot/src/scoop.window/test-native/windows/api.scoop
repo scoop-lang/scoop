@@ -1,5 +1,10 @@
 package scoop.tests.window
 
+/** Returns one for a visible window station, zero for a service station, or -1 on error. */
+@Unsafe
+@Extern(name = "scoop_window_test_visible_station")
+public fun nativeWindowStationVisible(): Int
+
 /** Arms an actual WM_TIMER callback on a hidden window, without posting WM_TIMER. */
 @Unsafe
 @Extern(name = "scoop_window_test_start_polling_timer")
