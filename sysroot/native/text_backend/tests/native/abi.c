@@ -77,7 +77,16 @@ int32_t scoop_test_unicode_abi(void) {
   CHECK(scoop_charset_case(malformed, 1, 0).code == 9);
   CHECK(scoop_charset_case(NULL, 1, 0).code == 9);
   CHECK(scoop_charset_case(NULL, 0, 3).code == 9);
-  CHECK(scoop_charset_scalar_width(0x110000) == -1);
+  CHECK(scoop_charset_scalar_width(0x110000, false) == -1);
+  CHECK(scoop_charset_scalar_width(0x00b7, false) == 1);
+  CHECK(scoop_charset_scalar_width(0x00b7, true) == 2);
+  CHECK(scoop_charset_terminal_unicode_version() == 0x110000);
+  CHECK(scoop_charset_text_width(NULL, 0, false) == 0);
+  CHECK(scoop_charset_text_width(NULL, 1, false) == -1);
+  CHECK(scoop_charset_text_width(NULL, -1, false) == -1);
+  CHECK(scoop_charset_text_width(malformed, 1, false) == -1);
+  CHECK(scoop_charset_text_width(cluster, sizeof(cluster), false) == 1);
+  CHECK(scoop_charset_text_width(cluster, sizeof(cluster), true) == 1);
   CHECK(!scoop_charset_alphanumeric(0xd800));
   for (int32_t mode = 0; mode < 3; mode++) {
     scoop_text_result empty = scoop_charset_case(NULL, 0, mode);

@@ -1,6 +1,6 @@
 # scoop.charset
 
-独立字符集转换库，依赖 core、std 和 platform，字符集转换使用固定 Rust encoding_rs 0.8.42，macOS 的 NFC 与字素分段使用 Core Foundation，字符属性和完整大小写使用系统 ICU。其他目标使用 ICU4X 2.3.0 和 Unicode 17.0.0 数据。所有目标的单标量列宽均使用 unicode-width 0.2.2。提供内存 codec、NFC 与增量引擎，不依赖 HTTP 或系统 locale。
+独立字符集转换库，依赖 core、std 和 platform，字符集转换使用固定 Rust encoding_rs 0.8.42，macOS 的 NFC 使用 Core Foundation，字符属性和完整大小写使用系统 ICU；其他目标使用 ICU4X 2.3.0。所有目标的字素分段使用 ICU4X segmenter 2.3.0，终端列宽使用 unicode-width 0.2.2，两者采用相同的 Unicode 17.0.0 数据。提供内存 codec、NFC 与增量引擎，不依赖 HTTP 或系统 locale。
 
 ```scoop
 import scoop.charset.*
@@ -30,4 +30,4 @@ val username = normalizeNfc("Jose\u{0301}") // José
 
 M61 按用户确认缩减到 43 个 canonical name，65 个旧名称及其别名退役。GB18030 年份、CJK 扩展和 Windows 单字节映射差异见编码列表；不保证严格转换可逐标量往返。名称与 NFC 输出在复制后分别交回对应后端释放；上游不可恢复 OOM／panic 终止进程，不保证转为 Scoop 异常。详见 [迁移进度](https://github.com/scoop-lang/scoop/blob/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs/milestone61/PROGRESS.md)。
 
-`graphemeBoundaries`／`graphemes` 使用扩展字素簇，公开索引仍按 Unicode 标量计数。大小写映射使用完整字符串上下文及与用户 locale 无关的根语言规则；默认完整折叠不采用 Turkic 特例。`isUnicodeAlphanumeric` 对应 Alphabetic 或 Decimal_Number，包括字母性组合符号。`unicodeScalarWidth` 使用非 CJK 宽度，NUL／控制字符为 -1，少数符号可为 3 列；终端的字素显示策略仍由 readline 负责。GNU 文本后端已全部移除。
+`graphemeBoundaries`／`graphemes` 使用扩展字素簇，公开索引仍按 Unicode 标量计数。大小写映射使用完整字符串上下文及与用户 locale 无关的根语言规则；默认完整折叠不采用 Turkic 特例。`isUnicodeAlphanumeric` 对应 Alphabetic 或 Decimal_Number，包括字母性组合符号。`unicodeScalarWidth(character, ambiguousAsWide = false)` 与 `unicodeTextWidth(text, ambiguousAsWide = false)` 显式选择模糊宽度策略，NUL／控制字符为 -1，少数符号可为 3 列；完整文本宽度处理 VS15/VS16、ZWJ、组合字符及旗帜，不应逐标量相加。空串宽度为 0；调用者负责 tab、换行、裁切及终端序列。`unicodeTerminalDataVersion()` 返回分段与宽度的固定数据版本，不代表系统大小写或 NFC 的数据版本。GNU 文本后端已全部移除。

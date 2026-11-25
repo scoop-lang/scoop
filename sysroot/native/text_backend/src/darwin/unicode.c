@@ -78,41 +78,6 @@ scoop_text_result scoop_charset_normalize_nfc(const uint8_t *data,
   return result;
 }
 
-int32_t scoop_charset_grapheme_breaks(const uint8_t *data, int64_t size,
-                                      uint8_t *breaks) {
-  if (!size)
-    return 0;
-  if (!breaks)
-    return 9;
-  CFStringRef text = literal_string(data, size);
-  if (!text)
-    return 9;
-  memset(breaks, 0, (size_t)size);
-  CFIndex length = CFStringGetLength(text);
-  int32_t offset = 0;
-  CFIndex pos = 0;
-  while (pos < length) {
-    CFRange range = CFStringGetRangeOfComposedCharactersAtIndex(text, pos);
-    if (range.location != pos || range.length <= 0 ||
-        range.length > length - pos || offset >= size)
-      break;
-    CFIndex end = pos + range.length;
-    if (end == pos + 1 && end < length &&
-        CFStringGetCharacterAtIndex(text, pos) == '\r' &&
-        CFStringGetCharacterAtIndex(text, end) == '\n')
-      ++end;
-    breaks[offset] = 1;
-    while (pos < end) {
-      UChar32 scalar;
-      // literal_string has validated the full input. Both cursors advance once.
-      U8_NEXT_UNSAFE(data, offset, scalar);
-      pos += U16_LENGTH(scalar);
-    }
-  }
-  CFRelease(text);
-  return pos == length && offset == size ? 0 : 9;
-}
-
 bool scoop_charset_alphanumeric(uint32_t scalar) {
   return scalar <= 0x10ffff &&
          u_hasBinaryProperty((UChar32)scalar, UCHAR_POSIX_ALNUM);

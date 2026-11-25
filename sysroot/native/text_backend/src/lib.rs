@@ -11,6 +11,7 @@ mod allocation;
 mod bytes;
 #[cfg(not(target_os = "macos"))]
 mod domain;
+mod grapheme;
 #[cfg(not(target_os = "macos"))]
 mod normalize;
 mod punycode;
