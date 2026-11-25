@@ -78,6 +78,8 @@ default = "https://packages.example.org/"
 
 合法 build metadata 继续参与 ConeIdentity。带 build metadata 的版本要求只允许 `=`，按完整文本匹配；不含 metadata 的 `=1.4.2` 也只匹配该完整版本。其他范围比较忽略候选的 metadata；同 precedence 的多个候选在锁定版本之后按完整版本 UTF-8 升序选择，确保行为确定，不赋予 metadata 新的版本高低语义。
 
+`[test]` 可设置布尔值 `isolate = true`，让每个选中的测试用例在新进程运行，适用于进程独占的原生窗口或其他进程级状态。省略时为 false。该字段属于测试根的运行配置，详见[实现规范 2.7](SCOOP-IMPL-SPEC.md)。
+
 `[dependencies]` 是生产依赖；`[test-dependencies]` 仅加入所选测试根，依赖本身仍以 Production 构建。同一 manifest 两张表不得重复声明同一 key。普通 build/run/check/doc 不解析或获取测试依赖，不因只改变测试配置而更新生产解析或构建结果。首版不提供 optional/build dependency、feature、依赖平台条件或安装脚本。
 
 ### 2.3 Bundle 工具 metadata

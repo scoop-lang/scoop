@@ -11,7 +11,8 @@ fn output_encoding_preserves_control_bytes_and_invalid_utf8() {
 
 #[test]
 fn incomplete_human_reports_show_the_actual_exit_or_signal() {
-    let selected = crate::cli::test_selection::select(&TestDirectory::default(), None, false);
+    let selected =
+        crate::cli::test_selection::select(&TestDirectory::default(), None, false, false);
     let mut result = RunResult::empty(0);
     result.target_failure = Some("missing completion".into());
     for (process, expected) in [
@@ -47,7 +48,7 @@ fn human_report_keeps_failures_locations_ignored_reasons_and_raw_output() {
             cases: vec![case("check", None), case("later", Some("waiting".into()))],
         }],
     };
-    let selected = crate::cli::test_selection::select(&directory, None, false);
+    let selected = crate::cli::test_selection::select(&directory, None, false, false);
     let result = RunResult {
         complete: true,
         target_failure: None,

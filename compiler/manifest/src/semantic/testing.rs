@@ -26,11 +26,17 @@ impl ManifestDependency {
 /// Test-only inputs are excluded from the production semantic projection.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TestManifestConfig {
+    #[serde(default)]
+    pub(super) isolate: bool,
     pub(super) sources: SourceSelection,
     pub(super) dependencies: BTreeMap<DependencyCoordinateKey, ManifestDependency>,
 }
 
 impl TestManifestConfig {
+    pub fn isolate(&self) -> bool {
+        self.isolate
+    }
+
     pub fn sources(&self) -> &SourceSelection {
         &self.sources
     }

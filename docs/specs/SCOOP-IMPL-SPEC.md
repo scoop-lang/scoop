@@ -1104,6 +1104,8 @@ Cone、package、类型、函数 overload 组与源码页在所属 catalog 内�
 
 `scoop test [root-input]` 使用同一构建图，只对 manifest 根 Cone 启用 Test 用途：发现根的生产与测试依赖，依赖节点仍按 Production 构建，不递归启用依赖自身的测试。根按 executable 产物规划和链接，保留源码 manifest 及 ConeIdentity。测试编译键包含用途、每个源码的角色、测试源码选择与测试依赖语义；本机源码实际路径、修改时间和大小参与更新判定，诊断显示 locator 与 span 不进入键；生产键不包含这些测试配置。测试源码或配置改变不使未改变的生产依赖缓存失效。
 
+测试根在 Cone.toml 的 `[test]` 中设置 `isolate = true` 时，驱动按现有测试目录顺序为每个选中的用例单独启动同一个已链接的测试程序。每次启动沿用用例序号、独立结果通道和输出捕获，最后按原目录汇总。普通断言失败继续执行后续用例，进程中断保留退出状态。默认让所选用例共享一个进程。该设置只影响运行，测试编译、链接、过滤和列举规则保持一致。
+
 测试程序发布到 `target/<canonical-target-triple>/<profile>/<group>/<cone-name>/tests/<cone-name>`，`--target-dir` 替换 target 根目录，`--no-run` 完成构建和链接后返回。运行直接使用本次成功构建确定的已有或新生成 executable，不制作 execution copy；失败构建不得运行旧文件。过滤和忽略选择不改变测试编译产物；最终报告需要独立的用例结果通道，不能仅凭进程退出码判定整轮执行完成。
 
 测试可执行文件的 JSON `executable` 构建记录同时保存完整 `test_directory`，包含被忽略用例，保持静态目录的容器与用例顺序，不应用运行过滤；目录中的 `containers` 与 `test-list` 使用相同字段。编辑器用 `test --no-run --message-format json` 本次结果中的源码路径、容器名与方法名定位所点用例，再按完整目录的扁平序号生成语言规范 16.5 的 `--scoop-test-cases` 参数；名称只用于目录选择，不成为语言实体身份。缺少或无法唯一匹配用例时报告错误，不运行全部测试或旧程序。human 模式的 `--no-run` 仍只报告构建结果。

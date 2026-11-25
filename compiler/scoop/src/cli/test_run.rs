@@ -21,21 +21,70 @@ pub(super) fn program(
     reporter: &Reporter,
     target: &str,
 ) -> BuildResult<Option<ExitStatus>> {
-    if selected.empty_reason.is_some() {
+    let group_size = if selected.isolate {
+        1
+    } else {
+        selected.case_keys.len().max(1)
+    };
+    let mut groups = selected.case_keys.chunks(group_size);
+    let Some(first) = groups.next() else {
         let mut result = RunResult::empty(0);
         result.complete = true;
         reporter
             .test_report(target, selected, &result, None)
             .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
         return Ok(None);
+    };
+    let (mut result, mut status) = run_cases(executable, output, first, nocapture, cwd)?;
+    for keys in groups {
+        // An assertion failure is a complete run. A broken report or interrupted
+        // process stops execution and leaves the remaining cases marked not run.
+        if result.target_failure.is_some() {
+            break;
+        }
+        let (mut group, exit) = run_cases(executable, output, keys, nocapture, cwd)?;
+        if !exit.success() || group.target_failure.is_some() {
+            status = exit;
+        }
+        result.cases.append(&mut group.cases);
+        result.complete &= group.complete;
+        result.target_failure = group.target_failure;
+        if let (Some(combined), Some(output)) = (&mut result.output, group.output) {
+            combined.stdout.extend(output.stdout);
+            combined.stderr.extend(output.stderr);
+        }
     }
+    result.complete &= result.cases.len() == selected.case_keys.len();
+    result
+        .cases
+        .resize_with(selected.case_keys.len(), Default::default);
+    reporter
+        .test_report(target, selected, &result, Some(status))
+        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
+    if status.success() && result.failed() {
+        return Err(failure(
+            scoop_source::DiagnosticCode::E2508,
+            "test run failed; see the test report",
+        ));
+    }
+    Ok(Some(status))
+}
+
+fn run_cases(
+    executable: &Path,
+    output: &Path,
+    keys: &[String],
+    nocapture: bool,
+    cwd: &Path,
+) -> BuildResult<(RunResult, ExitStatus)> {
     let run = tempfile::Builder::new()
         .prefix(".test-run-")
         .tempdir_in(output.parent().expect("an executable has a parent"))
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     let mut command = Command::new(executable);
     command
-        .args(&selected.arguments)
+        .arg("--scoop-test-cases")
+        .args(keys)
         .current_dir(cwd)
         .stdin(Stdio::inherit())
         .env("SCOOP_TEST_RUN_DIR", run.path())
@@ -68,12 +117,7 @@ pub(super) fn program(
         .wait()
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2204, error))?;
     drop(child);
-    let expected = selected
-        .arguments
-        .iter()
-        .skip(1)
-        .map(|key| key.to_str().expect("generated case keys are ASCII"))
-        .collect::<Vec<_>>();
+    let expected: Vec<_> = keys.iter().map(String::as_str).collect();
     let mut result = match File::open(run.path().join("events.jsonl")) {
         Ok(file) => events::read(BufReader::new(file), &expected),
         Err(error) => {
@@ -107,16 +151,7 @@ pub(super) fn program(
             }
         }
     }
-    reporter
-        .test_report(target, selected, &result, Some(status))
-        .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
-    if status.success() && result.failed() {
-        return Err(failure(
-            scoop_source::DiagnosticCode::E2508,
-            "test run failed; see the test report",
-        ));
-    }
-    Ok(Some(status))
+    Ok((result, status))
 }
 
 fn read_output(directory: &Path, prefix: &str) -> io::Result<Output> {

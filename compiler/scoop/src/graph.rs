@@ -66,6 +66,12 @@ impl ResolvedBuildGraph {
         }
     }
 
+    /// Whether this test root needs a fresh native process for each selected case.
+    pub fn isolate_tests(&self) -> bool {
+        self.source_manifest(self.root)
+            .is_some_and(|manifest| manifest.parsed().tests().isolate())
+    }
+
     pub const fn root_identity(&self) -> ConeIdentity {
         self.root
     }

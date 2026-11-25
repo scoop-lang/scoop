@@ -30,7 +30,8 @@ pub fn parse_package_manifest(
         && (!raw.dependencies.is_empty()
             || !raw.test_dependencies.is_empty()
             || raw.sources.is_some()
-            || raw.test.sources.is_some())
+            || raw.test.sources.is_some()
+            || raw.test.isolate.is_some())
     {
         return Err(invalid(
             scoop_source::DiagnosticCode::E2009,
@@ -97,6 +98,7 @@ pub fn parse_package_manifest(
         overrides: dependency::requests(raw.overrides, true)?,
         sources: crate::selection::parse_sources(raw.sources, catalog)?,
         test_sources: crate::selection::parse_sources(raw.test.sources, catalog)?,
+        isolate_tests: raw.test.isolate.unwrap_or(false),
         native,
         windows,
         publish,

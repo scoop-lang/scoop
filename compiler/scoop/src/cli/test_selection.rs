@@ -2,13 +2,13 @@ use scoop_slib::TestDirectory;
 
 #[cfg(test)]
 mod tests;
-use std::ffi::OsString;
 
 pub(super) struct SelectedTests {
     pub directory: TestDirectory,
     pub report_directory: TestDirectory,
     pub run_ignored: bool,
-    pub arguments: Vec<OsString>,
+    pub case_keys: Vec<String>,
+    pub isolate: bool,
     pub empty_reason: Option<&'static str>,
 }
 
@@ -16,8 +16,9 @@ pub(super) fn select(
     directory: &TestDirectory,
     filter: Option<&str>,
     ignored: bool,
+    isolate: bool,
 ) -> SelectedTests {
-    let mut arguments = vec![OsString::from("--scoop-test-cases")];
+    let mut case_keys = Vec::new();
     let mut selected = TestDirectory::default();
     let mut report_directory = TestDirectory::default();
     let mut index = 0usize;
@@ -39,7 +40,7 @@ pub(super) fn select(
             matching += usize::from(matches);
             let keep = matches && case.ignore_reason.is_some() == ignored;
             if keep {
-                arguments.push(current.to_string().into());
+                case_keys.push(current.to_string());
             }
             keep
         });
@@ -62,7 +63,8 @@ pub(super) fn select(
         directory: selected,
         report_directory,
         run_ignored: ignored,
-        arguments,
+        case_keys,
+        isolate,
         empty_reason,
     }
 }

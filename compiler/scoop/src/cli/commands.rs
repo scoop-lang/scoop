@@ -127,7 +127,11 @@ pub(super) fn execute(
                 reporter.diagnostics_policy(),
             )?;
             let cwd = std::env::current_dir().map_err(config)?;
-            for result in scoop::build_all(requests)? {
+            let isolate: Vec<_> = requests
+                .iter()
+                .map(|request| request.graph.isolate_tests())
+                .collect();
+            for (result, isolate) in scoop::build_all(requests)?.into_iter().zip(isolate) {
                 reporter.built(&result).map_err(config)?;
                 if args.no_run {
                     continue;
@@ -136,8 +140,12 @@ pub(super) fn execute(
                 let directory = summary
                     .test_directory()
                     .ok_or_else(|| config("test artifact has no test directory"))?;
-                let selected =
-                    super::test_selection::select(directory, args.filter.as_deref(), args.ignored);
+                let selected = super::test_selection::select(
+                    directory,
+                    args.filter.as_deref(),
+                    args.ignored,
+                    isolate,
+                );
                 if args.list {
                     reporter
                         .test_list(

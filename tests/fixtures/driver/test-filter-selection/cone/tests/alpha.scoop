@@ -3,12 +3,19 @@ package dev.selection.alpha
 import dev.selection.value
 import scoop.test.*
 
+private var processUsed = false
+
 @Test
 private class LifecycleTests {
     private var calls: Int = 0
 
     @BeforeTest
-    private fun before() { assertEquals(0, calls); calls = 1 }
+    private fun before() {
+        assertFalse(processUsed)
+        processUsed = true
+        assertEquals(0, calls)
+        calls = 1
+    }
 
     @AfterTest
     private fun after() { assertEquals(1, calls) }

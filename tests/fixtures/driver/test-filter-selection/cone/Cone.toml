@@ -5,5 +5,8 @@ name = "selection"
 version = "0.1.0"
 kind = "library"
 
+[test]
+isolate = true
+
 [test-dependencies]
 "scoop:scoop.test" = "0.1.0"

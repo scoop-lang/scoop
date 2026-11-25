@@ -14,6 +14,7 @@ mod raw;
 mod registry;
 
 pub use parse::parse_package_manifest;
+pub(crate) use raw::RawTest;
 pub use registry::RegistryUrl;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -124,6 +125,8 @@ pub struct PackageDocument {
     pub overrides: BTreeMap<DependencyCoordinateKey, DependencyRequest>,
     pub sources: SourceSelection,
     pub test_sources: SourceSelection,
+    #[serde(default)]
+    pub isolate_tests: bool,
     pub native: NativeConfig,
     #[serde(default)]
     pub windows: crate::WindowsConfig,

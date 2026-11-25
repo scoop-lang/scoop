@@ -4,6 +4,8 @@ use super::*;
 fn test_inputs_do_not_change_the_production_semantic_projection() {
     let source = format!(
         r#"{MINIMAL}
+[test]
+isolate = true
 [[test.sources]]
 path = "tests/common"
 [[test.sources]]
@@ -17,6 +19,8 @@ when = {{ os = "linux" }}
     );
     let parsed = parse_cone_manifest(&source).unwrap();
     let production = parse_cone_manifest(MINIMAL).unwrap();
+    assert!(parsed.tests().isolate());
+    assert!(!production.tests().isolate());
     assert_eq!(parsed.semantic(), production.semantic());
     assert_eq!(parsed.locators(), production.locators());
     assert_eq!(parsed.diagnostic_spans().dependency_iter().len(), 0);

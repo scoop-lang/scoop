@@ -42,13 +42,10 @@ fn selection_keeps_compiled_indices_and_removes_empty_groups() {
         (Some("Cases::"), true, vec!["1"]),
         (Some(""), false, vec!["0", "2"]),
     ] {
-        let selected = select(&directory, filter, ignored);
+        let selected = select(&directory, filter, ignored, false);
         assert_eq!(selected.directory.containers.len(), 1);
         assert_eq!(selected.directory.containers[0].cases.len(), expected.len());
-        assert_eq!(
-            &selected.arguments[1..],
-            expected.into_iter().map(OsString::from).collect::<Vec<_>>()
-        );
+        assert_eq!(selected.case_keys, expected);
         assert_eq!(selected.empty_reason, None);
     }
 }
@@ -66,12 +63,9 @@ fn empty_selection_retains_its_reason_and_explicit_empty_run() {
             "all matching tests ignored",
         ),
     ] {
-        let selected = select(&directory, filter, ignored);
+        let selected = select(&directory, filter, ignored, false);
         assert!(selected.directory.containers.is_empty());
         assert_eq!(selected.empty_reason, Some(reason));
-        assert_eq!(
-            selected.arguments,
-            vec![OsString::from("--scoop-test-cases")]
-        );
+        assert!(selected.case_keys.is_empty());
     }
 }
