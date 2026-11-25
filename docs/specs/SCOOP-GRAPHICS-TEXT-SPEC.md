@@ -119,6 +119,8 @@ InlineAlignment 的含义为：
 
 FontCollection、TextStyle、ParagraphStyle、TextRange／TextPosition 等文本类型迁入 graphics.text。FontCollection 管理显式字体、family 别名和系统 fallback。成功改变字体登记时更新其只读 revision，供段落宿主判断字体输入是否变化；普通查询与失败登记不改变 revision。这只是本集合的缓存更新标记，不是全局身份或产物字段。
 
+`FontCollection.copy(): FontCollection` 创建独立拥有的集合，保留调用时已登记的字面、别名、系统通用字体选择和 fallback 设置，不重新扫描系统字体或复制字体文件。两个集合的后续登记、关闭和观察者互不影响，副本的 revision 从 0 开始。需要在多个延迟创建的 Paragraph 中保持同一字体输入的宿主可持有副本并保持它不变；创建、使用和关闭仍限 owner 线程。已关闭来源的复制报告状态异常。
+
 `FontCollection(systemFallback = true)` 为 `sans-serif`、`serif`、`monospace` 三个通用 family 名提供宿主字体。后端在集合创建时解析系统默认无衬线、衬线和等宽字体，集合保存该选择；段落快照复用它，不反复扫描系统字体。显式 register 的同名 family 优先，关闭 systemFallback 时只使用显式字体，不偷偷加入系统别名。普通 family 仍按 TextStyle.families 的声明顺序匹配，缺字 fallback 继续由系统字体管理器处理。通用名保证字体类别和正常排版，不保证不同平台的同名、相同度量或像素结果；必要字体不可用时报告现有 GraphicsException。CoreText／DirectWrite／Fontconfig 及系统字体选择只存在于 text 后端。
 
 `Paragraph(fonts, content: StyledText, settings)` 保存展开后的内容、最终样式与字体来源快照。另提供 String 加 TextStyle 的普通便利构造，它产生相同的纯文本内容。之后字体登记、来源关闭或创建另一段落，不改变已有 Paragraph 和 TextLayout。
