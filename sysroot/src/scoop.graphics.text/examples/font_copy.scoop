@@ -1,0 +1,30 @@
+//! dep: scoop:scoop.graphics.text:0.1.0
+
+import scoop.graphics.text.*
+
+fun main() {
+    val fonts = FontCollection()
+    try {
+        fonts
+            .copy()
+            .use { frozen ->
+                fonts.close()
+                for (text in ["first run", "later run"]) {
+                    Paragraph(frozen, text, textStyle { families = ["monospace"] })
+                        .use { paragraph ->
+                            paragraph
+                                .layoutUnwrapped()
+                                .use { layout ->
+                                    println(
+                                        f"${layout.text}: ${
+                                            layout.unresolvedGlyphCount
+                                        } unresolved glyphs"
+                                    )
+                                }
+                        }
+                }
+            }
+    } finally {
+        fonts.close()
+    }
+}

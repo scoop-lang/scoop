@@ -48,6 +48,13 @@ void *scoop_graphics_text_fonts_create(bool fallback) {
     return nullptr;
   }
 }
+void *scoop_graphics_text_fonts_copy(const void *pointer) {
+  try {
+    return new STFonts(*static_cast<const STFonts *>(pointer));
+  } catch (...) {
+    return nullptr;
+  }
+}
 int32_t scoop_graphics_text_fonts_add(void *pointer, const void *bytes,
                                       int64_t length, const char *alias,
                                       int64_t alias_length, int32_t index) {

@@ -31,6 +31,8 @@ FontCollection().use { fonts ->
 
 FontCollection 默认使用系统 fallback，也可以通过 `FontCollection(false)` 关闭并用 `register(bytes, family)` 登记自有字体。只读 `revision` 从 0 开始，每次成功登记增加一次，失败不改变版本。Paragraph 在构造时保存文字、样式和字体来源快照；`layout(width)` 与 `layoutUnwrapped()` 每次产生独立结果，后续登记字体、关闭来源或重新布局不改变旧结果。
 
+需要延迟创建多个段落，同时保持字体输入一致时，调用 `fonts.copy()` 并持有返回的独立集合。副本保留已登记字面、别名、系统通用字体选择和 fallback 设置，不重新扫描或复制字体文件；之后两边的登记、观察者和关闭互不影响，副本的 revision 从 0 开始。副本仍是可变资源，宿主要保持其不变才能将它用作字体快照，并在 owner 线程关闭。完整的延迟排版示例见 [font_copy.scoop](examples/font_copy.scoop)。
+
 内容通过 `styledText { ... }` 组装，`text(value)`、`span { ... }`、`inlineObject(key, alternateText)` 和 `add(existingSpan)` 是按顺序追加并返回 Unit 的真实成员。`textSpan { ... }` 创建可复用的不可变片段。配置同步执行一次，不创建 native 或 UI 资源；已生成描述不随捕获的 builder 后续修改而变化。Paragraph 也接受 String／TextStyle 的便利构造。
 
 `textStyle { ... }`、`spanStyle { ... }` 和 `paragraphStyle { ... }` 分别构造完整文字样式、继承覆盖和段落选项。内容中的 `style { ... }` 基于当前设置修改，重复块累积、空块不重置；`style = existingStyle` 整体替换。SpanStyle 未指定属性继承父样式，数组属性整体替换，`lineHeight = Some(None)` 恢复自然行高。公开 `SpanStyle.resolve(parent)` 允许主题及普通消费者使用同一继承计算，返回完整 TextStyle，不创建 native 资源。TextStyle 支持 family 顺序、字号、颜色、weight／width／slant、locale、字距、词距、行高及 OpenType feature／variation；ParagraphStyle 指定方向、对齐、maxLines 和 ellipsis。TextRun 仅为内部展开结果。
