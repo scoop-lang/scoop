@@ -19,6 +19,8 @@ Scoop 尚未发布首个版本。语言、库和工具随主线一起演进。�
 - 编辑器、调试器、桌面及控件库分别记录其功能边界。DataGrid 在独立仓库实施，各平台的实际支持与验收以所属文档为准。[语言服务](language-service/PROGRESS.md) · [桌面与控件规范](specs/SCOOP-UI-COMPONENT-SPEC.md) · [DataGrid 设计](ui/data-grid/DESIGN.md)
 - 仍待实施或明确的工作集中记录在[待办清单](TODO.md)。
 
+首次发布前的代码审查记录了编译阶段的数据所有权、错误诊断、系统库查找成本与 fixture 的维护边界。[首次发布前代码审查](RELEASE-REVIEW.md)
+
 ## 历史记录
 
-M1 至 M62 的设计、阶段验收、实验数据及原完整路线图保存在相邻的 `../scoop-doc-archive/docs/`。历史版本也可从 Git 查阅。仍在使用的生成器协议和 JSON 消息定义保留在当前仓库。[归档时的文档目录](https://github.com/scoop-lang/scoop/tree/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs) · [生成器协议](generator-protocol/PROTOCOL.md)
+M1 至 M62 的设计、阶段验收、实验数据、原完整路线图及已完成的 JSON 库调研保存在相邻的 `../scoop-doc-archive/docs/`。历史版本也可从 Git 查阅。仍在使用的生成器协议和 JSON 消息定义保留在当前仓库。[归档时的文档目录](https://github.com/scoop-lang/scoop/tree/aa937c52e02120837e78c9a0c8b9572fd318e3a1/docs) · [生成器协议](generator-protocol/PROTOCOL.md)
