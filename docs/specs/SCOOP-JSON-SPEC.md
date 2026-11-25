@@ -6,7 +6,7 @@
 
 Json保留显式`encodeToString(value, codec)`、`decodeFromString(text, codec)`、`encodeToValue(value, codec)`、`decodeFromValue(value, codec)`。四个入口均有省略codec的普通泛型重载：编码要求`T.Companion : ValueEncoder<T>`，解码要求`T.Companion : ValueDecoder<T>`，分别转发T.Companion。显式codec不会被默认策略替换。
 
-`Json.parse(text: String): JsonValue`严格解析一个完整JSON文档，包括所有子树的语法、转义、重复key和尾随输入；错误为带JSON Pointer path的DecodingException。`Json.stringify(value: JsonValue): String`直接渲染已合法的值树，默认紧凑输出，不重新编码、复制或解析整棵树。它保留对象字段顺序、数组顺序及数字token，不承诺原始空白或字符串转义拼写。
+`Json.parse(text: String): JsonValue`严格解析一个完整JSON文档，包括所有子树的语法、转义、重复key和尾随输入；错误为带JSON Pointer path的DecodingException。语法诊断按从零开始的 Unicode 字符位置报告解析游标，转义中途到达文件末尾时使用文本的字符数。`Json.stringify(value: JsonValue): String`直接渲染已合法的值树，默认紧凑输出，不重新编码、复制或解析整棵树。它保留对象字段顺序、数组顺序及数字token，不承诺原始空白或字符串转义拼写。
 
 encodeToValue遵守根encoder完成／提交规则。decodeFromValue以空串作为新的根path，不保留该JsonValue在来源文档中的位置。用户codec、构造器和default抛出的异常照常传播。已有String入口的整数、浮点、null和未知字段规则不变。
 

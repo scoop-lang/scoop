@@ -1,6 +1,9 @@
 package scoop.json
 
+import scoop.collections.HashSet
+
 internal class JsonKeyedEncoder(private val owner: JsonEncoder) : KeyedEncodingContainer {
+    private val names: HashSet<String> = HashSet<String>()
     private val members: ArrayList<JsonMember> = ArrayList<JsonMember>()
     private var pending: Option<(String, JsonEncoder)> = None
 
@@ -10,19 +13,21 @@ internal class JsonKeyedEncoder(private val owner: JsonEncoder) : KeyedEncodingC
                 members.add(JsonMember(name, child.result()))
                 pending = None
             }
-            case None -> { return }
+
+            case None -> {
+                return
+            }
         }
     }
 
     public override fun field(name: String): Encoder {
         owner.begin()
         flush()
-        for (member in members) {
-            if (member.name == name) {
-                throw EncodingException(childPath(owner.path, name), "duplicate object key")
-            }
+        val path = childPath(owner.path, name)
+        if (!names.add(name)) {
+            throw EncodingException(path, "duplicate object key")
         }
-        val child = JsonEncoder(childPath(owner.path, name))
+        val child = JsonEncoder(path)
         pending = Some((name, child))
         return child
     }
@@ -44,7 +49,10 @@ internal class JsonUnkeyedEncoder(private val owner: JsonEncoder) : UnkeyedEncod
                 elements.add(child.result())
                 pending = None
             }
-            case None -> { return }
+
+            case None -> {
+                return
+            }
         }
     }
 

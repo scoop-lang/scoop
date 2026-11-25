@@ -10,18 +10,27 @@ object RecordReader : ValueDecoder<Long> {
         val first = decoder.keyed()
         val second = decoder.keyed()
         check(first.keys.size == 3L)
-        (first.keys as ArrayList<String>).add("not-an-input-key")
+        val snapshot = first.keys
+        if (snapshot is MutableList<String>) {
+            snapshot.add("not-an-input-key")
+        }
         check(first.keys.size == 3L && second.keys.size == 3L)
         reject("/missing~1~0") { first.required("missing/~") }
-        check(when (first.optional("missing/~")) { case None -> true; else -> false })
-        check(when (first.optional("missing/~")) { case None -> true; else -> false })
+        check(
+            when (first.optional("missing/~")) {
+                case None -> true;
+                else -> false
+            }
+        )
         val nullValue = first.required("null")
         val text = first.required("text")
         val number = second.required("id")
-        check(when (second.optional("null")) {
-            case Some(val child) -> child.singleValue().isNull()
-            case None -> false
-        })
+        check(
+            when (second.optional("null")) {
+                case Some(val child) -> child.singleValue().isNull()
+                case None -> false
+            }
+        )
         first.end()
         first.end()
         reject("/text") { Long.decode(text) }
@@ -35,18 +44,28 @@ object RecordReader : ValueDecoder<Long> {
     }
 }
 
-private fun exercise() {
-    check(Json.decodeFromString("{\"id\":7,\"null\":null,\"text\":\"retained\"}", RecordReader) == 7L)
-    val ignore = ValueDecoderFunction<Long>({ decoder -> 42L })
-    check(Json.decodeFromString("{\"unused\":[1,{\"nested\":true}]}", ignore) == 42L)
-    reject("/unused/1") { Json.decodeFromString("{\"unused\":[1,]}", ignore) }
-    reject("/unused/x") { Json.decodeFromString("{\"unused\":{\"x\":1,\"x\":2}}", ignore) }
-    reject("") { Json.decodeFromString("{} true", ignore) }
-
-}
-
 @Test
-private class ApiTests {
+private class RecordDecodingTests {
     @Test
-    fun behavior() { exercise() }
+    fun keyedViewsReadTheSameObject() {
+        check(
+            Json.decodeFromString("{\"id\":7,\"null\":null,\"text\":\"retained\"}", RecordReader) ==
+                7L
+        )
+        val ignore = ValueDecoderFunction<Long>({ decoder -> 42L })
+        check(Json.decodeFromString("{\"unused\":[1,{\"nested\":true}]}", ignore) == 42L)
+        reject("/unused/1") { Json.decodeFromString("{\"unused\":[1,]}", ignore) }
+        reject("/unused/x") { Json.decodeFromString("{\"unused\":{\"x\":1,\"x\":2}}", ignore) }
+        reject("") { Json.decodeFromString("{} true", ignore) }
+    }
+
+    @Test
+    fun truncatedEscapeReportsPathAndCharacterPosition() {
+        val error = assertFailsWith<DecodingException> {
+            Json.parse("{\"雪\":\"😀\\");
+            Unit
+        }
+        assertEquals("/雪", error.path)
+        assertEquals(Some("unexpected end of JSON at character 8"), error.message)
+    }
 }
