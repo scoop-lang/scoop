@@ -1,9 +1,9 @@
 schema = 1
 name = "devirtualization-locals"
-inputs = ["program.scoop"]
-tools = ["scoop"]
+inputs = ["program.scoop", "../inspect_dispatch.py"]
+tools = ["scoop", "python"]
 when = { os = ["darwin", "linux"] }
-tags = ["stage-golden", "devirtualization", "locals", "compiler-correctness"]
+tags = ["devirtualization", "locals", "compiler-correctness"]
 variants = [{name = "debug", vars = {profile = "debug"}}, {name = "release", vars = {profile = "release"}}]
 
 [[steps]]
@@ -14,9 +14,13 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [
-  {"file" = "${work}/dump/${build.result.root.identity}/mir.txt", "snapshot" = "program.${profile}.mir.txt"},
-]
+
+[[steps]]
+name = "dispatch"
+argv = ["${python}", "${fixture}/../inspect_dispatch.py", "${work}/dump/${build.result.root.identity}/mir.txt", "locals", "${profile}"]
+exit = 0
+stdout = ""
+stderr = ""
 
 [[steps]]
 name = "run"

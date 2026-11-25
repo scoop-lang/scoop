@@ -28,5 +28,7 @@ for name in selected:
             line,
         ):
             line = re.sub(r"@fn\d+", lambda match: "@" + names[match[0]], line)
+            # Import ordinals can move when core gains unrelated declarations.
+            line = re.sub(r"\bexternal\d+\b", "external", line)
             output.append(line[4:])
 Path(sys.argv[2]).write_text("\n".join(output) + "\n", encoding="utf-8", newline="\n")
