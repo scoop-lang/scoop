@@ -31,13 +31,7 @@ pub struct ManifestSourceInput {
     pub(super) manifest_locator: PathBuf,
     pub(super) input_root: PathBuf,
     pub(super) sources: SelectedManifestSources,
-    pub(super) native: SourceNativeInput,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) enum SourceNativeInput {
-    Frontend,
-    Artifact(scoop_toolchain::PreparedNativeObjects),
+    pub(super) native_configuration: scoop_wire::Digest256,
 }
 
 impl ManifestSourceInput {

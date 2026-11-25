@@ -203,6 +203,9 @@ impl CompileTimeInputs {
 
 pub fn compiler_inputs_current(inputs: &[scoop_protocol::CompilerInputV1]) -> bool {
     inputs.iter().all(|input| match input {
+        scoop_protocol::CompilerInputV1::Native(input) => {
+            crate::build_record::Input::observation_current(input).unwrap_or(false)
+        }
         scoop_protocol::CompilerInputV1::File(input) => files::current(input),
         scoop_protocol::CompilerInputV1::Directory(input) => directories::current(input),
         scoop_protocol::CompilerInputV1::Environment(input) => match std::env::var(&input.name) {

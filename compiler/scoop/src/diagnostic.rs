@@ -6,9 +6,9 @@ use scoop_protocol::StructuredDiagnosticV1;
 
 use crate::{
     BuildGraphDiscoveryError, BuildGraphExecutionError, BuildGraphRequestError, CacheIoOperation,
-    ChildTransportError, CompileCacheStoreError, DependencyLocatorError, LoadBuildRootError,
-    OrdinarySourceExecutionError, PrebuiltCompletionError, PrepareBuildGraphError,
-    ResolveBuildGraphError,
+    ChildRequestPlanError, ChildTransportError, CompileCacheStoreError, DependencyLocatorError,
+    LoadBuildRootError, OrdinarySourceExecutionError, PrebuiltCompletionError,
+    PrepareBuildGraphError, ResolveBuildGraphError,
 };
 
 /// Canonical order in which build orchestration failures are reported.
@@ -292,6 +292,9 @@ impl ClassifyBuildFailure for OrdinarySourceExecutionError {
             Self::ChildFailure(_) => phase_only(BuildFailurePhase::ChildDiagnostic),
             Self::Completion(_) => {
                 classified(BuildFailurePhase::ChildOutput, DiagnosticCode::ICE2201)
+            }
+            Self::RequestPlan(ChildRequestPlanError::Toolchain(source)) => {
+                classified(BuildFailurePhase::SourceSnapshot, source.code())
             }
             Self::NotOrdinarySource(_) | Self::RequestPlan(_) => {
                 classified(BuildFailurePhase::ChildTransport, DiagnosticCode::ICE2201)

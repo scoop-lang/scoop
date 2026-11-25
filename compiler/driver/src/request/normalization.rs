@@ -51,7 +51,7 @@ pub fn normalize_protocol_build_request(
         protocol_paths(build.support_slibs())?,
     )?;
     let output = protocol_output(build.output())?;
-    if matches!(output, SingleConeOutput::Check) && !build.native_inputs().is_empty() {
+    if matches!(output, SingleConeOutput::Check) && build.native_build().is_some() {
         return Err(BuildRequestNormalizationError::Request(
             SingleConeBuildRequestError::CheckRequiresNoMachineInputs,
         ));
@@ -93,7 +93,22 @@ pub fn normalize_protocol_build_request(
         map_dump_policy(build.emit()),
     )
     .map_err(BuildRequestNormalizationError::Request)
-    .and_then(|request| {
+    .and_then(|mut request| {
+        if let Some(paths) = build.native_build() {
+            request = request
+                .with_native_sysroot(
+                    paths
+                        .sysroot
+                        .to_path_buf()
+                        .map_err(BuildRequestNormalizationError::HostPath)?,
+                )
+                .with_native_cache(
+                    paths
+                        .cache
+                        .to_path_buf()
+                        .map_err(BuildRequestNormalizationError::HostPath)?,
+                );
+        }
         request
             .with_optimization(build.optimization())
             .with_debug_info(build.debug_info())
@@ -101,7 +116,6 @@ pub fn normalize_protocol_build_request(
                 scoop_toolchain::GeneratorPrograms::from_registrations(build.generators())
                     .map_err(BuildRequestNormalizationError::Generators)?,
             )
-            .with_native_inputs(protocol_paths(build.native_inputs())?)
             .with_purpose(build.purpose())
             .map_err(BuildRequestNormalizationError::Request)
     })

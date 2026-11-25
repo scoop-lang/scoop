@@ -3,6 +3,7 @@ use crate::build_record::{Input, Record, cached, fingerprint};
 use scoop_protocol::HostPathCarrier;
 use serde::{Deserialize, Serialize};
 
+mod build;
 mod inputs;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -30,6 +31,7 @@ struct Outputs {
 }
 
 /// Check native inputs before invoking any preprocessor or compiler.
+#[allow(clippy::too_many_arguments)]
 pub fn prepare_native_objects<'a>(
     manifest: &LoadedConeManifest,
     target: scoop_lir::LirTargetProfile,
@@ -38,11 +40,21 @@ pub fn prepare_native_objects<'a>(
     sysroot: &Path,
     cache: &Path,
     purpose: scoop_protocol::CompilationPurpose,
+    workers: impl Into<scoop_process::WorkerSlots>,
 ) -> Result<PreparedNativeObjects, ToolchainError> {
-    let mut prepared = prepare_c_objects(manifest, target, &resolve, optimization, sysroot, cache)?;
-    if let Some(resource) =
-        crate::windows_resource::prepare(manifest, target, &resolve, purpose, sysroot, cache)?
-    {
+    let workers = workers.into();
+    let mut prepared = prepare_c_objects(
+        manifest,
+        target,
+        &resolve,
+        optimization,
+        sysroot,
+        cache,
+        &workers,
+    )?;
+    if let Some(resource) = crate::windows_resource::prepare(
+        manifest, target, &resolve, purpose, sysroot, cache, &workers,
+    )? {
         prepared.key = fingerprint(&(prepared.key.as_array(), resource.key.as_array()))?;
         prepared.objects.push(resource.object);
         prepared.inputs.extend(resource.inputs);
@@ -52,7 +64,7 @@ pub fn prepare_native_objects<'a>(
 
 pub fn selected_native_object_sources(
     manifest: &LoadedConeManifest,
-    target: &crate::ResolvedTargetProfile,
+    target: scoop_lir::LirTargetProfile,
     purpose: scoop_protocol::CompilationPurpose,
 ) -> Vec<ConeRelativePath> {
     let mut sources: Vec<_> = manifest
@@ -65,8 +77,7 @@ pub fn selected_native_object_sources(
         .map(|source| source.path().clone())
         .collect();
     sources.sort();
-    sources
-        .extend(crate::windows_resource::source(manifest, target.lir_target(), purpose).cloned());
+    sources.extend(crate::windows_resource::source(manifest, target, purpose).cloned());
     sources
 }
 
@@ -77,6 +88,7 @@ fn prepare_c_objects<'a>(
     optimization: OptimizationMode,
     sysroot: &Path,
     cache: &Path,
+    workers: &scoop_process::WorkerSlots,
 ) -> Result<PreparedNativeObjects, ToolchainError> {
     let key = inputs::configuration(manifest, target, optimization, sysroot)?;
     if !manifest
@@ -111,44 +123,14 @@ fn prepare_c_objects<'a>(
             Ok(true)
         },
         || {
-            let compiler = NativeToolchain::resolve_target(resolve()?, manifest)?;
-            let temporary = tempfile::Builder::new()
-                .prefix("objects-")
-                .tempdir_in(&directory)
-                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
-            let prepared = compiler.prepare(manifest, optimization, sysroot, temporary.path())?;
-            let mut objects = Vec::new();
-            for (index, unit) in prepared.units().iter().enumerate() {
-                let object = temporary.path().join(format!("{index:08}.o"));
-                compile_native_source(
-                    unit,
-                    manifest.parsed().semantic().native(),
-                    &compiler,
-                    optimization,
-                    &object,
-                )?;
-                objects.push(
-                    HostPathCarrier::from_path(&object)
-                        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
-                );
-            }
-            let inputs = prepared
-                .observed_paths
-                .iter()
-                .map(|p| Input::read(p))
-                .collect::<Result<_, _>>()?;
-            for name in ["unit.d", "unit.i", "unit.ii"] {
-                match std::fs::remove_file(temporary.path().join(name)) {
-                    Ok(()) => {}
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(err) => return Err(error(scoop_source::DiagnosticCode::E2201, err)),
-                }
-            }
-            let _ = temporary.keep();
-            Ok(Record {
-                inputs,
-                result: Outputs { objects },
-            })
+            build::build(
+                manifest,
+                resolve()?,
+                optimization,
+                sysroot,
+                &directory,
+                workers,
+            )
         },
     )?;
     Ok(PreparedNativeObjects {
@@ -164,4 +146,32 @@ fn prepare_c_objects<'a>(
             .collect::<Result<_, _>>()?,
         inputs: record.inputs,
     })
+}
+
+/// Configuration participates in the Cone key; observed native files are
+/// checked through the completed Cone's compiler input record.
+pub fn native_configuration_key(
+    manifest: &LoadedConeManifest,
+    target: scoop_lir::LirTargetProfile,
+    optimization: OptimizationMode,
+    sysroot: &Path,
+    purpose: scoop_protocol::CompilationPurpose,
+) -> Result<Digest256, ToolchainError> {
+    let c = inputs::configuration(manifest, target, optimization, sysroot)?;
+    let resource = crate::windows_resource::source(manifest, target, purpose);
+    let includes = if resource.is_some() {
+        manifest
+            .parsed()
+            .semantic()
+            .native()
+            .includes(target.id())
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    let resource_sysroot = resource
+        .map(|_| HostPathCarrier::from_path(sysroot))
+        .transpose()
+        .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?;
+    fingerprint(&(c.as_array(), resource, includes, resource_sysroot))
 }

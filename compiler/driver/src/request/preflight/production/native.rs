@@ -1,55 +1,27 @@
-use std::path::Path;
-
 use scoop_identity::{ConeIdentity, NormalizedNativeSourcePath};
 use scoop_toolchain::ToolchainError;
 
 use super::{LoadedCurrentConeInput, LoadedSingleConeBuildRequest};
-use crate::request::NativeInputOrigin;
+mod work;
+pub(in crate::request::preflight) use work::Work;
 
 pub(super) fn compile(
     request: &LoadedSingleConeBuildRequest,
     cone: ConeIdentity,
-    temporary_parent: &Path,
+    work: &mut Work,
 ) -> Result<Vec<scoop_slib::UncompressedObjectMember>, ToolchainError> {
+    let Some(product) = work.finish()? else {
+        return Ok(Vec::new());
+    };
     let LoadedCurrentConeInput::Manifest { manifest } = &request.current else {
-        if let NativeInputOrigin::Objects(inputs) = &request.native_inputs
-            && !inputs.is_empty()
-        {
-            return Err(error(
-                scoop_source::DiagnosticCode::E2001,
-                "single-file input cannot have native translation units",
-            ));
-        }
-        return Ok(Vec::new());
+        unreachable!("only manifest inputs start native production");
     };
-    let target = request.target.production();
-    let selected =
-        scoop_toolchain::selected_native_object_sources(manifest, target, request.purpose);
-    if selected.is_empty() && matches!(&request.native_inputs, NativeInputOrigin::Source { .. }) {
-        return Ok(Vec::new());
-    }
-    let directory;
-    let prepared;
-    let objects = match &request.native_inputs {
-        NativeInputOrigin::Objects(objects) => objects.as_slice(),
-        NativeInputOrigin::Source { sysroot } => {
-            let sysroot = scoop_toolchain::configured_sysroot_root(sysroot.clone())?;
-            directory = tempfile::Builder::new()
-                .prefix("native-")
-                .tempdir_in(temporary_parent)
-                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
-            prepared = scoop_toolchain::prepare_native_objects(
-                manifest,
-                target.lir_target(),
-                || Ok(target),
-                request.optimization,
-                &sysroot,
-                directory.path(),
-                request.purpose,
-            )?;
-            prepared.objects()
-        }
-    };
+    let selected = scoop_toolchain::selected_native_object_sources(
+        manifest,
+        request.target.production().lir_target(),
+        request.purpose,
+    );
+    let objects = product.objects.objects();
     if selected.len() != objects.len() {
         return Err(error(
             scoop_source::DiagnosticCode::ICE2201,

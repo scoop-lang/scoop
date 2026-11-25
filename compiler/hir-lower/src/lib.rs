@@ -592,7 +592,7 @@ pub(crate) struct Lowerer {
     dependencies: Option<hir::ImportedDependencySelectionPlan>,
     pub(crate) source_contexts: Shared<Arena<hir::SourceContext>>,
     source_context_by_value: Shared<HashMap<hir::SourceContext, hir::SourceContextId>>,
-    file_source_contexts: Vec<hir::SourceContextId>,
+    file_source_contexts: Shared<Vec<hir::SourceContextId>>,
     /// Role-local structural paths for the definition owner currently being
     /// lowered. Nested callables replace this context and restore it on exit.
     pub(crate) definition_paths: definition_paths::DefinitionPathContext,
@@ -761,7 +761,7 @@ pub(crate) struct Lowerer {
         Shared<HashMap<hir::IntrinsicTypeKind, (IntrinsicTypeOwner, hir::IntrinsicProviderId)>>,
     imported_intrinsic_types:
         Shared<std::collections::BTreeMap<hir::IntrinsicTypeKind, hir::ImportedIntrinsicType>>,
-    imported_bound_interfaces: HashSet<hir::SourceNominalId>,
+    imported_bound_interfaces: Shared<HashSet<hir::SourceNominalId>>,
     pub(crate) extern_functions: Shared<Arena<hir::ExternFunction>>,
     pub(crate) globals: Shared<Arena<hir::Global>>,
     pub(crate) initialization_units: Shared<Arena<hir::InitializationUnit>>,
@@ -886,10 +886,10 @@ pub(crate) struct Lowerer {
     pub(crate) ffi_core: Option<hir::FfiCore>,
     pub(crate) foreign_callback_core: Option<hir::ForeignCallbackCore>,
     pub(crate) allow_deferred_fun_ptr: bool,
-    pub(crate) nominal_type_uses: Vec<(TypeId, usize, Span)>,
-    pub(crate) pointer_type_uses: Vec<(TypeId, usize, Span)>,
-    pub(crate) fun_ptr_type_uses: Vec<(TypeId, usize, Span)>,
-    pub(crate) gc_leaf_fun_ptr_type_uses: Vec<(TypeId, usize, Span)>,
+    pub(crate) nominal_type_uses: imbl::Vector<(TypeId, usize, Span)>,
+    pub(crate) pointer_type_uses: imbl::Vector<(TypeId, usize, Span)>,
+    pub(crate) fun_ptr_type_uses: imbl::Vector<(TypeId, usize, Span)>,
+    pub(crate) gc_leaf_fun_ptr_type_uses: imbl::Vector<(TypeId, usize, Span)>,
     /// Interface member functions in declaration order. Class/struct/enum
     /// declarations carry their member ids directly in export HIR.
     pub(crate) interface_methods: Shared<HashMap<InterfaceId, Vec<FunctionId>>>,

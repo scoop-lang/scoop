@@ -238,6 +238,7 @@ fn devirtualize(
     required: Option<&intrinsics::Entries>,
     dispatch: &crate::imported_bodies::IntrinsicDispatch,
 ) -> Vec<bool> {
+    let types = flow::ModuleTypes::new(module);
     let mut rewrites = Vec::new();
     for (function_id, function) in module.functions.iter() {
         if !active[graph::index(function_id)]
@@ -250,7 +251,7 @@ fn devirtualize(
         {
             continue;
         }
-        let analysis = flow::Analysis::new(module, function);
+        let analysis = flow::Analysis::new(module, function, types);
         let incoming = analysis.solve();
         for (block_id, block) in function.body.blocks.iter() {
             let Some(mut state) = incoming[block_id.into_raw().into_u32() as usize].clone() else {

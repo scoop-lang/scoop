@@ -10,13 +10,15 @@ pub(super) fn emit_object_set_with_production<
     input: &scoop_lir::ConeLirOutput,
     mut production: scoop_lir::ConeProductionSection<D, C, I>,
     profile: ValidatedBackendProfile,
-    jobs: std::num::NonZeroUsize,
+    workers: &scoop_process::WorkerSlots,
 ) -> Result<EmittedConeObjectSet<scoop_lir::ConeProductionSection<D, C, I>>, CodegenError> {
+    let preparation_slot = workers.acquire();
     let module = input.module();
     let expected_safepoints = statepoint::expectations(module)?;
     let metadata_safepoints = expected_safepoints.without_body_sites();
     let declarations = ConeDeclarations::new(module, &production)?;
     let symbol_plans = crate::symbol_plan::SymbolPlanIndex::new(production.canonical_definitions());
+    drop(preparation_slot);
     let mut callables = emit_callables(
         module,
         &production,
@@ -24,8 +26,9 @@ pub(super) fn emit_object_set_with_production<
         &declarations,
         expected_safepoints.into_functions(),
         profile,
-        jobs,
+        workers,
     )?;
+    let metadata_slot = workers.acquire();
     let foundation = finalization::finalize_production(
         input,
         &mut production,
@@ -51,11 +54,12 @@ pub(super) fn emit_object_set_with_production<
     )?;
     let metadata =
         metadata_partition::MetadataModule::new(metadata_llvm, production.canonical_definitions())?;
+    drop(metadata_slot);
     let mut metadata_members = metadata.map_partitions_parallel(
         &machine,
         profile,
         &partition,
-        jobs,
+        workers,
         |units, llvm, machine| {
             let mut bytes = metadata_object::emit(machine, &llvm)?;
             atom_boundaries::materialize_global_linkages_v1(
@@ -71,6 +75,7 @@ pub(super) fn emit_object_set_with_production<
             })
         },
     )?;
+    let _finalization_slot = workers.acquire();
     let mut members = Vec::with_capacity(partition.objects().len());
     for units in partition.objects() {
         let member = match units.kind() {

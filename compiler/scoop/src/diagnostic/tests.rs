@@ -104,3 +104,26 @@ fn wrapped_toolchain_failures_preserve_structured_help() {
     assert_eq!(failure.notes[0].code(), DiagnosticCode::H2301);
     assert_eq!(failure.notes[0].message(), "configure the compiler path");
 }
+
+#[test]
+fn deferred_tool_selection_preserves_the_source_diagnostic() {
+    let error = BuildGraphExecutionError::Ordinary(
+        ConeIdentity::CORE,
+        Box::new(OrdinarySourceExecutionError::RequestPlan(
+            ChildRequestPlanError::Toolchain(
+                scoop_toolchain::ToolchainError::new(
+                    DiagnosticCode::E2303,
+                    "invalid native compiler configuration".into(),
+                )
+                .with_help(DiagnosticCode::H2301, "configure the compiler path"),
+            ),
+        )),
+    );
+    let failure = crate::BuildFailure::classified(error);
+    assert_eq!(failure.phase, BuildFailurePhase::SourceSnapshot);
+    assert_eq!(failure.code, "E2303");
+    assert_eq!(failure.message, "invalid native compiler configuration");
+    assert_eq!(failure.notes.len(), 1);
+    assert_eq!(failure.notes[0].code(), DiagnosticCode::H2301);
+    assert_eq!(failure.notes[0].message(), "configure the compiler path");
+}

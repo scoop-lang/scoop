@@ -10,6 +10,7 @@ pub use dump::{StageDumpKindV1, StageDumpPolicyV1, StageDumpSet};
 mod compiler_inputs;
 pub use compiler_inputs::{
     CompilerInputV1, DirectoryEntryInputV1, DirectoryEntryStateV1, DirectoryInputV1, FileInputV1,
+    NativeInputStateV1, NativeInputV1,
 };
 mod environment;
 pub use environment::EnvironmentInputV1;
@@ -36,8 +37,8 @@ pub use framing::{
 };
 pub use path::{DecodedHostPathCarrier, HostPathCarrier, HostPathEncoding, HostPathError};
 pub use request::{
-    CurrentConeRequestV1, DiagnosticOutputPolicyV1, ScoopcBuildRequestV1, ScoopcOutputRequestV1,
-    ScoopcRequestEnvelopeV1, TargetSelectionRequestV1, TrustedCoreRequestV1,
+    CurrentConeRequestV1, DiagnosticOutputPolicyV1, NativeBuildPathsV1, ScoopcBuildRequestV1,
+    ScoopcOutputRequestV1, ScoopcRequestEnvelopeV1, TargetSelectionRequestV1, TrustedCoreRequestV1,
 };
 pub use response::{
     EmittedDumpDescriptorV1, EmittedDumpDestinationV1, ProtocolConeIdentity, RequestCorrelationId,
@@ -46,7 +47,7 @@ pub use response::{
 };
 
 /// Version selected by the unique `scoopc` machine transport entrypoint.
-pub const PROTOCOL_VERSION: u32 = 34;
+pub const PROTOCOL_VERSION: u32 = 35;
 
 pub(crate) const MAX_EMITTED_DUMPS: usize = StageDumpKindV1::ALL.len();
 

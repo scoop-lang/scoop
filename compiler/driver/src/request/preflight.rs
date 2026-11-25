@@ -103,7 +103,8 @@ pub struct LoadedSingleConeBuildRequest {
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
     purpose: CompilationPurpose,
-    native_inputs: super::NativeInputOrigin,
+    native_sysroot: Option<std::path::PathBuf>,
+    native_cache: Option<std::path::PathBuf>,
     generators: scoop_toolchain::GeneratorPrograms,
     jobs: std::num::NonZeroUsize,
 }
@@ -153,6 +154,14 @@ impl SingleConeBuildRequest {
         let loaded = self
             .load_preflight()
             .map_err(SingleConeProductionError::Preflight)?;
+        let work =
+            production::native::Work::new(&loaded, stop_after.is_none()).map_err(|source| {
+                SingleConeProductionError::Production(Box::new(
+                    CurrentConeProductionError::before_hir(CurrentConeProductionFailure::Native(
+                        source,
+                    )),
+                ))
+            })?;
         let sources = loaded
             .parse_sources()
             .map_err(SingleConeProductionError::Sources)?;
@@ -164,7 +173,7 @@ impl SingleConeBuildRequest {
             sources,
         };
         parsed
-            .compile(temporary_parent.as_deref(), stop_after)
+            .compile(temporary_parent.as_deref(), stop_after, work)
             .map_err(|source| SingleConeProductionError::Production(Box::new(source)))
     }
 

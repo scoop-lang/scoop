@@ -10,3 +10,8 @@ path = "../left"
 [dependencies."dev.performance:parallel-right"]
 version = "0.1.0"
 path = "../right"
+
+[[native.sources]]
+path = "second.c"
+[[native.sources]]
+path = "first.c"

@@ -6,6 +6,7 @@ use scoop_identity::{
 };
 
 use super::*;
+use crate::TypeDescriptorInlineScanV1;
 use crate::{
     ArrayElementStorageV1, DispatchEntry, ItableRecord, LayoutIdentity, MaterializationRoot,
     NoGcRuntimeFunction, RuntimeFunction, RuntimeTypeMappingRecord, TypeDescriptorIdentity,

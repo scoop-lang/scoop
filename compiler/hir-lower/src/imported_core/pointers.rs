@@ -75,7 +75,7 @@ impl Lowerer {
         let ty = if role == hir::IntrinsicTypeKind::Ptr {
             let ty = self.intern_type(hir::Type::Ptr(argument));
             self.pointer_type_uses
-                .push((ty, self.current_file, name.span));
+                .push_back((ty, self.current_file, name.span));
             ty
         } else if role == hir::IntrinsicTypeKind::FunPtr {
             let hir::Type::Function(function) = self.types[argument] else {
@@ -95,7 +95,7 @@ impl Lowerer {
             }
             let ty = self.intern_type(hir::Type::FunPtr(function));
             self.fun_ptr_type_uses
-                .push((ty, self.current_file, name.span));
+                .push_back((ty, self.current_file, name.span));
             ty
         } else {
             let hir::Type::Function(function) = self.types[argument] else {
@@ -116,7 +116,7 @@ impl Lowerer {
             }
             let ty = self.intern_type(hir::Type::GcLeafFunPtr(function));
             self.gc_leaf_fun_ptr_type_uses
-                .push((ty, self.current_file, name.span));
+                .push_back((ty, self.current_file, name.span));
             ty
         };
         // Pointer signatures retain their component types, not a nominal

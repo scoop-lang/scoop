@@ -53,6 +53,7 @@ pub(crate) fn prepare<'a>(
     purpose: CompilationPurpose,
     sysroot: &Path,
     cache: &Path,
+    workers: &scoop_process::WorkerSlots,
 ) -> Result<Option<PreparedResource>, ToolchainError> {
     let Some(source) = source(manifest, target, purpose) else {
         return Ok(None);
@@ -84,6 +85,7 @@ pub(crate) fn prepare<'a>(
                 .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))
         },
         || {
+            let _slot = workers.acquire();
             let temporary = tempfile::Builder::new()
                 .prefix("resource-")
                 .tempdir_in(&directory)

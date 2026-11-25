@@ -105,15 +105,10 @@ pub struct SingleConeBuildRequest {
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
     purpose: CompilationPurpose,
-    native_inputs: NativeInputOrigin,
+    native_sysroot: Option<PathBuf>,
+    native_cache: Option<PathBuf>,
     generators: scoop_toolchain::GeneratorPrograms,
     jobs: std::num::NonZeroUsize,
-}
-
-#[derive(Debug)]
-enum NativeInputOrigin {
-    Source { sysroot: Option<PathBuf> },
-    Objects(Vec<PathBuf>),
 }
 
 impl SingleConeBuildRequest {
@@ -161,7 +156,8 @@ impl SingleConeBuildRequest {
             optimization: scoop_lir::OptimizationMode::Debug,
             debug_info: scoop_lir::DebugInfoLevel::None,
             purpose: CompilationPurpose::Production,
-            native_inputs: NativeInputOrigin::Source { sysroot: None },
+            native_sysroot: None,
+            native_cache: None,
             generators: scoop_toolchain::GeneratorPrograms::default(),
             jobs: std::num::NonZeroUsize::MIN,
         })
@@ -201,15 +197,13 @@ impl SingleConeBuildRequest {
         Ok(self)
     }
 
-    fn with_native_inputs(mut self, inputs: Vec<PathBuf>) -> Self {
-        self.native_inputs = NativeInputOrigin::Objects(inputs);
+    fn with_native_sysroot(mut self, sysroot: PathBuf) -> Self {
+        self.native_sysroot = Some(sysroot);
         self
     }
 
-    fn with_native_sysroot(mut self, sysroot: PathBuf) -> Self {
-        self.native_inputs = NativeInputOrigin::Source {
-            sysroot: Some(sysroot),
-        };
+    fn with_native_cache(mut self, cache: PathBuf) -> Self {
+        self.native_cache = Some(cache);
         self
     }
 }

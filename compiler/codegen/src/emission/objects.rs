@@ -69,8 +69,10 @@ pub fn emit_object_set(
     direct_dependencies: &[scoop_lir::ConeIdentity],
     entry_source: scoop_lir::EntryProductionSourceV1,
     profile: ValidatedBackendProfile,
-    jobs: std::num::NonZeroUsize,
+    workers: impl Into<scoop_process::WorkerSlots>,
 ) -> Result<EmittedConeObjectSetV1, CodegenError> {
+    let workers = workers.into();
+    let preparation_slot = workers.acquire();
     profile.validate_lir_target_profile(input.module().meta.target_profile)?;
     let production = input
         .build_production_section(coordinate.clone(), direct_dependencies, entry_source)
@@ -80,7 +82,8 @@ pub fn emit_object_set(
                 error,
             )
         })?;
-    emit_object_set_with_production(input, production, profile, jobs)
+    drop(preparation_slot);
+    emit_object_set_with_production(input, production, profile, &workers)
 }
 
 /// Emits the complete LIR and Strong V2 production records for one Cone.
@@ -88,8 +91,8 @@ pub fn emit_object_set_v2(
     input: &scoop_lir::ConeLirOutput,
     production: scoop_lir::ConeProductionSectionV2,
     profile: ValidatedBackendProfile,
-    jobs: std::num::NonZeroUsize,
+    workers: impl Into<scoop_process::WorkerSlots>,
 ) -> Result<EmittedConeObjectSetV2, CodegenError> {
     profile.validate_lir_target_profile(input.module().meta.target_profile)?;
-    emit_object_set_with_production(input, production, profile, jobs)
+    emit_object_set_with_production(input, production, profile, &workers.into())
 }

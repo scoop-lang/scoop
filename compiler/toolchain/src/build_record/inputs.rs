@@ -11,37 +11,41 @@ fn path(path: &Path) -> Result<HostPathCarrier, ToolchainError> {
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Input {
-    path: HostPathCarrier,
-    state: Option<State>,
-}
+#[serde(transparent)]
+pub struct Input(scoop_protocol::NativeInputV1);
 
-#[derive(Clone, Debug, Eq, Serialize, Deserialize, PartialEq)]
-struct State {
-    resolved: HostPathCarrier,
-    length: u64,
-    modified: (bool, u64, u32),
-}
+type State = scoop_protocol::NativeInputStateV1;
 
 impl Input {
     pub fn read(input: &Path) -> Result<Self, ToolchainError> {
-        Ok(Self {
+        Ok(Self(scoop_protocol::NativeInputV1 {
             path: path(input)?,
             state: state(input)?,
-        })
+        }))
     }
 
     pub fn is_current(&self) -> Result<bool, ToolchainError> {
+        Self::observation_current(&self.0)
+    }
+
+    pub fn observation(&self) -> scoop_protocol::CompilerInputV1 {
+        scoop_protocol::CompilerInputV1::Native(self.0.clone())
+    }
+
+    pub(crate) fn observation_current(
+        input: &scoop_protocol::NativeInputV1,
+    ) -> Result<bool, ToolchainError> {
         Ok(state(
-            &self
+            &input
                 .path
                 .to_path_buf()
                 .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))?,
-        )? == self.state)
+        )? == input.state)
     }
 
     pub fn path(&self) -> Result<PathBuf, ToolchainError> {
-        self.path
+        self.0
+            .path
             .to_path_buf()
             .map_err(|cause| error(scoop_source::DiagnosticCode::ICE2201, cause))
     }
@@ -140,9 +144,14 @@ mod tests {
         let absent = Input::read(&earlier).unwrap();
         assert!(input.is_current().unwrap());
         assert!(absent.is_current().unwrap());
+        let observations = [input.observation(), absent.observation()];
+        assert!(crate::compiler_inputs_current(&observations));
         std::fs::write(&selected, "changed input").unwrap();
+        assert!(!crate::compiler_inputs_current(&observations[..1]));
+        assert!(crate::compiler_inputs_current(&observations[1..]));
         std::fs::write(&earlier, "new candidate").unwrap();
         assert!(!input.is_current().unwrap());
         assert!(!absent.is_current().unwrap());
+        assert!(!crate::compiler_inputs_current(&observations[1..]));
     }
 }

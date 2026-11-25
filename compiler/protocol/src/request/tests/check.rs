@@ -54,7 +54,10 @@ fn checks_support_test_purpose_but_reject_machine_inputs_and_observations() {
     );
     let invalid = ScoopcRequestEnvelopeV1::new(
         RequestCorrelationId::from_array([23; 16]),
-        request.with_native_inputs(vec![path("native.o")]),
+        request.with_native_build(Some(NativeBuildPathsV1 {
+            sysroot: path("sysroot"),
+            cache: path("cache"),
+        })),
     );
     assert!(crate::decode_request_frame(&crate::encode_request_frame(&invalid).unwrap()).is_err());
     assert_eq!(

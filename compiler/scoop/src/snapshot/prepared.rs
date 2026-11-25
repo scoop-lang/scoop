@@ -26,7 +26,7 @@ pub use model::{
 
 use model::{
     NonEmptyPreparedArtifactCandidates, PreparedGraphNode, PreparedManifestSourceNode,
-    PreparedPrebuiltArtifactNode, PreparedSingleFileNode, SourceNativeInput,
+    PreparedPrebuiltArtifactNode, PreparedSingleFileNode,
 };
 
 impl ResolvedBuildGraph {
@@ -37,36 +37,6 @@ impl ResolvedBuildGraph {
 
     pub(crate) fn prepare_frontend(self) -> Result<PreparedBuildGraph, PrepareBuildGraphError> {
         Preparer::new(self.into_parts(), true).run()
-    }
-}
-
-impl PreparedBuildGraph {
-    pub(crate) fn prepare_machine_source(
-        &mut self,
-        identity: scoop_identity::ConeIdentity,
-    ) -> Result<(), PrepareBuildGraphError> {
-        let Some(PreparedGraphNode::ManifestSource(node)) = self.nodes.get_mut(&identity) else {
-            return Ok(());
-        };
-        if matches!(node.snapshot.native, SourceNativeInput::Artifact(_)) {
-            return Ok(());
-        }
-        let native = scoop_toolchain::prepare_native_objects(
-            &node.manifest,
-            self.context.target.lir_target(),
-            || self.context.target.production(),
-            self.context.optimization,
-            self.context.sysroot.as_path(),
-            self.context.cache_root.as_path(),
-            if node.snapshot.test_config.is_some() {
-                scoop_protocol::CompilationPurpose::Test
-            } else {
-                scoop_protocol::CompilationPurpose::Production
-            },
-        )
-        .map_err(PrepareBuildGraphError::Native)?;
-        node.snapshot.native = SourceNativeInput::Artifact(native);
-        Ok(())
     }
 }
 
@@ -125,12 +95,7 @@ impl Preparer {
                     } else {
                         scoop_protocol::CompilationPurpose::Production
                     };
-                    let snapshot = select_manifest_input(
-                        &manifest,
-                        &self.parts.context,
-                        purpose,
-                        self.frontend,
-                    )?;
+                    let snapshot = select_manifest_input(&manifest, &self.parts.context, purpose)?;
                     PreparedGraphNode::ManifestSource(Box::new(PreparedManifestSourceNode {
                         snapshot,
                         manifest,
@@ -187,7 +152,6 @@ fn select_manifest_input(
     manifest: &LoadedConeManifest,
     context: &BuildContext,
     purpose: scoop_protocol::CompilationPurpose,
-    frontend: bool,
 ) -> Result<ManifestSourceInput, PrepareBuildGraphError> {
     let discovered = match purpose {
         scoop_protocol::CompilationPurpose::Production => {
@@ -210,29 +174,21 @@ fn select_manifest_input(
     let test_config = (purpose == scoop_protocol::CompilationPurpose::Test)
         .then(|| manifest.parsed().tests().clone());
     let manifest_semantic = manifest.parsed().semantic().clone();
-    let native = if frontend {
-        SourceNativeInput::Frontend
-    } else {
-        SourceNativeInput::Artifact(
-            scoop_toolchain::prepare_native_objects(
-                manifest,
-                context.target.lir_target(),
-                || context.target.production(),
-                context.optimization,
-                context.sysroot.as_path(),
-                context.cache_root.as_path(),
-                purpose,
-            )
-            .map_err(PrepareBuildGraphError::Native)?,
-        )
-    };
+    let native_configuration = scoop_toolchain::native_configuration_key(
+        manifest,
+        context.target.lir_target(),
+        context.optimization,
+        context.sysroot.as_path(),
+        purpose,
+    )
+    .map_err(PrepareBuildGraphError::Native)?;
     Ok(ManifestSourceInput {
         identity,
         coordinate,
         requested_kind,
         manifest_semantic,
         test_config,
-        native,
+        native_configuration,
         manifest_locator: manifest.manifest_path().to_path_buf(),
         input_root: manifest.input_root().to_path_buf(),
         sources: discovered,

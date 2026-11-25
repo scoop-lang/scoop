@@ -12,9 +12,10 @@ impl StrongTypeDescriptorSemanticPlanSetV2 {
     pub fn from_module(
         module: &Module,
     ) -> Result<Self, StrongTypeDescriptorSemanticPlanBuildError> {
+        let scans = InlineScans::new(&module.meta.layouts, &module.meta.arrays);
         let mut canonical = BTreeMap::new();
         for (_, descriptor) in module.meta.type_descriptors.iter() {
-            let plan = build_descriptor_v2(module, descriptor)?;
+            let plan = build_descriptor_v2(module, descriptor, &scans)?;
             if canonical.insert(plan.exact_type, plan).is_some() {
                 return Err(
                     StrongTypeDescriptorSemanticPlanBuildError::DuplicateExactType(
@@ -34,6 +35,7 @@ impl StrongTypeDescriptorSemanticPlanSetV2 {
 fn build_descriptor_v2(
     module: &Module,
     descriptor: &TypeDescriptor,
+    scans: &InlineScans<'_>,
 ) -> Result<StrongTypeDescriptorSemanticPlanV2, StrongTypeDescriptorSemanticPlanBuildError> {
     let exact_type = descriptor.identity.exact_type();
     if descriptor.diagnostic_name.is_empty() {
@@ -48,7 +50,7 @@ fn build_descriptor_v2(
     if !descriptor.vtable.belongs_to_exact_type(exact_type) {
         return Err(StrongTypeDescriptorSemanticPlanBuildError::VtableOwnerMismatch(exact_type));
     }
-    validate_inline_scan(descriptor, &module.meta.layouts, &module.meta.arrays)?;
+    scans.validate(descriptor)?;
 
     let parent = descriptor
         .parent

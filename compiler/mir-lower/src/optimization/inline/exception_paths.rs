@@ -10,6 +10,7 @@ mod operations;
 
 pub(super) struct Effects<'a> {
     module: &'a mir::Module,
+    types: flow::ModuleTypes,
     selected: &'a mir::SelectedExternalMirSet,
     dispatch: &'a IntrinsicDispatch,
     imported: &'a ImportedBodies,
@@ -22,9 +23,11 @@ impl<'a> Effects<'a> {
         selected: &'a mir::SelectedExternalMirSet,
         dispatch: &'a IntrinsicDispatch,
         imported: &'a ImportedBodies,
+        types: flow::ModuleTypes,
     ) -> Self {
         Self {
             module,
+            types,
             selected,
             dispatch,
             imported,
@@ -48,7 +51,8 @@ impl<'a> Effects<'a> {
             function.body.blocks[id] = block;
         }
         loop {
-            let analysis = flow::Analysis::new(self.module, &function).with_arguments(arguments);
+            let analysis =
+                flow::Analysis::new(self.module, &function, self.types).with_arguments(arguments);
             let incoming = analysis.solve();
             let mut rewrites = Vec::new();
             let mut edges = Vec::new();
@@ -91,7 +95,7 @@ impl<'a> Effects<'a> {
             for block in edges {
                 function.body.blocks[block].unwind = None;
             }
-            let blocks = simplify::blocks(self.module, &function, arguments);
+            let blocks = simplify::blocks(self.module, &function, arguments, self.types);
             if policy::supported_blocks(blocks.iter().map(|(_, block)| block)) {
                 return Some(blocks);
             }
@@ -112,7 +116,8 @@ impl<'a> Effects<'a> {
         }) {
             return blocks;
         }
-        let analysis = flow::Analysis::new(self.module, source).with_arguments(arguments);
+        let analysis =
+            flow::Analysis::new(self.module, source, self.types).with_arguments(arguments);
         let incoming = analysis.solve();
         for (id, block) in &mut blocks {
             let Some(mut state) = incoming[graph::index(*id)].clone() else {
@@ -205,7 +210,7 @@ impl<'a> Effects<'a> {
         if !policy::executable(function) {
             return None;
         }
-        let analysis = flow::Analysis::new(self.module, function);
+        let analysis = flow::Analysis::new(self.module, function, self.types);
         let incoming = analysis.solve();
         let mut pending = vec![function.body.entry];
         let mut visited = HashSet::new();

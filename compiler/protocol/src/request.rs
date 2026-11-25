@@ -5,6 +5,9 @@ use crate::dump::DecodedStageDumpPolicyV1;
 use crate::path::DecodedHostPathCarrier;
 use crate::{HostPathCarrier, PROTOCOL_VERSION, ProtocolValidationError, RequestCorrelationId};
 
+mod native;
+pub use native::NativeBuildPathsV1;
+
 mod output;
 mod target;
 use output::DecodedOutputRequest;
@@ -122,7 +125,7 @@ pub struct ScoopcBuildRequestV1 {
     optimization: OptimizationMode,
     debug_info: DebugInfoLevel,
     purpose: crate::CompilationPurpose,
-    native_inputs: Vec<HostPathCarrier>,
+    native_build: Option<NativeBuildPathsV1>,
     generators: Vec<crate::GeneratorRegistrationV1>,
 }
 
@@ -158,7 +161,7 @@ impl ScoopcBuildRequestV1 {
             optimization: OptimizationMode::Debug,
             debug_info: DebugInfoLevel::None,
             purpose: crate::CompilationPurpose::Production,
-            native_inputs: Vec::new(),
+            native_build: None,
             generators: Vec::new(),
         })
     }
@@ -186,7 +189,7 @@ impl ScoopcBuildRequestV1 {
         {
             return Err(ProtocolValidationError::TestRequiresManifest);
         }
-        if matches!(self.output, ScoopcOutputRequestV1::Check) && !self.native_inputs.is_empty() {
+        if matches!(self.output, ScoopcOutputRequestV1::Check) && self.native_build.is_some() {
             return Err(ProtocolValidationError::InvalidCheckRequest);
         }
         self.purpose = purpose;
@@ -202,14 +205,13 @@ impl ScoopcBuildRequestV1 {
         self.optimization
     }
 
-    /// Compiled objects in normalized, target-selected native source order.
-    pub fn with_native_inputs(mut self, inputs: Vec<HostPathCarrier>) -> Self {
-        self.native_inputs = inputs;
+    pub fn with_native_build(mut self, paths: Option<NativeBuildPathsV1>) -> Self {
+        self.native_build = paths;
         self
     }
 
-    pub fn native_inputs(&self) -> &[HostPathCarrier] {
-        &self.native_inputs
+    pub fn native_build(&self) -> Option<&NativeBuildPathsV1> {
+        self.native_build.as_ref()
     }
 
     pub fn with_generators(
@@ -285,7 +287,7 @@ impl WireEncode for ScoopcBuildRequestV1 {
         encoder.field(9)?;
         self.optimization.encode(encoder)?;
         encoder.field(10)?;
-        encode_paths(encoder, &self.native_inputs)?;
+        native::encode(&self.native_build, encoder)?;
         encoder.field(11)?;
         self.purpose.encode(encoder)?;
         encoder.field(12)?;

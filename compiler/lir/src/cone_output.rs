@@ -80,7 +80,7 @@ impl ConeLirOutput {
                 .map(|plan| plan.semantic()),
         )
         .map_err(ConeProductionWriterError::CanonicalShapes)?;
-        ConeProductionSectionV1::new(
+        ConeProductionSectionV1::from_parts(
             coordinate,
             direct_dependencies,
             &self.foundation,
@@ -126,7 +126,7 @@ impl ConeLirOutput {
                 .map(|plan| plan.semantic()),
         )
         .map_err(ConeProductionWriterError::CanonicalShapes)?;
-        ConeProductionSectionV2::new(
+        ConeProductionSectionV2::from_parts(
             coordinate,
             direct_dependencies,
             &self.foundation,

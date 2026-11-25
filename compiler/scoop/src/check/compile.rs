@@ -6,17 +6,9 @@ pub(super) fn run(
     graph: ResolvedBuildGraph,
     sources: &[SelectedSource],
 ) -> BuildResult<(Vec<StructuredDiagnosticV1>, Vec<ConeIdentity>)> {
-    let root = graph.root_identity();
-    let mut prepared = graph
+    let prepared = graph
         .prepare_frontend()
         .map_err(BuildFailure::preparation)?;
-    for id in prepared.dependency_first().to_vec() {
-        if id != root && prepared.source_input(id).is_some() {
-            prepared
-                .prepare_machine_source(id)
-                .map_err(BuildFailure::preparation)?;
-        }
-    }
     let runner = ProductionSingleConeCompilerRunner;
     let (completed, observations) = prepared
         .execute_dependencies(&runner)

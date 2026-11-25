@@ -84,16 +84,20 @@ fn core_manifest_request_round_trips_without_a_default_source_slot() {
     unknown[optimization] = 3;
     assert!(decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&unknown).is_err());
 
+    let paths = NativeBuildPathsV1 {
+        sysroot: path("sysroot"),
+        cache: path("cache"),
+    };
     let native = request
         .build()
         .clone()
-        .with_native_inputs(vec![path("unit.i")]);
+        .with_native_build(Some(paths.clone()));
     let native = ScoopcRequestEnvelopeV1::new(request.request_id(), native);
     let decoded = decode_canonical::<DecodedScoopcRequestEnvelopeV1>(&encode(&native).unwrap())
         .unwrap()
         .validate()
         .unwrap();
-    assert_eq!(decoded.build().native_inputs(), &[path("unit.i")]);
+    assert_eq!(decoded.build().native_build(), Some(&paths));
     let test = ScoopcRequestEnvelopeV1::new(
         request.request_id(),
         request

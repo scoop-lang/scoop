@@ -24,6 +24,7 @@ fn shared_native_cache_keeps_darwin_architectures_separate() {
                 &crate::development_runtime_root(),
                 &cache,
                 scoop_protocol::CompilationPurpose::Production,
+                std::num::NonZeroUsize::new(1).unwrap(),
             )
             .unwrap()
         };

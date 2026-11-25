@@ -62,7 +62,8 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
- {actual = "${header.result.observations.nodes.1.cache_key}", not_equals = "${baseline.result.observations.nodes.1.cache_key}"},
+ {actual = "${header.result.observations.nodes.1.cache_key}", equals = "${baseline.result.observations.nodes.1.cache_key}"},
+ {actual = "${header.result.observations.child_invocations}", not_equals = []},
  {actual = "${header.result.root.artifact_fingerprint}", not_equals = "${baseline.result.root.artifact_fingerprint}"},
 ]
 
@@ -86,7 +87,8 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
- {actual = "${forced.result.observations.nodes.1.cache_key}", not_equals = "${header.result.observations.nodes.1.cache_key}"},
+ {actual = "${forced.result.observations.nodes.1.cache_key}", equals = "${header.result.observations.nodes.1.cache_key}"},
+ {actual = "${forced.result.observations.child_invocations}", not_equals = []},
  {actual = "${forced.result.root.artifact_fingerprint}", not_equals = "${header.result.root.artifact_fingerprint}"},
 ]
 
@@ -111,6 +113,7 @@ json = "stderr"
 diagnostics = []
 checks = [
  {actual = "${flags.result.observations.nodes.1.cache_key}", not_equals = "${forced.result.observations.nodes.1.cache_key}"},
+ {actual = "${flags.result.observations.child_invocations}", not_equals = []},
  {actual = "${flags.result.root.artifact_fingerprint}", not_equals = "${forced.result.root.artifact_fingerprint}"},
 ]
 
@@ -134,7 +137,8 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
- {actual = "${source.result.observations.nodes.1.cache_key}", not_equals = "${flags.result.observations.nodes.1.cache_key}"},
+ {actual = "${source.result.observations.nodes.1.cache_key}", equals = "${flags.result.observations.nodes.1.cache_key}"},
+ {actual = "${source.result.observations.child_invocations}", not_equals = []},
  {actual = "${source.result.root.artifact_fingerprint}", not_equals = "${flags.result.root.artifact_fingerprint}"},
 ]
 
@@ -144,3 +148,16 @@ argv = ["${source.result.output}"]
 exit = 46
 stdout = ""
 stderr = ""
+
+[[steps]]
+name = "source_warm"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/cone", {each = "${options}"}]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+ {actual = "${source_warm.result.observations.child_invocations}", equals = []},
+ {actual = "${source_warm.result.root.artifact_fingerprint}", equals = "${source.result.root.artifact_fingerprint}"},
+]

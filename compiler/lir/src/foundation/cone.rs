@@ -246,23 +246,57 @@ impl ConeLirFoundation {
         &self.canonical.layouts
     }
 
+    pub(crate) fn layout(
+        &self,
+        id: scoop_identity::PersistentLayoutId,
+    ) -> Option<&super::LayoutRecord> {
+        self.layouts()
+            .binary_search_by_key(&id, |record| record.id())
+            .ok()
+            .map(|index| &self.layouts()[index])
+    }
+
     pub(crate) fn scans(&self) -> &[super::ScanRecord] {
         &self.canonical.scans
+    }
+
+    pub(crate) fn scan(&self, id: scoop_identity::PersistentScanId) -> Option<&super::ScanRecord> {
+        self.scans()
+            .binary_search_by_key(&id, |record| record.id())
+            .ok()
+            .map(|index| &self.scans()[index])
     }
 
     pub(crate) fn dispatch_tables(&self) -> &[super::DispatchTableRecord] {
         &self.canonical.dispatch_tables
     }
 
+    pub(crate) fn dispatch_table(
+        &self,
+        id: scoop_identity::PersistentDispatchTableId,
+    ) -> Option<&super::DispatchTableRecord> {
+        self.dispatch_tables()
+            .binary_search_by_key(&id, |record| record.id())
+            .ok()
+            .map(|index| &self.dispatch_tables()[index])
+    }
+
     pub(crate) fn runtime_types(&self) -> &[crate::RuntimeTypeMappingRecord] {
         &self.canonical.runtime_types
     }
 
+    pub(crate) fn runtime_types_for(
+        &self,
+        exact_type: PersistentExactTypeId,
+    ) -> &[crate::RuntimeTypeMappingRecord] {
+        let records = self.runtime_types();
+        let start = records.partition_point(|record| record.exact_type() < exact_type);
+        let end = records[start..].partition_point(|record| record.exact_type() == exact_type);
+        &records[start..start + end]
+    }
+
     pub(crate) fn contains_callable_body(&self, id: PersistentCallableBodyId) -> bool {
-        self.canonical
-            .callable_bodies
-            .iter()
-            .any(|record| record.id() == id)
+        self.callable_body_position(id).is_some()
     }
 
     pub(crate) fn root_gateway_bodies(
@@ -292,8 +326,8 @@ impl ConeLirFoundation {
     pub(crate) fn contains_static_storage(&self, id: PersistentStaticStorageId) -> bool {
         self.canonical
             .static_storages
-            .iter()
-            .any(|record| record.id() == id)
+            .binary_search_by_key(&id, |record| record.id())
+            .is_ok()
     }
 
     pub(crate) fn contains_immortal_object(
@@ -302,8 +336,8 @@ impl ConeLirFoundation {
     ) -> bool {
         self.canonical
             .immortal_objects
-            .iter()
-            .any(|record| record.id() == id)
+            .binary_search_by_key(&id, |record| record.id())
+            .is_ok()
     }
 
     pub(crate) fn root_entry_failure_roots(&self) -> Vec<PersistentStaticStorageId> {
@@ -331,14 +365,11 @@ impl ConeLirFoundation {
     }
 
     pub(crate) fn contains_layout(&self, id: scoop_identity::PersistentLayoutId) -> bool {
-        self.canonical
-            .layouts
-            .iter()
-            .any(|record| record.id() == id)
+        self.layout(id).is_some()
     }
 
     pub(crate) fn contains_scan(&self, id: scoop_identity::PersistentScanId) -> bool {
-        self.canonical.scans.iter().any(|record| record.id() == id)
+        self.scan(id).is_some()
     }
 
     pub(crate) fn contains_safepoint_site(
@@ -347,8 +378,8 @@ impl ConeLirFoundation {
     ) -> bool {
         self.canonical
             .safepoint_sites
-            .iter()
-            .any(|record| record.id() == id)
+            .binary_search_by_key(&id, |record| record.id())
+            .is_ok()
     }
 
     pub(crate) fn link_safepoints(

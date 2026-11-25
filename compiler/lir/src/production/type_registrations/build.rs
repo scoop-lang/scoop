@@ -48,27 +48,23 @@ pub(super) fn build_registration<D: StrongDescriptorReference, C: Clone>(
         descriptor_definition,
     )?;
 
-    let runtime_types = foundation
-        .runtime_types()
-        .iter()
-        .filter(|mapping| mapping.exact_type() == exact_type)
-        .map(|mapping| mapping.runtime_type())
-        .collect::<Vec<_>>();
-    let runtime_type = match runtime_types.as_slice() {
-        [runtime_type] => *runtime_type,
+    let runtime_types = foundation.runtime_types_for(exact_type);
+    let runtime_type = match runtime_types {
+        [mapping] => mapping.runtime_type(),
         _ => {
             return Err(StrongTypeRegistrationPlanBuildError::RuntimeTypeSet {
                 exact_type,
-                actual: runtime_types,
+                actual: runtime_types
+                    .iter()
+                    .map(|mapping| mapping.runtime_type())
+                    .collect(),
             });
         }
     };
 
     let layout = semantic.instance_layout();
     let layout_record = foundation
-        .layouts()
-        .iter()
-        .find(|record| record.id() == layout)
+        .layout(layout)
         .ok_or(StrongTypeRegistrationPlanBuildError::MissingLayout(layout))?;
     if layout_record.key().exact_type() != exact_type
         || layout_record.key().target_profile() != &target.wire_id()
@@ -80,9 +76,7 @@ pub(super) fn build_registration<D: StrongDescriptorReference, C: Clone>(
     }
     let scan = semantic.instance_scan();
     let scan_record = foundation
-        .scans()
-        .iter()
-        .find(|record| record.id() == scan)
+        .scan(scan)
         .ok_or(StrongTypeRegistrationPlanBuildError::MissingScan(scan))?;
     if scan_record.key().layout() != layout
         || scan_record.key().role() != scoop_identity::ScanRole::ManagedObject
@@ -95,9 +89,8 @@ pub(super) fn build_registration<D: StrongDescriptorReference, C: Clone>(
     let vtable = semantic.vtable().table();
     let expected_vtable = scoop_identity::DispatchTableKey::vtable(exact_type);
     if !foundation
-        .dispatch_tables()
-        .iter()
-        .any(|record| record.id() == vtable && record.key() == &expected_vtable)
+        .dispatch_table(vtable)
+        .is_some_and(|record| record.key() == &expected_vtable)
     {
         return Err(StrongTypeRegistrationPlanBuildError::VtableMismatch {
             exact_type,
@@ -108,9 +101,8 @@ pub(super) fn build_registration<D: StrongDescriptorReference, C: Clone>(
         let expected_itable =
             scoop_identity::DispatchTableKey::itable(exact_type, itable.interface().exact_type());
         if !foundation
-            .dispatch_tables()
-            .iter()
-            .any(|record| record.id() == itable.table() && record.key() == &expected_itable)
+            .dispatch_table(itable.table())
+            .is_some_and(|record| record.key() == &expected_itable)
         {
             return Err(StrongTypeRegistrationPlanBuildError::ItableMismatch {
                 exact_type,

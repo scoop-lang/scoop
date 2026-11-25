@@ -1,6 +1,7 @@
 //! Allocation origins and their value-replacement consumers, before GC roots.
 
 use super::{
+    flow,
     graph::{self, index},
     inline, mir, simplify,
 };
@@ -25,6 +26,7 @@ pub(super) fn run(
     observer: Option<&super::observation::Observer<'_>>,
     inliner: Option<&inline::Session>,
 ) -> Vec<bool> {
+    let types = flow::ModuleTypes::new(module);
     let mut changed = vec![false; module.functions.len()];
     let functions = module
         .functions
@@ -50,7 +52,7 @@ pub(super) fn run(
         }
         let (function, rewritten) = rewrite::apply(module, id, owner, registry, &plan);
         if rewritten {
-            module.functions[id].body = simplify::body(module, &function).0;
+            module.functions[id].body = simplify::body(module, &function, types).0;
             changed[index(id)] = true;
         }
     }

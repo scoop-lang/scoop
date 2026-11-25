@@ -186,9 +186,6 @@ fn manifest_cache_inputs(
     ),
     CompileCacheKeyError,
 > {
-    let super::SourceNativeInput::Artifact(native) = &snapshot.native else {
-        return Err(CompileCacheKeyError::NativeNotPrepared);
-    };
     let cone = ConeRecord::new(
         snapshot.coordinate.clone(),
         match requested_kind {
@@ -223,7 +220,7 @@ fn manifest_cache_inputs(
                 .map(crate::cache::TestCompileConfiguration::new),
             dependencies,
             sources: snapshot.manifest_semantic.sources().clone(),
-            native: Box::new(native.key()),
+            native: Box::new(snapshot.native_configuration),
         },
         source_inputs(snapshot.sources()),
     ))
@@ -253,7 +250,6 @@ fn completed_map<'a>(
 
 #[derive(Debug)]
 pub enum CompileCacheKeyError {
-    NativeNotPrepared,
     UnknownNode(ConeIdentity),
     PrebuiltNode(ConeIdentity),
     DuplicateSource(scoop_identity::SourceIdentity),
@@ -276,9 +272,6 @@ pub enum CompileCacheKeyError {
 impl fmt::Display for CompileCacheKeyError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NativeNotPrepared => {
-                formatter.write_str("frontend-only source has no native production inputs")
-            }
             Self::UnknownNode(identity) => write!(formatter, "unknown build node {identity}"),
             Self::PrebuiltNode(identity) => write!(
                 formatter,

@@ -5,11 +5,12 @@ use scoop_identity::{
     LinkageClass, ObjectDefinitionAtomId, ObjectDefinitionIdentityError, ObjectDefinitionPlanId,
     ObjectDefinitionPlanKey, PersistentExactTypeId, PersistentId, PersistentLayoutId,
     PersistentScanId, PersistentSymbolError, PersistentSymbolKey, PersistentSymbolRequest,
-    PersistentTypeId, RepresentationRole, ScanRole, SourceDeclarationIdentityError,
-    SourceDeclarationKey, SourceDeclarationKind, StrongDefinitionEntity, StrongDefinitionRole,
+    PersistentTypeId, SourceDeclarationIdentityError, SourceDeclarationKey, SourceDeclarationKind,
+    StrongDefinitionEntity, StrongDefinitionRole,
 };
 use scoop_wire::{HashError, cbor::EncodeError};
 
+use super::lookup::ShapeLookup;
 use super::{
     ClosedShapeSupportReasonV1, ParamFreeShapeSupportClosureV1, ParamFreeShapeSupportRolesV1,
     ShapeSupportAvailabilityV1, StrongExactShapeSupportV1, StrongShapeDefinitionV1,
@@ -21,13 +22,14 @@ pub(super) fn build_closure(
     source: &SourceDeclarationKey,
     foundation: &ConeLirFoundation,
     registrations: &RegistrationIdentitySurfaceV1,
+    lookup: &ShapeLookup,
 ) -> Result<ParamFreeShapeSupportClosureV1, ParamFreeShapeSupportBuildError> {
     validate_source(source, foundation.producer())?;
     let source_nominal = PersistentTypeId::from_source_declaration(source)
         .map_err(ParamFreeShapeSupportBuildError::SourceIdentity)?;
     let owner = PersistentExactTypeId::from_key(&ExactTypeKey::Nominal(source_nominal))
         .map_err(ParamFreeShapeSupportBuildError::Hash)?;
-    let owner_support = exact_shape_support(source_nominal, foundation, registrations)?;
+    let owner_support = exact_shape_support(source_nominal, foundation, registrations, lookup)?;
     if owner_support.exact != owner {
         return Err(ParamFreeShapeSupportBuildError::ExactTypeMismatch {
             exact: owner,
@@ -41,6 +43,7 @@ pub(super) fn build_closure(
                 GeneratedNominalKey::BoxedValue { payload: owner },
                 foundation,
                 registrations,
+                lookup,
             )?)
         }
         SourceDeclarationKind::Class
@@ -56,11 +59,13 @@ pub(super) fn build_closure(
         GeneratedNominalKey::CoroutineStep { result: owner },
         foundation,
         registrations,
+        lookup,
     )?;
     let coroutine_slot = generated_exact_support(
         GeneratedNominalKey::CoroutineSlot { value: owner },
         foundation,
         registrations,
+        lookup,
     )?;
     Ok(ParamFreeShapeSupportClosureV1 {
         owner,
@@ -100,53 +105,46 @@ fn generated_exact_support(
     key: GeneratedNominalKey,
     foundation: &ConeLirFoundation,
     registrations: &RegistrationIdentitySurfaceV1,
+    lookup: &ShapeLookup,
 ) -> Result<StrongExactShapeSupportV1, ParamFreeShapeSupportBuildError> {
     let nominal = PersistentTypeId::from_generated_key(&key)
         .map_err(ParamFreeShapeSupportBuildError::GeneratedNominalIdentity)?;
-    exact_shape_support(nominal, foundation, registrations)
+    exact_shape_support(nominal, foundation, registrations, lookup)
 }
 
 fn exact_shape_support(
     nominal: PersistentTypeId,
     foundation: &ConeLirFoundation,
     registrations: &RegistrationIdentitySurfaceV1,
+    lookup: &ShapeLookup,
 ) -> Result<StrongExactShapeSupportV1, ParamFreeShapeSupportBuildError> {
     let exact = PersistentExactTypeId::from_key(&ExactTypeKey::Nominal(nominal))
         .map_err(ParamFreeShapeSupportBuildError::Hash)?;
-    if !foundation.materialized_exact_types().contains(&exact) {
+    if foundation
+        .materialized_exact_types()
+        .binary_search(&exact)
+        .is_err()
+    {
         return Err(ParamFreeShapeSupportBuildError::MissingExactType(exact));
     }
 
-    let layouts = foundation
-        .layouts()
-        .iter()
-        .filter(|record| {
-            record.key().exact_type() == exact
-                && record.key().representation() == RepresentationRole::ManagedValue
-        })
-        .collect::<Vec<_>>();
-    let layout = match layouts.as_slice() {
-        [record] => record.id(),
+    let layouts = lookup.layouts(exact);
+    let layout = match layouts {
+        [(_, layout)] => *layout,
         _ => {
             return Err(ParamFreeShapeSupportBuildError::ManagedValueLayoutSet {
                 exact,
-                actual: layouts.iter().map(|record| record.id()).collect(),
+                actual: layouts.iter().map(|(_, layout)| *layout).collect(),
             });
         }
     };
-    let scans = foundation
-        .scans()
-        .iter()
-        .filter(|record| {
-            record.key().layout() == layout && record.key().role() == ScanRole::InlineValue
-        })
-        .collect::<Vec<_>>();
-    let scan = match scans.as_slice() {
-        [record] => record.id(),
+    let scans = lookup.scans(layout);
+    let scan = match scans {
+        [(_, scan)] => *scan,
         _ => {
             return Err(ParamFreeShapeSupportBuildError::InlineValueScanSet {
                 layout,
-                actual: scans.iter().map(|record| record.id()).collect(),
+                actual: scans.iter().map(|(_, scan)| *scan).collect(),
             });
         }
     };
@@ -215,8 +213,9 @@ fn strong_registration<I: PersistentId>(
     require_primary_atom(foundation, definition_plan)?;
     let symbol = require_symbol(foundation, symbol_key)?;
     let registration = registrations
-        .iter()
-        .find(|entry| entry.semantic_id() == semantic_id)
+        .binary_search_by_key(&semantic_id, |entry| entry.semantic_id())
+        .ok()
+        .map(|index| &registrations[index])
         .ok_or(ParamFreeShapeSupportBuildError::MissingRegistration {
             kind: I::KIND,
             id: *semantic_id.as_array(),
@@ -248,10 +247,9 @@ fn require_definition(
     let id =
         ObjectDefinitionPlanId::from_key(&key).map_err(ParamFreeShapeSupportBuildError::Hash)?;
     foundation
-        .definition_plans()
-        .iter()
-        .any(|record| record.id() == id && record.key() == &key)
-        .then_some(id)
+        .definition_plan(id)
+        .filter(|record| record.key() == &key)
+        .map(|record| record.id())
         .ok_or(ParamFreeShapeSupportBuildError::MissingDefinition(id))
 }
 

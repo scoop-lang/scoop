@@ -1,4 +1,14 @@
 package dev.performance
 import dev.performance.performance.parallel.left.left
 import dev.performance.performance.parallel.right.right
-fun main() { println(left() + right()) }
+
+@Extern(name = "parallel_native_first")
+fun nativeFirst(): Int
+@Extern(name = "parallel_native_second")
+fun nativeSecond(): Int
+
+fun main() {
+    @Unsafe {
+        println(left() + right() + nativeFirst() + nativeSecond())
+    }
+}
