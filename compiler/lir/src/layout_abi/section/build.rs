@@ -13,7 +13,7 @@ pub(super) fn producer<'a>(
     complete(exports, dependencies, physical_imports, roots)
 }
 
-pub(super) fn complete<'a>(
+pub(in crate::layout_abi) fn complete<'a>(
     exports: LayoutAbiExportConstituentsV1,
     dependencies: Vec<&'a LayoutAbiExportConstituentsV1>,
     physical_imports: crate::CanonicalExternalShapeLinkImportsV1,

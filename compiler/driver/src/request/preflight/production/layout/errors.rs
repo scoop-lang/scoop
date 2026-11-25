@@ -5,6 +5,7 @@ pub enum LayoutProductionError {
     MirUses(scoop_mir_lower::MirTypeBridgeUseLoweringError),
     MirSection(scoop_mir::MirTypeBridgeSectionError),
     Shape(scoop_lir::ShapeLinkError),
+    ImmortalIdentity(scoop_wire::HashError),
     Selection(scoop_lir::LayoutAbiSectionError),
     Initialization(scoop_lir_lower::StrongProductionV2ProjectionError),
     Registration(Box<scoop_lir::ConeProductionWriterError>),
@@ -33,6 +34,7 @@ impl std::error::Error for LayoutProductionError {
             Self::MirUses(error) => error,
             Self::MirSection(error) => error,
             Self::Shape(error) => error,
+            Self::ImmortalIdentity(error) => error,
             Self::Selection(error) => error,
             Self::Initialization(error) => error,
             Self::Registration(error) => error.as_ref(),
@@ -51,6 +53,7 @@ impl LayoutProductionError {
             Self::HirTypes(_) => C::ICE0501,
             Self::MirExports(_) | Self::MirUses(_) | Self::MirSection(_) => C::ICE0701,
             Self::Shape(_)
+            | Self::ImmortalIdentity(_)
             | Self::Selection(_)
             | Self::Initialization(_)
             | Self::Registration(_)

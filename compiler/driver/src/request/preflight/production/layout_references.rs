@@ -32,6 +32,18 @@ pub(in crate::request::preflight) fn collect_mir_references(
             lir::ExternalStrongShapeSubjectV1::TypeDescriptor(shape.exact()),
         ));
     }
+    let immortal_types: std::collections::BTreeSet<_> = input
+        .materialization()
+        .immortals()
+        .iter()
+        .map(|id| match &input.module().immortals[*id].value {
+            mir::ImmortalConstValue::String(_) => mir::Type::String,
+            mir::ImmortalConstValue::ByteArray { array_type, .. }
+            | mir::ImmortalConstValue::EmbeddedFileArray { array_type, .. } => {
+                mir::Type::Class(*array_type)
+            }
+        })
+        .collect();
     for source in input.module().meta.source_exact_types.iter() {
         if !matches!(
             source.ty(),
@@ -54,15 +66,7 @@ pub(in crate::request::preflight) fn collect_mir_references(
             provider,
             lir::ExternalStrongShapeSubjectV1::TypeDescriptor(exact),
         ));
-        if input.materialization().immortals().iter().any(|id| {
-            match &input.module().immortals[*id].value {
-                mir::ImmortalConstValue::String(_) => source.ty() == &mir::Type::String,
-                mir::ImmortalConstValue::ByteArray { array_type, .. }
-                | mir::ImmortalConstValue::EmbeddedFileArray { array_type, .. } => {
-                    source.ty() == &mir::Type::Class(*array_type)
-                }
-            }
-        }) {
+        if immortal_types.contains(source.ty()) {
             physical.push((
                 provider,
                 lir::ExternalStrongShapeSubjectV1::TypeRegistration(exact),

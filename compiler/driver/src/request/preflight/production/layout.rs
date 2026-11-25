@@ -268,7 +268,6 @@ pub(super) fn assemble(
     };
     let exports = scoop_lir_lower::lower_layout_abi_exports(input, export_dependencies)
         .map_err(Error::LayoutExports)?;
-    let physical = selected_layout.physical_imports().records();
     let roots = scoop_lir_lower::lower_layout_abi_dependencies(
         input,
         export_dependencies,
@@ -276,17 +275,9 @@ pub(super) fn assemble(
         &mir_uses,
     )
     .map_err(Error::LayoutUses)?;
-    let section = lir::CrossConeLayoutAbiSectionV1::try_new(
-        exports,
-        &dependencies
-            .iter()
-            .map(|d| d.lir_exports())
-            .collect::<Vec<_>>(),
-        physical.to_vec(),
-        &roots,
-    )
-    .map_err(Error::Selection)?;
-    drop(selected_layout);
+    let section = selected_layout
+        .into_layout_section(exports, &roots)
+        .map_err(Error::Selection)?;
     drop(identities);
     let (mir_foundation, mir_production) = mir.strong.into_metadata();
     let producer = slib::ProducerRecord::new(concat!("scoopc/", env!("CARGO_PKG_VERSION")))

@@ -7,6 +7,27 @@ mod resolved_dependencies;
 use fixture::*;
 
 #[test]
+fn production_selection_requires_matching_local_exports() {
+    let provider = cone("producer");
+    let other = cone("other");
+    let selection = crate::StrongProductionDependencySelectionV2::empty(provider, TARGET).unwrap();
+    assert!(matches!(
+        selection.into_layout_section(empty_exports(other), &[]),
+        Err(LayoutAbiSectionError::SelectionProvider { selected, exported })
+            if selected == provider && exported == other
+    ));
+    let selection = crate::StrongProductionDependencySelectionV2::empty(
+        provider,
+        crate::target_fixtures::LINUX_X86_64_GNU,
+    )
+    .unwrap();
+    assert!(matches!(
+        selection.into_layout_section(empty_exports(provider), &[]),
+        Err(LayoutAbiSectionError::SelectionTarget { .. })
+    ));
+}
+
+#[test]
 fn empty_section_roundtrips_as_one_complete_six_field_product() {
     let exports = empty_exports(cone("empty"));
     let expected = exports.clone();

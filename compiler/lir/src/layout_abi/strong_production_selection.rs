@@ -75,6 +75,29 @@ impl<'a> StrongProductionDependencySelectionV2<'a> {
         })
     }
 
+    /// Finish the section once local exports and their dependency roots are known.
+    /// Both stages use the same providers and physical imports. Only the semantic
+    /// closure needs to be recomputed against the newly available local exports.
+    pub fn into_layout_section(
+        self,
+        exports: LayoutAbiExportConstituentsV1,
+        roots: &[LayoutAbiDependencyV1],
+    ) -> Result<super::CrossConeLayoutAbiSectionV1<'a>, LayoutAbiSectionError> {
+        if exports.provider() != self.consumer {
+            return Err(LayoutAbiSectionError::SelectionProvider {
+                selected: self.consumer,
+                exported: exports.provider(),
+            });
+        }
+        if exports.target_profile() != self.target {
+            return Err(LayoutAbiSectionError::SelectionTarget {
+                selected: self.target,
+                exported: exports.target_profile(),
+            });
+        }
+        super::section::build::complete(exports, self.dependencies, self.physical, roots)
+    }
+
     pub const fn consumer(&self) -> ConeIdentity {
         self.consumer
     }
