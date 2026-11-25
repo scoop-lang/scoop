@@ -77,9 +77,9 @@ typedef struct ScoopArray {
   char elements[];
 } ScoopArray;
 
-/* NativeBorrowedEntry for Scoop-ABI C implementations. Generated code uses
- * the inline allocation context and falls back to the distinct managed entry
- * above. The native caller must already have published caller/native roots. */
+/* Scoop-ABI native allocation can collect. Publish caller/native roots
+ * before entry and reload managed references from those roots on return.
+ * Generated managed code uses its own inline allocator and slow path. */
 void *scoop_rt_alloc(const ScoopTypeDescriptor *td, size_t size);
 
 /* After writing references into managed heap storage, mark the complete
@@ -90,11 +90,16 @@ void scoop_rt_gc_write_barrier(const void *destination, size_t bytes);
 /* Compiler GC leaf. The mapping and card index come from the published page map. */
 void scoop_runtime_record_dirty_card_group(void *region, size_t card_index);
 
+/* Core stdio calls run in NativeSafe. The caller keeps the byte range stable
+ * until return and supplies a nonnegative length. The writes use C stdio
+ * buffering and have no language-level error result (runtime spec 6). */
 void scoop_rt_stdout_write(const uint8_t *bytes, int64_t length);
 void scoop_rt_stderr_write(const uint8_t *bytes, int64_t length);
 void scoop_rt_flush_stdout(void);
 
-/* Internal bounded NoGC reads; generated code uses these only where needed. */
+/* Bounded NoGC reads on a valid UTF-8 String. Both indices count bytes.
+ * byte_at returns the signed byte stored at the index. character_at_byte
+ * requires a scalar boundary and reads one scalar. Invalid bounds are fatal. */
 int64_t scoop_rt_string_byte_length_leaf(const ScoopString *value);
 int8_t scoop_rt_string_byte_at_leaf(const ScoopString *value, int64_t index);
 uint32_t scoop_rt_string_character_at_byte_leaf(const ScoopString *value, int64_t index);
@@ -110,10 +115,9 @@ SCOOP_RT_NORETURN void scoop_rt_trap(const char *message);
 /* Checked core collection growth cannot represent another Long element. */
 SCOOP_RT_NORETURN void scoop_rt_allocation_overflow(void);
 
-/* M6 additions (milestone6 DESIGN section 3): dispatch support. */
-
-/* `is` check: walk the object's parent chain, then scan its itable
- * keys (runtime spec 2.2). */
+/* Test a non-null object's descriptor against a target type (runtime spec 2.2).
+ * The subtype relation covers class and interface inheritance, the bottom
+ * type and function parameter/result variance. */
 bool scoop_rt_is_instance(const void *obj, const ScoopTypeDescriptor *td);
 
 /* Exact interface query on an actual object's descriptor. Returns immutable
@@ -121,17 +125,12 @@ bool scoop_rt_is_instance(const void *obj, const ScoopTypeDescriptor *td);
 const ScoopItableEntryV1 *scoop_rt_itable_find(
     const ScoopTypeDescriptor *obj_td, const ScoopTypeDescriptor *iface_td);
 
-/* Linear scan of `obj_td`'s itable keys; returns the slots array.
- * Aborts when missing (the compiler guarantees the entry exists —
- * defensive). */
+/* Return the slots for an interface guaranteed by the compiled call site.
+ * A missing entry is an invalid dispatch. Use itable_find for a query. */
 const void *const *scoop_rt_itable_lookup(const ScoopTypeDescriptor *obj_td,
                                           const ScoopTypeDescriptor *iface_td);
 
-/* M9 additions (milestone9 DESIGN section 2): GC interface. See
- * runtime/src/gc/ for the implementation and docs/specs/
- * SCOOP-RUNTIME-SPEC.md sections 3-4 for the contract. */
-
-/* M13 thread registration baseline (runtime spec 3.5 / 7). A foreign
+/* Foreign thread registration (runtime spec 3.5 / 7). A foreign
  * thread must attach before any later managed callback entry. The return
  * value is true only when this call created the attachment; nested users
  * must detach only when they own that true result. A newly attached foreign
@@ -140,7 +139,7 @@ const void *const *scoop_rt_itable_lookup(const ScoopTypeDescriptor *obj_td,
 bool scoop_rt_attach_foreign_thread(void);
 void scoop_rt_detach_foreign_thread(void);
 
-/* M12 Scoop-ABI native roots (runtime spec 4.2). A native function that
+/* Scoop-ABI native roots (runtime spec 4.2). A native function that
  * keeps direct managed references across an allocation/collection stores
  * them in caller-owned slots, pushes one frame, then reloads the slots after
  * every such runtime entry. Frames are thread-local and strictly LIFO;
@@ -178,11 +177,10 @@ void scoop_rt_pop_native_region_roots(ScoopNativeRegionRootFrame *frame);
 const void *scoop_rt_pin(const void *obj);
 const void *scoop_rt_unpin(const void *obj);
 
-/* GcHandle table (runtime spec 3.4): keeps the object alive without
- * pinning. A nonzero 64-bit value encodes generation and slot+1, so stale
- * handles cannot alias a reused slot; 0 remains the null niche.
- * release/resolve validate both components and abort for stale handles.
- * M15 updates live entries in place during relocation. */
+/* Each nonzero handle owns one strong root until release (runtime spec 3.4).
+ * The collector updates its slot when the object moves. Resolve and release
+ * return the current address; a caller keeping it across GC must root it.
+ * Zero maps to NULL. A stale nonzero handle is fatal. */
 uint64_t scoop_rt_get_handle(const void *obj);
 const void *scoop_rt_release_handle(uint64_t handle);
 const void *scoop_rt_resolve_handle(uint64_t handle);
@@ -216,12 +214,19 @@ enum {
 };
 
 void scoop_callback_runtime_init(void);
+/* Registration retains the closure and task context and returns one owned
+ * callback context. Balance each retain with a release. One-shot invocation
+ * consumes one owner: retain a separate observer before handing it off if
+ * the registering thread will later query state or failure. */
 void *scoop_runtime_callback_register(const void *closure, ScoopForeignCallbackAdapter adapter,
                                       const void *signature_descriptor, uint32_t mode);
 void *scoop_runtime_callback_retain(void *context);
 void scoop_runtime_callback_release(void *context);
 uint32_t scoop_runtime_callback_state(void *context);
+/* With the context kept alive, returns the first thrown exception or NULL. */
 const void *scoop_runtime_callback_failure(void *context);
+/* The gateway attaches foreign threads for the duration of the call. The
+ * signature must match registration and the storage must match the adapter. */
 uint32_t scoop_runtime_callback_invoke(void *context, const void *signature_descriptor,
                                        void *result_storage, const void *const *argument_storage);
 uint64_t scoop_runtime_callback_debug_live_count(void);
@@ -233,10 +238,8 @@ uint64_t scoop_runtime_callback_debug_active_count(void *context);
  * as a managed anchor. */
 void scoop_runtime_gc_collect(void);
 
-/* Number of objects currently allocated from the GC heap. Includes
- * not-yet-collected garbage; right after scoop_runtime_gc_collect() it is
- * the precise live count. Test/diagnostic hook (milestone9 DESIGN 1:
- * gcStats). */
+/* Count allocated GC objects, including unreachable objects awaiting
+ * reclamation. Used by tests and diagnostics. */
 uint64_t scoop_rt_gc_stats(void);
 
 #define SCOOP_GC_MAX_WORKERS 16
@@ -306,8 +309,8 @@ bool scoop_rt_gc_debug_is_allocated(const void *obj);
 /* Test hook: number of slots in the current thread's native-root chain. */
 uint64_t scoop_rt_gc_debug_native_root_count(void);
 
-/* M13 thread-registry test hooks. Stack bounds are the current attached
- * pthread's inclusive-low/exclusive-high reserved stack range. */
+/* Thread-registry test hooks. The attached native thread's reserved stack
+ * range includes the low address and excludes the high address. */
 enum {
   SCOOP_THREAD_DEBUG_NATIVE_SAFE = 0,
   SCOOP_THREAD_DEBUG_MANAGED = 1,
