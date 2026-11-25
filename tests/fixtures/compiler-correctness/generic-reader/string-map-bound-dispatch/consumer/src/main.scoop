@@ -1,0 +1,9 @@
+package test.consumer
+
+import test.provider.Palette
+
+public fun makePalette(): Palette = Palette()
+
+fun main() {
+    if (!makePalette().roundTrip()) throw IllegalStateException()
+}

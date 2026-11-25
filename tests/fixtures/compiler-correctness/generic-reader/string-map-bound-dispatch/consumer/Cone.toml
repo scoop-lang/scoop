@@ -1,0 +1,10 @@
+schema = 1
+
+[cone]
+group = "test"
+name = "bound-map-consumer"
+version = "0.1.0"
+kind = "executable"
+
+[dependencies]
+"test:bound-map" = { version = "0.1.0", path = "../provider" }
