@@ -56,7 +56,7 @@ pub use final_link::{
 pub use linux_c::resolve_linux_c_toolchain;
 pub use native::{
     NativeSourceInput, NativeToolchain, PreparedNativeInputs, PreparedNativeObjects,
-    compile_native_source, prepare_native_inputs, prepare_native_objects,
+    compile_native_source, native_configuration_key, prepare_native_inputs, prepare_native_objects,
     selected_native_object_sources, strip_native_include_observations,
 };
 pub use paths::{

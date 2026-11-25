@@ -198,7 +198,7 @@ impl BodyLowerer<'_> {
         );
         let source = self
             .source_exact_types
-            .get(&lowered)
+            .get_by_source(ty)
             .expect("every lowered HIR type has a persistent MIR relation");
         assert_eq!(
             source.identity_record().id(),

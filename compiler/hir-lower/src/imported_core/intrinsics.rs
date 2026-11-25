@@ -10,10 +10,9 @@ impl Lowerer {
         let Some(interface) = self.dependency_interface_definition(interface) else {
             return Err(ImportedSignatureTypeError::Structural);
         };
-        if self
-            .imported_bound_interfaces
-            .insert(interface.declaration.owner())
-        {
+        let owner = interface.declaration.owner();
+        if !self.imported_bound_interfaces.contains(&owner) {
+            self.imported_bound_interfaces.insert(owner);
             let kinds = self
                 .imported_intrinsic_types
                 .keys()

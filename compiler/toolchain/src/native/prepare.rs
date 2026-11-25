@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::native_driver::NativeDriverKind;
 use scoop_lir::{OptimizationMode, TargetProfileId};
-use scoop_manifest::{LoadedConeManifest, NativeCompileFlag, NativeSourceLanguage};
+use scoop_manifest::{
+    ConeRelativePath, LoadedConeManifest, NativeCompileFlag, NativeConfig, NativeSourceLanguage,
+};
 
 use super::paths::{InputRoots, normalize_line_markers};
 use super::{
@@ -18,86 +20,151 @@ pub(super) fn prepare(
     sysroot: &Path,
     scratch: &Path,
 ) -> Result<PreparedNativeInputs, ToolchainError> {
-    let config = manifest.parsed().semantic().native();
-    let mut sources: Vec<_> = config
-        .sources()
-        .iter()
-        .filter(|source| source.predicate().matches(target))
-        .collect();
-    sources.sort_by_key(|source| source.path());
-    if let Some(pair) = sources
-        .windows(2)
-        .find(|pair| pair[0].path() == pair[1].path())
-    {
-        return Err(error(
-            scoop_source::DiagnosticCode::E2017,
-            format!("duplicate native source {}", pair[0].path().as_str()),
-        ));
-    }
-    if sources.is_empty() {
+    let Some(preparation) = Preparation::new(manifest, target, compiler, optimization, sysroot)?
+    else {
         return Ok(PreparedNativeInputs::default());
-    }
-    let target_facts = crate::manifest::source_target(target)?;
-    let sources = sources
-        .into_iter()
-        .map(|source| {
-            config
-                .source_language(source.path(), target_facts)
-                .map(|language| (source, language))
-                .map_err(|cause| error(scoop_source::DiagnosticCode::E2017, cause))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let languages: BTreeSet<_> = sources.iter().map(|(_, language)| *language).collect();
-    let mut system = Vec::new();
-    for language in &languages {
-        for root in command::system_roots(compiler, *language)? {
-            if !system.contains(&root) {
-                system.push(root);
-            }
-        }
-    }
-    let target_root = crate::target_library_root(sysroot, compiler.c().target());
-    let roots = InputRoots {
-        cone: manifest.real_root().to_path_buf(),
-        public: sysroot
-            .join("include")
-            .canonicalize()
-            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
-        target: match target_root.canonicalize() {
-            Ok(path) => path,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                std::path::absolute(&target_root)
-                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
-            }
-            Err(err) => return Err(error(scoop_source::DiagnosticCode::E2201, err)),
-        },
-        system,
     };
-    for (source, _) in &sources {
-        roots.check_source(source.path().as_path())?;
-    }
     let mut result = PreparedNativeInputs::default();
-    let mut search = vec![roots.cone.clone(), roots.public.clone()];
-    search.extend(roots.system.clone());
-    search.extend(config.include_paths(target, &roots.cone, &target_root));
-    for language in &languages {
-        for flag in config.flags(*language) {
-            if let NativeCompileFlag::Include { kind, path } = flag {
-                let path = roots.cone.join(path.as_path());
-                if matches!(
-                    kind,
-                    scoop_manifest::NativeIncludeFlag::ForcedHeader
-                        | scoop_manifest::NativeIncludeFlag::Macros
-                ) {
-                    result.observed_paths.insert(path);
-                } else {
-                    search.push(path);
+    for index in 0..preparation.len() {
+        let (unit, paths) = preparation.unit(index, scratch)?;
+        result.units.push(unit);
+        result.observed_paths.extend(paths);
+    }
+    result.observed_paths.extend(preparation.observed_paths);
+    Ok(result)
+}
+
+pub(super) struct Preparation<'a> {
+    config: &'a NativeConfig,
+    target: TargetProfileId,
+    compiler: &'a NativeToolchain,
+    optimization: OptimizationMode,
+    sources: Vec<(ConeRelativePath, NativeSourceLanguage)>,
+    roots: InputRoots,
+    target_root: PathBuf,
+    search: Vec<PathBuf>,
+    pub(super) observed_paths: BTreeSet<PathBuf>,
+}
+
+impl<'a> Preparation<'a> {
+    pub(super) fn new(
+        manifest: &'a LoadedConeManifest,
+        target: TargetProfileId,
+        compiler: &'a NativeToolchain,
+        optimization: OptimizationMode,
+        sysroot: &Path,
+    ) -> Result<Option<Self>, ToolchainError> {
+        let config = manifest.parsed().semantic().native();
+        let mut sources: Vec<_> = config
+            .sources()
+            .iter()
+            .filter(|source| source.predicate().matches(target))
+            .collect();
+        sources.sort_by_key(|source| source.path());
+        if let Some(pair) = sources
+            .windows(2)
+            .find(|pair| pair[0].path() == pair[1].path())
+        {
+            return Err(error(
+                scoop_source::DiagnosticCode::E2017,
+                format!("duplicate native source {}", pair[0].path().as_str()),
+            ));
+        }
+        if sources.is_empty() {
+            return Ok(None);
+        }
+        let target_facts = crate::manifest::source_target(target)?;
+        let sources = sources
+            .into_iter()
+            .map(|source| {
+                config
+                    .source_language(source.path(), target_facts)
+                    .map(|language| (source.path().clone(), language))
+                    .map_err(|cause| error(scoop_source::DiagnosticCode::E2017, cause))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let languages: BTreeSet<_> = sources.iter().map(|(_, language)| *language).collect();
+        let mut system = Vec::new();
+        for language in &languages {
+            for root in command::system_roots(compiler, *language)? {
+                if !system.contains(&root) {
+                    system.push(root);
                 }
             }
         }
+        let target_root = crate::target_library_root(sysroot, compiler.c().target());
+        let roots = InputRoots {
+            cone: manifest.real_root().to_path_buf(),
+            public: sysroot
+                .join("include")
+                .canonicalize()
+                .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
+            target: match target_root.canonicalize() {
+                Ok(path) => path,
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                    std::path::absolute(&target_root)
+                        .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?
+                }
+                Err(err) => return Err(error(scoop_source::DiagnosticCode::E2201, err)),
+            },
+            system,
+        };
+        for (source, _) in &sources {
+            roots.check_source(source.as_path())?;
+        }
+        let mut observed_paths = BTreeSet::new();
+        let mut search = vec![roots.cone.clone(), roots.public.clone()];
+        search.extend(roots.system.clone());
+        search.extend(config.include_paths(target, &roots.cone, &target_root));
+        for language in &languages {
+            for flag in config.flags(*language) {
+                if let NativeCompileFlag::Include { kind, path } = flag {
+                    let path = roots.cone.join(path.as_path());
+                    if matches!(
+                        kind,
+                        scoop_manifest::NativeIncludeFlag::ForcedHeader
+                            | scoop_manifest::NativeIncludeFlag::Macros
+                    ) {
+                        observed_paths.insert(path);
+                    } else {
+                        search.push(path);
+                    }
+                }
+            }
+        }
+        Ok(Some(Self {
+            config,
+            target,
+            compiler,
+            optimization,
+            sources,
+            roots,
+            target_root,
+            search,
+            observed_paths,
+        }))
     }
-    for (source, language) in &sources {
-        let input = roots.cone.join(source.path().as_path());
+
+    pub(super) fn len(&self) -> usize {
+        self.sources.len()
+    }
+
+    pub(super) fn unit(
+        &self,
+        index: usize,
+        scratch: &Path,
+    ) -> Result<(NativeSourceInput, BTreeSet<PathBuf>), ToolchainError> {
+        let (source, language) = &self.sources[index];
+        let roots = &self.roots;
+        let search = &self.search;
+        let target_root = &self.target_root;
+        let config = self.config;
+        let compiler = self.compiler;
+        let target = self.target;
+        let optimization = self.optimization;
+        let target_facts = crate::manifest::source_target(target)?;
+        let mut observed_paths = BTreeSet::new();
+        let input = roots.cone.join(source.as_path());
         let depfile = scratch.join("unit.d");
         let mut command = command::base(compiler, *language, optimization, false)?;
         command.args([
@@ -121,7 +188,7 @@ pub(super) fn prepare(
             target,
             *language,
             &roots.cone,
-            &target_root,
+            target_root,
             kind,
         )?;
         command
@@ -150,10 +217,10 @@ pub(super) fn prepare(
         }
         crate::windows_native::dependencies(&mut command, kind, &depfile, "native-unit");
         crate::windows_native::input(&mut command, kind, &input);
-        let output = command::run(&mut command, source.path().as_str())?;
+        let output = command::run(&mut command, source.as_str())?;
         let dependencies = crate::windows_native::read_dependencies(kind, &depfile, "native-unit")?;
         if kind == NativeDriverKind::Msvc {
-            observe_msvc_search(&search, &dependencies, &mut result.observed_paths)?;
+            observe_msvc_search(search, &dependencies, &mut observed_paths)?;
         }
         let mut path_map = BTreeMap::new();
         for path in dependencies {
@@ -163,7 +230,7 @@ pub(super) fn prepare(
                 roots.cone.join(path)
             };
             let logical = roots.logical(&path)?;
-            result.observed_paths.insert(path.clone());
+            observed_paths.insert(path.clone());
             path_map.insert(
                 path.canonicalize()
                     .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?,
@@ -174,17 +241,15 @@ pub(super) fn prepare(
         let preprocessed = normalize_line_markers(
             &output.stdout,
             &path_map,
-            &roots,
-            &search,
-            &mut result.observed_paths,
+            roots,
+            search,
+            &mut observed_paths,
         )?;
-        result.units.push(NativeSourceInput::new(
-            source.path().clone(),
-            *language,
-            preprocessed.into(),
-        ));
+        Ok((
+            NativeSourceInput::new(source.clone(), *language, preprocessed.into()),
+            observed_paths,
+        ))
     }
-    Ok(result)
 }
 
 fn observe_msvc_search(

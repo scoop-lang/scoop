@@ -5,7 +5,6 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub enum ChildRequestPlanError {
-    NativeNotPrepared,
     UnknownNode(ConeIdentity),
     PrebuiltNode(ConeIdentity),
     CurrentAlreadyCompleted(ConeIdentity),
@@ -29,9 +28,6 @@ impl fmt::Display for ChildRequestPlanError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Staging(source) => source.fmt(formatter),
-            Self::NativeNotPrepared => {
-                formatter.write_str("frontend-only source has no native production inputs")
-            }
             Self::UnknownNode(identity) => write!(formatter, "unknown prepared Cone {identity}"),
             Self::PrebuiltNode(identity) => {
                 write!(

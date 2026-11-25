@@ -15,7 +15,8 @@ impl SingleConeBuildRequest {
             optimization,
             debug_info,
             purpose,
-            native_inputs,
+            native_sysroot,
+            native_cache,
             generators,
             jobs,
         } = self;
@@ -67,7 +68,8 @@ impl SingleConeBuildRequest {
             optimization,
             debug_info,
             purpose,
-            native_inputs,
+            native_sysroot,
+            native_cache,
             generators,
             jobs,
         })

@@ -31,6 +31,33 @@ impl ValueFacts {
 
 pub(super) type State = Vec<ValueFacts>;
 
+/// Type facts shared by the function analyses in one module traversal.
+#[derive(Clone, Copy)]
+pub(super) struct ModuleTypes {
+    string_class: ActualType,
+}
+
+impl ModuleTypes {
+    pub fn new(module: &mir::Module) -> Self {
+        Self {
+            string_class: module
+                .classes
+                .iter()
+                .find_map(|(id, class)| {
+                    (class.modifier == mir::ClassModifier::Final
+                        && matches!(
+                            class.representation,
+                            mir::ClassRepresentation::Intrinsic(
+                                mir::IntrinsicClassRepresentation::String
+                            )
+                        ))
+                    .then_some(ActualType::Class(id))
+                })
+                .unwrap_or(ActualType::Unknown),
+        }
+    }
+}
+
 pub(super) struct Analysis<'a> {
     module: &'a mir::Module,
     function: &'a mir::Function,
@@ -42,15 +69,24 @@ pub(super) struct Analysis<'a> {
 }
 
 impl<'a> Analysis<'a> {
-    pub fn new(module: &'a mir::Module, function: &'a mir::Function) -> Self {
-        Self::create(module, function, false)
+    pub fn new(module: &'a mir::Module, function: &'a mir::Function, types: ModuleTypes) -> Self {
+        Self::create(module, function, false, types)
     }
 
-    pub fn for_copies(module: &'a mir::Module, function: &'a mir::Function) -> Self {
-        Self::create(module, function, true)
+    pub fn for_copies(
+        module: &'a mir::Module,
+        function: &'a mir::Function,
+        types: ModuleTypes,
+    ) -> Self {
+        Self::create(module, function, true, types)
     }
 
-    fn create(module: &'a mir::Module, function: &'a mir::Function, current_copies: bool) -> Self {
+    fn create(
+        module: &'a mir::Module,
+        function: &'a mir::Function,
+        current_copies: bool,
+        types: ModuleTypes,
+    ) -> Self {
         let mut addressed = HashSet::new();
         for (_, block) in function.body.blocks.iter() {
             mir::visit_block_exprs(block, &mut |expression| {
@@ -70,20 +106,7 @@ impl<'a> Analysis<'a> {
             current_copies,
             addressed,
             initial: Vec::new(),
-            string_class: module
-                .classes
-                .iter()
-                .find_map(|(id, class)| {
-                    (class.modifier == mir::ClassModifier::Final
-                        && matches!(
-                            class.representation,
-                            mir::ClassRepresentation::Intrinsic(
-                                mir::IntrinsicClassRepresentation::String
-                            )
-                        ))
-                    .then_some(ActualType::Class(id))
-                })
-                .unwrap_or(ActualType::Unknown),
+            string_class: types.string_class,
         };
         let mut initial = vec![ValueFacts::UNKNOWN; function.body.locals.len()];
         for parameter in &function.params {
@@ -125,11 +148,11 @@ impl<'a> Analysis<'a> {
             let mut state = incoming[index(block_id)]
                 .clone()
                 .expect("a queued block is reachable");
-            let mut exceptional = state.clone();
+            let mut exceptional = block.unwind.map(|target| (target, state.clone()));
             for statement in &block.statements {
                 self.statement(statement, &mut state);
-                if block.unwind.is_some() {
-                    merge(&mut exceptional, &state);
+                if let Some((_, exceptional)) = &mut exceptional {
+                    merge(exceptional, &state);
                 }
             }
             let mut propagate = |target, state: &State| {
@@ -145,8 +168,8 @@ impl<'a> Analysis<'a> {
                     pending.push_back(target);
                 }
             };
-            if let Some(unwind) = block.unwind {
-                propagate(unwind, &exceptional);
+            if let Some((unwind, exceptional)) = &exceptional {
+                propagate(*unwind, exceptional);
             }
             match &block.terminator {
                 mir::Terminator::Goto(target) => propagate(*target, &state),

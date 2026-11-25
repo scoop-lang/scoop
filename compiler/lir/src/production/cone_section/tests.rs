@@ -50,6 +50,37 @@ fn strong_section_reader_rejects_old_or_extended_top_level_shapes() {
     }
 }
 
+#[test]
+fn independent_section_constructor_checks_the_digest_foundation_pair() {
+    let coordinate = ConeCoordinate::new("test", "strong-section", "0.0.0").unwrap();
+    let (foundation, digests) = fixture(&coordinate);
+    let foreign = ConeCoordinate::new("test", "foreign-section", "0.0.0").unwrap();
+    let (_, foreign_digests) = fixture(&foreign);
+    let registrations = StrongRegistrationProductionSurfaceV1::empty(
+        crate::target_fixtures::DARWIN_AARCH64,
+        &foundation,
+        &digests,
+    )
+    .unwrap();
+    let result = ConeProductionSectionV1::new(
+        coordinate,
+        &[],
+        &foundation,
+        foreign_digests,
+        registrations,
+        EntryProductionSourceV1::Library,
+        &[],
+        crate::canonical_callable::tests::fixture_definitions(&foundation),
+        crate::CanonicalShapeAbisV1::new(Vec::new(), &foundation).unwrap(),
+    );
+    assert!(matches!(
+        result,
+        Err(ConeProductionSectionBuildError::DigestPlan(
+            DigestPlanError::ForeignRuntimeImage { .. }
+        ))
+    ));
+}
+
 fn fixture(coordinate: &ConeCoordinate) -> (ConeLirFoundation, DigestFinalizationPlanV1) {
     let producer = coordinate.identity().unwrap();
     let definition = CborIdentityRecord::from_key(

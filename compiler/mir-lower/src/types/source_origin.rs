@@ -48,6 +48,15 @@ impl SourceExactTypeRegistry {
         self.entries.iter().find(|entry| entry.ty() == ty)
     }
 
+    pub(crate) fn get_by_source(
+        &self,
+        source: hir::TypeId,
+    ) -> Option<&mir::SourceExactTypeIdentity> {
+        self.by_source
+            .get(source)
+            .map(|&index| &self.entries[index])
+    }
+
     pub(crate) fn finish(self) -> mir::SourceExactTypeIdentities {
         // The complete relation checks uniqueness once, after all registrations.
         mir::SourceExactTypeIdentities::checked(self.entries)

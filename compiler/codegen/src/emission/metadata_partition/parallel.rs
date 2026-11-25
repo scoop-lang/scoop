@@ -5,7 +5,6 @@ use crate::{ScoopLirObjectKindV1, ScoopLirObjectPartitionV1, ScoopLirObjectUnitS
 use inkwell::context::Context;
 use inkwell::memory_buffer::MemoryBuffer;
 use std::collections::BTreeMap;
-use std::num::NonZeroUsize;
 
 struct PreparedGroup<'units> {
     units: &'units [&'units ScoopLirObjectUnitSetV1],
@@ -20,7 +19,7 @@ impl MetadataModule<'_> {
         machine: &TargetMachine,
         profile: ValidatedBackendProfile,
         partition: &ScoopLirObjectPartitionV1,
-        jobs: NonZeroUsize,
+        slots: &scoop_process::WorkerSlots,
         emit: impl for<'worker> Fn(
             &ScoopLirObjectUnitSetV1,
             Module<'worker>,
@@ -28,12 +27,13 @@ impl MetadataModule<'_> {
         ) -> Result<T, CodegenError>
         + Sync,
     ) -> Result<BTreeMap<ObjectDefinitionPlanId, T>, CodegenError> {
+        let preparation_slot = slots.acquire();
         let units = partition
             .objects()
             .iter()
             .filter(|units| units.kind() == ScoopLirObjectKindV1::NonCallable)
             .collect::<Vec<_>>();
-        let workers = jobs.get().min(units.len());
+        let workers = slots.limit().get().min(units.len());
         if workers <= 1 {
             return self.map_partitions(machine, profile, partition, |units, llvm| {
                 emit(units, llvm, machine)
@@ -44,6 +44,7 @@ impl MetadataModule<'_> {
             // Earlier subtrees still need to finish so their errors retain priority.
             groups.push(Err(error));
         }
+        drop(preparation_slot);
         std::thread::scope(|scope| {
             let emit = &emit;
             let mut groups = groups.into_iter();
@@ -55,8 +56,10 @@ impl MetadataModule<'_> {
             for (index, group) in groups.enumerate() {
                 match std::thread::Builder::new()
                     .name(format!("scoop-metadata-{}", index + 1))
-                    .spawn_scoped(scope, move || emit_group(group, profile, emit))
-                {
+                    .spawn_scoped(scope, move || {
+                        let _slot = slots.acquire();
+                        emit_group(group, profile, emit)
+                    }) {
                     Ok(handle) => handles.push(handle),
                     Err(error) => {
                         spawn_error = Some(
@@ -69,7 +72,10 @@ impl MetadataModule<'_> {
                     }
                 }
             }
-            let mut batches = vec![emit_group(first, profile, emit)];
+            let mut batches = vec![{
+                let _slot = slots.acquire();
+                emit_group(first, profile, emit)
+            }];
             for handle in handles {
                 batches.push(handle.join().unwrap_or_else(|_| {
                     Err(

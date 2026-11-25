@@ -373,7 +373,7 @@ impl Lowerer {
         } else if let Some(intrinsic) = candidate.pointer_intrinsic() {
             if intrinsic == hir::PointerIntrinsic::Cast {
                 self.pointer_type_uses
-                    .push((result_type, self.current_file, call.span));
+                    .push_back((result_type, self.current_file, call.span));
             }
             let expression = match intrinsic {
                 hir::PointerIntrinsic::AddressOf => {

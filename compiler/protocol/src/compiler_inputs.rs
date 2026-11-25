@@ -5,12 +5,15 @@ use scoop_wire::{Decoder, Encoder, WireDecode, WireEncode, WireError};
 
 mod directories;
 pub use directories::{DirectoryEntryInputV1, DirectoryEntryStateV1, DirectoryInputV1};
+mod native;
+pub use native::{NativeInputStateV1, NativeInputV1};
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum CompilerInputV1 {
     Environment(EnvironmentInputV1),
     File(FileInputV1),
     Directory(DirectoryInputV1),
+    Native(NativeInputV1),
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -39,6 +42,10 @@ impl WireEncode for CompilerInputV1 {
                 e.unsigned(3)?;
                 input.encode(e)
             }
+            Self::Native(input) => {
+                e.unsigned(4)?;
+                input.encode(e)
+            }
         }
     }
 }
@@ -53,6 +60,7 @@ impl WireDecode for CompilerInputV1 {
             1 => EnvironmentInputV1::decode(d).map(Self::Environment),
             2 => FileInputV1::decode(d).map(Self::File),
             3 => DirectoryInputV1::decode(d).map(Self::Directory),
+            4 => NativeInputV1::decode(d).map(Self::Native),
             _ => Err(invalid(d)),
         }
     }
@@ -93,7 +101,7 @@ impl WireDecode for FileInputV1 {
     }
 }
 
-fn decode_path(d: &mut Decoder<'_>) -> Result<HostPathCarrier, WireError> {
+pub(crate) fn decode_path(d: &mut Decoder<'_>) -> Result<HostPathCarrier, WireError> {
     crate::DecodedHostPathCarrier::decode(d)?
         .validate()
         .map_err(|_| invalid(d))
@@ -109,7 +117,7 @@ fn decode_modified(d: &mut Decoder<'_>) -> Result<(bool, u64, u32), WireError> {
     Ok((negative == 1, seconds, nanos as u32))
 }
 
-fn invalid(d: &Decoder<'_>) -> WireError {
+pub(crate) fn invalid(d: &Decoder<'_>) -> WireError {
     WireError::new(
         scoop_wire::WireErrorKind::IntegerOutOfRange,
         d.path().clone(),
@@ -120,6 +128,33 @@ fn invalid(d: &Decoder<'_>) -> WireError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_response_roundtrip_preserves_present_and_absent_candidates() {
+        let path = |text| HostPathCarrier::from_path(std::path::Path::new(text)).unwrap();
+        let inputs = vec![
+            CompilerInputV1::Native(NativeInputV1 {
+                path: path("include/value.h"),
+                state: Some(NativeInputStateV1 {
+                    resolved: path("selected/value.h"),
+                    length: 42,
+                    modified: (false, 123, 456),
+                }),
+            }),
+            CompilerInputV1::Native(NativeInputV1 {
+                path: path("earlier/value.h"),
+                state: None,
+            }),
+        ];
+        let response = crate::ScoopcResponseEnvelopeV1::success(
+            crate::RequestCorrelationId::from_array([9; 16]),
+            crate::ScoopcSuccessV1::new(crate::ScoopcProductV1::Check, vec![], vec![])
+                .unwrap()
+                .with_compiler_inputs(inputs),
+        );
+        let bytes = crate::encode_response_frame(&response).unwrap();
+        assert_eq!(crate::decode_response_frame(&bytes).unwrap(), response);
+    }
 
     #[test]
     fn include_file_input_response_roundtrip_preserves_original_locator() {

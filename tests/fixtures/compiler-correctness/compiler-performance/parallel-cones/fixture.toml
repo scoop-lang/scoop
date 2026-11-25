@@ -4,7 +4,7 @@ root = "root"
 inputs = ["base", "left", "right", "root"]
 tools = ["scoop", "scoopc"]
 when = { os = ["darwin", "linux"] }
-tags = ["compiler-performance", "build-cache", "artifacts", "run", "compiler-correctness"]
+tags = ["compiler-performance", "build-cache", "artifacts", "run", "native", "compiler-correctness"]
 variants = [
   {name = "serial", vars = {jobs = "1", other_jobs = "4"}},
   {name = "parallel", vars = {jobs = "4", other_jobs = "1"}},
@@ -29,6 +29,20 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [{actual = "${warm.result.observations.child_invocations.length}", equals = 0}, {actual = "${warm.result.link_plan_fingerprint}", equals = "${cold.result.link_plan_fingerprint}"}]
+
+[[steps]]
+name = "other_cold"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/other-cache", "--target-dir", "${work}/other-target", "--jobs", "${other_jobs}", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [
+  {actual = "${other_cold.result.observations.child_invocations.length}", equals = 4},
+  {actual = "${other_cold.result.link_plan_fingerprint}", equals = "${cold.result.link_plan_fingerprint}"},
+  {file = "${other_cold.result.root.path}", same_as = "${cold.result.root.path}"},
+]
 
 [[steps]]
 name = "observe"

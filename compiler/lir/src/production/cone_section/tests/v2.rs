@@ -30,7 +30,7 @@ fn layout_schema_retains_three_shared_production_fields() {
         ),
     )
     .unwrap();
-    let current = ConeProductionSectionV2::from_parts(
+    let current = ConeProductionSectionV2::new(
         coordinate.clone(),
         &[],
         &foundation,

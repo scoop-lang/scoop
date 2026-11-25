@@ -23,7 +23,7 @@ impl Lowerer {
             Type::Struct(_) | Type::Class(_) | Type::Enum(_) | Type::Interface(_)
         ) {
             self.nominal_type_uses
-                .push((ty, self.current_file, ty_ref.span));
+                .push_back((ty, self.current_file, ty_ref.span));
         }
         Some(ty)
     }
@@ -166,7 +166,7 @@ impl Lowerer {
                         let pointee = resolved[0];
                         let ty = self.intern_type(Type::Ptr(pointee));
                         self.pointer_type_uses
-                            .push((ty, self.current_file, name.span));
+                            .push_back((ty, self.current_file, name.span));
                         return Some(ty);
                     }
                     if Some(struct_id) == self.ffi_fun_ptr {
@@ -193,7 +193,7 @@ impl Lowerer {
                         }
                         let ty = self.intern_type(Type::FunPtr(function_type));
                         self.fun_ptr_type_uses
-                            .push((ty, self.current_file, name.span));
+                            .push_back((ty, self.current_file, name.span));
                         return Some(ty);
                     }
                     if Some(struct_id) == self.ffi_gc_leaf_fun_ptr {
@@ -218,8 +218,11 @@ impl Lowerer {
                             return None;
                         }
                         let ty = self.intern_type(Type::GcLeafFunPtr(function_type));
-                        self.gc_leaf_fun_ptr_type_uses
-                            .push((ty, self.current_file, name.span));
+                        self.gc_leaf_fun_ptr_type_uses.push_back((
+                            ty,
+                            self.current_file,
+                            name.span,
+                        ));
                         return Some(ty);
                     }
                     return Some(self.struct_application(struct_id, resolved));

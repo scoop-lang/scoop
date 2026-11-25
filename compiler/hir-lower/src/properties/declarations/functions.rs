@@ -1,4 +1,5 @@
 use super::*;
+use crate::FunctionOrigin;
 
 mod bodies;
 
@@ -23,21 +24,22 @@ impl Lowerer {
         if let Some(forwarder) = self.interface_forwarders.get(&function) {
             return forwarder.accessor();
         }
-        self.property_accessor_sources
-            .iter()
-            .find(|source| source.function == function)
-            .map(|source| source.kind)
+        match self.functions.origin(function) {
+            FunctionOrigin::Getter(_) => Some(PropertyAccessorKind::Getter),
+            FunctionOrigin::Setter(_) => Some(PropertyAccessorKind::Setter),
+            _ => None,
+        }
     }
 
     pub(crate) fn function_property(&self, function: hir::FunctionId) -> Option<hir::PropertyId> {
         self.interface_forwarders
             .get(&function)
             .and_then(|forwarder| forwarder.property())
-            .or_else(|| {
-                self.property_accessor_sources
-                    .iter()
-                    .find(|source| source.function == function)
-                    .map(|source| source.property)
+            .or_else(|| match self.functions.origin(function) {
+                FunctionOrigin::Getter(property) | FunctionOrigin::Setter(property) => {
+                    Some(*property)
+                }
+                _ => None,
             })
     }
 

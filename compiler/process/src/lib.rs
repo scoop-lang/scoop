@@ -11,6 +11,8 @@ mod signals;
 
 mod depfile;
 pub use depfile::parse_make_dependencies;
+mod workers;
+pub use workers::{WorkerSlot, WorkerSlots};
 
 /// Run the selected image with a distinct argv[0], inherited I/O and environment.
 #[cfg(windows)]

@@ -56,6 +56,9 @@ impl ConeProductionSectionV1 {
         canonical_callables: crate::CanonicalCallableAbisV1,
         canonical_shapes: crate::CanonicalShapeAbisV1,
     ) -> Result<Self, ConeProductionSectionBuildError> {
+        digest_finalization_plan
+            .validate_against(foundation)
+            .map_err(ConeProductionSectionBuildError::DigestPlan)?;
         Self::from_parts(
             coordinate,
             direct_dependencies,
@@ -83,6 +86,9 @@ impl ConeProductionSectionV2 {
         canonical_callables: crate::CanonicalCallableAbisV1,
         canonical_shapes: crate::CanonicalShapeAbisV1,
     ) -> Result<Self, ConeProductionSectionBuildError> {
+        digest_finalization_plan
+            .validate_against(foundation)
+            .map_err(ConeProductionSectionBuildError::DigestPlan)?;
         Self::from_parts(
             coordinate,
             direct_dependencies,
@@ -98,6 +104,8 @@ impl ConeProductionSectionV2 {
 }
 
 impl<D, C, I> ConeProductionSection<D, C, I> {
+    /// Assemble after the digest plan was checked against this unchanged
+    /// foundation, either by the module producer or the public constructors.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_parts(
         coordinate: ConeCoordinate,
@@ -110,9 +118,6 @@ impl<D, C, I> ConeProductionSection<D, C, I> {
         canonical_callables: crate::CanonicalCallableAbisV1,
         canonical_shapes: crate::CanonicalShapeAbisV1,
     ) -> Result<Self, ConeProductionSectionBuildError> {
-        digest_finalization_plan
-            .validate_against(foundation)
-            .map_err(ConeProductionSectionBuildError::DigestPlan)?;
         let object_definition_plans = ObjectDefinitionPlanSurfaceV1::from_foundation(foundation)
             .map_err(ConeProductionSectionBuildError::ObjectDefinitions)?;
         let canonical_definitions =

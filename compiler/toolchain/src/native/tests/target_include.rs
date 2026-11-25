@@ -28,6 +28,7 @@ fn target_sysroot_headers_precede_local_headers_and_track_only_selected_inputs()
             &sysroot,
             &cache,
             scoop_protocol::CompilationPurpose::Production,
+            std::num::NonZeroUsize::new(1).unwrap(),
         )
         .unwrap()
     };

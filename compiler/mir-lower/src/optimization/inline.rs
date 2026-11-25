@@ -151,6 +151,7 @@ impl Session {
                 }
             })
             .collect::<Vec<_>>();
+        let types = flow::ModuleTypes::new(module);
         let mut changed = vec![false; module.functions.len()];
         for (id, _) in self.templates.iter() {
             if !active[index(id)] {
@@ -175,6 +176,7 @@ impl Session {
             };
             let context = Context {
                 module,
+                types,
                 selected,
                 dispatch,
                 templates: &self.templates,
@@ -224,6 +226,7 @@ impl Session {
 
 struct Context<'a, 'report> {
     module: &'a mir::Module,
+    types: flow::ModuleTypes,
     selected: &'a mir::SelectedExternalMirSet,
     dispatch: &'a crate::imported_bodies::IntrinsicDispatch,
     templates: &'a Arena<mir::Function>,
@@ -276,7 +279,9 @@ impl Context<'_, '_> {
             Target::Local(id) => &self.summaries[index(id)],
             Target::Imported(id) => &self.imported_summaries[&id],
         };
-        summary.get_or_init(|| summary::Summary::new(self.module, self.template(target), effects))
+        summary.get_or_init(|| {
+            summary::Summary::new(self.module, self.template(target), effects, self.types)
+        })
     }
 
     fn optimize(
@@ -317,7 +322,7 @@ impl Context<'_, '_> {
         if !self.ordinary && !changed {
             return (function.body, false);
         }
-        let (body, simplified) = simplify::body(self.module, &function);
+        let (body, simplified) = simplify::body(self.module, &function, self.types);
         (body, changed || simplified)
     }
 }

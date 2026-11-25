@@ -68,15 +68,17 @@ struct TypeUseFrame {
     alias: Option<AliasTypeUse>,
 }
 
+type TypeAnnotationSite = (
+    hir::SourceAnnotationTarget,
+    hir::AnnotationTypeSlot,
+    TypeUseKey,
+);
+
 #[derive(Clone, Default)]
 pub(crate) struct PendingTypeAnnotations {
     uses: crate::Shared<HashMap<TypeUseKey, PendingTypeUse>>,
     frames: Vec<TypeUseFrame>,
-    sites: Vec<(
-        hir::SourceAnnotationTarget,
-        hir::AnnotationTypeSlot,
-        TypeUseKey,
-    )>,
+    sites: crate::Shared<Vec<TypeAnnotationSite>>,
     pub(super) suspended: bool,
 }
 

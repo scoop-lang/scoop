@@ -1,6 +1,5 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
-use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 pub(super) struct PreparedCallableObject {
@@ -20,8 +19,9 @@ pub(super) fn emit_callables<D: Sync, C: Sync, I: Sync>(
     declarations: &ConeDeclarations,
     mut safepoints: BTreeMap<String, statepoint::ExpectedSafepoints>,
     profile: ValidatedBackendProfile,
-    jobs: NonZeroUsize,
+    slots: &scoop_process::WorkerSlots,
 ) -> Result<BTreeMap<scoop_lir::PersistentCallableBodyId, PreparedCallableObject>, CodegenError> {
+    let preparation_slot = slots.acquire();
     let functions = module
         .callable_bodies()
         .map(|function| {
@@ -50,6 +50,7 @@ pub(super) fn emit_callables<D: Sync, C: Sync, I: Sync>(
     let next = AtomicUsize::new(0);
     let stopped = AtomicBool::new(false);
     let emit_worker = || -> WorkerResult {
+        let _slot = slots.acquire();
         // AArch64's instruction selector can retain debug metadata until the
         // machine is dropped, so its context must outlive it on every exit path.
         let context = Context::create();
@@ -103,7 +104,8 @@ pub(super) fn emit_callables<D: Sync, C: Sync, I: Sync>(
         }
         Ok(completed)
     };
-    let workers = jobs.get().min(functions.len());
+    let workers = slots.limit().get().min(functions.len());
+    drop(preparation_slot);
     std::thread::scope(|scope| {
         let mut handles = Vec::with_capacity(workers - 1);
         let mut spawn_error = None;

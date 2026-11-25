@@ -16,6 +16,7 @@ pub(super) fn lower_machine(
     temporary_parent: &Path,
     dump: &mut Vec<EmittedStageDump>,
     stop_after: Option<StageDumpKind>,
+    work: &mut native::Work,
 ) -> Result<
     ControlFlow<(), scoop_slib::AssembledCrossConeLayoutArtifactV1>,
     CurrentConeProductionFailure,
@@ -32,6 +33,7 @@ pub(super) fn lower_machine(
         dependencies,
         dump,
         stop_after,
+        work,
     )
 }
 

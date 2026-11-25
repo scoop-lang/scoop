@@ -33,7 +33,7 @@ pub(super) fn graph(
             }
         }
     }
-    let mut prepared = graph
+    let prepared = graph
         .prepare_frontend()
         .map_err(BuildFailure::preparation)?;
     let mut completed = BTreeMap::<ConeIdentity, CompletedNode>::new();
@@ -61,9 +61,6 @@ pub(super) fn graph(
             let documentation =
                 (needed.contains(&identity) && !entry.ready()?).then(|| entry.input());
             let (node, invoked, documented) = if artifacts.contains(&identity) {
-                prepared
-                    .prepare_machine_source(identity)
-                    .map_err(BuildFailure::preparation)?;
                 let (node, invoked, result) = prepared
                     .execute_source_output(
                         identity,

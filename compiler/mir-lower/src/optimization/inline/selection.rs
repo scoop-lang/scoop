@@ -23,7 +23,7 @@ impl Context<'_, '_> {
         ancestry: &[Vec<Target>],
         growth: &mut policy::Growth,
     ) -> Vec<Choice> {
-        let analysis = flow::Analysis::new(self.module, function);
+        let analysis = flow::Analysis::new(self.module, function, self.types);
         let incoming = analysis.solve();
         let heats = policy::heats(&function.body);
         let mut caller_size = policy::function_cost(&self.module.structs, function).size;
@@ -52,8 +52,13 @@ impl Context<'_, '_> {
         let mut choices = Vec::new();
         let receivers = OnceCell::new();
         let ranges = OnceCell::new();
-        let mut exceptions =
-            exception_paths::Effects::new(self.module, self.selected, self.dispatch, self.imported);
+        let mut exceptions = exception_paths::Effects::new(
+            self.module,
+            self.selected,
+            self.dispatch,
+            self.imported,
+            self.types,
+        );
         for block_id in order {
             let block = &function.body.blocks[block_id];
             if self.ordinary && ancestry[index(block_id)].len() > 6 {
@@ -146,7 +151,8 @@ impl Context<'_, '_> {
                             let source = self.template(callee);
                             let facts = self.summary(callee, &exceptions);
                             let mut blocks = if facts.argument_sensitive(&arguments) {
-                                let blocks = simplify::blocks(self.module, source, &arguments);
+                                let blocks =
+                                    simplify::blocks(self.module, source, &arguments, self.types);
                                 if facts.indirect_calls {
                                     exceptions.resolve_calls(source, &arguments, blocks)
                                 } else {

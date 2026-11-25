@@ -139,7 +139,7 @@ pub(super) struct DecodedScoopcBuildRequestV1 {
     optimization: OptimizationMode,
     debug_info: DebugInfoLevel,
     purpose: crate::CompilationPurpose,
-    native_inputs: Vec<DecodedHostPathCarrier>,
+    native_build: Option<NativeBuildPathsV1>,
     generators: Vec<crate::GeneratorRegistrationV1>,
 }
 
@@ -153,7 +153,6 @@ impl DecodedScoopcBuildRequestV1 {
         let output = self.output.validate()?;
         let diagnostics = DiagnosticOutputPolicyV1::from_tag(self.diagnostics)?;
         let emit = self.emit.validate()?;
-        let native_inputs = validate_paths(self.native_inputs)?;
         ScoopcBuildRequestV1::new(
             current,
             direct_slibs,
@@ -168,7 +167,7 @@ impl DecodedScoopcBuildRequestV1 {
             request
                 .with_optimization(self.optimization)
                 .with_debug_info(self.debug_info)
-                .with_native_inputs(native_inputs)
+                .with_native_build(self.native_build)
                 .with_purpose(self.purpose)
         })
         .and_then(|request| request.with_generators(self.generators))
@@ -197,7 +196,7 @@ impl WireEncode for DecodedScoopcBuildRequestV1 {
         encoder.field(9)?;
         self.optimization.encode(encoder)?;
         encoder.field(10)?;
-        encode_decoded_paths(encoder, &self.native_inputs)?;
+        native::encode(&self.native_build, encoder)?;
         encoder.field(11)?;
         self.purpose.encode(encoder)?;
         encoder.field(12)?;
@@ -226,9 +225,7 @@ impl WireDecode for DecodedScoopcBuildRequestV1 {
         let diagnostics = decoder.field(7, Decoder::unsigned)?;
         let emit = decoder.field(8, DecodedStageDumpPolicyV1::decode)?;
         let optimization = decoder.field(9, OptimizationMode::decode)?;
-        let native_inputs = decoder.field(10, |decoder| {
-            decoder.decode_array(|decoder, _| DecodedHostPathCarrier::decode(decoder))
-        })?;
+        let native_build = decoder.field(10, native::decode)?;
         Ok(Self {
             current,
             direct_slibs,
@@ -239,7 +236,7 @@ impl WireDecode for DecodedScoopcBuildRequestV1 {
             diagnostics,
             emit,
             optimization,
-            native_inputs,
+            native_build,
             purpose: decoder.field(11, crate::CompilationPurpose::decode)?,
             generators: decoder.field(12, |d| {
                 d.decode_array(|d, _| crate::GeneratorRegistrationV1::decode(d))

@@ -7,7 +7,7 @@ pub use documentation::DocumentationProductionError;
 mod layout;
 mod layout_references;
 mod layout_selection;
-mod native;
+pub(super) mod native;
 mod protocols;
 pub use errors::{CurrentConeProductionError, CurrentConeProductionFailure};
 pub use layout::LayoutProductionError;
@@ -25,7 +25,10 @@ impl ParsedSingleConeBuildRequest<'_> {
                 CurrentConeProductionFailure::ArtifactOutputRequired,
             ));
         }
-        match self.compile(Some(temporary_parent), None)? {
+        let work = native::Work::new(self.request.request, true).map_err(|source| {
+            CurrentConeProductionError::before_hir(CurrentConeProductionFailure::Native(source))
+        })?;
+        match self.compile(Some(temporary_parent), None, work)? {
             SingleConeCompilation::Published(result) => Ok(*result),
             SingleConeCompilation::Observed(_)
             | SingleConeCompilation::Documented(_)
@@ -39,6 +42,7 @@ impl ParsedSingleConeBuildRequest<'_> {
         self,
         temporary_parent: Option<&Path>,
         stop_after: Option<StageDumpKind>,
+        mut work: native::Work,
     ) -> Result<SingleConeCompilation, CurrentConeProductionError> {
         let protocols = self.request.protocols();
         let cone = match self.request.current() {
@@ -100,7 +104,7 @@ impl ParsedSingleConeBuildRequest<'_> {
             CurrentConeProductionError::after_hir(CurrentConeProductionFailure::Hir(e), warnings)
         })?;
         let used_generators = std::mem::take(&mut hir.used_generators);
-        let compiler_inputs = std::mem::take(&mut hir.compiler_inputs);
+        let mut compiler_inputs = std::mem::take(&mut hir.compiler_inputs);
         let local_warnings = packages::single_file_warnings(&self.sources);
         let mut source_warnings =
             CurrentConeDiagnosticSet::bind_local(local_warnings, &self.sources).map_err(|e| {
@@ -207,6 +211,7 @@ impl ParsedSingleConeBuildRequest<'_> {
                 temporary_parent.expect("artifact output has a temporary workspace"),
                 &mut dump,
                 stop_after,
+                &mut work,
             )?
             else {
                 return Ok(ControlFlow::Break(()));
@@ -228,6 +233,7 @@ impl ParsedSingleConeBuildRequest<'_> {
                 dumps: dump,
             })),
             Ok(ControlFlow::Continue(artifact)) => {
+                compiler_inputs.extend(work.take_observations());
                 let documentation = match documentation.map(|input| input.publish()).transpose() {
                     Ok(documentation) => documentation,
                     Err(cause) => {

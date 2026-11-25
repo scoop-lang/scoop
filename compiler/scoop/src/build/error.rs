@@ -119,6 +119,12 @@ impl BuildFailure {
 
     pub fn classified(error: impl std::error::Error + ClassifyBuildFailure + 'static) -> Box<Self> {
         let classification = error.classification();
+        // Deferred tool selection retains the same source-preparation diagnostic.
+        if classification.phase() == BuildFailurePhase::SourceSnapshot
+            && let Some(source) = scoop_toolchain::ToolchainError::in_chain(&error)
+        {
+            return Self::toolchain(classification.phase(), source.clone());
+        }
         let notes = scoop_toolchain::ToolchainError::in_chain(&error)
             .map(|error| error.2.iter().map(tool_note).collect())
             .unwrap_or_default();

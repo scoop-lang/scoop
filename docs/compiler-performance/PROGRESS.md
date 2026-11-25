@@ -488,3 +488,30 @@ macOS 已清理约 20.5 GiB 退役尺寸／速度对照工具、重复库和缓�
 这是本机单次配对结果，不代表其他宿主或工作负载。编译器累计 CPU 时间约从 512.1 s 降至 452.9 s；峰值 RSS 仍约 7.45 GiB。两份 `.slib` 均为 481,560,826 bytes，SHA-256 完全相同，完整调试信息与产物编码保持一致。两边均成功链接 executable 和 PDB；改进后的同参数热构建为 0.261 s，`child_invocations` 为空。
 
 本地格式化、workspace all-targets Clippy、release 工具构建通过；Clippy 的告警位于未修改的代码。MIR／LIR／slib／linker 共 913 项 Rust 测试通过，包含继承路径、错误记录、布局角色、对象范围和真实 MSVC／MinGW 归档／导入／runtime 验证。9 个正式 CLI fixture、10 个 variant 通过，覆盖跨产物接口、dispatch signature、section GC、PDB 行号及更新、资源、subsystem、静态库／DLL、导入库重叠和启动参数。初次运行缺少 MSVC 命令路径及 runtime 开发资源的项在配置现有工具、vendor 源码与 unwind 前缀后定向复测通过；本轮没有其他宿主的运行验收。原始命令、日志、采样和产物保存在仓库外的 `E:\scoop-dep\tmp\wcp`。
+
+## 2026-11-26：缩短串行准备并重叠 native 生产
+
+本轮以 `7af7cb01b2a5f1375a104534fa1d05cb62469464` 为基线，在 `codex/compiler-serial-performance` 分支实现跨平台改动。HIR 的试探快照共享不变数据，类型使用记录改用已有的持久化向量；属性查询直接使用声明归属。MIR 复用已知 HIR 类型身份，仅为实际异常边复制状态，并复用一次模块类型查询。LIR 复用已有索引、规范排序表的二分查询和借用扫描记录，正常生产路径复用同一不变 foundation 上已完成的 digest plan 校验。BTree、规范表顺序和 callable 的稳定拓扑顺序保持原合同，查询索引不决定实体分配与发射次序。
+
+清单中的 native 对象由同一个 scoopc 与 Scoop 前端、LLVM 发射重叠生产，到最终 `.slib` 组装时汇合。前端、native 与 LLVM 共用 child 获得的 jobs 执行位；jobs=1 时顺序执行。每个 native 单元完成预处理后立即编译，及时释放文本，并把输入路径合并到同一个有序集合，避免保留所有单元的重复头文件记录。对象与错误按源码顺序汇集；前端失败先释放执行位再等待 native 工作，不发布失败的 `.slib`。
+
+父驱动先判断编译结果是否更新。配置键使用 `scoop-cone-compile-cache-v14`，native 文件与缺失 include 候选通过 compiler inputs 保存状态；只改变文件时，同一个配置键下的旧结果也会失效。命中不再提前准备 native 对象，Scoop 源码单独变化时仍可复用已有 native 对象。driver 协议升至 35，配套命令一同构建；`.slib` 和 runtime ABI 保持原版本。
+
+本机为 Apple M3 Ultra、512 GiB、macOS 27.2.1，Rust 1.99.0、LLVM 22.1.8。基线与改进工具均使用相同 release 构建配置；被编译 Cone 使用 release、jobs=4、`--emit-slib`。每次使用独立空编译缓存和输出目录，复用同一份预编译依赖，以基线／改进／改进／基线顺序各测两次；计时期间没有其他验证任务或采样。UI 库有 440 个 Scoop 文件、约 6.8 万行，窗口库有 39 个 native 编译单元。
+
+| 源码 Cone | 冷编译中位耗时：前 → 后 | 耗时减少 | 两次测量中的最大单进程 RSS：前 → 后 |
+| --- | ---: | ---: | ---: |
+| `scoop.ui.component` | 101.54 → 81.97 s | 19.3% | 11.70 → 11.61 GiB |
+| `scoop.window` | 32.17 → 13.79 s | 57.1% | 2.11 → 2.15 GiB |
+
+UI 的两次基线耗时为 101.81／101.26 s，改进后为 83.06／80.87 s；窗口库分别为 32.26／32.07 s 和 13.77／13.81 s。UI 的 RSS 变化小于本轮重复测量波动，窗口库最大单进程峰值增加约 32.6 MiB；本轮不能据此声称 scoopc 的整体峰值内存下降。RSS 按最大单进程值统计，进程树同时驻留峰值未纳入该表。
+
+独立于普通计时的四次时间线构建同时记录各进程自身的峰值 RSS。窗口库的 scoop 父进程从 634.4 MiB 降至 30.5 MiB，启动编译 child 前的时间从 20.884 s 降至 0.045 s。UI 库从 scoopc 启动到首个 LLVM Context 的时间从 56.926 s 降至 36.163 s。窗口库在共享四个执行位时，scoopc 内的 LLVM 入口从 4.685 s 变为 6.774 s，最后一个 native 单元在 7.330 s 完成，确认 native 与 LLVM 实际重叠；父驱动的原串行等待已经消除。上述分项结果不替代普通构建计时，也不将两个进程各自的峰值相加。
+
+八次普通冷构建和四次时间线构建的完整 `.slib` 均与基线 SHA-256、尺寸一致；每次普通冷构建只启动目标 Cone 的一个编译 child，UI／窗口库分别使用 13／3 个预编译依赖。对应八次热构建均没有编译 child，UI 为 0.02 s、窗口库为 0.06～0.07 s，未把这一分辨率下的热构建差异计为收益。新增并发用例还比较独立冷缓存、jobs=1／4 的完整 `.slib`、link plan 与实际运行结果。
+
+格式检查、workspace all-targets Clippy 和最终相关 package 的增量 Clippy 均通过，仅有原有告警。完整 Rust workspace 为 6,509 项通过、零失败；后续生命周期、诊断与 native 路径集合调整分别通过 driver 111 项、scoop 120 项和 toolchain 71 项补测。fixture runner 规则测试为 82 项通过、4 项跳过。
+
+完整 CLI 覆盖 4,359 个 fixture，初次为 4,320 项通过、30 项平台不适用、9 项失败。延迟工具选择曾被请求规划包装成 ICE，已在通用诊断路径修复，保留原编号、消息、阶段和说明。五项 native 错误预期同步为 child 的结构化诊断；两项 C／C++ 缓存用例改为验证实际编译调用、产物指纹与运行结果，并覆盖更新后的再次命中。另一项 manifest 诊断缺少已有的 `isolate` 字段，在基线工具上同样复现后修正预期。最终 28 个 fixture、30 个 variant、71 次进程调用闭合全部初始失败；最后的 native 内存调整又通过 44 个 fixture、52 个 variant、135 次进程调用，另有 4 项平台不适用。完整集合最终为 4,329 项通过、30 项不适用，没有剩余失败。
+
+本轮仅在本机 Darwin/AArch64 运行验收；保留已有后端测试中的七目标对象发射与不同 jobs 的字节比较。平台专用优化留待后续。父驱动 native 准备的内存下降已经实测，scoopc 的整体峰值内存仍需继续研究。原始命令、工具摘要、计时、时间线与验证报告保存在仓库外的 `/Volumes/Data/home/chenxu/repos/scoop-task-artifacts/compiler-serial-optimization-20261125`，不提交原始日志或逐次报告。

@@ -7,9 +7,11 @@ use scoop_identity::{
 
 use crate::{
     ArrayType, CallableRef, DispatchEntry, ExternalCallable, ExternalTypeDescriptor, Function,
-    ItableRecord, Layout, LayoutKind, LirTargetProfile, Module, TypeDescriptor,
-    TypeDescriptorInlineScanV1, TypeDescriptorRef,
+    ItableRecord, Layout, LirTargetProfile, Module, TypeDescriptor, TypeDescriptorRef,
 };
+
+mod scans;
+use scans::InlineScans;
 
 mod references;
 pub use references::*;
@@ -49,9 +51,10 @@ impl StrongTypeDescriptorSemanticPlanSetV1 {
         target: LirTargetProfile,
         inputs: DescriptorSemanticInputs<'_>,
     ) -> Result<Self, StrongTypeDescriptorSemanticPlanBuildError> {
+        let scans = InlineScans::new(inputs.layouts, inputs.arrays);
         let mut canonical = BTreeMap::new();
         for (_, descriptor) in inputs.descriptors.iter() {
-            let plan = build_descriptor(target, descriptor, &inputs)?;
+            let plan = build_descriptor(target, descriptor, &inputs, &scans)?;
             if canonical.insert(plan.exact_type, plan).is_some() {
                 return Err(
                     StrongTypeDescriptorSemanticPlanBuildError::DuplicateExactType(
@@ -72,6 +75,7 @@ fn build_descriptor(
     target: LirTargetProfile,
     descriptor: &TypeDescriptor,
     inputs: &DescriptorSemanticInputs<'_>,
+    scans: &InlineScans<'_>,
 ) -> Result<StrongTypeDescriptorSemanticPlanV1, StrongTypeDescriptorSemanticPlanBuildError> {
     let exact_type = descriptor.identity.exact_type();
     if descriptor.diagnostic_name.is_empty() {
@@ -86,7 +90,7 @@ fn build_descriptor(
     if !descriptor.vtable.belongs_to_exact_type(exact_type) {
         return Err(StrongTypeDescriptorSemanticPlanBuildError::VtableOwnerMismatch(exact_type));
     }
-    validate_inline_scan(descriptor, inputs.layouts, inputs.arrays)?;
+    scans.validate(descriptor)?;
 
     let parent = descriptor
         .parent
@@ -142,62 +146,6 @@ fn build_descriptor(
                 .transpose()
         })?,
     })
-}
-
-fn validate_inline_scan(
-    descriptor: &TypeDescriptor,
-    layouts: &la_arena::Arena<Layout>,
-    arrays: &la_arena::Arena<ArrayType>,
-) -> Result<(), StrongTypeDescriptorSemanticPlanBuildError> {
-    let exact_type = descriptor.identity.exact_type();
-    let contains_reference = descriptor.instance_shape.inline_scan().contains_reference();
-    let TypeDescriptorInlineScanV1::Defined(scan) = descriptor.inline_scan else {
-        return if contains_reference {
-            Err(StrongTypeDescriptorSemanticPlanBuildError::MissingInlineScan(exact_type))
-        } else {
-            Ok(())
-        };
-    };
-    if !contains_reference {
-        return Err(
-            StrongTypeDescriptorSemanticPlanBuildError::UnexpectedInlineScan { exact_type, scan },
-        );
-    }
-    let mut payloads = layouts
-        .iter()
-        .filter(|(_, layout)| layout.identity.scan_record().id() == scan)
-        .map(|(_, layout)| match &layout.kind {
-            LayoutKind::Plain { scan } | LayoutKind::Enum { scan } => scan.clone(),
-            LayoutKind::Intrinsic(_) => crate::RefScan::None,
-        })
-        .chain(
-            arrays
-                .iter()
-                .filter(|(_, array)| array.identity.scan_record().id() == scan)
-                .map(|(_, array)| array.layout.instance().inline_scan().clone()),
-        );
-    let Some(payload) = payloads.next() else {
-        return Err(
-            StrongTypeDescriptorSemanticPlanBuildError::UnknownInlineScan { exact_type, scan },
-        );
-    };
-    if payloads.next().is_some() {
-        return Err(
-            StrongTypeDescriptorSemanticPlanBuildError::DuplicateInlineScanDefinition {
-                exact_type,
-                scan,
-            },
-        );
-    }
-    if &payload != descriptor.instance_shape.inline_scan() {
-        return Err(
-            StrongTypeDescriptorSemanticPlanBuildError::InlineScanPayloadMismatch {
-                exact_type,
-                scan,
-            },
-        );
-    }
-    Ok(())
 }
 
 fn build_itable(

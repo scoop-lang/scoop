@@ -6,7 +6,6 @@
     "origin": {
       "kind": "none"
     },
-    "severity": "error",
-    "phase": "SourceSnapshot"
+    "severity": "error"
   }
 ]

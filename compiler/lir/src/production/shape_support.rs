@@ -10,6 +10,7 @@ use crate::{ConeLirFoundation, RegistrationIdentitySurfaceV1};
 
 mod callable;
 mod layout;
+mod lookup;
 mod read;
 mod validation;
 use validation::build_closure;
@@ -368,9 +369,15 @@ impl ParamFreeShapeSupportPlanSetV1 {
         foundation: &ConeLirFoundation,
         registrations: &RegistrationIdentitySurfaceV1,
     ) -> Result<Self, ParamFreeShapeSupportBuildError> {
+        let mut sources = sources.into_iter().peekable();
+        if sources.peek().is_none() {
+            return Ok(Self {
+                closures: Vec::new(),
+            });
+        }
+        let lookup = lookup::ShapeLookup::new(foundation);
         let mut closures = sources
-            .into_iter()
-            .map(|source| build_closure(source, foundation, registrations))
+            .map(|source| build_closure(source, foundation, registrations, &lookup))
             .collect::<Result<Vec<_>, _>>()?;
         closures.sort_unstable_by_key(ParamFreeShapeSupportClosureV1::owner);
         if let Some(pair) = closures

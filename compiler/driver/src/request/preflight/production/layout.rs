@@ -14,6 +14,7 @@ mod symbol_report;
 use LayoutProductionError as Error;
 pub use errors::LayoutProductionError;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn assemble(
     hir: current_hir::CurrentConeHirArtifacts,
     request: ValidatedSingleConeBuildRequest<'_>,
@@ -22,6 +23,7 @@ pub(super) fn assemble(
     machine_dependencies: slib::ValidatedCrossConeArtifactClosure,
     dump: &mut Vec<EmittedStageDump>,
     stop_after: Option<StageDumpKind>,
+    work: &mut native::Work,
 ) -> Result<ControlFlow<(), slib::AssembledCrossConeLayoutArtifactV1>, CurrentConeProductionFailure>
 {
     let closure = machine_dependencies.semantic();
@@ -323,8 +325,10 @@ pub(super) fn assemble(
     .map_err(Error::Codegen)?
     .with_optimization(loaded.optimization)
     .with_debug_info(loaded.debug_info);
-    let objects = scoop_codegen::emit_object_set_v2(&lir, registration, backend, loaded.jobs)
+    work.release_frontend();
+    let objects = scoop_codegen::emit_object_set_v2(&lir, registration, backend, work.workers())
         .map_err(Error::Codegen)?;
+    let generated_slot = work.workers().acquire();
     let generated = crate::generated_c::emit_c_bridge_object_set(
         &lir,
         temporary_parent,
@@ -334,8 +338,9 @@ pub(super) fn assemble(
             .with_optimization(loaded.optimization),
     )
     .map_err(Error::Codegen)?;
+    drop(generated_slot);
     drop(lir);
-    let native_objects = super::native::compile(loaded, identity, temporary_parent)
+    let native_objects = super::native::compile(loaded, identity, work)
         .map_err(CurrentConeProductionFailure::Native)?;
     metadata
         .with_dependencies(&publication_dependencies)

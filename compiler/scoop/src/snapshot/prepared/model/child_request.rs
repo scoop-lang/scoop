@@ -184,18 +184,14 @@ impl PreparedBuildGraph {
         } else {
             None
         };
-        let native_inputs = match (production.as_ref(), self.nodes.get(&identity)) {
-            (Some(_), Some(PreparedGraphNode::ManifestSource(node))) => {
-                let super::SourceNativeInput::Artifact(native) = &node.snapshot.native else {
-                    return Err(ChildRequestPlanError::NativeNotPrepared);
-                };
-                native
-                    .objects()
-                    .iter()
-                    .map(|path| path_carrier(path))
-                    .collect::<Result<Vec<_>, _>>()?
+        let native_build = match (production.as_ref(), self.nodes.get(&identity)) {
+            (Some(_), Some(PreparedGraphNode::ManifestSource(_))) => {
+                Some(scoop_protocol::NativeBuildPathsV1 {
+                    sysroot: path_carrier(self.context.sysroot.as_path())?,
+                    cache: path_carrier(self.context.cache_root.as_path())?,
+                })
             }
-            _ => Vec::new(),
+            _ => None,
         };
         let mut io = ChildIoPlan::new(self.context.cache_root.as_path().to_path_buf());
         io.report_progress = self.context.diagnostics == crate::DiagnosticsPolicy::Human;
@@ -242,7 +238,7 @@ impl PreparedBuildGraph {
         .map_err(ChildRequestPlanError::Protocol)?
         .with_optimization(self.context.optimization)
         .with_debug_info(self.context.debug_info)
-        .with_native_inputs(native_inputs)
+        .with_native_build(native_build)
         .with_purpose(self.compilation_purpose(identity))
         .map_err(ChildRequestPlanError::Protocol)?
         .with_generators(

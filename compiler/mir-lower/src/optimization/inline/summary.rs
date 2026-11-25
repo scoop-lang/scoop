@@ -22,8 +22,9 @@ impl Summary {
         module: &mir::Module,
         function: &mir::Function,
         effects: &exception_paths::Effects<'_>,
+        types: flow::ModuleTypes,
     ) -> Self {
-        let blocks = simplify::blocks(module, function, &[]);
+        let blocks = simplify::blocks(module, function, &[], types);
         let blocks = effects.resolve_calls(function, &[], blocks);
         Self::from_blocks(&module.structs, function, blocks)
     }
