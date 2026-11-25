@@ -9,6 +9,17 @@ pub enum Phase {
     AfterTest,
 }
 
+impl Phase {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Initialization => "initialization",
+            Self::BeforeTest => "before-test",
+            Self::Body => "body",
+            Self::AfterTest => "after-test",
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Location {
     pub file: String,
@@ -49,13 +60,24 @@ pub struct Failure {
     pub detail: FailureDetail,
 }
 
-#[derive(Debug, Default, PartialEq, Serialize)]
+/// In report order, a failure outranks an interrupted case, which outranks a pass.
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Status {
     Passed,
-    Failed,
     #[default]
     NotRun,
+    Failed,
+}
+
+impl Status {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Passed => "passed",
+            Self::NotRun => "not-run",
+            Self::Failed => "failed",
+        }
+    }
 }
 
 #[derive(Debug, Default)]

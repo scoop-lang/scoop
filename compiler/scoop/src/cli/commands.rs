@@ -140,44 +140,40 @@ pub(super) fn execute(
                 let directory = summary
                     .test_directory()
                     .ok_or_else(|| config("test artifact has no test directory"))?;
-                let selected = super::test_selection::select(
-                    directory,
-                    args.filter.as_deref(),
-                    args.ignored,
-                    isolate,
-                );
+                use super::test_selection::{Purpose, select};
+                let target = summary.cone().coordinate().name();
+                let purpose = if args.list {
+                    Purpose::List
+                } else {
+                    Purpose::Run
+                };
+                let selected = select(directory, args.filter.as_deref(), args.ignored, purpose);
                 if args.list {
-                    reporter
-                        .test_list(
-                            summary.cone().coordinate().name(),
-                            &selected.directory,
-                            selected.empty_reason,
-                        )
-                        .map_err(config)?;
+                    reporter.test_list(target, &selected).map_err(config)?;
                     continue;
                 }
-                let target = summary.cone().coordinate().name().to_owned();
-                let outcome = match result {
-                    BuildOutcome::Executable {
-                        build, executable, ..
-                    } => super::test_run::program(
-                        &executable,
-                        &build.output,
-                        &selected,
-                        args.nocapture,
-                        &cwd,
-                        reporter,
-                        &target,
-                    )
-                    .map(|status| {
-                        status.map_or(CommandOutcome::Complete(true), CommandOutcome::Child)
-                    }),
-                    _ => Err(config("test did not produce an executable")),
-                }?;
-                if let CommandOutcome::Child(status) = outcome {
-                    if !status.success() {
-                        return Ok(CommandOutcome::Child(status));
-                    }
+                let BuildOutcome::Executable {
+                    build, executable, ..
+                } = &result
+                else {
+                    return Err(config("test did not produce an executable"));
+                };
+                let status = super::test_run::program(
+                    executable,
+                    &build.output,
+                    &selected,
+                    super::test_run::Options {
+                        isolate,
+                        nocapture: args.nocapture,
+                    },
+                    &cwd,
+                    reporter,
+                    target,
+                )?;
+                if let Some(status) = status
+                    && !status.success()
+                {
+                    return Ok(CommandOutcome::Child(status));
                 }
             }
             Ok(CommandOutcome::Complete(true))

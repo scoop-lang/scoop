@@ -12,21 +12,26 @@ use model::{Output, RunResult, Status};
 mod events;
 pub(super) mod model;
 
+pub(super) struct Options {
+    pub isolate: bool,
+    pub nocapture: bool,
+}
+
 pub(super) fn program(
     executable: &Path,
     output: &Path,
-    selected: &SelectedTests,
-    nocapture: bool,
+    selected: &SelectedTests<'_>,
+    options: Options,
     cwd: &Path,
     reporter: &Reporter,
     target: &str,
 ) -> BuildResult<Option<ExitStatus>> {
-    let group_size = if selected.isolate {
+    let group_size = if options.isolate {
         1
     } else {
-        selected.case_keys.len().max(1)
+        selected.case_indices.len().max(1)
     };
-    let mut groups = selected.case_keys.chunks(group_size);
+    let mut groups = selected.case_indices.chunks(group_size);
     let Some(first) = groups.next() else {
         let mut result = RunResult::empty(0);
         result.complete = true;
@@ -35,14 +40,14 @@ pub(super) fn program(
             .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
         return Ok(None);
     };
-    let (mut result, mut status) = run_cases(executable, output, first, nocapture, cwd)?;
+    let (mut result, mut status) = run_cases(executable, output, first, options.nocapture, cwd)?;
     for keys in groups {
         // An assertion failure is a complete run. A broken report or interrupted
         // process stops execution and leaves the remaining cases marked not run.
         if result.target_failure.is_some() {
             break;
         }
-        let (mut group, exit) = run_cases(executable, output, keys, nocapture, cwd)?;
+        let (mut group, exit) = run_cases(executable, output, keys, options.nocapture, cwd)?;
         if !exit.success() || group.target_failure.is_some() {
             status = exit;
         }
@@ -54,10 +59,10 @@ pub(super) fn program(
             combined.stderr.extend(output.stderr);
         }
     }
-    result.complete &= result.cases.len() == selected.case_keys.len();
+    result.complete &= result.cases.len() == selected.case_indices.len();
     result
         .cases
-        .resize_with(selected.case_keys.len(), Default::default);
+        .resize_with(selected.case_indices.len(), Default::default);
     reporter
         .test_report(target, selected, &result, Some(status))
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
@@ -73,18 +78,28 @@ pub(super) fn program(
 fn run_cases(
     executable: &Path,
     output: &Path,
-    keys: &[String],
+    keys: &[usize],
     nocapture: bool,
     cwd: &Path,
 ) -> BuildResult<(RunResult, ExitStatus)> {
+    let parent = output.parent().ok_or_else(|| {
+        failure(
+            scoop_source::DiagnosticCode::E2201,
+            format!(
+                "test executable path has no parent directory: {}",
+                output.display()
+            ),
+        )
+    })?;
     let run = tempfile::Builder::new()
         .prefix(".test-run-")
-        .tempdir_in(output.parent().expect("an executable has a parent"))
+        .tempdir_in(parent)
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
+    let keys: Vec<_> = keys.iter().map(usize::to_string).collect();
     let mut command = Command::new(executable);
     command
         .arg("--scoop-test-cases")
-        .args(keys)
+        .args(&keys)
         .current_dir(cwd)
         .stdin(Stdio::inherit())
         .env("SCOOP_TEST_RUN_DIR", run.path())
