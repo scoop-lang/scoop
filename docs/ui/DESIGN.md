@@ -16,6 +16,8 @@ Markdown 文档库、编辑组件与桌面编辑器在独立仓库 [scoop-lang/s
 
 2026-11-21 的 [Tree 与父节点吸顶设计](tree/DESIGN.md)在现有 component Cone 中对齐 Ant Design Tree／DirectoryTree 的功能，提供单列／多列共享模型、表头／列操作和同级排序，增加 VS Code 风格的祖先整行吸顶，并明确虚拟化、勾选、异步加载、拖放与无障碍的组合规则。实施中，具体合同随对应批次纳入 spec，实际交付及本地验证见[实施记录](tree/PROGRESS.md)。
 
+2026-11-26 的代码编辑器组件草案讨论共享文档的 UTF-8 piece tree、可见行排版、批量编辑与撤销，以及查找替换如何使用公开扩展接口。[独立仓库的设计](https://github.com/scoop-lang/scoop-code-editor/blob/main/docs/DESIGN.md)
+
 ## 1. 分层目标
 
 UI 框架提供构建完全自绘控件的能力，应用可以只使用框架和 Surface 绘图／动画完成自己的界面。基础控件作为另一普通库构建：
