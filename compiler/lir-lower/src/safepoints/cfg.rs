@@ -19,7 +19,7 @@ pub(super) fn prune_unreachable_blocks(lowered: &mut LoweredFunction) {
             continue;
         }
         reachable[index] = true;
-        worklist.extend(block_successors(&function.blocks[block_id]));
+        worklist.extend(function.blocks[block_id].terminator.successors());
     }
 
     if reachable.iter().all(|reachable| *reachable) {

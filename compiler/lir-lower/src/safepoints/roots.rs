@@ -13,7 +13,7 @@ pub(super) fn live_value_ty(value: LiveValue, function: &lir::Function) -> &lir:
 
 pub(super) fn sorted_live(live: &HashSet<LiveValue>) -> Vec<LiveValue> {
     let mut values = live.iter().copied().collect::<Vec<_>>();
-    values.sort_by_key(|value| value.sort_key());
+    values.sort_unstable();
     values
 }
 
@@ -42,7 +42,7 @@ pub(super) fn caller_root(
 ) -> StorageResult<Option<lir::CallerRoot>> {
     let scan = root_scan(context, live_value_ty(value, function), structs, enums, 0)?;
     Ok(lir::NonEmptyRefScan::new(scan).map(|scan| lir::CallerRoot {
-        source: value.source(),
+        source: root_source(value),
         scan,
     }))
 }
@@ -118,7 +118,7 @@ fn live_set(
             "managed leaf paths must be nonempty and strictly ordered",
         ))?;
         values.push(lir::StatepointLiveValue {
-            source: value.source(),
+            source: root_source(value),
             ty,
             leaves,
             restore: restore(value),
@@ -157,7 +157,7 @@ pub(super) fn exceptional_root_set(
     enums: &lir::EnumDefs,
 ) -> StorageResult<lir::ExceptionalRootSet> {
     let mut normal = live_in[arena_index(site.normal)].clone();
-    for definition in call_defs(site.call.result()) {
+    if let Some(definition) = call_def(site.call.result()) {
         normal.remove(&definition);
     }
     let unwind = &live_in[arena_index(site.unwind)];
@@ -184,4 +184,12 @@ pub(super) fn exceptional_root_set(
         }
     }
     Ok(lir::ExceptionalRootSet::new(exceptional))
+}
+
+fn root_source(value: LiveValue) -> lir::CallerRootSource {
+    match value {
+        LiveValue::Param(index) => lir::CallerRootSource::Param(index),
+        LiveValue::Local(id) => lir::CallerRootSource::Local(id),
+        LiveValue::Temp(id) => lir::CallerRootSource::Temp(id),
+    }
 }

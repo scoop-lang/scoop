@@ -55,7 +55,7 @@ fn validate_body(module: &lir::Module, function: &lir::Function) -> StorageResul
             ));
         }
         let mut valid_operands = true;
-        terminator_uses(&block.terminator, function, |value| {
+        visit_terminator_uses(&block.terminator, &function.call_targets, |value| {
             valid_operands &= operand(module, value)
         });
         for instruction in &block.instructions {
@@ -64,9 +64,9 @@ fn validate_body(module: &lir::Module, function: &lir::Function) -> StorageResul
                     "operation is outside the release machine body's GC-free subset",
                 ));
             }
-            valid_operands &= instruction_uses(instruction, function)
-                .into_iter()
-                .all(|value| operand(module, value));
+            visit_instruction_uses(instruction, &function.call_targets, |value| {
+                valid_operands &= operand(module, value);
+            });
         }
         if !valid_operands {
             return Err(invalid(

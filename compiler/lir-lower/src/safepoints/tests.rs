@@ -1,3 +1,5 @@
+mod dataflow;
+
 use super::*;
 
 fn context() -> LoweringContext {

@@ -65,7 +65,7 @@ mod callable_constants;
 mod callable_runtime_scans;
 mod coff_llvm;
 mod coff_object;
-mod dataflow;
+use scoop_lir::dataflow;
 mod debug;
 mod declarations;
 mod elf_llvm;

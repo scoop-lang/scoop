@@ -1,16 +1,18 @@
-//! Use/def facts for local storage emission.
+//! Structural use/def traversal shared by lowering and code emission.
+//! Visitors preserve operand order and borrow variable-length argument lists.
 
-use super::*;
+use crate::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) enum LiveValue {
+/// A parameter or body-local storage slot, independent of its GC representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ValueSlot {
     Param(u32),
-    Local(scoop_lir::LocalId),
-    Temp(scoop_lir::TempId),
+    Local(LocalId),
+    Temp(TempId),
 }
 
-impl LiveValue {
-    pub(super) fn from_value(value: Value) -> Option<Self> {
+impl ValueSlot {
+    pub fn from_value(value: Value) -> Option<Self> {
         match value {
             Value::Param(index) => Some(Self::Param(index)),
             Value::Local(id) => Some(Self::Local(id)),
@@ -30,39 +32,62 @@ impl LiveValue {
     }
 }
 
-pub(super) fn instruction_uses(instruction: &Instruction, function: &Function) -> Vec<Value> {
+pub fn visit_instruction_uses(
+    instruction: &Instruction,
+    targets: &CallTargets,
+    mut visit: impl FnMut(Value),
+) {
     match instruction {
-        Instruction::AtomicLoad { location, .. } => vec![location.object],
+        Instruction::AtomicLoad { location, .. } => {
+            visit(location.object);
+        }
         Instruction::AtomicStore {
             location, value, ..
         }
         | Instruction::AtomicRmw {
             location, value, ..
-        } => vec![location.object, *value],
+        } => {
+            visit(location.object);
+            visit(*value);
+        }
         Instruction::AtomicCmpXchg {
             location,
             expected,
             replacement,
             ..
         } => {
-            vec![location.object, *expected, *replacement]
+            visit(location.object);
+            visit(*expected);
+            visit(*replacement);
         }
-        Instruction::BoxValue { payload, .. } => {
-            payload.source().map(Value::Local).into_iter().collect()
+        Instruction::BoxValue { payload, .. } => payload
+            .source()
+            .map(Value::Local)
+            .into_iter()
+            .for_each(&mut visit),
+        Instruction::UnboxValue { object, .. } => {
+            visit(*object);
         }
-        Instruction::UnboxValue { object, .. } => vec![*object],
-        Instruction::PublishReleaseReady { object } => vec![*object],
+        Instruction::PublishReleaseReady { object } => {
+            visit(*object);
+        }
         Instruction::BinOp { lhs, rhs, .. }
         | Instruction::FloatBinary { lhs, rhs, .. }
         | Instruction::IntegerBinary { lhs, rhs, .. }
         | Instruction::SafeIntegerDivRem { lhs, rhs, .. }
         | Instruction::IntegerCompare { lhs, rhs, .. }
-        | Instruction::IntegerCompareTo { lhs, rhs, .. } => vec![*lhs, *rhs],
+        | Instruction::IntegerCompareTo { lhs, rhs, .. } => {
+            visit(*lhs);
+            visit(*rhs);
+        }
         Instruction::IntegerShift {
             value,
             normalized_count,
             ..
-        } => vec![*value, *normalized_count],
+        } => {
+            visit(*value);
+            visit(*normalized_count);
+        }
         Instruction::UnaryOp { operand, .. }
         | Instruction::FloatUnary { operand, .. }
         | Instruction::FloatConversion { operand, .. }
@@ -109,69 +134,108 @@ pub(super) fn instruction_uses(instruction: &Instruction, function: &Function) -
         | Instruction::VariantPayloadProject { operand, .. }
         | Instruction::ForeignCallbackRegister {
             closure: operand, ..
-        } => vec![*operand],
-        Instruction::ForeignCallbackOperation(operation) => vec![operation.callback()],
-        Instruction::MaybeUninit { operation, .. } => {
-            operation.operand().copied().into_iter().collect()
+        } => {
+            visit(*operand);
         }
+        Instruction::ForeignCallbackOperation(operation) => {
+            visit(operation.callback());
+        }
+        Instruction::MaybeUninit { operation, .. } => operation
+            .operand()
+            .copied()
+            .into_iter()
+            .for_each(&mut visit),
         Instruction::MakeAggregate { elements, .. } | Instruction::ArrayAlloc { elements, .. } => {
-            elements.clone()
+            elements.iter().copied().for_each(&mut visit)
         }
-        Instruction::StringCopy { source, .. } => source.operands().collect(),
+        Instruction::StringCopy { source, .. } => source.operands().for_each(&mut visit),
         Instruction::ByteCopy {
             source,
             target,
             start,
             ..
-        } => source.operands().chain([*target, *start]).collect(),
-        Instruction::StringByteLoad { string, index, .. } => vec![*string, *index],
+        } => source
+            .operands()
+            .chain([*target, *start])
+            .for_each(&mut visit),
+        Instruction::StringByteLoad { string, index, .. } => {
+            visit(*string);
+            visit(*index);
+        }
         Instruction::StringByteStore {
             string,
             index,
             value,
-        } => vec![*string, *index, *value],
+        } => {
+            visit(*string);
+            visit(*index);
+            visit(*value);
+        }
         Instruction::StringConcat { parts, .. } => parts
             .iter()
-            .filter_map(scoop_lir::StringConcatPart::value)
-            .collect(),
+            .filter_map(StringConcatPart::value)
+            .for_each(&mut visit),
         Instruction::ArrayAssembly { parts, .. } => parts
             .iter()
             .map(|part| match part {
-                scoop_lir::ArrayAssemblyPart::Element(value)
-                | scoop_lir::ArrayAssemblyPart::CopyArray(value) => *value,
+                ArrayAssemblyPart::Element(value) | ArrayAssemblyPart::CopyArray(value) => *value,
             })
-            .collect(),
+            .for_each(&mut visit),
         Instruction::Store { value, .. }
         | Instruction::TaskContextStore { value }
         | Instruction::GlobalStore { value, .. }
-        | Instruction::NativeGlobalStore { value, .. } => vec![*value],
+        | Instruction::NativeGlobalStore { value, .. } => {
+            visit(*value);
+        }
         Instruction::Call { site } => {
-            call_uses(site.args(), site.destination(&function.call_targets))
+            call_uses(site.args(), site.destination(targets)).for_each(&mut visit)
         }
         Instruction::HeapStore { object, value, .. }
         | Instruction::MachineHeapStore { object, value, .. }
-        | Instruction::MachineAtomicStore { object, value, .. } => vec![*object, *value],
+        | Instruction::MachineAtomicStore { object, value, .. } => {
+            visit(*object);
+            visit(*value);
+        }
         Instruction::MachineAtomicCompareExchange {
             object,
             expected,
             replacement,
             ..
-        } => vec![*object, *expected, *replacement],
-        Instruction::RawStore { pointer, value, .. } => vec![*pointer, *value],
+        } => {
+            visit(*object);
+            visit(*expected);
+            visit(*replacement);
+        }
+        Instruction::RawStore { pointer, value, .. } => {
+            visit(*pointer);
+            visit(*value);
+        }
         Instruction::PtrOffset {
             pointer,
             element_offset,
             ..
-        } => vec![*pointer, *element_offset],
-        Instruction::LocalAddress { local, .. } => vec![Value::Local(*local)],
-        Instruction::ArrayGet { array, index, .. } => vec![*array, *index],
+        } => {
+            visit(*pointer);
+            visit(*element_offset);
+        }
+        Instruction::LocalAddress { local, .. } => {
+            visit(Value::Local(*local));
+        }
+        Instruction::ArrayGet { array, index, .. } => {
+            visit(*array);
+            visit(*index);
+        }
         Instruction::ArraySet {
             array,
             index,
             value,
             ..
-        } => vec![*array, *index, *value],
-        Instruction::EnumWrap { fields, .. } => fields.clone(),
+        } => {
+            visit(*array);
+            visit(*index);
+            visit(*value);
+        }
+        Instruction::EnumWrap { fields, .. } => fields.iter().copied().for_each(&mut visit),
         Instruction::ReleaseFieldLoad { .. }
         | Instruction::MakeZstValue { .. }
         | Instruction::TaskContextLoad { .. }
@@ -183,32 +247,35 @@ pub(super) fn instruction_uses(instruction: &Instruction, function: &Function) -
         | Instruction::ManagedPoll { .. }
         | Instruction::LandingPad { .. }
         | Instruction::CleanupPad { .. }
-        | Instruction::EndCatch => Vec::new(),
+        | Instruction::EndCatch => {}
     }
 }
 
-fn call_uses(
-    arguments: &[scoop_lir::AbiCallArgument],
-    destination: scoop_lir::CallDestination,
-) -> Vec<Value> {
-    let mut values = arguments
-        .iter()
+/// Logical arguments followed by an indirect callee or dispatch table, if present.
+pub fn call_uses(
+    args: &[AbiCallArgument],
+    destination: CallDestination,
+) -> impl Iterator<Item = Value> + '_ {
+    let callee = match destination {
+        CallDestination::Dispatch { table, .. }
+        | CallDestination::NativePointer { callee: table, .. } => Some(table),
+        _ => None,
+    };
+    args.iter()
         .map(|argument| argument.logical_value())
-        .collect::<Vec<_>>();
-    if let scoop_lir::CallDestination::Dispatch { table, .. }
-    | scoop_lir::CallDestination::NativePointer { callee: table, .. } = destination
-    {
-        values.push(table);
-    }
-    values
+        .chain(callee)
 }
 
-pub(super) fn instruction_defs(instruction: &Instruction) -> Vec<LiveValue> {
+pub fn visit_instruction_defs(instruction: &Instruction, mut visit: impl FnMut(ValueSlot)) {
     let out = match instruction {
         Instruction::UnboxValue { result, .. } => {
             return match result {
-                scoop_lir::UnboxResult::ZeroSized { out, .. } => vec![LiveValue::Temp(*out)],
-                scoop_lir::UnboxResult::NonZero(place) => vec![LiveValue::Local(place.local())],
+                UnboxResult::ZeroSized { out, .. } => {
+                    visit(ValueSlot::Temp(*out));
+                }
+                UnboxResult::NonZero(place) => {
+                    visit(ValueSlot::Local(place.local()));
+                }
             };
         }
         Instruction::BoxValue { out, .. }
@@ -266,12 +333,18 @@ pub(super) fn instruction_defs(instruction: &Instruction) -> Vec<LiveValue> {
         | Instruction::VariantTest { out, .. }
         | Instruction::VariantPayloadProject { out, .. }
         | Instruction::ForeignCallbackRegister { out, .. } => Some(*out),
-        Instruction::Call { site } => return call_defs(site.result()),
+        Instruction::Call { site } => return call_def(site.result()).into_iter().for_each(visit),
         Instruction::ForeignCallbackOperation(operation) => operation.out(),
-        Instruction::Store { local, .. } => return vec![LiveValue::Local(*local)],
-        Instruction::MaybeUninit { out, .. } => return vec![LiveValue::Local(*out)],
+        Instruction::Store { local, .. } => {
+            return visit(ValueSlot::Local(*local));
+        }
+        Instruction::MaybeUninit { out, .. } => {
+            return visit(ValueSlot::Local(*out));
+        }
         Instruction::LandingPad { record, raw } | Instruction::CleanupPad { record, raw } => {
-            return vec![LiveValue::Temp(*record), LiveValue::Temp(*raw)];
+            visit(ValueSlot::Temp(*record));
+            visit(ValueSlot::Temp(*raw));
+            return;
         }
         Instruction::TaskContextStore { .. }
         | Instruction::GlobalStore { .. }
@@ -290,27 +363,27 @@ pub(super) fn instruction_defs(instruction: &Instruction) -> Vec<LiveValue> {
         | Instruction::ByteCopy { .. }
         | Instruction::StringByteStore { .. } => None,
     };
-    out.map_or_else(Vec::new, |out| vec![LiveValue::Temp(out)])
+    out.into_iter().map(ValueSlot::Temp).for_each(visit)
 }
 
-fn call_defs(result: scoop_lir::TypedCallResult) -> Vec<LiveValue> {
+pub fn call_def(result: TypedCallResult) -> Option<ValueSlot> {
     match result {
-        scoop_lir::TypedCallResult::Void => Vec::new(),
-        scoop_lir::TypedCallResult::ElidedZst(out) | scoop_lir::TypedCallResult::Direct(out) => {
-            vec![LiveValue::Temp(out)]
+        TypedCallResult::Void => None,
+        TypedCallResult::ElidedZst(out) | TypedCallResult::Direct(out) => {
+            Some(ValueSlot::Temp(out))
         }
-        scoop_lir::TypedCallResult::IndirectResult(storage) => vec![LiveValue::Local(storage)],
+        TypedCallResult::IndirectResult(storage) => Some(ValueSlot::Local(storage)),
     }
 }
 
-pub(super) fn terminator_uses(
+pub fn visit_terminator_uses(
     terminator: &Terminator,
-    function: &Function,
+    targets: &CallTargets,
     mut use_value: impl FnMut(Value),
 ) {
     match terminator {
         Terminator::Invoke { site } => {
-            for value in call_uses(site.args(), site.destination(&function.call_targets)) {
+            for value in call_uses(site.args(), site.destination(targets)) {
                 use_value(value);
             }
         }
@@ -321,16 +394,23 @@ pub(super) fn terminator_uses(
     }
 }
 
+pub fn terminator_def(terminator: &Terminator) -> Option<ValueSlot> {
+    match terminator {
+        Terminator::Invoke { site } => call_def(site.result()),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn indirect_result_storage_is_a_call_definition() {
-        let storage = scoop_lir::LocalId::from_raw(3.into());
+        let storage = LocalId::from_raw(3.into());
         assert_eq!(
-            call_defs(scoop_lir::TypedCallResult::IndirectResult(storage)),
-            vec![LiveValue::Local(storage)]
+            call_def(TypedCallResult::IndirectResult(storage)),
+            Some(ValueSlot::Local(storage))
         );
     }
 }

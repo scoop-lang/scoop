@@ -1,5 +1,7 @@
 use super::*;
-use crate::dataflow::{LiveValue, instruction_defs, instruction_uses, terminator_uses};
+use scoop_lir::dataflow::{
+    ValueSlot as LiveValue, visit_instruction_defs, visit_instruction_uses, visit_terminator_uses,
+};
 
 fn local_allocation_order(function: &Function) -> Vec<scoop_lir::LocalId> {
     let mut order = Vec::with_capacity(function.locals.len());
@@ -13,15 +15,14 @@ fn local_allocation_order(function: &Function) -> Vec<scoop_lir::LocalId> {
     };
     for (_, block) in function.blocks.iter() {
         for instruction in &block.instructions {
-            for value in instruction_uses(instruction, function)
-                .into_iter()
-                .filter_map(LiveValue::from_value)
-                .chain(instruction_defs(instruction))
-            {
-                visit(value);
-            }
+            visit_instruction_uses(instruction, &function.call_targets, |value| {
+                if let Some(value) = LiveValue::from_value(value) {
+                    visit(value);
+                }
+            });
+            visit_instruction_defs(instruction, &mut visit);
         }
-        terminator_uses(&block.terminator, function, |value| {
+        visit_terminator_uses(&block.terminator, &function.call_targets, |value| {
             if let Some(value) = LiveValue::from_value(value) {
                 visit(value);
             }

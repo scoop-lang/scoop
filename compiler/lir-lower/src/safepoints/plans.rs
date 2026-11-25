@@ -24,26 +24,28 @@ pub(super) fn annotate_root_plans(
         let mut block_defs = HashSet::new();
         let mut block_uses = HashSet::new();
         for instruction in &block.instructions {
-            for value in instruction_uses(instruction, function) {
+            visit_instruction_uses(instruction, &function.call_targets, |value| {
                 if let Some(value) = LiveValue::from_value(value)
                     && !block_defs.contains(&value)
                 {
                     block_uses.insert(value);
                 }
-            }
-            block_defs.extend(instruction_defs(instruction));
+            });
+            visit_instruction_defs(instruction, |value| {
+                block_defs.insert(value);
+            });
         }
-        terminator_uses(&block.terminator, function, |value| {
+        visit_terminator_uses(&block.terminator, &function.call_targets, |value| {
             if let Some(value) = LiveValue::from_value(value)
                 && !block_defs.contains(&value)
             {
                 block_uses.insert(value);
             }
         });
-        block_defs.extend(terminator_defs(&block.terminator));
+        block_defs.extend(terminator_def(&block.terminator));
         uses[index] = block_uses;
         defs[index] = block_defs;
-        successors[index] = block_successors(block);
+        successors[index] = block.terminator.successors().collect();
     }
 
     let mut live_in = vec![HashSet::new(); block_count];
@@ -77,7 +79,7 @@ pub(super) fn annotate_root_plans(
     for (id, block) in function.blocks.iter() {
         let block_index = arena_index(id);
         let mut live = live_out[block_index].clone();
-        for definition in terminator_defs(&block.terminator) {
+        if let Some(definition) = terminator_def(&block.terminator) {
             live.remove(&definition);
         }
         if let lir::Terminator::Invoke {
@@ -88,15 +90,15 @@ pub(super) fn annotate_root_plans(
                 context, site, &live_in, function, structs, enums,
             )?);
         }
-        terminator_uses(&block.terminator, function, |value| {
+        visit_terminator_uses(&block.terminator, &function.call_targets, |value| {
             if let Some(value) = LiveValue::from_value(value) {
                 live.insert(value);
             }
         });
         for (instruction_index, instruction) in block.instructions.iter().enumerate().rev() {
-            for definition in instruction_defs(instruction) {
+            visit_instruction_defs(instruction, |definition| {
                 live.remove(&definition);
-            }
+            });
             plans[block_index][instruction_index] = match instruction {
                 lir::Instruction::ManagedPoll { .. } => RootPlan::Statepoint(statepoint_live_set(
                     context, &live, function, structs, enums,
@@ -269,11 +271,11 @@ pub(super) fn annotate_root_plans(
                 )?)),
                 _ => RootPlan::None,
             };
-            for value in instruction_uses(instruction, function) {
+            visit_instruction_uses(instruction, &function.call_targets, |value| {
                 if let Some(value) = LiveValue::from_value(value) {
                     live.insert(value);
                 }
-            }
+            });
         }
     }
 
