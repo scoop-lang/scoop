@@ -6,10 +6,13 @@
 
 static volatile int observed;
 void symbol_marker(void) __asm__("scoop$1$trace_test");
+/* Use a logical debug path like generated code. Toolchains may spell the
+ * physical C input relative to the build directory or as an absolute path. */
+#line 70 "/scoop/debug/trace_entry.scoop"
 __attribute__((noinline)) void symbol_marker(void) { observed++; }
 
 int main(int argc, char **argv) {
-    assert(argc == 3);
+    assert(argc == 2);
     symbol_marker();
     ScoopTraceFrames frames = {.count = 1};
     frames.frames[0] = (ScoopTraceFrame){
@@ -33,8 +36,9 @@ int main(int argc, char **argv) {
     assert(!symbols.changed && !symbols.unavailable);
     assert(symbols.first != NULL);
     assert(strcmp(symbols.first->function, "symbol_marker") == 0);
-    assert(strcmp(symbols.first->filename, argv[2]) == 0);
-    assert(symbols.first->line > 0);
+    assert(symbols.first->filename != NULL);
+    assert(strcmp(symbols.first->filename, "/scoop/debug/trace_entry.scoop") == 0);
+    assert(symbols.first->line == 70);
     scoop_trace_symbols_free(&symbols);
 
     void *library = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);

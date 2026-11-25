@@ -34,7 +34,7 @@ fn trace_symbols_preserve_source_names_paths_and_reject_changed_loader_indices()
     sources.extend([
         workspace.join("runtime/src/stack_trace/capture.c"),
         workspace.join("runtime/src/stack_trace/symbolize.c"),
-        test_source.clone(),
+        test_source,
     ]);
     sources.extend(
         super::platform_support::native_trace_module_sources()
@@ -99,5 +99,5 @@ fn trace_symbols_preserve_source_names_paths_and_reject_changed_loader_indices()
             .arg("-o")
             .arg(&library),
     );
-    checked(Command::new(&binary).arg(&library).arg(&test_source));
+    checked(Command::new(&binary).arg(&library));
 }
