@@ -12,8 +12,8 @@ pub(crate) struct Checkpoint {
     next_lambda: u32,
     next_anonymous_function: u32,
     next_callable_reference: u32,
-    arm_body_nesting: Option<usize>,
-    supertype_expression_nesting: Option<usize>,
+    arm_body_nesting: Option<u32>,
+    supertype_expression_nesting: Option<u32>,
 }
 
 impl Parser {

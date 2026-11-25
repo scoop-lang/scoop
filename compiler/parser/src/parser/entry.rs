@@ -43,7 +43,7 @@ impl Parser {
         } = lex(source);
         Ok((
             Self {
-                expression_nesting: Self::expression_nesting(&tokens),
+                nesting: super::nesting::TokenNesting::index(&tokens),
                 arm_body_nesting: None,
                 supertype_expression_nesting: None,
                 tokens,

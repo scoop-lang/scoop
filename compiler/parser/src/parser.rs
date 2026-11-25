@@ -16,6 +16,7 @@ mod checkpoint;
 mod entry;
 mod file;
 mod lists;
+mod nesting;
 mod syntax;
 
 pub(crate) use lists::ListKind;
@@ -73,9 +74,9 @@ impl DelimiterBalance {
 pub(crate) struct Parser {
     pub(crate) documentation: Vec<crate::lexer::LexicalDocComment>,
     pub(crate) tokens: Vec<Token>,
-    pub(crate) expression_nesting: Vec<usize>,
-    pub(crate) arm_body_nesting: Option<usize>,
-    pub(crate) supertype_expression_nesting: Option<usize>,
+    nesting: Vec<nesting::TokenNesting>,
+    pub(crate) arm_body_nesting: Option<u32>,
+    pub(crate) supertype_expression_nesting: Option<u32>,
     pub(crate) pos: usize,
     pub(crate) diagnostics: Vec<Diagnostic>,
     lexical_diagnostics: Vec<Diagnostic>,
@@ -109,24 +110,12 @@ impl Parser {
     }
 
     fn has_top_level_start_between(&self, start: u32, end: u32) -> bool {
-        let mut braces = 0usize;
-        for (index, token) in self.tokens.iter().enumerate() {
-            if token.span.start >= end {
-                break;
-            }
-            if token.span.start >= start
-                && braces == 0
-                && Self::is_top_level_start_at(&self.tokens, index)
-            {
-                return true;
-            }
-            match token.kind {
-                TokenKind::LBrace => braces += 1,
-                TokenKind::RBrace => braces = braces.saturating_sub(1),
-                _ => {}
-            }
-        }
-        false
+        let first = self
+            .tokens
+            .partition_point(|token| token.span.start < start);
+        (first..self.tokens.len())
+            .take_while(|&i| self.tokens[i].span.start < end)
+            .any(|i| self.nesting[i].braces == 0 && Self::is_top_level_start_at(&self.tokens, i))
     }
 
     fn is_top_level_start_at(tokens: &[Token], index: usize) -> bool {
@@ -237,17 +226,12 @@ impl Parser {
         matches!(self.peek().kind, TokenKind::Eof)
     }
 
-    /// Number of unmatched `{` tokens before the current position.
-    /// Computing it on demand keeps direct token advances in the small
-    /// parsing routines from having to maintain duplicate delimiter state.
-    pub(crate) fn brace_depth(&self) -> usize {
-        self.tokens[..self.pos]
-            .iter()
-            .fold(0usize, |depth, token| match token.kind {
-                TokenKind::LBrace => depth + 1,
-                TokenKind::RBrace => depth.saturating_sub(1),
-                _ => depth,
-            })
+    pub(crate) fn brace_depth(&self) -> u32 {
+        self.nesting[self.pos].braces
+    }
+
+    pub(crate) fn expression_depth(&self) -> u32 {
+        self.nesting[self.pos].expression
     }
 
     fn is_top_level_start(&self) -> bool {
@@ -348,13 +332,13 @@ impl Parser {
     /// Recover to the next line/semicolon at `target_depth`, or stop before
     /// the brace closing the current body. `item_start` prevents a token that
     /// itself failed at the beginning of an item from being retried forever.
-    pub(crate) fn synchronize_body_item(&mut self, target_depth: usize, item_start: usize) {
+    pub(crate) fn synchronize_body_item(&mut self, target_depth: u32, item_start: usize) {
         self.with_node(scoop_syntax::SyntaxKind::Error, |parser| {
             parser.synchronize_body_item_inner(target_depth, item_start)
         })
     }
 
-    fn synchronize_body_item_inner(&mut self, target_depth: usize, item_start: usize) {
+    fn synchronize_body_item_inner(&mut self, target_depth: u32, item_start: usize) {
         while !self.at_eof() {
             let depth = self.brace_depth();
             if depth < target_depth

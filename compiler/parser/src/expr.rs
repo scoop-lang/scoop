@@ -97,7 +97,7 @@ impl Parser {
         let mut lhs = self.parse_unary()?;
         loop {
             if self.at_arm_body_newline()
-                || (self.supertype_expression_nesting == Some(self.expression_nesting[self.pos])
+                || (self.supertype_expression_nesting == Some(self.expression_depth())
                     && (matches!(self.peek().kind, TokenKind::LBrace)
                         || matches!(&self.peek().kind, TokenKind::Ident(name) if name == "where")))
             {

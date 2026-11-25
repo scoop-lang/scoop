@@ -155,9 +155,7 @@ impl Parser {
         if matches!(self.peek().kind, TokenKind::Val | TokenKind::Var) {
             return self.unexpected("expression");
         }
-        let nesting = self
-            .arm_body_nesting
-            .replace(self.expression_nesting[self.pos]);
+        let nesting = self.arm_body_nesting.replace(self.expression_depth());
         let statement = self.parse_statement();
         self.arm_body_nesting = nesting;
         let statement = statement?;
@@ -170,32 +168,7 @@ impl Parser {
 }
 
 impl Parser {
-    /// Token positions may be rewound by generic-call probing. An immutable
-    /// nesting index keeps arm boundaries correct across those rewinds.
-    pub(crate) fn expression_nesting(tokens: &[Token]) -> Vec<usize> {
-        let mut depth = 0usize;
-        tokens
-            .iter()
-            .map(|token| {
-                let before = depth;
-                match token.kind {
-                    TokenKind::LParen
-                    | TokenKind::LBracket
-                    | TokenKind::LBrace
-                    | TokenKind::InterpolationStart => depth += 1,
-                    TokenKind::RParen
-                    | TokenKind::RBracket
-                    | TokenKind::RBrace
-                    | TokenKind::InterpolationEnd => depth = depth.saturating_sub(1),
-                    _ => {}
-                }
-                before
-            })
-            .collect()
-    }
-
     pub(crate) fn at_arm_body_newline(&self) -> bool {
-        self.peek().newline_before
-            && self.arm_body_nesting == Some(self.expression_nesting[self.pos])
+        self.peek().newline_before && self.arm_body_nesting == Some(self.expression_depth())
     }
 }
