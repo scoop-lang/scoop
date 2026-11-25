@@ -10,8 +10,30 @@
 @property(nonatomic, strong) NSView *superview;
 @property(nonatomic, strong) CALayer *layer;
 @property(nonatomic) BOOL wantsLayer;
+@property(nonatomic, strong) id dragMotionMonitor;
+- (void)beginSyntheticDrag;
+- (void)endSyntheticDrag;
 @end
 @implementation SSUTestView
+- (void)beginSyntheticDrag {
+  if (self.dragMotionMonitor)
+    return;
+  NSWindow *window = self.window;
+  // Probe events are delivered directly to the view. AppKit can also route
+  // desktop mouse motion to the key window while the synthetic button is down.
+  self.dragMotionMonitor = [NSEvent
+      addLocalMonitorForEventsMatchingMask:NSEventMaskMouseMoved
+                                   handler:^NSEvent *(NSEvent *event) {
+                                     return event.window == window ? nil
+                                                                   : event;
+                                   }];
+}
+- (void)endSyntheticDrag {
+  if (self.dragMotionMonitor) {
+    [NSEvent removeMonitor:self.dragMotionMonitor];
+    self.dragMotionMonitor = nil;
+  }
+}
 @end
 
 void *scoop_surface_test_view_create(void *pointer, bool customLayer) {
@@ -76,14 +98,15 @@ bool scoop_surface_test_view_restored(void *pointer) {
 }
 void scoop_surface_test_view_drop(void *pointer) {
   SSUTestView *probe = (__bridge_transfer SSUTestView *)pointer;
-  (void)probe;
+  [probe endSyntheticDrag];
 }
 
 bool scoop_surface_test_view_button(void *pointer, double x, double y,
                                     bool pressed) {
+  SSUTestView *probe = (__bridge SSUTestView *)pointer;
   @autoreleasepool {
     @try {
-      NSView *view = ((__bridge SSUTestView *)pointer).view;
+      NSView *view = probe.view;
       NSEvent *event = [NSEvent
           mouseEventWithType:pressed ? NSEventTypeLeftMouseDown
                                      : NSEventTypeLeftMouseUp
@@ -95,12 +118,16 @@ bool scoop_surface_test_view_button(void *pointer, double x, double y,
                  eventNumber:1
                   clickCount:1
                     pressure:pressed ? 1.0 : 0.0];
-      if (pressed)
+      if (pressed) {
+        [probe beginSyntheticDrag];
         [view mouseDown:event];
-      else
+      } else {
         [view mouseUp:event];
+        [probe endSyntheticDrag];
+      }
       return true;
     } @catch (NSException *exception) {
+      [probe endSyntheticDrag];
       (void)exception;
       return false;
     }
