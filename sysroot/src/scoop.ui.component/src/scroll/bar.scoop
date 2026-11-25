@@ -10,7 +10,8 @@ import scoop.window.accessibility.*
 /** Pointer state uses only the geometry of an accepted frame. */
 internal class ScrollBarControl(
     private val scope: ComponentScope,
-    private val props: () -> ScrollControlProps,
+    private val scrollState: () -> ScrollState,
+    private val props: () -> ViewportScrollbarOptions,
     parent: InputArea,
     private val orientation: Orientation,
     private val feedback: ScrollbarFeedback,
@@ -19,7 +20,7 @@ internal class ScrollBarControl(
 ) {
     private val semantics = createComponentSemantics(scope, SemanticRole.ScrollBar, parentSemantics)
     private val area = scope.createArea { context, event -> handle(context, event) }
-    private var currentState = props().state
+    private var currentState = scrollState()
     private var geometry: ScrollbarGeometry? = None
     private var pointer: Point? = None
     private var hovered = false
@@ -61,10 +62,10 @@ internal class ScrollBarControl(
     }
     fun update() {
         val value = props()
-        if (value.state !== currentState) {
+        if (scrollState() !== currentState) {
             cancel()
             geometry = None
-            currentState = value.state
+            currentState = scrollState()
         }
         area.scope.enabled = value.enabled
         if (!value.enabled)

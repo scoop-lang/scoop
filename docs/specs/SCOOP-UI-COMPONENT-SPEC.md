@@ -326,6 +326,8 @@ AbsoluteAxis 的 Start(offset, size?)、End(offset, size?)、Center(offset, size
 
 ### 6.2 ScrollArea
 
+自绘 Element 可以用 `ViewportScrollbars(scope, viewport, parent, parentSemantics) { options }` 在现有 ScrollViewport 和 InputArea 上显示滚动条。挂载期间保留此对象，属性更新时调用 `update()`。自绘视口用 `contentViewport` 得到扣除预留滚动条后的区域，用 `layout` 交付真实内容尺寸和可选滚动校正，照常呈现正文后调用 `scene(context, layout)`。滚动条的拖动、轨道翻页、自动隐藏和辅助动作都操作传入视口当前的 ScrollState。正文继续拥有焦点与排版。ViewportScrollbarOptions 接受主题、轴、可见性、外观、行为、行步长与启用状态，覆盖式和预留式布局共用内置组件的滚动条几何。
+
 ScrollAreaProps／scrollArea 接受一个 content View、可选外部 ScrollState、ScrollAxes（默认 Vertical）、可选 width／height、lineStep（默认 40 个逻辑单位）、ScrollChain（Chain／Contain，默认 Chain）、ScrollbarVisibility（Auto／Always／Hidden，默认 Auto）、ScrollbarOptions、enabled、FocusOptions、StyleOverride（默认空覆盖）、可选 focusOutline: OutlineStyle 和 ThemeSource。没有外部 State 时组件保留自己的实例；替换外部 State 更新同一视口登记，不更换内容实例。
 
 每个滚动轴须有有限的父最大约束或显式尺寸，最终尺寸服从父最小／最大限制。非滚动轴有界时填满，无界时从一次子项测量取得尺寸。内容沿滚动轴采用无界约束，沿已确定的交叉轴采用 tight 约束；每次 measure 回调测量一次内容，按最终测量结果以负 offset 平移呈现。视口对像素与命中使用同一个 clip，整个显式内容树保持挂载。普通滚动只请求位置帧，不把 offset 作为内容 Props 重建；绘制缓存和虚拟化另行接入。

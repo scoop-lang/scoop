@@ -1,0 +1,192 @@
+package scoop.tests.ui.scrollarea
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class CustomViewportBarsTest {
+    private var view: ViewProbe? = None
+    private var window: Window? = None
+    private var step = 0
+    private var target = Point(0.0, 0.0)
+    private var body: InputArea? = None
+    private var frames: FrameProbe? = None
+    private var presented = 0
+
+    @Test(useProcess = true)
+    fun dragUpdatesTheCustomViewportAndPreservesContentFocus() {
+        val state = ScrollState()
+        val focus = FocusHandle()
+        val options = ViewportScrollbarOptions(
+            macosTheme(), axes = ScrollAxes.Vertical,
+            scrollbarBehavior = scrollbarBehavior {
+                preset = ScrollbarPreset.Static
+                fadeIn = Duration.ZERO
+            }
+        )
+        val deadline = MonotonicTimeSource.now() + Duration.seconds(20L)
+        try {
+            UiHost(
+                onRootError = { _, error -> throw error },
+                handler = { host, app, event ->
+                    when (event) {
+                        case Resumed -> {
+                            val native = app
+                                .createWindow(
+                                    windowAttributes {
+                                        size = LogicalSize(180.0, 120.0);
+                                        title = "Custom viewport scrollbars"
+                                    }
+                                )
+                            window = Some(native)
+                            view = Some(observeWindow(native))
+                            frames = Some(observeFrames(native))
+                            host
+                                .attach(
+                                    native,
+                                    { scope ->
+                                        CustomBarsRoot(
+                                            state,
+                                            focus,
+                                            options,
+                                            { area ->
+                                                body = Some(area);
+                                                presented += 1
+                                            },
+                                            scope
+                                        )
+                                    }
+                                )
+                            native.requestFocus()
+                            app.setControlFlow(ControlFlow.WaitUntil(deadline))
+                        }
+
+                        case AboutToWait -> {
+                            if (step ==
+                                0 &&
+                                presented >=
+                                2 &&
+                                window!!.isFocused &&
+                                !frames!!.snapshot().required
+                            ) {
+                                assertTrue(focus.requestFocus())
+                                assertEquals(480.0, state.maximum.y)
+                                val size = state.viewport
+                                val thickness = options.theme.scrollbarMetrics().thickness
+                                val hitWidth = if (thickness < 12.0) 12.0 else thickness
+                                val bar = options
+                                    .theme
+                                    .scrollbarGeometry(
+                                        Rect(size.width - hitWidth, 0.0, hitWidth, size.height),
+                                        ScrollbarVisual(
+                                            Orientation.Vertical,
+                                            0.0,
+                                            size.height / state.content.height
+                                        )
+                                    )
+                                val thumb = body!!.toWindow(bar.thumb.bounds)!!
+                                val start = Point(
+                                    thumb.x + thumb.width / 2.0,
+                                    thumb.y + thumb.height / 2.0
+                                )
+                                target = Point(start.x, start.y + bar.travel / 2.0)
+                                step = 1
+                                app
+                                    .proxy()
+                                    .post { _ ->
+                                        assertTrue(moveSurfacePointer(window!!, start.x, start.y))
+                                        assertTrue(view!!.button(start.x, start.y, true))
+                                        assertTrue(moveSurfacePointer(window!!, target.x, target.y))
+                                    }
+                            } else if (step == 1 && state.offset.y > 60.0) {
+                                assertTrue(view!!.button(target.x, target.y, false))
+                                assertTrue(focus.hasFocus)
+                                assertEquals(0.0, state.offset.x)
+                                step = 2
+                                app.requestExit()
+                            }
+                        }
+
+                        case NewEvents(StartCause.Deadline) ->
+                            fail(
+                                Some(
+                                    f"custom scrollbar stopped at step ${step}, viewport ${
+                                        state.viewport.width
+                                    } x ${state.viewport.height}, target ${target.x} / ${
+                                        target.y
+                                    }, offset ${state.offset.y}"
+                                )
+                            )
+                        else -> {}
+                    }
+                }
+            )
+                .use { host -> Application().run(host) }
+            assertEquals(2, step)
+            assertFalse(state.isAttached)
+        } finally {
+            frames?.close()
+            view?.close()
+        }
+    }
+}
+
+private class CustomBarsRoot(
+    val scroll: ScrollState,
+    val focus: FocusHandle,
+    val options: ViewportScrollbarOptions,
+    val mounted: (InputArea) -> Unit,
+    scope: ComponentScope
+) : Component(scope) {
+    public override fun render(): View = element(
+        { mount -> CustomBarsInk(scroll, focus, options, mounted, mount) }
+    )
+}
+
+private class CustomBarsInk(
+    scroll: ScrollState,
+    handle: FocusHandle,
+    options: ViewportScrollbarOptions,
+    private val mounted: (InputArea) -> Unit,
+    scope: ComponentScope
+) : Element<ScrollLayout>(scope) {
+    private val area = scope.createArea(focusable = true)
+    private val focus = scope.focusTarget(area, FocusOptions(Some(handle)))
+    private val viewport = scope.scrollViewport(scroll)
+    private val bars = ViewportScrollbars(scope, viewport, area) { options }
+    init {
+        scope.routeChildren(area)
+    }
+    public override fun update(): UiInvalidation {
+        bars.update()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
+        val outer = constraints.constrain(Size(180.0, 120.0))
+        val rect = bars.contentViewport(outer, scope.layoutDirection)
+        return LayoutResult(
+            LayoutMetrics(outer),
+            bars.layout(Size(rect.width, rect.height), Size(rect.width, 600.0))
+        )
+    }
+    public override fun scene(context: SceneContext, layout: ScrollLayout) {
+        context.place(area, Rect(0.0, 0.0, context.size.width, context.size.height))
+        viewport.present(context, layout)
+        bars.scene(context, layout)
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) mounted(area)
+            }
+    }
+}

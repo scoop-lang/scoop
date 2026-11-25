@@ -6,6 +6,7 @@ import scoop.test.*
 import scoop.tests.surface.*
 import scoop.time.Duration
 import scoop.ui.*
+import scoop.ui.style.ScrollbarMetrics
 import scoop.ui.style.fluent.fluentTheme
 import scoop.window.*
 
@@ -129,7 +130,12 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
             val page = probe.previousOffset.y + probe.outer.snapshot.visibleSize.height
             assertTrue(probe.outer.offset.y > page - 0.01 && probe.outer.offset.y < page + 0.01)
             probe.outer.scrollTo(Point(0.0, 0.0))
-            probe.theme.current.value = fluentTheme()
+            probe.theme.current.value = fluentTheme {
+                scrollbar {
+                    val m = metrics
+                    metrics = ScrollbarMetrics(m.thickness, m.minimumThumbLength, m.trackInset, m.thumbInset, m.cornerRadius, Some(m.thickness))
+                }
+            }
             probe.phase += 1
         }
         case 16 -> {

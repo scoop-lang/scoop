@@ -12,7 +12,8 @@ import scoop.window.*
 /** Both axes share one visibility animation, one native deadline and one passive pointer observer. */
 internal class ScrollbarFeedback(
     private val scope: ComponentScope,
-    private val props: () -> ScrollControlProps,
+    private val scrollState: () -> ScrollState,
+    private val props: () -> ViewportScrollbarOptions,
     private val parent: InputArea,
     private val changed: () -> Unit
 ): Closeable {
@@ -27,7 +28,7 @@ internal class ScrollbarFeedback(
     private val idle = ScrollbarIdle()
     private val timer = scope.createDeadline { tick() }
     private val probe = scope.createArea()
-    private var state = props().state
+    private var state = scrollState()
     private var intent: Closeable? = None
     private var closed = false
     private var ready = false
@@ -99,9 +100,9 @@ internal class ScrollbarFeedback(
             within = false
         if (!previous.input.revealOnEdgeHover && options.input.revealOnEdgeHover)
             edge = false
-        if (state !== props().state) {
+        if (state !== scrollState()) {
             intent?.close()
-            state = props().state
+            state = scrollState()
             ready = false
             horizontal = None
             vertical = None

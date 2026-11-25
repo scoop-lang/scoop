@@ -37,10 +37,13 @@ internal class TextFieldInk(
         .resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
     internal val scrollbarFeedback = scope
         .resource {
-            ScrollbarFeedback(scope, { scrollbarProps() }, host.area) { feedbackChanged() }
+            ScrollbarFeedback(scope, { host.scroll }, { scrollbarProps() }, host.area) {
+                feedbackChanged()
+            }
         }
     private val horizontal = ScrollBarControl(
         scope,
+        { host.scroll },
         { scrollbarProps() },
         host.area,
         Orientation.Horizontal,
@@ -49,6 +52,7 @@ internal class TextFieldInk(
     ) { handle, orientation -> updateBar(handle, orientation) }
     private val vertical = ScrollBarControl(
         scope,
+        { host.scroll },
         { scrollbarProps() },
         host.area,
         Orientation.Vertical,
@@ -95,20 +99,12 @@ internal class TextFieldInk(
         val value = props.value
         return textFieldAppearance(value.input, value.theme, value.text, value.placeholder, fonts)
     }
-    private fun scrollbarProps(): ScrollControlProps {
+    private fun scrollbarProps(): ViewportScrollbarOptions {
         val value = props.value
-        return ScrollControlProps(
-            host.scroll,
-            if (value.input.options.wrap) ScrollAxes.Vertical else ScrollAxes.Both,
-            value.text.fontSize,
-            ScrollChain.Chain,
-            value.input.scrollbars,
-            value.input.style.scrollbar,
-            value.input.options.enabled,
-            value.input.focus,
-            value.input.options.paintCache,
-            value.theme,
-            scrollbarBehavior = value.input.scrollbarBehavior
+        return ViewportScrollbarOptions(
+            value.theme, if (value.input.options.wrap) ScrollAxes.Vertical else ScrollAxes.Both,
+            value.input.scrollbars, value.input.style.scrollbar, value.input.scrollbarBehavior,
+            value.text.fontSize, value.input.options.enabled
         )
     }
     public override fun update(): UiInvalidation {

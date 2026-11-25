@@ -25,14 +25,23 @@ internal class ScrollControlProps(
     val semantics: ComponentSemantics = ComponentSemantics(),
     val touchScroll: TouchScrollOptions = TouchScrollOptions(),
     val scrollPhysics: ScrollPhysicsOptions = ScrollPhysicsOptions()
-)
+) {
+    val bars = ViewportScrollbarOptions(
+        theme,
+        axes,
+        scrollbars,
+        scrollbar,
+        scrollbarBehavior,
+        lineStep,
+        enabled
+    )
+}
 
 /** Shared input, range publication and themed bars for eager and lazy viewports. */
 internal class ScrollControl(
     private val scope: ComponentScope,
     private val props: () -> ScrollControlProps
 ) {
-    private val painters = scope.resource { ThemePainterCache() }
     private val decoration = scope.resource { StylePainter() }
     val semantics = createComponentSemantics(scope, SemanticRole.ScrollArea)
     val viewport = scope.scrollViewport(props().state)
@@ -41,27 +50,9 @@ internal class ScrollControl(
     private val focus = scope.focusTarget(area, props().focus)
     private val pan = scope
         .scrollPan(area, viewport, props().axes, props().chain, props().touchScroll)
-    private val feedback = scope
-        .resource { ScrollbarFeedback(scope, props, area) { feedbackChanged() } }
-    private val horizontal = ScrollBarControl(
-        scope,
-        props,
-        area,
-        Orientation.Horizontal,
-        feedback,
-        semantics
-    ) { handle, orientation -> updateBar(handle, orientation) }
-    private val vertical = ScrollBarControl(
-        scope,
-        props,
-        area,
-        Orientation.Vertical,
-        feedback,
-        semantics
-    ) { handle, orientation -> updateBar(handle, orientation) }
+    private val bars = ViewportScrollbars(scope, viewport, area, semantics) { props().bars }
     private var direction = scope.layoutDirection
-    private var reservation = Size(0.0, 0.0)
-    val gutter: Size get() = reservation
+    val gutter: Size get() = bars.gutter
 
     init {
         area.scope.defaultAction = { context, event -> handle(context, event) }
@@ -69,27 +60,8 @@ internal class ScrollControl(
         scope.routeSemanticsChildren(semantics)
         semantics?.bindFocus(Some(focus))
     }
-    private fun updateBar(handle: SemanticsHandle, orientation: Orientation) {
-        val value = props()
-        handle
-            .updateScrollBar(
-                viewport,
-                scrollSemanticOrientation(orientation),
-                value.lineStep,
-                scrollBarProperties(value, orientation)
-            )
-    }
-    private fun feedbackChanged() {
-        horizontal.feedbackChanged()
-        vertical.feedbackChanged()
-        if (scope.isMounted) scope.requestFrame()
-    }
     fun update(): Boolean {
         val value = props()
-        requireComponent(
-            value.lineStep.isFinite() && value.lineStep > 0.0,
-            "invalid scroll line step"
-        )
         viewport.state = value.state
         viewport.paintCache = value.paintCache
         viewport.physics = value.scrollPhysics
@@ -116,42 +88,16 @@ internal class ScrollControl(
                 value.semantics.properties(enabled = value.enabled),
                 relations = value.semantics.relations
             )
-        feedback.update()
-        horizontal.update()
-        vertical.update()
-        painters.get(value.theme)
-        val next = scrollbarGutter(
-            value.axes,
-            value.scrollbars,
-            feedback.options.thickness,
-            value.scrollbarBehavior.placement
-        )
-        val changed = next != gutter
-        reservation = next
-        return changed
+        return bars.update()
     }
-    fun contentViewport(outer: Size, direction: LayoutDirection): Rect = scrollbarViewport(
-        outer,
-        gutter,
-        direction
-    )
+    fun contentViewport(outer: Size, direction: LayoutDirection): Rect = bars
+        .contentViewport(outer, direction)
     fun layout(
         viewportSize: Size,
         contentSize: Size,
         adjustment: ScrollAdjustment? = None
-    ): ScrollLayout {
-        val value = props()
-        val padding = scrollbarPadding(
-            viewportSize,
-            contentSize,
-            value.axes,
-            value.scrollbars,
-            feedback.options.thickness,
-            value.scrollbarBehavior.placement,
-            scope.layoutDirection
-        )
-        return viewport.layout(viewportSize, contentSize, adjustment, padding)
-    }
+    ): ScrollLayout = bars.layout(viewportSize, contentSize, adjustment)
+
     fun scene(
         context: SceneContext,
         layout: ScrollLayout,
@@ -159,17 +105,12 @@ internal class ScrollControl(
         children: (SceneContext) -> Unit = { content -> content.children() }
     ) {
         val value = props()
-        val snapshot = layout.snapshot
         val size = context.size
         val presentedDirection = context.layoutDirection
         val body = contentViewport(size, presentedDirection)
         context
             .onFrameComplete { frame ->
                 if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
-                    if (direction != presentedDirection) {
-                        horizontal.cancel()
-                        vertical.cancel()
-                    }
                     direction = presentedDirection
                 }
             }
@@ -190,16 +131,7 @@ internal class ScrollControl(
                 scrollSurfaceOptions(value.style, value.focusOutline),
                 presentedDirection
             )
-        val painter = painters.get(value.theme)
-        val bars = ScrollBarsLayout(
-            size,
-            snapshot,
-            value.axes,
-            value.scrollbars,
-            feedback.options.thickness,
-            presentedDirection,
-            value.scrollbarBehavior.placement
-        )
+        val painter = bars.painter()
         context
             .draw { paint ->
                 painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
@@ -220,9 +152,7 @@ internal class ScrollControl(
                 } finally {
                     local.restore()
                 }
-                feedback.scene(local, bounds, bars.horizontal, bars.vertical)
-                horizontal.scene(local, snapshot, bars.horizontal, painter)
-                vertical.scene(local, snapshot, bars.vertical, painter)
+                bars.scene(local, layout)
             }
         context
             .draw { paint ->
