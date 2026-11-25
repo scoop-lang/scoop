@@ -17,6 +17,10 @@
 #include <stdlib.h>
 #include <windowsx.h>
 
+#ifndef DWM_E_COMPOSITIONDISABLED
+#define DWM_E_COMPOSITIONDISABLED ((HRESULT)0x80263001L)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
