@@ -6,11 +6,6 @@
 
 static volatile int observed;
 void symbol_marker(void) __asm__("scoop$1$trace_test");
-/* Use a logical debug path like generated code. Toolchains may spell the
- * physical C input relative to the build directory or as an absolute path. */
-#line 70 "/scoop/debug/trace_entry.scoop"
-__attribute__((noinline)) void symbol_marker(void) { observed++; }
-
 int main(int argc, char **argv) {
     assert(argc == 2);
     symbol_marker();
@@ -55,3 +50,8 @@ int main(int argc, char **argv) {
     puts("trace symbols and loader changes passed");
     return 0;
 }
+
+/* Use a logical debug path like generated code. Toolchains may spell the
+ * physical C input relative to the build directory or as an absolute path. */
+#line 70 "/scoop/debug/trace_entry.scoop"
+__attribute__((noinline)) void symbol_marker(void) { observed++; }
