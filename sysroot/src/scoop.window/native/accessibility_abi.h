@@ -71,7 +71,8 @@ enum {
   SWAXCursorUpstream = 128,
   SWAXInvalid = 256,
   SWAXBusy = 512,
-  SWAXModal = 1024
+  SWAXModal = 1024,
+  SWAXMultiline = 2048
 };
 
 #endif

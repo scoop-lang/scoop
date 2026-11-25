@@ -32,6 +32,9 @@
     return nil;
   if (state.data.role == 4 && state.data.expanded >= 0)
     return NSAccessibilityComboBoxRole;
+  if (state.data.role == 4 && (state.data.flags & SWAXMultiline) &&
+      !(state.data.flags & SWAXProtected))
+    return NSAccessibilityTextAreaRole;
   if (state.data.role == 2 && state.data.expanded >= 0)
     return NSAccessibilityPopUpButtonRole;
   if (state.data.role == 14) {

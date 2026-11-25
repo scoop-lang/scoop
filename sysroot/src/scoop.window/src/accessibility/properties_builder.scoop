@@ -41,6 +41,7 @@ public class SemanticPropertiesBuilder internal constructor(source: SemanticProp
     public var cell: SemanticTableCell? = source.cell
     public var orientation: SemanticOrientation? = source.orientation
     public var selectionMode: SemanticSelectionMode? = source.selectionMode
+    public var multiline: Boolean = source.multiline
     internal fun snapshot(): SemanticProperties =
         SemanticProperties(
             name,
@@ -70,6 +71,7 @@ public class SemanticPropertiesBuilder internal constructor(source: SemanticProp
             table,
             cell,
             orientation,
-            selectionMode
+            selectionMode,
+            multiline
         )
 }

@@ -180,6 +180,9 @@ private class AccessibilityHandler: ApplicationHandler {
         )
         assertFailsWith<IllegalArgumentException> { parent.reparent(Some(button!!)) }
         assertFailsWith<IllegalArgumentException> {
+            button!!.update(SemanticProperties(multiline = true))
+        }
+        assertFailsWith<IllegalArgumentException> {
             button!!.update(SemanticProperties(checked = Some(SemanticChecked.On)))
         }
         assertFailsWith<IllegalArgumentException> {
@@ -289,6 +292,7 @@ private class AccessibilityHandler: ApplicationHandler {
         field!!.update(
             SemanticProperties(
                 automationId = Some("field"),
+                multiline = true,
                 name = Some("Title"),
                 value = Some(value)
             ),

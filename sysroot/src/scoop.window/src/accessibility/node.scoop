@@ -377,6 +377,10 @@ public class AccessibilityNode internal constructor(
         checkOpen()
         properties.check()
         requireWindow(
+            !properties.multiline || role == SemanticRole.TextField,
+            "multiline requires a text field"
+        )
+        requireWindow(
             properties.selectionMode ==
                 None ||
                 role ==

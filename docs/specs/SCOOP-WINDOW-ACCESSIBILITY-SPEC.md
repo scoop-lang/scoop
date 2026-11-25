@@ -74,6 +74,8 @@ showContextMenu 映射 AppKit accessibilityPerformShowMenu，经相同 owner／�
 
 ### 3.1 纯文本正文与选区
 
+`SemanticProperties.multiline` 指明 TextField 接受多个逻辑行，默认 false。空正文和仅含一行的正文也可声明为多行。AppKit 将普通多行编辑区投影为 AXTextArea，受保护与组合框继续使用相应的原生角色。UIA 在 Edit 的 AriaProperties 发布 multiline，AT-SPI 使用单行或多行状态。
+
 Text／TextField 的已知、非受保护 value 同时是其纯文本正文，不再保存另一份可写文档。SemanticProperties.selection: Utf8Selection? 默认 None；Some 只适用于这两个角色，要求 value 已知、protectedText=false，端点必须是正文范围内的 UTF-8 标量边界。None 表示没有公开选区，不能与零长度 caret 混淆；原生单选区协议返回排序后的范围，公共值保留 anchor／cursor 方向。仅选区变化不使节点边界或精确命中失效。
 
 SemanticProperties.cursorAffinity 使用 SemanticTextAffinity（Upstream／Downstream），默认 Downstream，描述已公开选区活动 cursor 的实际排版偏向；没有公开选区时不使用它。光标在软换行的同一字节边界时，Upstream 指向前一行末，Downstream 指向后一行首。仅偏向改变仍保留匹配正文的文本几何，发布选择变化而非正文变化；AppKit 的 InsertionPointLineNumber 同时读取 cursor 与该偏向。按 index／range 的原生请求没有提供偏向时使用 Downstream。

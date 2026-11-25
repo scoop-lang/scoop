@@ -65,6 +65,10 @@ int32_t scoop_ax_test_check(void *pointer, int32_t phase) {
   CHECK(probe.group && probe.text && probe.button && probe.box && probe.field &&
         probe.secret && probe.offscreen);
   CHECK(probe.root.accessibilityChildren.count == 5);
+  CHECK([probe.field.accessibilityRole
+      isEqualToString:NSAccessibilityTextAreaRole]);
+  CHECK([probe.secret.accessibilityRole
+      isEqualToString:NSAccessibilityTextFieldRole]);
   CHECK(probe.group.accessibilityChildren.count == 2);
   CHECK(probe.group.accessibilityVisibleChildren.count == 1);
   CHECK(probe.root.accessibilityParent ==

@@ -126,6 +126,8 @@ GVariant *states(const ElementPtr &element, const State &state) {
   set(14, data.scroll_orientation == 1);
   set(29, data.scroll_orientation == 2);
   set(16, data.flags & SWAXModal);
+  set(17, data.role == 4 && (data.flags & SWAXMultiline));  // MULTI_LINE
+  set(26, data.role == 4 && !(data.flags & SWAXMultiline)); // SINGLE_LINE
   set(18, state.selectionKind == 1);
   set(20, (data.role == 8 || data.role == 26) && data.checked == 1);
   set(22, data.selected >= 0 || data.role == 9);

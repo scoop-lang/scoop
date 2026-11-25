@@ -112,6 +112,7 @@ public fun SemanticsHandle.updateTextEditor(
                     Some(model.selection)
             enabled = properties.enabled && host.options.enabled
             this.readOnly = readOnly
+            multiline = host.options.multiline
             this.protectedText = protectedText
             cursorAffinity =
                 if (!protectedText && model.cursor.affinity == TextAffinity.Upstream)

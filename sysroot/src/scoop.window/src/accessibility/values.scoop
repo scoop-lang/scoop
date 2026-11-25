@@ -68,7 +68,9 @@ public struct SemanticProperties(
     val table: SemanticTableSize? = None,
     val cell: SemanticTableCell? = None,
     val orientation: SemanticOrientation? = None,
-    val selectionMode: SemanticSelectionMode? = None
+    val selectionMode: SemanticSelectionMode? = None,
+    /** Whether this text field accepts multiple logical lines, including while empty. */
+    val multiline: Boolean = false
 ) {
     internal fun check() {
         requireWindow(!protectedText || value == None, "protected text cannot publish a value")

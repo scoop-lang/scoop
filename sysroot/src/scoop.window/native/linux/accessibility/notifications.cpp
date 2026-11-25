@@ -251,6 +251,11 @@ void WindowHost::changed(const Change &change) {
           if ((a.flags ^ b.flags) & flag.flag)
             signal(element, "StateChanged", flag.name,
                    (b.flags & flag.flag) != 0, 0, nullptr);
+        if (b.role == 4 && ((a.flags ^ b.flags) & SWAXMultiline)) {
+          const bool multiline = (b.flags & SWAXMultiline) != 0;
+          signal(element, "StateChanged", "multi-line", multiline, 0, nullptr);
+          signal(element, "StateChanged", "single-line", !multiline, 0, nullptr);
+        }
         if (a.checked != b.checked) {
           signal(element, "StateChanged", "checked", b.checked == 1, 0,
                  nullptr);
