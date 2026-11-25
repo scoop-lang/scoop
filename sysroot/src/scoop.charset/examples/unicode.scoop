@@ -8,7 +8,14 @@ fun main() {
     println(normalized)
     println(f"before=${decomposed.charLength}, after=${normalized.charLength}")
 
+    println(f"terminal Unicode ${unicodeTerminalDataVersion()}")
+    println(
+        f"ambiguous width: ${unicodeTextWidth("·")} / ${
+            unicodeTextWidth("·", ambiguousAsWide = true)
+        }"
+    )
+
     for (cluster in graphemes("A👩‍💻e\u{0301}")) {
-        println(cluster)
+        println(f"${cluster}: ${unicodeTextWidth(cluster)} columns")
     }
 }

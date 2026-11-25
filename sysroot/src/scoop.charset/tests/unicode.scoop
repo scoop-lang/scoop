@@ -14,5 +14,36 @@ private class UnicodeAdapterTests {
 private fun <T : Equals<T>> assertItems(expected: List<T>, actual: List<T>) {
     assertEquals(expected.size, actual.size)
     var index = 0L
-    while (index < expected.size) { assertEquals(expected[index], actual[index]); index += 1L }
+    while (index < expected.size) {
+        assertEquals(expected[index], actual[index]);
+        index += 1L
+    }
+}
+
+@Test
+private class TerminalWidthAdapterTests {
+    @Test fun `contextual widths and CJK policy cross the native boundary`() {
+        assertEquals("17.0.0", unicodeTerminalDataVersion())
+        assertEquals(1, unicodeScalarWidth('·'))
+        assertEquals(2, unicodeScalarWidth('·', ambiguousAsWide = true))
+        assertEquals(2, unicodeScalarWidth('Ω', ambiguousAsWide = true))
+        assertEquals(2, unicodeScalarWidth('é', ambiguousAsWide = true))
+        assertEquals(2, unicodeScalarWidth('ˇ', ambiguousAsWide = true))
+        assertEquals(7L, unicodeTextWidth("AΩéˇ", ambiguousAsWide = true))
+        assertEquals(5L, unicodeTextWidth("Ae\u0301中·"))
+        assertEquals(6L, unicodeTextWidth("Ae\u0301中·", ambiguousAsWide = true))
+        assertEquals(2L, unicodeTextWidth("👩‍💻"))
+        assertEquals(1L, unicodeTextWidth("⌚\uFE0E"))
+        assertEquals(2L, unicodeTextWidth("♥\uFE0F"))
+        assertItems([0L, 3L, 5L], graphemeBoundaries("👩‍💻🇨🇳"))
+    }
+
+    @Test fun `empty text and controls use the documented width sentinel`() {
+        assertEquals(0L, unicodeTextWidth(""))
+        assertEquals(0L, unicodeTextWidth("\u0301"))
+        assertEquals(-1, unicodeScalarWidth('\u0000', ambiguousAsWide = true))
+        assertEquals(-1L, unicodeTextWidth("a\u0000b"))
+        assertEquals(-1L, unicodeTextWidth("a\tb"))
+        assertEquals(-1L, unicodeTextWidth("a\nb"))
+    }
 }

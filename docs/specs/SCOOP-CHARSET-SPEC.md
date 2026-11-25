@@ -40,13 +40,17 @@ native 引擎保留成熟库的 decoder／encoder 与有限的跨块字节，逐
 
 ### 2.1 Unicode 分段、宽度与大小写
 
-macOS 按 Core Foundation 的组合字符范围划分字素，CRLF 为一簇。大小写使用系统 ICU 的 root locale 或默认 full fold，分类采用 UCHAR_POSIX_ALNUM。其余目标使用 ICU4X 2.3.0 的 segmenter、casemap 和 properties。所有目标的列宽均使用 unicode-width 0.2.2。
+所有目标的扩展字素分段使用 ICU4X `icu_segmenter` 2.3.0，单标量与完整文本列宽使用 unicode-width 0.2.2；两者固定为 Unicode 17.0.0，不随宿主系统升级改变。`unicodeTerminalDataVersion()` 返回这两项操作共用的数据版本字符串。macOS 的大小写和字符分类仍使用系统 ICU，其余目标使用 ICU4X 的 casemap 和 properties；此版本入口不代表大小写或 NFC 的系统数据版本。
 `graphemeBoundaries(text)` 返回扩展字素簇边界的 Unicode 标量索引（含 0 和末尾，
 空串返回 [0]），`graphemes(text)` 返回各簇的独立 String 数组；不使用缺少上下文的
-逐字符 break 判断。扩展字素边界随目标后端的 Unicode 实现和数据版本，底层 UTF-8 byte offset 在
-适配边界转换为标量索引。`unicodeScalarWidth(character)` 使用 unicode-width 的非 CJK
-单标量宽度；控制字符（包括 NUL）返回 -1，组合字符通常为 0，东亚宽字符为 2，
-少数上游定义的宽符号可为 3（例如 U+17D8）；不把返回值限制在 0..2，也不读取进程 locale。
+逐字符 break 判断。底层 UTF-8 byte offset 在适配边界转换为标量索引。
+`unicodeScalarWidth(character, ambiguousAsWide = false)` 使用 unicode-width 的单标量宽度；
+`ambiguousAsWide` 显式选择东亚模糊宽度为窄或宽，不读取进程 locale。宽策略也包括希腊字母、重音字母及修饰符号等 East_Asian_Width=Ambiguous 的可显示底字；使用同版本 ICU 属性补齐上游 CJK 模式对 Letter／Modifier_Symbol 的窄宽特例。组合标记保持零宽，完整 emoji／变体序列仍使用上下文宽度。控制字符（包括 NUL）返回 -1，
+组合字符通常为 0，东亚宽字符为 2，少数上游定义的宽符号可为 3（例如 U+17D8）；不把返回值限制在 0..2。
+`unicodeTextWidth(text, ambiguousAsWide = false): Long` 对完整文本使用相同宽度数据和策略，处理组合标记、
+VS15/VS16、ZWJ emoji、旗帜和其他上下文宽度规则；不能以逐标量宽度相加替代。空串返回 0，包含 NUL 或
+控制字符返回 -1，不解释终端控制序列、tab stop 或换行；窗口宽度、裁切、换行及无底字组合标记仍由调用者处理。
+各次操作没有共享可变状态，不保留跨调用的输入指针。
 `isUnicodeAlphanumeric` 明确定义为 ICU 的 Alnum（Alphabetic 或 Decimal_Number），
 包括具有 Alphabetic 属性的组合符号；这取代原 GNU ISO C 分类，非十进制且非 Alphabetic
 的数字符号（例如 ²、½）不属于该集合。

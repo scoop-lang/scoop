@@ -39,7 +39,9 @@ scoop_text_result scoop_charset_normalize_nfc(const uint8_t *, int64_t);
  * one marks the first byte of a cluster; the end boundary is implicit. Empty
  * spans permit null. Return zero on success or Charset.Backend (9) on error. */
 int32_t scoop_charset_grapheme_breaks(const uint8_t *, int64_t, uint8_t *);
-int32_t scoop_charset_scalar_width(uint32_t);
+int32_t scoop_charset_scalar_width(uint32_t, bool);
+int64_t scoop_charset_text_width(const uint8_t *, int64_t, bool);
+uint32_t scoop_charset_terminal_unicode_version(void);
 bool scoop_charset_alphanumeric(uint32_t);
 /* Modes: 0 = root lowercase, 1 = root uppercase, 2 = default full case fold. */
 scoop_text_result scoop_charset_case(const uint8_t *, int64_t, int32_t);

@@ -4,8 +4,8 @@
 
 - encoding_rs 0.8.42，遗留编码转换；Unicode 编码、ASCII 与 Latin-1 使用 Rust core 标量适配。
 - idna 1.1.0，在所有目标提供原始 Punycode。macOS 从同一源码包单独编译该模块与 smallvec，域名 UTS #46 使用系统 ICU。其他目标使用 idna 自带的 UTS #46。
-- 在 macOS 上，NFC、字素分段、大小写和分类采用 Core Foundation 或系统 ICU。其余目标使用 icu_normalizer 2.3.0，与 idna_adapter 1.2.2／icu_properties 2.3.0 共用 Unicode 17.0.0 数据。
-- 其余目标的扩展字素、完整大小写和 Alnum 由 icu_segmenter／icu_casemap／icu_properties 2.3.0 提供。所有目标均使用 unicode-width 0.2.2，宽度数据为 Unicode 17.0.0。
+- 在 macOS 上，NFC、大小写和分类采用 Core Foundation 或系统 ICU。其余目标使用 icu_normalizer 2.3.0，与 idna_adapter 1.2.2／icu_properties 2.3.0 共用 Unicode 17.0.0 数据。
+- 所有目标的扩展字素由 icu_segmenter 2.3.0 提供，宽度由开启 cjk 的 unicode-width 0.2.2 提供；共用 Unicode 17.0.0 数据，显式宽模糊策略使用同版本 icu_properties 补齐上游 CJK 模式的字母／修饰符号例外。其余目标的完整大小写和 Alnum 由 icu_casemap／icu_properties 2.3.0 提供。
 - 完整 46 项依赖锁定于包装的 Cargo.lock，名称、版本、声明许可与 MSRV 列于 `packages.json`。
 - `crates.tar.gz` 是对该 lock 执行 `cargo vendor --locked --versioned-dirs` 的完整源码归档，包含 Cargo 的普通校验资料、原许可及通知；准备脚本解包后离线编译。没有 Scoop 特有的来源或产物证明。
 - `licenses/<name-version>/` 同时保存各包的许可与通知，供发行包直接展示。实际声明仅涉及 MIT、Apache-2.0、BSD-3-Clause、Unicode-3.0；这些通知不代替目标系统运行库的许可。
