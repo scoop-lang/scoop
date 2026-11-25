@@ -80,6 +80,9 @@ int32_t scoop_test_unicode_abi(void) {
   CHECK(scoop_charset_scalar_width(0x110000, false) == -1);
   CHECK(scoop_charset_scalar_width(0x00b7, false) == 1);
   CHECK(scoop_charset_scalar_width(0x00b7, true) == 2);
+  CHECK(scoop_charset_scalar_width(0x03a9, true) == 2);
+  const uint8_t omega[] = {0xce, 0xa9};
+  CHECK(scoop_charset_text_width(omega, sizeof(omega), true) == 2);
   CHECK(scoop_charset_terminal_unicode_version() == 0x110000);
   CHECK(scoop_charset_text_width(NULL, 0, false) == 0);
   CHECK(scoop_charset_text_width(NULL, 1, false) == -1);

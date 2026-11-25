@@ -45,7 +45,7 @@ native 引擎保留成熟库的 decoder／encoder 与有限的跨块字节，逐
 空串返回 [0]），`graphemes(text)` 返回各簇的独立 String 数组；不使用缺少上下文的
 逐字符 break 判断。底层 UTF-8 byte offset 在适配边界转换为标量索引。
 `unicodeScalarWidth(character, ambiguousAsWide = false)` 使用 unicode-width 的单标量宽度；
-`ambiguousAsWide` 显式选择东亚模糊宽度为窄或宽，不读取进程 locale。控制字符（包括 NUL）返回 -1，
+`ambiguousAsWide` 显式选择东亚模糊宽度为窄或宽，不读取进程 locale。宽策略也包括希腊字母、重音字母及修饰符号等 East_Asian_Width=Ambiguous 的可显示底字；使用同版本 ICU 属性补齐上游 CJK 模式对 Letter／Modifier_Symbol 的窄宽特例。组合标记保持零宽，完整 emoji／变体序列仍使用上下文宽度。控制字符（包括 NUL）返回 -1，
 组合字符通常为 0，东亚宽字符为 2，少数上游定义的宽符号可为 3（例如 U+17D8）；不把返回值限制在 0..2。
 `unicodeTextWidth(text, ambiguousAsWide = false): Long` 对完整文本使用相同宽度数据和策略，处理组合标记、
 VS15/VS16、ZWJ emoji、旗帜和其他上下文宽度规则；不能以逐标量宽度相加替代。空串返回 0，包含 NUL 或
