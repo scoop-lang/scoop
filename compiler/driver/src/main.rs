@@ -115,55 +115,81 @@ enum Emit {
 }
 
 fn main() -> ExitCode {
+    run().unwrap_or_else(|error| {
+        // stderr may itself be the stream whose write failed.
+        let _ = writeln!(
+            io::stderr(),
+            "error[E2204]: cannot write scoopc output: {error}"
+        );
+        ExitCode::FAILURE
+    })
+}
+
+fn run() -> io::Result<ExitCode> {
+    let mut stderr = io::stderr();
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(error) => {
             if error.use_stderr() {
-                eprint!("error[E2001]: {error}");
-                return ExitCode::from(2);
+                write!(stderr, "error[E2001]: {error}")?;
+                return Ok(ExitCode::from(2));
             }
-            print!("{error}");
-            return ExitCode::SUCCESS;
+            let mut stdout = io::stdout().lock();
+            write!(stdout, "{error}")?;
+            stdout.flush()?;
+            return Ok(ExitCode::SUCCESS);
         }
     };
     if let Err(error) = scoop_process::initialize() {
-        eprintln!("error[E2204]: cannot initialize process signal handling: {error}");
-        return ExitCode::FAILURE;
+        writeln!(
+            stderr,
+            "error[E2204]: cannot initialize process signal handling: {error}"
+        )?;
+        return Ok(ExitCode::FAILURE);
     }
     let result = match cli.command {
-        Command::Build(args) => build(*args),
-        Command::Check(args) => check::run(args),
-        Command::MachineCapability => write_machine_capability(),
-        Command::ChildProtocol { version, jobs } => child_protocol::run(version, jobs),
+        Command::Build(args) => build(*args, &mut stderr),
+        Command::Check(args) => check::run(args, &mut stderr),
+        Command::MachineCapability => write_machine_capability(&mut stderr),
+        Command::ChildProtocol { version, jobs } => Ok(child_protocol::run(version, jobs)),
     };
     scoop_process::finish_interruption();
     result
 }
 
-fn write_machine_capability() -> ExitCode {
+fn write_machine_capability(stderr: &mut impl Write) -> io::Result<ExitCode> {
     let capability = match scoop_toolchain::paired_compiler_machine_capability() {
         Ok(capability) => capability,
         Err(error) => {
-            eprintln!("error[ICE2501]: cannot construct scoopc machine capability: {error}");
-            return ExitCode::FAILURE;
+            writeln!(
+                stderr,
+                "error[ICE2501]: cannot construct scoopc machine capability: {error}"
+            )?;
+            return Ok(ExitCode::FAILURE);
         }
     };
     let frame = match scoop_protocol::encode_machine_capability_frame(&capability) {
         Ok(frame) => frame,
         Err(error) => {
-            eprintln!("error[ICE2501]: cannot encode scoopc machine capability: {error}");
-            return ExitCode::FAILURE;
+            writeln!(
+                stderr,
+                "error[ICE2501]: cannot encode scoopc machine capability: {error}"
+            )?;
+            return Ok(ExitCode::FAILURE);
         }
     };
     let mut stdout = io::stdout().lock();
     if let Err(error) = stdout.write_all(&frame).and_then(|()| stdout.flush()) {
-        eprintln!("error[E2204]: cannot write scoopc machine capability: {error}");
-        return ExitCode::FAILURE;
+        writeln!(
+            stderr,
+            "error[E2204]: cannot write scoopc machine capability: {error}"
+        )?;
+        return Ok(ExitCode::FAILURE);
     }
-    ExitCode::SUCCESS
+    Ok(ExitCode::SUCCESS)
 }
 
-fn build(args: BuildArgs) -> ExitCode {
+fn build(args: BuildArgs, stderr: &mut impl Write) -> io::Result<ExitCode> {
     let BuildArgs {
         input,
         direct_slibs,
@@ -226,58 +252,62 @@ fn build(args: BuildArgs) -> ExitCode {
     ) {
         Ok(request) => request.with_jobs(jobs),
         Err(error) => {
-            eprintln!("error[{}]: {error}", error.code());
-            print_notes(&error.notes());
-            return ExitCode::FAILURE;
+            writeln!(stderr, "error[{}]: {error}", error.code())?;
+            print_notes(stderr, &error.notes(), 1)?;
+            return Ok(ExitCode::FAILURE);
         }
     };
     match request.build_and_publish() {
         Ok(success) => {
             if !success.warnings().is_empty() {
-                eprintln!("{}", success.warnings().render_human());
+                writeln!(stderr, "{}", success.warnings().render_human())?;
             }
             if let Some(directory) = dump_dir {
                 if let Err(error) = dumps::write_files(&directory, success.emitted_dumps()) {
-                    eprintln!(
+                    writeln!(
+                        stderr,
                         "error[E2204]: cannot write compiler observations to {}: {error}",
                         directory.display()
-                    );
-                    return ExitCode::FAILURE;
+                    )?;
+                    return Ok(ExitCode::FAILURE);
                 }
             } else {
+                let mut stdout = io::stdout().lock();
                 for dump in success.emitted_dumps() {
-                    println!("{}", dump.text());
+                    writeln!(stdout, "{}", dump.text())?;
                 }
+                stdout.flush()?;
             }
-            ExitCode::SUCCESS
+            Ok(ExitCode::SUCCESS)
         }
         Err(error) => {
             if let Some(warnings) = error.warnings().filter(|warnings| !warnings.is_empty()) {
-                eprintln!("{}", warnings.render_human());
+                writeln!(stderr, "{}", warnings.render_human())?;
             }
-            eprintln!("error[{}]: {error}", error.code());
-            print_notes(&error.notes());
-            ExitCode::FAILURE
+            writeln!(stderr, "error[{}]: {error}", error.code())?;
+            print_notes(stderr, &error.notes(), 1)?;
+            Ok(ExitCode::FAILURE)
         }
     }
 }
 
-fn print_notes(notes: &[scoop_source::SourceDiagnosticNote]) {
-    fn print(note: &scoop_source::SourceDiagnosticNote, depth: usize) {
-        eprintln!(
+fn print_notes(
+    stderr: &mut impl Write,
+    notes: &[scoop_source::SourceDiagnosticNote],
+    depth: usize,
+) -> io::Result<()> {
+    for note in notes {
+        writeln!(
+            stderr,
             "{}{}[{}]: {}",
             "  ".repeat(depth),
             note.code.role().as_str(),
             note.code,
             note.message
-        );
-        for child in &note.notes {
-            print(child, depth + 1);
-        }
+        )?;
+        print_notes(stderr, &note.notes, depth + 1)?;
     }
-    for note in notes {
-        print(note, 1);
-    }
+    Ok(())
 }
 
 #[cfg(test)]

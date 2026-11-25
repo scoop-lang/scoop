@@ -1,0 +1,13 @@
+schema = 1
+name = "scoopc-closed-output"
+inputs = ["closed_output.py"]
+tools = ["scoopc"]
+tags = ["cli", "diagnostics"]
+requires_target_execution = false
+
+[[steps]]
+name = "closed-pipe"
+argv = ["${python}", "${fixture}/closed_output.py", "${scoopc}"]
+exit = 0
+stdout = ""
+stderr = ""

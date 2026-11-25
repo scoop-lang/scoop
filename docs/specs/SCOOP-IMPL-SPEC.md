@@ -1256,7 +1256,7 @@ generator 的 stderr 沿 driver 日志目标输出。scoop 在取得合法的 ch
 
 显式观察使用 `scoop build --emit ast|generated|hir|mir|optimizations|lir|symbols|all --dump-dir dir [--dump-scope root|sources]`，默认 root；sources 覆盖源码节点，不从 prebuilt 反造 AST 或 LocalConcreteHir。输出按 `dir/<ConeIdentity>/` 分组。HIR dump 同时包含 Export、LocalConcrete 与共有跨 Cone 接口。当前输入已有相应 dump 时直接复用；缺失时只执行产生该观察所需的前置阶段，不重做仍有效的机器对象、归档或最终链接。源码变化使观察记录失效，诊断使用当前定位；观察失败不能报告成功。dump 文件保存在对应编译输入键的缓存目录，命中后按请求复制到输出目录；只为缺失阶段调用 observation-only child。dump 描述只保存阶段及文件位置，不保存或复核内容摘要，不要求私有空目录、来源隔离或持久化同步屏障。
 
-`generated` 使用 stage wire tag 7，输出 `generated.scoop`：按实际生成顺序汇总本 Cone 的 generator 方法体原文，每段之前以行注释注明其逻辑源码路径。该文件是供阅读的方法体片段集合，不添加或重建声明签名，不作为普通源码再次发现，也不写入 `.slib`。没有生成方法时仍输出空文件，以表示本次观察已完成。单独补充该观察只执行到当前 Cone 的 HIR 检查完成，不准备后续跨 Cone 输出、MIR、LIR 或机器产物。生成／检查失败沿现有诊断携带片段原文，不发布成功观察或缓存不完整的导出。`scoopc build` 支持相同的 `--emit` 取值；给出 `--dump-dir dir` 时直接写入 `dir/`，省略时沿用 stdout 输出。`--dump-dir` 必须与 `--emit` 一起使用。
+`generated` 使用 stage wire tag 7，输出 `generated.scoop`：按实际生成顺序汇总本 Cone 的 generator 方法体原文，每段之前以行注释注明其逻辑源码路径。该文件是供阅读的方法体片段集合，不添加或重建声明签名，不作为普通源码再次发现，也不写入 `.slib`。没有生成方法时仍输出空文件，以表示本次观察已完成。单独补充该观察只执行到当前 Cone 的 HIR 检查完成，不准备后续跨 Cone 输出、MIR、LIR 或机器产物。生成／检查失败沿现有诊断携带片段原文，不发布成功观察或缓存不完整的导出。`scoopc build` 支持相同的 `--emit` 取值；给出 `--dump-dir dir` 时直接写入 `dir/`，省略时沿用 stdout 输出。`--dump-dir` 必须与 `--emit` 一起使用。直接调用 `scoopc` 时，帮助文本、阶段输出和诊断的写入失败均以非零状态退出。标准错误仍可写时，输出 I/O 错误使用 E2204 报告系统原因。
 
 `optimizations` 在 MIR 优化完成后产生 `optimizations.json`；`all` 按 AST、generated、HIR、MIR、optimizations、LIR、symbols 顺序输出。既有 stage wire tag 1／2／3／4 保持，优化观察使用 tag 5，wire tag 不决定流水线顺序。该 JSON 是本机观察输出，schema 为 1，不写入 `.slib`、语言身份、ABI、Code 指纹或优化输入。不开启时不收集逐项决策；开启与关闭必须得到相同的 MIR、机器代码与程序行为。仅请求该观察时沿既有 observation-only 路径停在 MIR，不生成 LIR 或机器产物；命中观察缓存直接复制已有文件。文档模式只允许 AST／generated／HIR。
 

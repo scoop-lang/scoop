@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -17,7 +18,7 @@ pub(super) struct CheckArgs {
     generators: Vec<std::ffi::OsString>,
 }
 
-pub(super) fn run(args: CheckArgs) -> ExitCode {
+pub(super) fn run(args: CheckArgs, stderr: &mut impl Write) -> io::Result<ExitCode> {
     let request = scoopc::normalize_direct_check_request(
         args.input,
         args.direct_slibs,
@@ -32,25 +33,25 @@ pub(super) fn run(args: CheckArgs) -> ExitCode {
     let request = match request {
         Ok(request) => request,
         Err(error) => {
-            eprintln!("error[{}]: {error}", error.code());
-            super::print_notes(&error.notes());
-            return ExitCode::FAILURE;
+            writeln!(stderr, "error[{}]: {error}", error.code())?;
+            super::print_notes(stderr, &error.notes(), 1)?;
+            return Ok(ExitCode::FAILURE);
         }
     };
     match request.compile(false) {
         Ok(result) => {
             if !result.warnings().is_empty() {
-                eprintln!("{}", result.warnings().render_human());
+                writeln!(stderr, "{}", result.warnings().render_human())?;
             }
-            ExitCode::SUCCESS
+            Ok(ExitCode::SUCCESS)
         }
         Err(error) => {
             if let Some(warnings) = error.warnings().filter(|warnings| !warnings.is_empty()) {
-                eprintln!("{}", warnings.render_human());
+                writeln!(stderr, "{}", warnings.render_human())?;
             }
-            eprintln!("error[{}]: {error}", error.code());
-            super::print_notes(&error.notes());
-            ExitCode::FAILURE
+            writeln!(stderr, "error[{}]: {error}", error.code())?;
+            super::print_notes(stderr, &error.notes(), 1)?;
+            Ok(ExitCode::FAILURE)
         }
     }
 }

@@ -20,7 +20,8 @@ pub(crate) fn run(version: u32, jobs: std::num::NonZeroUsize) -> ExitCode {
         Ok(ChildProtocolExit::Success) => ExitCode::SUCCESS,
         Ok(ChildProtocolExit::CompilerFailure) => ExitCode::from(CHILD_COMPILER_FAILURE_EXIT),
         Err(error) => {
-            eprintln!(
+            let _ = writeln!(
+                io::stderr(),
                 "error[{}]: scoopc child transport failed: {error}",
                 error.code()
             );
