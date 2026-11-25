@@ -3973,7 +3973,7 @@ assertFailsWith 同步调用 block 一次，捕获 Throwable 后按普通 `is E`
 
 测试库在 `scoop.test` package 声明四个公开、不可重复的普通注解。`Test` 的 Target 为 Class 与 Function，`BeforeTest`、`AfterTest`、`Ignore` 的 Target 为 Function。`BeforeTest` 和 `AfterTest` 无参数，`Ignore` 有一个必需的 `val reason: String` 参数。参数求值、Target、重复应用与 import 沿用 9.4。编译器按 `scoop:scoop.test:0.1.0` 中这些真实声明的 typed annotation identity 识别测试语义，alias 与 re-export 保留作用，同名用户注解不因此变成测试标记。
 
-当前 `Test` 无参数。设计签名为 `public annotation class Test(val useProcess: Boolean = false)`（待实现）。用例方法或其直接容器上的 `useProcess` 为 true 时，该方法的整个生命周期在一个新进程中执行。容器上的设置逐用例生效，两个方法分别得到两个进程。`@Test` 和 `@Test(useProcess = false)` 等价。
+`Test` 的声明为 `public annotation class Test(val useProcess: Boolean = false)`。用例方法或其直接容器上的 `useProcess` 为 true 时，该方法的整个生命周期在一个新进程中执行。容器上的设置逐用例生效，两个方法分别得到两个进程。`@Test` 和 `@Test(useProcess = false)` 等价。
 
 四种标记的应用只允许出现在 12.2.4 的测试源码集合，普通生产源码上的应用是编译错误。声明这些 annotation class 的测试库源码仍属于普通生产输入。标记只产生编译期语义，不物化为运行期注解对象。
 
@@ -3993,7 +3993,7 @@ Test 用例、BeforeTest 和 AfterTest 必须是该容器直接声明、具有�
 
 每个选中用例串行完成实例初始化、可选 BeforeTest、测试正文与可选 AfterTest，再开始下一个用例。初始化包括默认实参、字段初始化、构造和 init；成功取得实例后，后续三个阶段使用同一实例。初始化抛出 Throwable 时跳过其余阶段；BeforeTest 抛出时跳过正文但仍执行 AfterTest；正文抛出时仍执行 AfterTest。AfterTest 至多执行一次；若已有失败，清理失败单独保留，不覆盖原失败。忽略或未选中用例不进入这一流程。
 
-按 16.3 的独立进程设计，生成的测试入口对选中的隔离用例启动同一个可执行文件，等待其退出并取得结构化结果与标准流。子进程中断归于该用例，父进程可继续执行本轮其余用例。直接运行测试程序同样执行注解指定的隔离。整 Cone 配置、捕获与退出状态的合并见[条件依赖与测试进程设计](../conditional-dependencies-and-test-processes/DESIGN.md#测试进程)。
+按 16.3，生成的测试入口对选中的隔离用例启动同一个可执行文件，等待其退出并取得结构化结果与标准流。子进程中断归于该用例，父进程可继续执行本轮其余用例。直接运行测试程序同样执行注解指定的隔离。整 Cone 配置、捕获与退出状态的合并见[条件依赖与测试进程设计](../conditional-dependencies-and-test-processes/DESIGN.md#测试进程)。
 
 `scoop.test.execution` 提供入口适配使用的普通库接口，不增加编译器 intrinsic、反射或 fixture 工厂：
 
@@ -4012,14 +4012,18 @@ public fun isTestSelected(arguments: Array<String>, caseIndex: String,
     ignored: Boolean, caseName: String = ""): Boolean
 public fun runReportedTestCase(caseIndex: String, location: SourceLocation,
     initialize: () -> TestActions): TestResult
+public fun runSelectedTestCase(arguments: Array<String>, caseIndex: String,
+    caseName: String, useProcess: Boolean, location: SourceLocation,
+    initialize: () -> TestActions): Boolean
 public fun completeTestRun(): Unit
+public fun finishTestRun(arguments: Array<String>, status: Int): Int
 ```
 
 调用适配在 initialize 回调实际执行时调用已解析的构造器，再将捕获该实例不可变引用的正文和可选 hooks 组成 TestActions 返回；不预建实例，也不捕获可变局部变量。TestAction 保存已解析方法的 typed 动作与声明位置。runTestCase 的 location 对应实例初始化位置；它和 TestAction 的默认位置供普通源码调用使用，合成适配显式传递对应的源码位置。runTestCase 同步调用初始化回调与后续动作，捕获普通 Throwable 并返回 Passed 或 Failed。Failed 的第一项保存首次失败，第二项仅保存该失败之后的 AfterTest 失败；只有清理失败时，第一项的阶段为 AfterTest，第二项为 None。
 
 TestFailure 保留捕获后的 managed Throwable，遵守 16.2 与运行时规范 5.3～5.4 的异常引用规则。cause 为 AssertionFailure 时 location 使用断言自己的位置，否则使用当前动作的位置；原始异常数据不渲染、不丢弃。finally、Context 与 GC 沿普通调用和异常规则执行。panic、abort、native crash 和进程退出不在此捕获范围内，进程结果由测试命令另行报告。
 
-合成入口通过 runReportedTestCase 包围上述执行：先记录开始，再调用 runTestCase，在完整生命周期结束后记录单调耗时、结果及首次／清理失败；全部选中用例结束后调用 completeTestRun。没有父命令设置的结果通道时，这两个适配不捕获输出或渲染结果，直接运行仍保持普通 stdout/stderr。事件 I/O、计时和串行 stdio 重定向由 scoop.test 自身的普通 native 源码提供，不增加公共 runtime ABI。Windows 使用所选 CRT 的 descriptor 复制／恢复、宽字符结果目录和二进制输出文件，并以 QueryPerformanceCounter 计时；Unicode 结果路径和标准流字节遵守相同测试报告合同。诊断保留断言 kind/message、expected/actual 的可用／渲染失败状态和 cause；普通 Exception 使用 message，其他 Throwable 可通过 ToString 提供说明，说明转换抛出时保留固定的渲染失败说明，不覆盖原测试失败。
+合成入口调用 runSelectedTestCase。普通用例经 runReportedTestCase 执行，先记录开始，再调用 runTestCase，在完整生命周期结束后记录单调耗时、结果及首次／清理失败；父入口在 finishTestRun 中写一次完成记录，子进程交付单用例结果后退出。独立运行或开启 --nocapture 时，子进程继承 stdout/stderr。事件 I/O、计时和串行 stdio 重定向由 scoop.test 自身的普通 native 源码提供，不增加公共 runtime ABI。Windows 使用所选 CRT 的 descriptor 复制／恢复、宽字符结果目录和二进制输出文件，并以 QueryPerformanceCounter 计时；Unicode 结果路径和标准流字节遵守相同测试报告合同。诊断保留断言 kind/message、expected/actual 的可用／渲染失败状态和 cause；普通 Exception 使用 message，其他 Throwable 可通过 ToString 提供说明，说明转换抛出时保留固定的渲染失败说明，不覆盖原测试失败。
 
 测试入口接受普通 `Array<String>` 参数并返回 Int，数组按 12.4.4 包含 `argv[0]` 的启动路径。`scoop` 按已编译目录的顺序选择用例，以 `--scoop-test-cases` 后跟扁平目录下零基序号的十进制字符串传给入口；该序号仅在当前测试程序内定位目录项，不代替 callable 的实体身份。`isTestSelected` 在没有用户参数时选择未忽略用例，在上述显式清单中跳过启动路径与标记，再按 caseIndex 是否出现选择；只有选中后才进入完整生命周期。过滤与忽略选择由 `scoop` 使用目录中的完整显示名及 Ignore 信息完成，列表复用同一选择结果。
 

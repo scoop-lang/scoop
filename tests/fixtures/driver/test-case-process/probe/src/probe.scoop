@@ -1,0 +1,9 @@
+package dev.process.probe
+
+@Extern(name = "process_fixture_trace", abi = "c")
+private fun traceNative(event: Int)
+@Extern(name = "process_fixture_body", abi = "c")
+private fun bodyNative(): Int
+
+public fun trace(event: Int) { @Unsafe { traceNative(event) } }
+public fun exercise(): Int { @Unsafe { return bodyNative() } }

@@ -1,0 +1,66 @@
+package scoop.test.execution
+
+@Extern(name = "scoop_test_isolated", abi = "c")
+private fun isolated(index: Ptr<Int8>, name: Ptr<UInt8>, length: Long): Int
+@Extern(name = "scoop_test_child_start", abi = "c")
+private fun childStart(): Long
+@Extern(name = "scoop_test_monotonic_ns", abi = "c")
+private fun now(): Long
+@Extern(name = "scoop_test_child_publish", abi = "c")
+private fun publish(bytes: Ptr<UInt8>, length: Long): Int
+@Extern(name = "scoop_test_child_published", abi = "c")
+private fun published(): Int
+
+private fun passed(result: TestResult): Boolean = when (result) {
+    case TestResult.Passed -> true
+    case TestResult.Failed(_, _) -> false
+}
+
+private fun runChild(caseIndex: String, location: SourceLocation, initialize: () -> TestActions): Boolean {
+    @Unsafe {
+        val start = childStart()
+        if (start < 0L) return false
+        val result = runTestCase(location, initialize)
+        val end = now()
+        if (end < start) return false
+        val state = if (passed(result)) "passed" else "failed"
+        val record = caseIndex + " " + state + " " + (end - start).toString() + "\n" +
+            testFailuresJson(result) + "\n"
+        return record.withUtf8Bytes<Boolean>(fun(bytes: Ptr<UInt8>, length: Long): Boolean {
+            @Unsafe { return publish(bytes, length) == 0 }
+        })
+    }
+}
+
+/** Runs the selected case in its designated process and reports whether it completed successfully. */
+public fun runSelectedTestCase(
+    arguments: Array<String>, caseIndex: String, caseName: String, useProcess: Boolean,
+    location: SourceLocation, initialize: () -> TestActions
+): Boolean {
+    if (arguments.size > 1L && arguments[1L] == "--scoop-test-child") {
+        return runChild(caseIndex, location, initialize)
+    }
+    if (useProcess || (arguments.size > 1L && arguments[1L] == "--scoop-test-isolate-all")) {
+        @Unsafe {
+            val status = caseIndex.withCString<Int>(fun(index: Ptr<Int8>): Int {
+                @Unsafe {
+                    return caseName.withUtf8Bytes<Int>(fun(name: Ptr<UInt8>, length: Long): Int {
+                        @Unsafe { return isolated(index, name, length) }
+                    })
+                }
+            })
+            if (status < 0) { throw IllegalStateException(Some("cannot finish isolated test run")) }
+            return status == 0
+        }
+    }
+    return passed(runReportedTestCase(caseIndex, location, initialize))
+}
+
+/** Completes suite reporting, or checks that a private single-case dispatch published its result. */
+public fun finishTestRun(arguments: Array<String>, status: Int): Int {
+    if (arguments.size > 1L && arguments[1L] == "--scoop-test-child") {
+        @Unsafe { return if (published() == 1) 0 else 1 }
+    }
+    completeTestRun()
+    return status
+}

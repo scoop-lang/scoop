@@ -1,0 +1,14 @@
+schema = 1
+[cone]
+group = "dev.process"
+name = "suite"
+version = "0.1.0"
+kind = "library"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+"dev.process:probe" = { path = "../probe", when = { os = ["darwin", "linux", "windows"] } }
+
+[[test.sources]]
+path = "desktop"
+when = { os = ["darwin", "linux", "windows"] }

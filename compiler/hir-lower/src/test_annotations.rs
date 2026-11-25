@@ -35,20 +35,46 @@ impl Lowerer {
             .targets
             .iter()
             .filter_map(|target| {
+                let mut use_process = false;
+                let mut ignore_reason = None;
                 let markers = target
                     .annotations
                     .iter()
                     .filter_map(|application| {
-                        TestMarker::from_identity(application.annotation)
-                            .map(|marker| (marker, application.definition_origin))
+                        let marker = TestMarker::from_identity(application.annotation)?;
+                        match (marker, application.arguments.as_slice()) {
+                            (
+                                TestMarker::Test,
+                                [
+                                    hir::CanonicalAnnotationValueV1::Scalar(
+                                        hir::CanonicalConstValueV1::Boolean(value),
+                                    ),
+                                ],
+                            ) => use_process = (*value).into(),
+                            (
+                                TestMarker::Ignore,
+                                [
+                                    hir::CanonicalAnnotationValueV1::Scalar(
+                                        hir::CanonicalConstValueV1::String(reason),
+                                    ),
+                                ],
+                            ) => ignore_reason = Some(reason.clone()),
+                            _ => {}
+                        }
+                        Some((marker, application.definition_origin))
                     })
                     .collect::<Vec<_>>();
-                (!markers.is_empty()).then_some((target.target, markers))
+                (!markers.is_empty()).then_some((
+                    target.target,
+                    markers,
+                    use_process,
+                    ignore_reason,
+                ))
             })
             .collect::<Vec<_>>();
-        targets.sort_by_key(|(_, markers)| (markers[0].1.file, markers[0].1.span.start));
+        targets.sort_by_key(|(_, markers, _, _)| (markers[0].1.file, markers[0].1.span.start));
         let mut containers = HashMap::new();
-        for (target, markers) in &targets {
+        for (target, markers, use_process, _) in &targets {
             let hir::SourceAnnotationTarget::Nominal(owner) = *target else {
                 continue;
             };
@@ -60,7 +86,7 @@ impl Lowerer {
             };
             match owner {
                 hir::NominalOwner::Class(class) if self.valid_test_container(class) => {
-                    containers.insert(class, PendingContainer::new(class, *origin));
+                    containers.insert(class, PendingContainer::new(class, *origin, *use_process));
                 }
                 _ => self.test_annotation_error(scoop_source::DiagnosticCode::E1704, *origin,
                     "a test container must be a top-level non-generic concrete class; abstract, sealed, local and nested declarations are not allowed".into()),
@@ -77,7 +103,7 @@ impl Lowerer {
             })
             .collect::<HashMap<_, _>>();
         let mut hooks = HashMap::new();
-        for (target, markers) in targets {
+        for (target, markers, use_process, ignore_reason) in targets {
             let hir::SourceAnnotationTarget::Callable(hir::SourceAnnotationCallable::Function(
                 function,
             )) = target
@@ -137,12 +163,11 @@ impl Lowerer {
                 };
                 match marker {
                     TestMarker::Test => {
-                        let reason = self.test_ignore_reason(target);
-                        containers
-                            .get_mut(&class)
-                            .unwrap()
-                            .cases
-                            .push((method, reason));
+                        containers.get_mut(&class).unwrap().cases.push((
+                            method,
+                            ignore_reason.clone(),
+                            use_process,
+                        ));
                     }
                     TestMarker::Before => containers.get_mut(&class).unwrap().before = Some(method),
                     TestMarker::After => containers.get_mut(&class).unwrap().after = Some(method),

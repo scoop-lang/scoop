@@ -1,7 +1,7 @@
 use std::process::ExitStatus;
 
 use super::*;
-use crate::cli::test_run::model::{Output, RunResult, Status};
+use crate::cli::test_run::model::{Output, ProcessStatus, RunResult, Status};
 use crate::cli::test_selection::SelectedTests;
 
 mod human;
@@ -45,6 +45,7 @@ fn json_report(
                 Outcome::Ignored(_) => record["status"] = json!("ignored"),
                 Outcome::Executed(result) => {
                     record["status"] = json!(result.status);
+                    record["process"] = json!(result.process);
                     record["duration_ns"] = json!(result.duration_ns);
                     record["failures"] = json!(result.failures);
                     record["interruption"] = json!(result.interruption);
@@ -65,12 +66,6 @@ fn json_report(
             "failed": counts.failed, "not_run": counts.not_run, "ignored": counts.ignored},
         "target_failure": result.target_failure, "output": output(result.output.as_ref()), "process": process,
     })
-}
-
-#[derive(serde::Serialize)]
-struct ProcessStatus {
-    code: Option<i32>,
-    signal: Option<i32>,
 }
 
 impl From<ExitStatus> for ProcessStatus {

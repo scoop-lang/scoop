@@ -10,3 +10,13 @@ kind = "library"
 path = "native/events.c"
 [[native.sources]]
 path = "native/capture.c"
+[[native.sources]]
+path = "native/process.c"
+[[native.sources]]
+path = "native/process_result.c"
+[[native.sources]]
+path = "native/process_posix.c"
+when = { os = ["darwin", "linux", "ios"] }
+[[native.sources]]
+path = "native/process_windows.c"
+when = { os = "windows" }

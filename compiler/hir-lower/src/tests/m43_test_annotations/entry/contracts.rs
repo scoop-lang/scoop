@@ -58,7 +58,7 @@ fn an_incompatible_execution_function_is_diagnosed_instead_of_skipping_the_case(
             ),
             (
                 "src/execution/run.scoop",
-                "package scoop.test.execution\npublic fun runReportedTestCase(): TestResult = TestResult.Passed",
+                "package scoop.test.execution\npublic fun runSelectedTestCase(): TestResult = TestResult.Passed",
                 SourceRole::Production,
             ),
             (
@@ -82,7 +82,7 @@ fn an_incompatible_execution_function_is_diagnosed_instead_of_skipping_the_case(
     assert_eq!(errors.len(), 1, "{errors:#?}");
     assert_eq!(
         crate::tests::diagnostic_text(&errors[0]),
-        "no applicable candidate for `runReportedTestCase` in implicit-import candidate layer; fun runReportedTestCase(): TestResult; expects 0 argument(s), but 3 were supplied"
+        "no applicable candidate for `runSelectedTestCase` in implicit-import candidate layer; fun runSelectedTestCase(): TestResult; expects 0 argument(s), but 6 were supplied"
     );
     assert_eq!(
         errors[0].source().as_ref().unwrap().logical_path().as_str(),

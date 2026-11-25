@@ -14,6 +14,7 @@ pub struct TestMethod {
 pub struct TestCase {
     pub method: TestMethod,
     pub display_name: String,
+    pub use_process: bool,
     pub ignore_reason: Option<String>,
 }
 

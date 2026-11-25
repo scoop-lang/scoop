@@ -2,7 +2,7 @@ use std::io::BufRead;
 
 use serde::Deserialize;
 
-use super::model::{Failure, RunResult, Status};
+use super::model::{Failure, ProcessStatus, RunResult, Status};
 
 #[derive(Deserialize)]
 #[serde(tag = "event", rename_all = "lowercase", deny_unknown_fields)]
@@ -14,6 +14,8 @@ enum Event {
         case: String,
         duration_ns: u64,
         failures: Vec<Failure>,
+        process: Option<ProcessStatus>,
+        interruption: Option<String>,
     },
     Complete,
 }
@@ -40,16 +42,19 @@ pub(super) fn read(input: impl BufRead, expected: &[&str]) -> RunResult {
                 case,
                 duration_ns,
                 failures,
+                process,
+                interruption,
             }) if active && expected.get(next) == Some(&case.as_str()) && failures.len() <= 2 => {
                 let record = &mut result.cases[next];
-                record.status = if failures.is_empty() {
+                record.status = if failures.is_empty() && interruption.is_none() {
                     Status::Passed
                 } else {
                     Status::Failed
                 };
                 record.duration_ns = Some(duration_ns);
                 record.failures = failures;
-                record.interruption = None;
+                record.interruption = interruption;
+                record.process = process;
                 next += 1;
                 active = false;
                 None

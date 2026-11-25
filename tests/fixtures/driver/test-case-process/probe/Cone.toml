@@ -1,0 +1,9 @@
+schema = 1
+[cone]
+group = "dev.process"
+name = "probe"
+version = "0.1.0"
+kind = "library"
+
+[[native.sources]]
+path = "native/probe.c"

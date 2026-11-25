@@ -1,6 +1,6 @@
 # Cone 条件依赖与逐用例测试进程
 
-条件依赖已实现，逐用例测试进程待实现。条件依赖解决平台后端只在部分目标上存在的问题。逐用例进程隔离让需要独占进程状态的测试获得一次全新的程序启动。例如 `scoop.window` 的原生测试需要各自创建 `Application`，同一 Cone 中的尺寸换算测试只需要普通实例。当前窗口库通过整个 Cone 的 `[test] isolate = true` 运行这两类测试。[窗口库清单](../../sysroot/src/scoop.window/Cone.toml) · [Application 测试](../../sysroot/src/scoop.window/tests/application.scoop) · [窗口值类型测试](../../sysroot/src/scoop.window/tests/values.scoop)
+条件依赖解决平台后端只在部分目标上存在的问题。逐用例进程隔离让需要独占进程状态的测试获得一次全新的程序启动。例如 `scoop.window` 的原生测试需要各自创建 `Application`，同一 Cone 中的尺寸换算测试只需要普通实例。当前窗口库通过整个 Cone 的 `[test] isolate = true` 运行这两类测试。[窗口库清单](../../sysroot/src/scoop.window/Cone.toml) · [Application 测试](../../sysroot/src/scoop.window/tests/application.scoop) · [窗口值类型测试](../../sysroot/src/scoop.window/tests/values.scoop)
 
 ## 条件依赖
 

@@ -878,7 +878,7 @@ M43 的 TestEntry generated key 使用 tag 17，HIR／MIR `identity-foundation` 
 
 Export HIR 的当前目标测试目录按语言规范 16.4 保留 typed class／constructor／function 引用、声明位置和忽略原因，不作为依赖的测试发现接口。构造重载选择与普通调用共享同一候选决议；默认实参的代码生成在入口合成的实际调用处完成，目录发现本身不创建可执行的初始化副作用。
 
-逐用例进程隔离的设计（待实现）在 HIR 用例上保存由容器和方法注解算出的 `use_process: bool`。TestEntry 合成直接消费该值，为同一用例适配生成父进程调度与子进程直接执行两个入口分支。后端按普通调用编译。命令行和编辑器只需原展示目录中的用例序号。[语言规范 16.3](SCOOP-SPEC.md#163-测试标记与声明)
+前端在 HIR 用例上保存由容器和方法注解算出的 `use_process: bool`。TestEntry 合成直接消费该值，为同一用例适配生成父进程调度与子进程直接执行两个入口分支。后端按普通调用编译。命令行和编辑器只需原展示目录中的用例序号。[语言规范 16.3](SCOOP-SPEC.md#163-测试标记与声明)
 
 测试用途产物在可选 manifest section `org.scoop-lang.manifest/test-directory/1` 中保存该目录的展示投影：容器限定名、用例方法名与完整显示名、各自的 Cone-relative 源码路径及一基行列、忽略原因。目录按前端顺序嵌套保存容器与用例，不通过解析显示名恢复关系；可执行调用仍使用 HIR 中的 typed 引用。该 section 不参与 Compile／Link 的语义要求，受普通 ArtifactFingerprint 覆盖；生产产物不写入，测试产物即使无容器也写入空目录。manifest summary 在读取边界解码并复用该投影，缓存命中不重新发现测试或加载完整 HIR。
 
@@ -1112,9 +1112,7 @@ Cone、package、类型、函数 overload 组与源码页在所属 catalog 内�
 
 `scoop test [root-input]` 使用同一构建图，只对 manifest 根 Cone 启用 Test 用途：发现根的生产与测试依赖，依赖节点仍按 Production 构建，不递归启用依赖自身的测试。根按 executable 产物规划和链接，保留源码 manifest 及 ConeIdentity。测试编译键包含用途、每个源码的角色、测试源码选择与测试依赖语义；本机源码实际路径、修改时间和大小参与更新判定，诊断显示 locator 与 span 不进入键；生产键不包含这些测试配置。测试源码或配置改变不使未改变的生产依赖缓存失效。
 
-现行实现由驱动处理 Cone.toml 的 `[test] isolate = true`，按目录顺序为每个选中的用例单独启动同一测试程序，缺省让选中的用例共享进程。
-
-按语言规范 16.3～16.5 的待实现设计，驱动为非空选择启动一次测试程序，将该清单开关作为本次运行参数传给生成的 TestEntry。入口自行调度注解要求隔离的用例，开关为 true 时对所有选中用例应用同一机制。每个子进程只执行一个目录序号。父入口等待实际退出，将子进程的结果、退出状态与两路输出归到该用例，随后调度下一例。子进程中断算该用例失败，整轮中断仍按已有规则记录未运行用例。运行参数只影响调度，过滤、列举和 `--no-run` 继续使用现有目录。[测试进程与报告设计](../conditional-dependencies-and-test-processes/DESIGN.md#测试进程)
+按语言规范 16.3～16.5，驱动为非空选择启动一次测试程序，将 Cone.toml 的 `[test] isolate` 开关作为本次运行参数传给生成的 TestEntry。入口自行调度注解要求隔离的用例，开关为 true 时对所有选中用例应用同一机制。每个子进程只执行一个目录序号。父入口等待实际退出，将子进程的结果、退出状态与两路输出归到该用例，随后调度下一例。子进程中断算该用例失败，整轮中断仍按已有规则记录未运行用例。运行参数只影响调度，过滤、列举和 `--no-run` 继续使用现有目录。[测试进程与报告设计](../conditional-dependencies-and-test-processes/DESIGN.md#测试进程)
 
 测试程序发布到 `target/<canonical-target-triple>/<profile>/<group>/<cone-name>/tests/<cone-name>`，`--target-dir` 替换 target 根目录，`--no-run` 完成构建和链接后返回。运行直接使用本次成功构建确定的已有或新生成 executable，不制作 execution copy；失败构建不得运行旧文件。过滤和忽略选择不改变测试编译产物；最终报告需要独立的用例结果通道，不能仅凭进程退出码判定整轮执行完成。
 

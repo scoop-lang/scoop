@@ -26,43 +26,15 @@ pub(super) fn program(
     reporter: &Reporter,
     target: &str,
 ) -> BuildResult<Option<ExitStatus>> {
-    let group_size = if options.isolate {
-        1
-    } else {
-        selected.case_indices.len().max(1)
-    };
-    let mut groups = selected.case_indices.chunks(group_size);
-    let Some(first) = groups.next() else {
+    if selected.case_indices.is_empty() {
         let mut result = RunResult::empty(0);
         result.complete = true;
         reporter
             .test_report(target, selected, &result, None)
             .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
         return Ok(None);
-    };
-    let (mut result, mut status) = run_cases(executable, output, first, options.nocapture, cwd)?;
-    for keys in groups {
-        // An assertion failure is a complete run. A broken report or interrupted
-        // process stops execution and leaves the remaining cases marked not run.
-        if result.target_failure.is_some() {
-            break;
-        }
-        let (mut group, exit) = run_cases(executable, output, keys, options.nocapture, cwd)?;
-        if !exit.success() || group.target_failure.is_some() {
-            status = exit;
-        }
-        result.cases.append(&mut group.cases);
-        result.complete &= group.complete;
-        result.target_failure = group.target_failure;
-        if let (Some(combined), Some(output)) = (&mut result.output, group.output) {
-            combined.stdout.extend(output.stdout);
-            combined.stderr.extend(output.stderr);
-        }
     }
-    result.complete &= result.cases.len() == selected.case_indices.len();
-    result
-        .cases
-        .resize_with(selected.case_indices.len(), Default::default);
+    let (result, status) = run_cases(executable, output, &selected.case_indices, &options, cwd)?;
     reporter
         .test_report(target, selected, &result, Some(status))
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
@@ -79,7 +51,7 @@ fn run_cases(
     executable: &Path,
     output: &Path,
     keys: &[usize],
-    nocapture: bool,
+    options: &Options,
     cwd: &Path,
 ) -> BuildResult<(RunResult, ExitStatus)> {
     let parent = output.parent().ok_or_else(|| {
@@ -97,14 +69,18 @@ fn run_cases(
         .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?;
     let keys: Vec<_> = keys.iter().map(usize::to_string).collect();
     let mut command = Command::new(executable);
+    if options.isolate {
+        command.arg("--scoop-test-isolate-all");
+    }
     command
         .arg("--scoop-test-cases")
         .args(&keys)
         .current_dir(cwd)
         .stdin(Stdio::inherit())
         .env("SCOOP_TEST_RUN_DIR", run.path())
-        .env_remove("SCOOP_TEST_NOCAPTURE");
-    if nocapture {
+        .env_remove("SCOOP_TEST_NOCAPTURE")
+        .env_remove("SCOOP_TEST_CASE_RESULT");
+    if options.nocapture {
         command
             .env("SCOOP_TEST_NOCAPTURE", "1")
             .stdout(Stdio::inherit())
@@ -152,7 +128,7 @@ fn run_cases(
     if !status.success() && !ordinary_failure && result.target_failure.is_none() {
         result.target_failure = Some(format!("test process failed: {status}"));
     }
-    if !nocapture {
+    if !options.nocapture {
         result.output = Some(
             read_output(run.path(), "target")
                 .map_err(|error| failure(scoop_source::DiagnosticCode::E2201, error))?,

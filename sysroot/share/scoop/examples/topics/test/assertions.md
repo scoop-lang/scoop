@@ -14,7 +14,7 @@ scoop test --release --filter "zero count" .
 
 ## 关键说明
 
-生产库是普通 library Cone，scoop.test 仅放在 test-dependencies 中。测试源码位于 tests/，package 与所属 Cone group 对齐；@Test 标注容器和用例。
+生产库是普通 library Cone，scoop.test 仅放在 test-dependencies 中。测试源码位于 tests/，package 与所属 Cone group 对齐；`@Test` 标注容器和用例。需要创建进程唯一的 `Application` 时，在该方法上写 `@Test(useProcess = true)`。它的构造、setup、正文和 cleanup 都在新进程中执行，父入口取得结果后再运行下一例。容器标记会给每个方法各起一个进程。
 
 第一个用例断言返回值与布尔条件，第二个用 assertFailsWith 捕获预期的 IllegalArgumentException，再用 assertEquals 检查 Option<String> 形式的 message。assertEquals 同时提供名义 Equals<T> 和公开 equals(T): Boolean 成员要求的重载，具有派生相等能力的 Option、struct、enum 和 tuple 可以直接比较；这不会让它们自动获得 Equals<T> conformance。
 

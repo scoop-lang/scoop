@@ -30,6 +30,13 @@ private fun endCapture(): Long {
     @Unsafe { return nativeEnd() }
 }
 
+internal fun testFailuresJson(result: TestResult): String = when (result) {
+    case TestResult.Passed -> "[]"
+    case TestResult.Failed(val first, None) -> "[" + testFailureJson(first) + "]"
+    case TestResult.Failed(val first, Some(val last)) ->
+        "[" + testFailureJson(first) + "," + testFailureJson(last) + "]"
+}
+
 /**
  * Executes one selected test case and emits its structured start and result events for the
  * command-line test runner.
@@ -43,12 +50,7 @@ public fun runReportedTestCase(
     if (recording > 0) {
         val elapsed = endCapture()
         if (elapsed < 0L) { throw IllegalStateException(Some("cannot finish test capture")) }
-        val failures: String = when (result) {
-            case TestResult.Passed -> "[]"
-            case TestResult.Failed(val first, None) -> "[" + testFailureJson(first) + "]"
-            case TestResult.Failed(val first, Some(val last)) ->
-                "[" + testFailureJson(first) + "," + testFailureJson(last) + "]"
-        }
+        val failures = testFailuresJson(result)
         event("{\"event\":\"end\",\"case\":" + testJsonString(caseIndex) +
             ",\"duration_ns\":" + elapsed.toString() + ",\"failures\":" + failures + "}")
     }
