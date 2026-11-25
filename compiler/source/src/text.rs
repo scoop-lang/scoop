@@ -26,6 +26,14 @@ impl SourceText {
         &self.0.text
     }
 
+    /// Recover the text buffer for editing. Shared analysis snapshots keep their own text.
+    pub fn into_string(self) -> String {
+        match Arc::try_unwrap(self.0) {
+            Ok(owned) => owned.text,
+            Err(shared) => shared.text.clone(),
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.0.text.len()
     }
