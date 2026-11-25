@@ -216,7 +216,7 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
   window->increment_width = window->increment_height = 1;
   window->scale = GetDpiForSystem() / 96.0;
   WCHAR *text = sw_wide(title, length);
-  DWORD error = 0;
+  int64_t error = 0;
   if (!text)
     error = GetLastError();
   else {
@@ -230,13 +230,9 @@ SWResult scoop_window_create(SWApplication *app, int64_t identity,
     else {
       window->scale = GetDpiForWindow(window->hwnd) / 96.0;
       ImmAssociateContext(window->hwnd, NULL);
-      error = (DWORD)sw_size(window, width, height);
-      if (!error && window->transparent) {
-        MARGINS margins = {-1, -1, -1, -1};
-        HRESULT hr = DwmExtendFrameIntoClientArea(window->hwnd, &margins);
-        if (FAILED(hr))
-          error = (DWORD)hr;
-      }
+      error = sw_size(window, width, height);
+      if (!error && window->transparent)
+        error = sw_frame_margins(window);
     }
   }
   if (!error)
