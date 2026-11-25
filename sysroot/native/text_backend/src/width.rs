@@ -1,3 +1,4 @@
+use icu_properties::{CodePointMapData, props::EastAsianWidth};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::bytes;
@@ -10,7 +11,7 @@ extern "C" fn scoop_charset_scalar_width(scalar: u32, ambiguous_as_wide: bool) -
     char::from_u32(scalar)
         .and_then(|character| {
             if ambiguous_as_wide {
-                character.width_cjk()
+                Some(character.width_cjk()? + ambiguous_extra(character))
             } else {
                 character.width()
             }
@@ -32,7 +33,7 @@ unsafe extern "C" fn scoop_charset_text_width(
         return -1;
     }
     let width = if ambiguous_as_wide {
-        text.width_cjk()
+        text.width_cjk() + text.chars().map(ambiguous_extra).sum::<usize>()
     } else {
         text.width()
     };
@@ -44,4 +45,14 @@ extern "C" fn scoop_charset_terminal_unicode_version() -> u32 {
     // The locked ICU4X segmenter data also uses Unicode 17.0.0.
     let (major, minor, patch) = unicode_width::UNICODE_VERSION;
     (u32::from(major) << 16) | (u32::from(minor) << 8) | u32::from(patch)
+}
+
+// unicode-width leaves ambiguous letters and modifier symbols narrow even in
+// CJK mode. A terminal's explicit wide-ambiguous policy includes these bases.
+fn ambiguous_extra(character: char) -> usize {
+    usize::from(
+        character.width_cjk() == Some(1)
+            && CodePointMapData::<EastAsianWidth>::new().get(character)
+                == EastAsianWidth::Ambiguous,
+    )
 }
