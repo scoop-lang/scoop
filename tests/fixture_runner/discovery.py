@@ -20,20 +20,39 @@ def input_files(base, names):
     return frozenset(result)
 
 
+def read_criteria(locator):
+    try:
+        if locator.suffix == ".scoop":
+            return inline(locator)
+        with locator.open("rb") as stream:
+            return tomllib.load(stream)
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        raise ConfigurationError(f"{locator}: invalid fixture criteria: {error}") from error
+
+
 def inline(source):
-    lines = source.read_bytes().splitlines()
-    if not lines or lines[0] != b"// fixture:begin":
-        return None
-    result = []
-    for line in lines[1:]:
-        if line == b"// fixture:end":
-            return tomllib.loads("\n".join(result))
-        if not line.startswith(b"//"):
-            raise ConfigurationError(f"{source}: malformed inline fixture")
-        try:
-            result.append(line[2:].removeprefix(b" ").decode("utf-8"))
-        except UnicodeDecodeError as error:
-            raise ConfigurationError(f"{source}: inline criteria must be UTF-8") from error
+    marker = b"// fixture:begin"
+    with source.open("rb") as stream:
+        # Most sources use a sidecar. A fixed prefix check also handles very
+        # long first lines without reading the program into memory.
+        if stream.read(len(marker)) != marker:
+            return None
+        stream.seek(0)
+        # splitlines also accepts CR-only headers. Decode only criteria so
+        # invalid bytes in the program remain available to the compiler.
+        lines = (line for raw in stream for line in raw.splitlines())
+        if next(lines, None) != marker:
+            return None
+        result = []
+        for line in lines:
+            if line == b"// fixture:end":
+                return tomllib.loads("\n".join(result))
+            if not line.startswith(b"//"):
+                raise ConfigurationError(f"{source}: malformed inline fixture")
+            try:
+                result.append(line[2:].removeprefix(b" ").decode("utf-8"))
+            except UnicodeDecodeError as error:
+                raise ConfigurationError(f"{source}: inline criteria must be UTF-8") from error
     raise ConfigurationError(f"{source}: unterminated inline fixture")
 
 
@@ -53,9 +72,9 @@ def expectation_files(value, base, update):
 def discover(suite: Path, update=False, target=None):
     sources = set(suite.rglob("*.scoop"))
     carriers = sorted(set(suite.rglob("*.fixture.toml")) | set(suite.rglob("fixture.toml")))
-    raw = [(carrier, tomllib.loads(carrier.read_text(encoding="utf-8"))) for carrier in carriers]
+    raw = [(carrier, read_criteria(carrier)) for carrier in carriers]
     for source in sorted(sources):
-        data = inline(source)
+        data = read_criteria(source)
         if data is not None:
             if source.with_suffix(".fixture.toml").exists():
                 raise ConfigurationError(f"{source}: duplicate inline and sidecar criteria")

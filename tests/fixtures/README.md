@@ -2,14 +2,17 @@
 
 用例按职责和功能组织，不按实现里程碑排列。普通 API 和 consumer 使用 Cone 测试；fixture 只覆盖 scoop.test 无法完成的编译器、命令行或外部进程边界；具体执行条件遵守 [fixture schema 1](../fixture_runner/README.md)。
 
-| 目录 | 当前用例数 | 职责 |
-| --- | ---: | --- |
-| `language/` | 3,415 | 语言规则、诊断、求值和跨 Cone 语义 |
-| `libraries/` | 71 | 测试命令入口、独立外部协议、native 和进程边界 |
-| `driver/` | 297 | CLI、输入、缓存、模板、脚本、测试命令和文档 |
-| `compiler-correctness/` | 345 | IR、优化、产物、ODR、ABI 及默认 profile 合同 |
-| `gc-correctness/` | 59 | 根、屏障、搬迁、回收、safepoint 和 stress 构建开关 |
-| `regressions/` | 13 | 按具体故障形态保留的回归 |
+| 目录 | 职责 |
+| --- | --- |
+| `language/` | 语言规则、诊断、求值和跨 Cone 语义 |
+| `libraries/` | 测试命令入口、外部协议、native 和进程边界 |
+| `driver/` | CLI、输入、缓存、模板、脚本和文档 |
+| `lsp/` | 编辑器客户端与语言服务之间的请求、响应和通知 |
+| `compiler-correctness/` | IR、优化、产物、ODR、ABI 及默认 profile 合同 |
+| `gc-correctness/` | 根、屏障、搬迁、回收、safepoint 和 stress 构建开关 |
+| `regressions/` | 按具体故障保留的回归 |
+
+运行 `python3 tests/run_fixtures.py --list` 可查看当前用例清单和数量。
 
 普通 fixture 与内置 Cone 测试只运行 release；编译器和 GC 专测保留实际需要的模式组合。GC 专测先显式编入 `--enable-gc-stress`，再由环境变量选择运行行为；普通测试不继承调用者的 stress 环境。`scoop doc` 没有 profile 参数，按原文档/HIR 合同覆盖。详见 [测试模式](../../docs/minor-fixes/TEST-MODES.md)。
 
