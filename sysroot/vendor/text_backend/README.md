@@ -7,6 +7,7 @@
 - 在 macOS 上，NFC、大小写和分类采用 Core Foundation 或系统 ICU。其余目标使用 icu_normalizer 2.3.0，与 idna_adapter 1.2.2／icu_properties 2.3.0 共用 Unicode 17.0.0 数据。
 - 所有目标的扩展字素由 icu_segmenter 2.3.0 提供，宽度由开启 cjk 的 unicode-width 0.2.2 提供；共用 Unicode 17.0.0 数据，显式宽模糊策略使用同版本 icu_properties 补齐上游 CJK 模式的字母／修饰符号例外。其余目标的完整大小写和 Alnum 由 icu_casemap／icu_properties 2.3.0 提供。
 - 完整 46 项依赖锁定于包装的 Cargo.lock，名称、版本、声明许可与 MSRV 列于 `packages.json`。
+- 同一 icu_segmenter 的 dictionary word segmenter 提供无排版的词片段边界，使用已包含的 compiled_data；不增加依赖、动态字典下载或 locale 推断。
 - `crates.tar.gz` 是对该 lock 执行 `cargo vendor --locked --versioned-dirs` 的完整源码归档，包含 Cargo 的普通校验资料、原许可及通知；准备脚本解包后离线编译。没有 Scoop 特有的来源或产物证明。
 - `licenses/<name-version>/` 同时保存各包的许可与通知，供发行包直接展示。实际声明仅涉及 MIT、Apache-2.0、BSD-3-Clause、Unicode-3.0；这些通知不代替目标系统运行库的许可。
 - Rust 标准库不在 Cargo.lock 中；维护构建从实际 Rust 工具链保存其 `COPYRIGHT-library.html` 及 Apache-2.0／MIT 许可，发行时按目标收集到 `share/licenses`。

@@ -1,7 +1,12 @@
 package scoop.charset
 
 /** Returns extended-grapheme boundaries as scalar indices, using the fixed terminal Unicode data. */
-public fun graphemeBoundaries(text: String): Array<Long> {
+public fun graphemeBoundaries(text: String): Array<Long> = unicodeBoundaries(text, false)
+
+/** Returns locale-independent dictionary word boundaries as scalar indices, including whitespace and punctuation segments. */
+public fun wordBoundaries(text: String): Array<Long> = unicodeBoundaries(text, true)
+
+private fun unicodeBoundaries(text: String, words: Boolean): Array<Long> {
     val input = text.toByteArray()
     val breaks = MutableArray<Byte>(input.size) { 0.toByte() }
     @Unsafe {
@@ -12,8 +17,12 @@ public fun graphemeBoundaries(text: String): Array<Long> {
                         .withDataPointer { output, _ ->
                             @Unsafe {
                                 checkCharset(
-                                    nativeGraphemeBreaks(data, size, output), 0,
-                                    "segment graphemes", "UTF-8", "UTF-8"
+                                    if (words)
+                                        nativeWordBreaks(data, size, output)
+                                    else
+                                        nativeGraphemeBreaks(data, size, output), 0,
+                                    if (words) "segment words" else "segment graphemes", "UTF-8",
+                                    "UTF-8"
                                 )
                             }
                         }
@@ -59,7 +68,7 @@ public fun unicodeTextWidth(text: String, ambiguousAsWide: Boolean = false): Lon
     }
 }
 
-/** Unicode data version shared by grapheme segmentation and terminal widths, independent of the host OS. */
+/** Unicode data version shared by grapheme/word segmentation and terminal widths, independent of the host OS. */
 public fun unicodeTerminalDataVersion(): String {
     @Unsafe {
         val packed = nativeTerminalUnicodeVersion()
@@ -108,6 +117,9 @@ private fun convertCase(text: String, mode: Int): String {
 
 @Extern(name = "scoop_charset_grapheme_breaks")
 private fun nativeGraphemeBreaks(data: Ptr<Byte>, size: Long, breaks: Ptr<Byte>): Int
+
+@Extern(name = "scoop_charset_word_breaks")
+private fun nativeWordBreaks(data: Ptr<Byte>, size: Long, breaks: Ptr<Byte>): Int
 
 @Extern(name = "scoop_charset_scalar_width")
 private fun nativeScalarWidth(scalar: Int, ambiguousAsWide: Boolean): Int

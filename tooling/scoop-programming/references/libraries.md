@@ -79,6 +79,7 @@
 | HTTP 协议与异步传输适配 | `scoop.http`、`scoop.http.asyncio`；仅在需要协议层时使用 |
 | 命令行参数与测试 | `scoop.cli`、`scoop.test`；`cli/options`、`test/assertions` |
 | 正则、URL、IDNA、字符集与压缩 | `scoop.regex`、`scoop.url`、`scoop.idna`、`scoop.charset`、`scoop.compression` 的 README／示例 |
+| 无窗口 Unicode 文本处理 | `scoop.charset.wordBoundaries`／`graphemeBoundaries` 返回标量边界，前者包含空白与标点片段；`unicodeCasefold` 用于完整大小写折叠，`unicodeTextWidth` 测量终端列宽。分词无需创建 Paragraph 或 TextLayout，见 charset 的 README／Unicode 示例 |
 | 密码与 TLS | `scoop.crypto`、`scoop.tls`、`scoop.tls.asyncio` 的示例与 API 文档 |
 | 数学、大整数和十进制数 | `scoop.math` 的 README／示例 |
 | 日志与控制台 provider | `scoop.log`、`scoop.log.console` 的 README／示例 |
