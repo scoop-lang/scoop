@@ -24,7 +24,13 @@ uint32_t scoop_rt_string_character_at_byte_leaf(const ScoopString *value, int64_
     if (index < 0 || (uint64_t)index >= value->len) {
         scoop_shape_fatal("String byte cursor out of bounds");
     }
-    return decode_scalar((const unsigned char *)value->data + index);
+    const unsigned char *bytes = (const unsigned char *)value->data + index;
+    // Construction establishes valid UTF-8. A cursor must also start a scalar;
+    // interpreting a trailing continuation byte as a lead could overread data.
+    if ((bytes[0] & 0xc0) == 0x80) {
+        scoop_shape_fatal("String byte cursor is not at a character boundary");
+    }
+    return decode_scalar(bytes);
 }
 
 int8_t scoop_rt_string_byte_at_leaf(const ScoopString *value, int64_t index) {
