@@ -143,8 +143,10 @@ module.exports = {
     prec(
       PREC.POSTFIX,
       seq(
-        field("function", choice($._expression, prec.dynamic(-1, $.user_type))),
-        optional($.type_arguments),
+        // A qualified member call uses its final identifier as the function.
+        field("function", choice($._expression, prec.dynamic(-2, $.user_type))),
+        // A complete type argument list followed by a call wins over < and >.
+        optional(prec.dynamic(1, $.type_arguments)),
         choice(
           $.arguments,
           prec.dynamic(1, seq($.arguments, $.trailing_lambda)),
@@ -164,7 +166,7 @@ module.exports = {
     prec.left(
       PREC.POSTFIX,
       seq(
-        field("object", choice($._expression, $.user_type)),
+        field("object", choice($._expression, prec.dynamic(-1, $.user_type))),
         choice(".", "?."),
         field("member", $.identifier),
       ),
@@ -188,7 +190,12 @@ module.exports = {
     prec.left(
       PREC.POSTFIX,
       seq(
-        optional(field("receiver", choice($._expression, $.user_type))),
+        optional(
+          field(
+            "receiver",
+            choice($._expression, prec.dynamic(-1, $.user_type)),
+          ),
+        ),
         "::",
         field("name", $.identifier),
       ),

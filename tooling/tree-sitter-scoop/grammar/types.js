@@ -13,13 +13,10 @@ module.exports = {
   annotated_type: ($) =>
     prec.right(seq(repeat1($.annotation), $._unannotated_type)),
   user_type: ($) =>
-    prec.dynamic(
-      -1,
-      seq(
-        $._type_identifier,
-        optional($.type_arguments),
-        repeat(seq(".", $._type_identifier, optional($.type_arguments))),
-      ),
+    seq(
+      $._type_identifier,
+      optional($.type_arguments),
+      repeat(seq(".", $._type_identifier, optional($.type_arguments))),
     ),
   _type_identifier: ($) => alias($.identifier, $.type_identifier),
   type_arguments: ($) => seq("<", commaSep1($._type), ">"),
