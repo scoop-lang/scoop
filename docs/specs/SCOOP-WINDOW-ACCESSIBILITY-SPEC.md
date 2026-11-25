@@ -112,7 +112,7 @@ SemanticRole.ScrollBar 表达实际滚动轴，使用 `SemanticProperties.scroll
 
 SemanticActions 提供 `setScrollPosition((Double) -> SemanticActionResult)`、`scrollBackward()` 和 `scrollForward()`，均为可选回调。位置参数为 0～1 的有限比例；越界请求返回 InvalidArgument，不夹取为另一个请求。增减的实际步长由原控件决定。动作沿相同 owner、enabled、readOnly、模态和退休边界；没有范围或没有实现时不提供对应能力。Completed 表示实际滚动请求已登记；原生位置继续读取已发布范围，不把请求位置提前当作已呈现位置。Reveal 的已接受场景完成条件仍独立保留。
 
-AppKit 的 ScrollBar 使用 AXScrollBar、Orientation、0～1 的 Value／MinValue／MaxValue 及 Increment／Decrement；零范围的值及上限为 0。NSNumber 写入沿真实 setScrollPosition，不能借字符串编辑接口改变滚动。容器的 HorizontalScrollBar／VerticalScrollBar 按阅读顺序引用其直接语义子项中对应轴的首个可访问节点；内置滚动容器每轴提供一个节点。自绘滚动条可在视觉隐藏时继续保留逻辑轴和动作，缺少当前场景登记时没有可点击几何；不得用容器矩形代替滚动条的位置。
+AppKit 的 ScrollBar 使用 AXScrollBar、Orientation、0～1 的 Value／MinValue／MaxValue 及 Increment／Decrement；零范围的值及上限为 0。未发布范围时不提供数值、上下限或滚动动作。NSNumber 写入沿真实 setScrollPosition，不能借字符串编辑接口改变滚动。容器的 HorizontalScrollBar／VerticalScrollBar 按阅读顺序引用其直接语义子项中对应轴的首个可访问节点；内置滚动容器每轴提供一个节点。自绘滚动条可在视觉隐藏时继续保留逻辑轴和动作，缺少当前场景登记时没有可点击几何；不得用容器矩形代替滚动条的位置。
 
 滚动位置／范围变化发送对应值通知，方向或能力变化发送布局通知；原生 getter 仅读取投影，不推动布局、焦点、滚动或条的显示动画。零范围、不适用轴、disabled／hidden、重新绑定、关闭和客户端保留旧引用均沿实际状态处理。
 

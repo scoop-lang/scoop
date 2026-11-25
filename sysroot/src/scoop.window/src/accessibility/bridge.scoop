@@ -383,7 +383,9 @@ private fun describe(node: AccessibilityNode): NativeSemanticNode {
             1024 *
             flag(value.modal) +
             2048 *
-            flag(value.multiline),
+            flag(value.multiline) +
+            4096 *
+            flag(value.scroll != None),
         node.actions.capabilities,
         when (value.checked) {
             case None -> -1;

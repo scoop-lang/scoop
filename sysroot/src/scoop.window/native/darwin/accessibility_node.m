@@ -239,6 +239,8 @@
   if (state.data.role == 20)
     return @(state.data.selected == 1);
   if (state.data.role == 6) {
+    if (!(state.data.flags & SWAXHasScrollRange))
+      return nil;
     double maximum =
         fmax(state.data.scroll_content - state.data.scroll_viewport, 0);
     return @(maximum > 0 ? state.data.scroll_offset / maximum : 0);
@@ -247,13 +249,13 @@
 }
 - (id)accessibilityMinValue {
   SWAccessibilityData data = self.state.data;
-  return data.has_range ? @(data.minimum) : data.role == 6 ? @0.0 : nil;
+  return data.has_range ? @(data.minimum) : (data.flags & SWAXHasScrollRange) ? @0.0 : nil;
 }
 - (id)accessibilityMaxValue {
   SWAccessibilityData data = self.state.data;
   if (data.has_range)
     return @(data.maximum);
-  return data.role == 6
+  return (data.flags & SWAXHasScrollRange)
              ? @(data.scroll_content > data.scroll_viewport ? 1.0 : 0.0)
              : nil;
 }
@@ -272,7 +274,8 @@
     return nil;
   for (NSNumber *number in self.tree.children[@(self.number)]) {
     SWAccessibilityState *state = self.tree.published[number];
-    if (state.data.role == 6 && state.data.scroll_orientation == orientation) {
+    if ((state.data.flags & SWAXHasScrollRange) &&
+        state.data.scroll_orientation == orientation) {
       SWAccessibilityNode *bar = [self.tree element:number.longLongValue];
       if (bar.isAccessibilityElement)
         return bar;
@@ -531,7 +534,8 @@
     return;
   }
   if (state.data.role == 6) {
-    if ((state.data.actions & 128) && !(state.data.flags & SWAXReadOnly) &&
+    if ((state.data.flags & SWAXHasScrollRange) && (state.data.actions & 128) &&
+        !(state.data.flags & SWAXReadOnly) &&
         [value isKindOfClass:NSNumber.class])
       [self perform:8
                text:nil
@@ -548,13 +552,15 @@
 - (BOOL)accessibilityPerformDecrement {
   if (self.state.data.has_range)
     return (self.state.data.actions & 8192) && [self perform:14 text:nil] == 1;
-  return self.state.data.role == 6 && (self.state.data.actions & 256) &&
+  return (self.state.data.flags & SWAXHasScrollRange) &&
+         (self.state.data.actions & 256) &&
          [self perform:9 text:nil] == 1;
 }
 - (BOOL)accessibilityPerformIncrement {
   if (self.state.data.has_range)
     return (self.state.data.actions & 4096) && [self perform:13 text:nil] == 1;
-  return self.state.data.role == 6 && (self.state.data.actions & 512) &&
+  return (self.state.data.flags & SWAXHasScrollRange) &&
+         (self.state.data.actions & 512) &&
          [self perform:10 text:nil] == 1;
 }
 - (BOOL)accessibilityPerformShowMenu {
@@ -642,6 +648,7 @@
            (state.data.actions & (self.usesToggleAction ? 3 : 1)) != 0;
   if (selector == @selector(setAccessibilityValue:))
     return self.isAccessibilityEnabled &&
+           (state.data.role != 6 || (state.data.flags & SWAXHasScrollRange)) &&
            (state.data.actions & (state.data.has_range   ? 2048
                                   : state.data.role == 6 ? 128
                                                          : 4)) &&
@@ -649,7 +656,7 @@
   if (selector == @selector(accessibilityMinValue) ||
       selector == @selector(accessibilityMaxValue))
     return self.isAccessibilityElement &&
-           (state.data.has_range || state.data.role == 6);
+           (state.data.has_range || (state.data.flags & SWAXHasScrollRange));
   if (selector == @selector(accessibilityOrientation))
     return self.isAccessibilityElement && state.data.scroll_orientation;
   if (selector == @selector(accessibilityHorizontalScrollBar))
@@ -659,7 +666,7 @@
   if (selector == @selector(accessibilityPerformDecrement) ||
       selector == @selector(accessibilityPerformIncrement))
     return self.isAccessibilityEnabled &&
-           (state.data.has_range || state.data.role == 6) &&
+           (state.data.has_range || (state.data.flags & SWAXHasScrollRange)) &&
            !(state.data.flags & SWAXReadOnly) &&
            (state.data.actions &
             (state.data.has_range
