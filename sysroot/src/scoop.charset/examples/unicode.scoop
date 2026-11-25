@@ -18,4 +18,9 @@ fun main() {
     for (cluster in graphemes("A👩‍💻e\u{0301}")) {
         println(f"${cluster}: ${unicodeTextWidth(cluster)} columns")
     }
+    val phrase = "can't 中 👩‍💻"
+    val words = wordBoundaries(phrase)
+    for (index in 0L..<words.size - 1L) {
+        println(phrase.slice(words[index], words[index + 1L]))
+    }
 }

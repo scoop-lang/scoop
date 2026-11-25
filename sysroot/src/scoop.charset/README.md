@@ -1,5 +1,7 @@
 # scoop.charset
 
+`wordBoundaries(text)` 提供不依赖字体排版的 Unicode 词片段边界。返回 Unicode 标量索引，包含 0 和末尾，空串为 `[0]`；空白和标点片段也保留。所有目标使用固定 Unicode 17.0.0 的 ICU4X dictionary segmenter，不读取进程 locale。可直接以相邻索引调用 `String.slice`，用法见 [Unicode 示例](examples/unicode.scoop)。路径／标识符额外词字符由选择组件明确合并。
+
 独立字符集转换库，依赖 core、std 和 platform，字符集转换使用固定 Rust encoding_rs 0.8.42，macOS 的 NFC 使用 Core Foundation，字符属性和完整大小写使用系统 ICU；其他目标使用 ICU4X 2.3.0。所有目标的字素分段使用 ICU4X segmenter 2.3.0，终端列宽使用 unicode-width 0.2.2，两者采用相同的 Unicode 17.0.0 数据。提供内存 codec、NFC 与增量引擎，不依赖 HTTP 或系统 locale。
 
 ```scoop

@@ -4,6 +4,11 @@ import scoop.test.*
 
 @Test
 private class UnicodeAdapterTests {
+    @Test fun `dictionary word boundaries use scalar indices without text layout`() {
+        assertItems([0L], wordBoundaries(""))
+        assertItems([0L, 5L, 6L, 8L, 9L, 10L, 11L, 14L], wordBoundaries("can't e\u0301 中 👩‍💻"))
+        assertItems([0L, 5L, 7L], wordBoundaries("こんにちは世界"))
+    }
     @Test fun `UTF8 byte boundaries become Scoop scalar indices`() {
         assertItems([0L], graphemeBoundaries(""))
         assertItems([0L, 2L, 3L], graphemeBoundaries("e\u0301中"))

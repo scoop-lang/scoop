@@ -74,6 +74,16 @@ int32_t scoop_test_unicode_abi(void) {
   CHECK(breaks[0] == 7 && breaks[1] == 1 && !breaks[2] && !breaks[3] && breaks[4] == 7);
   const uint8_t malformed[] = {0xff};
   CHECK(scoop_charset_grapheme_breaks(malformed, 1, breaks) == 9);
+  CHECK(scoop_charset_word_breaks(NULL, 0, NULL) == 0);
+  CHECK(scoop_charset_word_breaks(NULL, 1, NULL) == 9);
+  CHECK(scoop_charset_word_breaks(NULL, -1, NULL) == 9);
+  CHECK(scoop_charset_word_breaks(malformed, 1, breaks) == 9);
+  CHECK(scoop_charset_word_breaks(cluster, sizeof(cluster), NULL) == 9);
+  const uint8_t phrase[] = {'c', 'a', 'n', '\'', 't', ' '};
+  uint8_t words[] = {7, 7, 7, 7, 7, 7, 7, 7};
+  CHECK(!scoop_charset_word_breaks(phrase, sizeof(phrase), words + 1));
+  CHECK(words[0] == 7 && words[1] == 1 && words[6] == 1 && words[7] == 7);
+  CHECK(!words[2] && !words[3] && !words[4] && !words[5]);
   CHECK(scoop_charset_case(malformed, 1, 0).code == 9);
   CHECK(scoop_charset_case(NULL, 1, 0).code == 9);
   CHECK(scoop_charset_case(NULL, 0, 3).code == 9);

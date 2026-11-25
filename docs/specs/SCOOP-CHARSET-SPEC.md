@@ -44,6 +44,7 @@ native 引擎保留成熟库的 decoder／encoder 与有限的跨块字节，逐
 `graphemeBoundaries(text)` 返回扩展字素簇边界的 Unicode 标量索引（含 0 和末尾，
 空串返回 [0]），`graphemes(text)` 返回各簇的独立 String 数组；不使用缺少上下文的
 逐字符 break 判断。底层 UTF-8 byte offset 在适配边界转换为标量索引。
+`wordBoundaries(text): Array<Long>` 使用相同的标量索引与空串约定，返回包括词、空白、标点等所有片段的边界，不筛掉非词片段。所有目标采用 ICU4X 2.3.0 的 locale-independent dictionary word segmenter 及固定 Unicode 17.0.0 字典数据，不依赖字体、窗口、排版或进程 locale。调用者可以据这些边界实现选择，再明确合并路径／标识符等自定义词字符；本接口不隐含这些应用规则。`unicodeTerminalDataVersion()` 的分段版本也适用于此接口。
 `unicodeScalarWidth(character, ambiguousAsWide = false)` 使用 unicode-width 的单标量宽度；
 `ambiguousAsWide` 显式选择东亚模糊宽度为窄或宽，不读取进程 locale。宽策略也包括希腊字母、重音字母及修饰符号等 East_Asian_Width=Ambiguous 的可显示底字；使用同版本 ICU 属性补齐上游 CJK 模式对 Letter／Modifier_Symbol 的窄宽特例。组合标记保持零宽，完整 emoji／变体序列仍使用上下文宽度。控制字符（包括 NUL）返回 -1，
 组合字符通常为 0，东亚宽字符为 2，少数上游定义的宽符号可为 3（例如 U+17D8）；不把返回值限制在 0..2。
