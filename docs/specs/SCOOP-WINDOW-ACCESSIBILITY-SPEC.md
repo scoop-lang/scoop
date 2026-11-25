@@ -74,6 +74,8 @@ showContextMenu 映射 AppKit accessibilityPerformShowMenu，经相同 owner／�
 
 ### 3.1 纯文本正文与选区
 
+`SemanticProperties.multiline` 指明 TextField 接受多个逻辑行，默认 false。空正文和仅含一行的正文也可声明为多行。AppKit 将普通多行编辑区投影为 AXTextArea，受保护与组合框继续使用相应的原生角色。UIA 在 Edit 的 AriaProperties 发布 multiline，AT-SPI 使用单行或多行状态。
+
 Text／TextField 的已知、非受保护 value 同时是其纯文本正文，不再保存另一份可写文档。SemanticProperties.selection: Utf8Selection? 默认 None；Some 只适用于这两个角色，要求 value 已知、protectedText=false，端点必须是正文范围内的 UTF-8 标量边界。None 表示没有公开选区，不能与零长度 caret 混淆；原生单选区协议返回排序后的范围，公共值保留 anchor／cursor 方向。仅选区变化不使节点边界或精确命中失效。
 
 SemanticProperties.cursorAffinity 使用 SemanticTextAffinity（Upstream／Downstream），默认 Downstream，描述已公开选区活动 cursor 的实际排版偏向；没有公开选区时不使用它。光标在软换行的同一字节边界时，Upstream 指向前一行末，Downstream 指向后一行首。仅偏向改变仍保留匹配正文的文本几何，发布选择变化而非正文变化；AppKit 的 InsertionPointLineNumber 同时读取 cursor 与该偏向。按 index／range 的原生请求没有提供偏向时使用 Downstream。
@@ -110,7 +112,7 @@ SemanticRole.ScrollBar 表达实际滚动轴，使用 `SemanticProperties.scroll
 
 SemanticActions 提供 `setScrollPosition((Double) -> SemanticActionResult)`、`scrollBackward()` 和 `scrollForward()`，均为可选回调。位置参数为 0～1 的有限比例；越界请求返回 InvalidArgument，不夹取为另一个请求。增减的实际步长由原控件决定。动作沿相同 owner、enabled、readOnly、模态和退休边界；没有范围或没有实现时不提供对应能力。Completed 表示实际滚动请求已登记；原生位置继续读取已发布范围，不把请求位置提前当作已呈现位置。Reveal 的已接受场景完成条件仍独立保留。
 
-AppKit 的 ScrollBar 使用 AXScrollBar、Orientation、0～1 的 Value／MinValue／MaxValue 及 Increment／Decrement；零范围的值及上限为 0。NSNumber 写入沿真实 setScrollPosition，不能借字符串编辑接口改变滚动。容器的 HorizontalScrollBar／VerticalScrollBar 按阅读顺序引用其直接语义子项中对应轴的首个可访问节点；内置滚动容器每轴提供一个节点。自绘滚动条可在视觉隐藏时继续保留逻辑轴和动作，缺少当前场景登记时没有可点击几何；不得用容器矩形代替滚动条的位置。
+AppKit 的 ScrollBar 使用 AXScrollBar、Orientation、0～1 的 Value／MinValue／MaxValue 及 Increment／Decrement；零范围的值及上限为 0。未发布范围时不提供数值、上下限或滚动动作。NSNumber 写入沿真实 setScrollPosition，不能借字符串编辑接口改变滚动。容器的 HorizontalScrollBar／VerticalScrollBar 按阅读顺序引用其直接语义子项中对应轴的首个可访问节点；内置滚动容器每轴提供一个节点。自绘滚动条可在视觉隐藏时继续保留逻辑轴和动作，缺少当前场景登记时没有可点击几何；不得用容器矩形代替滚动条的位置。
 
 滚动位置／范围变化发送对应值通知，方向或能力变化发送布局通知；原生 getter 仅读取投影，不推动布局、焦点、滚动或条的显示动画。零范围、不适用轴、disabled／hidden、重新绑定、关闭和客户端保留旧引用均沿实际状态处理。
 

@@ -81,6 +81,8 @@ std::string ariaProperties(const State &value) {
     properties += "invalid=true;";
   if (data.flags & SWAXModal)
     properties += "modal=true;";
+  if (data.role == 4 && (data.flags & SWAXMultiline))
+    properties += "multiline=true;";
   if (data.expanded >= 0)
     properties += data.expanded ? "expanded=true;" : "expanded=false;";
   return properties;

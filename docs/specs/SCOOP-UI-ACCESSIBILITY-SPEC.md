@@ -74,6 +74,8 @@ Scene 登记同时保存当次 ScrollViewport 路径，Rect 缓存重放重新�
 
 ## 5. 文本编辑宿主
 
+自绘编辑区可在 TextField 的 `SemanticProperties` 中设置 `multiline = true`。标准文本宿主从 `TextEditOptions.multiline` 发布这项能力，使空的多行编辑区也具有多行语义。
+
 保留文本范围跟随 TextEditorState 的实际编辑事务，与哪个宿主获得编辑焦点无关。各宿主按需登记自己拥有的 SemanticTextDocument；同一模型的输入、程序修改、undo／redo 和正文重置更新所有已登记文档的端点，复用该次事务的偏移映射，不复制正文或历史。换绑、进入保护模式及关闭宿主时撤销登记并退休旧范围；模型不因此取得宿主的输入或焦点所有权。
 
 `scoop.ui.text` 的 `SemanticsHandle.updateTextEditor(host, properties = SemanticProperties(), relations = SemanticRelations(), setExpanded = None)` 用于本挂载的 TextField 节点，在正常 update 中发布现有 TextEditHost 的正文、方向选区、真实 focus 和编辑动作。它借用 host，不能绑定其他挂载或改变节点角色；应用继续按普通 State／Props 更新调用，不创建另一份可写文档、IME 连接或撤销栈。properties 的名称／说明／错误／标识／隐藏／忽略及 relations 保留；正文和选区取模型，enabled 与宿主共同约束，readOnly／protectedText 任一方声明即生效。受保护时 value／selection 都为 None，与显示 projection 和复制权限无关。
