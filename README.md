@@ -60,7 +60,7 @@ Windows 安装包的主命令为 `sco`，上述命令中的 `scoop` 替换为 `s
 编译器使用 Rust（edition 2024）和 inkwell 0.10。需要安装：
 
 - 支持 edition 2024 的 Rust 工具链和 Cargo。
-- 外部 LLVM 22.1；发行准备固定使用 LLVM 22.1.8。`llvm-config` 应在 `PATH` 中，或通过 `LLVM_SYS_221_PREFIX` 指向 LLVM 安装前缀。生成 Windows 目标或运行工作区中的 Windows 代码生成测试时，宿主 LLVM 需要包含仓库的 statepoint 返回地址补丁。[LLVM 准备说明](scripts/README.md)
+- 完整构建和验收使用 `scripts/build_llvm.py` 准备的 LLVM 22.1.8。设置 `LLVM_SYS_221_PREFIX` 指向该 SDK，并让编译器运行时加载同一套库。仓库补丁覆盖异常处理的调试代码、调试符号和 Windows statepoint 返回地址。[LLVM 准备说明](scripts/README.md)
 - 所选目标的 C/C++ 工具链、系统 SDK 和链接器。
 - Python 3.11+，用于开发准备脚本和 fixture runner；OpenSSL 准备需要 Python 3.12+。各 native 后端所需的其他工具见[准备脚本说明](scripts/README.md)。
 

@@ -30,6 +30,10 @@ Linux／macOS 交叉编译 Microsoft target 使用配套宿主 Clang 和显式 `
 
 Windows x64 宿主使用 LLVM-MinGW `20260616` 的 UCRT 环境与支持 UTF-8 build file 的 Ninja（1.11+，`ninja -t wincodepage` 输出 UTF-8），以 `--cc`、`--cxx` 分别选择该 prefix 中的 `clang.exe`、`clang++.exe`。脚本安装 `.exe`、LLVM／Clang DLL 与 import library，并将其 C++／unwind DLL 放在同一 `bin`；Rust 编译使用 `x86_64-pc-windows-gnullvm` 与安装根的 `LLVM_SYS_221_PREFIX`。这些是宿主开发工具，与应用 target 的 Microsoft／MinGW、MSVCRT／UCRT 选择独立。首次完整构建包括 Clang／LLD；重复执行只在输入更新或所需输出缺失时构建。
 
+完整调试信息会为合并到异常处理分支的局部变量生成位置记录。[异常入口补丁](../sysroot/vendor/llvm-project/22.1.8/patches/llvm-landingpad-debug-values.patch)确保异常跳转先执行保留这些值所需的指令。未应用补丁的 LLVM 22.1.8 可以成功构建程序，但 `catch` 可能读到错误的局部值。脚本也应用 [byval 参数调试修正](../sysroot/vendor/llvm-project/22.1.8/patches/llvm-byval-debug-values.patch)与 [dsymutil 重定位修正](../sysroot/vendor/llvm-project/22.1.8/patches/llvm-dsymutil-section-relocations.patch)。
+
+macOS 开发环境中，将 `LLVM_SYS_221_PREFIX` 指向脚本生成的安装目录。SDK 使用 `@rpath` 时，可在构建配套命令前设置 `export RUSTFLAGS="-C link-arg=-Wl,-rpath,$LLVM_SYS_221_PREFIX/lib"`。用 `otool -L target/release/scoopc` 检查依赖路径，使用 `@rpath` 时再用 `otool -l target/release/scoopc` 查看 `LC_RPATH`。构建驱动启动编译子进程时会重建环境，仅在终端设置 `DYLD_LIBRARY_PATH` 无法指定该子进程加载的 LLVM。
+
 发射 Windows target 的宿主 LLVM 必须包含 [statepoint 返回地址修正](../sysroot/vendor/llvm-project/22.1.8/patches/llvm-windows-statepoint-return-pc.patch)。`build_llvm.py` 在需要构建时通过 Git 将补丁应用到所选外部 source tree，已应用时保留原文件；未变化命中不读取补丁或源码内容。补丁将 stackmap 标签放在 WinEH NOP 之前，保留必要的 EH padding。更新宿主 LLVM 后重新构建配套 Scoop 命令和 Windows 系统库；不复用此前发射的错误 stackmap。
 
 构建期间仅在子进程环境中将显式选择的 compiler 目录放到 PATH 前面，不修改用户全局环境。安装必须包含实际依赖的 `libclang-cpp.dll`，否则 PATH 上的 ESP32 等另一套 Clang DLL 可能被 Windows 加载并导致入口点错误。新构建完成后运行安装目录中的 llvm-config 与 Clang；命中缓存时不重复运行。需要排查当前会话的工具选择时，检查 PATH、`CC`／`CXX`、`CFLAGS`／`CXXFLAGS`、`CPATH`／`LIBRARY_PATH` 和 `LLVM_SYS_221_PREFIX`，不以清空全局配置代替正确安装依赖。

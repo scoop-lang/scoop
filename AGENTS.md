@@ -38,7 +38,7 @@ Scoop 是一门静态类型、编译到原生代码的语言：以 Kotlin 核心
 ## 构建与测试
 
 - 编译器实现语言：**Rust**（edition 2024），LLVM 绑定用 **inkwell 0.10（feature `llvm22-1-prefer-dynamic`，包含 `llvm22-1`）**，Scoop 后端使用本机外部 **LLVM 22.1**，不要求与 Rust 工具链自带的 LLVM 版本相同。
-- 依赖本机 LLVM 22.1（`llvm-config` 在 `PATH` 中，或设置 `LLVM_SYS_221_PREFIX`）；`scoop-codegen` 与 `scoopc` 之外的其他 crate 无 LLVM 依赖。工作区测试含 Windows 对象发射，宿主 LLVM 须使用仓库的 statepoint 返回地址补丁，见[准备说明](scripts/README.md)。
+- 依赖本机 LLVM 22.1（`llvm-config` 在 `PATH` 中，或设置 `LLVM_SYS_221_PREFIX`）；`scoop-codegen` 与 `scoopc` 之外的其他 crate 无 LLVM 依赖。完整验收使用仓库补丁版 LLVM 22.1.8，涵盖完整调试信息下的异常处理、调试符号及 Windows 对象发射。构建与运行时指向同一 SDK，见[准备说明](scripts/README.md)。
 - 常用命令：
   - `cargo build` / `cargo test --workspace` — 构建 / Rust 单元与集成测试；
   - `cargo build -p scoop -p scoopc -p scoop-linker -p scoop-lsp -p scoop-pm -p scoop-api -p scoop-generators --bins` — 构建文件 fixture 使用的配套命令；
