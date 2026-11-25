@@ -1,0 +1,28 @@
+schema = 1
+name = "generic-reader-string-map-bound-dispatch"
+inputs = ["provider", "consumer"]
+tools = ["scoop", "scoopc"]
+tags = ["generic-reader", "cross-cone", "compiler-correctness"]
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${fixture}/provider", to = "${work}/provider"}},
+  {copy = {from = "${fixture}/consumer", to = "${work}/consumer"}},
+]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/consumer", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = ""
+stderr = ""
