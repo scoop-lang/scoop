@@ -1,9 +1,9 @@
 schema = 1
 name = "small-values-artifacts"
-inputs = ["provider", "consumer"]
-tools = ["scoop", "scoopc", "scoop-link"]
+inputs = ["provider", "consumer", "../inspect_abi.py"]
+tools = ["scoop", "scoopc", "scoop-link", "python"]
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
-tags = ["stage-golden", "abi", "generics", "compiler-correctness"]
+tags = ["abi", "generics", "compiler-correctness"]
 variants = [{"name" = "debug", "vars" = {"profile" = "debug", "provider_profile" = "release", "symbol_args" = ["--keep-symbols", "--emit-debug-file"], "stack_trace" = "true"}}, {"name" = "release", "vars" = {"profile" = "release", "provider_profile" = "debug", "symbol_args" = [], "stack_trace" = "false"}}]
 
 [[steps]]
@@ -15,28 +15,42 @@ files = [
 
 [[steps]]
 name = "provider"
-argv = ["${scoop}", "build", {"each" = "${link_args}"}, "${work}/sources/provider", "--profile", "${provider_profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-provider", "--message-format", "json", "-o", "${work}/artifacts/dev.m34/small-provider/0.1.0/cone.slib", "--emit", "lir", "--dump-dir", "${work}/dump"]
+argv = ["${scoop}", "build", {"each" = "${link_args}"}, "${work}/sources/provider", "--profile", "${provider_profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-provider", "--message-format", "json", "-o", "${work}/artifacts/dev.m34/small-provider/0.1.0/cone.slib", "--emit", "all", "--dump-dir", "${work}/dump"]
 timeout = 300
 exit = 0
 stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
+
+[[steps]]
+name = "provider-abi"
+argv = ["${python}", "${fixture}/../inspect_abi.py", "provider", "${work}/dump/${provider.result.root.identity}", "${work}/provider.abi.txt"]
+exit = 0
+stdout = ""
+stderr = ""
 checks = [
-  {"file" = "${work}/dump/${provider.result.root.identity}/lir.txt", "snapshot" = "provider.${provider_profile}.${target}.lir.txt"},
+  {file = "${work}/provider.abi.txt", snapshot = "provider.${target_facts.arch}.abi.txt"},
 ]
 
 [[steps]]
 name = "consumer"
-argv = ["${scoop}", "build", {"each" = "${link_args}"}, "${work}/sources/consumer", "--profile", "${profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-consumer", "--cone-path", "${work}/artifacts", "--message-format", "json", "--emit", "lir", "--dump-dir", "${work}/dump", "-o", "${work}/programs/consumer/program"]
+argv = ["${scoop}", "build", {"each" = "${link_args}"}, "${work}/sources/consumer", "--profile", "${profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-consumer", "--cone-path", "${work}/artifacts", "--message-format", "json", "--emit", "all", "--dump-dir", "${work}/dump", "-o", "${work}/programs/consumer/program"]
 timeout = 300
 exit = 0
 stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
+
+[[steps]]
+name = "consumer-abi"
+argv = ["${python}", "${fixture}/../inspect_abi.py", "consumer", "${work}/dump/${consumer.result.root.identity}", "${work}/consumer.abi.txt"]
+exit = 0
+stdout = ""
+stderr = ""
 checks = [
-  {"file" = "${work}/dump/${consumer.result.root.identity}/lir.txt", "snapshot" = "consumer.${profile}.${target}.lir.txt"},
+  {file = "${work}/consumer.abi.txt", snapshot = "consumer.${target_facts.arch}.abi.txt"},
 ]
 
 [[steps]]

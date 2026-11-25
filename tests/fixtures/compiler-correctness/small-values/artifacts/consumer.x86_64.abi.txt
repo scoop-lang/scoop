@@ -1,0 +1,2 @@
+dispatch(parts<interface{object,itab} [ptr<managed>@0+8/8,ptr<metadata>@8+8/8]>, parts<struct [f64@0+8/8,i64@8+8/8]>) -> parts<struct [f64@0+8/8,i64@8+8/8]>
+generic(parts<struct [f64@0+8/8,i64@8+8/8]>) -> parts<struct [f64@0+8/8,i64@8+8/8]>

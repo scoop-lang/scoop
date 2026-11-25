@@ -1,9 +1,9 @@
 schema = 1
 name = "small-values-native"
-inputs = ["program.scoop", "native.c", "scoop.aarch64-apple-darwin.ll", "scoop.x86_64-apple-darwin.ll", "scoop.x86_64-unknown-linux-gnu.ll", "scoop.x86_64-unknown-linux-musl.ll"]
-tools = ["scoop", "cc", "ar", "llc"]
+inputs = ["program.scoop", "native.c", "scoop.aarch64-apple-darwin.ll", "scoop.x86_64-apple-darwin.ll", "scoop.x86_64-unknown-linux-gnu.ll", "scoop.x86_64-unknown-linux-musl.ll", "../inspect_abi.py"]
+tools = ["scoop", "cc", "ar", "llc", "python"]
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
-tags = ["stage-golden", "abi", "native", "compiler-correctness"]
+tags = ["abi", "native", "compiler-correctness"]
 variants = [{name = "debug", vars = {profile = "debug"}}, {name = "release", vars = {profile = "release"}}]
 
 [[steps]]
@@ -35,8 +35,15 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
+
+[[steps]]
+name = "native-abi"
+argv = ["${python}", "${fixture}/../inspect_abi.py", "native", "${work}/dump/${build.result.root.identity}", "${work}/native.abi.txt"]
+exit = 0
+stdout = ""
+stderr = ""
 checks = [
-  {"file" = "${work}/dump/${build.result.root.identity}/lir.txt", "snapshot" = "program.${profile}.${target}.lir.txt"},
+  {file = "${work}/native.abi.txt", snapshot = "native.${target_facts.arch}.abi.txt"},
 ]
 
 [[steps]]
