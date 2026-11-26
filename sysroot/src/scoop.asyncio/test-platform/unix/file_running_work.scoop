@@ -1,22 +1,11 @@
 package scoop.asyncio
 
+import scoop.os.nix.fs.createFifo
 import scoop.platform.fs.*
 import scoop.platform.io.*
 import scoop.platform.memory.NativeByteBuffer
 import scoop.platform.system.*
 import scoop.test.*
-
-internal fun makeFifo(path: Path) {
-    @Unsafe
-    {
-        path.withNativePath {
-            pointer -> @Unsafe
-            {
-                assertEquals(0, createFifo(pointer, 0x180u))
-            }
-        }
-    }
-}
 
 @Test
 private class AsyncFileRunningWorkTest {
@@ -29,87 +18,100 @@ private class AsyncFileRunningWorkTest {
                 Some("this execution fence requires at least two native workers")
             )
         }
-        IoTestDirectory().use {
-            tree ->
-            val path = tree.child("fifo")
-            makeFifo(path)
-            val backend = eventLoop()
-            val loop = backend
-            loop.run {
-                val scope = this;
-                val file = loop.openFile(path, OpenOptions(write = true))
-                File.open(path, OpenOptions(read = false, write = true)).use suspend {
-                    writer -> NativeByteBuffer.allocate(4L).use suspend {
-                        bytes ->
-                        val reading = scope.launch suspend { file.readInto(bytes, 4L) }
-                        val fence = WorkFence(backend)
-                        // On worker backends the FIFO read precedes these N-1 gates; ring requests may still be pending.
-                        fence.start(1u)
-                        fence.waitStarted()
-                        var supplied = false
-                        try {
-                            assertFailsWith<IllegalStateException> { bytes.clear() }
-                            reading.cancel()
-                            assertFalse(reading.isCompleted)
-                            gcCollect()
-                            writer.writeAllBytes(Array<Byte>(1L) { 42.toByte() })
-                            supplied = true
-                            reading.join()
-                            assertTrue(reading.isCancelled)
-                            assertTrue(bytes.writePosition == 0L || bytes.writePosition == 1L)
-                            if (bytes.writePosition == 0L)
-                                assertEquals(1L, file.readInto(bytes, 1L))
-                            assertEquals(42.toByte(), bytes.readByte())
-                            bytes.clear()
-                        } finally {
-                            if (!supplied)
-                                writer.writeAllBytes(Array<Byte>(1L) { 42.toByte() })
-                            fence.close()
-                        }
+        IoTestDirectory()
+            .use { tree ->
+                val path = tree.child("fifo")
+                path.createFifo(0x180)
+                val backend = eventLoop()
+                val loop = backend
+                loop
+                    .run {
+                        val scope = this;
+                        val file = loop.openFile(path, OpenOptions(write = true))
+                        File
+                            .open(path, OpenOptions(read = false, write = true))
+                            .use suspend { writer ->
+                                NativeByteBuffer
+                                    .allocate(4L)
+                                    .use suspend { bytes ->
+                                        val reading = scope
+                                            .launch suspend { file.readInto(bytes, 4L) }
+                                        val fence = WorkFence(backend)
+                                        // On worker backends the FIFO read precedes these N-1 gates; ring requests may still be pending.
+                                        fence.start(1u)
+                                        fence.waitStarted()
+                                        var supplied = false
+                                        try {
+                                            assertFailsWith<IllegalStateException> { bytes.clear() }
+                                            reading.cancel()
+                                            assertFalse(reading.isCompleted)
+                                            gcCollect()
+                                            writer.writeAllBytes(Array<Byte>(1L) { 42.toByte() })
+                                            supplied = true
+                                            reading.join()
+                                            assertTrue(reading.isCancelled)
+                                            assertTrue(
+                                                bytes.writePosition ==
+                                                    0L ||
+                                                    bytes.writePosition ==
+                                                    1L
+                                            )
+                                            if (bytes.writePosition == 0L)
+                                                assertEquals(1L, file.readInto(bytes, 1L))
+                                            assertEquals(42.toByte(), bytes.readByte())
+                                            bytes.clear()
+                                        } finally {
+                                            if (!supplied)
+                                                writer
+                                                    .writeAllBytes(Array<Byte>(1L) { 42.toByte() })
+                                            fence.close()
+                                        }
+                                    }
+                            }
+                        file.close()
                     }
-                }
-                file.close()
             }
-        }
     }
 
     @Test
     fun `late open cancellation closes the acquired FIFO before the caller resumes`() {
-        IoTestDirectory().use {
-            tree ->
-            val path = tree.child("fifo")
-            makeFifo(path)
-            val backend = eventLoop()
-            val loop = backend
-            loop.run {
-                val scope = this;
-                val output = OpenedFifo()
-                val opening = scope.launch suspend { loop.openFile(path) }
-                // Let the dispatched child enqueue its open before the owner-side rendezvous.
-                yieldCoroutine()
-                backend.state.post {
-                    // O_WRONLY rendezvous proves that the real blocking O_RDONLY open ran.
-                    output.file = Some(File.open(path, OpenOptions(read = false, write = true)))
-                    opening.cancel()
-                }
-                opening.join()
-                assertTrue(opening.isCancelled)
-                output.file!!.use {
-                    writer ->
-                    val failure =
-                        assertFailsWith<PlatformException> {
-                            writer.writeAllBytes(Array<Byte>(1L) { 42.toByte() })
-                        }
-                    assertTrue(failure.kind == PlatformErrorKind.BrokenPipe)
-                }
+        IoTestDirectory()
+            .use { tree ->
+                val path = tree.child("fifo")
+                path.createFifo(0x180)
+                val backend = eventLoop()
+                val loop = backend
+                loop
+                    .run {
+                        val scope = this;
+                        val output = OpenedFifo()
+                        val opening = scope.launch suspend { loop.openFile(path) }
+                        // Let the dispatched child enqueue its open before the owner-side rendezvous.
+                        yieldCoroutine()
+                        backend
+                            .state
+                            .post {
+                                // O_WRONLY rendezvous proves that the real blocking O_RDONLY open ran.
+                                output.file = Some(
+                                    File.open(path, OpenOptions(read = false, write = true))
+                                )
+                                opening.cancel()
+                            }
+                        opening.join()
+                        assertTrue(opening.isCancelled)
+                        output
+                            .file!!
+                            .use { writer ->
+                                val failure = assertFailsWith<PlatformException> {
+                                    writer.writeAllBytes(Array<Byte>(1L) { 42.toByte() })
+                                }
+                                assertTrue(failure.kind == PlatformErrorKind.BrokenPipe)
+                            }
+                    }
             }
-        }
     }
 }
 
 private class OpenedFifo {
     var file: File? = None
 }
-
-@Extern(name = "mkfifo")
-private fun createFifo(path: Ptr<Byte>, mode: UInt): Int

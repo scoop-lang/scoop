@@ -47,6 +47,7 @@ when = { os = "windows" }
 "scoop:scoop.concurrent" = "0.1.0"
 
 [test-dependencies]
+"scoop:scoop.os.nix" = { version = "0.1.0", when = { os = ["darwin", "linux"] } }
 "scoop:scoop.crypto" = "0.1.0"
 "scoop:scoop.test" = "0.1.0"
 "scoop.tests:asyncio-native" = { version = "0.1.0", path = "test-native" }

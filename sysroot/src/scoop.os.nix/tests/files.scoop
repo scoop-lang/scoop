@@ -1,0 +1,72 @@
+package scoop.os.nix.fs
+
+import scoop.platform.fs.*
+import scoop.platform.system.*
+import scoop.test.*
+
+@Test
+private class UnixFilesTest {
+    @Test
+    fun `FIFO keeps its native path and uses the existing file API`() {
+        val directory = createTempDirectory()
+        try {
+            val fifo = directory.resolve(Path.fromString("管道"))
+            assertFailsWith<IllegalArgumentException> { fifo.createFifo(-1) }
+            assertFalse(fifo.exists())
+            fifo.createFifo(0x180)
+            val info = fifo.unixMetadata()
+            assertTrue(info.basic.kind == FileKind.Fifo)
+            assertEquals(fifo.metadata().permissions, info.basic.permissions)
+            assertTrue(info.linkCount >= 1L)
+            val failure = assertFailsWith<PlatformException> { fifo.createFifo(0x180) }
+            assertTrue(failure.kind == PlatformErrorKind.AlreadyExists)
+            assertTrue(failure.nativeError!!.domain == NativeErrorDomain.PosixErrno)
+            assertEquals(17, failure.nativeError!!.code)
+            assertEquals(fifo.toOsString(), failure.context!!)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `missing path retains non UTF-8 bytes in its error`() {
+        val directory = createTempDirectory()
+        try {
+            val name = OsString.fromByteArray([0xffu.toByte(), 0x66.toByte()])
+            val path = directory.resolve(Path.fromOsString(name))
+            val failure = assertFailsWith<PlatformException> { path.unixMetadata() }
+            assertTrue(failure.nativeError!!.domain == NativeErrorDomain.PosixErrno)
+            assertEquals(path.toOsString(), failure.context!!)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `stat follows the final link and lstat observes a dangling link`() {
+        val directory = createTempDirectory()
+        try {
+            val target = directory.resolve(Path.fromString("target"))
+            target.writeText("scoop")
+            val link = directory.resolve(Path.fromString("link"))
+            link.createSymbolicLink(target)
+            val original = target.unixMetadata()
+            val followed = link.unixMetadata()
+            assertEquals(5L, followed.basic.size)
+            assertEquals(original.deviceId, followed.deviceId)
+            assertEquals(original.inode, followed.inode)
+            assertEquals(original.userId, followed.userId)
+            assertEquals(original.groupId, followed.groupId)
+            val own = link.unixMetadata(followLinks = false)
+            assertTrue(own.basic.kind == FileKind.SymbolicLink)
+            assertTrue(own.inode != original.inode)
+            target.delete()
+            assertEquals(own.inode, link.unixMetadata(false).inode)
+            val failure = assertFailsWith<PlatformException> { link.unixMetadata() }
+            assertTrue(failure.kind == PlatformErrorKind.NotFound)
+            assertEquals(link.toOsString(), failure.context!!)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+}
