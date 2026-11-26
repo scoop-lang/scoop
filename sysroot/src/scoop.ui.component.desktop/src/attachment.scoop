@@ -3,6 +3,7 @@ package scoop.ui.component.desktop
 import scoop.desktop.*
 import scoop.ui.ApplicationScope
 import scoop.ui.component.*
+import scoop.ui.observeMenu
 import scoop.window.*
 
 internal class NativeDesktopAttachment(
