@@ -45,13 +45,25 @@ scoop-lldb -b tmp/scoop-debug-program \
 完整变量求值、写入 managed heap 和协程逻辑栈不在本批验收范围。
 
 Linux 静态 TLS 的原生定向用例覆盖 `.tdata`、`.tbss`、64-byte 对齐及两个线程的独立值。
-它验证调试器的目标 TLS 地址解析，编译和运行只需一个小型 C 程序：
+amd64 可直接使用 musl GCC 编译。ARM64 的调试对象使用配套 Clang 生成，它会为 TLS 变量发射模块内偏移。以下命令在对应的 Linux 宿主运行，ARM64 示例使用 Debian 的 musl 头文件目录。
 
 ```sh
-musl-gcc -std=c11 -g -O0 -static -pthread tooling/vscode-scoop/test/debugger/tls.c \
-  -o tmp/scoop-debug-tls
+mkdir -p tmp
+case "$(uname -m)" in
+  x86_64)
+    musl-gcc -std=c11 -g -O0 -static -pthread tooling/vscode-scoop/test/debugger/tls.c \
+      -o tmp/scoop-debug-tls
+    ;;
+  aarch64)
+    "$LLVM_SYS_221_PREFIX/bin/clang" --target=aarch64-unknown-linux-musl \
+      -nostdlibinc -isystem /usr/include/aarch64-linux-musl -std=c11 -g -O0 \
+      -c tooling/vscode-scoop/test/debugger/tls.c -o tmp/scoop-debug-tls.o
+    musl-gcc -B"$LLVM_SYS_221_PREFIX/bin/" -fuse-ld=lld -static -Wl,--no-dynamic-linker \
+      -pthread tmp/scoop-debug-tls.o -o tmp/scoop-debug-tls
+    ;;
+esac
 scoop-lldb -b tmp/scoop-debug-tls \
   -o 'command script import tooling/vscode-scoop/test/debugger/tls.py' -o quit
 ```
 
-成功标记为 `SCOOP_STATIC_TLS_OK`。此用例与 `program.scoop` 的实际 Scoop TLS 断言共同验收。
+成功标记为 `SCOOP_STATIC_TLS_OK`。两个线程的断点分别检查已初始化、零初始化和 64 字节对齐变量的实际值。Scoop 程序的 TLS 另由 `program.scoop` 的 DAP 断言覆盖。

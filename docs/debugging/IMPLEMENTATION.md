@@ -44,7 +44,7 @@ Throwable 是可继承的 intrinsic FixedObject，保留公共零参数构造；
 
 ## LLDB、VS Code 与发行脚本
 
-固定 LLVM 22.1.8 的 Python-enabled LLDB 构建保留源码显示名及精确身份，支持按两种名称命中同一断点；同源文件的独立编译单元全局量加入所选栈帧，TLS 使用该线程上下文。Linux/amd64 静态 TLS 从 PT_TLS 和线程指针定位，不依赖动态 link map。
+固定 LLVM 22.1.8 的 Python-enabled LLDB 构建保留源码显示名及精确身份，支持按两种名称命中同一断点；同源文件的独立编译单元全局量加入所选栈帧，TLS 使用该线程上下文。Linux 静态主程序的 TLS 从 PT_TLS 和当前线程指针定位。amd64 的模板在线程指针以下，AArch64 的模板位于线程指针以上的两字 TCB 之后。
 
 VS Code 扩展 0.3.0 注册 Scoop debug type 和源码断点。构建／launch 从 JSON executable 记录取得真实路径；支持 attach、参数、cwd、环境、终端、sourceMap，以及 `scoop test --no-run` 与测试过滤。只读 formatter 显示 UTF-8／内嵌 NUL String、分页数组、tagged／niche enum、class／interface 和 raw 字段，不执行 getter／toString 或写入 managed 对象。使用方式见[扩展说明](../../tooling/vscode-scoop/README.md#原生调试)。
 
