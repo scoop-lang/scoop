@@ -1330,7 +1330,7 @@ Swift 配方不进入已有 C/C++ native 对象键或 Scoop 源码编译键。li
 
 包外本地／editable 依赖、第三方 framework、宏／插件读取的额外文件和目录，必须在 **Cone.toml** 的 `native.swift.inputs` 显式列出；声明目录递归覆盖文件及嵌套增删、删除、重命名，声明文件缺失报错。`env` 显式列出清单／生成器消费的环境。远端包版本由根 Package.resolved 固定；对 checkout 的本地编辑同样须声明其实际目录。不会因远端出现新版本而失效。未声明的包外输入不承诺自动发现。
 
-记录采用文件 metadata 与目录选择。目录状态变化先重新枚举；输入集合或已记录文件变化使节点失效。命中不读取源码正文或 Package.swift，不运行 SwiftPM 空构建。附加 inputs 变化为 Swift 选择新的工作状态，保证清单／插件实际消费新输入；普通包内源码与资源变化交给 SwiftPM 正常增量构建。依赖和编译行为以 Swift 工具为准，不自行分析 prebuild 或要求每次执行的任意脚本。
+记录采用文件 metadata 与目录选择。检查目录型输入时，按上述排除规则枚举文件名并与记录的路径集合比较。目录更新时间相同的新增、删除或重命名也参与判断。输入集合或已记录文件的 metadata 变化使节点失效。命中不读取源码正文或 Package.swift，不运行 SwiftPM 空构建。附加 inputs 变化为 Swift 选择新的工作状态，保证清单／插件实际消费新输入；普通包内源码与资源变化交给 SwiftPM 正常增量构建。依赖和编译行为以 Swift 工具为准，不自行分析 prebuild 或要求每次执行的任意脚本。
 
 Swift Build 的实际输出描述仅用于定位所选 `.a`／`.dylib`、模块、resource bundle 和同次生成的配套原生文件；不从命令参数反推 consumer 的链接 flags，不扫描 Package.swift 里的 linkerSettings。最终需要的系统／第三方 framework 和库由 Cone 的 `native.libraries` 声明；归档成员已有的 autolink 仍按普通机器码链接规则处理。实际产物目标／部署版本的相容性沿正常 native 消费边界检查。
 
