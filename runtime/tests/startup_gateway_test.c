@@ -66,8 +66,8 @@ static uint32_t root_gateway(int32_t argc, const char *const *argv, int32_t *out
 static void *move_failure(void *unused) {
     (void)unused;
     assert(scoop_rt_attach_foreign_thread());
-    scoop_thread_enter_managed(__builtin_frame_address(0));
     _Alignas(16) uintptr_t frame[4];
+    scoop_thread_enter_managed(frame + 4);
     initialize_frame(frame);
     scoop_rt_gc_collect_impl(0x1010, (uintptr_t)frame, (uintptr_t)&frame[2]);
     scoop_thread_leave_managed();
@@ -130,7 +130,10 @@ static void expect_failure(unsigned test, const char *message) {
     } else {
         assert(WIFEXITED(status) && WEXITSTATUS(status) == 1);
     }
-    assert(strstr(output, message) != NULL);
+    if (strstr(output, message) == NULL) {
+        fprintf(stderr, "startup case %u expected [%s], got [%s]\n", test, message, output);
+        abort();
+    }
 }
 
 int main(void) {
