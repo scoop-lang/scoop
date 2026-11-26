@@ -1,12 +1,12 @@
 # Scoop 操作系统扩展库设计
 
-设计草案，2026-11-26。建议以 `scoop.os` 为命名前缀，按目标发布五个普通 library Cone。首批从 Unix 文件元数据和命名管道开始。建议 iOS 的 UIKit 能力归入 `scoop.os.ios`，首版 `scoop.os.nix` 发布到 macOS 和 Linux。两项选择可以独立调整。
+2026-11-26。首版以 `scoop.os` 为命名前缀，按目标提供五个普通 library Cone。macOS 和 Linux 共享 Unix 文件元数据和命名管道接口。iOS 应用通过独立的 `scoop.os.ios` 查询 UIKit 的受保护数据状态。iOS 是否能进一步共享 Unix 文件接口，取决于该接口的实际依赖和真机行为（见第 2 节）。[已实现的公开接口](../specs/SCOOP-OS-SPEC.md)
 
 ## 1. 库边界
 
 调用方需要在不同系统上完成同一项操作时，使用 `scoop.platform` 已有的文件、目录、进程、网络和时间接口。需要操作系统特有的语义时，显式依赖对应的 `scoop.os.*` Cone。例如，查询文件大小用 `path.metadata().size`，比较两个 Unix 目录项是否指向同一文件则用设备号和 inode。两种调用共用同一个 `Path`。[平台库规范](../specs/SCOOP-PLATFORM-SPEC.md) · [库 API 风格](../specs/SCOOP-API-STYLE.md)
 
-| 拟发布的 Cone | 首版目标 | 首个公开 package 与用途 |
+| Cone | 首版目标 | 首个公开 package 与用途 |
 | --- | --- | --- |
 | `scoop.os.nix` | macOS arm64、x86-64，Linux x86-64 GNU、musl | `scoop.os.nix.fs` 提供 Unix 文件元数据和命名管道 |
 | `scoop.os.macos` | macOS arm64、x86-64 | `scoop.os.macos.fsevents` 观察目录树变化 |
@@ -32,7 +32,7 @@
 
 SDK 检查使用 `xcrun clang -fsyntax-only`，覆盖设备与模拟器的目标头文件。设备上的沙盒及文件系统行为仍以实际应用调用为准。[Apple 文件系统指南](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html) · [UIKit 数据保护状态](https://developer.apple.com/documentation/uikit/uiapplication/isprotecteddataavailable)
 
-首版建议先向 macOS、Linux 发布完整的 Unix 文件接口，iOS 独立发布 UIKit 入口。当前 `Path`、`FileMetadata` 和 `PlatformException` 所属的 `scoop.platform` 只为 macOS 和 Linux 选择 POSIX 后端，iOS 尚缺这组库依赖和 FIFO 行为的真机验证。这个选择的代价是 iOS 调用方暂时无法用同一条 import 读取 Unix 文件元数据。[平台清单](../../sysroot/src/scoop.platform/Cone.toml) · [发行目标配置](../../scripts/release.toml)
+首版向 macOS、Linux 提供完整的 Unix 文件接口，iOS 独立提供 UIKit 入口。当前 `Path`、`FileMetadata` 和 `PlatformException` 所属的 `scoop.platform` 只为 macOS 和 Linux 选择 POSIX 后端，iOS 尚缺这组库依赖和 FIFO 行为的真机验证。这个选择的代价是 iOS 调用方暂时无法用同一条 import 读取 Unix 文件元数据。[平台清单](../../sysroot/src/scoop.platform/Cone.toml) · [发行目标配置](../../scripts/release.toml)
 
 若同一份库代码确实需要在三端使用 `openat`、`fstat` 等接口，再评估给 iOS 发布 `scoop.os.nix.fs` 子集。届时用该调用方验证相同的路径表示、错误和 fd 所有权，并先解决 `Path`、`PlatformException` 等直接依赖在 iOS 上的供应。判断依据是该用例在真机上成立，以及共享公开 API 能省去多少调用方适配。
 
@@ -78,7 +78,7 @@ public fun Path.createFifo(mode: Int)
 
 ### macOS 目录树变化
 
-用 FSEvents 观察一个目录树从订阅成功开始的变化。建议入口为 `DirectoryWatch.open(root: Path)`，所有者实现 `Closeable`。调用方用 `nextBatch(): Array<DirectoryEvent>?` 等待一批事件，每项保留系统报告的路径（`Path`）、事件 ID（`ULong`）和标志位（`UInt`）。FSEvents 可以合并多个变化。`MustScanSubDirs` 指示递归扫描事件指出的目录，`UserDropped` 或 `KernelDropped` 指示从整个监听根目录重新扫描。[Apple FSEvents 编程指南](https://developer.apple.com/library/archive/documentation/Darwin/Conceptual/FSEvents_ProgGuide/UsingtheFSEventsFramework/UsingtheFSEventsFramework.html)
+用 FSEvents 观察一个目录树从订阅成功开始的变化。入口为 `DirectoryWatch.open(root: Path)`，所有者实现 `Closeable`。调用方用 `nextBatch(): Array<DirectoryEvent>?` 等待一批事件，每项保留系统报告的路径（`Path`）、事件 ID（`ULong`）和标志位（`UInt`）。FSEvents 可以合并多个变化。`MustScanSubDirs` 指示递归扫描事件指出的目录，`UserDropped` 或 `KernelDropped` 指示从整个监听根目录重新扫描。[Apple FSEvents 编程指南](https://developer.apple.com/library/archive/documentation/Darwin/Conceptual/FSEvents_ProgGuide/UsingtheFSEventsFramework/UsingtheFSEventsFramework.html)
 
 系统回调在原生 dispatch queue 上复制本批数据，由 `nextBatch()` 的调用线程构造 Scoop 值。同一时刻允许一个等待者，第二个并发读取抛 `IllegalStateException`。关闭时停止订阅、唤醒等待者并等在途原生回调退出，再释放 stream 和上下文。已取出的批次可交付，剩余批次丢弃，关闭后的 `nextBatch()` 返回 `None`。只有布尔失败信息的启动操作用 `PlatformException` 的 `Other` 和空 `nativeError` 表达。该 Cone 通过 manifest 声明 CoreServices framework。[原生调用与线程状态，运行时规范 §3.5、§4](../specs/SCOOP-RUNTIME-SPEC.md)
 
@@ -88,7 +88,7 @@ public fun Path.createFifo(mode: Int)
 
 ## 5. 构建与发布
 
-生产者用 `[[sources]]` 对整个 Cone 的生产源码设置表中所列条件，native 源码、系统库和测试源按同一目标选择。清单值 `darwin` 匹配 macOS，`ios` 匹配 iOS 真机与模拟器，`env = "simulator"` 只用于确有差异的模拟器文件。桌面 sysroot 的现有准备脚本按有匹配源码的 Cone 和依赖拓扑构建。交付 iOS 库时，将 `scoop.os.ios` 加入设备与模拟器两份 `system_cones`。[源码与依赖条件，语言规范 §12.2](../specs/SCOOP-SPEC.md) · [sysroot 准备脚本](../../scripts/prepare_sysroot.py)
+生产者用 `[[sources]]` 对整个 Cone 的生产源码设置表中所列条件，native 源码、系统库和测试源按同一目标选择。清单值 `darwin` 匹配 macOS，`ios` 匹配 iOS 真机与模拟器，`env = "simulator"` 只用于确有差异的模拟器文件。桌面 sysroot 的现有准备脚本按有匹配源码的 Cone 和依赖拓扑构建。iOS 设备与模拟器的 `system_cones` 均包含 `scoop.os.ios`。[源码与依赖条件，语言规范 §12.2](../specs/SCOOP-SPEC.md) · [sysroot 准备脚本](../../scripts/prepare_sysroot.py)
 
 例如，一份同时面向桌面和 iOS 的应用可在清单中选择 Unix 文件扩展。下列是它的 `Cone.toml` 片段，`src/common` 放各端通用代码，`src/unix` 中的文件导入 `Path`、`unixMetadata` 或 `createFifo`。
 
@@ -111,7 +111,7 @@ PM 在定位依赖和求解版本前按目标选边，类型检查只看到该�
 
 ## 6. 交付与验收
 
-第一步交付 `nix.fs`，让现有 asyncio Unix 测试通过条件测试依赖直接使用 `Path.createFifo`。随后 Linux 计数器、Windows 注册表和两个 Apple 库可以按各自用例独立交付。每项实施时先把确定的公开行为写入领域规范，随实现更新对应的编程材料。[编程材料更新流程](../scoop-programming/UPDATE-WORKFLOW.md)
+asyncio 的 Unix 测试通过条件测试依赖直接使用 `Path.createFifo`。各平台的公开行为记录在[操作系统扩展库规范](../specs/SCOOP-OS-SPEC.md)，Unix 文件示例可用 `scoop example io/unix-files` 查看。[编程材料更新流程](../scoop-programming/UPDATE-WORKFLOW.md)
 
 | 用例 | 可观察的验收结果 |
 | --- | --- |
@@ -121,4 +121,8 @@ PM 在定位依赖和求解版本前按目标选边，类型检查只看到该�
 | macOS FSEvents | 观察临时目录，修改其中的文件，验证通知可引导调用方重新枚举到修改结果。允许系统合并通知。等待期间关闭 stream 能让读取者退出，释放后无回调访问原生上下文。 |
 | iOS 受保护数据 | 用 UIKit 宿主消费目标产物，在模拟器上与同次场景的 UIKit 查询对照。涉及设备锁定与解锁的行为，在启用了数据保护的真机上对照观察并单独记录。[iOS native-app 验收入口](../../tests/ios-native-app/README.md) |
 
-普通库行为放在所属 Cone 的 release 测试中。跨目标选择和预编译产物链路用代表性的真实 consumer 覆盖，iOS 使用现有 `native-app` 与 XCFramework 宿主路径。表中各项均为拟验收行为。
+普通库行为由 release 测试覆盖。macOS arm64 和 x86-64 均通过 Unix 文件系统及 FSEvents 测试。Linux GNU 和 musl 均通过 Unix 文件系统、事件计数器和 asyncio 的 FIFO 用例，GNU 另在 X11 上通过窗口 fd 监听与注销用例。Windows 表中的三种目标均通过当前用户临时注册表键的读写对照，测试结束后删除了该键。发行脚本为九个目标各自选中了第 1 节所列的 Cone。
+
+发布示例 `io/unix-files` 在两种 macOS 架构和 Linux GNU、musl 上均输出三行 `true`。x86-64 release 曾在编译此示例时漏掉一个调用期间的 GC 根，已用修复后的编译器重新编译、链接并运行原示例。[编译器修复与回归](https://github.com/scoop-lang/scoop/pull/231)
+
+iOS 以同一份 Scoop 源码生成设备和模拟器两份产物，再由 UIKit 宿主加载 XCFramework。模拟器启动时两端查询一致。真机启动时 Scoop 和 UIKit 均为 `true`，收到即将锁定通知时仍均为 `true`，稍后的锁屏后台采样均为 `false`，解锁通知中均恢复为 `true`。这次实测覆盖受保护数据状态，Unix 文件元数据和 FIFO 的 iOS 适用性仍按第 2 节评估。[重复验证所用的宿主与命令](../../tests/ios-native-app/README.md)

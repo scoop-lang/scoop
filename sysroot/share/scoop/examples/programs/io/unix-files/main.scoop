@@ -1,0 +1,22 @@
+//! dep: scoop:scoop.platform:0.1.0
+//! dep: scoop:scoop.os.nix:0.1.0
+
+import scoop.os.nix.fs.*
+import scoop.platform.fs.*
+
+fun main() {
+    val directory = createTempDirectory()
+    try {
+        val pipe = directory.resolve(Path.fromString("inbox"))
+        pipe.createFifo(mode = 0x180)
+        val link = directory.resolve(Path.fromString("alias"))
+        link.createSymbolicLink(pipe)
+        val target = pipe.unixMetadata()
+        val followed = link.unixMetadata()
+        println(target.basic.kind == FileKind.Fifo)
+        println(followed.deviceId == target.deviceId && followed.inode == target.inode)
+        println(link.unixMetadata(followLinks = false).basic.kind == FileKind.SymbolicLink)
+    } finally {
+        directory.deleteRecursively()
+    }
+}
