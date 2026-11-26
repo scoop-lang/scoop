@@ -13,6 +13,7 @@ impl DynamicInputs {
                 .iter()
                 .filter_map(|input| match &native.files[input].content {
                     NativeContent::Dynamic(records) => records.first().map(|provider| provider.id),
+                    NativeContent::System => Some(self.system),
                     _ => None,
                 })
                 .collect()
