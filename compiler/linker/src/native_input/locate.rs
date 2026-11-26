@@ -74,12 +74,25 @@ fn read_bytes(
     } else {
         sha256(&bytes[slice.clone()])
     };
-    let fixed_system = matches!(kind, NativeFileKind::Archive | NativeFileKind::SharedObject)
-        && profile.elf_inputs().is_some_and(|elf| {
-            elf.system_paths
-                .iter()
-                .any(|path| path.canonicalize().ok().as_ref() == Some(&locator))
-        });
+    let fixed_system = match (profile, kind) {
+        (ValidatedFinalLinkProfile::Darwin(darwin), NativeFileKind::TextStub) if system => {
+            let provider = darwin.system_provider();
+            // SDK aliases such as libm select the already resolved libSystem interface.
+            provider.files().iter().any(|file| {
+                file.relative_path() == provider.root_stub()
+                    && file.digest() == digest
+                    && file.byte_len() == bytes.len() as u64
+            })
+        }
+        (_, NativeFileKind::Archive | NativeFileKind::SharedObject) => {
+            profile.elf_inputs().is_some_and(|elf| {
+                elf.system_paths
+                    .iter()
+                    .any(|path| path.canonicalize().ok().as_ref() == Some(&locator))
+            })
+        }
+        _ => false,
+    };
     let content = match kind {
         _ if fixed_system => NativeContent::System,
         NativeFileKind::Archive => {

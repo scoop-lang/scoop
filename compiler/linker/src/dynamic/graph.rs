@@ -48,6 +48,7 @@ impl DynamicInputs {
                 .join(system.root_stub()),
         });
         let mut result = Self {
+            system: id,
             providers: BTreeMap::from([(id, provider)]),
             roots: BTreeSet::from([id]),
             edges: BTreeMap::new(),
@@ -187,21 +188,7 @@ impl DynamicInputs {
                 .insert(symbol.clone(), binding.interface);
         }
         // The fixed provider remains an explicit load input even without calls.
-        let system_name = profile
-            .system_provider()
-            .map_err(|cause| error(cause.code(), cause))?
-            .install_name();
-        let system = self
-            .providers
-            .values()
-            .find(|provider| provider.install_name == system_name)
-            .ok_or_else(|| {
-                error(
-                    scoop_source::DiagnosticCode::E2305,
-                    "missing fixed system provider",
-                )
-            })?;
-        imports.entry(system.id).or_default();
+        imports.entry(self.system).or_default();
         for id in imports.keys() {
             if let Some(path) = locate::runpath(&self.providers[id], roots, profile)? {
                 self.rpaths.insert(path);

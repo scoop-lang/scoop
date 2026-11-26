@@ -1543,7 +1543,7 @@ Apple Silicon macOS 宿主的发行清单分别提供 `lib-base-aarch64-apple-io
 
 开发宿主使用 macOS Xcode。`aarch64-apple-ios-sim` 选择 `iphonesimulator` SDK、带版本的 `arm64-apple-ios<version>-simulator` triple、Mach-O `IOSSIMULATOR` 平台与 LLD `-platform_version ios-simulator`。`aarch64-apple-ios` 选择 `iphoneos` SDK、`arm64-apple-ios<version>` triple、Mach-O `IOS` 平台与 LLD `-platform_version ios`。两者默认最低版本为 iOS 17.0，`IPHONEOS_DEPLOYMENT_TARGET` 可指定本次应用的部署版本。Scoop 对象、generated-C、C／C++／Objective-C 对象、runtime 与 startup 均按目标生成，各自的开发 sysroot 提供 `scoop.core`、`scoop.std` 和 runtime。应用可从源码构建其他相容的 Cone。
 
-原生对象的部署记录、归档中实际使用的成员、动态库和 SDK 文本 stub 按选中的 Apple 平台消费。存在部署记录的输入必须有匹配的目标平台，最低版本不能超过本次部署版本。设备、模拟器和 macOS 的 ARM64 输入分别解析。模拟器 SDK 的 libSystem 会显式 re-export 宿主的核心系统库；沿已选 SDK 的实际 re-export 边读取这些库时，允许选择同架构的 macOS 文本 stub 切片。应用的部署版本只作用于应用目标平台的 stub 指令。沿用已有读取边界与更新记录。
+原生对象的部署记录、归档中实际使用的成员、动态库和 SDK 文本 stub 按选中的 Apple 平台消费。存在部署记录的输入必须有匹配的目标平台，最低版本不能超过本次部署版本。设备、模拟器和 macOS 的 ARM64 输入分别解析。模拟器 SDK 的 libSystem 会显式 re-export 宿主的核心系统库；沿已选 SDK 的实际 re-export 边读取这些库时，允许选择同架构的 macOS 文本 stub 切片。SDK 库名（例如 `m`）若选中了固定 libSystem 的同一份根 stub，则复用已解析的 libSystem 导出，包括经 re-export 可见的符号。显式搜索目录仍优先，单独提供的 stub 按输入目标校验。应用的部署版本只作用于应用目标平台的 stub 指令。沿用已有读取边界与更新记录。
 
 `native-app` 使用原有 `scoop_app_init` 和 C 函数表 ABI。`scoop build` 与 artifact-only `scoop link` 可产生用于 framework 的动态 Mach-O，使用 `--install-name @rpath/<Name>.framework/<Name>` 并以 `<Name>` 为二进制名称。组装使用扁平 `<Name>.framework`，其根目录含可执行文件和 `Info.plist`，`Headers/` 含 `scoop_app.h` 与应用公开头，`Modules/module.modulemap` 公布 C 模块。每个 Apple 部署平台提供一份 framework，由 Xcode 的 `-create-xcframework` 组装并按宿主平台选择；设备和模拟器可共同组装，也可各自组装。最终 `.app` 的 framework 嵌入和签名由 Xcode 宿主构建负责。平台和容器依据 [Apple XCFramework 文档](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle)。
 
