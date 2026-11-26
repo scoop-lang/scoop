@@ -155,7 +155,7 @@ MinGW OpenSSL 构建将所选 compiler 和 MSYS shell 的目录加入子进程 P
 python3 scripts/package_toolchain.py --jobs 6
 ```
 
-上例用于 Darwin。Linux 还要提供 `--musl-include /usr/include/x86_64-linux-musl`，并安装 `musl-gcc`、`patchelf` 和适用于 LLVM libunwind 的 Clang／Clang++；Rust 工具链需要同时具有 `x86_64-unknown-linux-musl` 目标。可通过 `--gnu-cc`、`--musl-cc`、`--unwind-cc`、`--unwind-cxx` 明确选择工具。Linux 宿主发行同时包含 GNU 与 musl 目标资源。
+上例用于 Darwin。Linux 还需安装 `musl-gcc`、`patchelf` 与构建 LLVM libunwind 用的 Clang／Clang++。在 Debian 或 Ubuntu 上，ARM64 使用 `--musl-include /usr/include/aarch64-linux-musl` 和 Rust 目标 `aarch64-unknown-linux-musl`，amd64 对应 `/usr/include/x86_64-linux-musl` 和 `x86_64-unknown-linux-musl`。可通过 `--gnu-cc`、`--musl-cc`、`--unwind-cc`、`--unwind-cxx` 明确选择工具。Linux 宿主发行同时包含 GNU 与 musl 目标资源。
 
 ARM64 musl 从相同的 LLVM 源码准备 libunwind 和 compiler-rt builtins。运行 `build_llvm_unwind.py` 时用 `--musl-include` 指向该目标的 musl 头文件。静态、动态程序均从目标的 unwind prefix 使用 `lib/libclang_rt.builtins-aarch64.a`，发行时该归档随 musl 基础库包交付。
 

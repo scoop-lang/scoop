@@ -79,6 +79,8 @@ Linux AArch64 使用保留 FP 的固定大小帧，关闭 red zone 和影响遍�
 | GNU | 默认动态 PIE。依赖仅含 C 时使用该目标的 LLVM libunwind。含 C++ 的依赖使用配套 C++ driver、libstdc++ 与 libgcc_s，最终程序只链接一套 Level-I 展开实现。C++ 异常在 C++ 包装层内处理。 |
 | musl | 可执行文件默认静态，显式传入 `--link-mode dynamic` 时使用该目标的 musl loader。两种模式均运行 GC 和异常用例。静态产物检查无 `PT_INTERP`／`DT_NEEDED`，动态产物在配套环境加载。依赖要求 C++ 时沿用现有的 musl 诊断。 |
 
+ARM64 musl 的静态和动态链接都从本目标的基础库包取 LLVM compiler-rt builtins。在 Bookworm 上，系统 `musl-gcc` 使用的 glibc 版 libgcc 通过私有符号 `__getauxval` 选择原子指令实现，musl 的共享 libc 导出的是 `getauxval`。用目标 musl 头文件构建的 compiler-rt 可以为两种链接模式提供这些辅助函数。[编译器辅助库修复](https://github.com/scoop-lang/scoop/pull/247)
+
 **基础库准备。** 按现有 Cone 依赖图扩展至全部适用的非图形库。为两种 libc 增加 OpenSSL 的 `linux-aarch64` 配方，按目标重建 Rust 文本后端、nghttp2、压缩库、PCRE2 及其余实际依赖。让 Python 准备脚本从目标目录选择配方。用各目标的头和库构建 `scoop.platform`、`scoop.os.linux`、`scoop.asyncio`、TLS 等真实消费者。将语言规范 §12.2.1 的 Linux GNU C++ 范围同步到 ARM64。§12.2.2 已能表达这两个目标的源文件条件。[依赖准备与基础库划分](../../scripts/package_toolchain.py) · [OpenSSL 配方](../../scripts/build_openssl.py) · [语言规范](../specs/SCOOP-SPEC.md)
 
 OpenSSL、nghttp2 等脚本的 `--target` 选项取自宿主目录中的 `distribution_targets`。在两套配方接入时就将 GNU、musl 一起列入 ARM64 GNU 宿主的该字段，同批运行两个目标的依赖准备。阶段三的发行任务再消费这份清单，生成实际可安装的包。[Python 目标目录](../../scripts/target_catalog.py) · [nghttp2 构建入口](../../scripts/build_nghttp2.py)
