@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Scoop → UIKit 宿主 | `aarch64-apple-ios` 与 `aarch64-apple-ios-sim` 都能生成动态框架，合成 XCFramework 并链接 UIKit 宿主。两个 Mach-O 的平台分别是 `IOS`、`IOSSIMULATOR`，最低版本均为 17.0。模拟器运行已有 protected-data 用例通过。 | 在 iPhone 真机上签名安装并运行宿主，以及 Scoop 自绘窗口上屏。 |
 | `scoop.platform` 最小集合 | 正式 Cone 已选入两目标的时间、线程、文件、目录和内存实现。模拟器的 `appInit` 对照 Foundation 核实容器和可执行文件路径，读取随包资源，并完成加锁、缓冲区往返和临时文件写读删除。 | 阶段 6 在签名安装的设备上复验同一应用。 |
-| Skia 和图形绑定 | 在两个 SDK 下检查了 29 个现有原生编译单元。设备和模拟器各自的完整 Skia 与文字后端静态库已在本地生成。 | 独立应用链接、中文与 emoji 排版、SVG 离屏像素及 Metal 上屏。链接模拟器图形用例时已复现 `libm` 所指向的 SDK 系统库解析失败，修复后从此处继续验收。 |
+| Skia 和图形绑定 | 在两个 SDK 下检查了 29 个现有原生编译单元。两个目标各有完整 Skia 与文字后端。独立应用在 iPhone 模拟器上将“中文🙂中文”排成 3 行，文字覆盖 908 个像素。已验证色块、SVG 图标、字形回退及 UTF-8 命中边界。 | 设备切片还需处理 `IOSurface.tbd` 的旧版本符号重定向，再复验独立应用链接。Metal 上屏在阶段 3 验收。 |
 
 调研时的发布清单为两个 iOS 目标各提供 runtime、`scoop.core`、`scoop.std` 和 `scoop.os.ios`。后者已有查询受保护数据状态的 UIKit 调用。按生产依赖展开，`scoop.ui.component` 连自身共涉及 14 个 Cone，其中 `scoop.window`、`scoop.surface`、`scoop.graphics`、`scoop.graphics.text`、`scoop.graphics.svg`、`scoop.icons.lucide`、`scoop.ui`、`scoop.ui.style`、`scoop.ui.component` 共 9 个在调研基线上缺少 iOS 生产源选择。具体主题还要由应用选入，首屏建议为 `scoop.ui.style.shadcn` 增加 iOS 源文件条件。`scoop.desktop`、托盘及其控件扩展都在这条依赖链之外。[发布清单](../../scripts/release.toml) · [控件清单](../../sysroot/src/scoop.ui.component/Cone.toml) · [现有 iOS 宿主验收](../../tests/ios-native-app/README.md)
 
