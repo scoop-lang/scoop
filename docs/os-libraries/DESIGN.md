@@ -88,7 +88,7 @@ public fun Path.createFifo(mode: Int)
 
 ## 5. 构建与发布
 
-生产者用 `[[sources]]` 对整个 Cone 的生产源码设置表中所列条件，native 源码、系统库和测试源按同一目标选择。清单值 `darwin` 匹配 macOS，`ios` 匹配 iOS 真机与模拟器，`env = "simulator"` 只用于确有差异的模拟器文件。桌面 sysroot 的现有准备脚本按有匹配源码的 Cone 和依赖拓扑构建。iOS 设备与模拟器的 `system_cones` 均包含 `scoop.os.ios`。[源码与依赖条件，语言规范 §12.2](../specs/SCOOP-SPEC.md) · [sysroot 准备脚本](../../scripts/prepare_sysroot.py)
+生产者用 `[[sources]]` 对整个 Cone 的生产源码设置表中所列条件，native 源码、系统库和测试源按同一目标选择。清单值 `darwin` 匹配 macOS，`ios` 匹配 iOS 真机与模拟器，`env = "simulator"` 只用于确有差异的模拟器文件。桌面 sysroot 的现有准备脚本按有匹配源码的 Cone 和依赖拓扑构建。Apple Silicon macOS 的发行清单包含 iOS 设备和模拟器两个目标，每个目标从自己的 `system_cones` 准备库，并随对应的 `lib-base-<target>` 组件交付 `scoop.os.ios.slib`。[源码与依赖条件，语言规范 §12.2](../specs/SCOOP-SPEC.md) · [sysroot 准备脚本](../../scripts/prepare_sysroot.py)
 
 例如，一份同时面向桌面和 iOS 的应用可在清单中选择 Unix 文件扩展。下列是它的 `Cone.toml` 片段，`src/common` 放各端通用代码，`src/unix` 中的文件导入 `Path`、`unixMetadata` 或 `createFifo`。
 
@@ -121,7 +121,9 @@ asyncio 的 Unix 测试通过条件测试依赖直接使用 `Path.createFifo`。
 | macOS FSEvents | 观察临时目录，修改其中的文件，验证通知可引导调用方重新枚举到修改结果。允许系统合并通知。等待期间关闭 stream 能让读取者退出，释放后无回调访问原生上下文。 |
 | iOS 受保护数据 | 用 UIKit 宿主消费目标产物，在模拟器上与同次场景的 UIKit 查询对照。涉及设备锁定与解锁的行为，在启用了数据保护的真机上对照观察并单独记录。[iOS native-app 验收入口](../../tests/ios-native-app/README.md) |
 
-普通库行为由 release 测试覆盖。macOS arm64 和 x86-64 均通过 Unix 文件系统及 FSEvents 测试。Linux GNU 和 musl 均通过 Unix 文件系统、事件计数器和 asyncio 的 FIFO 用例，GNU 另在 X11 上通过窗口 fd 监听与注销用例。Windows 表中的三种目标均通过当前用户临时注册表键的读写对照，测试结束后删除了该键。发行脚本为九个目标各自选中了第 1 节所列的 Cone。
+普通库行为由 release 测试覆盖。macOS arm64 和 x86-64 均通过 Unix 文件系统及 FSEvents 测试。Linux GNU 和 musl 均通过 Unix 文件系统、事件计数器和 asyncio 的 FIFO 用例，GNU 另在 X11 上通过窗口 fd 监听与注销用例。Windows 表中的三种目标均通过当前用户临时注册表键的读写对照，测试结束后删除了该键。
+
+九个发布目标的 `lib-base-<target>` 归档均包含第 1 节列出的 `scoop.os.*.slib`。七个桌面目标均从包中取库编译并运行了消费程序。两个 iOS 目标经 `scoop-install` 安装后，分别用已安装的库链接了 UIKit 测试所用的 Scoop 动态库，并验证了 Mach-O 平台和 UIKit 依赖。
 
 发布示例 `io/unix-files` 在两种 macOS 架构和 Linux GNU、musl 上均输出三行 `true`。x86-64 release 曾在编译此示例时漏掉一个调用期间的 GC 根，已用修复后的编译器重新编译、链接并运行原示例。[编译器修复与回归](https://github.com/scoop-lang/scoop/pull/231)
 

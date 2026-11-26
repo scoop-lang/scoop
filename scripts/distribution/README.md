@@ -24,6 +24,8 @@ scoop --version
 
 各组件归档内没有额外的版本目录、`.scoop` 或 `sysroot` 层，无需 `--strip-components`。五个命令通过实际执行文件定位相邻资源，也支持正常软链接启动。也可解压到其他安装根；移动整个目录后可以直接继续使用。追加目标时解压对应的 `scoop-<version>-lib-base-<target>.tar.xz`，Windows MinGW 目标还需同目标的 `native-<target>`，需要 GUI 时加上 `lib-gui-<target>`，然后为该目标重跑 post-install。之后追加 lib-gui 包同样重跑 post-install 即可补齐 GUI 库文档。
 
+Apple Silicon macOS 上开发 iOS 应用时，真机选择 `aarch64-apple-ios`，模拟器选择 `aarch64-apple-ios-sim`。两个目标可以一起安装。各自的 `lib-base` 组件包含同目标的 `scoop.core`、`scoop.std`、`scoop.os.ios` 和 runtime，可从 Xcode SDK 链接 UIKit。
+
 Windows 在 PowerShell 中解压各组件归档并运行 post-install（默认目标为 MSVC UCRT），然后将安装根的 `bin` 加入用户 PATH：
 
 ```powershell
