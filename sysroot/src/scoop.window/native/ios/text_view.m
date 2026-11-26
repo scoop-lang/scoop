@@ -19,6 +19,8 @@
     self.accessibilityElementsHidden = YES;
     self.backgroundColor = UIColor.clearColor;
     self.scrollEnabled = NO;
+    self.showsHorizontalScrollIndicator = NO;
+    self.showsVerticalScrollIndicator = NO;
     self.observedKeyboard = (SWSoftwareKeyboard){.state = 1};
     [content addSubview:self];
     content.keyboardLayoutGuide.followsUndockedKeyboard = YES;

@@ -13,6 +13,15 @@
   if (scale <= 0)
     scale = view.contentScaleFactor;
   UIEdgeInsets insets = view.safeAreaInsets;
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 260000
+  if (@available(iOS 26.0, *)) {
+    if (view.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad)
+      insets = [view edgeInsetsForLayoutRegion:
+                         [UIViewLayoutRegion
+                             safeAreaLayoutRegionWithCornerAdaptation:
+                                 UIViewLayoutRegionAdaptivityAxisVertical]];
+  }
+#endif
   return (SWISnapshot){bounds.size.width,
                        bounds.size.height,
                        scale,
@@ -35,12 +44,14 @@
 }
 - (void)geometryChanged {
   SWISnapshot value = self.snapshot;
+  UIEdgeInsets edges =
+      UIEdgeInsetsMake(value.top, value.left, value.bottom, value.right);
   if (CGRectEqualToRect(_bounds, self.view.bounds) && _scale == value.scale &&
-      UIEdgeInsetsEqualToEdgeInsets(_insets, self.view.safeAreaInsets))
+      UIEdgeInsetsEqualToEdgeInsets(_insets, edges))
     return;
   _bounds = self.view.bounds;
   _scale = value.scale;
-  _insets = self.view.safeAreaInsets;
+  _insets = edges;
   [self emit:2 flags:0];
 }
 - (void)activation:(NSNotification *)note {

@@ -56,9 +56,19 @@ static void inspect(void *nativeWindow, void *nativeView,
          metrics.scale > 0);
   assert(metrics.pixelsWide == ceil(metrics.width * metrics.scale));
   assert(metrics.pixelsHigh == ceil(metrics.height * metrics.scale));
+  UIEdgeInsets expected = view.safeAreaInsets;
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 260000
+  if (@available(iOS 26.0, *)) {
+    if (view.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad)
+      expected = [view edgeInsetsForLayoutRegion:
+                           [UIViewLayoutRegion
+                               safeAreaLayoutRegionWithCornerAdaptation:
+                                   UIViewLayoutRegionAdaptivityAxisVertical]];
+  }
+#endif
   assert(UIEdgeInsetsEqualToEdgeInsets(
-      view.safeAreaInsets, UIEdgeInsetsMake(metrics.top, metrics.left,
-                                            metrics.bottom, metrics.right)));
+      expected, UIEdgeInsetsMake(metrics.top, metrics.left, metrics.bottom,
+                                 metrics.right)));
 }
 
 static void event(int32_t kind) {

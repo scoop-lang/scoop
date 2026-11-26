@@ -222,6 +222,9 @@ void swi_ax_update(void *handle, const SWAccessibilityData *data,
   element.accessibilityFrameInContainerSpace =
       CGRectMake(data->visible_x, data->visible_y, data->visible_width,
                  data->visible_height);
+  SWITextView *editor = p.scene.view.editor;
+  if (editor.semanticElement == element)
+    editor.frame = element.accessibilityFrameInContainerSpace;
 }
 void swi_ax_remove(void *handle, int64_t number) {
   SWIAXProjection *p = (__bridge SWIAXProjection *)handle;
@@ -239,6 +242,11 @@ void swi_ax_editor_changed(SWIView *view) {
                          : NSNotFound;
   BOOL editing = index != NSNotFound;
   editor.semanticElement = editing ? field : nil;
+  editor.autoresizingMask = editing ? UIViewAutoresizingNone
+                                    : UIViewAutoresizingFlexibleWidth |
+                                          UIViewAutoresizingFlexibleHeight;
+  editor.frame =
+      editing ? field.accessibilityFrameInContainerSpace : view.bounds;
   editor.isAccessibilityElement = editing;
   editor.accessibilityElementsHidden = !editing;
   if (!p)

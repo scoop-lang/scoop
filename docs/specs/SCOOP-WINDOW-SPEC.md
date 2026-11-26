@@ -392,7 +392,7 @@ Window 的标准格式、操作协商、接收资源与同步边界见[数据拖
 
 需要结构化异步任务的场景用 `scoop.window.asyncio.attachUIKitScene(scene, handler, onClosed)` 连接。在主队列的 `EventLoopSession` 根作用域内创建窗口及其原生回调，因此场景事件、绘制和输入沿用附着时的 Context 与 `currentApplicationScope()`。返回的 Closeable 随场景断开关闭；普通前后台切换保留任务。会话退出时先退休窗口，子任务取消与清理完成后在主线程报告结果。
 
-`ApplicationProxy.post` 从其他线程唤醒主队列。一次性 `WindowDeadline` 使用单调时钟，和桌面共享排序、取消及关闭语义。窗口的逻辑尺寸取自内容视图的 bounds，像素尺寸由视图显示比例换算并向上取整。`WindowMetrics.safeAreaInsets` 以视图逻辑点记录上、左、下、右边距，桌面窗口默认四边为零。旋转、显示比例或安全区变化均触发几何更新。桥接到渲染器时，通过 `NativeWindowLease.handle.UIKit` 在有效租期内读取 `UIWindow`、`UIView`。应用退出、桌面窗体装饰、菜单与 asyncio 宿主由桌面目标提供。
+`ApplicationProxy.post` 从其他线程唤醒主队列。一次性 `WindowDeadline` 使用单调时钟，和桌面共享排序、取消及关闭语义。窗口的逻辑尺寸取自内容视图的 bounds，像素尺寸由视图显示比例换算并向上取整。`WindowMetrics.safeAreaInsets` 以视图逻辑点记录上、左、下、右边距，桌面窗口默认四边为零。iPadOS 26 及以上使用系统按垂直方向避让窗口控件的安全区域，系统关闭、最小化和缩放按钮获得的顶部空间也计入快照。旋转、显示比例或安全区变化均触发几何更新。桥接到渲染器时，通过 `NativeWindowLease.handle.UIKit` 在有效租期内读取 `UIWindow`、`UIView`。应用退出、桌面窗体装饰与桌面菜单由桌面目标提供。iOS 的结构化任务使用主队列场景附着入口。
 
 UIKit 将直接触摸和 Pencil 交给内容视图。一次接触只发布一条 `WindowEvent.Contact` 序列；同时按下的触点各有独立标识。坐标为视图逻辑点和同一显示比例换算出的像素。仅在设备提供压力时上报归一化数值。取消触摸、失焦和场景失活时退休相应标识，晚到的移动或抬起不重新开始序列。接收时间取与窗口截止时间同源的单调时钟。
 
