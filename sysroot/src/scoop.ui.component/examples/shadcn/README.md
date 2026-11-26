@@ -49,7 +49,7 @@ xcrun simctl launch "$SIMULATOR_UDID" dev.scoop.gallery
 
 如需复验本地拆包，在准备命令后加 `--package-dir tmp/ios-ui/packages`。已有库时可加 `--package-only`。基础包包含 runtime、异步定时和文字后端，GUI 包包含 Skia、窗口、组件及四套样式。模拟器和设备分别制包。
 
-本期在 iPhone 模拟器逐页打开并返回了全部 69 页，用系统拼音填写并保存了 Settings，也用 VoiceOver 朗读目录并双击进入页面。iPad 模拟器验证了 Workspace 草稿、付款删除和撤销、Conversation 流式回复和离页取消，以及与「照片」并排时的窄窗导航。iPhone 13 Pro Max 上已用开发签名运行同一工程，核对了触摸导航和后台恢复。[分设备验收记录](../../../../../docs/ui/IOS-PORT.md#本期交付记录)
+本期在 iPhone 模拟器逐页打开并返回了全部 69 页，用系统拼音填写并保存了 Settings，也用 VoiceOver 朗读目录并双击进入页面。iPad 模拟器验证了 Workspace 草稿、付款删除和撤销、Conversation 流式回复和离页取消，以及与「照片」并排时的窄窗导航。iPhone 13 Pro Max 上用同一工程的开发签名版验证了触摸导航、后台恢复、系统拼音保存，以及旁白的朗读顺序、双击、三指滚动和编辑。[分设备验收记录](../../../../../docs/ui/IOS-PORT.md#本期交付记录)
 
 Gallery 的 macOS 入口在附着窗口前调用 `configureFpsReportingFromEnvironment()`。在同一命令前加 `SCOOP_SURFACE_FPS=1` 即可查看实际呈现帧率。Button 页可供静止对照，Spinner 或 Skeleton 页可测连续动画。输出字段见 [Surface README](../../../scoop.surface/README.md)。
 

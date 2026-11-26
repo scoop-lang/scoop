@@ -110,8 +110,9 @@
 | 触摸与窗口 | 在 iPad 把 `notes.scoop` 拖入 `archive`，移动计数增加一次，保留原选中行。把 834 点的双栏窗口拖到 375 点宽后，Settings 仍在，点 Examples 可返回目录。另用系统「左右」排列让 Gallery 和照片并排，412 点宽的 Gallery 同样能返回目录并恢复全屏。自绘内容按 UIKit 的垂直避让区域给窗口按钮留出空间。[iPad 窗口排列](https://support.apple.com/guide/ipad/work-with-multiple-windows-at-the-same-time-ipad08c9970c/ipados) · [UIKit 窗口布局](https://developer.apple.com/videos/play/wwdc2025/282/?time=783) |
 | 桌面回归 | macOS 的真实 Gallery 窗口分别通过主题、方向和动画切换，以及四个组合应用的编辑焦点与资源生命周期用例。桌面窗口装饰、原生菜单绑定与退出用例也通过。 |
 | 本地构建与交付 | 设备与模拟器分别生成基础库和 GUI 库，共四个本地包。从单独解包的 sysroot 编译 Gallery，所得模拟器框架二进制与示例构建的一致。一个 XCFramework 包含两份 arm64 切片。Xcode 生成两个宿主，宿主和内嵌框架的 Mach-O 分别标记为 `IOS` 和 `IOSSIMULATOR`，部署下限均为 17.0。 |
-| iPhone 真机 | 使用 Personal Team 的开发签名将 `dev.scoop.gallery` 安装到 iPhone 13 Pro Max（iOS 27.2.1）。通过 USB 和 Device Hub 在手机上打开 Dialog、点 Examples 返回、滚动目录并进入 Settings。按 Home 再打开 Gallery 后，同一进程回到原来的 Settings 页面。 |
+| iPhone 真机 · 导航与恢复 | 使用 Personal Team 的开发签名将 `dev.scoop.gallery` 安装到 iPhone 13 Pro Max（iOS 27.2.1）。通过 USB 和 Device Hub 在手机上打开 Dialog、点 Examples 返回、滚动目录并进入 Settings。按 Home 再打开 Gallery 后，同一进程回到原来的 Settings 页面。 |
+| iPhone 真机 · 中文输入与旁白 | 在同一台手机上人工验收。Settings 的姓名栏用系统拼音选中“你好”，填好邮箱和六位验证码，点 Save settings 后显示 Saved。开启旁白后，在目录依次听到 Settings app、Workspace app，向左轻扫回到 Settings，双击进入页面。三指上滑和编辑表单均通过。 |
 
-真机的 XCTest 运行器已安装并启动，但在第一个用例开始前，设备拒绝了与 Xcode 的测试连接（退出码 74）。无线和 USB 均复现。上表的真机操作通过 Device Hub 完成。
+真机的 XCTest 运行器已安装并启动，但在第一个用例开始前，设备拒绝了与 Xcode 的测试连接（退出码 74）。无线和 USB 均复现。真机验收使用 Device Hub 和手机上的人工操作。完成后已移除临时测试运行器，手机保留 Gallery。
 
 本期交付使用本地开发包，iOS target 未发布。[Gallery Xcode 工程](../../sysroot/src/scoop.ui.component/examples/shadcn/ios/Gallery.xcodeproj) · [Gallery 场景入口](../../sysroot/src/scoop.ui.component/examples/shadcn/ios/src/app.scoop) · [系统交互测试](../../tests/ios-native-app/interaction/GalleryTests.swift)
