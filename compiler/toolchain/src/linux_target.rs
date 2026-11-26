@@ -85,3 +85,11 @@ impl LinuxTarget {
         Ok(Self { machine, libc })
     }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn native_test_targets() -> [scoop_target_data::TargetDefinition; 2] {
+    ["gnu", "musl"].map(|libc| {
+        let triple = format!("{}-unknown-linux-{libc}", std::env::consts::ARCH);
+        scoop_target_data::named_target(&triple).expect("native Linux test target")
+    })
+}

@@ -85,7 +85,7 @@ pub(super) fn run(command: &mut Command) -> Result<Output, ToolchainError> {
     Ok(output)
 }
 
-#[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
+#[cfg(all(test, target_os = "linux"))]
 pub(super) const SOURCE: &str = "#include <stdio.h>\n#include <unwind.h>\n\
 static _Unwind_Reason_Code trace(struct _Unwind_Context *context, void *data) {\n\
     (void)context; (*(int *)data)++; return _URC_NO_REASON;\n}\n\
