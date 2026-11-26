@@ -1,0 +1,90 @@
+package scoop.os.windows.registry
+
+import scoop.platform.system.*
+import scoop.test.*
+
+@Test
+private class RegistryTest {
+    @Test
+    fun `queries native typed values and missing registry entries`() {
+        val user = RegistryHive.CurrentUser
+        val key = OsString.fromString("Software\\ScoopRegistryTest-${@Unsafe { nativeTestId() }}")
+        @Unsafe {
+            assertEquals(
+                0,
+                key
+                    .withRegistryName { p ->
+                        @Unsafe {
+                            return@withRegistryName nativeCreate(p)
+                        }
+                    }
+            )
+        }
+        try {
+            val number = OsString.fromString("number")
+            val empty = OsString.fromString("")
+            assertEquals(0xf1234567u, user.readDwordOrNone(key, number)!!)
+            val text = OsString
+                .fromUtf16(
+                    [
+                        0x96ea.toUShort(),
+                        0xd800.toUShort(),
+                        0.toUShort(),
+                        0x78.toUShort(),
+                        0.toUShort()
+                    ]
+                )
+            assertEquals(text, user.readStringOrNone(key, empty)!!)
+            assertEquals(empty, user.readStringOrNone(key, OsString.fromString("empty"))!!)
+            assertEquals(
+                OsString.fromString("%TEMP%"),
+                user.readStringOrNone(key, OsString.fromString("plain"))!!
+            )
+            val missing = OsString.fromString("missing")
+            assertTrue(user.readStringOrNone(key, missing) == None)
+            assertTrue(user.readDwordOrNone(key, missing) == None)
+            assertTrue(RegistryHive.LocalMachine.readDwordOrNone(key, number) == None)
+            val mismatch = assertFailsWith<PlatformException> { user.readStringOrNone(key, number) }
+            assertTrue(mismatch.nativeError!!.domain == NativeErrorDomain.Win32)
+            assertEquals(1630, mismatch.nativeError!!.code)
+            assertEquals(key, mismatch.context!!)
+            assertFailsWith<PlatformException> {
+                user.readStringOrNone(key, OsString.fromString("expand"))
+            }
+        } finally {
+            @Unsafe {
+                assertEquals(
+                    0,
+                    key
+                        .withRegistryName { p ->
+                            @Unsafe {
+                                return@withRegistryName nativeDelete(p)
+                            }
+                        }
+                )
+            }
+        }
+        assertTrue(user.readStringOrNone(key, OsString.fromString("")) == None)
+    }
+
+    @Test
+    fun `registry input names reject embedded NUL`() {
+        val bad = OsString.fromUtf16([65.toUShort(), 0.toUShort(), 66.toUShort()])
+        val empty = OsString.fromString("")
+        assertFailsWith<IllegalArgumentException> {
+            RegistryHive.CurrentUser.readDwordOrNone(bad, empty)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            RegistryHive.CurrentUser.readStringOrNone(empty, bad)
+        }
+    }
+}
+
+@Extern(name = "scoop_test_registry_id")
+private fun nativeTestId(): ULong
+
+@Extern(name = "scoop_test_registry_create")
+private fun nativeCreate(path: Ptr<UShort>): Int
+
+@Extern(name = "scoop_test_registry_delete")
+private fun nativeDelete(path: Ptr<UShort>): Int

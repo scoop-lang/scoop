@@ -1,0 +1,27 @@
+schema = 1
+
+[cone]
+group = "scoop"
+name = "scoop.os.windows"
+version = "0.1.0"
+kind = "library"
+
+[[sources]]
+path = "src"
+when = { os = "windows" }
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+
+[test-dependencies]
+"scoop:scoop.test" = "0.1.0"
+"scoop.tests:registry-native" = { version = "0.1.0", path = "test-native" }
+
+[[native.sources]]
+path = "native/registry.c"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "advapi32"
+when = { os = "windows" }

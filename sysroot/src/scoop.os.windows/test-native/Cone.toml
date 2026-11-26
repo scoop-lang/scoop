@@ -1,0 +1,15 @@
+schema = 1
+
+[cone]
+group = "scoop.tests"
+name = "registry-native"
+version = "0.1.0"
+kind = "library"
+
+[[native.sources]]
+path = "registry.c"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "advapi32"
+when = { os = "windows" }
