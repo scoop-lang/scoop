@@ -107,6 +107,7 @@ def build_app(framework, work, language, simulator):
     with (app / "Info.plist").open("wb") as file:
         plistlib.dump(
             {
+                "CFBundleDevelopmentRegion": "en",
                 "CFBundleExecutable": language,
                 "CFBundleIdentifier": identifier,
                 "CFBundleName": language,
@@ -159,6 +160,7 @@ def build_app(framework, work, language, simulator):
             "-framework",
             "UIKit" if language in SCENE_DELEGATES else "Foundation",
             (PROBES[language][1].parent if language in PROBES else HERE) / "main.m",
+            *([HERE / "window/ime.m"] if language == "window" else []),
         )
     run(
         "xcrun",
@@ -265,6 +267,14 @@ def main():
             exercise(args.simulator, identifier, f"scoop-ios-{marker}-ok", gc_stress=False)
         else:
             exercise(args.simulator, identifier, f"scoop-{language}-moving-gc-ok")
+        if language == "window":
+            exercise(
+                args.simulator,
+                identifier,
+                "scoop-ios-ime-ok",
+                "--ime-transactions",
+                gc_stress=False,
+            )
         if language == "swift":
             exercise(args.simulator, identifier, "scoop-swift-init-failure-ok", "--fail")
         if args.include_device:

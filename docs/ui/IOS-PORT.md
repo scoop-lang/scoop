@@ -11,6 +11,7 @@
 | Scoop → UIKit 宿主 | `aarch64-apple-ios` 与 `aarch64-apple-ios-sim` 都能生成动态框架，合成 XCFramework 并链接 UIKit 宿主。两个 Mach-O 的平台分别是 `IOS`、`IOSSIMULATOR`，最低版本均为 17.0。模拟器运行已有 protected-data 用例通过。 | 在 iPhone 真机上签名安装并运行宿主，以及 Scoop 控件首屏。 |
 | `scoop.platform` 最小集合 | 正式 Cone 已选入两目标的时间、线程、文件、目录和内存实现。模拟器的 `appInit` 对照 Foundation 核实容器和可执行文件路径，读取随包资源，并完成加锁、缓冲区往返和临时文件写读删除。 | 阶段 6 在签名安装的设备上复验同一应用。 |
 | UIKit 窗口 | 已用独立的 Scoop 应用在 iPhone 模拟器连接真实场景，对照视图的大小、比例和安全区，验证一次性定时、跨线程投递、重绘合并及 `Closing` → 租约归还 → `Destroyed`。设备 SDK 的同一宿主也已链接。 | 控件挂载、旋转之后的命中和辅助功能属于首屏验收。 |
+| UIKit 文本连接 | 已在模拟器的真实 `UITextInput` 第一响应者上逐个调用系统编辑方法。覆盖拼音 marked text、改选和确认、跨 emoji 选择与删除、回写、候选位置和关闭旧连接，控制台输出 `scoop-ios-ime-ok`。 | 通过系统中文键盘实际点选候选，验证自绘 `Input` 及键盘遮挡，阶段 6 再上真机。 |
 | 窗口触摸 | 已由 XCUITest 在 iPhone 模拟器送入轻点、拖动和同时双指点击。Scoop 收到的标识、点坐标和像素坐标符合窗口快照；按住时切走 key window，得到一次取消且无迟到的结束事件。 | 在完整控件树中核对点击计数、滚动仲裁和旋转后命中。 |
 | UIKit 上的 Metal | iPhone 模拟器使用生产窗口和渲染器的原生入口，向真实 drawable 绘色块、读回像素并提交。首帧后停帧，切至系统设置再回到原进程，第二帧通过相同检查。桌面和两个 iOS 目标都能编译 Metal 渲染器。 | 验证完整的 `SurfaceHost`、Skia 绘制和 `UiHost` 控件在同一页消费这条呈现路径。 |
 | Skia 和图形绑定 | 在两个 SDK 下检查了 29 个现有原生编译单元。两个目标均已链接完整 Skia、文字后端和独立宿主，组成同一 XCFramework。iPhone 模拟器上“中文🙂中文”排成 3 行，文字覆盖 908 个像素，色块、SVG 图标、系统字体回退和 UTF-8 命中边界均通过。 | 阶段 3 验收控件通过 Skia 和 UIKit 的完整上屏路径；阶段 6 验收真机启动与交互。 |

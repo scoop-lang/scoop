@@ -79,6 +79,34 @@ path = "src/native/input/contacts.scoop"
 when = { os = "ios" }
 
 [[sources]]
+path = "src/text/types.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/text/apply.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/text.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/results.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/text_snapshot.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/software_keyboard.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/text_snapshot.scoop"
+when = { os = "ios" }
+
+[[sources]]
 path = "platform/apple"
 when = { os = ["darwin", "ios"] }
 
@@ -909,6 +937,22 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/ios/application.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/text_view.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/text_changes.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/text_snapshot.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/keyboard.m"
 when = { os = "ios" }
 
 [[native.sources]]

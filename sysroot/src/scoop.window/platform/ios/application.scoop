@@ -11,7 +11,9 @@ public enum ApplicationEvent {
 }
 
 public enum WindowEvent {
-    Contact(ContactEvent),
+    Contact(ContactEvent), TextInput(TextInputEvent), SoftwareKeyboardChanged(
+        SoftwareKeyboardState
+    ),
     Closing, Destroyed, RedrawRequested, GeometryChanged(WindowMetrics), Focused(Boolean),
     Occluded(Boolean), ThemeChanged(Theme?)
 }

@@ -1,4 +1,4 @@
-#import "window.h"
+#import "text.h"
 #import <QuartzCore/CAMetalLayer.h>
 #include <time.h>
 
@@ -22,6 +22,7 @@
 - (void)layoutSubviews {
   [super layoutSubviews];
   [self.owner geometryChanged];
+  [self.editor updateKeyboardGeometry];
 }
 - (void)safeAreaInsetsDidChange {
   [super safeAreaInsetsDidChange];

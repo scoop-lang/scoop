@@ -48,3 +48,9 @@ private fun nativeInputCopy(event: Ptr<Unit>): NativeCreateResult
 
 @Extern(name = "scoop_window_input_release")
 private fun nativeInputRelease(input: Ptr<Unit>)
+
+internal fun WindowOwner.keyboardRequestInput(): Ptr<Unit>? =
+    when (currentInput) {
+        case Some(val current) -> current.pointer
+        case None -> None
+    }

@@ -13,6 +13,49 @@ private fun ApplicationOwner.dispatch(event: Ptr<Unit>) {
         if (window.id.value != header.window || window.phase != WindowState.Open) continue
         val value = iosEventSnapshot(event)
         when (header.kind) {
+            13 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .TextInput(
+                                    TextInputEvent
+                                        .Edit(
+                                            copyNativeTextBatch(
+                                                event,
+                                                header.window,
+                                                nativeEventData(event)
+                                            )
+                                        )
+                                )
+                        )
+                )
+
+            14 -> {
+                val data = nativeEventData(event)
+                val connection = platformTextConnection(header.window, data)
+                val change = if (data.flags != 0)
+                    TextInputEvent.Enabled(connection)
+                else
+                    TextInputEvent.Disabled(connection)
+                notify(ApplicationEvent.Window(window.id, WindowEvent.TextInput(change)))
+            }
+
+            22 -> {
+                val data = nativeEventData(event)
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .SoftwareKeyboardChanged(
+                                    copySoftwareKeyboard(data.flags, data.x, data.y, data.z, data.w)
+                                )
+                        )
+                )
+            }
+
             21 ->
                 notify(
                     ApplicationEvent

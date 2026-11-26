@@ -65,7 +65,7 @@ target/release/scoop build sysroot/src/scoop.platform --release \
 
 ## UIKit 场景与窗口
 
-在同一 sysroot 为两个目标预编译 `scoop.window`。用独立工作目录运行上述命令并加 `--window --include-device`。iPhone 模拟器会创建真实的 `UIWindowScene`，对照 UIKit 核对窗口、视图、安全区、显示比例和像素尺寸。工作线程投递、重绘合并、一次性定时和断开后的原生借用回收通过后，输出 `scoop-ios-window-ok`。设备宿主在本步骤交叉链接。
+在同一 sysroot 为两个目标预编译 `scoop.window`。用独立工作目录运行上述命令并加 `--window --include-device`。iPhone 模拟器会创建真实的 `UIWindowScene`，对照 UIKit 核对窗口、视图、安全区、显示比例和像素尺寸。工作线程投递、重绘合并、一次性定时和断开后的原生借用回收通过后，输出 `scoop-ios-window-ok`。设备宿主在本步骤交叉链接。随后模拟器以 `--ime-transactions` 再次启动宿主。这个用例在真实的 UIKit 第一响应者上组合、换选、提交和删除，核对含 emoji 的 UTF-16 系统选区与 Scoop UTF-8 选区，验证旧光标和关闭的文本连接会被拒绝。成功标记为 `scoop-ios-ime-ok`。
 
 安装上述 `--window` 宿主后，可通过 XCTest 在同一模拟器送入轻点、拖动和双指点击。最后在仍按住时切走 key window，检查接触取消且抬手不会重复结束。测试通过 Scoop 收到的事件检查每个触点的身份和逻辑／像素坐标。
 

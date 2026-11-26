@@ -9,6 +9,8 @@ typedef struct {
 typedef struct {
   void (*inspect)(void *window, void *view, ScoopWindowMetrics metrics);
   void (*event)(int32_t kind);
+  void (*ime)(int32_t step);
+  int32_t textProbe;
 } ScoopWindowHost;
 
 typedef struct {

@@ -9,7 +9,9 @@
 static ScoopWindowApi api;
 static __weak UIWindowScene *currentScene;
 static unsigned events[13];
-static BOOL touchProbe;
+static BOOL touchProbe, textProbe;
+extern void probeTextStep(UIView *content, int32_t step);
+static void ime(int32_t step);
 static __weak UIView *resultView;
 static UIWindow *interruptingWindow;
 static BOOL disconnecting;
@@ -21,6 +23,8 @@ static void inspect(void *nativeWindow, void *nativeView,
   assert(NSThread.isMainThread && window.windowScene == currentScene);
   assert(window.rootViewController.view == view &&
          [view.layer isKindOfClass:CAMetalLayer.class]);
+  if (textProbe)
+    resultView = view;
   if (touchProbe && !resultView) {
     resultView = view;
     view.isAccessibilityElement = YES;
@@ -42,6 +46,8 @@ static void inspect(void *nativeWindow, void *nativeView,
 static void event(int32_t kind) {
   assert(NSThread.isMainThread && kind >= 1 && kind <= 12);
   events[kind]++;
+  if (textProbe)
+    return;
   if (touchProbe) {
     if (events[10] == 1 && events[8] == 1)
       resultView.accessibilityValue = @"tap delivered";
@@ -101,13 +107,21 @@ static void event(int32_t kind) {
   }
 }
 
+static void ime(int32_t step) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    probeTextStep(resultView, step);
+  });
+}
+
 @interface WindowAppDelegate : UIResponder <UIApplicationDelegate>
 @end
 @implementation WindowAppDelegate
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)options {
   touchProbe = [NSProcessInfo.processInfo.arguments containsObject:@"--touch"];
-  ScoopWindowHost host = {inspect, event};
+  textProbe = [NSProcessInfo.processInfo.arguments
+      containsObject:@"--ime-transactions"];
+  ScoopWindowHost host = {inspect, event, ime, textProbe};
   ScoopAppError error = {0};
   assert(scoop_app_init(&host, &api, &error) == SCOOP_APP_INIT_OK);
   return YES;
@@ -124,6 +138,8 @@ static void event(int32_t kind) {
   assert(api.control(api.context, 1, (__bridge void *)scene));
 }
 - (void)sceneDidBecomeActive:(UIScene *)scene {
+  if (textProbe)
+    assert(api.control(api.context, 6, (__bridge void *)scene));
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     assert(api.control(api.context, 2, (__bridge void *)scene));
   });

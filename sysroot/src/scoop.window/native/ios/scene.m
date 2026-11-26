@@ -1,4 +1,4 @@
-#import "window.h"
+#import "text.h"
 #include <math.h>
 
 @implementation SWIScene {
@@ -153,6 +153,7 @@ void scoop_window_ios_scene_show(void *pointer) {
 void scoop_window_ios_scene_destroy(void *pointer) {
   SWIScene *scene = (__bridge_transfer SWIScene *)pointer;
   [NSNotificationCenter.defaultCenter removeObserver:scene];
+  [scene.view.editor closeConnection];
   scene.application = nil;
   scene.view.owner = nil;
   scene.window.hidden = YES;

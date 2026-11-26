@@ -64,3 +64,14 @@ internal fun platformNativeHandle(pointer: Ptr<Unit>): NativeWindowHandle = Nati
     .UIKit(iosUIWindow(pointer), iosView(pointer))
 
 internal fun platformModifiers(flags: Long): Modifiers = darwinModifiers(flags)
+
+internal fun platformTextConnection(
+    window: Long,
+    event: NativeWindowEventData
+): TextInputConnection? = if (event.a > 0L)
+    Some(TextInputConnection(WindowId(window), event.a))
+else
+    None
+
+// UIKit requests the keyboard through the connected first responder.
+internal fun WindowOwner.keyboardRequestInput(): Ptr<Unit>? = None

@@ -12,10 +12,13 @@ typedef struct {
   int32_t visible, focused, occluded, dark;
 } SWISnapshot;
 
+@class SWITextEdit, SWITextView;
+
 @interface SWIEvent : NSObject
 @property(nonatomic) SWEventHeader header;
 @property(nonatomic) SWEventData data;
 @property(nonatomic) SWContactData contact;
+@property(nonatomic, copy) NSArray<SWITextEdit *> *edits;
 @property(nonatomic) SWISnapshot snapshot;
 @property(nonatomic, strong) SWIEvent *next;
 @end
@@ -34,6 +37,7 @@ typedef struct {
 @class SWIScene;
 @interface SWIView : UIView
 @property(nonatomic, weak) SWIScene *owner;
+@property(nonatomic, strong) SWITextView *editor;
 - (void)cancelContacts:(SWPointerCancelReason)reason;
 @end
 
