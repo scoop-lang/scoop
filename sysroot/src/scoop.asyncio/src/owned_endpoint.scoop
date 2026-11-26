@@ -16,10 +16,6 @@ private const val ENDPOINT_OUTPUT: Int = 8
 
 private const val ENDPOINT_ENDED: Int = 16
 
-internal interface LoopResource {
-    public fun closeFromLoop()
-}
-
 internal class OwnedEndpoint(
     val loop: LoopOwner,
     val pointer: Ptr<Unit>,

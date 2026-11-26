@@ -12,91 +12,20 @@ import scoop.platform.process.Command
  * requires an active job in this loop's context.
  */
 public class PlatformEventLoop internal constructor(
-    private val config: LoopBlockingConfig
-): EventLoop {
-    private val accepted: AtomicBoolean = AtomicBoolean(false)
-    internal val state: LoopOwner = LoopOwner()
+    config: LoopBlockingConfig
+) : EventLoop {
+    private val lifetime = SingleLoop(config)
+    internal val state: LoopOwner get() = lifetime.state
 
     /** The owner executor for this active loop lifetime. */
     public override val executor: CoroutineExecutor get() = state.activeExecutor()
 
-    /**
-     * Runs the root structured scope and drives its operations to completion. The loop is
-     * single-use and cannot be nested or called from an existing Job.
-     */
-    public fun <T> run(block: suspend CoroutineScope.() -> T): T {
-        requireLoopRootCaller()
-        return runPrepared(block)
-    }
+    /** Runs a root scope on the caller's thread until all children finish. */
+    public fun <T> run(block: suspend CoroutineScope.() -> T): T = lifetime.run(this, block)
 
-    private fun <T> runPrepared(block: suspend CoroutineScope.() -> T): T {
-        acceptInstance()
-        val native = state.open(this, config)
-        val result = LoopResult<T>()
-        val loop: EventLoop = this
-        context(loop) {
-            startDispatchedCoroutine<T>(
-                state.executor,
-                {
-                    coroutineScope<T> {
-                        this @PlatformEventLoop.state.bindRoot(job)
-                        block(this)
-                    }
-                },
-                LoopCompletion(state, result)
-            )
-        }
-        state.drive(native)
-        @Unsafe
-        {
-            return result.value.assumeInit()
-        }
-    }
-
-    /** Attaches without running application callbacks on the registration stack. */
-    public fun attach(host: EventLoopHost, onClosed: (Throwable?) -> Unit): EventLoopSession {
-        if (!host.isCurrentThread())
-            throw IllegalStateException(Some("attach requires the host owner thread"))
-        acceptStart()
-        val native = state.open(this, config)
-        val mailbox = LoopMailbox(state)
-        val loop: EventLoop = this
-        context(loop) {
-            startDispatchedCoroutine<Unit>(
-                state.executor,
-                {
-                    coroutineScope<Unit> {
-                        val scope = this
-                        mailbox.run(scope)
-                    }
-                },
-                SessionCompletion(mailbox)
-            )
-        }
-        try {
-            LoopAttachment(state, native, mailbox, onClosed).install(host)
-        } catch (error: Throwable) {
-            mailbox.requestClose()
-            try {
-                state.drive(native)
-            }
-            catch (cleanup: Throwable) {
-                throw ResourceUseException(error, cleanup)
-            }
-            throw error
-        }
-        return EventLoopSession(loop, mailbox)
-    }
-
-    private fun acceptStart() {
-        requireLoopRootCaller()
-        acceptInstance()
-    }
-
-    private fun acceptInstance() {
-        if (!accepted.compareAndSet(false, true))
-            throw IllegalStateException(Some("event loop already used"))
-    }
+    /** Drives this scope from the existing host until shutdown and watch removal. */
+    public fun attach(host: EventLoopHost, onClosed: (Throwable?) -> Unit): EventLoopSession =
+        lifetime.attach(this, host, onClosed)
 
     /**
      * Suspends for a nonnegative duration and follows current-job cancellation.
@@ -202,21 +131,4 @@ public class PlatformEventLoop internal constructor(
         address: SocketAddress,
         reuseAddress: Boolean
     ): AsyncUdpSocket = bindUdpOnLoop(state, address, reuseAddress)
-}
-
-private class LoopResult<T> {
-    var value: MaybeUninit<T> = MaybeUninit<T>.uninit()
-}
-
-private class LoopCompletion<T>(
-    val state: LoopOwner,
-    private val result: LoopResult<T>
-): Continuation<T> {
-    public override fun resume(value: T) {
-        result.value = MaybeUninit<T>.initialized(value)
-        state.finishRoot(None)
-    }
-    public override fun resumeWithException(exception: Throwable) {
-        state.finishRoot(Some(exception))
-    }
 }

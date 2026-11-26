@@ -68,3 +68,5 @@ target/release/scoop build sysroot/src/scoop.platform --release \
 在上述模拟器验证命令加上 `--protected-data` 并使用另一个工作目录，会构建普通 release 应用。UIKit 启动后，宿主通过 Scoop 回调查询数据保护状态，与同一时刻的 UIKit 返回值对照。成功标记为 `scoop-ios-protected-data-ok`。
 
 同时加上 `--include-device` 会生成 `device/protected.app`。在启用密码和数据保护的设备上开发签名并安装该宿主，以 `dev.scoop.ios-probe.protected` 启动并观察控制台。锁屏、等待数据保护生效、解锁，记录 `will-lock` 与 `did-unlock` 通知中的两次查询。前者发生在状态即将改变时。宿主会在后台短暂继续采样，`background scoop=0 UIKit=0` 表示两次查询都观测到数据已受保护。
+
+在验证命令中选用 `--asyncio`，可在模拟器的主运行循环验证一次计时恢复、长定时子任务随会话关闭而取消，以及主线程收到最终关闭结果。成功标记为 `scoop-ios-asyncio-ok`。

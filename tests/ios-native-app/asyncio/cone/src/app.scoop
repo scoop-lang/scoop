@@ -1,0 +1,54 @@
+package scoop.tests.ios.asyncio
+
+import scoop.asyncio.*
+import scoop.asyncio.host.MainDispatchHost
+import scoop.platform.concurrent.currentThreadId
+import scoop.time.Duration
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    val owner = currentThreadId()
+    val result = outAppApi.cast<Int>()
+    val ended = AtomicBoolean(false)
+    val elapsed = AtomicBoolean(false)
+    val loop = eventLoop()
+    val session = loop
+        .attach(MainDispatchHost()) { error ->
+            val cancelled = when (error) {
+                case Some(val reason) -> reason is CancellationException
+                case None -> true
+            }
+            @Unsafe {
+                result
+                    .store(
+                        if (cancelled &&
+                            ended.load() &&
+                            elapsed.load() &&
+                            currentThreadId() ==
+                            owner
+                        )
+                            1
+                        else
+                            -1
+                    )
+            }
+        }
+    session
+        .post {
+            val scope = this;
+            scope
+                .launch {
+                    try {
+                        currentEventLoop().sleep(Duration.seconds(3600L))
+                    } finally {
+                        ended.store(true)
+                    }
+                }
+            scope
+                .launch {
+                    currentEventLoop().sleep(Duration.milliseconds(15L))
+                    elapsed.store(currentEventLoop() === loop && currentThreadId() == owner)
+                    session.requestClose()
+                }
+        }
+}
