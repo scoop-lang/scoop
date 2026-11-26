@@ -73,7 +73,7 @@ impl StubDirectives {
         let start = parse_version(start)?;
         let end = parse_version(end)?;
         let compatibility = parse_compatibility(compatibility)?;
-        if name.is_empty() || start >= end {
+        if name.is_empty() || start > end {
             return Err(invalid(directive));
         }
         if platform != target.macho_platform()
