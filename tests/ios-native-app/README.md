@@ -75,6 +75,12 @@ xcodebuild test -project tests/ios-native-app/interaction/Interaction.xcodeproj 
   -parallel-testing-enabled NO -only-testing:InteractionTests/InteractionTests/testWindowTouches
 ```
 
+在测试用模拟器上显式运行剪贴板互通用例。它会替换该模拟器的通用剪贴板。Scoop 写入空文本以及带 HTML 表示的中文和 emoji，UIKit 核对原生条目，再写回另一段文本供 Scoop 读取。成功标记为 `scoop-ios-clipboard-ok`。
+
+```sh
+xcrun simctl launch --console --terminate-running-process "$SIMULATOR_UUID" dev.scoop.ios-probe.window --clipboard
+```
+
 ## UIKit 受保护数据
 
 在上述模拟器验证命令加上 `--protected-data` 并使用另一个工作目录，会构建普通 release 应用。UIKit 启动后，宿主通过 Scoop 回调查询数据保护状态，与同一时刻的 UIKit 返回值对照。成功标记为 `scoop-ios-protected-data-ok`。

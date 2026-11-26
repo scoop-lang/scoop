@@ -12,6 +12,7 @@
 | `scoop.platform` 最小集合 | 正式 Cone 已选入两目标的时间、线程、文件、目录和内存实现。模拟器的 `appInit` 对照 Foundation 核实容器和可执行文件路径，读取随包资源，并完成加锁、缓冲区往返和临时文件写读删除。 | 阶段 6 在签名安装的设备上复验同一应用。 |
 | UIKit 窗口 | 已用独立的 Scoop 应用在 iPhone 模拟器连接真实场景，对照视图的大小、比例和安全区，验证一次性定时、跨线程投递、重绘合并及 `Closing` → 租约归还 → `Destroyed`。设备 SDK 的同一宿主也已链接。 | 控件挂载、旋转之后的命中和辅助功能属于首屏验收。 |
 | UIKit 文本连接 | 已在模拟器的真实 `UITextInput` 第一响应者上逐个调用系统编辑方法。覆盖拼音 marked text、改选和确认、跨 emoji 选择与删除、回写、候选位置和关闭旧连接，控制台输出 `scoop-ios-ime-ok`。 | 通过系统中文键盘实际点选候选，验证自绘 `Input` 及键盘遮挡，阶段 6 再上真机。 |
+| 系统剪贴板 | iPhone 模拟器上，Scoop 和 UIKit 可互读纯文本，中文、emoji 和空文本均已验证。Scoop 同时发布的纯文本和 HTML 位于一个系统条目，PRIMARY 选区报告不可用。 | 用完整编辑控件执行用户触发的剪切、复制和粘贴，验收选区与正文变化。 |
 | 窗口触摸 | 已由 XCUITest 在 iPhone 模拟器送入轻点、拖动和同时双指点击。Scoop 收到的标识、点坐标和像素坐标符合窗口快照；按住时切走 key window，得到一次取消且无迟到的结束事件。 | 在完整控件树中核对点击计数、滚动仲裁和旋转后命中。 |
 | UIKit 上的 Metal | iPhone 模拟器使用生产窗口和渲染器的原生入口，向真实 drawable 绘色块、读回像素并提交。首帧后停帧，切至系统设置再回到原进程，第二帧通过相同检查。桌面和两个 iOS 目标都能编译 Metal 渲染器。 | 验证完整的 `SurfaceHost`、Skia 绘制和 `UiHost` 控件在同一页消费这条呈现路径。 |
 | Skia 和图形绑定 | 在两个 SDK 下检查了 29 个现有原生编译单元。两个目标均已链接完整 Skia、文字后端和独立宿主，组成同一 XCFramework。iPhone 模拟器上“中文🙂中文”排成 3 行，文字覆盖 908 个像素，色块、SVG 图标、系统字体回退和 UTF-8 命中边界均通过。 | 阶段 3 验收控件通过 Skia 和 UIKit 的完整上屏路径；阶段 6 验收真机启动与交互。 |
@@ -39,7 +40,7 @@
 
 | 处理 | 接口与范围 | iOS 处理及使用方 |
 | --- | --- | --- |
-| 复用 | `WindowId`、`WindowMetrics`、`WindowActivity`、`ContactId`、`ContactEvent`、`KeyEvent`、`InteractionPreferences` | 保留窗口身份、逻辑尺寸/像素尺寸/比例、活动状态、接触与键盘事件。宿主填写真实值。安全区需要单独传给布局，单靠 `WindowMetrics` 的三个现有字段无法表达。 |
+| 复用 | `WindowId`、`WindowMetrics`、`WindowActivity`、`ContactId`、`ContactEvent`、`KeyEvent`、`InteractionPreferences` | 保留窗口身份、逻辑尺寸、像素尺寸、比例、活动状态和输入事件。窗口实现已为 `WindowMetrics` 增加 `safeAreaInsets`，以视图逻辑点传递四边安全区。 |
 | 复用并接主线程 | `ApplicationProxy.post`、`Window.createDeadline`、`WindowDeadline`、`Window.acquireNativeWindow`、`NativeWindowLease` | 用系统主队列唤醒窗口任务，按截止时间回调。为 `NativeWindowHandle` 增加 iOS 表示，限定 `UIWindow`、`UIView` 的借用期。 |
 | iOS 定制 | 应用启动、场景连接/断开、焦点、可见性、旋转和缩放 | UIKit 宿主拥有主循环，在进程内调用一次 `scoop_app_init`。每个 `UIWindowScene` 持有窗口、视图及其 Scoop 根。场景失活时取消进行中的接触，普通前后台切换保留根。场景断开时取消计时和帧请求，释放本场景的回调和租约。依据视图 bounds、safe area 和显示比例更新布局。 |
 | iOS 定制 | `ContactKind.Touch` / `Pen`、硬件 `KeyEvent`、`ShortcutModifiers.primary` | 接入 `touchesBegan/Moved/Ended/Cancelled`，启用多点触控并在一次接触期间保持 ID 稳定。一次触摸只产生一条输入流。复用现有点击、长按和滚动识别。按实际设备上报 Pencil 和硬件键盘，iPad 键盘的主快捷键使用 Command。 |

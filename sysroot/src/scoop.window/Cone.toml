@@ -59,6 +59,22 @@ path = "src/input/contact.scoop"
 when = { os = "ios" }
 
 [[sources]]
+path = "src/input/clipboard.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/clipboard_native.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/primary_selection.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/primary_native.scoop"
+when = { os = "ios" }
+
+[[sources]]
 path = "src/input/pointer.scoop"
 when = { os = "ios" }
 
@@ -310,8 +326,8 @@ path = "native/darwin/text_document.m"
 when = { os = "darwin" }
 
 [[native.sources]]
-path = "native/darwin/clipboard.m"
-when = { os = "darwin" }
+path = "native/apple/clipboard.m"
+when = { os = ["darwin", "ios"] }
 
 [[native.sources]]
 path = "native/darwin/drop.m"
@@ -690,7 +706,7 @@ when = { os = "linux", env = "gnu" }
 [[native.libraries]]
 name = "UniformTypeIdentifiers"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [[test.sources]]
 path = "tests/dialog_paths.scoop"

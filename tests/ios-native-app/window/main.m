@@ -9,7 +9,7 @@
 static ScoopWindowApi api;
 static __weak UIWindowScene *currentScene;
 static unsigned events[13];
-static BOOL touchProbe, textProbe;
+static BOOL touchProbe, textProbe, clipboardProbe;
 extern void probeTextStep(UIView *content, int32_t step);
 static void ime(int32_t step);
 static __weak UIView *resultView;
@@ -46,7 +46,7 @@ static void inspect(void *nativeWindow, void *nativeView,
 static void event(int32_t kind) {
   assert(NSThread.isMainThread && kind >= 1 && kind <= 12);
   events[kind]++;
-  if (textProbe)
+  if (textProbe || clipboardProbe)
     return;
   if (touchProbe) {
     if (events[10] == 1 && events[8] == 1)
@@ -121,6 +121,8 @@ static void ime(int32_t step) {
   touchProbe = [NSProcessInfo.processInfo.arguments containsObject:@"--touch"];
   textProbe = [NSProcessInfo.processInfo.arguments
       containsObject:@"--ime-transactions"];
+  clipboardProbe =
+      [NSProcessInfo.processInfo.arguments containsObject:@"--clipboard"];
   ScoopWindowHost host = {inspect, event, ime, textProbe};
   ScoopAppError error = {0};
   assert(scoop_app_init(&host, &api, &error) == SCOOP_APP_INIT_OK);
@@ -138,6 +140,25 @@ static void ime(int32_t step) {
   assert(api.control(api.context, 1, (__bridge void *)scene));
 }
 - (void)sceneDidBecomeActive:(UIScene *)scene {
+  if (clipboardProbe) {
+    void *scenePointer = (__bridge void *)scene;
+    assert(api.control(api.context, 7, scenePointer));
+    UIPasteboard *board = UIPasteboard.generalPasteboard;
+    assert(board.numberOfItems == 1 &&
+           [board.string isEqualToString:@"中文🙂\nScoop"]);
+    NSString *html = [[NSString alloc]
+        initWithData:[board dataForPasteboardType:@"public.html"]
+            encoding:NSUTF8StringEncoding];
+    assert([html isEqualToString:@"<b>中文🙂</b>"]);
+    board.string = @"UIKit🙂\r\ntext";
+    assert(api.control(api.context, 8, scenePointer));
+    puts("scoop-ios-clipboard-ok");
+    fflush(stdout);
+#if TARGET_OS_SIMULATOR
+    exit(0);
+#endif
+    return;
+  }
   if (textProbe)
     assert(api.control(api.context, 6, (__bridge void *)scene));
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{

@@ -183,6 +183,8 @@ private class Probe(val host: Host) : ApplicationHandler {
 
             5 -> app.close()
             6 -> editor.activated(window!!)
+            7 -> writeClipboardProbe(window!!)
+            8 -> readClipboardProbe(window!!)
             else -> return 0
         }
         return 1

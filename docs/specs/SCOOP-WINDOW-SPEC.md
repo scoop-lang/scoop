@@ -52,6 +52,8 @@ mediaType 是无参数的具体 `text/<subtype>` MIME 名称，按 ASCII 小写�
 
 Windows 写入使用应用已有的隐藏宿主窗口取得 clipboard owner，不使用空 HWND 执行 EmptyClipboard／SetClipboardData；因此该入口无需依赖仍存活的业务窗口。
 
+iOS 在显式读写时访问 `UIPasteboard.generalPasteboard`。写入把所有文本表示放入同一个系统条目，纯文本以 UTF-8 提供，其他表示通过 UniformTypeIdentifiers 映射其 MIME 类型。读取纯文本也接受 UIKit 能转换成字符串的系统表示。窗口建立、焦点变化与查询编辑命令可用性均不预读剪贴板。iOS 的 PRIMARY 选区报告不可用。
+
 #### 2.2.1 PRIMARY 选区
 
 `ActiveApplication.primarySelection` 与 `Window.primarySelection` 返回独立的 PrimarySelection 入口，不使用普通 Clipboard 作为回退。isAvailable 表示当前显示后端有原生 PRIMARY；defaultPasteEnabled 结合该能力与平台中键粘贴设置。readText() 区分无正文的 None 和已有空正文的 Some("")；claimText(text) 返回可关闭的 PrimarySelectionClaim，不可用返回 None，真实传输或写入错误仍报 WindowException。正文沿普通纯文本的 UTF-8、换行与 NUL 合同处理。
