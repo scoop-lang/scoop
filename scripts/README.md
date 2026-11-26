@@ -241,9 +241,9 @@ python3 scripts/install_toolchain.py --install-dir "$HOME/.scoop-dev" --jobs 6
 
 ## GitHub Release
 
-[Release workflow](../.github/workflows/release.yml) 在推送 `vMAJOR.MINOR.PATCH`（可带预发布和 build metadata）tag 时执行，也可通过 `workflow_dispatch` 指定已有 tag 重跑。三个构建任务使用 `xcode-27`（macOS 27.0.1 AArch64）、`windows-2025`（x64）和 `ubuntu-26.04`（x64），按 `release.toml` 的固定版本准备 LLVM、Windows Rust 与 LLVM-MinGW，并复用匹配的 LLVM／LLDB SDK 缓存。
+推送 `vMAJOR.MINOR.PATCH` tag（可带预发布和 build metadata）时启动发行工作流，也可通过 `workflow_dispatch` 指定已有 tag 重跑。四个宿主任务使用 `xcode-27`（macOS AArch64）、`windows-2025`（Windows x64）、`ubuntu-26.04`（Linux x86_64）和 `ubuntu-26.04-arm`（Linux AArch64）。依赖版本由 `release.toml` 指定，各任务可复用匹配的 LLVM／LLDB SDK 缓存。[发行工作流](../.github/workflows/release.yml)
 
-每个任务调用同一个 `package_toolchain.py`，产出本宿主的 `bin-<host>` 组件包及该宿主发行目标的 `lib-base-<target>.tar.xz`／`lib-gui-<target>.tar.xz`；全局一份的 `sources` 与 `llvm-sources` 由其中一个任务产出。随后在带空格的独立安装目录中合并解压组件包、执行 post-install 并编译运行程序；这些验证产物不进入归档。三平台全部成功后才向对应 GitHub Release 上传全部组件包，同一 release 的附件列表即以版本命名的完整集合，发布前使用 draft；带预发布标识的 tag 发布为 prerelease，普通版本更新 latest。重跑同一 tag 会更新同名附件。
+每个宿主用 `package_toolchain.py` 生成 `bin-<host>` 及各目标的 `lib-base-<target>` 和适用的 `lib-gui-<target>` 归档。macOS AArch64 任务负责上传共用的 `sources` 和 `vendor`。各任务在带空格的独立目录中解压组件、执行 post-install 并编译运行程序。Linux 两个宿主都验证 GNU、默认静态 musl 和显式动态 musl，动态程序还核对 ELF 解释器及 libc 依赖。四个任务成功后，工作流把组件上传到同一 GitHub Release 草稿。带预发布标识的 tag 发布为 prerelease，普通版本更新 latest。重跑同一 tag 会更新同名附件。
 
 官网安装脚本 `install.sh` 位于独立仓库 `scoop-lang.org`；它读取 `https://release.scoop-lang.org/latest.txt` 的组件索引，并从同一发布站点下载本平台归档。`--release <日期目录>`（别名 `--version`）选择指定 release。`curl -fsSL https://scoop-lang.org/install.sh | sh` 将组件包解压到 `~/.scoop` 并执行 post-install（生成文档），成功后更新 shell rc。额外准备参数放在 `--` 后，例如 `sh install.sh --release 2026-11-09 -- --jobs 2`。Windows 按索引下载所选组件后运行随包 PowerShell 入口；MinGW 目标还需要对应的 `native` 包。
 
