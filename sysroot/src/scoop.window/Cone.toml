@@ -59,6 +59,22 @@ path = "src/owner/deadlines.scoop"
 when = { os = "ios" }
 
 [[sources]]
+path = "src/drag_drop/values.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/drag_drop/preview.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/menu/image.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/haptic.scoop"
+when = { os = "ios" }
+
+[[sources]]
 path = "src/input/contact.scoop"
 when = { os = "ios" }
 
@@ -997,6 +1013,10 @@ when = { os = "ios" }
 
 [[native.sources]]
 path = "native/ios/accessibility_view.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/interaction.m"
 when = { os = "ios" }
 
 [[native.sources]]

@@ -1,0 +1,84 @@
+package scoop.tests.ios
+
+import scoop.window.*
+
+internal class DragProbe(private val window: Window, private val report: (Int) -> Unit) {
+    private var dragging = false
+    private var cancels = 0
+    private var deliveries = 0
+    private var completions = 0
+    private val token = DragToken()
+    init {
+        val target = window
+            .registerDropTarget(
+                DropHandlers(
+                    { offer ->
+                        if (offer.local &&
+                            carries(offer.localData) &&
+                            offer.position.x >
+                            window.metrics!!.logicalSize.width /
+                            2.0
+                        )
+                            DropDecision.Accept(DragFormat.Text, DragEffect.Move)
+                        else
+                            DropDecision.Reject
+                    },
+                    { request ->
+                        requireDrag(
+                            request.effect == DragEffect.Move && carries(request.offer.localData)
+                        )
+                        when (request.content) {
+                            case Text(val text) -> requireDrag(text == "Gallery 行🙂")
+                            else -> requireDrag(false)
+                        }
+                        deliveries += 1
+                        true
+                    }
+                )
+            )
+        target.periodicUpdates = true
+    }
+    private fun carries(value: Any?): Boolean = when (value) {
+        case Some(val data) -> data is DragToken && data === token
+        case None -> false
+    }
+    fun contact(event: ContactEvent) {
+        when (event) {
+            case Moved(_) ->
+                if (!dragging) {
+                    dragging = true
+                    window
+                        .beginDrag(
+                            DragContent.Text("Gallery 行🙂"), DragEffects(false, true, false),
+                            Some(token)
+                        ) { result ->
+                            completions += 1
+                            requireDrag(cancels == completions && deliveries == 1)
+                            when (result) {
+                                case Dropped(Move) -> {
+                                    requireDrag(completions == 1);
+                                    report(17)
+                                }
+
+                                case NotDropped -> {
+                                    requireDrag(completions == 2);
+                                    report(18)
+                                }
+
+                                else -> requireDrag(false)
+                            }
+                            dragging = false
+                        }
+                }
+            case Cancelled(_, SystemOperation, _) -> cancels += 1
+            case Ended(_) -> requireDrag(!dragging)
+            else -> {}
+        }
+    }
+}
+
+private class DragToken
+
+private fun requireDrag(value: Boolean) {
+    if (!value) throw IllegalStateException(Some("unexpected local drop or contact ownership"))
+}

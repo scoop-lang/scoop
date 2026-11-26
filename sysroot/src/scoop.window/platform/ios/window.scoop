@@ -14,6 +14,7 @@ public class Window internal constructor(internal val owner: WindowOwner) {
         }
     public val metrics: WindowMetrics? get() = Some(owner.snapshot().metrics())
     public val activity: WindowActivity get() = owner.activitySnapshot()
+    public val isInputBlocked: Boolean get() = owner.inputBlocked
     public val isFocused: Boolean get() = activity.focused
     public val isVisible: Boolean get() = activity.visible
     public val isOccluded: Boolean get() = activity.occluded
@@ -51,6 +52,10 @@ internal class WindowOwner(
     var pointer: Ptr<Unit>? = Some(native)
     var phase = WindowState.Open
     var dirty = true
+    var dispatchingContact: ContactState? = None
+    var capturedDrag: ContactId? = None
+    var dragSession: DragSession? = None
+    var dropTarget: DropTarget? = None
     var textCommands: TextCommandAvailability? = None
     val semanticIdentity = SemanticIdentity()
     var accessibility: AccessibilityProvider? = None
@@ -74,6 +79,8 @@ internal class WindowOwner(
         if (phase != WindowState.Open) return
         phase = WindowState.Closing
         dirty = false
+        dragSession?.close()
+        dropTarget?.close()
         accessibility?.close()
         application.retireDeadlines(this)
         for (observer in activityObservers.toArray())

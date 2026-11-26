@@ -26,7 +26,8 @@ private struct Host(
     val event: FunPtr<(Int) -> Unit>,
     val ime: FunPtr<(Int) -> Unit>,
     val textProbe: Int,
-    val keyProbe: Int
+    val keyProbe: Int,
+    val dragProbe: Int
 )
 
 @CLayout
@@ -40,6 +41,7 @@ private class Probe(val host: Host) : ApplicationHandler {
 
     private val contacts = HashSet<ContactId>()
     private val keys = HardwareKeyProbe()
+    private var drag: DragProbe? = None
     private var accessibility: AccessibilityProbe? = None
     private val editor = ImeProbe { step ->
         @Unsafe {
@@ -125,6 +127,7 @@ private class Probe(val host: Host) : ApplicationHandler {
                     lease = Some(connected.acquireNativeWindow())
                 }
                 inspectView(connected)
+                if (host.dragProbe != 0) drag = Some(DragProbe(connected) { stage -> report(stage) })
                 if (host.textProbe != 0) editor.connect(connected)
                 timer = Some(connected.createDeadline { report(2) })
                 timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(40L))
@@ -136,7 +139,10 @@ private class Probe(val host: Host) : ApplicationHandler {
             case Window(val id, val change) -> {
                 if (id != window!!.id) throw IllegalStateException(Some("window identity changed"))
                 when (change) {
-                    case Contact(val value) -> touch(value)
+                    case Contact(val value) -> when (val probe = drag) {
+                        case Some(val active) -> active.contact(value)
+                        case None -> touch(value)
+                    }
                     case Keyboard(val key) ->
                         if (host.keyProbe != 0) {
                             val observed = keys.received(window!!, key)

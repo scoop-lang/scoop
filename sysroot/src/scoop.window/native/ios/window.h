@@ -52,6 +52,7 @@ typedef struct {
     NSMutableDictionary<NSNumber *, SWIEvent *> *pressedKeys;
 @property(nonatomic) int64_t keyModifiers;
 @property(nonatomic, strong) SWIView *view;
+@property(nonatomic, strong) UIImageView *dragPreview;
 @property(nonatomic) int64_t identity;
 @property(nonatomic) BOOL active;
 @property(nonatomic) BOOL foreground;

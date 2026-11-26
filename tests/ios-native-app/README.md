@@ -85,6 +85,8 @@ xcodebuild test -project tests/ios-native-app/interaction/Interaction.xcodeproj 
 xcrun simctl launch --console --terminate-running-process "$SIMULATOR_UUID" dev.scoop.ios-probe.window --clipboard
 ```
 
+在同一 iPhone 模拟器选择 `testSceneDrag` 可用系统触摸把一行数据拖到接受区，再拖向拒绝区。Scoop 核对原始触点只取消一次、本地对象和文本保持一致、成功的 Move 只投递一次。
+
 在窗口宿主加 `--accessibility` 运行，可用 UIKit 检查已发布的名称、角色、裁剪后边界、按钮激活和祖先滚动。节点退休后再次调用其旧系统元素会被拒绝。成功标记为 `scoop-ios-accessibility-ok`。同一 XCUITest 命令选择 `testWindowAccessibility`，由另一个进程按按钮角色查询实际系统元素。
 
 ## 公共 Surface 首帧和恢复

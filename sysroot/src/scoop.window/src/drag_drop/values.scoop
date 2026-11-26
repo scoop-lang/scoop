@@ -2,6 +2,11 @@ package scoop.window
 
 import scoop.platform.fs.Path
 
+/** The native destination result. A Move still requires the source's own commit. */
+public enum DragResult {
+    Dropped(DragEffect), NotDropped, Failed(WindowException)
+}
+
 public enum DragFormat {
     Text, Url, Files
 }
@@ -79,3 +84,15 @@ internal fun dropDecisionCode(offer: DropOffer, decision: DropDecision): Int =
         else
             0
     }
+
+internal fun checkDragContent(content: DragContent, effects: DragEffects) {
+    requireWindow(effects.copy || effects.move || effects.link, "drag effects must not be empty")
+    when (content) {
+        case Files(val paths) -> {
+            requireWindow(paths.size > 0L, "drag file list must not be empty")
+            for (path in paths)
+                requireWindow(path.isAbsolute, "drag file paths must be absolute")
+        }
+        else -> {}
+    }
+}

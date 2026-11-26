@@ -8,8 +8,9 @@
 
 static ScoopWindowApi api;
 static __weak UIWindowScene *currentScene;
-static unsigned events[17];
-static BOOL touchProbe, textProbe, clipboardProbe, keyProbe, accessibilityProbe;
+static unsigned events[19];
+static BOOL touchProbe, textProbe, clipboardProbe, keyProbe, accessibilityProbe,
+    dragProbe;
 extern void probeTextStep(UIView *content, int32_t step);
 static void ime(int32_t step);
 static __weak UIView *resultView;
@@ -31,6 +32,11 @@ static void inspect(void *nativeWindow, void *nativeView,
     view.accessibilityIdentifier = @"scoop-touch-result";
     view.accessibilityLabel = @"Window contact probe";
   }
+  if (dragProbe && !resultView) {
+    resultView = view;
+    view.isAccessibilityElement = YES;
+    view.accessibilityIdentifier = @"scene-drag";
+  }
   if (keyProbe && !resultView) {
     resultView = view;
     view.isAccessibilityElement = YES;
@@ -50,10 +56,17 @@ static void inspect(void *nativeWindow, void *nativeView,
 }
 
 static void event(int32_t kind) {
-  assert(NSThread.isMainThread && kind >= 1 && kind <= 16);
+  assert(NSThread.isMainThread && kind >= 1 && kind <= 18);
   events[kind]++;
   if (textProbe || clipboardProbe || accessibilityProbe)
     return;
+  if (dragProbe) {
+    if (kind == 17)
+      resultView.accessibilityValue = @"moved once";
+    if (kind == 18)
+      resultView.accessibilityValue = @"rejected";
+    return;
+  }
   if (keyProbe) {
     if (kind == 14 && events[13] == 1 && events[14] == 1)
       resultView.accessibilityValue = @"Command-K delivered";
@@ -139,7 +152,9 @@ static void ime(int32_t step) {
   keyProbe = [NSProcessInfo.processInfo.arguments containsObject:@"--keys"];
   accessibilityProbe =
       [NSProcessInfo.processInfo.arguments containsObject:@"--accessibility"];
-  ScoopWindowHost host = {inspect, event, ime, textProbe, keyProbe};
+  dragProbe =
+      [NSProcessInfo.processInfo.arguments containsObject:@"--scene-drag"];
+  ScoopWindowHost host = {inspect, event, ime, textProbe, keyProbe, dragProbe};
   ScoopAppError error = {0};
   assert(scoop_app_init(&host, &api, &error) == SCOOP_APP_INIT_OK);
   return YES;

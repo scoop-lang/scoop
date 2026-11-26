@@ -17,6 +17,7 @@
 | UIKit 文本连接 | 已在模拟器的真实 `UITextInput` 第一响应者上逐个调用系统编辑方法。覆盖拼音 marked text、改选和确认、跨 emoji 选择与删除、回写、候选位置和关闭旧连接，控制台输出 `scoop-ios-ime-ok`。 | 通过系统中文键盘实际点选候选，验证自绘 `Input` 及键盘遮挡，阶段 6 再上真机。 |
 | 系统剪贴板 | iPhone 模拟器上，Scoop 和 UIKit 可互读纯文本，中文、emoji 和空文本均已验证。Scoop 同时发布的纯文本和 HTML 位于一个系统条目，PRIMARY 选区报告不可用。 | 用完整编辑控件执行用户触发的剪切、复制和粘贴，验收选区与正文变化。 |
 | 窗口触摸 | 已由 XCUITest 在 iPhone 模拟器送入轻点、拖动和同时双指点击。Scoop 收到的标识、点坐标和像素坐标符合窗口快照；按住时切走 key window，得到一次取消且无迟到的结束事件。 | 在完整控件树中核对点击计数、滚动仲裁和旋转后命中。 |
+| 场景内拖放 | XCUITest 在 iPhone 模拟器将 Scoop 的文本和本地对象拖入另一控件的接受区，再拖到拒绝区。前者只交付一次 Move，后者返回未投递。两次接管都向原控件发送一次取消。 | 在 Gallery 树中重排或移动节点，核对列表和选中状态。 |
 | iPad 外接键盘事件 | XCUITest 在 iPad 模拟器通过系统发送 Command-K 和方向键。Scoop 收到配对的按下和释放，Command-K 同时匹配逻辑字符和物理键绑定，标签显示为 ⌘K。 | 在 Gallery 和编辑控件中验收快捷键的实际操作以及与输入法的配合。 |
 | UIKit 上的 Metal | iPhone 模拟器使用生产窗口和渲染器的原生入口，向真实 drawable 绘色块、读回像素并提交。首帧后停帧，切至系统设置再回到原进程，第二帧通过相同检查。公共 `SurfaceHost` 在真实场景绘制 Skia 首帧，静止 200 ms 未增加提交数。XCUITest 从屏幕截图读到绿色，按 Home 再激活同一内容根后读到蓝色。 | 用 `UiHost` 挂载控件，验收首屏和输入命中。 |
 | Skia 和图形绑定 | 在两个 SDK 下检查了 29 个现有原生编译单元。两个目标均已链接完整 Skia、文字后端和独立宿主，组成同一 XCFramework。iPhone 模拟器上“中文🙂中文”排成 3 行，文字覆盖 908 个像素，色块、SVG 图标、系统字体回退和 UTF-8 命中边界均通过。 | 阶段 3 验收控件通过 Skia 和 UIKit 的完整上屏路径；阶段 6 验收真机启动与交互。 |
@@ -51,7 +52,7 @@
 | iOS 定制 | `TextInputConnection`、`TextInputBatch`、`TextInputState`、`Utf8Range`，以及 `Window.setImeAllowed`、`publishTextInputState`、`publishTextInputCaret`、`requestSoftwareKeyboard` | 由可成为第一响应者的视图实现 `UITextInput`，桥接选区、marked text、提交、删除和光标几何。把系统 `NSRange` 的 UTF-16 单位转换为 Scoop UTF-8 字节边界。同一编辑批次只派送一次。键盘遮挡通过 `UIKeyboardLayoutGuide` 反映到可视区。iPad 启用 `followsUndockedKeyboard`，按浮动键盘与输入框的实际交集决定是否滚动。 |
 | iOS 定制 | `Window.clipboard`、`Clipboard.readText/writeText`、`Window.createAccessibilityProvider`、`InteractionPreferences`、`Window.observedTheme` | 用户触发的复制粘贴接系统剪贴板，PRIMARY selection 保持不可用。将节点的稳定 ID、角色、名称、边界与动作映射到 UIKit 无障碍容器和元素。用 `textScaleFactor`、`reduceMotion` 传递辅助偏好，窗口主题随系统浅色或深色外观更新。 |
 | 仅桌面 | `Application.run` 的阻塞入口、`ApplicationProxy.requestExit`、`LastWindowPolicy.Exit`，以及 `desktopCapabilities()`、`systemTaskbarBounds`、`systemMenuBarHeight`、`requestPosition`、`beginMove/beginResize`、窗口层级和最小化/最大化、桌面模态窗口、原生标题栏和桌面菜单栏 | 桌面保留进程退出、全局桌面坐标、窗口管理和系统菜单集成。控件树内的菜单、弹层及编辑命令继续复用。 |
-| 按需 | `ActiveApplication.openFile/saveFile/selectDirectory`、系统跨应用拖放、`requestHapticFeedback` | 如有文件选择需求，接 `UIDocumentPickerViewController`，在接口中明确复制到容器还是在授权期访问外部 URL。跨应用拖放和触感另接系统实现。页内拖动可先走现有路由。 |
+| 按需 | `ActiveApplication.openFile/saveFile/selectDirectory`、系统跨应用拖放、`requestHapticFeedback` | 如有文件选择需求，接 `UIDocumentPickerViewController`，在接口中明确复制到容器还是在授权期访问外部 URL。场景内拖放已复用现有路由。长按选词所用的触觉请求已接入 UIKit 反馈生成器，实际反馈由设备决定。跨应用拖放可另接系统实现。 |
 
 `Application.run` 启动阻塞循环，`runUiApplication` 在恢复事件中创建桌面窗口。iOS 宿主在 `appInit` 返回后，从场景连接回调把事件投给 `UiHost.onEvent`。两层宿主从该事件取得 `ActiveApplication` 及其 `ApplicationProxy`，此时再用 `UiHost.attach(window, create)` 挂载根节点。输入候选位置、命中测试和 VoiceOver 元素框都取最近一次已接受提交的几何。宿主回调沿用 `foreignCallback` 的函数、上下文和释放约定。[窗口源码](../../sysroot/src/scoop.window/src/) · [UI 宿主](../../sysroot/src/scoop.ui/src/host/host.scoop) · [UIKit 场景生命周期](https://developer.apple.com/documentation/uikit/managing-your-app-s-life-cycle) · [UITextInput](https://developer.apple.com/documentation/uikit/uitextinput) · [键盘布局](https://developer.apple.com/documentation/uikit/uikeyboardlayoutguide) · [UIKit 无障碍容器](https://developer.apple.com/documentation/uikit/uiaccessibilitycontainer)
 

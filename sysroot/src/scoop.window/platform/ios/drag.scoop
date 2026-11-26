@@ -1,0 +1,258 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+
+/** A drag between Scoop controls in the same UIKit scene. */
+public class DragSession internal constructor(
+    private val owner: WindowOwner,
+    private val content: DragContent,
+    private val initialEffects: DragEffects,
+    private val localData: Any?,
+    private val initialContact: ContactState,
+    private val completed: (DragResult) -> Unit
+) : Closeable {
+    private var position = initialContact.pointer
+    private var started = false
+    private var closed = false
+    private var outcome: DragResult? = None
+    private var allowed = initialEffects
+    private val timer = Window(owner)
+        .createDeadline {
+            if (available) {
+                offer()
+                schedule()
+            }
+        }
+    private val format = when (content) {
+        case Text(_) -> DragFormat.Text
+        case Url(_) -> DragFormat.Url
+        case Files(_) -> DragFormat.Files
+    }
+    private val available: Boolean get() = started && !closed && owner.phase == WindowState.Open
+    public val isStarted: Boolean
+        get() {
+            owner.application.checkThread();
+            return started
+        }
+    public val isClosed: Boolean
+        get() {
+            owner.application.checkThread();
+            return closed
+        }
+    public val result: DragResult?
+        get() {
+            owner.application.checkThread();
+            return outcome
+        }
+    public var effects: DragEffects
+        get() {
+            owner.application.checkThread();
+            return allowed
+        }
+        set(value) {
+            owner.application.checkThread()
+            if (closed || done()) throw IllegalStateException(Some("drag session has ended"))
+            requireWindow(
+                (!value.copy || initialEffects.copy) &&
+                    (!value.move || initialEffects.move) &&
+                    (!value.link || initialEffects.link),
+                "drag effects must have been offered at creation"
+            )
+            allowed = value
+        }
+
+    internal fun start() {
+        if (closed || done() || started) return
+        started = true
+        owner.capturedDrag = Some(initialContact.id)
+        owner
+            .application
+            .notify(
+                ApplicationEvent
+                    .Window(
+                        owner.id,
+                        WindowEvent
+                            .Contact(
+                                ContactEvent
+                                    .Cancelled(
+                                        initialContact.id,
+                                        PointerCancelReason.SystemOperation,
+                                        position.time
+                                    )
+                            )
+                    )
+            )
+        if (available) {
+            move(position)
+            schedule()
+        }
+    }
+    internal fun schedule() {
+        if (available && (owner.dropTarget?.wantsUpdates ?: false))
+            timer.schedule(MonotonicTimeSource.now() + Duration.milliseconds(80L))
+        else if (!closed) timer.cancel()
+    }
+    private fun offer(): DropRequest? {
+        val target = owner.dropTarget ?: return None
+        if (!target.available || !available || owner.inputBlocked) return None
+        val value = DropOffer(
+            DragFormats(
+                format == DragFormat.Text, format == DragFormat.Url,
+                format == DragFormat.Files
+            ),
+            allowed,
+            position.logicalPosition,
+            position.modifiers,
+            true,
+            localData
+        )
+        return when (val choice = target.offer(value)) {
+            case Accept(val proposed, val effect) ->
+                if (available && target.available && proposed == format && allowed.allows(effect))
+                    Some(DropRequest(value, effect, content))
+                else
+                    None
+            case Reject -> None
+        }
+    }
+    internal fun move(pointer: PointerState) {
+        position = pointer
+        @Unsafe {
+            iosDragPosition(owner.pointer!!, pointer.logicalPosition.x, pointer.logicalPosition.y)
+        }
+        offer()
+    }
+    internal fun end(pointer: PointerState) {
+        position = pointer
+        val target = owner.dropTarget
+        val request = offer()
+        when (request) {
+            case Some(val value) ->
+                if (available && (target?.deliver(value) ?: false)) {
+                    finish(DragResult.Dropped(value.effect))
+                    return
+                }
+            case None -> {}
+        }
+        finish(DragResult.NotDropped)
+    }
+    internal fun cancel() {
+        finish(DragResult.NotDropped)
+    }
+    public fun cancelPending(): Boolean {
+        owner.application.checkThread()
+        if (started || closed || done()) return false
+        cancel()
+        return true
+    }
+    private fun done(): Boolean = when (outcome) {
+        case Some(_) -> true;
+        case None -> false
+    }
+    private fun finish(value: DragResult) {
+        if (closed || done()) return
+        outcome = Some(value)
+        retire()
+        if (!owner
+            .application
+            .mailbox
+            .post {
+                if (!closed) {
+                    closed = true
+                    completed(value)
+                }
+            }
+        )
+            closed = true
+    }
+    private fun retire() {
+        timer.close()
+        when (val active = owner.dragSession) {
+            case Some(val session) ->
+                if (session === this) {
+                    owner.dragSession = None
+                    @Unsafe {
+                        iosDragEnd(owner.pointer!!)
+                    }
+                    owner.dropTarget?.leave()
+                }
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        owner.application.checkThread()
+        if (closed) return
+        closed = true
+        retire()
+    }
+}
+
+public fun Window.beginDrag(
+    content: DragContent,
+    effects: DragEffects = DragEffects(true, false, false),
+    localData: Any? = None,
+    preview: DragPreview? = None,
+    onCompleted: (DragResult) -> Unit = {}
+): DragSession {
+    owner.requireOpen()
+    val contact = owner.dispatchingContact ?:
+        throw WindowException("begin scene drag", WindowErrorKind.InvalidState)
+    if (owner.inputBlocked) throw WindowException("begin scene drag", WindowErrorKind.Unavailable)
+    when (owner.dragSession) {
+        case Some(_) -> throw WindowException("begin scene drag", WindowErrorKind.ResourceBusy)
+        case None -> {}
+    }
+    checkDragContent(content, effects)
+    val session = DragSession(owner, content, effects, localData, contact, onCompleted)
+    owner.dragSession = Some(session)
+    try {
+        when (preview) {
+            case Some(val image) ->
+                prepareDragPreview(owner.pointer!!, image, metrics!!.scaleFactor)
+            case None -> {}
+        }
+        return session
+    } catch (error: Throwable) {
+        session.close()
+        throw error
+    }
+}
+
+internal fun WindowOwner.dispatchContact(event: ContactEvent) {
+    if (capturedDrag == Some(event.id)) {
+        when (event) {
+            case Moved(val state) -> dragSession?.move(state.pointer)
+
+            case Ended(val state) -> {
+                capturedDrag = None
+                dragSession?.end(state.pointer)
+            }
+
+            case Cancelled(_, _, _) -> {
+                capturedDrag = None
+                dragSession?.cancel()
+            }
+
+            case Began(_) -> {}
+        }
+        return
+    }
+    dispatchingContact = when (event) {
+        case Began(val state) -> Some(state)
+        case Moved(val state) -> Some(state)
+        else -> None
+    }
+    try {
+        application.notify(ApplicationEvent.Window(id, WindowEvent.Contact(event)))
+    } finally {
+        dispatchingContact = None
+    }
+    dragSession?.start()
+}
+
+@Extern(name = "scoop_window_ios_drag_position")
+private fun iosDragPosition(scene: Ptr<Unit>, x: Double, y: Double)
+
+@Extern(name = "scoop_window_ios_drag_end")
+private fun iosDragEnd(scene: Ptr<Unit>)

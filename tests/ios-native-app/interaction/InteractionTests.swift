@@ -34,6 +34,20 @@ final class InteractionTests: XCTestCase {
         return bytes
     }
 
+    func testSceneDrag() {
+        let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.window")
+        app.launchArguments = ["--scene-drag"]
+        app.launch()
+        let result = app.descendants(matching: .any).matching(identifier: "scene-drag").firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        let left = app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.4))
+        let right = app.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5))
+        left.press(forDuration: 0.15, thenDragTo: right)
+        XCTAssertEqual(result.value as? String, "moved once")
+        right.press(forDuration: 0.15, thenDragTo: left)
+        XCTAssertEqual(result.value as? String, "rejected")
+    }
+
     func testWindowAccessibility() {
         let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.window")
         app.launchArguments = ["--accessibility", "--inspect"]
