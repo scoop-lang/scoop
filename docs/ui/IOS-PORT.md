@@ -4,6 +4,8 @@
 
 建议保留 `scoop.ui` 的布局、绘制、事件路由和控件。`scoop.platform` 按文件选入移动端可用的系统服务，`scoop.window` 保留窗口和输入模型并实现 UIKit 宿主，`scoop.desktop` 继续作为桌面扩展。先跑通一个 `Label` 和一个能计数的 `Button`，再在同一页加入 `ScrollArea` 和 `Input`。各阶段都能用这个应用验证新增能力。
 
+本期应用交付为现有的 **Scoop UI Gallery**。基础 UI 通过模拟器验收后，将 Gallery 的 65 个组件页和 4 个组合应用接入 iOS，保留现有模型、画面和交互。Gallery 对四套主题和异步任务的额外依赖见[本期 Gallery 交付](#本期-gallery-交付)。[现有示例](../../sysroot/src/scoop.ui.component/examples/shadcn/README.md)
+
 ## 调研基线与已验证进展
 
 | 路径 | 已验证 | 仍需验证 |
@@ -79,6 +81,19 @@
 | 3 · 单场景首屏 | 接通 UIKit 场景、`window`、`surface` 和 `UiHost`，移出桌面能力查询和菜单登记。选入 shadcn 主题，接入基本触摸、标签语义与按钮动作。 | 在 iPhone 模拟器打开同一页。点一次按钮计数恰加一。旋转后点新位置仍命中。进后台再返回保留计数和唯一根节点。后台停止提交，动画结束且无更新的页面停帧，重新请求能出帧。语义树可读到标签和按钮并可激活按钮。 |
 | 4 · 滚动、输入与编辑 | 增加 `ScrollArea` 和 `Input`，接通多指触摸及取消、`UITextInput`、键盘避让和文本剪贴板。 | 在 iPhone 模拟器区分轻点和拖动，取消触摸后无误点。用中文拼音组合、选词并提交一次，再编辑含 emoji 的文本。核对选区、删除、光标与候选位置。键盘弹出后输入框可见，复制粘贴往返一致。在 iPad 模拟器核对硬件快捷键与浮动键盘避让。 |
 | 5 · 无障碍与尺寸适配 | 完成滚动和编辑节点、辅助焦点、Dynamic Type、外观、安全区与可变视口。 | 在模拟器通过辅助功能检查器读取名称、角色及阅读顺序，执行按钮、滚动和编辑动作。放大系统字号后内容仍可操作，切换外观和减弱动态效果能传入控件。iPad 分屏及旋转后，绘制、触摸与无障碍焦点框对齐。 |
-| 6 · 本地集成与桌面回归 | 在本地组装两个目标的 `lib-base-<target>`、`lib-gui-<target>`，动态框架按现有流程组成 XCFramework。 | 在独立应用中只消费本地安装的预编译库，Xcode 嵌入并签名。从同一工程在 arm64 模拟器及 iPhone 真机启动，完成首屏、编辑和后台恢复。在真机用中文键盘实测组合输入，开启 VoiceOver 验证朗读顺序、双击按钮、滚动和编辑。运行受影响桌面目标的既有窗口装饰、菜单和退出用例，确认拆分后仍可用。 |
+| 6 · 本地集成、Gallery 与真机回归 | 在本地组装两个目标的 `lib-base-<target>`、`lib-gui-<target>`，动态框架按现有流程组成 XCFramework。将下节的 Gallery 接到已验收的 UI 库上。 | 独立应用只消费本地安装的预编译库，Xcode 嵌入并签名。基础用例和完整 Gallery 先通过模拟器验收，再从同一工程在 iPhone 真机启动。实测中文键盘组合、前后台恢复，以及 VoiceOver 朗读顺序、双击按钮、滚动和编辑。运行受影响桌面目标的既有窗口装饰、菜单和退出用例。 |
 
-复验阶段 1 时，按宿主运行说明执行 `verify.py --platform --include-device`，模拟器应输出 `scoop-ios-platform-ok`。另用独立工作目录执行 `--protected-data --include-device`，核对原有的 `scoop-ios-protected-data-ok`。阶段 2 用 `--graphics --include-device` 单独运行，模拟器成功标记为 `scoop-ios-graphics-ok`。阶段 3 的窗口子项用 `--window --include-device`，模拟器输出 `scoop-ios-window-ok`。以上用例的设备步骤均为本地交叉编译与链接。真机上屏与完整交互在阶段 6 一并验收。本轮交付源码和本地验收结果，iOS UI 目标包留待后续工作完成后发布。系统文件选择、跨应用拖放、通知和 `scoop.window.asyncio` 留给实际移动端调用方，托盘继续随桌面扩展交付。[宿主运行说明](../../tests/ios-native-app/README.md) · [XCFramework 打包](../../scripts/package_ios_xcframework.py)
+复验阶段 1 时，按宿主运行说明执行 `verify.py --platform --include-device`，模拟器应输出 `scoop-ios-platform-ok`。另用独立工作目录执行 `--protected-data --include-device`，核对原有的 `scoop-ios-protected-data-ok`。阶段 2 用 `--graphics --include-device` 单独运行，模拟器成功标记为 `scoop-ios-graphics-ok`。阶段 3 的窗口子项用 `--window --include-device`，模拟器输出 `scoop-ios-window-ok`。以上用例的设备步骤均为本地交叉编译与链接。真机上屏与完整交互在阶段 6 一并验收。本轮交付源码、可在本地构建的应用和验收结果。系统文件选择、跨应用拖放和通知留给实际移动端调用方，托盘继续随桌面扩展交付。[宿主运行说明](../../tests/ios-native-app/README.md) · [XCFramework 打包](../../scripts/package_ios_xcframework.py)
+
+## 本期 Gallery 交付
+
+目标为 `scoop.ui.component/examples/shadcn` 下窗口标题为 **Scoop — UI Gallery** 的应用。其 `Demo` 当前有 69 项，包含 Settings、Workspace、Data、Conversation 四个组合应用。iOS 继续使用该目录的 `GalleryModel`、页面分派和示例数据，桌面与移动端能够从同一份目录发现新增页面。[示例清单](../../sysroot/src/scoop.ui.component/examples/shadcn/Cone.toml) · [页面目录](../../sysroot/src/scoop.ui.component/examples/shadcn/src/model.scoop) · [页面分派](../../sysroot/src/scoop.ui.component/examples/shadcn/src/gallery_demo.scoop)
+
+| 实施顺序 | 改动 | 验收 |
+| --- | --- | --- |
+| 1 · 共用页面，接入场景 | 为 Gallery 提供本地可构建的 `native-app` 和 Xcode 宿主，在 `SceneConnected` 时挂载同一份 Gallery。模型、字体、主题与正在进行的任务按场景持有。桌面继续使用现有启动入口。 | 在模拟器从 UIKit 图标启动，在 Applications 和 Components 两组中逐项打开 69 页。切后台再返回，当前页和已有草稿仍在。桌面 Gallery 仍可构建并启动。 |
+| 2 · 调整导航和可用宽度 | 现有窗口初始宽度为 1120 点，导航栏固定占用 190 点。窄屏提供可返回的目录和全宽内容，宽屏沿用双栏。输入、弹层和工具栏按安全区、键盘及实际可用宽度布局。保留四套 Style、明暗、RTL 和减少动态选项，macOS 配色在移动端使用现有预设。 | 在 iPhone 竖屏搜索页面、进入详情、返回并切换主题。旋转、iPad 分屏与键盘出现后，页面主要操作仍可触达。用长按或页面内动作进入原先由右键、悬停触发的常用操作。 |
+| 3 · 接通演示依赖的异步操作 | Gallery 的 Toast、Tree、消息、问卷和 Conversation 调用 `currentApplicationScope().launch`、`currentEventLoop().sleep`，并在离页时取消任务。为 UIKit 主循环接入实际需要的异步唤醒、应用作用域及取消，与桌面复用页面逻辑。 | 打开 Toast 等到延时状态更新，Tree 的首次加载失败后重试成功，Conversation 能流式追加回复。运行中离页再返回，旧任务不会改写新页面。在 Settings 提交一次中文编辑，在 Workspace 修改草稿，在 Data 删除并撤销一行。 |
+| 4 · 交付应用和复现方法 | 在示例 README 记录从本地 sysroot 构建、启动模拟器、开发签名运行和验收结果。 | iPhone、iPad 模拟器完成上述检查后，在真机从同一工程启动 Gallery，验证触摸、中文输入、VoiceOver 和恢复。交付本地应用与工程，iOS target 保持未发布。 |
+
+Gallery 的异步宿主是它相较于控件最小首屏新增的依赖。现在桌面从 `Application.runWithAsyncio` 进入阻塞循环，移动宿主需要把就绪通知接回 UIKit 主线程。在这条链路上发现的编译器或底层库缺口按独立分支修复，更新本地工具链后再继续 Gallery。[桌面启动入口](../../sysroot/src/scoop.ui.component/examples/shadcn/src/main.scoop) · [窗口与 asyncio 的绑定](../../sysroot/src/scoop.window.asyncio/src/application.scoop) · [Gallery 导航](../../sysroot/src/scoop.ui.component/examples/shadcn/src/gallery.scoop)
