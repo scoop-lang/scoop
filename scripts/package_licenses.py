@@ -11,7 +11,12 @@ from prepare_gtk import NOTICE_DIRECTORY as GTK_NOTICE_DIRECTORY
 from prepare_gtk import TARGET as GTK_TARGET
 from prepare_tray import NOTICE_DIRECTORY as TRAY_NOTICE_DIRECTORY
 from prepare_tray import TARGET as TRAY_TARGET
-from target_catalog import TARGETS, host_definition, llvm_mingw_resource_triple
+from target_catalog import (
+    TARGETS,
+    host_definition,
+    linux_compiler_builtins,
+    llvm_mingw_resource_triple,
+)
 
 
 def llvm_mingw_license_root(prefix, architecture):
@@ -185,6 +190,12 @@ def collect_vendor(root, sysroot):
 def collect_base_libraries(root, sysroot, target, *, ios_text=False):
     """Licenses of one target's base package: Rust-built and toolchain components."""
     collector = Collector(root, "lib-base-" + target)
+    if linux_compiler_builtins(target):
+        collector.add(
+            "compiler-rt",
+            "Apache-2.0 WITH LLVM-exception",
+            [sysroot / "lib" / target / "unwind/share/compiler-rt/LICENSE.TXT"],
+        )
     if TARGETS[target]["os"] == "ios":
         if ios_text:
             notices = sysroot / "lib" / target / NOTICE_DIRECTORY

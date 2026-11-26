@@ -130,7 +130,15 @@ impl LinuxFinalLinkProfile {
             command
                 .arg("-Wl,--start-group")
                 .arg(prefix.join("lib/libunwind.a"))
-                .args(["-lc", "-lm", "-lpthread", "-lgcc", "-Wl,--end-group"]);
+                .args(["-lc", "-lm", "-lpthread"]);
+            if self.target.libc == LinuxLibc::Musl
+                && self.startup.target().architecture() == scoop_lir::TargetArchitecture::Aarch64
+            {
+                command.arg(prefix.join("lib/libclang_rt.builtins-aarch64.a"));
+            } else {
+                command.arg("-lgcc");
+            }
+            command.arg("-Wl,--end-group");
         }
     }
 
