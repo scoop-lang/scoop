@@ -67,6 +67,14 @@ path = "src/drag_drop/preview.scoop"
 when = { os = "ios" }
 
 [[sources]]
+path = "src/menu/text_template.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/menu/placement.scoop"
+when = { os = "ios" }
+
+[[sources]]
 path = "src/menu/image.scoop"
 when = { os = "ios" }
 
@@ -1013,6 +1021,10 @@ when = { os = "ios" }
 
 [[native.sources]]
 path = "native/ios/accessibility_view.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/edit_menu.m"
 when = { os = "ios" }
 
 [[native.sources]]

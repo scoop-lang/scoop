@@ -34,6 +34,17 @@ final class InteractionTests: XCTestCase {
         return bytes
     }
 
+    func testTextEditMenu() {
+        let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.window")
+        app.launchArguments = ["--edit-menu"]
+        app.launch()
+        let command = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Copy example row")).firstMatch
+        guard command.waitForExistence(timeout: 5) else { return XCTFail(app.debugDescription) }
+        command.tap()
+        let target = app.descendants(matching: .any).matching(identifier: "edit-menu-target").firstMatch
+        XCTAssertEqual(target.value as? String, "copy delivered")
+    }
+
     func testSceneDrag() {
         let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.window")
         app.launchArguments = ["--scene-drag"]

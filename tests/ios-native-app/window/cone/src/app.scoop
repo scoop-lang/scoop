@@ -5,6 +5,7 @@ import scoop.platform.time.MonotonicTimeSource
 import scoop.time.Duration
 import scoop.window.*
 import scoop.window.ios.UIKitApplication
+import scoop.window.ios.UIKitEditMenu
 import scoop.window.native.*
 
 @CLayout
@@ -203,6 +204,14 @@ private class Probe(val host: Host) : ApplicationHandler {
             8 -> readClipboardProbe(window!!)
             9 -> accessibility = Some(AccessibilityProbe(window!!))
             10 -> accessibility!!.finish()
+            11 -> mailbox!!.post { active ->
+                val template = active.textContextMenuTemplate(false, Some(TextContextMenuLabels(copy = Some("Copy example row"))))
+                UIKitEditMenu(window!!, PopupPlacement.Pointer(LogicalPosition(150.0, 220.0)),
+                    template, TextCommandAvailability(copy = true), false) { command ->
+                    if (command != TextEditCommand.Copy) throw IllegalStateException(Some("unexpected edit action"))
+                    report(19)
+                }
+            }
             else -> return 0
         }
         return 1

@@ -8,11 +8,12 @@
 
 static ScoopWindowApi api;
 static __weak UIWindowScene *currentScene;
-static unsigned events[19];
+static unsigned events[20];
 static BOOL touchProbe, textProbe, clipboardProbe, keyProbe, accessibilityProbe,
     dragProbe;
 extern void probeTextStep(UIView *content, int32_t step);
 static void ime(int32_t step);
+static BOOL menuProbe;
 static __weak UIView *resultView;
 static UIWindow *interruptingWindow;
 static BOOL disconnecting;
@@ -31,6 +32,11 @@ static void inspect(void *nativeWindow, void *nativeView,
     view.isAccessibilityElement = YES;
     view.accessibilityIdentifier = @"scoop-touch-result";
     view.accessibilityLabel = @"Window contact probe";
+  }
+  if (menuProbe && !resultView) {
+    resultView = view;
+    view.isAccessibilityElement = YES;
+    view.accessibilityIdentifier = @"edit-menu-target";
   }
   if (dragProbe && !resultView) {
     resultView = view;
@@ -56,10 +62,15 @@ static void inspect(void *nativeWindow, void *nativeView,
 }
 
 static void event(int32_t kind) {
-  assert(NSThread.isMainThread && kind >= 1 && kind <= 18);
+  assert(NSThread.isMainThread && kind >= 1 && kind <= 19);
   events[kind]++;
   if (textProbe || clipboardProbe || accessibilityProbe)
     return;
+  if (menuProbe) {
+    if (kind == 19 && events[19] == 1)
+      resultView.accessibilityValue = @"copy delivered";
+    return;
+  }
   if (dragProbe) {
     if (kind == 17)
       resultView.accessibilityValue = @"moved once";
@@ -154,6 +165,8 @@ static void ime(int32_t step) {
       [NSProcessInfo.processInfo.arguments containsObject:@"--accessibility"];
   dragProbe =
       [NSProcessInfo.processInfo.arguments containsObject:@"--scene-drag"];
+  menuProbe =
+      [NSProcessInfo.processInfo.arguments containsObject:@"--edit-menu"];
   ScoopWindowHost host = {inspect, event, ime, textProbe, keyProbe, dragProbe};
   ScoopAppError error = {0};
   assert(scoop_app_init(&host, &api, &error) == SCOOP_APP_INIT_OK);
@@ -171,6 +184,12 @@ static void ime(int32_t step) {
   assert(api.control(api.context, 1, (__bridge void *)scene));
 }
 - (void)sceneDidBecomeActive:(UIScene *)scene {
+  if (menuProbe) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      assert(api.control(api.context, 11, (__bridge void *)scene));
+    });
+    return;
+  }
   if (accessibilityProbe) {
     dispatch_async(dispatch_get_main_queue(), ^{
       void *pointer = (__bridge void *)scene;

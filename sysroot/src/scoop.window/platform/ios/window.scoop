@@ -2,6 +2,7 @@ package scoop.window
 
 import scoop.window.accessibility.AccessibilityProvider
 import scoop.window.accessibility.SemanticIdentity
+import scoop.window.ios.UIKitEditMenu
 import scoop.window.native.NativeWindowLease
 
 /** The window installed into one connected UIWindowScene. */
@@ -56,6 +57,7 @@ internal class WindowOwner(
     var capturedDrag: ContactId? = None
     var dragSession: DragSession? = None
     var dropTarget: DropTarget? = None
+    var editMenu: UIKitEditMenu? = None
     var textCommands: TextCommandAvailability? = None
     val semanticIdentity = SemanticIdentity()
     var accessibility: AccessibilityProvider? = None
@@ -79,6 +81,7 @@ internal class WindowOwner(
         if (phase != WindowState.Open) return
         phase = WindowState.Closing
         dirty = false
+        editMenu?.close()
         dragSession?.close()
         dropTarget?.close()
         accessibility?.close()

@@ -21,21 +21,7 @@ public var Window.textCommandAvailability: TextCommandAvailability?
         if (owner.textCommands == value) return
         val flags = when (value) {
             case None -> 0
-            case Some(val commands) ->
-                128 +
-                    flag(commands.cut) +
-                    flag(commands.copy) *
-                    2 +
-                    flag(commands.paste) *
-                    4 +
-                    flag(commands.selectAll) *
-                    8 +
-                    flag(commands.undo) *
-                    16 +
-                    flag(commands.redo) *
-                    32 +
-                    flag(commands.deleteSelection) *
-                    64
+            case Some(val commands) -> 128 + commands.menuFlags
         }
         @Unsafe
         {
@@ -43,6 +29,10 @@ public var Window.textCommandAvailability: TextCommandAvailability?
         }
         owner.textCommands = value
     }
+
+internal val TextCommandAvailability.menuFlags: Int get() =
+    flag(cut) + flag(copy) * 2 + flag(paste) * 4 + flag(selectAll) * 8 +
+        flag(undo) * 16 + flag(redo) * 32 + flag(deleteSelection) * 64
 
 @Extern(name = "scoop_window_text_commands")
 @Unsafe

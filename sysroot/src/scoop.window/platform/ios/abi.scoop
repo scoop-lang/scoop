@@ -80,3 +80,10 @@ else
 
 // UIKit requests the keyboard through the connected first responder.
 internal fun WindowOwner.keyboardRequestInput(): Ptr<Unit>? = None
+
+internal fun ApplicationOwner.requireRunning(operation: String) {
+    checkThread()
+    if (native == None || exiting) throw WindowException(operation, WindowErrorKind.InvalidState)
+}
+internal fun platformTextContextMenuTemplate(preferSystem: Boolean): TextContextMenuTemplate =
+    standardTextContextMenuTemplate(false)

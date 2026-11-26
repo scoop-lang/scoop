@@ -1,0 +1,163 @@
+package scoop.window.ios
+
+import scoop.window.*
+
+/** A system edit menu bound to one text target and one scene. */
+public class UIKitEditMenu public constructor(
+    private val window: Window,
+    placement: PopupPlacement,
+    template: TextContextMenuTemplate,
+    available: TextCommandAvailability,
+    preferSystemTitles: Boolean,
+    private val activate: (TextEditCommand) -> Unit
+) : Closeable {
+    private var native: Ptr<Unit>? = None
+    private var registration: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
+    init {
+        val owner = window.owner
+        owner.requireOpen()
+        owner.editMenu?.close()
+        @Unsafe {
+            val callback = foreignCallback<(Ptr<Unit>, Int) -> Int>(
+                { role: Int ->
+                    if (owner
+                        .application
+                        .mailbox
+                        .post {
+                            if (native != None && owner.phase == WindowState.Open) {
+                                try {
+                                    activate(menuTextCommand(role))
+                                } finally {
+                                    close()
+                                }
+                            }
+                        }
+                    )
+                        1
+                    else
+                        0
+                },
+                0L,
+                ForeignCallbackMode.Reusable
+            )
+            registration = Some(callback)
+            try {
+                val point = when (placement) {
+                    case Pointer(val origin) -> LogicalRect(origin, LogicalSize(0.0, 0.0))
+                    case Anchor(val rect) -> rect
+                }
+                val handle = create(
+                    owner.pointer!!, callback.function, callback.context, point.origin.x,
+                    point.origin.y, point.size.width, point.size.height, available.menuFlags, flag(
+                        preferSystemTitles
+                    )
+                ) ?:
+                    throw WindowException("present UIKit edit menu", WindowErrorKind.Unavailable)
+                native = Some(handle)
+                for (entry in template.entries)
+                    when (entry) {
+                        case Command(val command, val label, _) -> {
+                            val role = when (command) {
+                                case Cut -> 4;
+                                case Copy -> 5;
+                                case Paste -> 6;
+                                case SelectAll -> 7
+                                case Undo -> 8;
+                                case Redo -> 9;
+                                case DeleteSelection -> 10
+                                else ->
+                                    throw IllegalArgumentException(
+                                        Some("invalid edit menu command")
+                                    )
+                            }
+                            label
+                                .withUtf8Bytes { bytes, length ->
+                                    @Unsafe {
+                                        add(handle, role, bytes, length)
+                                    }
+                                }
+                        }
+
+                        case Separator -> {}
+                    }
+                owner.editMenu = Some(this)
+                present(handle)
+            } catch (error: Throwable) {
+                close()
+                throw error
+            }
+        }
+    }
+    public val isPresented: Boolean
+        get() {
+            window.owner.application.checkThread()
+            val handle = native ?: return false
+            @Unsafe {
+                return pending(handle) != 0
+            }
+        }
+    public fun update(value: TextCommandAvailability) {
+        window.owner.application.checkThread()
+        when (val handle = native) {
+            case Some(val valueHandle) ->
+                @Unsafe {
+                    updateFlags(valueHandle, value.menuFlags)
+                }
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        val owner = window.owner
+        owner.application.checkThread()
+        when (val menu = owner.editMenu) {
+            case Some(val current) -> if (current === this) owner.editMenu = None
+            case None -> {}
+        }
+        @Unsafe {
+            when (val handle = native) {
+                case Some(val value) -> {
+                    native = None;
+                    dismiss(value)
+                }
+
+                case None -> {}
+            }
+            when (val saved = registration) {
+                case Some(val callback) -> {
+                    registration = None;
+                    releaseForeignCallback(callback)
+                }
+
+                case None -> {}
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_window_ios_edit_menu_create")
+private fun create(
+    scene: Ptr<Unit>,
+    callback: FunPtr<(Ptr<Unit>, Int) -> Int>,
+    context: Ptr<Unit>,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double,
+    flags: Int,
+    systemTitles: Int
+): Ptr<Unit>?
+
+@Extern(name = "scoop_window_ios_edit_menu_add")
+private fun add(menu: Ptr<Unit>, role: Int, label: Ptr<UInt8>, length: Long)
+
+@Extern(name = "scoop_window_ios_edit_menu_present")
+private fun present(menu: Ptr<Unit>)
+
+@Extern(name = "scoop_window_ios_edit_menu_pending")
+private fun pending(menu: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_ios_edit_menu_update")
+private fun updateFlags(menu: Ptr<Unit>, flags: Int)
+
+@Extern(name = "scoop_window_ios_edit_menu_close")
+private fun dismiss(menu: Ptr<Unit>)

@@ -1,0 +1,6 @@
+package scoop.window
+
+/** Coordinates belong to the target window's presented content. */
+public enum PopupPlacement {
+    Pointer(LogicalPosition), Anchor(LogicalRect)
+}
