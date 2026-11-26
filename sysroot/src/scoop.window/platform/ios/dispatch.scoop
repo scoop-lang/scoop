@@ -131,6 +131,7 @@ internal fun ApplicationOwner.pump(stage: Int) {
     }
     pumping = true
     try {
+        reportAccessibilityFailure()
         for (control in mailbox.takeControls())
             control()
         val business = mailbox.takeBusiness()

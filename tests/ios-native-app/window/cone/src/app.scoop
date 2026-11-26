@@ -40,6 +40,7 @@ private class Probe(val host: Host) : ApplicationHandler {
 
     private val contacts = HashSet<ContactId>()
     private val keys = HardwareKeyProbe()
+    private var accessibility: AccessibilityProbe? = None
     private val editor = ImeProbe { step ->
         @Unsafe {
             host.ime(step)
@@ -194,6 +195,8 @@ private class Probe(val host: Host) : ApplicationHandler {
             6 -> editor.activated(window!!)
             7 -> writeClipboardProbe(window!!)
             8 -> readClipboardProbe(window!!)
+            9 -> accessibility = Some(AccessibilityProbe(window!!))
+            10 -> accessibility!!.finish()
             else -> return 0
         }
         return 1
@@ -208,7 +211,13 @@ fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
         { action: Int, scene: Ptr<Unit> ->
             var outcome = 0
             @Unsafe {
-                outcome = probe.control(application, action, scene)
+                try {
+                    outcome = probe.control(application, action, scene)
+                } catch (error: Throwable) {
+                    if (error is Exception) println(error.message ?: "window probe failed")
+                    error.printStackTrace()
+                    throw error
+                }
             }
             outcome
         },

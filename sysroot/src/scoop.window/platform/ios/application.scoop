@@ -43,6 +43,36 @@ internal class ApplicationOwner(eventHandler: ApplicationHandler) {
     var native: Ptr<Unit>? = None
     var exiting = false
     var pumping = false
+    var dispatchDepth = 0
+    private var accessibilityFailure: Throwable? = None
+    val accessibilityBusy: Boolean
+        get() = pumping ||
+            dispatchDepth !=
+            0 ||
+            when (accessibilityFailure) {
+                case Some(_) -> true
+                case None -> false
+            }
+    fun failAccessibility(error: Throwable) {
+        accessibilityFailure = Some(
+            when (val previous = accessibilityFailure) {
+                case Some(val old) -> ResourceUseException(old, error)
+                case None -> error
+            }
+        )
+        mailbox.wake()
+    }
+    fun reportAccessibilityFailure() {
+        when (val failure = accessibilityFailure) {
+            case Some(val error) -> {
+                accessibilityFailure = None
+                close()
+                throw error
+            }
+
+            case None -> {}
+        }
+    }
     private val thread = currentThreadId()
     private var nextWindow = 1L
     private var registration: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
@@ -68,12 +98,18 @@ internal class ApplicationOwner(eventHandler: ApplicationHandler) {
             mailbox.bind(pointer!!)
         }
     }
+    fun isCurrentThread(): Boolean = currentThreadId() == thread
     fun checkThread() {
-        if (currentThreadId() != thread)
+        if (!isCurrentThread())
             throw IllegalStateException(Some("window operation requires the UIKit main thread"))
     }
     fun notify(event: ApplicationEvent) {
-        handler!!.onEvent(active, event)
+        dispatchDepth += 1
+        try {
+            handler!!.onEvent(active, event)
+        } finally {
+            dispatchDepth -= 1
+        }
     }
     fun deliverBusiness(block: () -> Unit) {
         if (!exiting) block()

@@ -34,6 +34,17 @@ final class InteractionTests: XCTestCase {
         return bytes
     }
 
+    func testWindowAccessibility() {
+        let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.window")
+        app.launchArguments = ["--accessibility", "--inspect"]
+        app.launch()
+        let button = app.buttons["open-example"]
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        XCTAssertEqual(button.label, "Open example")
+        XCTAssertEqual(button.value as? String, "1")
+        XCTAssertEqual(button.frame.size, CGSize(width: 160, height: 52))
+    }
+
     func testHardwareKeys() {
         let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.window")
         app.launchArguments = ["--keys"]

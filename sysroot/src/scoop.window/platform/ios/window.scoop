@@ -1,5 +1,7 @@
 package scoop.window
 
+import scoop.window.accessibility.AccessibilityProvider
+import scoop.window.accessibility.SemanticIdentity
 import scoop.window.native.NativeWindowLease
 
 /** The window installed into one connected UIWindowScene. */
@@ -50,6 +52,9 @@ internal class WindowOwner(
     var phase = WindowState.Open
     var dirty = true
     var textCommands: TextCommandAvailability? = None
+    val semanticIdentity = SemanticIdentity()
+    var accessibility: AccessibilityProvider? = None
+    val inputBlocked: Boolean get() = phase != WindowState.Open || snapshot().focused == 0
     var leases = 0L
     val closingLeases = ArrayList<NativeWindowLease>()
     val activityObservers = ArrayList<WindowActivityObserver>()
@@ -69,6 +74,7 @@ internal class WindowOwner(
         if (phase != WindowState.Open) return
         phase = WindowState.Closing
         dirty = false
+        accessibility?.close()
         application.retireDeadlines(this)
         for (observer in activityObservers.toArray())
             observer.close()

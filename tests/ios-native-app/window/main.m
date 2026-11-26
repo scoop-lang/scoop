@@ -9,7 +9,7 @@
 static ScoopWindowApi api;
 static __weak UIWindowScene *currentScene;
 static unsigned events[17];
-static BOOL touchProbe, textProbe, clipboardProbe, keyProbe;
+static BOOL touchProbe, textProbe, clipboardProbe, keyProbe, accessibilityProbe;
 extern void probeTextStep(UIView *content, int32_t step);
 static void ime(int32_t step);
 static __weak UIView *resultView;
@@ -23,7 +23,7 @@ static void inspect(void *nativeWindow, void *nativeView,
   assert(NSThread.isMainThread && window.windowScene == currentScene);
   assert(window.rootViewController.view == view &&
          [view.layer isKindOfClass:CAMetalLayer.class]);
-  if (textProbe)
+  if (textProbe || accessibilityProbe)
     resultView = view;
   if (touchProbe && !resultView) {
     resultView = view;
@@ -52,7 +52,7 @@ static void inspect(void *nativeWindow, void *nativeView,
 static void event(int32_t kind) {
   assert(NSThread.isMainThread && kind >= 1 && kind <= 16);
   events[kind]++;
-  if (textProbe || clipboardProbe)
+  if (textProbe || clipboardProbe || accessibilityProbe)
     return;
   if (keyProbe) {
     if (kind == 14 && events[13] == 1 && events[14] == 1)
@@ -137,6 +137,8 @@ static void ime(int32_t step) {
   clipboardProbe =
       [NSProcessInfo.processInfo.arguments containsObject:@"--clipboard"];
   keyProbe = [NSProcessInfo.processInfo.arguments containsObject:@"--keys"];
+  accessibilityProbe =
+      [NSProcessInfo.processInfo.arguments containsObject:@"--accessibility"];
   ScoopWindowHost host = {inspect, event, ime, textProbe, keyProbe};
   ScoopAppError error = {0};
   assert(scoop_app_init(&host, &api, &error) == SCOOP_APP_INIT_OK);
@@ -154,6 +156,37 @@ static void ime(int32_t step) {
   assert(api.control(api.context, 1, (__bridge void *)scene));
 }
 - (void)sceneDidBecomeActive:(UIScene *)scene {
+  if (accessibilityProbe) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      void *pointer = (__bridge void *)scene;
+      assert(api.control(api.context, 9, pointer));
+      NSArray *elements = resultView.accessibilityElements;
+      assert(elements.count == 3);
+      UIAccessibilityElement *button = elements[1];
+      assert([button.accessibilityIdentifier isEqualToString:@"open-example"]);
+      assert([button.accessibilityLabel isEqualToString:@"Open example"]);
+      assert((button.accessibilityTraits & UIAccessibilityTraitButton) != 0);
+      assert(CGRectEqualToRect(button.accessibilityFrameInContainerSpace,
+                               CGRectMake(25, 140, 160, 52)));
+      assert([button.accessibilityValue isEqualToString:@"0"] &&
+             [button accessibilityActivate]);
+      assert(resultView.accessibilityElements[1] == button &&
+             [button.accessibilityValue isEqualToString:@"1"]);
+      assert(![button accessibilityScroll:UIAccessibilityScrollDirectionRight]);
+      assert([button accessibilityScroll:UIAccessibilityScrollDirectionDown]);
+      if ([NSProcessInfo.processInfo.arguments containsObject:@"--inspect"])
+        return;
+      assert(api.control(api.context, 10, pointer));
+      assert(![button accessibilityActivate] &&
+             resultView.accessibilityElements.count == 0);
+      puts("scoop-ios-accessibility-ok");
+      fflush(stdout);
+#if TARGET_OS_SIMULATOR
+      exit(0);
+#endif
+    });
+    return;
+  }
   if (clipboardProbe) {
     void *scenePointer = (__bridge void *)scene;
     assert(api.control(api.context, 7, scenePointer));

@@ -16,6 +16,8 @@ PRIMARY 使用 `application.primarySelection`／`window.primarySelection`，独�
 
 库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期，也提供 GUI 文本剪贴板与低层无障碍投影。控件、文档布局、语义内容和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C／C++ native 构建。
 
+UIKit 场景的 `Window.createAccessibilityProvider()` 也使用 `scoop.window.accessibility` 的节点接口。提交可见几何后，UIKit 内容视图按语义顺序公开稳定节点，处理按钮、调节及滚动动作。[无障碍用例](../../../tests/ios-native-app/window/cone/src/accessibility.scoop)
+
 ## 依赖与入口
 
 ```toml

@@ -11,6 +11,10 @@ path = "src"
 when = { os = ["darwin", "windows"] }
 
 [[sources]]
+path = "src/accessibility"
+when = { os = "ios" }
+
+[[sources]]
 path = "src/identity.scoop"
 when = { os = "ios" }
 
@@ -769,7 +773,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/tree.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/tree.cpp"
@@ -777,7 +781,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/publication.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/publication.cpp"
@@ -785,7 +789,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/text.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/text.cpp"
@@ -793,7 +797,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/element.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/element.cpp"
@@ -801,7 +805,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/grid.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/grid.cpp"
@@ -986,6 +990,14 @@ when = { os = "windows" }
 [[test.sources]]
 path = "tests/text_services.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/ios/accessibility.cpp"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/accessibility_view.m"
+when = { os = "ios" }
 
 [[native.sources]]
 path = "native/ios/application.m"

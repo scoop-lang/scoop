@@ -85,6 +85,8 @@ xcodebuild test -project tests/ios-native-app/interaction/Interaction.xcodeproj 
 xcrun simctl launch --console --terminate-running-process "$SIMULATOR_UUID" dev.scoop.ios-probe.window --clipboard
 ```
 
+在窗口宿主加 `--accessibility` 运行，可用 UIKit 检查已发布的名称、角色、裁剪后边界、按钮激活和祖先滚动。节点退休后再次调用其旧系统元素会被拒绝。成功标记为 `scoop-ios-accessibility-ok`。同一 XCUITest 命令选择 `testWindowAccessibility`，由另一个进程按按钮角色查询实际系统元素。
+
 ## 公共 Surface 首帧和恢复
 
 准备好 `scoop.graphics`、`scoop.window` 和 `scoop.surface` 后，给上面的 `verify.py` 命令添加 `--surface --include-device`，并指定新的工作目录。模拟器应用在场景连接时挂载 `SurfaceContent`，检查首个接受帧、空闲停帧、显式重绘及关闭次序，成功输出 `scoop-ios-surface-ok`。在同一模拟器执行上述 XCUITest 命令，把测试方法改为 `testSurfacePresentation`，用真实截图核对初次绘制为绿色，按 Home 并重新激活后同一内容根绘制蓝色。
