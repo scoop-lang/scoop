@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import package_manifest
 from build_support import RELEASE_CONFIG
-from target_catalog import host_definition
+from target_catalog import TARGETS, host_definition
 
 
 class ManifestTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class ManifestTests(unittest.TestCase):
         components = ["sources", "vendor", "bin-" + host]
         for target in targets:
             components.append("lib-base-" + target)
-            if "musl" not in target:
+            if "musl" not in target and TARGETS[target]["os"] != "ios":
                 components.append("lib-gui-" + target)
             if "llvm-mingw" in target:
                 components.append("native-" + target)
@@ -60,7 +60,12 @@ class ManifestTests(unittest.TestCase):
             package_manifest.write(root / "manifest.toml", merged)
             actual = tomllib.loads((root / "manifest.toml").read_text())
             self.assertEqual(set(actual["hosts"]), set(hosts))
-            self.assertEqual(len(actual["targets"]), 7)
+            self.assertEqual(set(actual["targets"]), set(TARGETS))
+            for target in ("aarch64-apple-ios", "aarch64-apple-ios-sim"):
+                self.assertIn(target, actual["hosts"]["aarch64-apple-darwin"]["targets"])
+                self.assertEqual(actual["targets"][target]["base"], f"lib-base-{target}")
+                self.assertNotIn("gui", actual["targets"][target])
+                self.assertNotIn("system_cones", actual["targets"][target]["requirements"])
             self.assertNotIn("gui", actual["targets"]["x86_64-unknown-linux-musl"])
             for crt in ("ucrt", "msvcrt"):
                 target = f"x86_64-w64-windows-llvm-mingw-{crt}"

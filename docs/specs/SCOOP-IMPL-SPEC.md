@@ -1539,6 +1539,8 @@ macOS app 打包同样保留弱装载：无实际候选时保留该可选 load�
 
 #### 2.8.2 iOS native-app 与 XCFramework
 
+Apple Silicon macOS 宿主的发行清单分别提供 `lib-base-aarch64-apple-ios` 和 `lib-base-aarch64-apple-ios-sim`。每个组件含本目标的预编译系统 Cone 及四种 runtime 配置，开发者安装对应组件后即可从 Xcode SDK 链接 UIKit 宿主。两个组件的系统 Cone 由发行配置的 `system_cones` 指定。UIKit、Objective-C runtime 与系统展开库由对应的 Apple SDK 提供。
+
 开发宿主使用 macOS Xcode。`aarch64-apple-ios-sim` 选择 `iphonesimulator` SDK、带版本的 `arm64-apple-ios<version>-simulator` triple、Mach-O `IOSSIMULATOR` 平台与 LLD `-platform_version ios-simulator`。`aarch64-apple-ios` 选择 `iphoneos` SDK、`arm64-apple-ios<version>` triple、Mach-O `IOS` 平台与 LLD `-platform_version ios`。两者默认最低版本为 iOS 17.0，`IPHONEOS_DEPLOYMENT_TARGET` 可指定本次应用的部署版本。Scoop 对象、generated-C、C／C++／Objective-C 对象、runtime 与 startup 均按目标生成，各自的开发 sysroot 提供 `scoop.core`、`scoop.std` 和 runtime。应用可从源码构建其他相容的 Cone。
 
 原生对象的部署记录、归档中实际使用的成员、动态库和 SDK 文本 stub 按选中的 Apple 平台消费。存在部署记录的输入必须有匹配的目标平台，最低版本不能超过本次部署版本。设备、模拟器和 macOS 的 ARM64 输入分别解析。模拟器 SDK 的 libSystem 会显式 re-export 宿主的核心系统库；沿已选 SDK 的实际 re-export 边读取这些库时，允许选择同架构的 macOS 文本 stub 切片。应用的部署版本只作用于应用目标平台的 stub 指令。沿用已有读取边界与更新记录。

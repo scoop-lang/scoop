@@ -1,0 +1,76 @@
+package scoop.os.nix.fs
+
+import scoop.platform.fs.FileMetadata
+import scoop.platform.fs.Path
+import scoop.platform.fs.withNativePath
+import scoop.platform.native.NativeFileMetadata
+import scoop.platform.native.decodeFileMetadata
+import scoop.platform.native.requireFileMode
+import scoop.platform.system.*
+
+/** File metadata, ownership and identity from a single Unix stat or lstat call. */
+public struct UnixFileMetadata(
+    val basic: FileMetadata,
+    val userId: UInt,
+    val groupId: UInt,
+    val deviceId: ULong,
+    val inode: ULong,
+    val linkCount: Long
+)
+
+/** Queries the path, optionally observing the final symbolic link itself. */
+public fun Path.unixMetadata(followLinks: Boolean = true): UnixFileMetadata {
+    @Unsafe {
+        return this
+            .withNativePath { pointer ->
+                @Unsafe {
+                    val(data, error) = nativeStat(pointer, followLinks)
+                    val basic = decodeFileMetadata(data.basic, error, Some(this.toOsString()))
+                    if (data.linkCount > Long.MAX_VALUE.toULong()) throw ArithmeticException()
+                    return@withNativePath UnixFileMetadata(
+                        basic, data.userId, data.groupId, data.deviceId, data.inode, data
+                            .linkCount
+                            .toLong()
+                    )
+                }
+            }
+    }
+}
+
+/** Creates a named pipe with the given permission bits, subject to the process umask. */
+public fun Path.createFifo(mode: Int) {
+    requireFileMode(mode)
+    @Unsafe {
+        this
+            .withNativePath { pointer ->
+                @Unsafe {
+                    val(status, code) = nativeCreateFifo(pointer, mode)
+                    if (status < 0) {
+                        val error = NativeError(NativeErrorDomain.PosixErrno, code)
+                        throw PlatformException(
+                            "mkfifo",
+                            error.kind,
+                            Some(error),
+                            Some(this.toOsString())
+                        )
+                    }
+                }
+            }
+    }
+}
+
+@CLayout
+private struct NativeUnixMetadata(
+    val basic: NativeFileMetadata,
+    val userId: UInt,
+    val groupId: UInt,
+    val deviceId: ULong,
+    val inode: ULong,
+    val linkCount: ULong
+)
+
+@Extern(name = "scoop_os_nix_stat", captureErrno = true)
+private fun nativeStat(path: Ptr<Byte>, follow: Boolean): (NativeUnixMetadata, Int)
+
+@Extern(name = "scoop_os_nix_mkfifo", captureErrno = true)
+private fun nativeCreateFifo(path: Ptr<Byte>, mode: Int): (Int, Int)

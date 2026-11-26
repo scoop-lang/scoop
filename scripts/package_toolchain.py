@@ -38,7 +38,13 @@ from prepare_gtk import TARGET as GTK_TARGET
 from prepare_sysroot import cone_order, target_dependencies
 from prepare_tray import LINK_INPUTS as TRAY_LINK_INPUTS
 from prepare_tray import TARGET as TRAY_TARGET
-from target_catalog import TARGETS, current_host, host_definition, native_target_for_host
+from target_catalog import (
+    NATIVE_TARGETS,
+    TARGETS,
+    current_host,
+    host_definition,
+    native_target_for_host,
+)
 
 TOOLS = (
     "scoop",
@@ -62,124 +68,11 @@ def run_script(name, arguments, environment):
 def prepare_targets(args, targets, binaries, environment):
     sysroot = ROOT / "sysroot"
     for target in targets:
-        facts = TARGETS[target]
-        native = []
-        openssl = [
-            "--target",
-            target,
-            "--build-dir",
-            args.work_dir / "openssl" / target,
-            "--jobs",
-            args.jobs,
-        ]
-        if facts["os"] == "linux":
-            cc = args.musl_cc if facts["env"] == "musl" else args.gnu_cc
-            native = ["--cc", cc]
-            openssl += native
-        elif facts["os"] == "windows":
-            native = ["--cc", package_windows.compiler(args, target)]
-            openssl += [*native, *package_windows.openssl_arguments(args, target)]
-        run_script("build_openssl.py", openssl, environment)
-        for script, directory in (
-            ("build_nghttp2.py", "nghttp2"),
-            ("build_text_backends.py", "text"),
-            ("build_uriparser.py", "uriparser"),
-            ("build_compression.py", "compression"),
-            ("build_pcre2.py", "pcre2"),
-        ):
-            run_script(
-                script,
-                [
-                    "--target",
-                    target,
-                    "--build-dir",
-                    args.work_dir / directory / target,
-                    "--jobs",
-                    args.jobs,
-                    *native,
-                ],
-                environment,
-            )
-        if target in SKIA_TARGETS:
-            skia_native = (
-                ["--cc", args.llvm_prefix / "bin/clang"] if facts["os"] == "linux" else native
-            )
-            run_script(
-                "build_skia.py",
-                [
-                    "--target",
-                    target,
-                    "--build-dir",
-                    args.work_dir / "skia" / target,
-                    "--gn",
-                    args.gn,
-                    "--jobs",
-                    args.jobs,
-                    *skia_native,
-                ],
-                environment,
-            )
-        if target == GTK_TARGET:
-            run_script(
-                "prepare_gtk.py",
-                [
-                    "--development-prefix",
-                    args.gtk_prefix,
-                    "--build-dir",
-                    args.work_dir / "gtk" / target,
-                ],
-                environment,
-            )
-        if target == TRAY_TARGET:
-            run_script(
-                "prepare_tray.py",
-                [
-                    "--development-prefix",
-                    args.tray_prefix,
-                    "--build-dir",
-                    args.work_dir / "tray" / target,
-                ],
-                environment,
-            )
-        if facts["os"] == "linux":
-            unwind = [
-                "--target",
-                target,
-                "--source",
-                args.llvm_source,
-                "--build-dir",
-                args.work_dir / "unwind" / target,
-                "--cc",
-                args.unwind_cc,
-                "--cxx",
-                args.unwind_cxx,
-                "--jobs",
-                args.jobs,
-            ]
-            if facts["env"] == "musl":
-                unwind += ["--musl-include", args.musl_include]
-            run_script("build_llvm_unwind.py", unwind, environment)
-            native += ["--unwind-prefix", sysroot / "lib" / target / "unwind"]
-        elif facts["os"] == "windows":
-            run_script(
-                "build_windows_unwind.py",
-                [
-                    "--target",
-                    target,
-                    "--source",
-                    args.llvm_source,
-                    "--build-dir",
-                    args.work_dir / "unwind" / target,
-                    "--jobs",
-                    args.jobs,
-                    *native,
-                ],
-                environment,
-            )
-            native += ["--unwind-prefix", sysroot / "lib" / target / "unwind"]
-            prefix = package_windows.mingw_prefix(args, target)
-            if prefix is not None:
-                native += ["--native-sysroot", prefix]
+        native = (
+            prepare_desktop_dependencies(args, target, sysroot, environment)
+            if target in NATIVE_TARGETS
+            else []
+        )
         run_script(
             "prepare_sysroot.py",
             [
@@ -199,6 +92,126 @@ def prepare_targets(args, targets, binaries, environment):
             ],
             environment,
         )
+
+
+def prepare_desktop_dependencies(args, target, sysroot, environment):
+    facts = TARGETS[target]
+    native = []
+    openssl = [
+        "--target",
+        target,
+        "--build-dir",
+        args.work_dir / "openssl" / target,
+        "--jobs",
+        args.jobs,
+    ]
+    if facts["os"] == "linux":
+        cc = args.musl_cc if facts["env"] == "musl" else args.gnu_cc
+        native = ["--cc", cc]
+        openssl += native
+    elif facts["os"] == "windows":
+        native = ["--cc", package_windows.compiler(args, target)]
+        openssl += [*native, *package_windows.openssl_arguments(args, target)]
+    run_script("build_openssl.py", openssl, environment)
+    for script, directory in (
+        ("build_nghttp2.py", "nghttp2"),
+        ("build_text_backends.py", "text"),
+        ("build_uriparser.py", "uriparser"),
+        ("build_compression.py", "compression"),
+        ("build_pcre2.py", "pcre2"),
+    ):
+        run_script(
+            script,
+            [
+                "--target",
+                target,
+                "--build-dir",
+                args.work_dir / directory / target,
+                "--jobs",
+                args.jobs,
+                *native,
+            ],
+            environment,
+        )
+    if target in SKIA_TARGETS:
+        skia_native = ["--cc", args.llvm_prefix / "bin/clang"] if facts["os"] == "linux" else native
+        run_script(
+            "build_skia.py",
+            [
+                "--target",
+                target,
+                "--build-dir",
+                args.work_dir / "skia" / target,
+                "--gn",
+                args.gn,
+                "--jobs",
+                args.jobs,
+                *skia_native,
+            ],
+            environment,
+        )
+    if target == GTK_TARGET:
+        run_script(
+            "prepare_gtk.py",
+            [
+                "--development-prefix",
+                args.gtk_prefix,
+                "--build-dir",
+                args.work_dir / "gtk" / target,
+            ],
+            environment,
+        )
+    if target == TRAY_TARGET:
+        run_script(
+            "prepare_tray.py",
+            [
+                "--development-prefix",
+                args.tray_prefix,
+                "--build-dir",
+                args.work_dir / "tray" / target,
+            ],
+            environment,
+        )
+    if facts["os"] == "linux":
+        unwind = [
+            "--target",
+            target,
+            "--source",
+            args.llvm_source,
+            "--build-dir",
+            args.work_dir / "unwind" / target,
+            "--cc",
+            args.unwind_cc,
+            "--cxx",
+            args.unwind_cxx,
+            "--jobs",
+            args.jobs,
+        ]
+        if facts["env"] == "musl":
+            unwind += ["--musl-include", args.musl_include]
+        run_script("build_llvm_unwind.py", unwind, environment)
+        native += ["--unwind-prefix", sysroot / "lib" / target / "unwind"]
+    elif facts["os"] == "windows":
+        run_script(
+            "build_windows_unwind.py",
+            [
+                "--target",
+                target,
+                "--source",
+                args.llvm_source,
+                "--build-dir",
+                args.work_dir / "unwind" / target,
+                "--jobs",
+                args.jobs,
+                *native,
+            ],
+            environment,
+        )
+        native += ["--unwind-prefix", sysroot / "lib" / target / "unwind"]
+        prefix = package_windows.mingw_prefix(args, target)
+        if prefix is not None:
+            native += ["--native-sysroot", prefix]
+    return native
 
 
 def relocate_markdown_links(root, revision):
@@ -344,12 +357,6 @@ def assemble_base_libraries(root, target, args, cones):
     destination.mkdir(parents=True)
     for cone in cones:
         shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
-    shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
-    shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
-    shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
-    for package in COMPRESSION_PACKAGES:
-        for library in package["libraries"]:
-            shutil.copy2(source / library, destination / library)
     for variant in (
         "runtime",
         "runtime-stress",
@@ -360,16 +367,25 @@ def assemble_base_libraries(root, target, args, cones):
         archive = "runtime.lib" if TARGETS[target]["os"] == "windows" else "runtime.a"
         for name in ("index.cbor", archive):
             shutil.copy2(source / variant / name, destination / variant / name)
-    for component, libraries in (
-        ("openssl", ("libcrypto.a", "libssl.a")),
-        ("nghttp2", ("libnghttp2.a",)),
-        ("unwind", ("libunwind.a",)),
-    ):
-        if component == "unwind" and TARGETS[target]["os"] == "darwin":
-            continue
-        (destination / component / "lib").mkdir(parents=True)
-        for name in libraries:
-            shutil.copy2(source / component / "lib" / name, destination / component / "lib" / name)
+    if target in NATIVE_TARGETS:
+        shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
+        shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
+        shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
+        for package in COMPRESSION_PACKAGES:
+            for library in package["libraries"]:
+                shutil.copy2(source / library, destination / library)
+        for component, libraries in (
+            ("openssl", ("libcrypto.a", "libssl.a")),
+            ("nghttp2", ("libnghttp2.a",)),
+            ("unwind", ("libunwind.a",)),
+        ):
+            if component == "unwind" and TARGETS[target]["os"] == "darwin":
+                continue
+            (destination / component / "lib").mkdir(parents=True)
+            for name in libraries:
+                shutil.copy2(
+                    source / component / "lib" / name, destination / component / "lib" / name
+                )
     package_licenses.collect_base_libraries(root, sysroot, target)
 
 

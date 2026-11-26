@@ -18,6 +18,10 @@ zlib-ng = "2.3.3"
 brotli = "1.2.0"
 skia = "f326a1e25fc736704063922b9ce76b527b1c5efe"
 
+[system_cones]
+aarch64-apple-ios = ["scoop.core", "scoop.std", "scoop.os.ios"]
+aarch64-apple-ios-sim = ["scoop.core", "scoop.std", "scoop.os.ios"]
+
 [targets.aarch64-apple-darwin]
 cpu = "generic"
 minimum_os = "27.0.1"
@@ -35,14 +39,12 @@ cpu = "generic"
 minimum_os = "17.0"
 sdk = "27.2"
 build_system = "macOS with Xcode"
-system_cones = ["scoop.core", "scoop.std"]
 
 [targets.aarch64-apple-ios-sim]
 cpu = "generic"
 minimum_os = "17.0"
 sdk = "27.2"
 build_system = "macOS with Xcode"
-system_cones = ["scoop.core", "scoop.std"]
 
 [targets.x86_64-unknown-linux-gnu]
 cpu = "x86-64"

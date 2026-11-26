@@ -1,0 +1,11 @@
+package scoop.os.ios.app
+
+/** Returns the current protected-data state of the running UIKit application. */
+public fun isProtectedDataAvailable(): Boolean {
+    @Unsafe {
+        return nativeProtectedDataAvailable()
+    }
+}
+
+@Extern(name = "scoop_os_ios_protected_data_available")
+private fun nativeProtectedDataAvailable(): Boolean

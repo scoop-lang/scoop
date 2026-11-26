@@ -1,0 +1,100 @@
+package scoop.os.windows.registry
+
+import scoop.platform.system.*
+
+/** Windows registry roots, read through the process's native registry view. */
+public enum RegistryHive {
+    CurrentUser, LocalMachine
+
+    private val root: Int
+        get() = when (this) {
+            case CurrentUser -> 0
+            case LocalMachine -> 1
+        }
+
+    /** Reads REG_DWORD, preserving all 32 bits. A missing key or value returns None. */
+    public fun readDwordOrNone(subkey: OsString, name: OsString): UInt? {
+        @Unsafe {
+            val result = withNames(subkey, name) { key, value ->
+                @Unsafe {
+                    return@withNames nativeDword(root, key, value)
+                }
+            }
+            if (!foundValue(result.status, subkey)) return None
+            return Some(result.value)
+        }
+    }
+
+    /** Reads REG_SZ as UTF-16. An empty name selects the default value. */
+    public fun readStringOrNone(subkey: OsString, name: OsString): OsString? {
+        @Unsafe {
+            val result = withNames(subkey, name) { key, value ->
+                @Unsafe {
+                    return@withNames nativeString(root, key, value)
+                }
+            }
+            if (!foundValue(result.status, subkey)) return None
+            val data = result.data!!
+            try {
+                val units = Array<UShort>(result.length) { index ->
+                    @Unsafe {
+                        return@Array data.load(index)
+                    }
+                }
+                return Some(OsString.fromUtf16(units))
+            } finally {
+                nativeFree(data)
+            }
+        }
+    }
+}
+
+private fun foundValue(status: Int, subkey: OsString): Boolean {
+    if (status == 0) return true
+    if (status == 2 || status == 3) return false
+    val error = NativeError(NativeErrorDomain.Win32, status)
+    throw PlatformException("RegGetValueW", error.kind, Some(error), Some(subkey))
+}
+
+@Unsafe
+private fun <T> withNames(
+    key: OsString,
+    name: OsString,
+    block: (Ptr<UShort>, Ptr<UShort>) -> T
+): T {
+    return key
+        .withRegistryName { keyPointer ->
+            @Unsafe {
+                return@withRegistryName name
+                    .withRegistryName { namePointer -> block(keyPointer, namePointer) }
+            }
+        }
+}
+
+@Unsafe
+internal fun <T> OsString.withRegistryName(block: (Ptr<UShort>) -> T): T {
+    val units = toUtf16()
+    if (units.size == Long.MAX_VALUE) throw ArithmeticException()
+    val terminated = Array<UShort>(units.size + 1L) { index ->
+        if (index == units.size) return@Array 0.toUShort()
+        val unit = units[index]
+        if (unit == 0.toUShort()) throw IllegalArgumentException(Some("registry name contains NUL"))
+        unit
+    }
+    return terminated.withDataPointer { pointer, _ -> block(pointer) }
+}
+
+@CLayout
+private struct RegistryDword(val value: UInt, val status: Int)
+
+@CLayout
+private struct RegistryString(val data: Ptr<UShort>?, val length: Long, val status: Int)
+
+@Extern(name = "scoop_os_windows_registry_dword")
+private fun nativeDword(root: Int, key: Ptr<UShort>, name: Ptr<UShort>): RegistryDword
+
+@Extern(name = "scoop_os_windows_registry_string")
+private fun nativeString(root: Int, key: Ptr<UShort>, name: Ptr<UShort>): RegistryString
+
+@Extern(name = "scoop_os_windows_registry_free")
+private fun nativeFree(data: Ptr<UShort>)

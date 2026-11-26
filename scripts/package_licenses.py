@@ -11,7 +11,7 @@ from prepare_gtk import NOTICE_DIRECTORY as GTK_NOTICE_DIRECTORY
 from prepare_gtk import TARGET as GTK_TARGET
 from prepare_tray import NOTICE_DIRECTORY as TRAY_NOTICE_DIRECTORY
 from prepare_tray import TARGET as TRAY_TARGET
-from target_catalog import host_definition, llvm_mingw_resource_triple
+from target_catalog import TARGETS, host_definition, llvm_mingw_resource_triple
 
 
 def llvm_mingw_license_root(prefix, architecture):
@@ -181,9 +181,13 @@ def collect_vendor(root, sysroot):
 def collect_base_libraries(root, sysroot, target):
     """Licenses of one target's base package: Rust-built and toolchain components."""
     collector = Collector(root, "lib-base-" + target)
-    notices = sysroot / "lib" / target / NOTICE_DIRECTORY
-    collector.add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
-    collect_upstream(collector, sysroot, include_gui=False)
+    if TARGETS[target]["os"] == "ios":
+        for name in ("ryu", "libbacktrace"):
+            collector.add(name, "See included documents", license_files(sysroot / "vendor" / name))
+    else:
+        notices = sysroot / "lib" / target / NOTICE_DIRECTORY
+        collector.add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
+        collect_upstream(collector, sysroot, include_gui=False)
     collector.finish()
 
 

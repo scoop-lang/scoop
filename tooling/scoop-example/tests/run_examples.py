@@ -43,6 +43,7 @@ EXPECTED = {
     "collections/list": "snapshot: Ada\nsnapshot: Lin\ncurrent first: Grace\nsizes=2,3\n",
     "collections/map": "red=2\nblue=1\nmissing=0\n",
     "io/resources": "stop writing\nclosed=true\nsaved before failure\ntemporary directory removed\n",
+    "io/unix-files": "true\ntrue\ntrue\n",
     "io/files": "Hello, Scoop!\nSecond line\nbytes=26\nnotes.txt\n",
     "json/typed": '{"name":"Ada","scores":[7,9]}\nAda: 9\nno note\n',
     "async/tasks": "42\nCancelled task cleaned up\n",
@@ -215,6 +216,10 @@ def main():
     failures = []
     skipped = 0
     for id in ids:
+        if id == "io/unix-files" and sys.platform not in {"linux", "darwin"}:
+            print(f"SKIP {id}: requires macOS or Linux", flush=True)
+            skipped += 1
+            continue
         if id == "language/swift-bridge" and sys.platform != "darwin":
             print(f"SKIP {id}: requires macOS and Swift", flush=True)
             skipped += 1

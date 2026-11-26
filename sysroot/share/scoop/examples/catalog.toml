@@ -374,9 +374,22 @@ aliases = ["files", "读文件"]
 keywords = ["scoop.platform", "Path", "OsString", "readText", "writeText", "entries", "目录"]
 document = "topics/io/files.md"
 requirements = ["使用配套工具链及其预编译系统库；以下运行命令使用 release。", "当前用户可创建临时目录；程序自行清理它创建的文件。"]
-related = ["io/resources", "text/strings"]
+related = ["io/resources", "io/unix-files", "text/strings"]
 files = [
   { path = "files.scoop", source = "src/scoop.platform/examples/files.scoop", language = "scoop" },
+]
+
+[[topics]]
+id = "io/unix-files"
+title = "创建 Unix 命名管道并比较文件身份"
+summary = "读取命名管道与符号链接的元数据，用设备号和 inode 比较文件身份。"
+aliases = ["fifo", "命名管道"]
+keywords = ["scoop.os.nix", "unixMetadata", "createFifo", "inode", "stat", "lstat", "符号链接"]
+document = "topics/io/unix-files.md"
+requirements = ["macOS 或 Linux GNU、musl，需要本目标的 scoop.platform 和 scoop.os.nix。"]
+related = ["io/files", "io/resources"]
+files = [
+  { path = "main.scoop", source = "share/scoop/examples/programs/io/unix-files/main.scoop", language = "scoop" },
 ]
 
 [[topics]]

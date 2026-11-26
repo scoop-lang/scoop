@@ -16,8 +16,8 @@ from build_support import build_lock
 from target_catalog import TARGET_FACTS, TARGETS
 
 ROOT = Path(__file__).resolve().parent.parent
-RELEASE_TARGETS = tomllib.loads((ROOT / "scripts/release.toml").read_text(encoding="utf-8"))[
-    "targets"
+SYSTEM_CONES = tomllib.loads((ROOT / "scripts/release.toml").read_text(encoding="utf-8"))[
+    "system_cones"
 ]
 
 
@@ -73,7 +73,7 @@ def target_dependencies(manifest, target):
 
 def cone_order(sysroot, work, target):
     source = sysroot / "src"
-    configured = RELEASE_TARGETS[target].get("system_cones")
+    configured = SYSTEM_CONES.get(target)
     manifests = sorted(
         source.glob("*/Cone.toml")
         if configured is None

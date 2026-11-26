@@ -212,8 +212,10 @@ jobs:
       - name: Install the archives and run a program
         run: |
           python - <<'PY'
-          import os, shutil, subprocess, tarfile, tomllib
+          import os, shutil, subprocess, sys, tarfile, tomllib
           from pathlib import Path
+          sys.path.insert(0, 'scripts')
+          from target_catalog import TARGETS
           version = os.environ['RELEASE_VERSION']
           host = os.environ['PACKAGE_HOST']
           windows = os.name == 'nt'
@@ -228,7 +230,8 @@ jobs:
                   package.extractall(installed, filter='data')
           available = (installed / 'share/scoop/install/targets.list').read_text().splitlines()
           targets = available if windows else available[:1]
-          for target in targets:
+          ios_targets = [target for target in available if TARGETS[target]['os'] == 'ios']
+          for target in [*targets, *ios_targets]:
               for component in ('base', 'gui'):
                   path = dist / f'scoop-{version}-lib-{component}-{target}.tar.xz'
                   if component == 'gui' and not path.exists():
@@ -258,6 +261,15 @@ jobs:
           program = installed.parent / 'hello.scoop'
           program.write_text('fun main() { println("Scoop release smoke") }\n')
           driver = installed / 'bin' / ('sco.exe' if windows else 'scoop')
+          for target in ios_targets:
+              subprocess.run([
+                  driver, 'build', Path('tests/ios-native-app/protected-data/cone').resolve(),
+                  '--release', '--target', target, '--sysroot', installed,
+                  '--lockfile', installed.parent / f'{target}.lock',
+                  '--target-dir', installed.parent / 'ios-build',
+                  '--install-name', '@rpath/ScoopProbe.framework/ScoopProbe',
+                  '-o', installed.parent / f'ScoopProbe-{target}',
+              ], cwd=installed.parent, check=True)
           for target in targets:
               result = subprocess.run(
                   [str(driver), 'run', str(program), '--release', '--target', target, '--sysroot', str(installed)],

@@ -1,0 +1,108 @@
+package scoop.os.linux.io
+
+import scoop.platform.system.*
+
+/** An owned, nonblocking Linux event counter. Synchronize concurrent use with close. */
+public class EventFd private constructor() : Closeable {
+    private var descriptor: Int = -1
+    private val borrows: AtomicLong = AtomicLong(0L)
+
+    /** True after the native descriptor has been released. */
+    public val isClosed: Boolean get() = descriptor < 0
+
+    public companion object {
+        /** Opens an empty counter with close-on-exec set. */
+        public fun open(): EventFd {
+            val owner = EventFd()
+            @Unsafe {
+                val(fd, error) = nativeOpen()
+                if (fd < 0) failEvent("eventfd", error)
+                owner.descriptor = fd
+            }
+            return owner
+        }
+    }
+
+    /** Adds a value, returning false only when it would exceed the kernel counter's capacity. */
+    public fun tryAdd(value: ULong): Boolean {
+        @Unsafe {
+            return withFileDescriptor { fd ->
+                if (value == ULong.MAX_VALUE)
+                    throw IllegalArgumentException(Some("eventfd cannot add ULong.MAX_VALUE"))
+                @Unsafe {
+                    val status = nativeAdd(fd, value)
+                    if (status < 0) failEvent("eventfd write", -status)
+                    return@withFileDescriptor status == 0
+                }
+            }
+        }
+    }
+
+    /** Reads and clears the accumulated value, or returns None when the counter is empty. */
+    public fun tryTake(): ULong? {
+        @Unsafe {
+            return withFileDescriptor { fd ->
+                @Unsafe {
+                    val result = nativeTake(fd)
+                    if (result.status < 0) failEvent("eventfd read", -result.status)
+                    return@withFileDescriptor if (result.status == 0) Some(result.value) else None
+                }
+            }
+        }
+    }
+
+    /** Borrows the fd for the callback. Remove any native watches before returning. */
+    @Unsafe
+    public fun <R> withFileDescriptor(block: (Int) -> R): R {
+        if (isClosed) throw IllegalStateException(Some("eventfd is closed"))
+        val owner = getGcHandle(this)
+        borrows.fetchAdd(1L, MemoryOrder.Relaxed)
+        try {
+            return block(descriptor)
+        } finally {
+            borrows.fetchSub(1L, MemoryOrder.Relaxed)
+            releaseGcHandle(owner)
+        }
+    }
+
+    /** Closes once. Closing during an active borrow throws IllegalStateException. */
+    public override fun close() {
+        if (isClosed) return
+        if (borrows.load(MemoryOrder.Relaxed) != 0L)
+            throw IllegalStateException(Some("eventfd is borrowed"))
+        val owned = descriptor
+        descriptor = -1
+        @Unsafe {
+            val(status, error) = nativeClose(owned)
+            if (status < 0) failEvent("close", error)
+        }
+    }
+
+    release {
+        if (descriptor >= 0) {
+            @Unsafe {
+                nativeClose(descriptor)
+            }
+        }
+    }
+}
+
+private fun failEvent(operation: String, code: Int): Nothing {
+    val error = NativeError(NativeErrorDomain.PosixErrno, code)
+    throw PlatformException(operation, error.kind, Some(error))
+}
+
+@CLayout
+private struct EventRead(val value: ULong, val status: Int)
+
+@Extern(name = "scoop_os_linux_event_open", captureErrno = true)
+private fun nativeOpen(): (Int, Int)
+
+@Extern(name = "scoop_os_linux_event_add")
+private fun nativeAdd(fd: Int, value: ULong): Int
+
+@Extern(name = "scoop_os_linux_event_take")
+private fun nativeTake(fd: Int): EventRead
+
+@Extern(name = "close", captureErrno = true)
+private fun nativeClose(fd: Int): (Int, Int)

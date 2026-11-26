@@ -26,7 +26,7 @@ _DISTRIBUTION_TARGETS = {target for host in HOSTS for target in host["distributi
 NATIVE_TARGETS = {
     name: _NATIVE_RECIPE_TOOLS[target["native_environment"]]
     for name, target in TARGETS.items()
-    if name in _DISTRIBUTION_TARGETS
+    if name in _DISTRIBUTION_TARGETS and target["os"] != "ios"
 }
 WINDOWS_TARGETS = tuple(name for name, target in TARGETS.items() if target["os"] == "windows")
 _LLVM_COMPONENT_BY_ARCH = {"aarch64": "AArch64", "x86_64": "X86"}

@@ -223,7 +223,7 @@ system = "Darwin"
 machines = ["arm64", "aarch64"]
 rust_target = "aarch64-apple-darwin"
 default_target = "aarch64-apple-darwin"
-distribution_targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+distribution_targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "aarch64-apple-ios", "aarch64-apple-ios-sim"]
 
 [[hosts]]
 os = "macos"

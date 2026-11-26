@@ -112,7 +112,9 @@ PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microso
 
 维护脚本共用 `compiler/target-data/targets.toml` 的目标与宿主事实。CMake 的 Apple 架构名及 C/C++ CPU 参数从所选架构产生，Darwin 不隐含 arm64；OpenSSL Configure 和 Rust 标准库仍选择各自实际需要的 recipe／Rust target。宿主工具默认目标与发行包携带的目标资源分别配置，fixture 的执行能力也不从发行组合推导。
 
-macOS Xcode 宿主可用 `prepare_sysroot.py --target aarch64-apple-ios-sim --scoop target/release/scoop` 准备模拟器的 `scoop.core`、`scoop.std` 与 runtime，真机使用 `--target aarch64-apple-ios`。用 `package_ios_xcframework.py` 将 iOS `native-app` Mach-O 和 C 头打成宿主可导入的 XCFramework。构建命令、平台选择和模拟器验收见 [iOS native-app 示例](../tests/ios-native-app/README.md)。
+Apple Silicon macOS 的发行 manifest 提供 `lib-base-aarch64-apple-ios` 和 `lib-base-aarch64-apple-ios-sim`。安装所需组件即可用对应的预编译库和 runtime 链接 UIKit 应用。
+
+macOS Xcode 宿主可用 `prepare_sysroot.py --target aarch64-apple-ios-sim --scoop target/release/scoop` 准备模拟器的 `scoop.core`、`scoop.std`、`scoop.os.ios` 与 runtime，真机使用 `--target aarch64-apple-ios`。用 `package_ios_xcframework.py` 将 iOS `native-app` Mach-O 和 C 头打成宿主可导入的 XCFramework。构建命令、平台选择和模拟器验收见 [iOS native-app 示例](../tests/ios-native-app/README.md)。
 
 需要重新配置已有 CMake 构建目录时，若其缓存的 `CMAKE_<LANG>_COMPILER` 与本次选择不同，准备脚本先删除 `CMakeCache.txt` 和 `CMakeFiles`（等同 `cmake --fresh`）；否则 CMake 会自行清空缓存并丢弃脚本传入的其余 `-D` 选项。编译器未变化时仍使用普通增量构建。
 

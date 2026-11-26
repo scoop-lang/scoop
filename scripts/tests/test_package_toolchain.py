@@ -461,6 +461,23 @@ class ComponentArchiveTests(unittest.TestCase):
                     self.assertTrue((lib_root / variant / runtime_archive).is_file())
                     self.assertFalse((lib_root / variant / "objects").exists())
 
+    def test_ios_packaging_prepares_the_configured_cones_and_runtime(self):
+        for target in ("aarch64-apple-ios", "aarch64-apple-ios-sim"):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
+                work = Path(temporary)
+                args = SimpleNamespace(work_dir=work, jobs=2)
+                with patch.object(package_toolchain, "run_script") as run:
+                    package_toolchain.prepare_targets(args, [target], [work / "scoop"], {})
+                run.assert_called_once()
+                script, arguments, _ = run.call_args.args
+                self.assertEqual(script, "prepare_sysroot.py")
+                self.assertEqual(arguments[arguments.index("--target") + 1], target)
+                sysroot = package_toolchain.ROOT / "sysroot"
+                order = cone_order(sysroot, work, target)
+                base, gui = package_toolchain.split_gui_cones(sysroot, order, target)
+                self.assertEqual(set(base), {"scoop.core", "scoop.std", "scoop.os.ios"})
+                self.assertEqual(gui, [])
+
     def test_packaging_builds_system_libraries_and_runtime(self):
         for target in (
             "aarch64-apple-darwin",
