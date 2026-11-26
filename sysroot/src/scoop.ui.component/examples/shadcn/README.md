@@ -25,6 +25,31 @@ Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、
 SCOOP_SYSROOT="$PWD/sysroot" target/release/scoop run sysroot/src/scoop.ui.component/examples/shadcn --release
 ```
 
+### 在 iPhone 和 iPad 上运行
+
+iOS 使用同一份页面、模型和四套主题。可用宽度小于 720 点时先显示可搜索的目录；点条目后全宽展示内容，点 **Examples** 返回之前的滚动位置。**Appearance** 可切换样式、明暗、文字方向和动画。宽屏同时显示目录和示例。Settings、Workspace、Data、Conversation 都可直接从 Applications 打开。
+
+在装有 Xcode、arm64 模拟器、GN 和仓库 LLVM 工具链的 Mac 上，从仓库根目录执行以下命令。将 `SCOOP_LLD` 指向该工具链的 `bin/lld`。本地基础库、图形库和原生依赖放入开发 sysroot。已有对应库时可直接构建示例。[开发工具链准备](../../../../../scripts/README.md)
+
+```sh
+demo=sysroot/src/scoop.ui.component/examples/shadcn/ios
+python3 scripts/prepare_ios_ui.py --target aarch64-apple-ios-sim \
+  --build-dir "$HOME/repos/scoop-dep/build/ios-ui"
+python3 "$demo/build_framework.py" --sdk simulator --linker "$SCOOP_LLD"
+xcodebuild -project "$demo/Gallery.xcodeproj" -scheme ScoopGallery \
+  -destination 'generic/platform=iOS Simulator' -derivedDataPath "$demo/target/xcode" build
+xcrun simctl list devices booted
+xcrun simctl install "$SIMULATOR_UDID" "$demo/target/xcode/Build/Products/Release-iphonesimulator/ScoopGallery.app"
+xcrun simctl launch "$SIMULATOR_UDID" dev.scoop.gallery
+```
+
+`SIMULATOR_UDID` 取自已启动设备的列表。也可在生成框架后打开 `ios/Gallery.xcodeproj`，选择 ScoopGallery 和目标模拟器运行。Window 场景连接时创建主题、根模型和字体，断开时释放它们并取消子任务。按 Home 返回后保留当前页面、草稿和阅读位置。[UIKit 场景入口](ios/src/app.scoop) · [共用页面](src/gallery.scoop)
+
+真机开发运行还需用相同的 `prepare_ios_ui.py` 命令准备 `aarch64-apple-ios`，再运行 `python3 "$demo/build_framework.py" --sdk both --linker "$SCOOP_LLD"`。在 Xcode 的 Signing & Capabilities 选择自己的开发团队和可用的 Bundle ID，然后选中已配对的 iPhone 或 iPad 运行。两个切片的最低系统版本为 iOS 17。
+
+如需复验本地拆包，在准备命令后加 `--package-dir tmp/ios-ui/packages`；已有库时加 `--package-only`。基础包包含 runtime、异步定时和文字后端，GUI 包包含 Skia、窗口、组件及四套样式。模拟器和设备的包分开生成。[阶段验收与实测记录](../../../../../docs/ui/IOS-PORT.md)
+
+
 Gallery 的 macOS 入口在附着窗口前调用 `configureFpsReportingFromEnvironment()`。在同一命令前加 `SCOOP_SURFACE_FPS=1` 即可查看实际呈现帧率。Button 页可供静止对照，Spinner 或 Skeleton 页可测连续动画。输出字段见 [Surface README](../../../scoop.surface/README.md)。
 
 顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion，右上角 Style 下拉框选择整套视觉风格；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。Style 支持方向键、Enter 和文字搜索，切换后保留当前页面、文字、业务状态、方向、明暗及动态偏好；组件继续通过同一 ThemeSource 更新。此轮只在 macOS 验证。

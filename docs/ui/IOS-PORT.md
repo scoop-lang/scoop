@@ -19,6 +19,7 @@
 | 窗口触摸 | 已由 XCUITest 在 iPhone 模拟器送入轻点、拖动和同时双指点击。Scoop 收到的标识、点坐标和像素坐标符合窗口快照；按住时切走 key window，得到一次取消且无迟到的结束事件。 | 在 Gallery 验收窄屏导航与滚动内容的手势。 |
 | 场景内拖放 | XCUITest 在 iPhone 模拟器将 Scoop 的文本和本地对象拖入另一控件的接受区，再拖到拒绝区。前者只交付一次 Move，后者返回未投递。两次接管都向原控件发送一次取消。 | 在 Gallery 树中重排或移动节点，核对列表和选中状态。 |
 | iPad 外接键盘事件 | XCUITest 在 iPad 模拟器通过系统发送 Command-K 和方向键。Scoop 收到配对的按下和释放，Command-K 同时匹配逻辑字符和物理键绑定，标签显示为 ⌘K。 | 在 Gallery 和编辑控件中验收快捷键的实际操作以及与输入法的配合。 |
+| 场景异步任务 | iOS 两目标复用 `scoop.asyncio` 的主队列宿主、定时堆和结构化作用域。iPhone 模拟器在原主线程收到短定时，长定时子任务的 finally 先于关闭通知完成。Gallery 的场景附着入口为 `attachUIKitScene`。 | 在实际演示页验收延时反馈、流式追加与离页取消。 |
 | UIKit 上的 Metal | iPhone 模拟器使用生产窗口和渲染器的原生入口，向真实 drawable 绘色块、读回像素并提交。首帧后停帧，切至系统设置再回到原进程，第二帧通过相同检查。公共 `SurfaceHost` 在真实场景绘制 Skia 首帧，静止 200 ms 未增加提交数。XCUITest 从屏幕截图读到绿色，按 Home 再激活同一内容根后读到蓝色。 | 在设备上复验 Metal 首帧和恢复。 |
 | 公共 UI 和主题 | 两个 SDK 已构建组件库及四套主题。iPhone 模拟器的普通 `UiHost` 安装应用已通过 `testUiControls`：安全区内读到标签，纵横屏各点按钮一次，系统键盘输入 Scoop，拖动列表直至末行可操作，切回应用后保留计数和文本。Mac 的窗口装饰所有权测试通过。 | Gallery 的 69 个页面、异步演示及真机验收见后文。 |
 | Skia 和图形绑定 | 在两个 SDK 下检查了 29 个现有原生编译单元。两个目标均已链接完整 Skia、文字后端和独立宿主，组成同一 XCFramework。iPhone 模拟器上“中文🙂中文”排成 3 行，文字覆盖 908 个像素，色块、SVG 图标、系统字体回退和 UTF-8 命中边界均通过。 | 阶段 3 验收控件通过 Skia 和 UIKit 的完整上屏路径；阶段 6 验收真机启动与交互。 |
@@ -100,4 +101,4 @@
 | 3 · 接通演示依赖的异步操作 | Gallery 的 Toast、Tree、消息、问卷和 Conversation 调用 `currentApplicationScope().launch`、`currentEventLoop().sleep`，并在离页时取消任务。为 UIKit 主循环接入实际需要的异步唤醒、应用作用域及取消，与桌面复用页面逻辑。 | 打开 Toast 等到延时状态更新，Tree 的首次加载失败后重试成功，Conversation 能流式追加回复。运行中离页再返回，旧任务不会改写新页面。在 Settings 提交一次中文编辑，在 Workspace 修改草稿，在 Data 删除并撤销一行。 |
 | 4 · 交付应用和复现方法 | 在示例 README 记录从本地 sysroot 构建、启动模拟器、开发签名运行和验收结果。 | iPhone、iPad 模拟器完成上述检查后，在真机从同一工程启动 Gallery，验证触摸、中文输入、VoiceOver 和恢复。交付本地应用与工程，iOS target 保持未发布。 |
 
-Gallery 的异步宿主是它相较于控件最小首屏新增的依赖。现在桌面从 `Application.runWithAsyncio` 进入阻塞循环，移动宿主需要把就绪通知接回 UIKit 主线程。在这条链路上发现的编译器或底层库缺口按独立分支修复，更新本地工具链后再继续 Gallery。[桌面启动入口](../../sysroot/src/scoop.ui.component/examples/shadcn/src/main.scoop) · [窗口与 asyncio 的绑定](../../sysroot/src/scoop.window.asyncio/src/application.scoop) · [Gallery 导航](../../sysroot/src/scoop.ui.component/examples/shadcn/src/gallery.scoop)
+Gallery 的异步宿主是它相较于控件最小首屏新增的依赖。现在桌面从 `Application.runWithAsyncio` 进入阻塞循环，移动宿主需要把就绪通知接回 UIKit 主线程。在这条链路上发现的编译器或底层库缺口按独立分支修复，更新本地工具链后再继续 Gallery。[桌面启动入口](../../sysroot/src/scoop.ui.component/examples/shadcn/platform/desktop/main.scoop) · [窗口与 asyncio 的绑定](../../sysroot/src/scoop.window.asyncio/src/application.scoop) · [Gallery 导航](../../sysroot/src/scoop.ui.component/examples/shadcn/src/gallery.scoop)

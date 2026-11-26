@@ -1,0 +1,95 @@
+package scoop.examples.ios.gallery
+
+import scoop.examples.ui.shadcn.GalleryScene
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.asyncio.attachUIKitScene
+
+@CLayout
+private struct SceneApi(
+    val callback: FunPtr<(Ptr<Unit>, Ptr<Unit>, Int) -> Int>,
+    val context: Ptr<Unit>
+)
+
+private class GalleryApplication {
+    private var scene: Closeable? = None
+
+    @Unsafe
+    fun connect(pointer: Ptr<Unit>) {
+        when (scene) {
+            case Some(_) -> throw IllegalStateException(Some("Gallery scene already connected"))
+            case None -> {}
+        }
+        val gallery = GalleryScene()
+        val fonts = FontCollection()
+        try {
+            context(gallery.theme) {
+                val ui = UiHost(
+                    onRootError = { _, error ->
+                        error.printStackTrace();
+                        throw error
+                    }
+                ) { host, _, event ->
+                    when (event) {
+                        case SceneConnected(val window) ->
+                            host
+                                .attach(
+                                    window,
+                                    { mount -> gallery.root(mount) },
+                                    fonts = Some(fonts)
+                                )
+                        else -> {}
+                    }
+                }
+                scene = Some(
+                    attachUIKitScene(pointer, ui) { failure ->
+                        try {
+                            ui.close()
+                        } finally {
+                            fonts.close()
+                        }
+                        when (failure) {
+                            case Some(val error) ->
+                                if (!(error is CancellationException)) error.printStackTrace()
+                            case None -> {}
+                        }
+                    }
+                )
+            }
+        } catch (error: Throwable) {
+            fonts.close()
+            throw error
+        }
+    }
+
+    fun disconnect() {
+        val attached = scene
+        scene = None
+        attached?.close()
+    }
+}
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    val gallery = GalleryApplication()
+    val control = foreignCallback<(Ptr<Unit>, Ptr<Unit>, Int) -> Int>(
+        { pointer: Ptr<Unit>, operation: Int ->
+            try {
+                when (operation) {
+                    1 ->
+                        @Unsafe {
+                            gallery.connect(pointer)
+                        }
+                    2 -> gallery.disconnect()
+                    else -> throw IllegalArgumentException(Some("unknown scene operation"))
+                }
+                1
+            } catch (error: Throwable) {
+                error.printStackTrace()
+                0
+            }
+        }, 0L, ForeignCallbackMode.Reusable
+    )
+    outAppApi.cast<SceneApi>().store(SceneApi(control.function, control.context))
+}

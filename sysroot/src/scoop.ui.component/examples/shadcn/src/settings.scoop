@@ -111,6 +111,7 @@ internal fun settingsAccount(model: SettingsModel): View =
         makeFieldGroup {
             this.field(
                 makeInput(model.name) {
+                    this.semantics = ComponentSemantics(automationId = Some("settings-name"))
                     this.focus = FocusOptions(Some(model.nameFocus))
                     this.enabled = model.enabled.value;
                     this.readOnly = model.readonly.value
@@ -127,6 +128,7 @@ internal fun settingsAccount(model: SettingsModel): View =
                     this.enabled = model.enabled.value;
                     this.invalid = model.emailErrors.size > 0L
                     this.input(model.email) {
+                        this.semantics = ComponentSemantics(automationId = Some("settings-email"))
                         this.placeholder = "you@example.com";
                         this.readOnly = model.readonly.value
                         this.labelTarget = Some(model.targets[1L]);
@@ -147,6 +149,7 @@ internal fun settingsAccount(model: SettingsModel): View =
             }
             this.field(
                 makeOtp(model.code, 6L) {
+                    this.semantics = ComponentSemantics(automationId = Some("settings-code"))
                     this.enabled = model.enabled.value;
                     this.readOnly = model.readonly.value
                     this.labelTarget = Some(model.targets[2L]);
