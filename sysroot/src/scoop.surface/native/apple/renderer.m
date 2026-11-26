@@ -1,15 +1,21 @@
+#import <TargetConditionals.h>
+#if TARGET_OS_IOS
+#import <UIKit/UIKit.h>
+#import <objc/runtime.h>
+typedef UIView SSUView;
+static const char rendererKey;
+#else
+#import "../darwin/fps.h"
 #import <AppKit/AppKit.h>
+typedef NSView SSUView;
+#endif
 #import <Metal/Metal.h>
-#import <QuartzCore/CAMediaTiming.h>
 #import <QuartzCore/CAMetalDisplayLink.h>
 #import <QuartzCore/CATransaction.h>
 #include <math.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 typedef int32_t (*SSUCallback)(void *, int32_t);
 typedef struct {
@@ -24,88 +30,22 @@ typedef struct {
 @implementation SSUDevice
 @end
 
-@interface SSUMetalFpsProbe : NSObject
-- (instancetype)initWithWindowNumber:(NSInteger)windowNumber;
-- (void)watchDrawable:(id<MTLDrawable>)drawable;
-- (void)finish;
-@end
-
-@implementation SSUMetalFpsProbe {
-  NSInteger _windowNumber;
-  CFTimeInterval _lastPresentation, _sampleStart;
-  uint64_t _presented, _withoutTime, _sampleFrames;
-  BOOL _closed;
-}
-- (instancetype)initWithWindowNumber:(NSInteger)windowNumber {
-  self = [super init];
-  if (self)
-    _windowNumber = windowNumber;
-  return self;
-}
-- (void)recordPresentedTime:(CFTimeInterval)time {
-  CFTimeInterval start, end;
-  uint64_t frames;
-  @synchronized(self) {
-    if (_closed)
-      return;
-    if (!isfinite(time) || time <= 0) {
-      ++_withoutTime;
-      return;
-    }
-    ++_presented;
-    _lastPresentation = fmax(_lastPresentation, time);
-    if (_sampleStart == 0)
-      _sampleStart = time;
-    // A late callback for a published interval still counts in the total.
-    if (time <= _sampleStart)
-      return;
-    ++_sampleFrames;
-    if (_lastPresentation - _sampleStart < 1.0)
-      return;
-    start = _sampleStart;
-    end = _lastPresentation;
-    frames = _sampleFrames;
-    _sampleStart = end;
-    _sampleFrames = 0;
-  }
-  fprintf(stderr,
-          "scoop-surface-fps window=%ld start=%.6f end=%.6f frames=%llu "
-          "seconds=%.6f fps=%.2f\n",
-          (long)_windowNumber, start, end, (unsigned long long)frames,
-          end - start, (double)frames / (end - start));
-}
-- (void)watchDrawable:(id<MTLDrawable>)drawable {
-  [drawable addPresentedHandler:^(id<MTLDrawable> presented) {
-    [self recordPresentedTime:presented.presentedTime];
-  }];
-}
-- (void)finish {
-  CFTimeInterval last;
-  uint64_t presented, withoutTime;
-  @synchronized(self) {
-    _closed = YES;
-    last = _lastPresentation;
-    presented = _presented;
-    withoutTime = _withoutTime;
-  }
-  fprintf(stderr,
-          "scoop-surface-fps window=%ld closed_at=%.6f last_presented=%.6f "
-          "presented_total=%llu without_time_total=%llu\n",
-          (long)_windowNumber, CACurrentMediaTime(), last,
-          (unsigned long long)presented, (unsigned long long)withoutTime);
-}
-@end
-
 @interface SSUSurface : NSObject <CAMetalDisplayLinkDelegate>
 @property(nonatomic, strong) SSUDevice *device;
-@property(nonatomic, strong) NSView *view;
+@property(nonatomic, strong) SSUView *view;
+#if TARGET_OS_IOS
+@property(nonatomic) BOOL sceneActive;
+#else
 @property(nonatomic, strong) CALayer *previousLayer;
 @property(nonatomic) BOOL previousWantsLayer;
+#endif
 @property(nonatomic, strong) CAMetalLayer *layer;
 @property(nonatomic, strong) CAMetalDisplayLink *link;
 @property(nonatomic, strong) id<CAMetalDrawable> pending;
 @property(nonatomic, strong) id<MTLCommandBuffer> lastCommand;
+#if !TARGET_OS_IOS
 @property(nonatomic, strong) SSUMetalFpsProbe *fpsProbe;
+#endif
 @property(nonatomic) int32_t width;
 @property(nonatomic) int32_t height;
 @property(nonatomic) double scale;
@@ -133,6 +73,10 @@ typedef struct {
 - (void)updateDemand {
   self.link.paused =
       self.closed || !self.required || self.width <= 0 || self.height <= 0;
+#if TARGET_OS_IOS
+  if (!self.sceneActive)
+    self.link.paused = YES;
+#endif
   if (self.link.paused) {
     self.pending = nil;
     self.notified = NO;
@@ -149,12 +93,25 @@ typedef struct {
       link.paused = YES;
   }
 }
+#if TARGET_OS_IOS
+- (void)sceneActivationChanged:(NSNotification *)note {
+  self.sceneActive = [note.name isEqualToString:UISceneDidActivateNotification];
+  self.generation++;
+  [self updateDemand];
+}
+- (void)sceneEnteredBackground:(NSNotification *)note {
+  [self.lastCommand waitUntilScheduled];
+}
+#endif
 - (BOOL)stopLink {
   self.closed = YES;
   self.required = NO;
   self.callback = NULL;
   self.context = NULL;
   @try {
+#if TARGET_OS_IOS
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+#endif
     [self.link invalidate];
     self.link.delegate = nil;
     self.link = nil;
@@ -166,12 +123,20 @@ typedef struct {
 }
 - (BOOL)restoreLayer {
   @try {
+#if TARGET_OS_IOS
+    if (objc_getAssociatedObject(self.view, &rendererKey) == self) {
+      objc_setAssociatedObject(self.view, &rendererKey, nil,
+                               OBJC_ASSOCIATION_ASSIGN);
+      self.layer.device = nil;
+    }
+#else
     if (self.view.layer == self.layer) {
       self.view.layer = self.previousLayer;
       self.view.wantsLayer = self.previousWantsLayer;
     }
-    self.view = nil;
     self.previousLayer = nil;
+#endif
+    self.view = nil;
     self.layer = nil;
     return YES;
   } @catch (NSException *exception) {
@@ -179,14 +144,6 @@ typedef struct {
   }
 }
 @end
-
-static atomic_bool fpsReportingEnabled = false;
-
-void scoop_surface_metal_configure_fps_reporting_from_environment(void) {
-  const char *fps = getenv("SCOOP_SURFACE_FPS");
-  atomic_store_explicit(&fpsReportingEnabled, fps && strcmp(fps, "1") == 0,
-                        memory_order_relaxed);
-}
 
 void *scoop_surface_metal_host_create(void) {
   @autoreleasepool {
@@ -213,35 +170,62 @@ void *scoop_surface_metal_surface_create(void *hostPointer, void *viewPointer,
   @autoreleasepool {
     SSUSurface *surface = nil;
     @try {
-      NSView *view = (__bridge NSView *)viewPointer;
+      SSUView *view = (__bridge SSUView *)viewPointer;
+#if TARGET_OS_IOS
+      UIWindowScene *scene = view.window.windowScene;
+      if (!scene || ![view.layer isKindOfClass:CAMetalLayer.class] ||
+          objc_getAssociatedObject(view, &rendererKey))
+        return NULL;
+#else
       if ([view.layer isKindOfClass:CAMetalLayer.class])
         return NULL;
+#endif
       surface = [SSUSurface new];
       surface.device = (__bridge SSUDevice *)hostPointer;
       surface.view = view;
-      surface.previousLayer = view.layer;
-      surface.previousWantsLayer = view.wantsLayer;
       surface.callback = callback;
       surface.context = context;
-      if (atomic_load_explicit(&fpsReportingEnabled, memory_order_relaxed))
-        surface.fpsProbe = [[SSUMetalFpsProbe alloc]
-            initWithWindowNumber:view.window.windowNumber];
+#if TARGET_OS_IOS
+      surface.layer = (CAMetalLayer *)view.layer;
+      objc_setAssociatedObject(view, &rendererKey, surface,
+                               OBJC_ASSOCIATION_ASSIGN);
+      surface.sceneActive =
+          scene.activationState == UISceneActivationStateForegroundActive;
+      NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+      for (NSNotificationName name in @[
+             UISceneDidActivateNotification, UISceneWillDeactivateNotification
+           ])
+        [center addObserver:surface
+                   selector:@selector(sceneActivationChanged:)
+                       name:name
+                     object:scene];
+      [center addObserver:surface
+                 selector:@selector(sceneEnteredBackground:)
+                     name:UISceneDidEnterBackgroundNotification
+                   object:scene];
+#else
+      surface.previousLayer = view.layer;
+      surface.previousWantsLayer = view.wantsLayer;
+      surface.fpsProbe =
+          [SSUMetalFpsProbe probeForWindowNumber:view.window.windowNumber];
       surface.layer = [CAMetalLayer layer];
+      surface.layer.frame = view.bounds;
+      surface.layer.autoresizingMask =
+          kCALayerWidthSizable | kCALayerHeightSizable;
+      view.wantsLayer = YES;
+      view.layer = surface.layer;
+#endif
       surface.layer.device = surface.device.device;
       surface.layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
       surface.layer.framebufferOnly = NO;
       surface.layer.opaque = view.window.opaque;
-      surface.layer.frame = view.bounds;
-      surface.layer.autoresizingMask =
-          kCALayerWidthSizable | kCALayerHeightSizable;
       CGColorSpaceRef color = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
       surface.layer.colorspace = color;
       CGColorSpaceRelease(color);
-      view.wantsLayer = YES;
-      view.layer = surface.layer;
       surface.link =
           [[CAMetalDisplayLink alloc] initWithMetalLayer:surface.layer];
       if (!surface.link) {
+        [surface stopLink];
         [surface restoreLayer];
         return NULL;
       }
@@ -274,7 +258,9 @@ int32_t scoop_surface_metal_surface_configure(void *pointer, int32_t width,
       [CATransaction begin];
       @try {
         [CATransaction setDisableActions:YES];
+#if !TARGET_OS_IOS
         surface.layer.frame = surface.view.bounds;
+#endif
         surface.layer.contentsScale = scale;
         if (width > 0 && height > 0)
           surface.layer.drawableSize = CGSizeMake(width, height);
@@ -334,10 +320,19 @@ int32_t scoop_surface_metal_frame_current(void *pointer) {
     if (surface.failed || surface.view.layer != surface.layer)
       return -1;
     // Native resizing can precede delivery of the queued geometry event.
+#if TARGET_OS_IOS
+    CGFloat scale = surface.view.traitCollection.displayScale;
+    CGSize bounds = surface.view.bounds.size;
+    return surface.sceneActive && surface.view.window &&
+           scale == surface.scale &&
+           ceil(bounds.width * scale) == surface.width &&
+           ceil(bounds.height * scale) == surface.height;
+#else
     NSRect pixels = [surface.view convertRectToBacking:surface.view.bounds];
     return ceil(pixels.size.width) == surface.width &&
            ceil(pixels.size.height) == surface.height &&
            surface.view.window.backingScaleFactor == surface.scale;
+#endif
   } @catch (NSException *exception) {
     return -1;
   }
@@ -354,7 +349,9 @@ int32_t scoop_surface_metal_frame_present(void *pointer) {
       id<MTLCommandBuffer> command = [surface.device.queue commandBuffer];
       if (!command)
         return -1;
+#if !TARGET_OS_IOS
       [surface.fpsProbe watchDrawable:frame.drawable];
+#endif
       // CAMetalDisplayLink schedules its drawables and rejects timed present.
       [command presentDrawable:frame.drawable];
       __weak SSUSurface *weakSurface = surface;
@@ -387,6 +384,9 @@ int32_t scoop_surface_metal_surface_close(void *pointer) {
   SSUSurface *surface = (__bridge_transfer SSUSurface *)pointer;
   int32_t status = [surface stopLink] ? 1 : -1;
   @try {
+#if TARGET_OS_IOS
+    [surface.lastCommand waitUntilCompleted];
+#else
     id<MTLCommandBuffer> fence = [surface.device.queue commandBuffer];
     if (fence) {
       [fence commit];
@@ -395,6 +395,7 @@ int32_t scoop_surface_metal_surface_close(void *pointer) {
         status = -1;
     } else
       status = -1;
+#endif
     if (surface.failed ||
         surface.lastCommand.status == MTLCommandBufferStatusError)
       status = -1;
@@ -403,6 +404,8 @@ int32_t scoop_surface_metal_surface_close(void *pointer) {
   }
   if (![surface restoreLayer])
     status = -1;
+#if !TARGET_OS_IOS
   [surface.fpsProbe finish];
+#endif
   return status;
 }

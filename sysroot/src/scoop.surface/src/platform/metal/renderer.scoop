@@ -9,37 +9,32 @@ import scoop.window.native.*
 internal fun createRendererHost(): RendererHost {
     @Unsafe
     {
-        val native = macHostCreate() ?: throw GraphicsException("create Metal device and queue")
+        val native = metalHostCreate() ?: throw GraphicsException("create Metal device and queue")
         try {
-            return MacRendererHost(
+            return MetalRendererHost(
                 native,
-                MetalContext.create(macHostObject(native, 0), macHostObject(native, 1))
+                MetalContext.create(metalHostObject(native, 0), metalHostObject(native, 1))
             )
-        }
-        catch (error: Throwable) {
-            macHostClose(native);
+        } catch (error: Throwable) {
+            metalHostClose(native);
             throw error
         }
     }
 }
 
-private class MacRendererHost(
+private class MetalRendererHost(
     private val native: Ptr<Unit>,
     private val context: MetalContext
-): RendererHost {
+) : RendererHost {
     private var closed = false
     public override fun create(window: Window, proxy: ApplicationProxy): WindowRenderer {
-        if (closed)
-            throw IllegalStateException(Some("renderer host is closed"))
+        if (closed) throw IllegalStateException(Some("renderer host is closed"))
         @Unsafe
         {
             val lease = window.acquireNativeWindow()
             try {
-                val view =
-                    when (lease.handle) {
-                        case AppKit(_, val view) -> view
-                    }
-                val renderer = MacWindowRenderer(window, proxy, lease, context)
+                val view = metalContentView(lease)
+                val renderer = MetalWindowRenderer(window, proxy, lease, context)
                 renderer.install(native, view)
                 return renderer
             } catch (error: Throwable) {
@@ -49,24 +44,23 @@ private class MacRendererHost(
         }
     }
     public override fun close() {
-        if (closed)
-            return
+        if (closed) return
         closed = true
         val failure = cleanupFailure(None) { context.close() }
         @Unsafe
         {
-            macHostClose(native)
+            metalHostClose(native)
         }
         throwFailure(failure)
     }
 }
 
-private class MacWindowRenderer(
+private class MetalWindowRenderer(
     private val window: Window,
     private val proxy: ApplicationProxy,
     private val lease: NativeWindowLease,
     private val context: MetalContext
-): WindowRenderer {
+) : WindowRenderer {
     private var native: Ptr<Unit>? = None
     private var callback: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
     private var metrics: WindowMetrics? = None
@@ -74,18 +68,16 @@ private class MacWindowRenderer(
 
     @Unsafe
     fun install(host: Ptr<Unit>, view: Ptr<Unit>) {
-        val registration =
-            foreignCallback<(Ptr<Unit>, Int) -> Int>(
-                { reason: Int -> notify(reason) },
-                0,
-                ForeignCallbackMode.Reusable
-            )
+        val registration = foreignCallback<(Ptr<Unit>, Int) -> Int>(
+            { reason: Int -> notify(reason) },
+            0,
+            ForeignCallbackMode.Reusable
+        )
         try {
-            native =
-                Some(
-                    macSurfaceCreate(host, view, registration.function, registration.context) ?:
-                        throw GraphicsException("install CAMetalLayer and display link")
-                )
+            native = Some(
+                metalSurfaceCreate(host, view, registration.function, registration.context) ?:
+                    throw GraphicsException("install CAMetalLayer and display link")
+            )
             callback = Some(registration)
         } catch (error: Throwable) {
             releaseForeignCallback(registration);
@@ -93,19 +85,13 @@ private class MacWindowRenderer(
         }
     }
     private fun notify(reason: Int): Int {
-        if (native == None)
-            return 0
-        val accepted =
-            proxy.post {
-                _ -> if (
-                    native != None && (reason == 2 || wanted) && window.state == WindowState.Open
-                )
+        if (native == None) return 0
+        val accepted = proxy
+            .post { _ ->
+                if (native != None && (reason == 2 || wanted) && window.state == WindowState.Open)
                     window.requestRedraw()
             }
-        return if (accepted)
-            1
-        else
-            0
+        return if (accepted) 1 else 0
     }
     private fun checkCallback() {
         @Unsafe
@@ -123,8 +109,8 @@ private class MacWindowRenderer(
     public override fun configure(value: WindowMetrics) {
         @Unsafe
         {
-            macResult(
-                macSurfaceConfigure(
+            metalResult(
+                metalSurfaceConfigure(
                     pointer(),
                     value.physicalSize.width,
                     value.physicalSize.height,
@@ -138,39 +124,37 @@ private class MacWindowRenderer(
     public override fun setFrameDemand(required: Boolean) {
         wanted = required
         when (native) {
-            case Some(val value) -> @Unsafe
-            {
-                macResult(macSurfaceDemand(value, required), "set Metal frame demand")
-            }
+            case Some(val value) ->
+                @Unsafe
+                {
+                    metalResult(metalSurfaceDemand(value, required), "set Metal frame demand")
+                }
+
             case None -> {
-                if (required)
-                    throw IllegalStateException(Some("window renderer is closed"))
+                if (required) throw IllegalStateException(Some("window renderer is closed"))
             }
         }
-        if (required)
-            checkCallback()
+        if (required) checkCallback()
     }
     public override fun acquire(): FrameAcquisition {
         val configuration = metrics ?: return FrameAcquisition.Deferred
         @Unsafe
         {
-            val result = macSurfaceAcquire(pointer())
-            if (result.status < 0)
-                throw GraphicsException("acquire Metal drawable")
-            if (result.pointer == None)
-                return FrameAcquisition.Deferred
+            val result = metalSurfaceAcquire(pointer())
+            if (result.status < 0) throw GraphicsException("acquire Metal drawable")
+            if (result.pointer == None) return FrameAcquisition.Deferred
             val frame = result.pointer!!
             try {
-                val target =
-                    context.target(
-                        macFrameTexture(frame),
+                val target = context
+                    .target(
+                        metalFrameTexture(frame),
                         configuration.physicalSize.width,
                         configuration.physicalSize.height,
                         configuration.scaleFactor
                     )
-                return FrameAcquisition.Ready(MacFrame(window, frame, target))
+                return FrameAcquisition.Ready(MetalFrame(window, frame, target))
             } catch (error: Throwable) {
-                macFrameClose(frame);
+                metalFrameClose(frame);
                 throw error
             }
         }
@@ -182,14 +166,14 @@ private class MacWindowRenderer(
         var failure: Throwable? = None
         when (previous) {
             case Some(val value) -> {
-                failure =
-                    cleanupFailure(failure) {
-                        @Unsafe
-                        {
-                            macResult(macSurfaceClose(value), "close Metal surface")
-                        }
+                failure = cleanupFailure(failure) {
+                    @Unsafe
+                    {
+                        metalResult(metalSurfaceClose(value), "close Metal surface")
                     }
+                }
             }
+
             case None -> {}
         }
         @Unsafe
@@ -197,15 +181,15 @@ private class MacWindowRenderer(
             when (callback) {
                 case Some(val value) -> {
                     callback = None
-                    failure =
-                        cleanupFailure(failure) {
-                            @Unsafe
-                            {
-                                throwFailure(foreignCallbackFailure(value))
-                            }
+                    failure = cleanupFailure(failure) {
+                        @Unsafe
+                        {
+                            throwFailure(foreignCallbackFailure(value))
                         }
+                    }
                     releaseForeignCallback(value)
                 }
+
                 case None -> {}
             }
         }
@@ -214,16 +198,15 @@ private class MacWindowRenderer(
     }
 }
 
-private class MacFrame(
+private class MetalFrame(
     private val window: Window,
     private val native: Ptr<Unit>,
     private val target: RenderTarget
-): RenderFrame {
+) : RenderFrame {
     private var submitted = false
     private var closed = false
     private fun checkOpen() {
-        if (closed || submitted)
-            throw IllegalStateException(Some("frame has ended"))
+        if (closed || submitted) throw IllegalStateException(Some("frame has ended"))
     }
     public override fun draw(block: (Canvas) -> Unit) {
         checkOpen();
@@ -231,62 +214,55 @@ private class MacFrame(
     }
     public override fun submit(): Boolean {
         checkOpen()
-        if (window.state != WindowState.Open)
-            return false
+        if (window.state != WindowState.Open) return false
         @Unsafe
         {
-            val current = macFrameCurrent(native)
-            if (current < 0)
-                throw GraphicsException("check Metal frame configuration")
-            if (current == 0)
-                return false
+            val current = metalFrameCurrent(native)
+            if (current < 0) throw GraphicsException("check Metal frame configuration")
+            if (current == 0) return false
         }
         target.submit()
         window.prePresentNotify()
         @Unsafe
         {
-            val result = macFramePresent(native)
-            if (result < 0)
-                throw GraphicsException("present Metal drawable")
+            val result = metalFramePresent(native)
+            if (result < 0) throw GraphicsException("present Metal drawable")
             submitted = true
             return result == 1
         }
     }
     public override fun close() {
-        if (closed)
-            return
+        if (closed) return
         closed = true
         var failure: Throwable? = None
-        if (!submitted)
-            failure = cleanupFailure(failure) { target.abort() }
+        if (!submitted) failure = cleanupFailure(failure) { target.abort() }
         failure = cleanupFailure(failure) { target.close() }
         @Unsafe
         {
-            macFrameClose(native)
+            metalFrameClose(native)
         }
         throwFailure(failure)
     }
 }
 
-private fun macResult(result: Int, operation: String) {
-    if (result != 1)
-        throw GraphicsException(operation)
+private fun metalResult(result: Int, operation: String) {
+    if (result != 1) throw GraphicsException(operation)
 }
 
 @CLayout
-private struct MacAcquiredFrame(val pointer: Ptr<Unit>?, val status: Int)
+private struct MetalAcquiredFrame(val pointer: Ptr<Unit>?, val status: Int)
 
 @Extern(name = "scoop_surface_metal_host_create")
-private fun macHostCreate(): Ptr<Unit>?
+private fun metalHostCreate(): Ptr<Unit>?
 
 @Extern(name = "scoop_surface_metal_host_object")
-private fun macHostObject(host: Ptr<Unit>, kind: Int): Ptr<Unit>
+private fun metalHostObject(host: Ptr<Unit>, kind: Int): Ptr<Unit>
 
 @Extern(name = "scoop_surface_metal_host_close")
-private fun macHostClose(host: Ptr<Unit>)
+private fun metalHostClose(host: Ptr<Unit>)
 
 @Extern(name = "scoop_surface_metal_surface_create")
-private fun macSurfaceCreate(
+private fun metalSurfaceCreate(
     host: Ptr<Unit>,
     view: Ptr<Unit>,
     callback: FunPtr<(Ptr<Unit>, Int) -> Int>,
@@ -294,25 +270,25 @@ private fun macSurfaceCreate(
 ): Ptr<Unit>?
 
 @Extern(name = "scoop_surface_metal_surface_configure")
-private fun macSurfaceConfigure(surface: Ptr<Unit>, width: Int, height: Int, scale: Double): Int
+private fun metalSurfaceConfigure(surface: Ptr<Unit>, width: Int, height: Int, scale: Double): Int
 
 @Extern(name = "scoop_surface_metal_surface_demand")
-private fun macSurfaceDemand(surface: Ptr<Unit>, required: Boolean): Int
+private fun metalSurfaceDemand(surface: Ptr<Unit>, required: Boolean): Int
 
 @Extern(name = "scoop_surface_metal_surface_acquire")
-private fun macSurfaceAcquire(surface: Ptr<Unit>): MacAcquiredFrame
+private fun metalSurfaceAcquire(surface: Ptr<Unit>): MetalAcquiredFrame
 
 @Extern(name = "scoop_surface_metal_surface_close")
-private fun macSurfaceClose(surface: Ptr<Unit>): Int
+private fun metalSurfaceClose(surface: Ptr<Unit>): Int
 
 @Extern(name = "scoop_surface_metal_frame_texture")
-private fun macFrameTexture(frame: Ptr<Unit>): Ptr<Unit>
+private fun metalFrameTexture(frame: Ptr<Unit>): Ptr<Unit>
 
 @Extern(name = "scoop_surface_metal_frame_current")
-private fun macFrameCurrent(frame: Ptr<Unit>): Int
+private fun metalFrameCurrent(frame: Ptr<Unit>): Int
 
 @Extern(name = "scoop_surface_metal_frame_present")
-private fun macFramePresent(frame: Ptr<Unit>): Int
+private fun metalFramePresent(frame: Ptr<Unit>): Int
 
 @Extern(name = "scoop_surface_metal_frame_close")
-private fun macFrameClose(frame: Ptr<Unit>)
+private fun metalFrameClose(frame: Ptr<Unit>)

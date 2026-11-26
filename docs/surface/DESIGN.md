@@ -216,7 +216,7 @@ FrameClock 使用现有 MonotonicTimeSource，在 owner 开始本帧时采样一
 
 静止时必须停止 Surface 自身的周期唤醒及 GPU 工作，具体合同见[规范第 4.1 节](../specs/SCOOP-SURFACE-SPEC.md#41-空闲帧需求与原生等待)。目标是既没有持续绘制，也没有每次只检查一下就返回的空帧循环；无需为保持静态画面反复 present，不因缓存和 GPU 资源仍被持有就继续运行时钟。
 
-现有源码已有按需基础：[SurfaceWindow.refresh](../../sysroot/src/scoop.surface/src/shared/host/window.scoop)结合 dirty、AnimationTimeline.hasWork、尺寸与可见性设置需求；[macOS 适配](../../sysroot/src/scoop.surface/native/darwin/renderer.m)在需求撤销时暂停 CAMetalDisplayLink，[Windows 适配](../../sysroot/src/scoop.surface/native/windows/notifications.cpp)解除 frame-latency 等待并退休排队通知。[动画时间轴](../../sysroot/src/scoop.surface/src/shared/animation/timeline.scoop)区分持有的动画与活动集合，[Animatable](../../sysroot/src/scoop.surface/src/shared/animation/animatable.scoop)在完成、暂停和取消时退出活动集合。UI 接入必须保留这些行为，并使自己的逻辑队列同样按需运行。
+现有源码已有按需基础：[SurfaceWindow.refresh](../../sysroot/src/scoop.surface/src/shared/host/window.scoop)结合 dirty、AnimationTimeline.hasWork、尺寸与可见性设置需求；[macOS 适配](../../sysroot/src/scoop.surface/native/apple/renderer.m)在需求撤销时暂停 CAMetalDisplayLink，[Windows 适配](../../sysroot/src/scoop.surface/native/windows/notifications.cpp)解除 frame-latency 等待并退休排队通知。[动画时间轴](../../sysroot/src/scoop.surface/src/shared/animation/timeline.scoop)区分持有的动画与活动集合，[Animatable](../../sysroot/src/scoop.surface/src/shared/animation/animatable.scoop)在完成、暂停和取消时退出活动集合。UI 接入必须保留这些行为，并使自己的逻辑队列同样按需运行。
 
 现有 [SurfaceHost 测试](../../sysroot/src/scoop.surface/tests/host.scoop)在一次性 WaitUntil 的静止区间检查 painter 计数不增加，也检查隐藏和最小化停帧。完整 UI 验收已补充逻辑／绘制入口、底层帧需求、display link 回调及提交计数的联合断言，见 [UI 实施记录](../ui/PROGRESS.md)；这些结果不代表已测量设备整体能耗或系统合成器活动。
 

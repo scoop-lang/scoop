@@ -4,7 +4,7 @@
 
 公共字体和段落 API 已迁入 [scoop.graphics.text](../scoop.graphics.text/README.md)，已实现 StyledText／SpanStyle 和行内对象，详细合同见[设计](../../../docs/graphics/text/DESIGN.md)。Surface 继续只管理呈现、动画和区域几何，文本或 UI 宿主拥有具体内容和资源。
 
-普通 Scoop Cone，提供共享 Surface 宿主、动画、区域输入与按目标选择的平台 renderer。macOS 使用 CAMetalLayer／CAMetalDisplayLink 和 Skia Ganesh Metal；Windows 使用 D3D12、DXGI swapchain／frame-latency waitable object 和 DirectComposition；Linux GNU 的 Wayland／X11 使用 EGL／GLES 和 Skia Ganesh。共享代码只依赖 window 的事件、配置、代理和 lease 合同。
+普通 Scoop Cone，提供共享 Surface 宿主、动画、区域输入与按目标选择的平台 renderer。macOS 与 iOS 的 Metal 渲染器共用 CAMetalDisplayLink 和 Skia Ganesh Metal。UIKit 场景借用视图自带的 CAMetalLayer，随场景激活和帧需求启停。Windows 使用 D3D12、DXGI swapchain／frame-latency waitable object 和 DirectComposition；Linux GNU 的 Wayland／X11 使用 EGL／GLES 和 Skia Ganesh。共享代码只依赖 window 的事件、配置、代理和 lease 合同。
 
 ```scoop
 import scoop.graphics.*

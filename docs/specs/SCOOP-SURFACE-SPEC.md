@@ -18,6 +18,12 @@
 
 当前实施目标为 `aarch64-apple-darwin`、`x86_64-apple-darwin`，Windows x64 的 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-ucrt`、`x86_64-w64-windows-llvm-mingw-msvcrt`，以及 Linux GNU 的 `x86_64-unknown-linux-gnu`。各平台实现同一共享合同；按 target 选择源码和原生依赖，不复制共享状态机，不为未实施平台加入空后端。采用现有语言、FFI、native 编译及资源释放规则，不新增编译器或 runtime 的 Surface 特殊通道。
 
+### UIKit 上的 Metal 呈现
+
+iOS 17 及以上的设备和模拟器使用窗口租约中的内容视图。该视图以 `CAMetalLayer` 为 backing layer；按视图显示比例设置像素尺寸。设备、队列和 drawable 按现有 Metal 后端与 Skia 共享。没有有效 drawable、帧代次已变更、视图当前配置不符或场景已失活时不提交该帧，最近一次 Accepted 几何保持有效。一个内容视图同时只能有一个呈现者。
+
+场景活跃且有帧需求时才接收主线程的显示机会。失活时立即停帧并丢弃待提交的 drawable；再次激活时恢复现有需求。进入后台返回系统之前，在已提交的最后一个命令缓冲上等待调度。完成资源回收时沿用已提交缓冲，不在后台额外提交同步命令。[Apple Metal 后台规则](https://developer.apple.com/documentation/metal/preparing-your-metal-app-to-run-in-the-background)
+
 ## 2. 几何与绘制
 
 公开几何采用有限 Double、内容区左上原点、向右／向下递增。Size 与 Rect 的尺寸非负；矩形端点及 native scalar 转换发生溢出时拒绝该操作。原生矩形返回 Double 时，先提升四条边，再以 Double 计算宽高，保留原生端点；不得先以 native scalar 相减后再提升尺寸，否则完整范围与可见交集会因额外舍入失去包含关系。Canvas 的用户坐标为逻辑单位；DPI 到设备像素的转换只在渲染目标根部施加一次。桌面坐标不参与此转换。

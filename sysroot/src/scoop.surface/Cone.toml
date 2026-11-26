@@ -9,6 +9,15 @@ kind = "library"
 path = "src/shared"
 when = { os = ["darwin", "windows"] }
 [[sources]]
+path = "src/platform/metal"
+when = { os = ["darwin", "ios"] }
+[[sources]]
+path = "src/shared/frame/renderer.scoop"
+when = { os = "ios" }
+[[sources]]
+path = "src/platform/ios"
+when = { os = "ios" }
+[[sources]]
 path = "src/platform/darwin"
 when = { os = "darwin" }
 [[sources]]
@@ -41,8 +50,11 @@ cxx = true
 cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 [[native.sources]]
-path = "native/darwin/renderer.m"
+path = "native/darwin/fps.m"
 when = { os = "darwin" }
+[[native.sources]]
+path = "native/apple/renderer.m"
+when = { os = ["darwin", "ios"] }
 [[native.sources]]
 path = "native/windows/device.cpp"
 when = { os = "windows" }
@@ -56,17 +68,21 @@ when = { os = "windows" }
 path = "native/windows/frame.cpp"
 when = { os = "windows" }
 [[native.libraries]]
+name = "UIKit"
+kind = "framework"
+when = { os = "ios" }
+[[native.libraries]]
 name = "AppKit"
 kind = "framework"
 when = { os = "darwin" }
 [[native.libraries]]
 name = "QuartzCore"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "Metal"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "d3d12"
 when = { os = "windows" }
