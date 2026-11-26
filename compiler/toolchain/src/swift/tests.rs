@@ -10,6 +10,12 @@ fn package_selection_observes_files_but_ignores_build_state() {
     std::fs::create_dir_all(root.join("nested")).unwrap();
     std::fs::create_dir_all(root.join(".build")).unwrap();
     std::fs::write(root.join("nested/Main.swift"), "first").unwrap();
+    #[cfg(unix)]
+    let directory_times = [root.to_path_buf(), root.join("nested")].map(|path| {
+        let directory = std::fs::File::open(path).unwrap();
+        let modified = directory.metadata().unwrap().modified().unwrap();
+        (directory, modified)
+    });
     let selected = inputs::Selection::read(
         root.to_path_buf(),
         inputs::Rule::Package {
@@ -24,6 +30,11 @@ fn package_selection_observes_files_but_ignores_build_state() {
     std::fs::create_dir_all(root.join("nested/deeper")).unwrap();
     assert!(selected.is_current().unwrap());
     std::fs::write(root.join("nested/deeper/config.txt"), "selected").unwrap();
+    // Directory timestamps can coincide when several entries change in one clock tick.
+    #[cfg(unix)]
+    for (directory, modified) in directory_times {
+        directory.set_modified(modified).unwrap();
+    }
     assert!(!selected.is_current().unwrap());
 }
 
