@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use scoop_identity::{
     DefinitionAtomRole, IdentityLayer, LinkageClass, ObjectDefinitionAtomId,
@@ -156,6 +156,36 @@ fn actual_generic_library_emits_shared_odr_objects() {
                     .any(|name| name.starts_with("$dependency.local."))
             );
         }
+        // Physical type references also include imported and unmaterialized nominals.
+        // Only selected local roots contribute records to the consumer's LIR metadata.
+        let roots = mir.strong.materialization();
+        let external: BTreeSet<_> = lir
+            .module()
+            .meta
+            .external_type_descriptors
+            .iter()
+            .map(|(_, descriptor)| descriptor.target())
+            .collect();
+        let expected_types: BTreeSet<_> = roots
+            .source_nominal_shapes()
+            .iter()
+            .map(|root| root.exact())
+            .filter(|exact| !external.contains(exact))
+            .chain(
+                roots
+                    .generated_nominal_shapes()
+                    .iter()
+                    .map(|root| root.exact()),
+            )
+            .collect();
+        let local_types: BTreeSet<_> = lir
+            .module()
+            .meta
+            .exact_types
+            .iter()
+            .map(|record| record.id())
+            .collect();
+        assert_eq!(local_types, expected_types, "{case} materialized nominals");
         for (id, definition) in mir.strong.module().structs.iter() {
             let expected = mir
                 .strong
@@ -169,13 +199,6 @@ fn actual_generic_library_emits_shared_odr_objects() {
             let actual =
                 lir.module().structs[scoop_lir::StructDefId::from_raw(id.into_raw())].exact_type;
             assert_eq!(actual, expected);
-            assert!(
-                lir.module()
-                    .meta
-                    .exact_types
-                    .iter()
-                    .any(|record| record.id() == actual)
-            );
         }
         for (id, definition) in mir.strong.module().enums.iter() {
             let ty = scoop_mir::Type::Enum(id, definition.type_arguments.clone());
@@ -195,13 +218,6 @@ fn actual_generic_library_emits_shared_odr_objects() {
             let actual =
                 lir.module().enums[scoop_lir::EnumDefId::from_raw(id.into_raw())].exact_type;
             assert_eq!(actual, expected);
-            assert!(
-                lir.module()
-                    .meta
-                    .exact_types
-                    .iter()
-                    .any(|record| record.id() == actual)
-            );
         }
         let bytes = encode(lir.foundation()).unwrap();
         let decoded = decode_canonical::<scoop_lir::DecodedLirFoundation>(&bytes).unwrap();
