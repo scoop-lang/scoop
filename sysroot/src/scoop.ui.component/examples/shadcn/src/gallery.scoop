@@ -9,7 +9,9 @@ import scoop.ui.component.wrap as makeWrap
 import scoop.ui.component.frame as makeFrame
 import scoop.ui.component.scrollArea as makeScrollArea
 import scoop.ui.style.*
+import scoop.window.SoftwareKeyboardState
 import scoop.window.WindowMetrics
+import scoop.window.softwareKeyboard
 
 /** A gallery connection owns the models and theme shared by all its pages. */
 public class GalleryScene public constructor() {
@@ -20,6 +22,7 @@ public class GalleryScene public constructor() {
 
 internal class Gallery(private val model: GalleryModel, scope: ComponentScope) : Component(scope) {
     private val compact = state(isNarrow(scope.nativeWindow.metrics))
+    private val keyboardInset = state(0.0)
     private val detail = state(false)
     private val appearance = state(false)
 
@@ -27,7 +30,16 @@ internal class Gallery(private val model: GalleryModel, scope: ComponentScope) :
         scope
             .observeWindow(scope.nativeWindow) { event ->
                 when (event) {
-                    case GeometryChanged(val metrics) -> compact.value = isNarrow(Some(metrics))
+                    case GeometryChanged(val metrics) -> {
+                        compact.value = isNarrow(Some(metrics))
+                        keyboardInset.value = dockedInset(
+                            Some(metrics),
+                            scope.nativeWindow.softwareKeyboard
+                        )
+                    }
+
+                    case SoftwareKeyboardChanged(val keyboard) ->
+                        keyboardInset.value = dockedInset(scope.nativeWindow.metrics, keyboard)
                     else -> {}
                 }
             }
@@ -48,7 +60,7 @@ internal class Gallery(private val model: GalleryModel, scope: ComponentScope) :
                 makeFrame(
                     makeColumn {
                         spacing = 8.0
-                        padding = Insets.all(12.0)
+                        padding = Insets(12.0, 12.0, 12.0, 12.0 + panel.keyboardInset.value)
                         alignment = CrossAlignment.Stretch
                         add(
                             makeRow {
@@ -121,6 +133,26 @@ internal class Gallery(private val model: GalleryModel, scope: ComponentScope) :
 private fun isNarrow(metrics: WindowMetrics?): Boolean {
     val value = metrics ?: return false
     return value.logicalSize.width - value.safeAreaInsets.left - value.safeAreaInsets.right < 720.0
+}
+
+private fun dockedInset(metrics: WindowMetrics?, keyboard: SoftwareKeyboardState): Double {
+    val window = metrics ?: return 0.0
+    val overlap = when (keyboard) {
+        case Shown(Some(val rect)) -> rect
+        else -> return 0.0
+    }
+    val size = window.logicalSize
+    if (overlap.origin.x >
+        0.0 ||
+        overlap.size.width <
+        size.width ||
+        overlap.origin.y +
+        overlap.size.height <
+        size.height
+    )
+        return 0.0
+    val covered = size.height - window.safeAreaInsets.bottom - overlap.origin.y
+    return if (covered > 0.0) covered else 0.0
 }
 
 private fun galleryView(model: GalleryModel, select: (Demo) -> Unit): View {
