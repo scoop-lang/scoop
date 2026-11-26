@@ -52,7 +52,29 @@ pub(super) fn discard_terminal_relocations(module: &LlvmModule<'_>) {
     }
 }
 
-pub(super) fn collect(module: &LlvmModule<'_>) -> LoweredSafepoints {
+/// A returning call's argument may have no continuation use. LLVM's target
+/// passes can discard its unused gc.relocate before selecting the stack map.
+fn retain_call_duration_root<'ctx>(
+    module: &LlvmModule<'ctx>,
+    builder: &Builder<'ctx>,
+    relocation: CallSiteValue<'ctx>,
+) -> Result<(), CodegenError> {
+    let value = relocation
+        .try_as_basic_value()
+        .expect_basic("gc.relocate returns the relocated value");
+    let instruction = value.as_instruction_value().expect("gc.relocate is a call");
+    if instruction.get_first_use().is_none() {
+        let next = instruction
+            .get_next_instruction()
+            .expect("gc.relocate precedes the block terminator");
+        builder.position_before(&next);
+        root_identity::build_fake_use(module, builder, value)?;
+    }
+    Ok(())
+}
+
+pub(super) fn finalize(module: &LlvmModule<'_>) -> Result<LoweredSafepoints, CodegenError> {
+    let builder = module.get_context().create_builder();
     let mut roots = BTreeMap::new();
     for function in module.get_functions() {
         for block in function.get_basic_blocks() {
@@ -98,6 +120,7 @@ pub(super) fn collect(module: &LlvmModule<'_>) -> LoweredSafepoints {
                             let index = unsafe { LLVMConstIntGetZExtValue(LLVMGetOperand(user, 2)) }
                                 as usize;
                             derived.insert(live[index].as_value_ref() as usize);
+                            retain_call_duration_root(module, &builder, relocation)?;
                         }
                     }
                     usage = unsafe { LLVMGetNextUse(usage) };
@@ -106,5 +129,5 @@ pub(super) fn collect(module: &LlvmModule<'_>) -> LoweredSafepoints {
             }
         }
     }
-    LoweredSafepoints { roots }
+    Ok(LoweredSafepoints { roots })
 }
