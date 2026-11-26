@@ -27,6 +27,29 @@ fn previous_sdk_exports_follow_platform_and_half_open_deployment_ranges() {
 }
 
 #[test]
+fn empty_previous_export_range_leaves_current_sdk_symbol_in_place() {
+    let text = br#"--- !tapi-tbd
+tbd-version: 4
+targets: [arm64-ios-simulator]
+install-name: /System/Library/Frameworks/Current.framework/Current
+exports:
+  - targets: [arm64-ios-simulator]
+    symbols: ['_$sMoved', '$ld$previous$@rpath/libPrevious.dylib$$7$14.5$14.5$_$sMoved$']
+"#;
+    let records = read_text_stubs(
+        TargetArchitecture::Aarch64,
+        ApplePlatform::IosSimulator,
+        text,
+        DarwinPackedVersionV1::from_components(14, 5, 0).unwrap(),
+        true,
+    )
+    .unwrap();
+    let interface = &records[0];
+    assert!(interface.exports.contains_key("_$sMoved"));
+    assert!(interface.previous_exports.is_empty());
+}
+
+#[test]
 fn previous_sdk_library_name_and_version_apply_without_a_symbol() {
     let text = b"--- !tapi-tbd\ntbd-version: 4\ntargets: [arm64-macos]\ninstall-name: /usr/lib/current.dylib\nexports:\n  - targets: [arm64-macos]\n    symbols: [_ordinary, '$ld$previous$/usr/lib/previous.dylib$3$1$12.0$14.0$$']\n";
     let records = read_text_stubs(
