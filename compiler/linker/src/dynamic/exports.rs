@@ -24,7 +24,10 @@ impl DynamicInputs {
         let mut definitions = BTreeSet::new();
         for root in roots {
             if let Some(binding) = self.find(root, symbol, &mut BTreeSet::new())?
-                && definitions.insert((binding.source, binding.source_symbol.clone()))
+                && definitions.insert((
+                    &self.providers[&binding.source].install_name,
+                    binding.source_symbol.clone(),
+                ))
             {
                 result.push(binding);
             }
