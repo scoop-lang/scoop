@@ -103,10 +103,19 @@ scoop fmt my-cone
 scoop fmt my-cone --check
 scoop check my-cone
 scoop check my-cone --tests
-scoop build my-cone --target x86_64-unknown-linux-musl
 ```
 
-最后一条命令用于 GNU 宿主包，并要求 musl 开发环境。非 core 库仍须在 `Cone.toml` 声明普通依赖；包中存在某个库不会自动导入它。默认 `sources` 组件保留内置 Cone、胶水、头与资源，支持 LSP 导航；按需的 `vendor` 组件保存上游源码和构建补丁，普通应用无需下载。显式 source／artifact 依赖和 `--sysroot` 可选用另一组兼容资源；`--runtime-root` 明确请求从另行提供的 runtime 源码构建。
+在 x86_64 或 ARM64 的 Linux GNU 宿主上，安装同架构的 musl 目标资源并准备 musl C 开发环境后，可以选择链接模式。
+
+```sh
+musl_target="$(uname -m)-unknown-linux-musl"
+scoop build my-cone --release --target "$musl_target"
+scoop build my-cone --release --target "$musl_target" --link-mode dynamic
+```
+
+第一条构建命令生成静态可执行文件。第二条生成动态 PIE，运行机器需要同架构的 musl 加载器及程序依赖的动态库。ARM64 的加载器路径为 `/lib/ld-musl-aarch64.so.1`。
+
+非 core 库仍须在 `Cone.toml` 声明普通依赖；包中存在某个库不会自动导入它。默认 `sources` 组件保留内置 Cone、胶水、头与资源，支持 LSP 导航；按需的 `vendor` 组件保存上游源码和构建补丁，普通应用无需下载。显式 source／artifact 依赖和 `--sysroot` 可选用另一组兼容资源；`--runtime-root` 明确请求从另行提供的 runtime 源码构建。
 
 `scoop fmt` 默认格式化当前 Cone 的生产、测试及各平台声明的源码，也接受多个 Cone 或显式 `.scoop` 文件。默认写回变化文件；`--check` 只检查格式，有差异时退出 1，可用于 CI。语法错误文件保留原文，其他已选文件继续处理。
 
