@@ -1,0 +1,179 @@
+package scoop.window
+
+// Keyboard/keypad usage page reported by UIKey.keyCode.
+internal fun platformPhysicalKey(code: Long): PhysicalKey = when (code) {
+    4L -> PhysicalKey.Code(KeyCode.KeyA)
+    5L -> PhysicalKey.Code(KeyCode.KeyB)
+    6L -> PhysicalKey.Code(KeyCode.KeyC)
+    7L -> PhysicalKey.Code(KeyCode.KeyD)
+    8L -> PhysicalKey.Code(KeyCode.KeyE)
+    9L -> PhysicalKey.Code(KeyCode.KeyF)
+    10L -> PhysicalKey.Code(KeyCode.KeyG)
+    11L -> PhysicalKey.Code(KeyCode.KeyH)
+    12L -> PhysicalKey.Code(KeyCode.KeyI)
+    13L -> PhysicalKey.Code(KeyCode.KeyJ)
+    14L -> PhysicalKey.Code(KeyCode.KeyK)
+    15L -> PhysicalKey.Code(KeyCode.KeyL)
+    16L -> PhysicalKey.Code(KeyCode.KeyM)
+    17L -> PhysicalKey.Code(KeyCode.KeyN)
+    18L -> PhysicalKey.Code(KeyCode.KeyO)
+    19L -> PhysicalKey.Code(KeyCode.KeyP)
+    20L -> PhysicalKey.Code(KeyCode.KeyQ)
+    21L -> PhysicalKey.Code(KeyCode.KeyR)
+    22L -> PhysicalKey.Code(KeyCode.KeyS)
+    23L -> PhysicalKey.Code(KeyCode.KeyT)
+    24L -> PhysicalKey.Code(KeyCode.KeyU)
+    25L -> PhysicalKey.Code(KeyCode.KeyV)
+    26L -> PhysicalKey.Code(KeyCode.KeyW)
+    27L -> PhysicalKey.Code(KeyCode.KeyX)
+    28L -> PhysicalKey.Code(KeyCode.KeyY)
+    29L -> PhysicalKey.Code(KeyCode.KeyZ)
+    30L -> PhysicalKey.Code(KeyCode.Digit1)
+    31L -> PhysicalKey.Code(KeyCode.Digit2)
+    32L -> PhysicalKey.Code(KeyCode.Digit3)
+    33L -> PhysicalKey.Code(KeyCode.Digit4)
+    34L -> PhysicalKey.Code(KeyCode.Digit5)
+    35L -> PhysicalKey.Code(KeyCode.Digit6)
+    36L -> PhysicalKey.Code(KeyCode.Digit7)
+    37L -> PhysicalKey.Code(KeyCode.Digit8)
+    38L -> PhysicalKey.Code(KeyCode.Digit9)
+    39L -> PhysicalKey.Code(KeyCode.Digit0)
+    40L -> PhysicalKey.Code(KeyCode.Enter)
+    41L -> PhysicalKey.Code(KeyCode.Escape)
+    42L -> PhysicalKey.Code(KeyCode.Backspace)
+    43L -> PhysicalKey.Code(KeyCode.Tab)
+    44L -> PhysicalKey.Code(KeyCode.Space)
+    45L -> PhysicalKey.Code(KeyCode.Minus)
+    46L -> PhysicalKey.Code(KeyCode.Equal)
+    47L -> PhysicalKey.Code(KeyCode.BracketLeft)
+    48L -> PhysicalKey.Code(KeyCode.BracketRight)
+    49L -> PhysicalKey.Code(KeyCode.Backslash)
+    51L -> PhysicalKey.Code(KeyCode.Semicolon)
+    52L -> PhysicalKey.Code(KeyCode.Quote)
+    53L -> PhysicalKey.Code(KeyCode.Backquote)
+    54L -> PhysicalKey.Code(KeyCode.Comma)
+    55L -> PhysicalKey.Code(KeyCode.Period)
+    56L -> PhysicalKey.Code(KeyCode.Slash)
+    57L -> PhysicalKey.Code(KeyCode.CapsLock)
+    58L -> PhysicalKey.Code(KeyCode.F1)
+    59L -> PhysicalKey.Code(KeyCode.F2)
+    60L -> PhysicalKey.Code(KeyCode.F3)
+    61L -> PhysicalKey.Code(KeyCode.F4)
+    62L -> PhysicalKey.Code(KeyCode.F5)
+    63L -> PhysicalKey.Code(KeyCode.F6)
+    64L -> PhysicalKey.Code(KeyCode.F7)
+    65L -> PhysicalKey.Code(KeyCode.F8)
+    66L -> PhysicalKey.Code(KeyCode.F9)
+    67L -> PhysicalKey.Code(KeyCode.F10)
+    68L -> PhysicalKey.Code(KeyCode.F11)
+    69L -> PhysicalKey.Code(KeyCode.F12)
+    70L -> PhysicalKey.Code(KeyCode.PrintScreen)
+    71L -> PhysicalKey.Code(KeyCode.ScrollLock)
+    72L -> PhysicalKey.Code(KeyCode.Pause)
+    73L -> PhysicalKey.Code(KeyCode.Insert)
+    74L -> PhysicalKey.Code(KeyCode.Home)
+    75L -> PhysicalKey.Code(KeyCode.PageUp)
+    76L -> PhysicalKey.Code(KeyCode.Delete)
+    77L -> PhysicalKey.Code(KeyCode.End)
+    78L -> PhysicalKey.Code(KeyCode.PageDown)
+    79L -> PhysicalKey.Code(KeyCode.ArrowRight)
+    80L -> PhysicalKey.Code(KeyCode.ArrowLeft)
+    81L -> PhysicalKey.Code(KeyCode.ArrowDown)
+    82L -> PhysicalKey.Code(KeyCode.ArrowUp)
+    83L -> PhysicalKey.Code(KeyCode.NumLock)
+    84L -> PhysicalKey.Code(KeyCode.NumpadDivide)
+    85L -> PhysicalKey.Code(KeyCode.NumpadMultiply)
+    86L -> PhysicalKey.Code(KeyCode.NumpadSubtract)
+    87L -> PhysicalKey.Code(KeyCode.NumpadAdd)
+    88L -> PhysicalKey.Code(KeyCode.NumpadEnter)
+    89L -> PhysicalKey.Code(KeyCode.Numpad1)
+    90L -> PhysicalKey.Code(KeyCode.Numpad2)
+    91L -> PhysicalKey.Code(KeyCode.Numpad3)
+    92L -> PhysicalKey.Code(KeyCode.Numpad4)
+    93L -> PhysicalKey.Code(KeyCode.Numpad5)
+    94L -> PhysicalKey.Code(KeyCode.Numpad6)
+    95L -> PhysicalKey.Code(KeyCode.Numpad7)
+    96L -> PhysicalKey.Code(KeyCode.Numpad8)
+    97L -> PhysicalKey.Code(KeyCode.Numpad9)
+    98L -> PhysicalKey.Code(KeyCode.Numpad0)
+    99L -> PhysicalKey.Code(KeyCode.NumpadDecimal)
+    100L -> PhysicalKey.Code(KeyCode.IntlBackslash)
+    101L -> PhysicalKey.Code(KeyCode.ContextMenu)
+    103L -> PhysicalKey.Code(KeyCode.NumpadEqual)
+    104L -> PhysicalKey.Code(KeyCode.F13)
+    105L -> PhysicalKey.Code(KeyCode.F14)
+    106L -> PhysicalKey.Code(KeyCode.F15)
+    107L -> PhysicalKey.Code(KeyCode.F16)
+    108L -> PhysicalKey.Code(KeyCode.F17)
+    109L -> PhysicalKey.Code(KeyCode.F18)
+    110L -> PhysicalKey.Code(KeyCode.F19)
+    111L -> PhysicalKey.Code(KeyCode.F20)
+    117L -> PhysicalKey.Code(KeyCode.Help)
+    118L -> PhysicalKey.Code(KeyCode.ContextMenu)
+    127L -> PhysicalKey.Code(KeyCode.AudioVolumeMute)
+    128L -> PhysicalKey.Code(KeyCode.AudioVolumeUp)
+    129L -> PhysicalKey.Code(KeyCode.AudioVolumeDown)
+    133L -> PhysicalKey.Code(KeyCode.NumpadComma)
+    135L -> PhysicalKey.Code(KeyCode.IntlRo)
+    137L -> PhysicalKey.Code(KeyCode.IntlYen)
+    144L -> PhysicalKey.Code(KeyCode.Lang1)
+    145L -> PhysicalKey.Code(KeyCode.Lang2)
+    224L -> PhysicalKey.Code(KeyCode.ControlLeft)
+    225L -> PhysicalKey.Code(KeyCode.ShiftLeft)
+    226L -> PhysicalKey.Code(KeyCode.AltLeft)
+    227L -> PhysicalKey.Code(KeyCode.SuperLeft)
+    228L -> PhysicalKey.Code(KeyCode.ControlRight)
+    229L -> PhysicalKey.Code(KeyCode.ShiftRight)
+    230L -> PhysicalKey.Code(KeyCode.AltRight)
+    231L -> PhysicalKey.Code(KeyCode.SuperRight)
+    else -> PhysicalKey.Unidentified(NativeKeyCode.UsbHidUsage(code.toUInt()))
+}
+
+internal fun platformNamedKey(scan: Long, virtual: Long): NamedKey? = when (platformPhysicalKey(
+    scan
+)
+) {
+    case Code(val key) -> appleNamedKey(key)
+    case Unidentified(_) -> None
+}
+
+internal fun platformUnknownLogicalKey(scan: Long, virtual: Long): NativeKeyCode = NativeKeyCode
+    .UsbHidUsage(scan.toUInt())
+
+internal fun platformKeyLocation(code: Long): KeyLocation {
+    if (code >= 224L && code <= 227L) return KeyLocation.Left
+    if (code >= 228L && code <= 231L) return KeyLocation.Right
+    if ((code >= 83L && code <= 99L) || code == 103L || code == 133L) return KeyLocation.Numpad
+    return KeyLocation.Standard
+}
+
+internal fun applePhysicalLabel(key: KeyCode): String = when (appleNamedKey(key)) {
+    case Some(val value) -> appleNamedLabel(value)
+    case None -> physicalKeyName(key)
+}
+
+internal fun platformTextCommands(
+    pointer: Ptr<Unit>,
+    key: LogicalKey,
+    modifiers: Modifiers,
+    state: ElementState,
+    synthetic: Boolean
+): Array<TextEditCommand> {
+    if (state != ElementState.Pressed || synthetic) return []
+    @Unsafe {
+        if (nativeEventData(pointer).flags != 0) return []
+    }
+    return when (darwinEditingCommand(key, modifiers)) {
+        case Some(val command) ->
+            when (command) {
+                case Move(_, _) -> [command]
+                case Delete(_) -> [command]
+                case InsertTab -> [command]
+                case InsertBacktab -> [command]
+                case InsertNewline -> [command]
+                case Cancel -> [command]
+                else -> []
+            }
+        case None -> []
+    }
+}

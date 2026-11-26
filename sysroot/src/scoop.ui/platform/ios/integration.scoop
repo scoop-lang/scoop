@@ -1,0 +1,15 @@
+package scoop.ui
+
+import scoop.window.*
+
+internal fun platformUiIntegration(host: UiHost): UiWindowIntegration? = None
+
+internal fun uiFrameChanged(event: WindowEvent): Boolean = when (event) {
+    case GeometryChanged(_) -> true
+    else -> false
+}
+internal fun interruptsTouch(event: WindowEvent): Boolean = when (event) {
+    case Keyboard(val key) -> key.state == ElementState.Pressed
+    case TextCommand(_) -> true
+    else -> false
+}

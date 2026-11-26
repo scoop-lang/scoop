@@ -1,10 +1,5 @@
 package scoop.window
 
-/** The native destination result. A Move still requires the source's own commit. */
-public enum DragResult {
-    Dropped(DragEffect), NotDropped, Failed(WindowException)
-}
-
 internal interface NativeDragSource: Closeable {
     fun start()
     fun setEffects(value: DragEffects)

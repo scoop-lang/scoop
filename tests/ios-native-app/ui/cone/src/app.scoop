@@ -1,0 +1,102 @@
+package scoop.tests.ios.ui
+
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.label as uiLabel
+import scoop.ui.component.button as uiButton
+import scoop.ui.component.input as uiInput
+import scoop.ui.component.scrollArea as uiScrollArea
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+import scoop.window.ios.UIKitApplication
+
+private class Controls(scope: ComponentScope) : Component(scope) {
+    private val count = state(0)
+    private val editor = TextEditorState()
+    private val theme = ThemeSource(shadcnTheme())
+    public override fun render(): View {
+        val panel = this
+        val list = column {
+            spacing = 10.0
+            for (index in 1..42)
+                add(uiLabel(f"Row ${index}") { theme = Some(panel.theme) })
+            add(
+                uiLabel("Last row") {
+                    theme = Some(panel.theme);
+                    semantics = ComponentSemantics(automationId = Some("last-row"))
+                }
+            )
+        }
+        return column {
+            spacing = 10.0
+            alignment = CrossAlignment.Stretch
+            add(
+                uiLabel(f"Count ${panel.count.value}") {
+                    theme = Some(panel.theme)
+                    semantics = ComponentSemantics(automationId = Some("counter-label"))
+                }
+            )
+            add(
+                uiButton("Increment", { panel.count.value += 1 }) {
+                    theme = Some(panel.theme)
+                    semantics = ComponentSemantics(automationId = Some("increment"))
+                }
+            )
+            add(
+                uiInput(panel.editor) {
+                    theme = Some(panel.theme)
+                    placeholder = "Type here"
+                    semantics = ComponentSemantics(
+                        name = Some("Notes"),
+                        automationId = Some("notes")
+                    )
+                }
+            )
+            item(uiScrollArea(list) { theme = Some(panel.theme) }) {
+                grow = 1.0
+                basis = FlexBasis.Fixed(0.0)
+            }
+        }
+    }
+}
+
+@CLayout
+private struct Api(val scene: FunPtr<(Ptr<Unit>, Ptr<Unit>, Int) -> Int>, val context: Ptr<Unit>)
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    val host = UiHost(
+        onRootError = { _, error ->
+            if (error is Exception) println(error.message ?: "UI root failed")
+            error.printStackTrace()
+            throw error
+        }
+    ) { ui, _, event ->
+        when (event) {
+            case SceneConnected(val window) -> ui.attach(window, { scope -> Controls(scope) })
+            else -> {}
+        }
+    }
+    val application = UIKitApplication(host)
+    val control = foreignCallback<(Ptr<Unit>, Ptr<Unit>, Int) -> Int>(
+        { scene: Ptr<Unit>, action: Int ->
+            @Unsafe {
+                when (action) {
+                    1 -> {
+                        application.connect(scene)
+                    }
+
+                    2 -> application.disconnect(scene)
+                    3 -> application.close()
+                    else -> throw IllegalArgumentException(Some("invalid scene operation"))
+                }
+            }
+            1
+        },
+        0L,
+        ForeignCallbackMode.Reusable
+    )
+    outAppApi.cast<Api>().store(Api(control.function, control.context))
+}

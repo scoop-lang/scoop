@@ -12,39 +12,39 @@ public struct TextCommandAvailability(
 )
 
 public var Window.textCommandAvailability: TextCommandAvailability?
-get() {
-    owner.requireOpen()
-    return owner.textCommands
-}
-set(value) {
-    owner.requireOpen()
-    if (owner.textCommands == value)
-        return
-    val flags =
-        when (value) {
-            case None -> 0
-            case Some(val commands) -> 128 +
-                flag(commands.cut) +
-                flag(commands.copy) *
-                2 +
-                flag(commands.paste) *
-                4 +
-                flag(commands.selectAll) *
-                8 +
-                flag(commands.undo) *
-                16 +
-                flag(commands.redo) *
-                32 +
-                flag(commands.deleteSelection) *
-                64
-        }
-    @Unsafe
-    {
-        nativeTextCommands(owner.pointer!!, flags)
+    get() {
+        owner.requireOpen()
+        return owner.textCommands
     }
-    owner.textCommands = value
-}
+    set(value) {
+        owner.requireOpen()
+        if (owner.textCommands == value) return
+        val flags = when (value) {
+            case None -> 0
+            case Some(val commands) -> 128 + commands.menuFlags
+        }
+        @Unsafe
+        {
+            nativeTextCommands(owner.pointer!!, flags)
+        }
+        owner.textCommands = value
+    }
+
+internal val TextCommandAvailability.menuFlags: Int get() =
+    flag(cut) + flag(copy) * 2 + flag(paste) * 4 + flag(selectAll) * 8 +
+        flag(undo) * 16 + flag(redo) * 32 + flag(deleteSelection) * 64
 
 @Extern(name = "scoop_window_text_commands")
 @Unsafe
 internal fun nativeTextCommands(window: Ptr<Unit>, flags: Int)
+
+internal fun menuTextCommand(code: Int): TextEditCommand = when (code) {
+    4 -> TextEditCommand.Cut
+    5 -> TextEditCommand.Copy
+    6 -> TextEditCommand.Paste
+    7 -> TextEditCommand.SelectAll
+    8 -> TextEditCommand.Undo
+    9 -> TextEditCommand.Redo
+    10 -> TextEditCommand.DeleteSelection
+    else -> throw WindowException("native menu editing command", WindowErrorKind.NativeFailure)
+}

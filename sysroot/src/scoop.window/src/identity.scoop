@@ -1,26 +1,20 @@
 package scoop.window
 
 /** A library-assigned window identity, never reused by its application. */
-public struct WindowId(val value: Long): Equals<WindowId>, Hash {
+public struct WindowId(val value: Long) : Equals<WindowId>, Hash {
     public override operator fun equals(other: WindowId): Boolean = value == other.value
     public override fun hash(): Long = value.hash()
 }
 
-/** A library-assigned monitor identity, independent of native display identifiers. */
-public struct MonitorId(val value: Long): Equals<MonitorId>, Hash {
-    public override operator fun equals(other: MonitorId): Boolean = value == other.value
-    public override fun hash(): Long = value.hash()
-}
-
 /** A known input-device identity; events use None when the platform cannot identify it. */
-public struct DeviceId(val value: Long): Equals<DeviceId>, Hash {
+public struct DeviceId(val value: Long) : Equals<DeviceId>, Hash {
     public override operator fun equals(other: DeviceId): Boolean = value == other.value
     public override fun hash(): Long = value.hash()
 }
 
 /** The implemented window-system backend. */
 public enum WindowBackend {
-    AppKit, Win32, X11, Wayland
+    AppKit, Win32, X11, Wayland, UIKit
 }
 
 /** Whether an operation was observed, requested, or has no platform implementation. */
@@ -39,7 +33,7 @@ public class WindowException public constructor(
     public val kind: WindowErrorKind,
     public val nativeCode: Long? = None,
     public val nativeDomain: String? = None
-): Exception(Some("window operation failed: " + operation)) {
+) : Exception(Some("window operation failed: " + operation)) {
     public val backend: WindowBackend = platformBackend()
 }
 
@@ -48,34 +42,7 @@ public enum WindowState {
     PendingConfigure, Open, Closing, Destroyed
 }
 
-/** The application's behavior after its last window is actually destroyed. */
-public enum LastWindowPolicy {
-    KeepRunning, Exit
-}
-
-/** Window-manager ordering requests. */
-public enum WindowLevel {
-    Normal, AlwaysOnTop, AlwaysOnBottom
-}
-
 /** A platform appearance, when known. */
 public enum Theme {
     Light, Dark
 }
-
-/** Why the system is asking the application to exit. */
-public enum ExitReason {
-    User, System
-}
-
-/** Attention requests do not promise keyboard focus. */
-public enum AttentionKind {
-    Informational, Critical, Cancel
-}
-
-/** Native titlebar buttons enabled by the application. */
-public struct WindowButtons(
-    val close: Boolean = true,
-    val minimize: Boolean = true,
-    val maximize: Boolean = true
-)

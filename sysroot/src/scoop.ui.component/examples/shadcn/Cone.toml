@@ -9,6 +9,10 @@ kind = "executable"
 path = "src"
 
 [[sources]]
+path = "platform/desktop"
+when = { os = ["darwin", "linux", "windows"] }
+
+[[sources]]
 path = "platform/darwin"
 when = { os = "darwin" }
 

@@ -1,0 +1,84 @@
+// !$*UTF8*$!
+{
+  archiveVersion = 1;
+  classes = {};
+  objectVersion = 56;
+  objects = {
+    200000000000000000000001 /* Gallery */ = {
+      isa = PBXProject;
+      buildConfigurationList = 200000000000000000000002;
+      compatibilityVersion = "Xcode 14.0";
+      developmentRegion = en;
+      knownRegions = (en, Base);
+      mainGroup = 200000000000000000000003;
+      productRefGroup = 200000000000000000000004;
+      projectDirPath = "";
+      projectRoot = "";
+      targets = (200000000000000000000005);
+    };
+    200000000000000000000002 = {
+      isa = XCConfigurationList;
+      buildConfigurations = (200000000000000000000006);
+      defaultConfigurationIsVisible = 0;
+      defaultConfigurationName = Release;
+    };
+    200000000000000000000003 = {
+      isa = PBXGroup;
+      children = (200000000000000000000008, 20000000000000000000000D, 200000000000000000000012, 200000000000000000000004);
+      sourceTree = "<group>";
+    };
+    200000000000000000000004 /* Products */ = {
+      isa = PBXGroup;
+      children = (200000000000000000000007);
+      name = Products;
+      sourceTree = "<group>";
+    };
+    200000000000000000000005 /* ScoopGallery */ = {
+      isa = PBXNativeTarget;
+      buildConfigurationList = 200000000000000000000009;
+      buildPhases = (20000000000000000000000A, 20000000000000000000000F, 200000000000000000000010);
+      buildRules = ();
+      dependencies = ();
+      name = ScoopGallery;
+      productName = ScoopGallery;
+      productReference = 200000000000000000000007;
+      productType = "com.apple.product-type.application";
+    };
+    200000000000000000000006 = {
+      isa = XCBuildConfiguration;
+      buildSettings = { CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; };
+      name = Release;
+    };
+    200000000000000000000007 /* ScoopGallery.app */ = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScoopGallery.app; sourceTree = BUILT_PRODUCTS_DIR; };
+    200000000000000000000008 /* main.m */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+    200000000000000000000009 = {
+      isa = XCConfigurationList;
+      buildConfigurations = (20000000000000000000000B);
+      defaultConfigurationIsVisible = 0;
+      defaultConfigurationName = Release;
+    };
+    20000000000000000000000A /* Sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (20000000000000000000000C); runOnlyForDeploymentPostprocessing = 0; };
+    20000000000000000000000B = {
+      isa = XCBuildConfiguration;
+      buildSettings = {
+        ARCHS = arm64;
+        CODE_SIGN_STYLE = Automatic;
+        INFOPLIST_FILE = Info.plist;
+        LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+        PRODUCT_BUNDLE_IDENTIFIER = dev.scoop.gallery;
+        PRODUCT_NAME = "$(TARGET_NAME)";
+        SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+        TARGETED_DEVICE_FAMILY = "1,2";
+      };
+      name = Release;
+    };
+    20000000000000000000000C = { isa = PBXBuildFile; fileRef = 200000000000000000000008; };
+    20000000000000000000000D /* ScoopGallery.xcframework */ = { isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = target/ScoopGallery.xcframework; sourceTree = "<group>"; };
+    20000000000000000000000E = { isa = PBXBuildFile; fileRef = 20000000000000000000000D; };
+    20000000000000000000000F /* Frameworks */ = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (20000000000000000000000E); runOnlyForDeploymentPostprocessing = 0; };
+    200000000000000000000010 /* Embed Frameworks */ = { isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = (200000000000000000000011); name = "Embed Frameworks"; runOnlyForDeploymentPostprocessing = 0; };
+    200000000000000000000011 = { isa = PBXBuildFile; fileRef = 20000000000000000000000D; settings = { ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy); }; };
+    200000000000000000000012 /* Info.plist */ = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+  };
+  rootObject = 200000000000000000000001;
+}

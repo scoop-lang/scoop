@@ -45,11 +45,6 @@ public fun Window.requestSoftwareKeyboard(
     visible: Boolean = true
 ): SoftwareKeyboardRequest {
     checkTextConnection(connection)
-    val input =
-        when (owner.currentInput) {
-            case Some(val current) -> current.pointer
-            case None -> None
-        }
     @Unsafe
     {
         val code =
@@ -60,7 +55,7 @@ public fun Window.requestSoftwareKeyboard(
                     1
                 else
                     0,
-                input
+                owner.keyboardRequestInput()
             )
         return when (code) {
             case 0L -> SoftwareKeyboardRequest.Requested

@@ -2,31 +2,6 @@ package scoop.window
 
 internal fun platformPrimaryModifier(): PrimaryModifier = PrimaryModifier.Control
 
-internal fun platformShortcutCharactersEqual(left: String, right: String): Boolean {
-    @Unsafe
-    {
-        return left.withUtf8Bytes {
-            a,
-            aSize -> @Unsafe
-            {
-                return@withUtf8Bytes right.withUtf8Bytes {
-                    b,
-                    bSize -> @Unsafe
-                    {
-                        val result = nativeShortcutEqual(a, aSize, b, bSize)
-                        if (result < 0)
-                            throw WindowException(
-                                "compare shortcut keys",
-                                WindowErrorKind.NativeFailure
-                            )
-                        return@withUtf8Bytes result != 0
-                    }
-                }
-            }
-        }
-    }
-}
-
 internal fun platformShortcutLabel(chord: ShortcutChord): ShortcutLabel {
     val modifiers = resolvedModifiers(chord.modifiers, platformPrimaryModifier())
     val parts = ArrayList<String>()
@@ -278,14 +253,6 @@ private fun windowsPhysicalKeyName(key: KeyCode): String =
 
 @CLayout
 private struct NativeKeyLabel(val bytes: Ptr<UInt8>?, val length: Long, val error: Long)
-
-@Extern(name = "scoop_window_shortcut_equal")
-private fun nativeShortcutEqual(
-    left: Ptr<UInt8>,
-    leftSize: Long,
-    right: Ptr<UInt8>,
-    rightSize: Long
-): Int
 
 @Extern(name = "scoop_window_key_label")
 private fun nativeKeyLabel(scan: UInt): NativeKeyLabel

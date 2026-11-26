@@ -386,7 +386,10 @@ def assemble_base_libraries(root, target, args, cones):
                 shutil.copy2(
                     source / component / "lib" / name, destination / component / "lib" / name
                 )
-    package_licenses.collect_base_libraries(root, sysroot, target)
+    ios_text = TARGETS[target]["os"] == "ios" and "scoop.charset" in cones
+    if ios_text:
+        shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
+    package_licenses.collect_base_libraries(root, sysroot, target, ios_text=ios_text)
 
 
 def assemble_gui_libraries(root, target, args, cones):
@@ -397,7 +400,8 @@ def assemble_gui_libraries(root, target, args, cones):
     destination.mkdir(parents=True)
     for cone in cones:
         shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
-    if target in SKIA_TARGETS:
+    ios_skia = TARGETS[target]["os"] == "ios" and "scoop.graphics" in cones
+    if target in SKIA_TARGETS or ios_skia:
         shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
     if target == GTK_TARGET:
         for library in GTK_LINK_INPUTS:
@@ -405,7 +409,7 @@ def assemble_gui_libraries(root, target, args, cones):
     if target == TRAY_TARGET:
         for library in TRAY_LINK_INPUTS:
             shutil.copy2(source / library, destination / library)
-    package_licenses.collect_gui_libraries(root, sysroot, target)
+    package_licenses.collect_gui_libraries(root, sysroot, target, ios_skia=ios_skia)
 
 
 def assemble_bin(root, targets, args, release, extension, orders, python_version, native):

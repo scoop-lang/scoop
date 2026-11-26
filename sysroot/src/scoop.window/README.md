@@ -1,5 +1,13 @@
 # scoop.window
 
+iOS 的 `native-app` 在 `appInit` 创建 `scoop.window.ios.UIKitApplication(handler)`。场景代理在主线程转发 `connect(scene)` 和 `disconnect(scene)`。在 `ApplicationEvent.SceneConnected(window)` 中取得窗口，按 `window.metrics` 的逻辑尺寸、显示比例和 `safeAreaInsets` 布局。跨线程操作通过 `application.proxy().post` 投递。[可运行的 UIKit 宿主](../../../tests/ios-native-app/window/)
+
+iOS 的复制粘贴使用 `window.clipboard` 或 `application.clipboard`。用户执行粘贴时再调用 `readText()`，可获取 UIKit 通用剪贴板上的纯文本。复制时可用 `writeTexts` 将纯文本和 HTML 等表示放在同一个系统条目中。iOS 的 `primarySelection.isAvailable` 返回 false。[UIPasteboard 的条目与表示](https://developer.apple.com/documentation/uikit/uipasteboard/items)
+
+通过 `window.textCommandAvailability` 将当前选区可执行的命令交给 UIKit。系统的编辑动作进入 `WindowEvent.TextCommand`，由文档模型执行一次。可选择的只读文字也可以发布复制动作。
+
+iPad 的外接键盘经 `WindowEvent.Keyboard` 交付。快捷键通常绑定 `ShortcutKey.Logical` 并设置 `primary = true` 表示 Command。需要固定键盘位置时使用 `ShortcutKey.Physical`，未知物理键保留其 USB HID usage。[UIKit 的键码](https://developer.apple.com/documentation/uikit/uikey/keycode)
+
 PRIMARY 使用 `application.primarySelection`／`window.primarySelection`，独立于普通 Clipboard；先查 `isAvailable`，`claimText` 返回可关闭的拥有凭据，旧凭据不会清掉后来者。GTK 仅在真实 X11／Wayland 协议存在时提供它，macOS／Windows 返回不可用。`application.textServices` 提供只读的拼写／语法／替换结果和平台文本 Services；范围以传入正文的 UTF-8 坐标表示。`window.showTextDefinition(text, anchor)` 和 `requestHapticFeedback` 分别请求实际可用的词典与触觉入口。能力、生命周期和限制见[文本服务核查](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
 
 原生文本服务菜单使用 `MenuItemDescription("Services", MenuItemKind.TextServices(selectedText, acceptReplacement))`，先确认 `application.textServices.capabilities.services`。这一系统子菜单仅用于窗口 popup，每个 Menu 最多一个，子项由系统在展示时生成。服务完成后，父项的 `MenuActivation.textServiceResult` 返回正文：None 没有正文，Some("") 是空替换。调用方核对原文档、修订与选区后自行应用；只读目标传 false，禁止返回替换。不提前枚举系统菜单，不把返回值直接写入另一份编辑模型。已知名称的显式调用仍可使用 `performService(name, text)`。
@@ -7,6 +15,8 @@ PRIMARY 使用 `application.primarySelection`／`window.primarySelection`，独�
 面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit、Windows Win32，以及 Linux GNU 的 Wayland／X11 后端。
 
 库负责窗口、原生事件、重绘请求、显示器快照、原生菜单和显式生命周期，也提供 GUI 文本剪贴板与低层无障碍投影。控件、文档布局、语义内容和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit 薄层通过普通 `.m`／ARC 接入，Win32 和 GTK 薄层使用 C／C++ native 构建。
+
+UIKit 场景的 `Window.createAccessibilityProvider()` 也使用 `scoop.window.accessibility` 的节点接口。提交可见几何后，UIKit 内容视图按语义顺序公开稳定节点，处理按钮、调节及滚动动作。[无障碍用例](../../../tests/ios-native-app/window/cone/src/accessibility.scoop)
 
 ## 依赖与入口
 

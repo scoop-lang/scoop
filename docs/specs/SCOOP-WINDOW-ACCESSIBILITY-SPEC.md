@@ -2,6 +2,12 @@
 
 状态：功能已接通，三平台集中验收中。本文规定窗口内容的低层语义节点、原生投影、文本范围、虚拟集合与同步动作边界；UI 资源、内容合并与场景适配见 [UI 无障碍接口规范](SCOOP-UI-ACCESSIBILITY-SPEC.md)。平台构建、原生服务、外部客户端与读屏器分别按[完整实施计划](../ui/interaction-polish/PLAN.md)验收，实际结果见[实施记录](../ui/interaction-polish/PROGRESS.md)。
 
+## UIKit 内容视图
+
+iOS 连接的场景窗口可创建同一个 `AccessibilityProvider`。内容视图按语义顺序公开有可见几何的节点，复用稳定的 `UIAccessibilityElement`。名称、值、已选、禁用、标题和按钮等特征来自发布的属性，元素位置和激活点使用已提交的视图逻辑点。滑动、增减、激活和关闭动作只进入对应的 Scoop 回调一次。关闭节点或断开场景后，系统持有的旧元素不能再触发动作。静态文本未指定名称时以公开正文作为朗读标签。编辑器成为第一响应者时，容器在同一阅读位置公开实际的 UITextView，沿用语义节点的标识、名称和已呈现几何。结束编辑后恢复该节点。受保护文本不对外提供正文。读屏焦点与键盘焦点分开，布局变化与实时公告按 UIKit 通知交付。[UIKit 无障碍元素](https://developer.apple.com/documentation/uikit/uiaccessibilityelement)
+
+UIKit 在阅读顺序中保留提供名称、说明或值的滚动区域和滚动条。纯布局用的滚动区域和滚动条由其内容承接读屏焦点。从子元素发起的读屏滚动会查找最近的可滚动祖先。
+
 ## 1. 包、身份与寿命
 
 `scoop.window.accessibility` 属于 Window Cone，不依赖 Surface、UI 或控件。SemanticRole、SemanticProperties、SemanticActions、SemanticActionResult、SemanticGeometry 与 SemanticNodeId 为公共值；AccessibilityProvider 和 AccessibilityNode 为 owner 线程资源。`Window.createAccessibilityProvider()` 使用统一的差量发布与 owner 动作接口；Darwin 连接 AppKit，Windows 连接 UIA，Linux GNU 连接 AT-SPI。后两者的实现与验收仍按进度记录独立核实，不放置空 provider 或成功占位返回。

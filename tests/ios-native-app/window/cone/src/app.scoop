@@ -1,0 +1,242 @@
+package scoop.tests.ios
+
+import scoop.collections.HashSet
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.ios.UIKitApplication
+import scoop.window.ios.UIKitEditMenu
+import scoop.window.native.*
+
+@CLayout
+private struct Snapshot(
+    val width: Double,
+    val height: Double,
+    val scale: Double,
+    val top: Double,
+    val left: Double,
+    val bottom: Double,
+    val right: Double,
+    val pixelsWide: Int,
+    val pixelsHigh: Int
+)
+
+@CLayout
+private struct Host(
+    val inspect: FunPtr<(Ptr<Unit>, Ptr<Unit>, Snapshot) -> Unit>,
+    val event: FunPtr<(Int) -> Unit>,
+    val ime: FunPtr<(Int) -> Unit>,
+    val textProbe: Int,
+    val keyProbe: Int,
+    val dragProbe: Int
+)
+
+@CLayout
+private struct Api(val control: FunPtr<(Ptr<Unit>, Int, Ptr<Unit>) -> Int>, val context: Ptr<Unit>)
+
+private class Probe(val host: Host) : ApplicationHandler {
+    var window: Window? = None
+    var lease: NativeWindowLease? = None
+    var mailbox: ApplicationProxy? = None
+    var timer: WindowDeadline? = None
+
+    private val contacts = HashSet<ContactId>()
+    private val keys = HardwareKeyProbe()
+    private var drag: DragProbe? = None
+    private var accessibility: AccessibilityProbe? = None
+    private val editor = ImeProbe { step ->
+        @Unsafe {
+            host.ime(step)
+        }
+    }
+
+    private fun checkContact(value: ContactState) {
+        val pointer = value.pointer
+        val metrics = window!!.metrics!!
+        if (pointer.scaleFactor !=
+            metrics.scaleFactor ||
+            pointer.physicalPosition !=
+            metrics.toPhysical(pointer.logicalPosition)
+        )
+            throw IllegalStateException(Some("touch coordinates use different view metrics"))
+    }
+    private fun touch(event: ContactEvent) {
+        when (event) {
+            case Began(val state) -> {
+                checkContact(state)
+                if (!contacts.add(state.id))
+                    throw IllegalStateException(Some("contact began twice"))
+                report(8)
+                if (contacts.size == 2L) report(12)
+            }
+
+            case Moved(val state) -> {
+                checkContact(state)
+                if (!contacts.contains(state.id))
+                    throw IllegalStateException(Some("moved unknown contact"))
+                report(9)
+            }
+
+            case Ended(val state) -> {
+                checkContact(state)
+                if (!contacts.remove(state.id))
+                    throw IllegalStateException(Some("ended unknown contact"))
+                report(10)
+            }
+
+            case Cancelled(val id, _, _) -> {
+                if (!contacts.remove(id))
+                    throw IllegalStateException(Some("cancelled unknown contact"))
+                report(11)
+            }
+        }
+    }
+    fun report(value: Int) {
+        @Unsafe {
+            host.event(value)
+        }
+    }
+    fun inspectView(window: Window) {
+        val metrics = window.metrics!!
+        val size = metrics.logicalSize
+        val insets = metrics.safeAreaInsets
+        @Unsafe {
+            when (lease!!.handle) {
+                case UIKit(val nativeWindow, val view) ->
+                    host
+                        .inspect(
+                            nativeWindow, view,
+                            Snapshot(
+                                size.width, size.height, metrics.scaleFactor, insets.top, insets
+                                    .left, insets.bottom, insets.right,
+                                metrics.physicalSize.width, metrics.physicalSize.height
+                            )
+                        )
+            }
+        }
+    }
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case SceneConnected(val connected) -> {
+                when (window) {
+                    case Some(_) -> throw IllegalStateException(Some("duplicate scene connection"));
+                    case None -> {}
+                }
+                window = Some(connected)
+                mailbox = Some(application.proxy())
+                @Unsafe {
+                    lease = Some(connected.acquireNativeWindow())
+                }
+                inspectView(connected)
+                if (host.dragProbe != 0) drag = Some(DragProbe(connected) { stage -> report(stage) })
+                if (host.textProbe != 0) editor.connect(connected)
+                timer = Some(connected.createDeadline { report(2) })
+                timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(40L))
+                connected.requestRedraw()
+                connected.requestRedraw()
+                report(1)
+            }
+
+            case Window(val id, val change) -> {
+                if (id != window!!.id) throw IllegalStateException(Some("window identity changed"))
+                when (change) {
+                    case Contact(val value) -> when (val probe = drag) {
+                        case Some(val active) -> active.contact(value)
+                        case None -> touch(value)
+                    }
+                    case Keyboard(val key) ->
+                        if (host.keyProbe != 0) {
+                            val observed = keys.received(window!!, key)
+                            if (observed != 0) report(observed)
+                        }
+                    case TextInput(val value) ->
+                        if (host.textProbe != 0) editor.event(window!!, value)
+                    case TextCommand(val command) ->
+                        if (host.textProbe != 0) editor.command(window!!, command)
+
+                    case RedrawRequested -> {
+                        inspectView(window!!);
+                        report(3)
+                    }
+
+                    case Closing -> {
+                        if (window!!.state != WindowState.Closing || !timer!!.isClosed)
+                            throw IllegalStateException(Some("closing did not retire deadline"))
+                        report(5)
+                    }
+
+                    case Destroyed -> {
+                        if (window!!.state != WindowState.Destroyed)
+                            throw IllegalStateException(Some("window still live"))
+                        report(6)
+                        window = None
+                    }
+
+                    else -> {}
+                }
+            }
+
+            else -> {}
+        }
+    }
+    @Unsafe
+    fun control(app: UIKitApplication, action: Int, scene: Ptr<Unit>): Int {
+        when (action) {
+            1 -> {
+                app.connect(scene)
+            }
+
+            2 -> if (!mailbox!!.post { active -> report(4) }) return 0
+            3 -> app.disconnect(scene)
+
+            4 -> {
+                // The window remains borrowed after Closing until this release has run.
+                when (lease!!.handle) {
+                    case UIKit(val nativeWindow, val view) -> report(7)
+                }
+                lease!!.close()
+                lease = None
+            }
+
+            5 -> app.close()
+            6 -> editor.activated(window!!)
+            7 -> writeClipboardProbe(window!!)
+            8 -> readClipboardProbe(window!!)
+            9 -> accessibility = Some(AccessibilityProbe(window!!))
+            10 -> accessibility!!.finish()
+            11 -> mailbox!!.post { active ->
+                val template = active.textContextMenuTemplate(false, Some(TextContextMenuLabels(copy = Some("Copy example row"))))
+                UIKitEditMenu(window!!, PopupPlacement.Pointer(LogicalPosition(150.0, 220.0)),
+                    template, TextCommandAvailability(copy = true), false) { command ->
+                    if (command != TextEditCommand.Copy) throw IllegalStateException(Some("unexpected edit action"))
+                    report(19)
+                }
+            }
+            else -> return 0
+        }
+        return 1
+    }
+}
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    val probe = Probe(hostApi.cast<Host>().load())
+    val application = UIKitApplication(probe)
+    val control = foreignCallback<(Ptr<Unit>, Int, Ptr<Unit>) -> Int>(
+        { action: Int, scene: Ptr<Unit> ->
+            var outcome = 0
+            @Unsafe {
+                try {
+                    outcome = probe.control(application, action, scene)
+                } catch (error: Throwable) {
+                    if (error is Exception) println(error.message ?: "window probe failed")
+                    error.printStackTrace()
+                    throw error
+                }
+            }
+            outcome
+        },
+        0L, ForeignCallbackMode.Reusable
+    )
+    outAppApi.cast<Api>().store(Api(control.function, control.context))
+}

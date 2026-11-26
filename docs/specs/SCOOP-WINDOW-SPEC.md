@@ -52,6 +52,8 @@ mediaType 是无参数的具体 `text/<subtype>` MIME 名称，按 ASCII 小写�
 
 Windows 写入使用应用已有的隐藏宿主窗口取得 clipboard owner，不使用空 HWND 执行 EmptyClipboard／SetClipboardData；因此该入口无需依赖仍存活的业务窗口。
 
+iOS 在显式读写时访问 `UIPasteboard.generalPasteboard`。写入把所有文本表示放入同一个系统条目，纯文本以 UTF-8 提供，其他表示通过 UniformTypeIdentifiers 映射其 MIME 类型。读取纯文本也接受 UIKit 能转换成字符串的系统表示。窗口建立、焦点变化与查询编辑命令可用性均不预读剪贴板。iOS 的 PRIMARY 选区报告不可用。
+
 #### 2.2.1 PRIMARY 选区
 
 `ActiveApplication.primarySelection` 与 `Window.primarySelection` 返回独立的 PrimarySelection 入口，不使用普通 Clipboard 作为回退。isAvailable 表示当前显示后端有原生 PRIMARY；defaultPasteEnabled 结合该能力与平台中键粘贴设置。readText() 区分无正文的 None 和已有空正文的 Some("")；claimText(text) 返回可关闭的 PrimarySelectionClaim，不可用返回 None，真实传输或写入错误仍报 WindowException。正文沿普通纯文本的 UTF-8、换行与 NUL 合同处理。
@@ -383,3 +385,21 @@ WindowAttributes 和 ApplicationOptions 发布只读值；完整修改通过 cop
 ## 13. 数据拖放
 
 Window 的标准格式、操作协商、接收资源与同步边界见[数据拖放规范](SCOOP-WINDOW-DRAG-DROP-SPEC.md)。三个桌面后端提供 registerDropTarget 和从当前真实输入启动的 beginDrag；源结果报告系统实际接受的操作，不自动删除来源。UI 接收沿 Accepted 路由。Touch／Pen 来源沿各平台公开入口启动，Windows 等待真实的系统兼容鼠标入口；真实设备与跨程序验收继续按交互打磨计划集中执行。
+
+## 14. iOS 场景宿主
+
+在 `aarch64-apple-ios` 和 `aarch64-apple-ios-sim` 上，UIKit 管理应用主循环。Scoop 的 `native-app` 在进程初始化时创建一个 `scoop.window.ios.UIKitApplication(handler)`。场景代理在主线程将本次连接的 `UIWindowScene` 交给其 Unsafe `connect(scene)`，并在断开时调用 `disconnect(scene)`。每次连接分配一个新的 `WindowId`，其 `UIWindow` 和内容 `UIView` 由这一连接持有。`ApplicationEvent.SceneConnected(window)` 在视图安装后交付，宿主可在此事件中挂载内容。失活和再次激活沿用同一窗口与内容。系统断开场景时先交付 `Closing`，既有 native 租约归还后交付 `Destroyed`。
+
+需要结构化异步任务的场景用 `scoop.window.asyncio.attachUIKitScene(scene, handler, onClosed)` 连接。在主队列的 `EventLoopSession` 根作用域内创建窗口及其原生回调，因此场景事件、绘制和输入沿用附着时的 Context 与 `currentApplicationScope()`。返回的 Closeable 随场景断开关闭；普通前后台切换保留任务。会话退出时先退休窗口，子任务取消与清理完成后在主线程报告结果。
+
+`ApplicationProxy.post` 从其他线程唤醒主队列。一次性 `WindowDeadline` 使用单调时钟，和桌面共享排序、取消及关闭语义。窗口的逻辑尺寸取自内容视图的 bounds，像素尺寸由视图显示比例换算并向上取整。`WindowMetrics.safeAreaInsets` 以视图逻辑点记录上、左、下、右边距，桌面窗口默认四边为零。iPadOS 26 及以上使用系统按垂直方向避让窗口控件的安全区域，系统关闭、最小化和缩放按钮获得的顶部空间也计入快照。旋转、显示比例或安全区变化均触发几何更新。桥接到渲染器时，通过 `NativeWindowLease.handle.UIKit` 在有效租期内读取 `UIWindow`、`UIView`。应用退出、桌面窗体装饰与桌面菜单由桌面目标提供。iOS 的结构化任务使用主队列场景附着入口。
+
+UIKit 将直接触摸和 Pencil 交给内容视图。一次接触只发布一条 `WindowEvent.Contact` 序列；同时按下的触点各有独立标识。坐标为视图逻辑点和同一显示比例换算出的像素。仅在设备提供压力时上报归一化数值。取消触摸、失焦和场景失活时退休相应标识，晚到的移动或抬起不重新开始序列。接收时间取与窗口截止时间同源的单调时钟。
+
+外接键盘按 `UIKey.keyCode` 的 USB HID usage 识别物理位置，未知值保留为 `NativeKeyCode.UsbHidUsage`。逻辑字符来自 UIKit 当前布局，命名键、按下、释放及修饰状态沿用公共模型。焦点离开时补发已交付按键的释放。iOS 的 `ShortcutModifiers.primary` 对应 Command，显示采用 Apple 修饰键符号。系统组合输入和响应者的编辑动作分别使用文本事务和编辑命令通道。[UIKit 硬件按键](https://developer.apple.com/documentation/uikit/handling-key-presses-made-on-a-physical-keyboard)
+
+UIKit 的文本连接复用 `TextInputState`、`TextInputBatch` 和 UTF-8 字节范围。自绘内容视图为当前编辑器持有一个 UIKit 文本响应者；系统维护 marked text、选区与输入法交互，已发布的应用文本和已接受的光标几何供它查询。程序回写不产生新一轮用户编辑。每次连接使用独立的批次序号；关闭或替换连接后，旧的状态和光标发布返回 false。输入目的和软件键盘请求作用于当前连接，实际遮挡在内容视图的逻辑坐标中报告。浮动键盘按与该窗口的实际交集处理。
+
+Scoop 焦点目标可独立发布 `Window.textCommandAvailability`。UIKit 的标准剪切、复制、粘贴、全选、删除以及 undo manager 按该快照查询可用性，每次已启用的动作交付一个 `WindowEvent.TextCommand`。只读内容无需开启键盘便可接收复制。Scoop 编辑器拥有撤销历史，系统响应者的文本投影与应用回写不另建一份用户操作。
+
+UIKit 窗口在有前台焦点时可用反馈生成器提交触觉请求；返回 `Requested` 表示已向 UIKit 提交，设备与用户设置决定实际反馈。

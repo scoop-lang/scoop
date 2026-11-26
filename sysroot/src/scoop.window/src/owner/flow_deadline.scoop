@@ -1,0 +1,21 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicInstant
+
+internal fun ApplicationOwner.consumeFlowDeadline(now: MonotonicInstant): Boolean = when (flow) {
+    case WaitUntil(val time) ->
+        if (time <= now) {
+            flow = ControlFlow.Wait
+            true
+        } else
+            false
+    else -> false
+}
+
+internal fun ApplicationOwner.refreshDeadline(force: Boolean = false) {
+    val policy = when (flow) {
+        case WaitUntil(val time) -> Some(time)
+        else -> None
+    }
+    refreshWindowDeadlines(policy, force)
+}

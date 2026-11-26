@@ -1,0 +1,191 @@
+package scoop.window
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.time.MonotonicInstant
+
+/** Native lifecycle and window events on the UIKit main thread. */
+public enum ApplicationEvent {
+    NewEvents(StartCause), SceneConnected(Window), Resumed, Suspended, MemoryWarning,
+    Window(WindowId, WindowEvent), InteractionPreferencesChanged(InteractionPreferences),
+    AboutToWait, Exiting
+}
+
+public enum WindowEvent {
+    Keyboard(KeyEvent), ModifiersChanged(Modifiers),
+    Contact(ContactEvent), TextInput(TextInputEvent), TextCommand(
+        TextEditCommand
+    ), SoftwareKeyboardChanged(
+        SoftwareKeyboardState
+    ),
+    Closing, Destroyed, RedrawRequested, GeometryChanged(WindowMetrics), Focused(Boolean),
+    Occluded(Boolean), ThemeChanged(Theme?)
+}
+
+public class ActiveApplication internal constructor(internal val owner: ApplicationOwner) {
+    public fun proxy(): ApplicationProxy = ApplicationProxy(owner)
+}
+
+public class ApplicationProxy internal constructor(private val owner: ApplicationOwner) {
+    public fun post(block: (ActiveApplication) -> Unit): Boolean = owner
+        .mailbox
+        .post { block(owner.active) }
+}
+
+internal class ApplicationOwner(eventHandler: ApplicationHandler) {
+    val mailbox = ApplicationMailbox()
+    val windows = ArrayList<WindowOwner>()
+    val deadlines = ArrayList<WindowDeadline>()
+    var armedDeadline: MonotonicInstant? = None
+    val preferencesObservers = ArrayList<InteractionPreferencesObserver>()
+    var interactionPreferences = InteractionPreferences()
+    val active = ActiveApplication(this)
+    val handler: ApplicationHandler? = Some(eventHandler)
+    var native: Ptr<Unit>? = None
+    var exiting = false
+    var pumping = false
+    var dispatchDepth = 0
+    private var accessibilityFailure: Throwable? = None
+    val accessibilityBusy: Boolean
+        get() = pumping ||
+            dispatchDepth !=
+            0 ||
+            when (accessibilityFailure) {
+                case Some(_) -> true
+                case None -> false
+            }
+    fun failAccessibility(error: Throwable) {
+        accessibilityFailure = Some(
+            when (val previous = accessibilityFailure) {
+                case Some(val old) -> ResourceUseException(old, error)
+                case None -> error
+            }
+        )
+        mailbox.wake()
+    }
+    fun reportAccessibilityFailure() {
+        when (val failure = accessibilityFailure) {
+            case Some(val error) -> {
+                accessibilityFailure = None
+                close()
+                throw error
+            }
+
+            case None -> {}
+        }
+    }
+    private val thread = currentThreadId()
+    private var nextWindow = 1L
+    private var registration: ForeignCallback<(Ptr<Unit>, Int) -> Int>? = None
+
+    init {
+        @Unsafe {
+            if (nativeIsMainThread() == 0)
+                throw IllegalStateException(Some("UIKitApplication requires the main thread"))
+            val callback = foreignCallback<(Ptr<Unit>, Int) -> Int>(
+                { stage: Int ->
+                    pump(stage);
+                    1
+                }, 0L, ForeignCallbackMode.Reusable
+            )
+            val pointer = iosApplicationCreate(callback.function, callback.context)
+            if (pointer == None) {
+                releaseForeignCallback(callback)
+                throw WindowException("UIKit main loop", WindowErrorKind.NativeFailure)
+            }
+            registration = Some(callback)
+            native = pointer
+            interactionPreferences = copyInteractionPreferences(pointer!!)
+            mailbox.bind(pointer!!)
+        }
+    }
+    fun isCurrentThread(): Boolean = currentThreadId() == thread
+    fun checkThread() {
+        if (!isCurrentThread())
+            throw IllegalStateException(Some("window operation requires the UIKit main thread"))
+    }
+    fun notify(event: ApplicationEvent) {
+        dispatchDepth += 1
+        try {
+            handler!!.onEvent(active, event)
+        } finally {
+            dispatchDepth -= 1
+        }
+    }
+    fun deliverBusiness(block: () -> Unit) {
+        if (!exiting) block()
+    }
+    fun refreshDeadline(force: Boolean = false) {
+        refreshWindowDeadlines(None, force)
+    }
+    @Unsafe
+    fun connect(scene: Ptr<Unit>): Window {
+        checkThread()
+        if (exiting) throw WindowException("connect scene", WindowErrorKind.InvalidState)
+        for (existing in windows)
+            if (existing.scene == scene && existing.phase == WindowState.Open)
+                throw WindowException("scene is already connected", WindowErrorKind.InvalidState)
+        if (nextWindow == Long.MAX_VALUE)
+            throw WindowException("window identity", WindowErrorKind.NativeFailure)
+        val id = WindowId(nextWindow)
+        nextWindow += 1L
+        val pointer = iosSceneCreate(native!!, scene, id.value) ?:
+            throw WindowException("connect UIWindowScene", WindowErrorKind.NativeFailure)
+        val record = WindowOwner(this, id, scene, pointer)
+        windows.add(record)
+        val window = Window(record)
+        try {
+            iosSceneShow(pointer)
+            deliverPreferences(copyInteractionPreferences(native!!))
+            notify(ApplicationEvent.SceneConnected(window))
+        } catch (error: Throwable) {
+            record.beginClose()
+            throw error
+        }
+        return window
+    }
+    fun disconnect(scene: Ptr<Unit>) {
+        checkThread()
+        for (window in windows)
+            if (window.scene == scene && window.phase == WindowState.Open) {
+                window.beginClose()
+                return
+            }
+    }
+    fun close() {
+        checkThread()
+        if (exiting) return
+        exiting = true
+        mailbox.closeBusiness()
+        retirePreferences()
+        refreshDeadline()
+        for (window in windows.toArray())
+            window.beginClose()
+        notify(ApplicationEvent.Exiting)
+        mailbox.wake()
+    }
+    fun drainClosed() {
+        for (window in windows.toArray())
+            if (window.phase == WindowState.Closing && window.leases == 0L) {
+                @Unsafe {
+                    iosSceneDestroy(window.pointer!!)
+                }
+                window.pointer = None
+                window.phase = WindowState.Destroyed
+                for (index in 0L..<windows.size)
+                    if (windows[index] === window) {
+                        windows.removeAt(index)
+                        break
+                    }
+                notify(ApplicationEvent.Window(window.id, WindowEvent.Destroyed))
+            }
+        if (exiting && windows.size == 0L && mailbox.sealControlsIfEmpty()) {
+            mailbox.unbind()
+            @Unsafe {
+                iosApplicationDestroy(native!!)
+                native = None
+                releaseForeignCallback(registration!!)
+                registration = None
+            }
+        }
+    }
+}

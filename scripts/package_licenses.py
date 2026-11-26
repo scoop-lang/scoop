@@ -154,6 +154,16 @@ def collect_llvm(root, source, host, native, python_license=None):
     collector.finish()
 
 
+def collect_text_packages(collector, vendor):
+    for package in json.loads((vendor / "packages.json").read_text()):
+        name = package["name"] + "-" + package["version"]
+        collector.add(
+            "text-" + name,
+            package["license"],
+            license_files(vendor / "licenses" / name),
+        )
+
+
 def collect_upstream(collector, sysroot, *, include_gui):
     """Include notices with both upstream sources and the binaries built from them."""
     for vendor in (sysroot / "vendor").iterdir():
@@ -163,13 +173,7 @@ def collect_upstream(collector, sysroot, *, include_gui):
             license_root = vendor / "2.15" if vendor.name == "liburing" else vendor
             collector.add(vendor.name, "See included documents", license_files(license_root))
             if vendor.name == "text_backend":
-                for package in json.loads((vendor / "packages.json").read_text()):
-                    name = package["name"] + "-" + package["version"]
-                    collector.add(
-                        "text-" + name,
-                        package["license"],
-                        license_files(vendor / "licenses" / name),
-                    )
+                collect_text_packages(collector, vendor)
 
 
 def collect_vendor(root, sysroot):
@@ -178,10 +182,16 @@ def collect_vendor(root, sysroot):
     collector.finish()
 
 
-def collect_base_libraries(root, sysroot, target):
+def collect_base_libraries(root, sysroot, target, *, ios_text=False):
     """Licenses of one target's base package: Rust-built and toolchain components."""
     collector = Collector(root, "lib-base-" + target)
     if TARGETS[target]["os"] == "ios":
+        if ios_text:
+            notices = sysroot / "lib" / target / NOTICE_DIRECTORY
+            collector.add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
+            vendor = sysroot / "vendor/text_backend"
+            collector.add("text_backend", "See included documents", license_files(vendor))
+            collect_text_packages(collector, vendor)
         for name in ("ryu", "libbacktrace"):
             collector.add(name, "See included documents", license_files(sysroot / "vendor" / name))
     else:
@@ -204,10 +214,10 @@ def collect_mingw(root, prefix, component, architecture):
     collector.finish()
 
 
-def collect_gui_libraries(root, sysroot, target):
+def collect_gui_libraries(root, sysroot, target, *, ios_skia=False):
     """Licenses of one target's GUI package native components."""
     collector = Collector(root, "lib-gui-" + target)
-    if target in SKIA_TARGETS:
+    if target in SKIA_TARGETS or ios_skia:
         collector.add("Skia", "See included documents", license_files(sysroot / "vendor/skia"))
         collector.add(
             "Lucide",

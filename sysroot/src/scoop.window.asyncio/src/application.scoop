@@ -17,14 +17,6 @@ public fun Application.runWithAsyncio(handler: ApplicationHandler) {
     }
 }
 
-/** Returns the active business scope; cleanup notifications have no application scope. */
-public fun currentApplicationScope(): CoroutineScope = applicationScope()
-
-private class ScopeBinding(val scope: CoroutineScope)
-
-context(binding: ScopeBinding)
-private fun applicationScope(): CoroutineScope = binding.scope
-
 private class WindowAttachment(private val host: ApplicationHost): ApplicationAttachment {
     private var session: EventLoopSession? = None
     private var cancellation: Disposable? = None

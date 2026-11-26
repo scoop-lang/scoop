@@ -1,0 +1,76 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.window.*
+
+public fun ApplicationScope.observeMenu(menu: Menu, action: (MenuActivation) -> Unit): Closeable =
+    events.menu(menu, action)
+public fun ApplicationScope.declareMenuBar(create: () -> UiMenuBarContent): UiMenuBarDeclaration {
+    checkMounted()
+    val value =
+        root.host.menuBars.register(None, { isMounted }, { action -> dispatch(action) }, create)
+    resources.managed.add(value)
+    value.update()
+    return value
+}
+public fun ApplicationScope.observePopup(session: PopupSession, action: (PopupResult) -> Unit): Closeable =
+    events.popup(session, action)
+public fun ApplicationScope.observeModal(session: ModalSession, action: (ModalResult) -> Unit): Closeable =
+    events.modal(session, action)
+public fun <T> ApplicationScope.observeFileDialog(
+    session: FileDialogSession<T>,
+    action: (FileDialogResult<T>) -> Unit
+): Closeable = events.file(session, action)
+
+
+public fun ComponentScope.observeMenu(menu: Menu, action: (MenuActivation) -> Unit): Closeable =
+    events.menu(menu, action)
+public fun ComponentScope.declareMenuBar(create: () -> UiMenuBarContent): UiMenuBarDeclaration {
+    checkMounted()
+    val value =
+        root.host.menuBars.register(
+            Some(nativeWindow),
+            { isMounted },
+            { action -> dispatch(action) },
+            create
+        )
+    managed.add(value)
+    value.update()
+    return value
+}
+public fun ComponentScope.observePopup(session: PopupSession, action: (PopupResult) -> Unit): Closeable =
+    events.popup(session, action)
+public fun ComponentScope.observeModal(session: ModalSession, action: (ModalResult) -> Unit): Closeable =
+    events.modal(session, action)
+public fun <T> ComponentScope.observeFileDialog(
+    session: FileDialogSession<T>,
+    action: (FileDialogResult<T>) -> Unit
+): Closeable = events.file(session, action)
+public fun ComponentScope.observeFrameMetrics(action: (WindowFrameMetrics?) -> Unit): Closeable =
+    events.frame(nativeWindow, action)
+
+public fun ComponentScope.createWindowRegion(kind: WindowRegionKind): WindowRegionHandle {
+    checkMounted()
+    val parent =
+        when (kind) {
+            case Hit(_) -> Some(input);
+            else -> None
+        }
+    val value = root.surface.createWindowRegion(kind, parent)
+    managed.add(value)
+    return value
+}
+public fun ComponentScope.claimWindowFrame(): Closeable {
+    checkMounted()
+    when (root.windowFrame) {
+        case Some(_) -> throw IllegalStateException(
+            Some("window frame is already configured by another mount")
+        )
+        case None -> {}
+    }
+    val value = UiWindowFrameClaim(root)
+    root.windowFrame = Some(value)
+    managed.add(value)
+    return value
+}

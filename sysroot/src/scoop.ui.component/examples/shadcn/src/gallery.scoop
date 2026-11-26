@@ -5,15 +5,157 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
 import scoop.ui.component.row as makeRow
+import scoop.ui.component.wrap as makeWrap
 import scoop.ui.component.frame as makeFrame
 import scoop.ui.component.scrollArea as makeScrollArea
 import scoop.ui.style.*
+import scoop.window.SoftwareKeyboardState
+import scoop.window.WindowMetrics
+import scoop.window.softwareKeyboard
 
-internal class Gallery(private val model: GalleryModel, scope: ComponentScope) : Component(scope) {
-    public override fun render(): View = galleryView(model)
+/** A gallery connection owns the models and theme shared by all its pages. */
+public class GalleryScene public constructor() {
+    private val model = GalleryModel()
+    public val theme: ThemeSource get() = model.source
+    public fun root(scope: ComponentScope): Component = Gallery(model, scope)
 }
 
-private fun galleryView(model: GalleryModel): View {
+internal class Gallery(private val model: GalleryModel, scope: ComponentScope) : Component(scope) {
+    private val compact = state(isNarrow(scope.nativeWindow.metrics))
+    private val keyboardInset = state(0.0)
+    private val detail = state(false)
+    private val appearance = state(false)
+
+    public override fun onMount() {
+        scope
+            .observeWindow(scope.nativeWindow) { event ->
+                when (event) {
+                    case GeometryChanged(val metrics) -> {
+                        compact.value = isNarrow(Some(metrics))
+                        keyboardInset.value = dockedInset(
+                            Some(metrics),
+                            scope.nativeWindow.softwareKeyboard
+                        )
+                    }
+
+                    case SoftwareKeyboardChanged(val keyboard) ->
+                        keyboardInset.value = dockedInset(scope.nativeWindow.metrics, keyboard)
+                    else -> {}
+                }
+            }
+    }
+
+    public override fun render(): View {
+        val model = this.model
+        if (!compact.value)
+            return galleryView(model) { entry ->
+                model.selected.value = entry
+                detail.value = true
+            }
+        val entries = model.entries()
+        val current = model.current(entries)
+        val panel = this
+        return cachedScene(
+            direction(
+                makeFrame(
+                    makeColumn {
+                        spacing = 8.0
+                        padding = Insets(12.0, 12.0, 12.0, 12.0 + panel.keyboardInset.value)
+                        alignment = CrossAlignment.Stretch
+                        add(
+                            makeRow {
+                                spacing = 8.0
+                                alignment = CrossAlignment.Center
+                                if (panel.detail.value)
+                                    button("Examples", { panel.detail.value = false }) {
+                                        variant = ButtonVariant.Outline
+                                        semantics = ComponentSemantics(
+                                            automationId = Some("gallery-back")
+                                        )
+                                    }
+                                item(
+                                    galleryText(
+                                        model,
+                                        if (panel.detail.value && current != None)
+                                            demoTitle(current!!)
+                                        else
+                                            "UI Gallery",
+                                        18.0,
+                                        600
+                                    )
+                                ) { grow = 1.0 }
+                                button(
+                                    "Appearance",
+                                    { panel.appearance.value = !panel.appearance.value }
+                                ) { variant = ButtonVariant.Outline }
+                            }
+                        )
+                        if (panel.appearance.value) add(galleryAppearance(model))
+                        val page = if (panel.detail.value && current != None)
+                            makeScrollArea(
+                                makeFrame(galleryDemo(model, current!!)) {
+                                    padding = Some(Insets.all(4.0))
+                                }
+                            )
+                        else
+                            galleryNavigation(model, entries, current, true) { entry ->
+                                when (entry) {
+                                    case AppWorkspace -> model.appWorkspace.navigation.value = false
+                                    case Sidebar -> model.sidebars.open.value = false
+                                    else -> {}
+                                }
+                                model.selected.value = entry
+                                panel.detail.value = true
+                                panel.appearance.value = false
+                            }
+                        item(page) {
+                            grow = 1.0;
+                            basis = FlexBasis.Fixed(0.0)
+                        }
+                    }
+                ) {
+                    style {
+                        background(
+                            Some(
+                                Paint(
+                                    model.source.current.value.tokens.palette.background.background
+                                )
+                            )
+                        )
+                    }
+                },
+                model.direction.value
+            )
+        )
+    }
+}
+
+private fun isNarrow(metrics: WindowMetrics?): Boolean {
+    val value = metrics ?: return false
+    return value.logicalSize.width - value.safeAreaInsets.left - value.safeAreaInsets.right < 720.0
+}
+
+private fun dockedInset(metrics: WindowMetrics?, keyboard: SoftwareKeyboardState): Double {
+    val window = metrics ?: return 0.0
+    val overlap = when (keyboard) {
+        case Shown(Some(val rect)) -> rect
+        else -> return 0.0
+    }
+    val size = window.logicalSize
+    if (overlap.origin.x >
+        0.0 ||
+        overlap.size.width <
+        size.width ||
+        overlap.origin.y +
+        overlap.size.height <
+        size.height
+    )
+        return 0.0
+    val covered = size.height - window.safeAreaInsets.bottom - overlap.origin.y
+    return if (covered > 0.0) covered else 0.0
+}
+
+private fun galleryView(model: GalleryModel, select: (Demo) -> Unit): View {
     val palette = model.source.current.value.tokens.palette
     val entries = model.entries()
     val current = model.current(entries)
@@ -40,7 +182,9 @@ private fun galleryView(model: GalleryModel): View {
                         makeRow {
                             spacing = 32.0
                             alignment = CrossAlignment.Stretch
-                            add(galleryNavigation(model, entries, current))
+                            add(
+                                galleryNavigation(model, entries, current, false, select)
+                            )
                             item(
                                 makeScrollArea(
                                     makeFrame(content) { padding = Some(Insets.all(6.0)) }
@@ -71,16 +215,24 @@ private fun galleryView(model: GalleryModel): View {
 }
 
 private fun galleryToolbar(model: GalleryModel): View {
+    return makeRow {
+        alignment = CrossAlignment.Center
+        add(galleryText(model, "Scoop / UI Gallery", 22.0, 600))
+        item(empty()) { grow = 1.0 }
+        add(galleryAppearance(model))
+    }
+}
+
+private fun galleryAppearance(model: GalleryModel): View {
     val theme = if (model.mode.value == ThemeMode.Light) "Dark theme" else "Light theme"
     val direction = if (model.direction.value == LayoutDirection.Ltr)
         "Switch to RTL"
     else
         "Switch to LTR"
-    return makeRow {
-        spacing = 12.0
+    return makeWrap {
+        spacing = 6.0
+        lineSpacing = 6.0
         alignment = CrossAlignment.Center
-        add(galleryText(model, "Scoop / UI Gallery", 22.0, 600))
-        item(empty()) { grow = 1.0 }
         button(theme, { model.toggleTheme() }) { variant = ButtonVariant.Outline }
         button(direction, { model.toggleDirection() }) { variant = ButtonVariant.Outline }
         button(
@@ -108,50 +260,80 @@ private fun galleryToolbar(model: GalleryModel): View {
             )
             for (value in model.styles())
                 item(
-                    Choice(ViewKey.Text(galleryStyleTitle(value)), value, galleryStyleTitle(value))
+                    Choice(
+                        ViewKey.Text(galleryStyleTitle(value)),
+                        value,
+                        galleryStyleTitle(value)
+                    )
                 )
         }
     }
 }
 
-private fun galleryNavigation(model: GalleryModel, entries: Array<Demo>, current: Demo?): View =
-    makeFrame(
-        makeScrollArea(
-            makeColumn {
-                spacing = 12.0
-                alignment = CrossAlignment.Stretch
-                padding = Insets(8.0, 4.0, 8.0, 4.0)
-                input(model.query) { placeholder = "Search examples..." }
-                for (applications in [true, false]) {
-                    var present = false
-                    for (entry in entries)
-                        if (applicationDemo(entry) == applications) present = true
-                    if (present)
-                        add(
-                            galleryText(
-                                model,
-                                if (applications) "APPLICATIONS" else "COMPONENTS",
-                                11.0,
-                                600,
-                                true
-                            )
-                        )
-                    for (entry in entries)
-                        if (applicationDemo(entry) == applications)
-                            button(demoTitle(entry), { model.selected.value = entry }) {
-                                variant = if (current == Some(entry))
-                                    ButtonVariant.Default
-                                else
-                                    ButtonVariant.Outline
-                                style { surface { suggestedSize = Some(Size(190.0, 32.0)) } }
-                            }
-                }
+private fun galleryNavigation(
+    model: GalleryModel,
+    entries: Array<Demo>,
+    current: Demo?,
+    compact: Boolean,
+    select: (Demo) -> Unit
+): View = makeFrame(
+    makeScrollArea(
+        makeColumn {
+            spacing = 12.0
+            alignment = CrossAlignment.Stretch
+            padding = Insets(8.0, 4.0, 8.0, 4.0)
+            input(model.query) {
+                placeholder = "Search examples..."
+                semantics = ComponentSemantics(
+                    name = Some("Search examples"),
+                    automationId = Some("gallery-search")
+                )
             }
-        ) { scrollbarBehavior { placement = ScrollbarPlacement.Gutter } }
+            if (model.query.text.byteLength > 0L)
+                button("Clear search", { model.query.replaceAll("") }) {
+                    variant = ButtonVariant.Ghost
+                    semantics = ComponentSemantics(automationId = Some("gallery-clear-search"))
+                }
+            for (applications in [true, false]) {
+                var present = false
+                for (entry in entries)
+                    if (applicationDemo(entry) == applications) present = true
+                if (present)
+                    add(
+                        galleryText(
+                            model,
+                            if (applications) "APPLICATIONS" else "COMPONENTS",
+                            11.0,
+                            600,
+                            true
+                        )
+                    )
+                for (entry in entries)
+                    if (applicationDemo(entry) == applications)
+                        button(demoTitle(entry), { select(entry) }) {
+                            semantics = ComponentSemantics(
+                                automationId = Some("gallery-entry-" + demoTitle(entry))
+                            )
+                            variant = if (current == Some(entry))
+                                ButtonVariant.Default
+                            else
+                                ButtonVariant.Outline
+                            style {
+                                surface {
+                                    suggestedSize = Some(Size(190.0, if (compact) 44.0 else 32.0))
+                                }
+                            }
+                        }
+            }
+        }
     ) {
-        width = Some(190.0)
-        alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+        state = Some(model.catalogScroll)
+        scrollbarBehavior { placement = ScrollbarPlacement.Gutter }
     }
+) {
+    if (!compact) width = Some(190.0)
+    alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+}
 
 internal fun galleryText(
     model: GalleryModel,

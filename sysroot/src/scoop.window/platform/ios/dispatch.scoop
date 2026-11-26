@@ -1,0 +1,182 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicTimeSource
+
+@Unsafe
+private fun ApplicationOwner.dispatch(event: Ptr<Unit>) {
+    val header = nativeEventHeader(event)
+    if (header.kind == 103) {
+        notify(ApplicationEvent.MemoryWarning)
+        return
+    }
+    for (window in windows) {
+        if (window.id.value != header.window || window.phase != WindowState.Open) continue
+        val value = iosEventSnapshot(event)
+        when (header.kind) {
+            10 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .Keyboard(
+                                    copyKeyEvent(event, header, nativeEventKeyboard(event))
+                                )
+                        )
+                )
+            11 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .ModifiersChanged(platformModifiers(nativeEventModifiers(event)))
+                        )
+                )
+            13 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .TextInput(
+                                    TextInputEvent
+                                        .Edit(
+                                            copyNativeTextBatch(
+                                                event,
+                                                header.window,
+                                                nativeEventData(event)
+                                            )
+                                        )
+                                )
+                        )
+                )
+
+            14 -> {
+                val data = nativeEventData(event)
+                val connection = platformTextConnection(header.window, data)
+                val change = if (data.flags != 0)
+                    TextInputEvent.Enabled(connection)
+                else
+                    TextInputEvent.Disabled(connection)
+                notify(ApplicationEvent.Window(window.id, WindowEvent.TextInput(change)))
+            }
+
+            16 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .TextCommand(menuTextCommand(nativeEventData(event).a.toInt()))
+                        )
+                )
+
+            22 -> {
+                val data = nativeEventData(event)
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .SoftwareKeyboardChanged(
+                                    copySoftwareKeyboard(data.flags, data.x, data.y, data.z, data.w)
+                                )
+                        )
+                )
+            }
+
+            21 -> window.dispatchContact(copyContactEvent(header, nativeEventContact(event)))
+            2 ->
+                notify(
+                    ApplicationEvent.Window(window.id, WindowEvent.GeometryChanged(value.metrics()))
+                )
+            4 -> notify(ApplicationEvent.Window(window.id, WindowEvent.Focused(value.focused != 0)))
+            5 ->
+                notify(
+                    ApplicationEvent.Window(window.id, WindowEvent.Occluded(value.occluded != 0))
+                )
+            6 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .ThemeChanged(
+                                    Some(if (value.dark != 0) Theme.Dark else Theme.Light)
+                                )
+                        )
+                )
+            101 -> notify(ApplicationEvent.Resumed)
+            102 -> notify(ApplicationEvent.Suspended)
+            104 -> deliverPreferences(copyInteractionPreferences(native!!))
+            else -> throw WindowException("unknown UIKit event", WindowErrorKind.NativeFailure)
+        }
+        if (header.kind == 4 || header.kind == 5) window.notifyActivity()
+        return
+    }
+}
+
+internal fun ApplicationOwner.pump(stage: Int) {
+    if (pumping) {
+        mailbox.wake()
+        return
+    }
+    pumping = true
+    try {
+        reportAccessibilityFailure()
+        for (control in mailbox.takeControls())
+            control()
+        val business = mailbox.takeBusiness()
+        val timed = takeDeadlines(MonotonicTimeSource.now())
+        if (timed.size != 0L || stage == 1) refreshDeadline(stage == 1)
+        @Unsafe {
+            var event = nativeNextEvent(native!!)
+            var batch = event != None || business.size != 0L || timed.size != 0L
+            val redraw = ArrayList<WindowOwner>()
+            for (window in windows) {
+                if (window.phase == WindowState.Open && window.dirty) {
+                    val view = window.snapshot()
+                    if (view.visible !=
+                        0 &&
+                        view.occluded ==
+                        0 &&
+                        view.width >
+                        0.0 &&
+                        view.height >
+                        0.0
+                    ) {
+                        window.dirty = false
+                        redraw.add(window)
+                    }
+                }
+            }
+            batch = batch || redraw.size != 0L
+            if (batch && !exiting)
+                notify(
+                    ApplicationEvent
+                        .NewEvents(if (timed.size != 0L) StartCause.Deadline else StartCause.Wake)
+                )
+            while (event != None) {
+                val item = event!!
+                try {
+                    if (!exiting) dispatch(item)
+                } finally {
+                    nativeEventRelease(item)
+                }
+                event = nativeNextEvent(native!!)
+            }
+            for (block in business)
+                deliverBusiness(block)
+            for (item in timed)
+                deliverBusiness { item.deliver() }
+            for (window in redraw)
+                if (!exiting && window.phase == WindowState.Open)
+                    notify(ApplicationEvent.Window(window.id, WindowEvent.RedrawRequested))
+            if (batch && !exiting) notify(ApplicationEvent.AboutToWait)
+        }
+        drainClosed()
+    } finally {
+        pumping = false
+    }
+}

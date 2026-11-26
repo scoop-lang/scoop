@@ -10,14 +10,13 @@ internal fun ApplicationOwner.performAccessibility(
         return SemanticActionResult.Busy
     if (exiting || native == None)
         return SemanticActionResult.Unavailable
-    if (dispatchDepth != 0 || nativeCallbackDepth != 0 || pumping)
+    if (accessibilityBusy)
         return SemanticActionResult.Busy
     dispatchDepth += 1
     try {
         return action()
     } catch (error: Throwable) {
-        recordFailure(error)
-        beginExit()
+        failAccessibility(error)
         return SemanticActionResult.Unavailable
     } finally {
         dispatchDepth -= 1

@@ -176,6 +176,10 @@ private class PaymentActions(
             }
         ) {
             this.trigger("…") {
+                this.semantics = ComponentSemantics(
+                    name = Some(f"Actions for payment ${row.id + 1L}"),
+                    automationId = Some(f"payment-actions-${row.id}")
+                )
                 this.variant = ButtonVariant.Ghost;
                 this.size = ButtonSize.IconSm
                 this.focus = FocusOptions(Some(row.actionFocus))

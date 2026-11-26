@@ -2,6 +2,10 @@
 
 本文规定普通 Window 的原生数据边界。Darwin、Windows 和 Linux GNU 提供同一 destination 和 source 接口，分别使用 AppKit、OLE、GDK／GTK 公共 API。接口、准备／收尾测试和实际系统会话的完成状态按 [S6 计划](../ui/interaction-polish/PLAN.md#s6-三个范围的数据拖放与文本拖放)分别记录。
 
+## UIKit 场景内拖放
+
+Gallery 的树和文本编辑器可在同一 UIKit 场景内交换 `DragContent` 和 `localData`。窗口从当前触摸或笔接触开始拖动。原输入路由收到一次 `SystemOperation` 取消，随后由相同触点的位置驱动已登记的 `DropTarget`，其余触点保持各自的输入流。松手时按当前格式、效果和目标再次协商，只有目标接受实际投递才报告 `Dropped`。失焦、系统取消、源或窗口关闭时退休目标和预览。在有活动拖动且目标请求定期更新时，用窗口截止时间刷新停在边缘的拖动。跨应用数据交换另需 UIKit 的系统拖放服务。
+
 ## 1. 内容、协商与接收
 
 DragFormat 为 Text／Url／Files，DragEffect 为 Copy／Move／Link。DragFormats 和 DragEffects 分别以三个 Boolean 保存当前实际可用格式和允许操作；contains／allows 查询对应项。DragContent 为 Text(String)／Url(String)／Files(Array<Path>)；文本和 URL 为自有 Unicode 值，文件为真实本地路径，不读取文件内容或把进程内对象编码为数据。

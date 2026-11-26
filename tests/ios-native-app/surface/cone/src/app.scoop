@@ -1,0 +1,136 @@
+package scoop.tests.ios.surface
+
+import scoop.graphics.Color
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.ios.UIKitApplication
+
+@CLayout
+private struct Host(val report: FunPtr<(Int) -> Unit>)
+
+@CLayout
+private struct Api(val scene: FunPtr<(Ptr<Unit>, Ptr<Unit>, Int) -> Int>, val context: Ptr<Unit>)
+
+private enum Phase {
+    Initial, Sample, Idle, Redraw, Ready, Resume, Restored
+}
+
+private class Probe(private val services: Host) : SurfaceContent {
+    private var window: SurfaceWindow? = None
+    private var deadline: WindowDeadline? = None
+    private var phase = Phase.Initial
+    private var accepted = 0
+    private var sample = 0
+    private var suspended = false
+
+    private fun report(stage: Int) {
+        @Unsafe {
+            services.report(stage)
+        }
+    }
+    fun event(host: SurfaceHost, event: ApplicationEvent) {
+        when (event) {
+            case SceneConnected(val native) -> {
+                deadline = Some(native.createDeadline { checkIdle() })
+                window = Some(host.attach(native, this))
+            }
+
+            case Suspended -> suspended = true
+            case Resumed ->
+                if (suspended && (phase == Phase.Ready || phase == Phase.Restored)) {
+                    suspended = false
+                    phase = Phase.Resume
+                    window!!.requestFrame()
+                }
+            case Window(_, WindowEvent.Destroyed) -> report(4)
+            else -> {}
+        }
+    }
+    private fun checkIdle() {
+        when (phase) {
+            case Sample -> {
+                sample = accepted
+                phase = Phase.Idle
+                deadline!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(200L))
+            }
+
+            case Idle -> {
+                if (sample != accepted)
+                    throw IllegalStateException(Some("idle Surface is still painting"))
+                phase = Phase.Redraw
+                window!!.requestFrame()
+            }
+
+            else -> throw IllegalStateException(Some("unexpected Surface deadline"))
+        }
+    }
+    public override fun paint(frame: FrameContext) {
+        if (frame.size.width <= 0.0 || frame.size.height <= 0.0)
+            throw IllegalStateException(Some("invalid UIKit frame extent"))
+        val color = when (phase) {
+            case Redraw -> Color(0.10, 0.80, 0.20)
+            case Ready -> Color(0.10, 0.80, 0.20)
+            case Resume -> Color(0.10, 0.20, 0.85)
+            case Restored -> Color(0.10, 0.20, 0.85)
+            else -> Color(0.85, 0.15, 0.10)
+        }
+        frame.canvas.clear(color)
+    }
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        if (frame.submission != FrameSubmission.Accepted) return
+        accepted += 1
+        when (phase) {
+            case Initial -> {
+                phase = Phase.Sample
+                deadline!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(150L))
+            }
+
+            case Redraw -> {
+                phase = Phase.Ready
+                report(2)
+            }
+
+            case Resume -> {
+                phase = Phase.Restored;
+                report(5)
+            }
+
+            else -> {}
+        }
+    }
+    public override fun close() {
+        deadline?.close()
+        report(3)
+    }
+}
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    val probe = Probe(hostApi.cast<Host>().load())
+    val host = SurfaceHost { surface, _, event -> probe.event(surface, event) }
+    val application = UIKitApplication(host)
+    val control = foreignCallback<(Ptr<Unit>, Ptr<Unit>, Int) -> Int>(
+        { scene: Ptr<Unit>, action: Int ->
+            var result = 1
+            @Unsafe {
+                when (action) {
+                    1 -> {
+                        application.connect(scene)
+                    }
+
+                    2 -> application.disconnect(scene)
+                    3 -> application.close()
+
+                    else -> {
+                        result = 0
+                    }
+                }
+            }
+            result
+        },
+        0L, ForeignCallbackMode.Reusable
+    )
+    outAppApi.cast<Api>().store(Api(control.function, control.context))
+}

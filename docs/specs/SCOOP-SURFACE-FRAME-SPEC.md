@@ -6,6 +6,8 @@
 
 `SurfaceWindow.createWindowRegion(kind, parent: InputScope? = None): WindowRegionHandle` 创建该 Surface 拥有的区域登记。`WindowRegionKind.Shape／Input／Hit(WindowHitRole)` 分别声明整个窗口的裁剪、独立输入覆盖及 Caption／Resize／SystemButton／Client 命中语义。每个 Surface 同时至多有一个 Shape 和一个 Input 登记；Hit 可以有多个。
 
+原生窗框登记和相应的 `FrameContext.place` 重载由桌面目标提供。第一次登记时才向窗口查询窗框能力并开始跟踪区域。普通 Surface 挂载、绘制和输入路由可直接用于 UIKit 场景。绘制回调中首次登记并放置的区域随当帧 Accepted 提交，后续 Accepted 帧省略该区域时撤回旧覆盖。
+
 Shape／Input 不接受 parent；Hit 默认属于 Surface 的根输入 scope，也可明确归属同窗口的 parent。创建时按实际 WindowFrameCapabilities 验证所需能力，不能表达的角色报告 Unsupported。它不会把不支持的原生缩放／系统按钮命中静默改成 managed 回调；组件可以根据能力明确选择 beginResize 等不同入口。
 
 WindowRegionHandle 提供只读 kind、isClosed、可变 enabled（默认 true）和幂等 close。它不拥有 Window 或 InputScope。Surface 关闭时关闭剩余登记，清除自己已经发布的区域；没有使用本接口的窗口不被额外重置。登记关闭不恢复历史原生属性。
@@ -33,3 +35,5 @@ WindowChrome 的整个窗框模式、标题栏布局及窗口区域配置仍由�
 AppKit CAMetalLayer 安装时读取 NSWindow.opaque；之后 window 的透明度／背景更新同步当前 contentView.layer.opaque。透明度本身不表示窗框几何发生变化；实际尺寸和窗框变化通过对应事件驱动必要重绘。Win32 DirectComposition 和 GTK GtkGLArea 保持预乘 alpha；GTK 继续使用已有物理 framebuffer 尺寸，不再次应用显示器分数缩放。
 
 测试覆盖最终 transform／clip、Discarded 不发布、尺寸改变撤销、空覆盖与未放置、卸载／禁用、输入边界、Surface 关闭后的 Window 存活，以及原生区域与透明呈现的组合。使用真实 renderer 和原生快照或输入探针，不把观察自有候选数组当作 OS 命中结果。
+
+公开的 `FrameContext.safeAreaInsets` 来自本次渲染配置的窗口快照，单位为逻辑点。画布尺寸仍覆盖整个内容视图，子画布保留同一组边距。

@@ -1,0 +1,23 @@
+package scoop.window.ios
+
+import scoop.window.*
+
+/** UIKit owns the run loop. Forward window-scene connection and disconnection on its main thread. */
+public class UIKitApplication public constructor(handler: ApplicationHandler) : Closeable {
+    private val owner = ApplicationOwner(handler)
+
+    /** Connects a UIWindowScene supplied by its UIKit delegate, once per connection. */
+    @Unsafe
+    public fun connect(scene: Ptr<Unit>): Window = owner.connect(scene)
+
+    /** Allows existing native leases to finish after the scene disconnects. */
+    @Unsafe
+    public fun disconnect(scene: Ptr<Unit>) {
+        owner.disconnect(scene)
+    }
+
+    /** Retires this registration and its scenes. UIKit continues to own the process. */
+    public override fun close() {
+        owner.close()
+    }
+}

@@ -130,6 +130,10 @@ internal class ConversationApplication(
             }
             this.inputGroup {
                 this.textarea(model.composer) {
+                    this.semantics = ComponentSemantics(
+                        name = Some("Write a message"),
+                        automationId = Some("conversation-composer")
+                    )
                     this.rows = 2L
                     this.placeholder = "Write a message…"
                     this.focus = FocusOptions(Some(model.composerFocus))

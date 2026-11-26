@@ -110,7 +110,7 @@ internal fun editorContextMenu(
     if (host.closed || !host.scope.isMounted || host.current !== document)
         return false
     return if (popup)
-        host.contextMenu.open(template!!, placement, editorSystemMenuActions(host))
+        openEditorTextMenu(host, template!!, placement)
     else
         true
 }

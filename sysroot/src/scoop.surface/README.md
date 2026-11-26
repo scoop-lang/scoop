@@ -4,7 +4,7 @@
 
 公共字体和段落 API 已迁入 [scoop.graphics.text](../scoop.graphics.text/README.md)，已实现 StyledText／SpanStyle 和行内对象，详细合同见[设计](../../../docs/graphics/text/DESIGN.md)。Surface 继续只管理呈现、动画和区域几何，文本或 UI 宿主拥有具体内容和资源。
 
-普通 Scoop Cone，提供共享 Surface 宿主、动画、区域输入与按目标选择的平台 renderer。macOS 使用 CAMetalLayer／CAMetalDisplayLink 和 Skia Ganesh Metal；Windows 使用 D3D12、DXGI swapchain／frame-latency waitable object 和 DirectComposition；Linux GNU 的 Wayland／X11 使用 EGL／GLES 和 Skia Ganesh。共享代码只依赖 window 的事件、配置、代理和 lease 合同。
+普通 Scoop Cone，提供共享 Surface 宿主、动画、区域输入与按目标选择的平台 renderer。macOS 与 iOS 的 Metal 渲染器共用 CAMetalDisplayLink 和 Skia Ganesh Metal。UIKit 场景借用视图自带的 CAMetalLayer，随场景激活和帧需求启停。Windows 使用 D3D12、DXGI swapchain／frame-latency waitable object 和 DirectComposition；Linux GNU 的 Wayland／X11 使用 EGL／GLES 和 Skia Ganesh。共享代码只依赖 window 的事件、配置、代理和 lease 合同。
 
 ```scoop
 import scoop.graphics.*
@@ -53,6 +53,10 @@ content 可实现 `onFrameComplete(FrameCompletion)`，读取该帧的 time、�
 macOS 应用在附着窗口前调用 `scoop.surface.configureFpsReportingFromEnvironment()`，并以 `SCOOP_SURFACE_FPS=1` 启动，即可在 stderr 查看每个窗口实际呈现的帧率。未调用时环境变量无效。每次调用读取当前值，设置适用于随后附着的窗口。
 
 `scoop-surface-fps` 样本使用 Metal 回执时间，`frames / seconds` 为该区间的 `fps`。样本的 `start` 和 `end` 可用于判断区间是否跨过静止期。窗口静止时探针随呈现停采，关闭时输出累计有效回执数 `presented_total`、无有效时间的回执数 `without_time_total` 和 `last_presented`。
+
+iOS 宿主在 `UIKitApplication` 收到 `SceneConnected(window)` 时调用 `SurfaceHost.attach(window, content)`。可在模拟器观察 Skia 首帧、空闲停帧及切回前台后的同根重绘。[完整示例](../../../tests/ios-native-app/surface/cone/src/app.scoop)
+
+桌面如单独导入符号，使用窗口装饰还需导入 `scoop.surface.createWindowRegion` 和 `scoop.surface.place`。首次登记装饰区域时才查询窗口装饰能力。
 
 关闭 SurfaceWindow 只卸载绘制层，Window 可继续存在或重新 attach。关闭 Window 或 Application 则由 SurfaceHost 自动退休 Surface 资源。SurfaceHost 事件处理器、paint 或输入回调内关闭先进入 Closing，整个业务回调和 Canvas 借用结束后，依次关闭 content、renderer 和 lease；不会在回调内等待自己。内容清理失败仍继续释放其余窗口与底层资源，并沿 Application 的既有异常通路传播。
 

@@ -157,6 +157,10 @@ private fun workspaceContent(model: WorkspaceAppModel): View =
                             ViewKey.Text("editor"),
                             workspaceFrame(
                                 workspaceEditor(model.draft) {
+                                    this.semantics = ComponentSemantics(
+                                        name = Some("Document draft"),
+                                        automationId = Some("workspace-draft")
+                                    )
                                     this.focus = FocusOptions(Some(model.editorFocus))
                                     this.rows = 10L
                                 }

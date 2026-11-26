@@ -93,16 +93,11 @@ internal class ResizableHandle(
     private fun refreshCursor() {
         val active = enabled() && (area!!.scope.isHovered || (drag?.isDragging ?: false))
         if (active) {
-            scope.nativeWindow.setCursorIcon(
-                if (props.value.root.props.orientation == Orientation.Horizontal)
-                    CursorIcon.ResizeHorizontal
-                else
-                    CursorIcon.ResizeVertical
-            )
+            resizeCursor?.invoke(scope.nativeWindow, Some(props.value.root.props.orientation))
             ownsCursor = true
         } else
             if (ownsCursor) {
-                scope.nativeWindow.setCursorIcon(CursorIcon.Default)
+                resizeCursor?.invoke(scope.nativeWindow, None)
                 ownsCursor = false
             }
     }
@@ -261,6 +256,6 @@ internal class ResizableHandle(
     public override fun onUnmount() {
         props.value.root.owner.control!!.lostFocus(props.value.key)
         if (ownsCursor && scope.isMounted)
-            scope.nativeWindow.setCursorIcon(CursorIcon.Default)
+            resizeCursor?.invoke(scope.nativeWindow, None)
     }
 }

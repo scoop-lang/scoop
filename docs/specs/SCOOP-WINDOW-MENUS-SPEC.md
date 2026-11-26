@@ -2,6 +2,10 @@
 
 日期：2026-11-07。本文为[桌面能力设计](../desktop-ui/DESIGN.md) D1／D2 的实施合同；各平台实际完成与验证状态见[实施记录](../desktop-ui/PROGRESS.md)。所属普通 Cone 为 scoop.window，线程、异常、坐标、ForeignCallback 与关闭规则沿用[窗口规范](SCOOP-WINDOW-SPEC.md)。
 
+## UIKit 文本编辑菜单
+
+UIKit 场景使用 `UIEditMenuInteraction` 在文字锚点或触摸位置显示系统编辑菜单。菜单沿用当前文本目标的标准命令及可用状态，应用提供的标签覆盖系统标题。选择交给打开该菜单的编辑器或只读文本目标，每个菜单至多执行一次；替换目标、卸载或关闭窗口会退休原菜单。系统菜单栏、通用桌面弹出菜单及其会话仍由桌面提供。
+
 ## 1. 模型与身份
 
 ActiveApplication.createMenu() 创建空 Menu。Menu 提供 insert(description, parent = None, index = None)、update(item, description)、move(item, index)、remove(item)、items(parent = None)、description(item)、close() 和 state。parent 为同一 Menu 中的 Submenu；None 表示根，index 是对应父项子列表的 Long 下标，None 表示追加。move 只改变同一父项下的顺序。移除父项递归退休其子项；仍有子项的 Submenu 不能更新为其他类型。

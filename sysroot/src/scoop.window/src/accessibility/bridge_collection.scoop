@@ -287,8 +287,7 @@ private fun queryCollection(
             }
             return if (source.contains(key)) 1 else 2
         } catch (error: Throwable) {
-            application.recordFailure(error)
-            application.beginExit()
+            application.failAccessibility(error)
             return 4
         }
     }

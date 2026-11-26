@@ -1,0 +1,30 @@
+package scoop.tests.ios
+
+import scoop.window.*
+
+internal fun writeClipboardProbe(window: Window) {
+    val clipboard = window.clipboard
+    clipboard.writeText("")
+    if (clipboard.readText() != Some("") || clipboard.readText("text/html") != None)
+        throw IllegalStateException(Some("missing representation or empty text was lost"))
+    clipboard
+        .writeTexts(
+            [ClipboardText("text/plain", "中文🙂\r\nScoop"), ClipboardText("text/html", "<b>中文🙂</b>")]
+        )
+    val primary = window.primarySelection
+    if (primary.isAvailable || primary.defaultPasteEnabled || primary.readText() != None)
+        throw IllegalStateException(Some("UIKit reported a PRIMARY selection"))
+    when (primary.claimText("primary")) {
+        case Some(_) -> throw IllegalStateException(Some("UIKit claimed a PRIMARY selection"))
+        case None -> {}
+    }
+}
+
+internal fun readClipboardProbe(window: Window) {
+    if (window.clipboard.readText() !=
+        Some("UIKit🙂\ntext") ||
+        window.clipboard.readText("text/html") !=
+        None
+    )
+        throw IllegalStateException(Some("system clipboard did not replace the Scoop item"))
+}

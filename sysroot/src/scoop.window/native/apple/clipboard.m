@@ -1,4 +1,11 @@
+#import <TargetConditionals.h>
+#if TARGET_OS_IOS
+#import <UIKit/UIKit.h>
+typedef NSMutableDictionary<NSString *, NSData *> SWClipboardItem;
+#else
 #import <AppKit/AppKit.h>
+typedef NSPasteboardItem SWClipboardItem;
+#endif
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -16,7 +23,7 @@ typedef struct {
 
 static NSString *clipboard_type(NSString *mime) {
   if ([mime isEqualToString:@"text/plain"])
-    return NSPasteboardTypeString;
+    return UTTypeUTF8PlainText.identifier;
   return [UTType typeWithMIMEType:mime conformingToType:UTTypeText].identifier;
 }
 
@@ -30,8 +37,14 @@ SWClipboardText scoop_window_clipboard_read(const uint8_t *type_bytes,
       NSString *type = clipboard_type(mime);
       if (!type)
         return (SWClipboardText){.error = 1};
-      NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
-      NSData *data = [pasteboard dataForType:type];
+#if TARGET_OS_IOS
+      UIPasteboard *pasteboard = UIPasteboard.generalPasteboard;
+      NSData *data = [pasteboard dataForPasteboardType:type];
+      if (!data && [mime isEqualToString:@"text/plain"])
+        data = [pasteboard.string dataUsingEncoding:NSUTF8StringEncoding];
+#else
+      NSData *data = [NSPasteboard.generalPasteboard dataForType:type];
+#endif
       if (!data)
         return (SWClipboardText){0};
       if (data.length > INT64_MAX || data.length == SIZE_MAX)
@@ -54,7 +67,7 @@ void scoop_window_clipboard_release(uint8_t *bytes) { free(bytes); }
 SWClipboardResult scoop_window_clipboard_create(void) {
   @autoreleasepool {
     @try {
-      NSPasteboardItem *item = [[NSPasteboardItem alloc] init];
+      SWClipboardItem *item = [SWClipboardItem new];
       if (!item)
         return (SWClipboardResult){.error = 2};
       return (SWClipboardResult){(void *)CFBridgingRetain(item), 0};
@@ -76,8 +89,13 @@ int64_t scoop_window_clipboard_add(void *writer, const uint8_t *type_bytes,
       if (!type || length < 0)
         return 1;
       NSData *data = [NSData dataWithBytes:bytes length:(NSUInteger)length];
-      NSPasteboardItem *item = (__bridge NSPasteboardItem *)writer;
+      SWClipboardItem *item = (__bridge SWClipboardItem *)writer;
+#if TARGET_OS_IOS
+      item[type] = data;
+      return 0;
+#else
       return [item setData:data forType:type] ? 0 : 2;
+#endif
     } @catch (NSException *exception) {
       return 3;
     }
@@ -88,10 +106,15 @@ int64_t scoop_window_clipboard_write(void *writer, void *application) {
   (void)application;
   @autoreleasepool {
     @try {
+      SWClipboardItem *item = (__bridge SWClipboardItem *)writer;
+#if TARGET_OS_IOS
+      UIPasteboard.generalPasteboard.items = @[ item ];
+      return 0;
+#else
       NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
-      NSPasteboardItem *item = (__bridge NSPasteboardItem *)writer;
       [pasteboard clearContents];
       return [pasteboard writeObjects:@[ item ]] ? 0 : 2;
+#endif
     } @catch (NSException *exception) {
       return 3;
     }

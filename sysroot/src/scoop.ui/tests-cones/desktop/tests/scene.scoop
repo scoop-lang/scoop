@@ -36,24 +36,27 @@ internal class DesktopRoot(private val probe: DesktopProbe, scope: ComponentScop
     }
 }
 
+private class DesktopFrameRegions(scope: ComponentScope) {
+    val hit = scope.createWindowRegion(WindowRegionKind.Hit(WindowHitRole.Caption))
+    private val caps = scope.application.desktopCapabilities().frame
+    val shape = if (caps.windowRegion)
+        Some(scope.createWindowRegion(WindowRegionKind.Shape))
+    else
+        None
+    val inputRegion = if (caps.inputRegion)
+        Some(scope.createWindowRegion(WindowRegionKind.Input))
+    else
+        None
+}
+
 internal class RegionContent(
     private val probe: DesktopProbe,
     private val stage: Props<Int>,
     scope: ComponentScope
 ): Element<Int>(scope) {
-    val hit = scope.createWindowRegion(WindowRegionKind.Hit(WindowHitRole.Caption))
     val boundaryArea = scope.createArea()
-    private val caps = scope.application.desktopCapabilities().frame
-    private val shape =
-        if (caps.windowRegion)
-            Some(scope.createWindowRegion(WindowRegionKind.Shape))
-        else
-            None
-    private val inputRegion =
-        if (caps.inputRegion)
-            Some(scope.createWindowRegion(WindowRegionKind.Input))
-        else
-            None
+    private var regions: DesktopFrameRegions? = None
+    val hit: WindowRegionHandle get() = regions!!.hit
     private val outline =
         scope.resource {
             path {
@@ -80,16 +83,26 @@ internal class RegionContent(
         Int
     > = LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 180.0))), stage.value)
     public override fun scene(context: SceneContext, layout: Int) {
+        // The first native registration and placement both occur inside this frame.
+        val frameRegions = when (regions) {
+            case Some(val existing) -> existing
+
+            case None -> {
+                val created = DesktopFrameRegions(scope)
+                regions = Some(created)
+                created
+            }
+        }
         context.draw { paint -> paint.canvas.drawPath(outline, Paint(Color.White)) }
         if (layout != 3) {
-            when (shape) {
+            when (frameRegions.shape) {
                 case Some(val value) -> if (layout == 2)
                     context.place(value, Rect(0.0, 0.0, 0.0, 0.0))
                 else
                     context.place(value, outline)
                 case None -> {}
             }
-            when (inputRegion) {
+            when (frameRegions.inputRegion) {
                 case Some(val value) -> if (layout == 2)
                     context.place(value, Rect(0.0, 0.0, 0.0, 0.0))
                 else

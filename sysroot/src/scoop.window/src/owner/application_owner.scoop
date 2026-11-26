@@ -317,6 +317,12 @@ internal class ApplicationOwner(
         mailbox.wake()
     }
 
+    val accessibilityBusy: Boolean get() = dispatchDepth != 0 || nativeCallbackDepth != 0 || pumping
+    fun failAccessibility(error: Throwable) {
+        recordFailure(error)
+        beginExit()
+    }
+
     fun recordFailure(error: Throwable) {
         failure =
             Some(

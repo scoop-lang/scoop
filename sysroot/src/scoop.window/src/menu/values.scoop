@@ -78,11 +78,6 @@ public class MenuActivation internal constructor(
     internal val target: WindowId?
 )
 
-/** Coordinates belong to the target window's presented content. */
-public enum PopupPlacement {
-    Pointer(LogicalPosition), Anchor(LogicalRect)
-}
-
 public enum PopupCancelReason {
     User, ExplicitClose, MenuClosed, TargetClosed, TargetBlocked, ApplicationExit
 }

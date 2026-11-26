@@ -127,64 +127,6 @@ internal fun darwinPhysicalKey(code: Long): PhysicalKey =
         else -> PhysicalKey.Unidentified(NativeKeyCode.Darwin(code.toUInt()))
     }
 
-internal fun darwinNamedKey(code: Long): NamedKey? =
-    when (code) {
-        36L -> Some(NamedKey.Enter)
-        48L -> Some(NamedKey.Tab)
-        49L -> Some(NamedKey.Space)
-        51L -> Some(NamedKey.Backspace)
-        53L -> Some(NamedKey.Escape)
-        54L -> Some(NamedKey.Super)
-        55L -> Some(NamedKey.Super)
-        56L -> Some(NamedKey.Shift)
-        57L -> Some(NamedKey.CapsLock)
-        58L -> Some(NamedKey.Alt)
-        59L -> Some(NamedKey.Control)
-        60L -> Some(NamedKey.Shift)
-        61L -> Some(NamedKey.Alt)
-        62L -> Some(NamedKey.Control)
-        63L -> Some(NamedKey.Fn)
-        64L -> Some(NamedKey.F17)
-        71L -> Some(NamedKey.Clear)
-        72L -> Some(NamedKey.AudioVolumeUp)
-        73L -> Some(NamedKey.AudioVolumeDown)
-        74L -> Some(NamedKey.AudioVolumeMute)
-        76L -> Some(NamedKey.Enter)
-        79L -> Some(NamedKey.F18)
-        80L -> Some(NamedKey.F19)
-        90L -> Some(NamedKey.F20)
-        96L -> Some(NamedKey.F5)
-        97L -> Some(NamedKey.F6)
-        98L -> Some(NamedKey.F7)
-        99L -> Some(NamedKey.F3)
-        100L -> Some(NamedKey.F8)
-        101L -> Some(NamedKey.F9)
-        102L -> Some(NamedKey.Eisu)
-        103L -> Some(NamedKey.F11)
-        104L -> Some(NamedKey.Kana)
-        105L -> Some(NamedKey.F13)
-        106L -> Some(NamedKey.F16)
-        107L -> Some(NamedKey.F14)
-        109L -> Some(NamedKey.F10)
-        110L -> Some(NamedKey.ContextMenu)
-        111L -> Some(NamedKey.F12)
-        113L -> Some(NamedKey.F15)
-        114L -> Some(NamedKey.Help)
-        115L -> Some(NamedKey.Home)
-        116L -> Some(NamedKey.PageUp)
-        117L -> Some(NamedKey.Delete)
-        118L -> Some(NamedKey.F4)
-        119L -> Some(NamedKey.End)
-        120L -> Some(NamedKey.F2)
-        121L -> Some(NamedKey.PageDown)
-        122L -> Some(NamedKey.F1)
-        123L -> Some(NamedKey.ArrowLeft)
-        124L -> Some(NamedKey.ArrowRight)
-        125L -> Some(NamedKey.ArrowDown)
-        126L -> Some(NamedKey.ArrowUp)
-        else -> None
-    }
-
 internal fun darwinKeyLocation(code: Long): KeyLocation {
     if (code == 54L || code == 60L || code == 61L || code == 62L)
         return KeyLocation.Right
@@ -232,27 +174,4 @@ internal fun darwinKeyLocation(code: Long): KeyLocation {
     )
         return KeyLocation.Numpad
     return KeyLocation.Standard
-}
-
-internal fun darwinModifiers(flags: Long): Modifiers =
-    Modifiers(
-        flags.and(131072L) != 0L,
-        flags.and(262144L) != 0L,
-        flags.and(524288L) != 0L,
-        flags.and(1048576L) != 0L,
-        flags.and(65536L) != 0L,
-        flags.and(8388608L) != 0L,
-        modifierSides(flags, 131072L, 2L, 4L),
-        modifierSides(flags, 262144L, 1L, 8192L),
-        modifierSides(flags, 524288L, 32L, 64L),
-        modifierSides(flags, 1048576L, 8L, 16L),
-        altGraph = Some(false)
-    )
-
-private fun modifierSides(flags: Long, aggregate: Long, left: Long, right: Long): ModifierSides {
-    if (flags.and(aggregate) == 0L)
-        return ModifierSides(Some(false), Some(false))
-    if (flags.and(left.or(right)) == 0L)
-        return ModifierSides(None, None)
-    return ModifierSides(Some(flags.and(left) != 0L), Some(flags.and(right) != 0L))
 }

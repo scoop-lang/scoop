@@ -19,6 +19,17 @@ PROBES = {
     "protected": (HERE / "protected-data/cone", HERE / "protected-data/ProtectedDataApi.h"),
     "platform": (HERE / "platform/cone", HERE / "platform/PlatformHost.h"),
     "graphics": (HERE / "graphics/cone", HERE / "graphics/GraphicsResult.h"),
+    "window": (HERE / "window/cone", HERE / "window/WindowHost.h"),
+    "surface": (HERE / "surface/cone", HERE / "surface/SurfaceHost.h"),
+    "ui": (HERE / "ui/cone", HERE / "ui/UiHost.h"),
+}
+
+
+SCENE_DELEGATES = {
+    "protected": "ProtectedDataScene",
+    "window": "WindowProbeScene",
+    "surface": "SurfaceProbeScene",
+    "ui": "UiSceneDelegate",
 }
 
 
@@ -104,6 +115,7 @@ def build_app(framework, work, language, simulator):
     with (app / "Info.plist").open("wb") as file:
         plistlib.dump(
             {
+                "CFBundleDevelopmentRegion": "en",
                 "CFBundleExecutable": language,
                 "CFBundleIdentifier": identifier,
                 "CFBundleName": language,
@@ -113,19 +125,24 @@ def build_app(framework, work, language, simulator):
                 "CFBundleVersion": "1",
                 **(
                     {
+                        "UISupportedInterfaceOrientations": [
+                            "UIInterfaceOrientationPortrait",
+                            "UIInterfaceOrientationLandscapeLeft",
+                            "UIInterfaceOrientationLandscapeRight",
+                        ],
                         "UIApplicationSceneManifest": {
                             "UIApplicationSupportsMultipleScenes": False,
                             "UISceneConfigurations": {
                                 "UIWindowSceneSessionRoleApplication": [
                                     {
-                                        "UISceneConfigurationName": "Protected data",
-                                        "UISceneDelegateClassName": "ProtectedDataScene",
+                                        "UISceneConfigurationName": language,
+                                        "UISceneDelegateClassName": SCENE_DELEGATES[language],
                                     }
                                 ]
                             },
-                        }
+                        },
                     }
-                    if language == "protected"
+                    if language in SCENE_DELEGATES
                     else {}
                 ),
                 "LSRequiresIPhoneOS": True,
@@ -154,8 +171,9 @@ def build_app(framework, work, language, simulator):
             "-fmodules",
             f"-fmodules-cache-path={work / 'module-cache'}",
             "-framework",
-            "UIKit" if language == "protected" else "Foundation",
+            "UIKit" if language in SCENE_DELEGATES else "Foundation",
             (PROBES[language][1].parent if language in PROBES else HERE) / "main.m",
+            *([HERE / "window/ime.m"] if language == "window" else []),
         )
     run(
         "xcrun",
@@ -242,6 +260,27 @@ def main():
         const="graphics",
         help="draw and read back shaped text and SVG using the installed Scoop libraries",
     )
+    probes.add_argument(
+        "--window",
+        action="store_const",
+        dest="probe",
+        const="window",
+        help="exercise a real UIWindowScene with the installed Scoop window library",
+    )
+    probes.add_argument(
+        "--surface",
+        action="store_const",
+        dest="probe",
+        const="surface",
+        help="paint accepted Skia frames in a real UIKit SurfaceHost",
+    )
+    probes.add_argument(
+        "--ui",
+        action="store_const",
+        dest="probe",
+        const="ui",
+        help="mount and interact with real Scoop controls on the simulator",
+    )
     args = parser.parse_args()
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=False)
@@ -257,11 +296,35 @@ def main():
     for language in ("swift", "objc") if args.probe == "callbacks" else (args.probe,):
         app, identifier = build_app(frameworks["simulator"], work / "simulator", language, True)
         run("xcrun", "simctl", "install", args.simulator, app)
-        if args.probe != "callbacks":
+        if language == "ui":
+            run(
+                "xcodebuild",
+                "test",
+                "-project",
+                HERE / "interaction/Interaction.xcodeproj",
+                "-scheme",
+                "Interaction",
+                "-destination",
+                f"platform=iOS Simulator,id={args.simulator}",
+                "-parallel-testing-enabled",
+                "NO",
+                "-only-testing:InteractionTests/InteractionTests/testUiControls",
+                "-derivedDataPath",
+                work / "xctest",
+            )
+        elif args.probe != "callbacks":
             marker = "protected-data" if language == "protected" else language
             exercise(args.simulator, identifier, f"scoop-ios-{marker}-ok", gc_stress=False)
         else:
             exercise(args.simulator, identifier, f"scoop-{language}-moving-gc-ok")
+        if language == "window":
+            exercise(
+                args.simulator,
+                identifier,
+                "scoop-ios-ime-ok",
+                "--ime-transactions",
+                gc_stress=False,
+            )
         if language == "swift":
             exercise(args.simulator, identifier, "scoop-swift-init-failure-ok", "--fail")
         if args.include_device:

@@ -2,10 +2,10 @@ package scoop.ui
 
 import scoop.window.*
 
-public class ApplicationScope internal constructor(private val root: UiApplicationRoot) {
+public class ApplicationScope internal constructor(internal val root: UiApplicationRoot) {
     private var active = true
-    private val resources = ScopeResources()
-    private val events =
+    internal val resources = ScopeResources()
+    internal val events =
         ScopedNativeEvents(root.host, resources, { checkMounted() }, { action -> dispatch(action) })
 
     public val application: ActiveApplication get() {
@@ -20,7 +20,7 @@ public class ApplicationScope internal constructor(private val root: UiApplicati
         root.host.checkThread();
         return active && root.isOpen
     }
-    private fun checkMounted() {
+    internal fun checkMounted() {
         if (!isMounted)
             throw IllegalStateException(Some("application scope is no longer mounted"))
     }
@@ -43,27 +43,8 @@ public class ApplicationScope internal constructor(private val root: UiApplicati
         } &&
             isMounted
     }
-    public fun observeMenu(menu: Menu, action: (MenuActivation) -> Unit): Closeable =
-        events.menu(menu, action)
     public fun observeWindow(window: Window, action: (WindowEvent) -> Unit): Closeable =
         events.window(window, action)
-    public fun declareMenuBar(create: () -> UiMenuBarContent): UiMenuBarDeclaration {
-        checkMounted()
-        val value =
-            root.host.menuBars.register(None, { isMounted }, { action -> dispatch(action) }, create)
-        resources.managed.add(value)
-        value.update()
-        return value
-    }
-    public fun observePopup(session: PopupSession, action: (PopupResult) -> Unit): Closeable =
-        events.popup(session, action)
-    public fun observeModal(session: ModalSession, action: (ModalResult) -> Unit): Closeable =
-        events.modal(session, action)
-    public fun <T> observeFileDialog(
-        session: FileDialogSession<T>,
-        action: (FileDialogResult<T>) -> Unit
-    ): Closeable = events.file(session, action)
-
     internal fun deactivate() {
         active = false
     }

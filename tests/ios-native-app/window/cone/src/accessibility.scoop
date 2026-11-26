@@ -1,0 +1,80 @@
+package scoop.tests.ios
+
+import scoop.window.*
+import scoop.window.accessibility.*
+
+internal class AccessibilityProbe(window: Window) {
+    private val provider = window.createAccessibilityProvider()
+    private val scroll = provider.createNode(SemanticRole.ScrollArea)
+    private val button = provider.createNode(SemanticRole.Button, Some(scroll))
+    private val bar = provider.createNode(SemanticRole.ScrollBar, Some(scroll))
+    private var invoked = 0
+    private var scrolled = 0
+    init {
+        scroll.update(SemanticProperties(name = Some("Examples")))
+        bar
+            .update(
+                SemanticProperties(
+                    name = Some("Scroll examples"),
+                    scroll = Some(
+                        SemanticScrollRange(SemanticOrientation.Vertical, 0.0, 220.0, 600.0)
+                    )
+                ),
+                SemanticActions(
+                    scrollForward = Some {
+                        scrolled += 1
+                        SemanticActionResult.Completed
+                    }
+                )
+            )
+        scroll.geometry = Some(
+            SemanticGeometry(
+                LogicalRect(
+                    LogicalPosition(10.0, 100.0),
+                    LogicalSize(240.0, 220.0)
+                )
+            )
+        )
+        bar.geometry = Some(
+            SemanticGeometry(
+                LogicalRect(
+                    LogicalPosition(210.0, 100.0),
+                    LogicalSize(10.0, 220.0)
+                )
+            )
+        )
+        refreshButton()
+        provider.publish()
+    }
+    private fun refreshButton() {
+        button
+            .update(
+                SemanticProperties(
+                    name = Some("Open example"), automationId = Some("open-example"),
+                    value = Some(invoked.toString())
+                ),
+                SemanticActions(
+                    invoke = Some {
+                        invoked += 1
+                        refreshButton()
+                        SemanticActionResult.Completed
+                    }
+                )
+            )
+        button.geometry = Some(
+            SemanticGeometry(
+                LogicalRect(
+                    LogicalPosition(25.0, 140.0),
+                    LogicalSize(160.0, 52.0)
+                )
+            )
+        )
+    }
+    fun finish() {
+        if (invoked != 1 || scrolled != 1)
+            throw IllegalStateException(Some("accessibility actions were not delivered once"))
+        button.close()
+        provider.publish()
+        provider.close()
+    }
+}

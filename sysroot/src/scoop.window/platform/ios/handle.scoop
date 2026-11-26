@@ -1,0 +1,6 @@
+package scoop.window.native
+
+/** Borrowed UIKit objects. Their addresses are valid until the lease closes. */
+public enum NativeWindowHandle {
+    UIKit(val uiWindow: Ptr<Unit>, val uiView: Ptr<Unit>)
+}

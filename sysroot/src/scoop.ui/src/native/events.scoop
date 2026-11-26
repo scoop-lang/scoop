@@ -70,37 +70,8 @@ internal class UiEventTable<K, E>(private val checkThread: () -> Unit) where K: 
     }
 }
 
-internal class UiNativeEvents(checkThread: () -> Unit): Closeable {
-    val menus = UiEventTable<MenuId, MenuActivation>(checkThread)
-    val popups = UiEventTable<PopupSessionId, PopupResult>(checkThread)
-    val modals = UiEventTable<ModalSessionId, ModalResult>(checkThread)
-    val files = UiEventTable<FileDialogSessionId, Unit>(checkThread)
-    val frames = UiEventTable<WindowId, Unit>(checkThread)
-    val windows = UiEventTable<WindowId, WindowEvent>(checkThread)
-
-    fun deliver(event: ApplicationEvent) {
-        when (event) {
-            case Menu(val value) -> menus.deliver(value.menu, value)
-            case PopupCompleted(val id, val result) -> popups.deliver(id, result)
-            case ModalCompleted(val id, val result) -> modals.deliver(id, result)
-            case FileDialogCompleted(val id) -> files.deliver(id, Unit)
-            case Window(val id, val value) -> {
-                windows.deliver(id, value)
-                when (value) {
-                    case FrameChanged -> frames.deliver(id, Unit)
-                    case GeometryChanged(_) -> frames.deliver(id, Unit)
-                    else -> {}
-                }
-            }
-            else -> {}
-        }
-    }
-    public override fun close() {
-        menus.close();
-        popups.close();
-        modals.close();
-        files.close();
-        frames.close();
-        windows.close()
-    }
+internal interface UiWindowIntegration : Closeable {
+    fun attached(window: Window)
+    fun detached(window: Window)
+    fun event(event: ApplicationEvent)
 }

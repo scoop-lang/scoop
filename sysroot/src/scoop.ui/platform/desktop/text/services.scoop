@@ -230,3 +230,9 @@ private fun selectableServiceAnchor(host: SelectableTextHost): LogicalRect? {
     val rect = selectableMenuAnchor(host, frame, bounds) ?: return None
     return Some(textServiceAnchor(rect))
 }
+
+internal fun openEditorTextMenu(host: TextEditHost, template: TextContextMenuTemplate, placement: PopupPlacement): Boolean =
+    host.contextMenu.open(template, placement, editorSystemMenuActions(host))
+
+internal fun openSelectableTextMenu(host: SelectableTextHost, template: TextContextMenuTemplate, placement: PopupPlacement): Boolean =
+    host.contextMenu.open(template, placement, selectableSystemMenuActions(host))

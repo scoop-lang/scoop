@@ -18,7 +18,19 @@ path = "native/text_semantics_geometry.cpp"
 
 [[sources]]
 path = "src"
+when = { os = ["darwin", "windows", "ios"] }
+
+[[sources]]
+path = "platform/desktop"
 when = { os = ["darwin", "windows"] }
+
+[[sources]]
+path = "platform/desktop"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "platform/ios"
+when = { os = "ios" }
 
 [dependencies]
 "scoop:scoop.core" = "0.1.0"

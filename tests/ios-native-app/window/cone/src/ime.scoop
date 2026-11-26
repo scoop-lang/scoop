@@ -1,0 +1,119 @@
+package scoop.tests.ios
+
+import scoop.window.*
+
+internal class ImeProbe(private val advance: (Int) -> Unit) {
+    private var state = TextInputState("A🙂", Utf8Selection(5L, 5L))
+    private var connection: TextInputConnection? = None
+    private var active = false
+    private var started = false
+    private var step = 0
+    private var commands = 0
+
+    fun connect(window: Window) {
+        window.setImeAllowed(true)
+    }
+    fun activated(window: Window) {
+        active = true;
+        start(window)
+    }
+    private fun start(window: Window) {
+        val current = connection ?: return
+        if (!active || started) return
+        started = true
+        if (window.requestSoftwareKeyboard(current) != SoftwareKeyboardRequest.Requested)
+            throw IllegalStateException(Some("UIKit declined the keyboard"))
+        advance(0)
+    }
+    private fun publish(window: Window, after: TextInputOrigin?) {
+        val current = connection!!
+        if (!window.publishTextInputState(current, state, after))
+            throw IllegalStateException(Some("lost text connection"))
+        if (!window
+            .publishTextInputCaret(
+                current,
+                state.revision,
+                Some(LogicalRect(LogicalPosition(37.0, 83.0), LogicalSize(2.0, 23.0)))
+            )
+        )
+            throw IllegalStateException(Some("lost caret"))
+    }
+    fun event(window: Window, event: TextInputEvent) {
+        when (event) {
+            case Enabled(val value) -> {
+                connection = value
+                publish(window, None)
+                window.setTextInputPurpose(connection!!, TextInputPurpose.Normal)
+                start(window)
+            }
+
+            case Edit(val batch) -> {
+                val previous = state
+                val origin = batch.origin!!
+                if (origin.connection != connection!! || origin.sequence != (step + 1).toLong())
+                    throw IllegalStateException(Some("duplicate or skipped native edit"))
+                state = state.apply(batch)
+                step += 1
+                when (step) {
+                    1 -> check("A🙂ni", Some(Utf8Range(5L, 7L)), 7L, 7L)
+                    2 -> check("A🙂拟", Some(Utf8Range(5L, 8L)), 8L, 8L)
+                    3 -> check("A🙂拟", None, 8L, 8L)
+                    4 -> check("A🙂拟", None, 1L, 5L)
+                    5 -> check("A拟", None, 1L, 1L)
+                    6 -> check("A🙂拟", None, 5L, 5L)
+                    else -> throw IllegalStateException(Some("unexpected input transaction"))
+                }
+                publish(window, batch.origin)
+                if (window.publishTextInputCaret(connection!!, previous.revision, None))
+                    throw IllegalStateException(Some("stale caret accepted"))
+                if (step == 6)
+                    window.textCommandAvailability = Some(
+                        TextCommandAvailability(copy = true, undo = true)
+                    )
+                advance(step)
+            }
+
+            case Disabled(val value) -> {
+                if (value !=
+                    connection ||
+                    step !=
+                    6 ||
+                    window.publishTextInputState(connection!!, state)
+                )
+                    throw IllegalStateException(Some("stale text connection accepted"))
+                window.textCommandAvailability = Some(
+                    TextCommandAvailability(selectAll = true, redo = true)
+                )
+                advance(7)
+            }
+        }
+    }
+    fun command(window: Window, command: TextEditCommand) {
+        val expected = [
+            TextEditCommand.Copy,
+            TextEditCommand.Undo,
+            TextEditCommand.SelectAll,
+            TextEditCommand.Redo
+        ]
+        if (step != 6 || commands >= 4 || command != expected[commands.toLong()])
+            throw IllegalStateException(Some("duplicate or incorrect responder action"))
+        commands += 1
+        if (commands == 2) window.setImeAllowed(false)
+        if (commands == 4) {
+            window.textCommandAvailability = None
+            advance(8)
+        }
+    }
+    private fun check(text: String, marked: Utf8Range?, anchor: Long, cursor: Long) {
+        if (state.surroundingText !=
+            text ||
+            state.markedRange !=
+            marked ||
+            state.selection !=
+            Utf8Selection(anchor, cursor)
+        )
+            throw IllegalStateException(
+                Some("IME transaction " + step.toString() + " produced " + state.surroundingText)
+            )
+    }
+}

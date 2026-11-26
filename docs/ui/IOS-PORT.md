@@ -1,0 +1,118 @@
+# Scoop 自绘 UI 的 iOS 移植方案
+
+调研基线为 2026-11-26 的 `main`（`97e9ee1f0`），沿用现有最低部署版本 iOS 17.0。首版目标是让同一份 Scoop 控件代码在 arm64 iPhone 和 arm64 iOS 模拟器上显示、响应触摸、编辑中文，并能由 VoiceOver 操作。首个宿主只开一个场景，窗口大小按实际视图计算，以便同一页在 iPad 分屏中使用。
+
+建议保留 `scoop.ui` 的布局、绘制、事件路由和控件。`scoop.platform` 按文件选入移动端可用的系统服务，`scoop.window` 保留窗口和输入模型并实现 UIKit 宿主，`scoop.desktop` 继续作为桌面扩展。先跑通一个 `Label` 和一个能计数的 `Button`，再在同一页加入 `ScrollArea` 和 `Input`。各阶段都能用这个应用验证新增能力。
+
+本期应用交付为现有的 **Scoop UI Gallery**。基础 UI 通过模拟器验收后，将 Gallery 的 65 个组件页和 4 个组合应用接入 iOS，保留现有模型、画面和交互。Gallery 对四套主题和异步任务的额外依赖见[本期 Gallery 交付](#本期-gallery-交付)。[现有示例](../../sysroot/src/scoop.ui.component/examples/shadcn/README.md)
+
+## 本期实现与验证
+
+| 能力 | 两个 SDK 上的实现 | 已有运行证据 |
+| --- | --- | --- |
+| 宿主与平台 | 设备和模拟器各有 arm64 Mach-O，部署下限 iOS 17.0。UIKit 拥有主循环，Scoop 以 `native-app` 接入。 | 在模拟器对照 Foundation 读取容器、临时目录、可执行文件和 bundle 资源，验证线程、锁、缓冲区及文件往返。受保护数据用例通过。 |
+| 窗口与输入 | 场景注册、窗口租约、重绘、定时、触摸、焦点和输入取消均接 UIKit。 | 系统触摸覆盖轻点、拖动、双指及失焦取消。场景内拖放的接受区收到一次 Move，拒绝区没有投递。iPad 外接键盘事件验证 Command-K、方向键以及按下／抬起配对。 |
+| Skia、文本与 Metal | 两个 SDK 均链接 Skia 和文字后端，Metal 在真实场景 drawable 上显示自绘内容。 | 模拟器将“中文🙂中文”排成三行，读回 908 个文字像素，同时验证 SVG、系统字体回退及 UTF-8 命中。截图读回首帧绿色，按 Home、重新激活后读回同一内容根的蓝色帧。静止 200 毫秒内没有额外提交。 |
+| 编辑与无障碍 | `UITextInput` 连接 Scoop 编辑模型，系统剪贴板和无障碍容器使用实际选区、动作及可见几何。 | 在 iPhone 模拟器逐键输入拼音并点选系统候选“你好”，失焦后文本保留。编辑器可通过 Command-A/C/X/V 剪切并粘贴到新文本后。UIKit 与 Scoop 互读中文、emoji、纯文本和 HTML 表示。系统查询可读取按钮角色、名称和边界，激活一次只增加一次计数。放大到辅助功能字号后标签增高，按钮仍能操作。 |
+| 布局与主题 | 同一 `UiHost` 从场景挂载根节点，按安全区布局。 | Label、Button、ScrollArea、Input 在 iPhone 横竖屏响应点击、编辑和滚动到末行。按 Home 后保留计数和文本。Gallery 中可依次切换 macOS、Fluent、shadcn、Material 四套样式，以及明暗、RTL 和减少动态。 |
+| 异步与本地集成 | `attachUIKitScene` 在主队列提供结构化作用域。每个场景拥有字体、Gallery 模型和任务。两个目标可在本地分别组装基础库与 GUI 库。 | 模拟器上短定时在原主线程恢复，长任务在关闭时先执行 finally。Gallery 的 Toast 等待后显示完成，Tree 首次加载失败后重试成功，Conversation 实际发出并完成流式回复。普通 Gallery 构建也能消费解包后的本地预编译库。 |
+
+这些运行结果来自模拟器。真机各项单列在文末交付记录。基础验证按[宿主说明](../../tests/ios-native-app/README.md)复现，Gallery 按[示例说明](../../sysroot/src/scoop.ui.component/examples/shadcn/README.md)构建。
+
+调研时的发布清单为两个 iOS 目标各提供 runtime、`scoop.core`、`scoop.std` 和 `scoop.os.ios`。后者已有查询受保护数据状态的 UIKit 调用。按生产依赖展开，`scoop.ui.component` 连自身共涉及 14 个 Cone，其中 `scoop.window`、`scoop.surface`、`scoop.graphics`、`scoop.graphics.text`、`scoop.graphics.svg`、`scoop.icons.lucide`、`scoop.ui`、`scoop.ui.style`、`scoop.ui.component` 共 9 个在调研基线上缺少 iOS 生产源选择。具体主题还要由应用选入，首屏建议为 `scoop.ui.style.shadcn` 增加 iOS 源文件条件。`scoop.desktop`、托盘及其控件扩展都在这条依赖链之外。[发布清单](../../scripts/release.toml) · [控件清单](../../sysroot/src/scoop.ui.component/Cone.toml) · [现有 iOS 宿主验收](../../tests/ios-native-app/README.md)
+
+## 三个库的接口取舍
+
+表中的“复用”指保留现有 Scoop 接口或数据模型。“iOS 定制”列出需要新实现的宿主行为。“仅桌面”指该桌面接口继续由桌面目标提供。标为“按需”的能力可以在有移动端调用方时单独实施。
+
+### `scoop.platform`
+
+| 处理 | 接口与范围 | iOS 处理及使用方 |
+| --- | --- | --- |
+| 复用 | `MonotonicTimeSource.now()`、`SystemClock`、`currentThreadId()`、`Mutex`、`ConditionVariable` | 选入对应的时间和线程后端，沿用标准库的 `scoop.time.TimeSource`。UI 用单调时钟计算动画和截止时间，用线程身份确认主线程归属。 |
+| 复用 | `OsString`、`Path`、`File.open`、`OpenOptions`、`Path.readAllBytes()`、`ByteSource`、`ByteSink`、`NativeByteBuffer` | 选入 POSIX 字符串、路径、文件和缓冲区实现。字体文件和资源可沿用字节读取。有需要时 `Pipe.open()` 也可用于进程内 I/O。 |
+| iOS 定制 | `homeDirectory()`、`temporaryDirectory()` 及 bundle 资源路径来源 | 前两者分别从 Foundation 的 `NSHomeDirectory()`、`NSTemporaryDirectory()` 取得。可执行路径复用已有的 Apple `executablePath()` 实现。随包字体、图片由宿主用 bundle 定位，再用 Scoop 文件 API 读取。临时文件在可写目录创建。`native-app` 入口的 `arguments()` 按现有契约返回空序列。 |
+| iOS 定制 | 目标判定与 Apple 平台差异 | 清单中 `os = "darwin"` 表示 macOS，`os = "ios"` 覆盖设备和模拟器，`env = "simulator"` 可区分后两者。运行时则把两个 iOS 目标都报告为 `OperatingSystem.Darwin`。检查滚动物理和拖动编辑中按 Darwin 判断的分支，分别按触摸手势和实际修饰键处理。 |
+| 仅桌面 | `Command`、`ChildProcess`、`Command.spawnPtyNative`、`suspendCurrentProcess()` 及 PTY/终端作业控制 | 从 iOS 平台集合排除进程启动、伪终端及终端作业控制的声明与原生源。普通文件描述符读写可独立选入。 |
+| 按需 | `SystemRandom.fill`、`resolve`、`TcpStream`、`TcpListener`、`UdpSocket` | 随机数需接 iOS SDK 支持的熵源。网络 API 可独立移植。基础控件的首屏没有这些依赖。 |
+
+调研基线的清单在 iOS 上选入整个 `src/`，却只在 macOS 和 Linux 选入 `platform/posix`，导致编译时缺少 `OsString.withPlatformString`、`Path.withPlatformPath` 和 `createPlatformTemporaryPath`。阶段 1 的正式清单已按目录选入 `src/{concurrent,env,fs,io,memory,native,system,time}`、`platform/posix` 下的 `files.scoop`、`temporary.scoop`、`system_version.scoop` 及对应 C 源。把 macOS 选择的 40 个原生 C 文件送入设备 SDK 做语法检查，有 3 个直接失败，分别是 `random.c` 的 `<sys/random.h>`、`process.c` 的 `posix_spawn_file_actions_addchdir_np` 和 `pty_posix.c` 的 `<libproc.h>`。这三个文件继续按桌面目标选择。[平台清单](../../sysroot/src/scoop.platform/Cone.toml) · [原生后端](../../sysroot/src/scoop.platform/native/) · [目标和产物规范](../specs/SCOOP-IMPL-SPEC.md) · [native-app 入口规范](../specs/SCOOP-SPEC.md)
+
+### `scoop.window`
+
+| 处理 | 接口与范围 | iOS 处理及使用方 |
+| --- | --- | --- |
+| 复用 | `WindowId`、`WindowMetrics`、`WindowActivity`、`ContactId`、`ContactEvent`、`KeyEvent`、`InteractionPreferences` | 保留窗口身份、逻辑尺寸、像素尺寸、比例、活动状态和输入事件。窗口实现已为 `WindowMetrics` 增加 `safeAreaInsets`，以视图逻辑点传递四边安全区。 |
+| 复用并接主线程 | `ApplicationProxy.post`、`Window.createDeadline`、`WindowDeadline`、`Window.acquireNativeWindow`、`NativeWindowLease` | 用系统主队列唤醒窗口任务，按截止时间回调。为 `NativeWindowHandle` 增加 iOS 表示，限定 `UIWindow`、`UIView` 的借用期。 |
+| iOS 定制 | 应用启动、场景连接/断开、焦点、可见性、旋转和缩放 | UIKit 宿主拥有主循环，在进程内调用一次 `scoop_app_init`。每个 `UIWindowScene` 持有窗口、视图及其 Scoop 根。场景失活时取消进行中的接触，普通前后台切换保留根。场景断开时取消计时和帧请求，释放本场景的回调和租约。依据视图 bounds、safe area 和显示比例更新布局。 |
+| iOS 定制 | `ContactKind.Touch` / `Pen`、硬件 `KeyEvent`、`ShortcutModifiers.primary` | 接入 `touchesBegan/Moved/Ended/Cancelled`，启用多点触控并在一次接触期间保持 ID 稳定。一次触摸只产生一条输入流。复用现有点击、长按和滚动识别。按实际设备上报 Pencil 和硬件键盘，iPad 键盘的主快捷键使用 Command。 |
+| iOS 定制 | `TextInputConnection`、`TextInputBatch`、`TextInputState`、`Utf8Range`，以及 `Window.setImeAllowed`、`publishTextInputState`、`publishTextInputCaret`、`requestSoftwareKeyboard` | 由可成为第一响应者的视图实现 `UITextInput`，桥接选区、marked text、提交、删除和光标几何。把系统 `NSRange` 的 UTF-16 单位转换为 Scoop UTF-8 字节边界。同一编辑批次只派送一次。键盘遮挡通过 `UIKeyboardLayoutGuide` 反映到可视区。iPad 启用 `followsUndockedKeyboard`，按浮动键盘与输入框的实际交集决定是否滚动。 |
+| iOS 定制 | `Window.clipboard`、`Clipboard.readText/writeText`、`Window.createAccessibilityProvider`、`InteractionPreferences`、`Window.observedTheme` | 用户触发的复制粘贴接系统剪贴板，PRIMARY selection 保持不可用。将节点的稳定 ID、角色、名称、边界与动作映射到 UIKit 无障碍容器和元素。用 `textScaleFactor`、`reduceMotion` 传递辅助偏好，窗口主题随系统浅色或深色外观更新。 |
+| 仅桌面 | `Application.run` 的阻塞入口、`ApplicationProxy.requestExit`、`LastWindowPolicy.Exit`，以及 `desktopCapabilities()`、`systemTaskbarBounds`、`systemMenuBarHeight`、`requestPosition`、`beginMove/beginResize`、窗口层级和最小化/最大化、桌面模态窗口、原生标题栏和桌面菜单栏 | 桌面保留进程退出、全局桌面坐标、窗口管理和系统菜单集成。控件树内的菜单、弹层及编辑命令继续复用。 |
+| 按需 | `ActiveApplication.openFile/saveFile/selectDirectory`、系统跨应用拖放、`requestHapticFeedback` | 如有文件选择需求，接 `UIDocumentPickerViewController`，在接口中明确复制到容器还是在授权期访问外部 URL。场景内拖放已复用现有路由。长按选词所用的触觉请求已接入 UIKit 反馈生成器，实际反馈由设备决定。跨应用拖放可另接系统实现。 |
+
+`Application.run` 启动阻塞循环，`runUiApplication` 在恢复事件中创建桌面窗口。iOS 宿主在 `appInit` 返回后，从场景连接回调把事件投给 `UiHost.onEvent`。两层宿主从该事件取得 `ActiveApplication` 及其 `ApplicationProxy`，此时再用 `UiHost.attach(window, create)` 挂载根节点。输入候选位置、命中测试和 VoiceOver 元素框都取最近一次已接受提交的几何。宿主回调沿用 `foreignCallback` 的函数、上下文和释放约定。[窗口源码](../../sysroot/src/scoop.window/src/) · [UI 宿主](../../sysroot/src/scoop.ui/src/host/host.scoop) · [UIKit 场景生命周期](https://developer.apple.com/documentation/uikit/managing-your-app-s-life-cycle) · [UITextInput](https://developer.apple.com/documentation/uikit/uitextinput) · [键盘布局](https://developer.apple.com/documentation/uikit/uikeyboardlayoutguide) · [UIKit 无障碍容器](https://developer.apple.com/documentation/uikit/uiaccessibilitycontainer)
+
+### `scoop.desktop`
+
+| 处理 | 接口与范围 | iOS 决策 |
+| --- | --- | --- |
+| 仅桌面 | `ActiveApplication.openDesktop`、`DesktopApplication.attachWindow/setIcon/setBadgeText/setDockMenu/setJumpListTasks/observeMenuBinding` | 保留桌面宿主、Dock、文本徽章、跳转列表和菜单绑定。iOS 应用图标由 Xcode 资源提供。 |
+| 仅桌面 | `DesktopWindow.setIcon/setOverlayIcon/setProgress/setMiniwindowCaption/setThumbnailTooltip`，以及 `DesktopImage`、`DesktopProgress`、`JumpListTask` | 保留桌面窗口、任务栏和缩略图装饰。`scoop.ui.component.desktop` 和托盘扩展继续按桌面目标选入。 |
+| 按需复用 | `NotificationId`、`NotificationContent`、`NotificationAction` 等通知数据类型 | 若移动应用需要本地通知，可复用相同字段和动作标识。移动端授权、投递、撤销与点击回调由 UIKit 宿主接 `UNUserNotificationCenter`。当前 `prepareNotifications` / `DesktopApplication.openNotifications` 的所有者关系保留在桌面。iOS 的数字徽章也应使用系统的数字语义。 |
+
+首版 iOS 依赖图可以完全排除 `scoop.desktop`。仍要处理的是 **`scoop.window` 自己声明的桌面接口**，以及 `surface` 和 `ui` 初始化时对它们的调用。[桌面应用接口](../../sysroot/src/scoop.desktop/src/application.scoop) · [桌面窗口接口](../../sysroot/src/scoop.desktop/src/window.scoop) · [通知接口](../../sysroot/src/scoop.desktop/src/notification/) · [Apple 通知中心](https://developer.apple.com/documentation/usernotifications/unusernotificationcenter)
+
+## 上屏前要改的依赖
+
+1. **按使用方接入桌面装饰和菜单。** 公共 `SurfaceHost.attach` 已可直接接收 UIKit 的场景窗口。桌面在首次调用 `createWindowRegion` 时才查询该窗口的 `frameCapabilities`，首次在绘制中登记的区域也参与本帧提交。UI 层的 `UiMenuBars`、桌面菜单、模态与文件对话框已随桌面源选入。控件的 `platform/desktop/native/` 标题栏和原生菜单也按目标选择，树内菜单与弹层继续共用。[桌面装饰扩展](../../sysroot/src/scoop.surface/src/platform/desktop/window.scoop) · [公共 Surface 验收应用](../../tests/ios-native-app/surface/cone/src/app.scoop) · [UI 根挂载](../../sysroot/src/scoop.ui/src/host/host.scoop) · [控件原生集成](../../sysroot/src/scoop.ui.component/platform/desktop/native/)
+2. **图形按设备和模拟器分别构建。** 为 Skia 配置 `target_os="ios"`、`target_cpu="arm64"`、`ios_min_target="17.0"`，模拟器另设 `ios_use_simulator=true`。当前固定版本的上游 GN 同时加 `-arch arm64` 和 `-arch arm64e`，与桌面 `-mcpu=generic` 组合时，探针在 arm64e 指针认证处编译失败。只选 `arm64` 后通过。分别构建含 Ganesh Metal、SkParagraph、HarfBuzz、CoreText、Apple Unicode 和 SVG 的完整 Skia，以及 `scoop.charset` 所需的 `libscoop_text_backend.a`。阶段 6 在本地沿用现有包结构，将文字后端放入相应目标的基础库包、Skia 放入图形库包。[系统库打包](../../scripts/package_toolchain.py) · [Skia 构建脚本](../../scripts/build_skia.py) · [文字后端脚本](../../scripts/build_text_backends.py) · [固定版本的 Skia 构建规则](https://github.com/google/skia/blob/f326a1e25fc736704063922b9ce76b527b1c5efe/gn/skia/BUILD.gn)
+3. **让 UIKit 视图承载 Metal。** 调研基线的 Darwin 渲染器依赖 `NSView` 和 AppKit。已增加由 `UIView` 持有 `CAMetalLayer` 的实现，沿用 `WindowRenderer.configure/setFrameDemand/acquire` 契约。阶段 2 已将 Ganesh Metal 入口移到两端共用的 `scoop.graphics.native.metal.MetalContext`。它接收设备、队列和纹理，可以由 UIKit 渲染器直接调用。把点尺寸乘显示比例得到像素尺寸，用 `CAMetalDisplayLink` 按帧需求驱动。零尺寸或暂时取不到 drawable 时返回 `FrameAcquisition.Deferred`。只在 `FrameCompletion.submission` 为 `FrameSubmission.Accepted` 时公布几何。场景失活时停止请求新帧，应用进入后台的回调返回前确保已提交的 GPU 命令完成调度，回前台再请求一帧。[现有渲染器](../../sysroot/src/scoop.surface/native/apple/renderer.m) · [提交结果](../../sysroot/src/scoop.surface/src/shared/frame/completion.scoop) · [CAMetalDisplayLink](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink) · [Metal 后台规则](https://developer.apple.com/documentation/metal/preparing-your-metal-app-to-run-in-the-background)
+4. **首屏同时接通基础语义。** `Label`、`Button` 的语义注册会经 `scope.semantics` 创建窗口级 provider。首屏实现名称、按钮角色和激活动作，从第一个演示页即可验证一次辅助操作只触发一次按钮回调。滚动、编辑与辅助偏好在后续阶段扩展。[控件语义注册](../../sysroot/src/scoop.ui.component/src/semantic_platform.scoop) · [UI 语义后端](../../sysroot/src/scoop.ui/src/accessibility/platform.scoop)
+
+## 实施顺序与阶段验收
+
+各阶段先更新受影响的库规范，再改实现并同步使用示例。源文件和依赖选择沿用 Cone 的目标条件。UIKit 桥使用已有的 Objective-C `.m` 和 C ABI，Skia 的 Objective-C++ 由上游构建。公用逻辑用所属 Cone 的 release 测试。阶段 1 至 5 先在模拟器完成全部功能和验证，阶段 6 再把同一组用例放到真机执行。[平台规范](../specs/SCOOP-PLATFORM-SPEC.md) · [窗口规范](../specs/SCOOP-WINDOW-SPEC.md) · [Surface 规范](../specs/SCOOP-SURFACE-SPEC.md) · [native-app 运行时契约](../specs/SCOOP-RUNTIME-SPEC.md) · [编程材料更新约定](../scoop-programming/UPDATE-WORKFLOW.md)
+
+| 阶段 | 交付 | 通过条件 |
+| --- | --- | --- |
+| 1 · iOS 平台基础 | 为两个目标准备本地可消费的 `scoop.platform` 子集，接通目录、时间、线程、文件与内存。 | 用正式 sysroot 为两个目标链接 `native-app`。在模拟器由 `appInit` 验证 `arguments()` 返回空数组、同线程 ID 稳定、单调时钟不回退、加锁执行、缓冲区字节往返、临时文件写读删除，并实际读到随包资源。 |
+| 2 · 离屏图形与文字 | 为两个目标准备 Skia 和文字后端。选入 `math`、`charset`、`graphics`、`graphics.text`、`graphics.svg`、`icons.lucide` 的所需源。 | 用独立 Scoop 应用分别链接两个 SDK。在模拟器离屏绘制色块及一个 SVG 图标，读回已知区域像素。排版中文和 emoji，验证非空字形输出、换行及命中返回有效的文本边界。 |
+| 3 · 单场景首屏 | 接通 UIKit 场景、`window`、`surface` 和 `UiHost`，移出桌面能力查询和菜单登记。选入 shadcn 主题，接入基本触摸、标签语义与按钮动作。 | 在 iPhone 模拟器打开同一页。点一次按钮计数恰加一。旋转后点新位置仍命中。进后台再返回保留计数和唯一根节点。后台停止提交，动画结束且无更新的页面停帧，重新请求能出帧。语义树可读到标签和按钮并可激活按钮。 |
+| 4 · 滚动、输入与编辑 | 增加 `ScrollArea` 和 `Input`，接通多指触摸及取消、`UITextInput`、键盘避让和文本剪贴板。 | 在 iPhone 模拟器区分轻点和拖动，取消触摸后无误点。用中文拼音组合、选词并提交一次，再编辑含 emoji 的文本。核对选区、删除、光标与候选位置。键盘弹出后输入框可见，复制粘贴往返一致。在 iPad 模拟器核对硬件快捷键与浮动键盘避让。 |
+| 5 · 无障碍与尺寸适配 | 完成滚动和编辑节点、辅助焦点、Dynamic Type、外观、安全区与可变视口。 | 在模拟器通过辅助功能检查器读取名称、角色及阅读顺序，执行按钮、滚动和编辑动作。放大系统字号后内容仍可操作，切换外观和减弱动态效果能传入控件。iPad 分屏及旋转后，绘制、触摸与无障碍焦点框对齐。 |
+| 6 · 本地集成、Gallery 与真机回归 | 在本地组装两个目标的 `lib-base-<target>`、`lib-gui-<target>`，动态框架按现有流程组成 XCFramework。将下节的 Gallery 接到已验收的 UI 库上。 | 独立应用只消费本地安装的预编译库，Xcode 嵌入并签名。基础用例和完整 Gallery 先通过模拟器验收，再从同一工程在 iPhone 真机启动。实测中文键盘组合、前后台恢复，以及 VoiceOver 朗读顺序、双击按钮、滚动和编辑。运行受影响桌面目标的既有窗口装饰、菜单和退出用例。 |
+
+复验阶段 1 时，按宿主运行说明执行 `verify.py --platform --include-device`，模拟器应输出 `scoop-ios-platform-ok`。另用独立工作目录执行 `--protected-data --include-device`，核对原有的 `scoop-ios-protected-data-ok`。阶段 2 用 `--graphics --include-device` 单独运行，模拟器成功标记为 `scoop-ios-graphics-ok`。阶段 3 的窗口子项用 `--window --include-device`，模拟器输出 `scoop-ios-window-ok`。以上用例的设备步骤均为本地交叉编译与链接。真机上屏与完整交互在阶段 6 一并验收。本轮交付源码、可在本地构建的应用和验收结果。系统文件选择、跨应用拖放和通知留给实际移动端调用方，托盘继续随桌面扩展交付。[宿主运行说明](../../tests/ios-native-app/README.md) · [XCFramework 打包](../../scripts/package_ios_xcframework.py)
+
+## 本期 Gallery 交付
+
+目标为 `scoop.ui.component/examples/shadcn` 下窗口标题为 **Scoop — UI Gallery** 的应用。其 `Demo` 当前有 69 项，包含 Settings、Workspace、Data、Conversation 四个组合应用。iOS 继续使用该目录的 `GalleryModel`、页面分派和示例数据，桌面与移动端能够从同一份目录发现新增页面。[示例清单](../../sysroot/src/scoop.ui.component/examples/shadcn/Cone.toml) · [页面目录](../../sysroot/src/scoop.ui.component/examples/shadcn/src/model.scoop) · [页面分派](../../sysroot/src/scoop.ui.component/examples/shadcn/src/gallery_demo.scoop)
+
+| 实施顺序 | 改动 | 验收 |
+| --- | --- | --- |
+| 1 · 共用页面，接入场景 | 为 Gallery 提供本地可构建的 `native-app` 和 Xcode 宿主，在 `SceneConnected` 时挂载同一份 Gallery。模型、字体、主题与正在进行的任务按场景持有。桌面继续使用现有启动入口。 | 在模拟器从 UIKit 图标启动，在 Applications 和 Components 两组中逐项打开 69 页。切后台再返回，当前页和已有草稿仍在。桌面 Gallery 仍可构建并启动。 |
+| 2 · 调整导航和可用宽度 | 现有窗口初始宽度为 1120 点，导航栏固定占用 190 点。窄屏提供可返回的目录和全宽内容，宽屏沿用双栏。输入、弹层和工具栏按安全区、键盘及实际可用宽度布局。保留四套 Style、明暗、RTL 和减少动态选项，macOS 配色在移动端使用现有预设。 | 在 iPhone 竖屏搜索页面、进入详情、返回并切换主题。旋转、iPad 分屏与键盘出现后，页面主要操作仍可触达。用长按或页面内动作进入原先由右键、悬停触发的常用操作。 |
+| 3 · 接通演示依赖的异步操作 | Gallery 的 Toast、Tree、消息、问卷和 Conversation 调用 `currentApplicationScope().launch`、`currentEventLoop().sleep`，并在离页时取消任务。为 UIKit 主循环接入实际需要的异步唤醒、应用作用域及取消，与桌面复用页面逻辑。 | 打开 Toast 等到延时状态更新，Tree 的首次加载失败后重试成功，Conversation 能流式追加回复。运行中离页再返回，旧任务不会改写新页面。在 Settings 提交一次中文编辑，在 Workspace 修改草稿，在 Data 删除并撤销一行。 |
+| 4 · 交付应用和复现方法 | 在示例 README 记录从本地 sysroot 构建、启动模拟器、开发签名运行和验收结果。 | iPhone、iPad 模拟器完成上述检查后，在真机从同一工程启动 Gallery，验证触摸、中文输入、VoiceOver 和恢复。交付本地应用与工程，iOS target 保持未发布。 |
+
+两端共用 `src` 中的页面和模型。桌面从 `Application.runWithAsyncio` 进入事件循环，iOS 由 `attachUIKitScene` 接入 UIKit 主队列。[桌面启动入口](../../sysroot/src/scoop.ui.component/examples/shadcn/platform/desktop/main.scoop) · [窗口与 asyncio 的绑定](../../sysroot/src/scoop.window.asyncio/src/application.scoop) · [Gallery 导航](../../sysroot/src/scoop.ui.component/examples/shadcn/src/gallery.scoop)
+
+### 本期交付记录
+
+2026-11-26 至 11-27 使用 Xcode 27.2、arm64 iPhone 和 11 英寸 iPad Pro 模拟器，系统均为 27.2。工程的最低部署版本为 iOS 17.0。
+
+| 场景 | 验证结果 |
+| --- | --- |
+| 全部页面 | 在 iPhone 竖屏逐项点击 65 个组件页和 4 个组合应用，核对每页标题后返回目录，69/69 通过。搜索、切后台恢复、四套样式、明暗、RTL 和减少动态切换均通过。 |
+| 四个组合应用 | 在 iPhone 用系统拼音选中“你好”，填写邮箱和六位验证码后保存 Settings。iPad 上切页返回后 Workspace 草稿保留，Data 横向滚动至行菜单后可删除付款并撤销。Conversation 可流式回复，另一次发送中切页会取消剩余任务。 |
+| VoiceOver（iPhone 模拟器） | 系统依次朗读 Settings app 和 Workspace app，向后轻扫会再读出 Settings app，双击进入 Profile settings。目录中的布局滚动区域不再产生空白焦点。独立窗口用例也验证了具名滚动节点仍可接受辅助操作。 |
+| 触摸与窗口 | 在 iPad 把 `notes.scoop` 拖入 `archive`，移动计数增加一次，保留原选中行。把 834 点的双栏窗口拖到 375 点宽后，Settings 仍在，点 Examples 可返回目录。另用系统「左右」排列让 Gallery 和照片并排，412 点宽的 Gallery 同样能返回目录并恢复全屏。自绘内容按 UIKit 的垂直避让区域给窗口按钮留出空间。[iPad 窗口排列](https://support.apple.com/guide/ipad/work-with-multiple-windows-at-the-same-time-ipad08c9970c/ipados) · [UIKit 窗口布局](https://developer.apple.com/videos/play/wwdc2025/282/?time=783) |
+| 桌面回归 | macOS 的真实 Gallery 窗口分别通过主题、方向和动画切换，以及四个组合应用的编辑焦点与资源生命周期用例。桌面窗口装饰、原生菜单绑定与退出用例也通过。 |
+| 本地构建与交付 | 设备与模拟器分别生成基础库和 GUI 库，共四个本地包。从单独解包的 sysroot 编译 Gallery，所得模拟器框架二进制与示例构建的一致。一个 XCFramework 包含两份 arm64 切片。Xcode 生成两个宿主，宿主和内嵌框架的 Mach-O 分别标记为 `IOS` 和 `IOSSIMULATOR`，部署下限均为 17.0。 |
+| iPhone 真机 · 导航与恢复 | 使用 Personal Team 的开发签名将 `dev.scoop.gallery` 安装到 iPhone 13 Pro Max（iOS 27.2.1）。通过 USB 和 Device Hub 在手机上打开 Dialog、点 Examples 返回、滚动目录并进入 Settings。按 Home 再打开 Gallery 后，同一进程回到原来的 Settings 页面。 |
+| iPhone 真机 · 中文输入与旁白 | 在同一台手机上人工验收。Settings 的姓名栏用系统拼音选中“你好”，填好邮箱和六位验证码，点 Save settings 后显示 Saved。开启旁白后，在目录依次听到 Settings app、Workspace app，向左轻扫回到 Settings，双击进入页面。三指上滑和编辑表单均通过。 |
+
+真机的 XCTest 运行器已安装并启动，但在第一个用例开始前，设备拒绝了与 Xcode 的测试连接（退出码 74）。无线和 USB 均复现。真机验收使用 Device Hub 和手机上的人工操作。完成后已移除临时测试运行器，手机保留 Gallery。
+
+本期交付使用本地开发包，iOS target 未发布。[Gallery Xcode 工程](../../sysroot/src/scoop.ui.component/examples/shadcn/ios/Gallery.xcodeproj) · [Gallery 场景入口](../../sysroot/src/scoop.ui.component/examples/shadcn/ios/src/app.scoop) · [系统交互测试](../../tests/ios-native-app/interaction/GalleryTests.swift)

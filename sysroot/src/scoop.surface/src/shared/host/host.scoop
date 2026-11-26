@@ -13,7 +13,6 @@ public class SurfaceHost public constructor(
     private var callbackDepth = 0
     private var pendingRetirement = false
     private var proxy: ApplicationProxy? = None
-    private var active: ActiveApplication? = None
     private var renderer: RendererHost? = None
     private val windows = ArrayList<SurfaceWindow>()
     public val isClosed: Boolean get() = closing && windows.size == 0L
@@ -24,7 +23,6 @@ public class SurfaceHost public constructor(
     internal val callbackActive: Boolean get() = callbackDepth != 0
     internal val acceptsShortcuts: Boolean get() = !closing
     internal var shortcutAction: HostInputAction? = None
-    internal fun frameCapabilities(): WindowFrameCapabilities = active!!.desktopCapabilities().frame
 
     /** Attaches one painter to an open window without replacing its input view. */
     public fun attach(window: Window, painter: (FrameContext) -> Unit): SurfaceWindow {
@@ -95,10 +93,7 @@ public class SurfaceHost public constructor(
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         checkThread()
         when (proxy) {
-            case None -> {
-                proxy = Some(application.proxy());
-                active = Some(application)
-            }
+            case None -> proxy = Some(application.proxy())
             case Some(_) -> {}
         }
         callbackDepth += 1

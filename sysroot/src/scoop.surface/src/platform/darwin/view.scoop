@@ -1,0 +1,8 @@
+package scoop.surface
+
+import scoop.window.native.NativeWindowLease
+
+@Unsafe
+internal fun metalContentView(lease: NativeWindowLease): Ptr<Unit> = when (lease.handle) {
+    case AppKit(_, val view) -> view
+}

@@ -5,7 +5,6 @@ import scoop.graphics.native.captureGeometry
 import scoop.surface.FrameContext
 import scoop.surface.FrameCompletion
 import scoop.surface.InputArea
-import scoop.surface.WindowRegionHandle
 import scoop.platform.time.MonotonicInstant
 import scoop.ui.text.NativeTextSource
 
@@ -364,15 +363,10 @@ public class SceneContext internal constructor(
         frame.place(area, shape)
         node.root.focus.place(area, scrollPath)
     }
-    public fun place(region: WindowRegionHandle, shape: Rect) {
+    internal fun uncachedFrame(): FrameContext {
         checkActive()
         pass.cacheable = false
-        frame.place(region, shape)
-    }
-    public fun place(region: WindowRegionHandle, shape: Path) {
-        checkActive()
-        pass.cacheable = false
-        frame.place(region, shape)
+        return frame
     }
     public fun children() {
         presentChildren(None, None)

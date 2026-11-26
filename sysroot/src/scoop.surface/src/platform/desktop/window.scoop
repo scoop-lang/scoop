@@ -1,0 +1,74 @@
+package scoop.surface
+
+import scoop.graphics.Path
+import scoop.graphics.Rect
+import scoop.window.*
+
+public fun SurfaceWindow.createWindowRegion(
+    kind: WindowRegionKind,
+    parent: InputScope? = None
+): WindowRegionHandle {
+    if (state != SurfaceWindowState.Open)
+        throw IllegalStateException(Some("Surface window regions are closed"))
+    when (inputs.windowRegions) {
+        case Some(val existing) -> return (existing as WindowRegionStore).create(kind, parent)
+
+        case None -> {
+            val store = WindowRegionStore(this, inputs, nativeWindow.frameCapabilities)
+            val handle = store.create(kind, parent)
+            inputs.windowRegions = Some(store)
+            return handle
+        }
+    }
+}
+
+private fun FrameContext.regionFrame(handle: WindowRegionHandle): WindowRegionFrame {
+    input.checkOpen()
+    requireInput(handle.owner.surface === window, "window region belongs to another Surface")
+    when (input.decorations) {
+        case Some(val current) -> return current as WindowRegionFrame
+
+        case None -> {
+            val frame = WindowRegionFrame(handle.owner, scaleFactor)
+            input.decorations = Some(frame)
+            return frame
+        }
+    }
+}
+
+public fun FrameContext.place(region: WindowRegionHandle, shape: Rect) {
+    regionFrame(region).place(canvas, region, shape)
+}
+
+public fun FrameContext.place(region: WindowRegionHandle, shape: Path) {
+    regionFrame(region).place(canvas, region, shape)
+}
+
+internal fun SurfaceWindow.otherWindowEvent(event: WindowEvent) {
+    when (event) {
+        case FrameChanged -> {
+            inputs.windowRegions?.geometryChanged()
+            requestFrame()
+        }
+
+        else -> inputs.event(event)
+    }
+}
+
+internal fun InputRouter.event(event: WindowEvent) {
+    val pointer = when (event) {
+        case Pointer(val value) -> Some(value)
+        else -> None
+    }
+    dispatchWindowInput(event, pointer) {
+        when (event) {
+            case Pointer(val value) -> pointerEvent(value)
+            case Gesture(val value) -> gestureEvent(value)
+            case InputBlockedChanged(true) ->
+                cancelWindowInput(
+                    InputCancelReason.Window(PointerCancelReason.Modal), inputObservation()
+                )
+            else -> {}
+        }
+    }
+}

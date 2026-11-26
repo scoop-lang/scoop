@@ -28,8 +28,9 @@ internal class AreaScene(val placements: Array<AreaPlacement>): Closeable {
 }
 
 /** A frame transaction owns snapshots until they are transferred at successful submission. */
-internal class InputFrame(val owner: InputRouter): Closeable {
+internal class InputFrame(val owner: InputRouter) : Closeable {
     private val placements = ArrayList<AreaPlacement>()
+    var decorations: DecorationFrame? = None
     private var ended = false
     fun place(canvas: Canvas, area: InputArea, shape: Rect) {
         check(area)
@@ -45,10 +46,12 @@ internal class InputFrame(val owner: InputRouter): Closeable {
             append(canvas, area, captureGeometry(canvas, shape)) { child -> child.clipPath(shape) }
         }
     }
-    private fun check(area: InputArea) {
+    fun checkOpen() {
         owner.checkOpen()
-        if (ended)
-            throw IllegalStateException(Some("input frame has ended"))
+        if (ended) throw IllegalStateException(Some("input frame has ended"))
+    }
+    private fun check(area: InputArea) {
+        checkOpen()
         requireInput(area.owner === owner, "input area belongs to another window")
         area.checkOpen()
         for (placement in placements) {
@@ -63,31 +66,27 @@ internal class InputFrame(val owner: InputRouter): Closeable {
     ) {
         try {
             val local = area.caret
-            val visible =
-                when (local) {
-                    case Some(val rect) -> canvas.withState {
-                        child ->
-                        clip(child)
-                        @Unsafe
-                        {
-                            return@withState captureGeometry(child, rect).use {
-                                caret -> caret.visibleBounds
+            val visible = when (local) {
+                case Some(val rect) ->
+                    canvas
+                        .withState { child ->
+                            clip(child)
+                            @Unsafe
+                            {
+                                return@withState captureGeometry(child, rect)
+                                    .use { caret -> caret.visibleBounds }
                             }
                         }
-                    }
-                    case None -> None
-                }
+                case None -> None
+            }
             placements.add(AreaPlacement(area, geometry, local, area.caretRevision, visible))
-        }
-        catch (error: Throwable) {
+        } catch (error: Throwable) {
             throwFailure(cleanupFailure(Some(error)) { geometry.close() });
             throw error
         }
     }
     fun take(): AreaScene {
-        owner.checkOpen()
-        if (ended)
-            throw IllegalStateException(Some("input frame has ended"))
+        checkOpen()
         val result = AreaScene(placements.toArray())
         ended = true
         placements.clear()
@@ -95,8 +94,9 @@ internal class InputFrame(val owner: InputRouter): Closeable {
     }
     public override fun close() {
         owner.checkThread()
-        if (ended)
-            return
+        decorations?.close()
+        decorations = None
+        if (ended) return
         ended = true
         var failure: Throwable? = None
         for (placement in placements)

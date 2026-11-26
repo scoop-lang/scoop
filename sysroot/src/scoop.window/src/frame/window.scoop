@@ -1,5 +1,12 @@
 package scoop.window
 
+/** Queries the native window decoration capabilities on the owner thread. */
+public val Window.frameCapabilities: WindowFrameCapabilities
+    get() {
+        owner.requireOpen()
+        return frameCapabilities()
+    }
+
 /** Changes before queued frame notifications when native region coordinates become stale. */
 public val Window.frameRevision: ULong get() {
     owner.requireOpen()

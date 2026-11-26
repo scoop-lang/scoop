@@ -1,0 +1,154 @@
+#import "edit_actions.h"
+#import "text.h"
+#import <QuartzCore/CAMetalLayer.h>
+
+@implementation SWIView {
+  NSMapTable<UITouch *, NSNumber *> *_contacts;
+  int64_t _nextContact;
+}
+- (instancetype)initWithFrame:(CGRect)frame {
+  self = [super initWithFrame:frame];
+  if (self) {
+    _contacts = [NSMapTable
+        mapTableWithKeyOptions:NSPointerFunctionsStrongMemory |
+                               NSPointerFunctionsObjectPointerPersonality
+                  valueOptions:NSPointerFunctionsStrongMemory];
+  }
+  return self;
+}
++ (Class)layerClass {
+  return CAMetalLayer.class;
+}
+- (BOOL)canBecomeFirstResponder {
+  return YES;
+}
+- (void)pressesBegan:(NSSet<UIPress *> *)presses
+           withEvent:(UIPressesEvent *)event {
+  if (self.isFirstResponder)
+    [self.owner deliverPresses:presses composing:NO];
+  [super pressesBegan:presses withEvent:event];
+}
+- (void)pressesEnded:(NSSet<UIPress *> *)presses
+           withEvent:(UIPressesEvent *)event {
+  if (self.isFirstResponder)
+    [self.owner deliverPresses:presses composing:NO];
+  [super pressesEnded:presses withEvent:event];
+}
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses
+               withEvent:(UIPressesEvent *)event {
+  if (self.isFirstResponder)
+    [self.owner deliverPresses:presses composing:NO];
+  [super pressesCancelled:presses withEvent:event];
+}
+- (BOOL)canPerformAction:(SEL)action withSender:(id)sender {
+  SWIEditAction edit = swi_edit_action(action);
+  return edit == SWIEditNone ? [super canPerformAction:action withSender:sender]
+                             : swi_can_edit(self, edit);
+}
+- (void)cut:(id)sender {
+  swi_edit(self, SWIEditCut);
+}
+- (void)copy:(id)sender {
+  swi_edit(self, SWIEditCopy);
+}
+- (void)paste:(id)sender {
+  swi_edit(self, SWIEditPaste);
+}
+- (void)selectAll:(id)sender {
+  swi_edit(self, SWIEditSelectAll);
+}
+- (void)delete:(id)sender {
+  swi_edit(self, SWIEditDelete);
+}
+- (NSUndoManager *)undoManager {
+  return self.editFlags ? swi_edit_undo_manager(self) : super.undoManager;
+}
+- (void)layoutSubviews {
+  [super layoutSubviews];
+  [self.owner geometryChanged];
+  [self.editor updateKeyboardGeometry];
+}
+- (void)safeAreaInsetsDidChange {
+  [super safeAreaInsetsDidChange];
+  [self.owner geometryChanged];
+}
+- (void)enqueueContact:(SWContactData)data {
+  SWIEvent *event = [SWIEvent new];
+  event.header = swi_input_header(self.owner, SWContact);
+  event.contact = data;
+  [self.owner.application enqueue:event];
+}
+- (void)deliverTouches:(NSSet<UITouch *> *)touches
+                 event:(UIEvent *)event
+                 phase:(SWContactPhase)phase {
+  for (UITouch *touch in touches) {
+    if (touch.type != UITouchTypeDirect && touch.type != UITouchTypePencil)
+      continue;
+    NSNumber *identity = [_contacts objectForKey:touch];
+    if (phase == SWContactBegan) {
+      if (identity)
+        continue;
+      if (_nextContact == INT64_MAX)
+        [NSException raise:NSInternalInconsistencyException
+                    format:@"Contact identity exhausted"];
+      identity = @(++_nextContact);
+      [_contacts setObject:identity forKey:touch];
+    } else if (!identity)
+      continue;
+    CGPoint point = [touch locationInView:self];
+    CGFloat scale = self.traitCollection.displayScale;
+    BOOL pressure = touch.maximumPossibleForce > 0 &&
+                    (touch.type == UITouchTypePencil ||
+                     self.traitCollection.forceTouchCapability ==
+                         UIForceTouchCapabilityAvailable);
+    [self
+        enqueueContact:(SWContactData){
+                           .id = identity.longLongValue,
+                           .kind = touch.type == UITouchTypePencil
+                                       ? SWContactPen
+                                       : SWContactTouch,
+                           .phase = phase,
+                           .cancel_reason = SWPointerCaptureLost,
+                           .modifiers = event.modifierFlags,
+                           .x = point.x,
+                           .y = point.y,
+                           .physical_x = point.x * scale,
+                           .physical_y = point.y * scale,
+                           .scale = scale,
+                           .has_pressure = pressure,
+                           .pressure =
+                               pressure
+                                   ? fmax(0,
+                                          fmin(1,
+                                               touch.force /
+                                                   touch.maximumPossibleForce))
+                                   : 0}];
+    if (phase == SWContactEnded || phase == SWContactCancelled)
+      [_contacts removeObjectForKey:touch];
+  }
+}
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+  [self deliverTouches:touches event:event phase:SWContactBegan];
+}
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+  [self deliverTouches:touches event:event phase:SWContactMoved];
+}
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+  [self deliverTouches:touches event:event phase:SWContactEnded];
+}
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches
+               withEvent:(UIEvent *)event {
+  [self deliverTouches:touches event:event phase:SWContactCancelled];
+}
+- (void)cancelContacts:(SWPointerCancelReason)reason {
+  for (NSNumber *identity in _contacts.objectEnumerator)
+    [self enqueueContact:(SWContactData){.id = identity.longLongValue,
+                                         .phase = SWContactCancelled,
+                                         .cancel_reason = reason}];
+  [_contacts removeAllObjects];
+}
+@end
+
+SWContactData scoop_window_event_contact(void *pointer) {
+  return ((__bridge SWIEvent *)pointer).contact;
+}

@@ -11,6 +11,182 @@ path = "src"
 when = { os = ["darwin", "windows"] }
 
 [[sources]]
+path = "src/accessibility"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/identity.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/geometry.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/handler.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/activity.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/deadline.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/preferences.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/preferences.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/loop.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/lifetime.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/owner/mailbox.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/owner/deadlines.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/drag_drop/values.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/drag_drop/preview.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/menu/text_template.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/menu/placement.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/menu/image.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/haptic.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/contact.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/clipboard.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/clipboard_native.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/primary_selection.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/primary_native.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/pointer.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/gesture.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/keyboard.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/shortcuts.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/shortcut_builder.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/key_names.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/shortcut_compare.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/input/keyboard.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/time.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/text/commands.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/text/menu_commands.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/input/contacts.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/text/types.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/text/apply.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/text.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/results.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/text_snapshot.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/software_keyboard.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/text_snapshot.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "platform/apple"
+when = { os = ["darwin", "ios"] }
+
+[[sources]]
+path = "platform/ios"
+when = { os = "ios" }
+
+[[sources]]
 path = "platform/darwin"
 when = { os = "darwin" }
 
@@ -162,6 +338,14 @@ path = "native/darwin/input/keyboard.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/apple/shortcuts.m"
+when = { os = ["darwin", "ios"] }
+
+[[native.sources]]
+path = "native/ios/hardware_keys.m"
+when = { os = "ios" }
+
+[[native.sources]]
 path = "native/darwin/commands.m"
 when = { os = "darwin" }
 
@@ -206,8 +390,8 @@ path = "native/darwin/text_document.m"
 when = { os = "darwin" }
 
 [[native.sources]]
-path = "native/darwin/clipboard.m"
-when = { os = "darwin" }
+path = "native/apple/clipboard.m"
+when = { os = ["darwin", "ios"] }
 
 [[native.sources]]
 path = "native/darwin/drop.m"
@@ -586,7 +770,7 @@ when = { os = "linux", env = "gnu" }
 [[native.libraries]]
 name = "UniformTypeIdentifiers"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [[test.sources]]
 path = "tests/dialog_paths.scoop"
@@ -613,7 +797,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/tree.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/tree.cpp"
@@ -621,7 +805,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/publication.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/publication.cpp"
@@ -629,7 +813,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/text.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/text.cpp"
@@ -637,7 +821,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/element.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/element.cpp"
@@ -645,7 +829,7 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/accessibility/grid.cpp"
-when = { os = "windows" }
+when = { os = ["windows", "ios"] }
 
 [[native.sources]]
 path = "native/accessibility/grid.cpp"
@@ -830,3 +1014,71 @@ when = { os = "windows" }
 [[test.sources]]
 path = "tests/text_services.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/ios/accessibility.cpp"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/accessibility_view.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/edit_menu.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/interaction.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/application.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/text_view.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/text_changes.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/text_snapshot.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/keyboard.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/edit_actions.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/view.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/scene.m"
+when = { os = "ios" }
+
+[[native.libraries]]
+name = "UIKit"
+kind = "framework"
+when = { os = "ios" }
+
+[[native.libraries]]
+name = "QuartzCore"
+kind = "framework"
+when = { os = "ios" }
+
+[[native.libraries]]
+name = "CoreFoundation"
+kind = "framework"
+when = { os = "ios" }
+
+[[native.libraries]]
+name = "CoreGraphics"
+kind = "framework"
+when = { os = "ios" }

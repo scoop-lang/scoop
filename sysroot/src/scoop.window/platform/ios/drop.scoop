@@ -1,0 +1,83 @@
+package scoop.window
+
+/** Destination for payloads offered by contacts in this scene. */
+public class DropTarget internal constructor(
+    private val owner: WindowOwner,
+    initial: DropHandlers
+) : Closeable {
+    private var callbacks = initial
+    private var closed = false
+    private var accepts = true
+    private var periodic = false
+    private var entered = false
+    public val isClosed: Boolean
+        get() {
+            owner.application.checkThread();
+            return closed
+        }
+    internal val available: Boolean get() = !closed && accepts && owner.phase == WindowState.Open
+    internal val wantsUpdates: Boolean get() = available && periodic
+    public var handlers: DropHandlers
+        get() {
+            checkOpen();
+            return callbacks
+        }
+        set(value) {
+            checkOpen();
+            callbacks = value
+        }
+    public var enabled: Boolean
+        get() {
+            checkOpen();
+            return accepts
+        }
+        set(value) {
+            checkOpen()
+            accepts = value
+            if (!value) leave()
+            owner.dragSession?.schedule()
+        }
+    public var periodicUpdates: Boolean
+        get() {
+            checkOpen();
+            return periodic
+        }
+        set(value) {
+            checkOpen();
+            periodic = value;
+            owner.dragSession?.schedule()
+        }
+    private fun checkOpen() {
+        owner.requireOpen()
+        if (closed) throw IllegalStateException(Some("drop target is closed"))
+    }
+    internal fun offer(value: DropOffer): DropDecision {
+        entered = true
+        return callbacks.offer(value)
+    }
+    internal fun deliver(value: DropRequest): Boolean = available && callbacks.drop(value)
+    internal fun leave() {
+        if (!entered) return
+        entered = false
+        callbacks.leave()
+    }
+    public override fun close() {
+        owner.application.checkThread()
+        if (closed) return
+        closed = true
+        owner.dropTarget = None
+        owner.dragSession?.schedule()
+        leave()
+    }
+}
+
+public fun Window.registerDropTarget(handlers: DropHandlers): DropTarget {
+    owner.requireOpen()
+    when (owner.dropTarget) {
+        case Some(_) -> throw IllegalStateException(Some("window already has a drop target"))
+        case None -> {}
+    }
+    val target = DropTarget(owner, handlers)
+    owner.dropTarget = Some(target)
+    return target
+}

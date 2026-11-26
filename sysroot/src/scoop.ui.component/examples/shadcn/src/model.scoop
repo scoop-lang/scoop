@@ -163,6 +163,7 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
     val direction = state(LayoutDirection.Ltr)
     val selected = state(Demo.Button)
     val query = TextEditorState()
+    val catalogScroll = ScrollState()
     val name = TextEditorState("Scoop")
     val invalidName = TextEditorState("not-an-email")
     val disabledName = TextEditorState("Read only while disabled")
