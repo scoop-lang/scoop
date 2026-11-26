@@ -24,3 +24,11 @@
 o6 上的 Ubuntu ARM64 环境构建了全部 18 个 GNU 图形 Cone。在 X11 和 Wayland 上各运行了一次双 EGL 窗口用例，检查实际绘制、像素、窗口尺寸变化及重新挂接。X11 下的 SNI／DBusMenu 用例验证了菜单操作和 watcher 重启后的恢复。[EGL 窗口用例](../../sysroot/src/scoop.surface/tests-linux/host.scoop) · [托盘协议用例](../../sysroot/src/scoop.tray/test-linux/protocol.scoop)
 
 Bookworm 上的 GNU 动态 PIE 和默认静态 musl 程序均通过配套 LLDB 的 DAP 启动测试，包括源码断点、栈帧、局部变量和源码 TLS 变量 `threadCounter`。静态 musl 的原生双线程测试还验证了已初始化、零初始化和 64 字节对齐的 TLS 存储。GNU 异常用例在 `Derived.read` 的实际抛出行停住，回溯包含调用方 `main`，继续执行后完成捕获和清理。[静态 TLS](https://github.com/scoop-lang/scoop/pull/251) · [GNU 动态 TLS](https://github.com/scoop-lang/scoop/pull/252) · [配套 LLVM 与 LLD](https://github.com/scoop-lang/scoop/pull/253)
+
+## 从发行包安装与部署
+
+在 o6 的 Ubuntu 26.04.1 ARM64 环境中，从本地发行索引把候选版本 `0.0.0-dev.arm64` 安装到空目录。打包使用的编译器源码版本为 `ce2c02c0f`。发行清单包含共用源码、vendor 源码、GNU 宿主工具、GNU 与 musl 各自的基础库，以及 GNU 图形库，共六个归档。[组件清单与发行流程](../../.github/workflows/release.yml) · [ARM64 安装器](https://github.com/scoop-lang/scoop-install/tree/218a900)
+
+默认安装后编译并运行了 GNU 程序。追加 musl 目标后，通过系统的 `/usr/bin/musl-gcc` 构建并运行了默认静态程序和显式动态 PIE，`readelf` 结果与上表一致。发行包内的 `scoop-lldb-dap` 也在生成独立 `.debug` 文件的 GNU 程序上通过了源码断点、回溯与 TLS 变量检查。[调试验收程序](../../tooling/vscode-scoop/test/debugger/program.scoop)
+
+追加 GNU GUI 组件后，安装的工具链构建了一个使用 GTK 和 Skia 的窗口程序，在 X11 和 Wayland 上分别完成绘制并关闭。使用 `scoop bundle` 生成 deb（`arm64`）、RPM（`aarch64`）及 AArch64 AppImage。解包后分别运行了 deb 和 RPM 中的程序，AppImage 通过自身的 `APPIMAGE_EXTRACT_AND_RUN=1` 模式启动。三种部署布局均成功读取随包资源并输出预期文本。[打包验收示例](../../tooling/scoop-bundle/examples/resources)
