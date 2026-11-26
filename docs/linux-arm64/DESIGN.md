@@ -10,6 +10,14 @@
 
 现有代码可复用 LLVM 的 AArch64 后端、Linux 线程与虚拟内存服务、ELF 映像枚举、AArch64 浮点环境，以及 Linux 链接器驱动。过程 ABI、ELF machine、机器帧和 libc 由目标目录分别选择。各阶段先修订对应规范，再提交实现与验收用例。[目标组合设计](../target-refactor/COMPOSITION.md) · [编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md) · [运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)
 
+## 实施与验收环境
+
+| 环境 | 用途 |
+| --- | --- |
+| `o6` 的 Debian 12.15（Bookworm）ARM64 宿主 | 构建仓库补丁版 LLVM 及编译器，准备并运行 GNU、musl 基础库。宿主使用 4 KiB 页、glibc 2.36，Debian 提供 musl 1.2.3。 |
+| `o6` 上的 16 KiB、64 KiB 页 ARM64 客体内核 | 用 `getconf PAGESIZE` 确认实际页大小，运行 GC 页归还和保护测试。64 KiB 环境另运行链接产物及其动态库。 |
+| `o6` 上的 Ubuntu 26.04.1 ARM64 容器 | 验证发行基线、GNU 桌面库与安装包。该环境提供 glibc 2.43、musl 1.2.5，以及 GTK 4.22.4 和 libadwaita 1.9.1。 |
+
 ## 阶段一　GNU 宿主与基础编译
 
 ### 目标登记与调用约定
@@ -35,7 +43,7 @@ ABI 规划保留在 codegen。栈传参的对齐随参数计划传给发射器�
 
 构建 release 版 `scoop.std` 时，LLVM 的 ADRP 和 128 位 LDR 会分别以 section symbol 加偏移引用 `.rodata.cst16` 内的常量。实际对象含 0、16 至 112 字节的多个元素偏移。写入 `.slib` 时按偏移取该元素的 16 字节参与 callable 指纹，保留原生对象的指令与重定位。阶段一用完整的 `scoop.std.slib` 检验这条路径。[常量池读取](../../compiler/slib/src/link_object/literal_pools.rs)
 
-**栈帧。** 在本机 4 KiB 页的 ARM64 Linux 容器中，仓库 LLVM 22.1.8 发射的同一个 statepoint 样例测得以下值。两种优化级别均按返回 PC 找到 stackmap，改写根槽后，生成代码读到了新引用。Darwin 解码器的固定公式 `FP = SP + 帧大小 - 16` 会拒绝这里的优化帧。[LLVM 探针基础](../../runtime/tests/linux_frames_test.ll) · [Darwin 帧恢复](../../runtime/src/platform/frame/darwin_aarch64.c)
+**栈帧。** 在设计阶段的 4 KiB 页 ARM64 Linux 容器中，仓库 LLVM 22.1.8 发射的同一个 statepoint 样例测得以下值。两种优化级别均按返回 PC 找到 stackmap，改写根槽后，生成代码读到了新引用。Darwin 解码器的固定公式 `FP = SP + 帧大小 - 16` 会拒绝这里的优化帧。[LLVM 探针基础](../../runtime/tests/linux_frames_test.ll) · [Darwin 帧恢复](../../runtime/src/platform/frame/darwin_aarch64.c)
 
 | LLVM 优化级别 | stackmap 帧大小 | 实际 FP − SP | 引用槽地址 |
 | --- | ---: | ---: | --- |
