@@ -7,6 +7,7 @@ pub(super) fn relocation_kind(kind: u32) -> Option<ElfRelocationKind> {
     Some(match kind {
         R_AARCH64_NONE => Other(0),
         R_AARCH64_ABS64 => Absolute64,
+        R_AARCH64_TLS_DTPREL => TlsReference(8),
         R_AARCH64_PREL64 | R_AARCH64_GOTREL64 => Other(8),
         R_AARCH64_ABS32 | R_AARCH64_PREL32 | R_AARCH64_GOTREL32 => Other(4),
         R_AARCH64_ABS16 | R_AARCH64_PREL16 => Other(2),

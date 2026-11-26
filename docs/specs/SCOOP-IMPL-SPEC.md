@@ -670,6 +670,8 @@ ARM64 默认对 ArraySet 的单引用槽屏障使用已有数组对象基址查�
 
 对象格式与 object machine 分别决定容器结构和机器规则：ELF 不隐含 x86-64，COFF 不隐含 AMD64，AArch64 不隐含 Mach-O。所选 `ObjectTargetProfile` 解释 format、machine、header ABI/flags、relocation profile、symbol normalization、stackmap/EH 指针及最终动态 relocation；仅开放当前已实现的完整 target，不增加空 handler。对象边界按该 profile 验证格式、machine/header flags、section/symbol extent、alignment、权限、relocation 写入宽度/addend、定义与引用闭合，形成 validated envelope；后续 callable、stackmap 与 linker 消费其中保存的 machine，不重新解析 header 或从完整 target 推导。Mach-O 使用其真实 relocation 与 weak 属性；ELF 使用 ET_REL、实际 section/symbol/RELA/COMDAT 数据，TLS 必须保持 STT_TLS/SHF_TLS，不能伪装成普通 data。
 
+Linux AArch64 的 ELF reader 把调试段中指向 TLS 符号的 `R_AARCH64_TLS_DTPREL64` 记录为 8 字节重定位，保留模块 TLS 模板内的符号引用供最终链接。
+
 generic relocation envelope 的顶层分支表示 Mach-O、ELF RELA、COFF 等实际容器形态，machine 是必需字段。ELF RELA 保留原 machine、kind、写入宽度和独立的 signed addend，现有指纹与 wire 编码保持。对象读取在所选 header ABI 下检查 ELF flags。ELF machine 的 relocation 表同时确定写入宽度和消费者用到的绝对地址、TLS 等语义，数字 kind 只在该 machine 下解释。相同位置的 ELF RELA 记录保留原顺序；atom 的定义内容按每条记录关联其符号绑定，位置只用于确定归属与写入范围。
 
 Mach-O amd64 使用 `CPU_TYPE_X86_64`／`CPU_SUBTYPE_X86_64_ALL`。UNSIGNED 与 SUBTRACTOR／UNSIGNED pair 保留 32／64-bit 宽度，pair 两端分别保留符号或 section ordinal 目标；SIGNED、BRANCH、GOT_LOAD、GOT、SIGNED_1／2／4 和 TLV 使用各自的 32-bit PC-relative 形式，保留隐式 addend 与指令尾部偏移，不将其解释为 ARM64 指令位域。新增 relocation form tag 13／14 分别为 Unsigned32／Subtractor32，tag 15 保存 x86-64 PC-relative kind；现有 64-bit 绝对指针和差值沿同一真实语义复用。SDK 文本桩、fat 对象与动态库选择 `x86_64-macos`／x86-64 slice，不能接受 arm64 或 x86_64h 专用 slice 代替基线。
