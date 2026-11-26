@@ -1,0 +1,53 @@
+schema = 1
+name = "generic-reader-hidden-map-keys"
+inputs = ["../string-map-bound-dispatch/provider/Cone.toml", "../string-map-bound-dispatch/consumer/Cone.toml", "map"]
+tools = ["scoop", "scoopc"]
+tags = ["generic-reader", "cross-cone", "compiler-correctness"]
+
+# The public field brings the closed map into each consumer. A direct call on
+# the map in consumer source would exercise a different declaration-loading path.
+variants = [
+  {name = "int8",    vars = {key = "Int8",    first = "-7",                     second = "9"}},
+  {name = "int16",   vars = {key = "Int16",   first = "-300",                   second = "500"}},
+  {name = "int",     vars = {key = "Int",     first = "-70000",                 second = "90000"}},
+  {name = "long",    vars = {key = "Long",    first = "-5000000000L",            second = "6000000000L"}},
+  {name = "uint8",   vars = {key = "UInt8",   first = "240u",                   second = "9u"}},
+  {name = "uint16",  vars = {key = "UInt16",  first = "60000u",                 second = "500u"}},
+  {name = "uint",    vars = {key = "UInt",    first = "4000000000u",             second = "90000u"}},
+  {name = "ulong",   vars = {key = "ULong",   first = "10000000000000000000uL",  second = "9uL"}},
+  {name = "boolean", vars = {key = "Boolean", first = "true",                   second = "false"}},
+  {name = "string",  vars = {key = "String",  first = '"left"',                 second = '"right"'}},
+  {name = "char",    vars = {key = "Char",    first = "'界'",                   second = "'a'"}},
+]
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${fixture}/../string-map-bound-dispatch/provider/Cone.toml", to = "${work}/provider/Cone.toml"}},
+  {copy = {from = "${fixture}/../string-map-bound-dispatch/consumer/Cone.toml", to = "${work}/consumer/Cone.toml"}},
+  {copy = {from = "${fixture}/map/provider.scoop", to = "${work}/provider/src/api.scoop"}},
+  {copy = {from = "${fixture}/map/consumer.scoop", to = "${work}/consumer/src/main.scoop"}},
+  {write = {path = "${work}/provider/src/keys.scoop", data = """\
+package test.provider
+
+internal typealias Key = ${key}
+internal fun firstKey(): Key = ${first}
+internal fun secondKey(): Key = ${second}
+"""}},
+]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/consumer", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = ""
+stderr = ""

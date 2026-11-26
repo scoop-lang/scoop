@@ -1,0 +1,11 @@
+package test.provider
+
+public class EqualityCase<T : Equals<T>> public constructor(
+    public val left: T, public val right: T, private val expected: Boolean
+) {
+    public fun verify(equal: Boolean = this.left.equals(this.right)) = checkEquality(equal, expected)
+}
+
+private fun checkEquality(actual: Boolean, expected: Boolean) {
+    if (actual != expected) throw IllegalStateException()
+}

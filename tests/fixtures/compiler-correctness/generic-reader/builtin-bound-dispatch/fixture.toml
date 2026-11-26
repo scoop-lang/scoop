@@ -1,0 +1,51 @@
+schema = 1
+name = "generic-reader-builtin-bound-dispatch"
+inputs = ["provider", "consumer", "checks"]
+tools = ["scoop", "scoopc"]
+tags = ["generic-reader", "cross-cone", "compiler-correctness"]
+
+# Each variant compiles a separate provider and consumer. Only the provider
+# spells the actual arguments, constructs values, or checks the results.
+variants = [
+  {name = "boolean-hash", vars = {check = "hash", sample = "HashCase<Boolean>(true, true.hash())"}},
+  {name = "boolean-equals", vars = {check = "equality", sample = "EqualityCase<Boolean>(true, false, false)"}},
+  {name = "string-method-default", vars = {check = "method-default", sample = "MethodCase()"}},
+  {name = "unit",    vars = {check = "equality", sample = "EqualityCase<Unit>(Unit, Unit, true)"}},
+  {name = "float",   vars = {check = "equality", sample = "EqualityCase<Float>(-0.0f, 0.0f, true)"}},
+  {name = "double",  vars = {check = "equality", sample = "EqualityCase<Double>(1.25, 1.5, false)"}},
+  {name = "ptr",     vars = {check = "pointer", sample = "pointerCase()"}},
+  {name = "array",   vars = {check = "indexed", sample = "IndexedCase<Array<Int>>([11, 37])"}},
+  {name = "mutable-array", vars = {check = "indexed", sample = "IndexedCase<MutableArray<Int>>([11, 37])"}},
+  {name = "atomic-int", vars = {check = "atomic", sample = "AtomicCase<AtomicInt>(AtomicInt(37))"}},
+]
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${fixture}/provider", to = "${work}/provider"}},
+  {copy = {from = "${fixture}/consumer", to = "${work}/consumer"}},
+  {copy = {from = "${fixture}/checks/${check}.scoop", to = "${work}/provider/src/check.scoop"}},
+  {write = {path = "${work}/provider/src/wrapper.scoop", data = """\
+package test.provider
+
+public class Wrapper public constructor() {
+    public val sample = ${sample}
+}
+"""}},
+]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/consumer", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = ""
+stderr = ""

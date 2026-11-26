@@ -1,0 +1,15 @@
+package test.provider
+
+public class Methods public constructor() {
+    public fun <T : Hash> read(value: T, hash: Long = value.hash()): Long = hash
+}
+
+public class MethodCase public constructor() {
+    public fun key(): String = "method argument"
+
+    // The outer default infers the imported method argument. Its own omitted
+    // argument calls the Hash slot selected in Methods.read.
+    public fun verify(hash: Long = Methods().read(this.key())) {
+        if (hash != key().hash()) throw IllegalStateException()
+    }
+}

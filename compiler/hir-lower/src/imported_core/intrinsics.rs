@@ -155,15 +155,27 @@ impl Lowerer {
         kind: hir::IntrinsicTypeKind,
     ) -> Result<(), ImportedSignatureTypeError> {
         let source = &self.imported_intrinsic_types[&kind];
-        if !source.interface_implementations.is_empty()
-            || !source.interfaces.iter().any(|interface| {
-                self.dependency_interface_definition(*interface)
-                    .is_some_and(|interface| {
-                        self.imported_bound_interfaces
-                            .contains(&interface.declaration.owner())
-                    })
-            })
+        if self.imported_bound_interfaces.is_empty() || !source.interface_implementations.is_empty()
         {
+            return Ok(());
+        }
+        // The provider's dispatch selections include slots for inherited interfaces.
+        let selections = source
+            .declaration
+            .interface
+            .declaration_details()
+            .dispatch_selections();
+        let needed = selections.records().iter().any(|selection| {
+            let owner = match selection.role().interface() {
+                Some(SignatureTypeKey::Nominal(id)) => hir::SourceNominalId::Concrete(*id),
+                Some(SignatureTypeKey::NominalApplication { origin, .. }) => {
+                    hir::SourceNominalId::GenericTemplate(*origin)
+                }
+                _ => return false,
+            };
+            self.imported_bound_interfaces.contains(&owner)
+        });
+        if !needed {
             return Ok(());
         }
         let declaration = source.declaration.clone();

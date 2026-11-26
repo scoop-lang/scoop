@@ -1,0 +1,10 @@
+schema = 1
+
+[cone]
+group = "test"
+name = "bound-consumer"
+version = "0.1.0"
+kind = "executable"
+
+[dependencies]
+"test:bound-cases" = { version = "0.1.0", path = "../provider" }

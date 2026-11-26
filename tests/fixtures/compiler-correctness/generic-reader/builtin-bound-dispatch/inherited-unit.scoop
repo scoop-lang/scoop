@@ -1,0 +1,5 @@
+package test.provider
+
+public class Wrapper public constructor() {
+    public val sample = EqualityCase<Unit>(Unit, Unit, true)
+}
