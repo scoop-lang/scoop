@@ -26,17 +26,7 @@ fn build_fixture(root_fixture: &str, native: bool) -> Fixture {
         .unwrap()
         .parent()
         .unwrap();
-    let compiler = std::env::var_os("SCOOP_TEST_PAIRED_SCOOPC")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            std::env::current_exe()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join("scoopc")
-        });
+    let compiler = crate::cargo_tools::companion("scoopc");
     assert!(
         compiler.is_file(),
         "build the paired scoopc before program-link tests"
