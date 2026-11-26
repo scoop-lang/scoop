@@ -240,7 +240,7 @@ timer 用单调时钟 dispatch timer；到期仍核对截止时间，不能提�
 
 ### 8.1 依赖与最低能力
 
-使用固定源码版本 liburing 2.15，随 Cone 的 native 输入与许可证一起发布；该版本已有 [2026-06-29 上游发布记录](https://github.com/axboe/liburing/releases/tag/liburing-2.15)。GNU／musl 分别按现有目标工具链构建，不依赖系统 liburing，也不手写 ring 的内存屏障和 SQ／CQ ABI。
+使用固定源码版本 liburing 2.15，随 Cone 的 native 输入与许可证一起发布；该版本已有 [2026-06-29 上游发布记录](https://github.com/axboe/liburing/releases/tag/liburing-2.15)。GNU／musl 分别按现有目标工具链构建，不依赖系统 liburing，也不手写 ring 的内存屏障和 SQ／CQ ABI。 两套目标的兼容头沿用 liburing 的块设备 discard 命令定义，以便使用 Debian 12 的 Linux UAPI 头构建。
 
 首版支持与验证基线选择 **Linux 6.1 或更新内核**；这是 asyncio 新后端的运行要求，不改变其他 Scoop 程序的最低内核要求。初始化实际建立 ring、probe 所需操作并检查必要 feature，不仅判断版本字符串；所需操作为 ACCEPT、CONNECT、RECV、SEND、RECVMSG、SENDMSG、READ、WRITE、FSYNC、TIMEOUT、ASYNC_CANCEL、POLL_ADD，要求 `IORING_FEAT_NODROP`。操作存在也不保证任意 fd 类型／文件系统支持，提交错误仍按操作报告。探测依据见 [liburing probe](https://man7.org/linux/man-pages/man3/io_uring_get_probe.3.html)。
 
