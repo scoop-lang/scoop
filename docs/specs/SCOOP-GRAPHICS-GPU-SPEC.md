@@ -10,6 +10,8 @@
 
 `NativeGpuFormat` 分别携带 Metal 的 MTLPixelFormat、D3D12 的 DXGI_FORMAT、GLES 的 sized internal format 原值。创建时还明确 `GpuPixelLayout`，描述 Skia 如何解释该纹理的通道；这不是格式转换。支持范围由实际设备和后端决定，格式、通道解释、尺寸或可渲染性不相容时失败，不偷偷选择另一格式、软件目标或读回路径。当前通道解释为 RGBA8、BGRA8、RGBA16F、RGB10A2、R8 和 RG8。图像颜色空间显式选择 sRGB 或线性 sRGB；这不扩展窗口的 HDR 呈现合同。
 
+macOS 与 iOS 共用 `scoop.graphics.native.metal.MetalContext`。它借用同一设备上的 Metal 队列及 BGRA8 纹理构造绘制目标，窗口或视图的所有权归宿主。设备和模拟器按自己的目标链接 Metal 与 Skia。
+
 ## 2. 可写 buffer
 
 `GpuDevice.createBuffer(width, height, format, layout, colorSpace = Srgb, scale = 1.0): GpuBuffer` 分配同一 context 的可渲染、可采样、单层、单采样二维纹理，初始通道清零；含 alpha 的格式为透明黑，无 alpha 的格式保持其原生不透明解释。GPU 资源由 Skia 管理；native format 保留，尺寸不为 RGBA8 人为换算或限制。scale 只影响 Scoop draw 的根坐标。

@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 from build_rust_text import NOTICE_DIRECTORY
-from build_skia import TARGETS as SKIA_TARGETS
+from build_skia import DISTRIBUTION_TARGETS as SKIA_TARGETS
 from prepare_gtk import NOTICE_DIRECTORY as GTK_NOTICE_DIRECTORY
 from prepare_gtk import TARGET as GTK_TARGET
 from prepare_tray import NOTICE_DIRECTORY as TRAY_NOTICE_DIRECTORY

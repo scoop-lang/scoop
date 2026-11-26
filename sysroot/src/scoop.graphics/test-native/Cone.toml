@@ -13,7 +13,7 @@ path = "src/geometry.scoop"
 path = "src/gpu.scoop"
 [[sources]]
 path = "src/metal.scoop"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[sources]]
 path = "src/d3d.scoop"
 when = { os = "windows" }
@@ -31,7 +31,7 @@ path = "native/geometry.cpp"
 path = "native/text.cpp"
 [[native.sources]]
 path = "native/gpu_metal.m"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.sources]]
 path = "native/gpu_d3d.cpp"
 when = { os = "windows" }
@@ -40,7 +40,7 @@ path = "native/gpu_gles.cpp"
 when = { os = "linux", env = "gnu" }
 [[native.sources]]
 path = "native/metal.m"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.sources]]
 path = "native/d3d.cpp"
 when = { os = "windows" }
@@ -50,11 +50,11 @@ kind = "static"
 [[native.libraries]]
 name = "Foundation"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "Metal"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "d3d12"
 when = { os = "windows" }

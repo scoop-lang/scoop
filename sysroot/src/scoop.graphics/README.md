@@ -49,7 +49,7 @@ ShaderProgram、Shader、ImageFilter、Path、PathMeasure、Image、RasterSurfac
 
 `pixelTransform` 包含目标 DPI；`localClipBounds` 只是局部裁剪的保守矩形，精确命中仍使用 CanvasGeometry。分块绘图可用 `drawImageRegion(image, source, destination)` 合成扩展图像的核心区域；Linear 允许从相邻源像素采样，应按滤镜范围及插值需要保留扩展边缘。新能力本期先验证 macOS aarch64，x86_64 统一留到 UI 基础交互功能全部完成后，Windows 验收后续进行。
 
-GUI renderer 通过 `scoop.graphics.native` 的 RenderTarget 和 geometry 捕获接入。macOS 的 Unsafe `scoop.graphics.native.macos.MetalContext` 接受所属 device／queue 和 BGRA8 texture；Windows 的 Unsafe `scoop.graphics.native.windows.D3DContext` 接受 adapter／device／direct queue，以及同设备的单采样 BGRA8 render target。D3D12 resource 在包装前须处于 PRESENT／COMMON 状态，submit 和读回结束后恢复 PRESENT。绑定保留所需 COM 引用，原生对象仍由调用方按 GPU 使用顺序管理。
+GUI renderer 通过 `scoop.graphics.native` 的 RenderTarget 和 geometry 捕获接入。macOS 和 iOS 的 Unsafe `scoop.graphics.native.metal.MetalContext` 接受所属 device／queue 和 BGRA8 texture；Windows 的 Unsafe `scoop.graphics.native.windows.D3DContext` 接受 adapter／device／direct queue，以及同设备的单采样 BGRA8 render target。D3D12 resource 在包装前须处于 PRESENT／COMMON 状态，submit 和读回结束后恢复 PRESENT。绑定保留所需 COM 引用，原生对象仍由调用方按 GPU 使用顺序管理。
 
 Linux 的 `scoop.graphics.native.linux.GLESContext` 使用 EGL 1.5／GLES 3。`createX11`／`createWayland` 借用显示连接，`target` 包装所属 EGLSurface；`createOffscreen` 使用 Mesa surfaceless EGL，`offscreen` 创建真实 GPU 目标。普通 close 后，已有目标和 GPU 图像继续保留 context；借用显示连接断开前，宿主必须先销毁窗口 surface，并调用 `abandon()` 释放 GPU／EGL 资源。资源必须在创建线程使用。依赖准备和两后端验收见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。
 

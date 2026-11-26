@@ -8,7 +8,7 @@ kind = "library"
 
 [[sources]]
 path = "src"
-when = { os = ["darwin", "windows"] }
+when = { os = ["darwin", "ios", "windows"] }
 [[sources]]
 path = "src"
 when = { os = "linux", env = "gnu" }
@@ -31,7 +31,7 @@ path = "tests/drawing.scoop"
 path = "tests/resources.scoop"
 [[test.sources]]
 path = "tests/metal.scoop"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [native]
 cxx = true

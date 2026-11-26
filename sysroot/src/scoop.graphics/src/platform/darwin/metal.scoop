@@ -1,4 +1,4 @@
-package scoop.graphics.native.macos
+package scoop.graphics.native.metal
 
 import scoop.graphics.*
 import scoop.graphics.native.RenderTarget

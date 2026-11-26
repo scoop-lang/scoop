@@ -8,16 +8,16 @@ kind = "library"
 
 [[sources]]
 path = "src/geometry"
-when = { os = ["darwin", "windows"] }
+when = { os = ["darwin", "ios", "windows"] }
 [[sources]]
 path = "src/drawing"
-when = { os = ["darwin", "windows"] }
+when = { os = ["darwin", "ios", "windows"] }
 [[sources]]
 path = "src/native"
-when = { os = ["darwin", "windows"] }
+when = { os = ["darwin", "ios", "windows"] }
 [[sources]]
 path = "src/platform/darwin"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[sources]]
 path = "src/platform/windows"
 when = { os = "windows" }
@@ -40,7 +40,7 @@ path = "tests/gpu_images.scoop"
 path = "tests/gpu_support.scoop"
 [[test.sources]]
 path = "tests/gpu_metal.scoop"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[test.sources]]
 path = "tests/gpu_d3d.scoop"
 when = { os = "windows" }
@@ -74,7 +74,7 @@ path = "tests/recording.scoop"
 path = "tests/offscreen.scoop"
 [[test.sources]]
 path = "tests/offscreen_metal.scoop"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[test.sources]]
 path = "tests/effects.scoop"
 [[test.sources]]
@@ -87,10 +87,10 @@ path = "tests/layer_bounds.scoop"
 path = "tests/opacity_layers.scoop"
 [[test.sources]]
 path = "tests/effects_metal.scoop"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[test.sources]]
 path = "tests/metal.scoop"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[test.sources]]
 path = "tests/d3d.scoop"
 when = { os = "windows" }
@@ -105,10 +105,10 @@ objc_flags = ["-Wall", "-Wextra", "-Werror"]
 path = "native/shared/gpu.cpp"
 [[native.sources]]
 path = "native/darwin/gpu.cpp"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.sources]]
 path = "native/darwin/gpu.m"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.sources]]
 path = "native/windows/gpu.cpp"
 when = { os = "windows" }
@@ -141,7 +141,7 @@ path = "native/shared/recording.cpp"
 path = "native/shared/offscreen.cpp"
 [[native.sources]]
 path = "native/darwin/metal.cpp"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.sources]]
 path = "native/windows/d3d.cpp"
 when = { os = "windows" }
@@ -151,31 +151,31 @@ name = "scoop_skia"
 kind = "static"
 [[native.libraries]]
 name = "z"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "CoreFoundation"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "CoreGraphics"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "CoreText"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "Foundation"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "Metal"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "IOSurface"
 kind = "framework"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 [[native.libraries]]
 name = "d3d12"
 when = { os = "windows" }

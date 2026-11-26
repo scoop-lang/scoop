@@ -57,6 +57,12 @@ target/release/scoop build sysroot/src/scoop.platform --release \
 
 在模拟器验证命令中加 `--platform` 并使用独立工作目录。宿主把 Foundation 的目录及随包资源路径传给 Scoop，对照应用主目录、临时目录和可执行文件，并从 bundle 读出文本、在容器中创建和删除文件。该用例同时通过主线程调用时钟、互斥锁和缓冲区，成功标记为 `scoop-ios-platform-ok`。
 
+## iOS 离屏图形和文本
+
+按[原生依赖准备说明](../../scripts/README.md)构建对应目标的 Skia、Rust 文字后端和上一节的 `scoop.platform`。用同一个目标依次预编译 `scoop.math`、`scoop.charset`、`scoop.graphics`、`scoop.graphics.text`、`scoop.graphics.svg`、`scoop.icons.lucide` 到本地 sysroot。再用独立工作目录运行上述模拟器命令，加上 `--graphics`。
+
+这个宿主通过 Scoop 绘制色块、Lucide 加号和换行的中文与 emoji，验证颜色读回、系统字体、UTF-8 命中边界和 GBK 往返。控制台输出实际行数、覆盖像素数及 `scoop-ios-graphics-ok`。
+
 ## UIKit 受保护数据
 
 在上述模拟器验证命令加上 `--protected-data` 并使用另一个工作目录，会构建普通 release 应用。UIKit 启动后，宿主通过 Scoop 回调查询数据保护状态，与同一时刻的 UIKit 返回值对照。成功标记为 `scoop-ios-protected-data-ok`。

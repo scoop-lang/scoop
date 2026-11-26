@@ -17,6 +17,7 @@ PROBES = {
     "callbacks": (HERE / "cone", HERE / "ScoopHostApi.h"),
     "protected": (HERE / "protected-data/cone", HERE / "protected-data/ProtectedDataApi.h"),
     "platform": (HERE / "platform/cone", HERE / "platform/PlatformHost.h"),
+    "graphics": (HERE / "graphics/cone", HERE / "graphics/GraphicsResult.h"),
 }
 
 
@@ -226,6 +227,13 @@ def main():
         help="exercise scoop.platform in the application container",
     )
     parser.set_defaults(probe="callbacks")
+    probes.add_argument(
+        "--graphics",
+        action="store_const",
+        dest="probe",
+        const="graphics",
+        help="draw and read back shaped text and SVG using the installed Scoop libraries",
+    )
     args = parser.parse_args()
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=False)

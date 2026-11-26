@@ -1,6 +1,6 @@
 package scoop.tests.ui.themes
 
-import scoop.graphics.native.macos.MetalContext
+import scoop.graphics.native.metal.MetalContext
 import scoop.test.*
 import scoop.tests.graphics.TestMetalSurface
 
