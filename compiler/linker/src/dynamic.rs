@@ -67,6 +67,7 @@ pub(crate) enum LoadKind {
     Normal,
     Weak,
     Reexport,
+    Previous { current_version: u32 },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -94,6 +95,7 @@ pub(crate) struct LoadDependency {
 pub(crate) struct DynamicProvider {
     pub id: NativeDynamicProviderId,
     pub input: NativeInputId,
+    pub directive_only: bool,
     pub install_name: String,
     pub current_version: u32,
     pub compatibility_version: u32,

@@ -50,6 +50,32 @@ exports:
 }
 
 #[test]
+fn sdk_previous_range_can_start_at_zero() {
+    let text = br#"--- !tapi-tbd
+tbd-version: 4
+targets: [arm64-ios]
+install-name: /usr/lib/current.dylib
+current-version: 3.2
+compatibility-version: 1.1
+exports:
+  - targets: [arm64-ios]
+    symbols: ['$ld$previous$/usr/lib/old.dylib$$2$0.0$100.0$_moved$']
+"#;
+    let records = read_text_stubs(
+        TargetArchitecture::Aarch64,
+        ApplePlatform::Ios,
+        text,
+        DarwinPackedVersionV1::from_components(17, 0, 0).unwrap(),
+        true,
+    )
+    .unwrap();
+    let moved = &records[0].previous_exports["_moved"];
+    assert_eq!(moved.install_name, "/usr/lib/old.dylib");
+    assert_eq!(moved.current_version, (3 << 16) | (2 << 8));
+    assert_eq!(moved.compatibility_version, (1 << 16) | (1 << 8));
+}
+
+#[test]
 fn previous_sdk_library_name_and_version_apply_without_a_symbol() {
     let text = b"--- !tapi-tbd\ntbd-version: 4\ntargets: [arm64-macos]\ninstall-name: /usr/lib/current.dylib\nexports:\n  - targets: [arm64-macos]\n    symbols: [_ordinary, '$ld$previous$/usr/lib/previous.dylib$3$1$12.0$14.0$$']\n";
     let records = read_text_stubs(
@@ -63,7 +89,7 @@ fn previous_sdk_library_name_and_version_apply_without_a_symbol() {
     assert_eq!(records[0].install_name, "/usr/lib/previous.dylib");
     assert_eq!(records[0].compatibility_version, 3 << 16);
     assert!(records[0].previous_exports.is_empty());
-    for version in ["", "0", "0.0"] {
+    for (version, expected) in [("", 1 << 16), ("0", 0), ("0.0", 0)] {
         let text = std::str::from_utf8(text)
             .unwrap()
             .replace("$3$1$", &format!("${version}$1$"));
@@ -75,7 +101,7 @@ fn previous_sdk_library_name_and_version_apply_without_a_symbol() {
             true,
         )
         .unwrap();
-        assert_eq!(records[0].compatibility_version, 0);
+        assert_eq!(records[0].compatibility_version, expected);
     }
 }
 
