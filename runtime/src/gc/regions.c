@@ -20,10 +20,6 @@ size_t scoop_heap_large_mapping_size(size_t exact_size) {
 
 static void *map_aligned(size_t size, size_t alignment) {
     const ScoopThreadVmOps *vm = scoop_platform_bundle()->thread_vm;
-    size_t page_size = vm->page_size();
-    if (page_size == 0 || alignment % page_size != 0 || size % page_size != 0) {
-        heap_fatal("heap mapping cannot satisfy platform alignment");
-    }
     void *mapping = NULL;
     ScoopPlatformError error = {0};
     if (!vm->reserve_read_write(size, alignment, &mapping, &error)) {
@@ -76,9 +72,9 @@ ScoopGcRegion *scoop_heap_region_create(size_t size, bool large) {
     scoop_gc_heap_state.regions = region;
     if (!large) {
 #if SCOOP_ENABLE_GC_STRESS
-        /* Keep the mapping owner readable even when old object blocks are
-         * quarantined. The reserved block never acquires object metadata. */
-        region->next_block = 1;
+        /* Quarantine can protect a whole page without covering the owner or
+         * another allocated block, even on kernels with 64 KiB pages. */
+        region->next_block = scoop_heap_block_stride();
 #endif
         region->next_available = scoop_gc_heap_state.available_regions;
         scoop_gc_heap_state.available_regions = region;

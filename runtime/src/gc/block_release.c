@@ -36,11 +36,11 @@ void scoop_heap_release_block(ScoopGcBlockMeta *block) {
 #if SCOOP_ENABLE_GC_STRESS
 void scoop_heap_quarantine_block(ScoopGcBlockMeta *block) {
     const ScoopThreadVmOps *vm = scoop_platform_bundle()->thread_vm;
-    size_t page_size = vm->page_size();
+    size_t page_size = scoop_gc_heap_state.page_size;
     void *base = block_base(block);
     size_t size = scoop_heap_block_bytes(block);
-    if (page_size == 0 || (uintptr_t)base % page_size != 0 || size % page_size != 0) {
-        heap_fatal("GC block storage is not compatible with platform page protection");
+    if (size < page_size) {
+        size = page_size;
     }
     ScoopPlatformError error = {0};
     if (!vm->protect_none(base, size, &error)) {

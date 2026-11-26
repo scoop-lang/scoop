@@ -55,6 +55,11 @@ void scoop_gc_heap_init(void) {
     if (scoop_gc_heap_state.ready) {
         heap_fatal("heap initialized more than once");
     }
+    size_t page_size = scoop_platform_bundle()->thread_vm->page_size();
+    if (page_size == 0 || GC_CHUNK_SIZE % page_size != 0 || page_size % GC_LINE_SIZE != 0) {
+        heap_fatal("platform pages must contain whole GC lines and divide a mapping chunk");
+    }
+    scoop_gc_heap_state.page_size = page_size;
     const char *survivor = getenv("SCOOP_GC_SURVIVOR");
     if (survivor != NULL) {
         if (strcmp(survivor, "0") != 0 && strcmp(survivor, "1") != 0) {
@@ -215,7 +220,8 @@ static ScoopGcBlockMeta *take_small_block(bool allow_growth) {
         }
         available = &scoop_gc_heap_state.available_regions;
     }
-    block = &region->blocks[region->next_block++];
+    block = &region->blocks[region->next_block];
+    region->next_block += scoop_heap_block_stride();
     if (region->next_block == GC_REGION_BLOCKS) {
         *available = region->next_available;
         region->next_available = NULL;

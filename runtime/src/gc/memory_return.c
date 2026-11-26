@@ -26,14 +26,30 @@ static bool discard_range(const ScoopThreadVmOps *vm, uintptr_t begin, uintptr_t
     return true;
 }
 
-static bool empty_page(const ScoopGcBlockMeta *block, size_t offset, size_t page_size) {
-    if ((block->index == 0 && offset == 0) || !block->discard_pending ||
-        block->head->state == SCOOP_BLOCK_QUARANTINED) {
+static bool empty_page(const ScoopGcRegion *region, size_t offset, size_t page_size) {
+    if (offset == 0) {
+        return false; /* The region owner remains readable. */
+    }
+    const ScoopGcBlockMeta *block = &region->blocks[offset / GC_BLOCK_SIZE];
+    if (page_size > GC_BLOCK_SIZE) {
+        bool pending = false;
+        for (size_t i = 0; i < page_size / GC_BLOCK_SIZE; i++) {
+            /* Full sweep retires every block without live objects. An active
+             * sibling keeps the whole page even if only a free block is pending. */
+            if (active_head(&block[i]) || block[i].head->state == SCOOP_BLOCK_QUARANTINED) {
+                return false;
+            }
+            pending |= block[i].discard_pending;
+        }
+        return pending;
+    }
+    if (!block->discard_pending || block->head->state == SCOOP_BLOCK_QUARANTINED) {
         return false;
     }
     if (!active_head(block)) {
         return true;
     }
+    offset %= GC_BLOCK_SIZE;
     for (size_t line = offset / GC_LINE_SIZE; line < (offset + page_size) / GC_LINE_SIZE; line++) {
         if (bit_test(block->line_live, line)) {
             return false;
@@ -46,19 +62,16 @@ static void discard_empty_pages(ScoopGcRegion *region, const ScoopThreadVmOps *v
                                 size_t page_size) {
     uintptr_t begin = region->base, end = begin;
     bool succeeded = true;
-    for (size_t index = 0; index < region->next_block; index++) {
-        ScoopGcBlockMeta *block = &region->blocks[index];
-        for (size_t offset = 0; offset < GC_BLOCK_SIZE; offset += page_size) {
-            uintptr_t address = region->base + index * GC_BLOCK_SIZE + offset;
-            if (empty_page(block, offset, page_size)) {
-                if (begin == end) {
-                    begin = address;
-                }
-                end = address + page_size;
-            } else {
-                succeeded &= discard_range(vm, begin, end);
-                begin = end = address + page_size;
+    for (size_t offset = 0; offset < region->next_block * GC_BLOCK_SIZE; offset += page_size) {
+        uintptr_t address = region->base + offset;
+        if (empty_page(region, offset, page_size)) {
+            if (begin == end) {
+                begin = address;
             }
+            end = address + page_size;
+        } else {
+            succeeded &= discard_range(vm, begin, end);
+            begin = end = address + page_size;
         }
     }
     succeeded &= discard_range(vm, begin, end);
@@ -71,10 +84,6 @@ static void discard_empty_pages(ScoopGcRegion *region, const ScoopThreadVmOps *v
 
 void scoop_heap_reclaim_regions(bool full) {
     const ScoopThreadVmOps *vm = scoop_platform_bundle()->thread_vm;
-    size_t page_size = full ? vm->page_size() : GC_BLOCK_SIZE;
-    if (page_size == 0 || page_size % GC_LINE_SIZE != 0 || GC_BLOCK_SIZE % page_size != 0) {
-        heap_fatal("GC blocks cannot be divided into platform pages");
-    }
     if (full) {
         scoop_gc_heap_state.free_blocks = NULL;
         scoop_gc_heap_state.available_regions = NULL;
@@ -103,7 +112,7 @@ void scoop_heap_reclaim_regions(bool full) {
                 *available = region;
                 available = &region->next_available;
             }
-            discard_empty_pages(region, vm, page_size);
+            discard_empty_pages(region, vm, scoop_gc_heap_state.page_size);
             for (size_t index = 0; index < region->next_block; index++) {
                 ScoopGcBlockMeta *block = &region->blocks[index];
                 if (block->head->state == SCOOP_BLOCK_FREE) {

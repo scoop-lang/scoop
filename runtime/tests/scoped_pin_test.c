@@ -1,9 +1,27 @@
+#include <errno.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "nursery_fixture.h"
+
+#ifndef TEST_PIN_MINOR
+static void check_quarantined_block(const ScoopGcBlockMeta *source) {
+    assert(source->head->state == SCOOP_BLOCK_QUARANTINED);
+    size_t page_size = scoop_platform_bundle()->thread_vm->page_size();
+    size_t span = page_size > GC_BLOCK_SIZE ? page_size : GC_BLOCK_SIZE;
+    const unsigned char *base = block_base(source);
+    /* The kernel copies the byte for write(2); the test process can observe
+     * EFAULT at either end of the protected range without taking a signal. */
+    int channel[2];
+    assert(pipe(channel) == 0);
+    assert(write(channel[1], base, 1) == -1 && errno == EFAULT);
+    assert(write(channel[1], base + span - 1, 1) == -1 && errno == EFAULT);
+    close(channel[0]);
+    close(channel[1]);
+}
+#endif
 
 static void nested_frames(void) {
     NurseryNode *object = nursery_node(91);
@@ -27,12 +45,16 @@ static void nested_frames(void) {
     /* A handle keeps the object alive after the last frame exits, while full
      * stress collection verifies that the address can move again. */
     uint64_t handle = scoop_rt_get_handle(object);
+#ifndef TEST_PIN_MINOR
+    ScoopGcBlockMeta *source = scoop_heap_known_object_block(object, true);
+#endif
     scoop_rt_pop_pin_frame(&outer);
     assert(scoop_thread_current_required()->pin_frames == NULL);
     nursery_collect(false);
     NurseryNode *moved = (NurseryNode *)scoop_rt_resolve_handle(handle);
 #ifndef TEST_PIN_MINOR
     assert(moved != object);
+    check_quarantined_block(source);
 #endif
     assert(moved->value == 91 && moved->next->value == 73);
     assert(scoop_rt_release_handle(handle) == moved);
