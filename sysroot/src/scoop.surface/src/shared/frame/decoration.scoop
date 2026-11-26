@@ -1,0 +1,12 @@
+package scoop.surface
+
+/** Installed by the first native window region registered on a desktop Surface. */
+internal interface WindowDecorations : Closeable {
+    fun beginFrame(scale: Double): DecorationFrame
+    fun geometryChanged()
+    fun refreshEligibility()
+}
+
+internal interface DecorationFrame : Closeable {
+    fun publish()
+}

@@ -25,10 +25,8 @@ public class SurfaceWindow internal constructor(
     private var animationDeadline: WindowDeadline? = None
     private var scheduledAnimationTime: MonotonicInstant? = None
     public val animations: AnimationTimeline = windowAnimations(nativeWindow)
-    private val inputs = windowInputs(nativeWindow)
-    private val regions = WindowRegionStore(this, inputs, host.frameCapabilities())
+    internal val inputs = windowInputs(nativeWindow)
     init {
-        inputs.windowRegions = Some(regions)
         host.bindShortcuts(inputs.rootScope)
         animations.scheduleChanged = { refresh() }
     }
@@ -77,10 +75,6 @@ public class SurfaceWindow internal constructor(
     ): InputScope = inputs.createScope(parent, handler)
     /** Queries the accepted foreground route without changing input or focus state. */
     public fun hitInput(windowPoint: Point): Array<InputHit> = inputs.hitInput(windowPoint)
-    public fun createWindowRegion(
-        kind: WindowRegionKind,
-        parent: InputScope? = None
-    ): WindowRegionHandle = regions.create(kind, parent)
     public fun clearFocus() {
         inputs.clearFocus()
     }
@@ -116,7 +110,7 @@ public class SurfaceWindow internal constructor(
                     renderer.configure(metrics)
                     configured = Some(metrics)
                     scheduler.request()
-                    regions.geometryChanged()
+                    inputs.windowRegions?.geometryChanged()
                     inputs.geometryChanged()
                 }
                 if (phase != SurfaceWindowState.Open) return
@@ -170,18 +164,13 @@ public class SurfaceWindow internal constructor(
 
                 case GeometryChanged(_) -> refresh()
 
-                case FrameChanged -> {
-                    regions.geometryChanged();
-                    requestFrame()
-                }
-
                 case Occluded(_) -> {
                     scheduler.request();
                     refresh()
                 }
 
                 case ThemeChanged(_) -> requestFrame()
-                else -> inputs.event(event)
+                else -> otherWindowEvent(event)
             }
         }
     }
@@ -202,53 +191,49 @@ public class SurfaceWindow internal constructor(
                 val size = Size(metrics.logicalSize.width, metrics.logicalSize.height)
                 val accepted = frame
                     .use { current ->
-                        regions
-                            .begin(metrics.scaleFactor)
-                            .use { nativeRegions ->
-                                inputs
-                                    .beginFrame()
-                                    .use { placements ->
-                                        scheduler.begin()
-                                        animations
-                                            .withFrame<Unit>(time) {
-                                                if (phase == SurfaceWindowState.Open) {
-                                                    current
-                                                        .draw { canvas ->
-                                                            inputs
-                                                                .dispatch {
-                                                                    content
-                                                                        .paint(
-                                                                            FrameContext(
-                                                                                this,
-                                                                                canvas,
-                                                                                size,
-                                                                                time,
-                                                                                placements,
-                                                                                nativeRegions
-                                                                            )
-                                                                        )
-                                                                }
+                        inputs
+                            .beginFrame()
+                            .use { placements ->
+                                placements.decorations = inputs
+                                    .windowRegions
+                                    ?.beginFrame(metrics.scaleFactor)
+                                scheduler.begin()
+                                animations
+                                    .withFrame<Unit>(time) {
+                                        if (phase == SurfaceWindowState.Open) {
+                                            current
+                                                .draw { canvas ->
+                                                    inputs
+                                                        .dispatch {
+                                                            content
+                                                                .paint(
+                                                                    FrameContext(
+                                                                        this,
+                                                                        canvas,
+                                                                        size,
+                                                                        time,
+                                                                        placements,
+                                                                        metrics.scaleFactor
+                                                                    )
+                                                                )
                                                         }
                                                 }
-                                            }
-                                        // A painter can resize or close its native window synchronously.
-                                        refresh()
-                                        val accepted = if (phase !=
-                                            SurfaceWindowState.Open ||
-                                            nativeWindow.state !=
-                                            WindowState.Open ||
-                                            !nativeWindow.isVisible ||
-                                            nativeWindow.isOccluded
-                                        )
-                                            false
-                                        else
-                                            current.submit()
-                                        if (accepted) {
-                                            regions.publish(nativeRegions)
-                                            inputs.publish(placements)
                                         }
-                                        accepted
                                     }
+                                // A painter can resize or close its native window synchronously.
+                                refresh()
+                                val submitted = phase ==
+                                    SurfaceWindowState.Open &&
+                                    nativeWindow.state ==
+                                    WindowState.Open &&
+                                    nativeWindow.isVisible &&
+                                    !nativeWindow.isOccluded &&
+                                    current.submit()
+                                if (submitted) {
+                                    placements.decorations?.publish()
+                                    inputs.publish(placements)
+                                }
+                                submitted
                             }
                     }
                 if (!accepted) scheduler.request()
@@ -305,7 +290,7 @@ public class SurfaceWindow internal constructor(
         host.requestRetirement()
         failure = cleanupFailure(failure) { renderer.setFrameDemand(false) }
         failure = cleanupFailure(failure) { animationDeadline?.close() }
-        failure = cleanupFailure(failure) { regions.close() }
+        failure = cleanupFailure(failure) { inputs.windowRegions?.close() }
         inputs.windowRegions = None
         failure = cleanupFailure(failure) { inputs.close() }
         failure = cleanupFailure(failure) { animations.close() }

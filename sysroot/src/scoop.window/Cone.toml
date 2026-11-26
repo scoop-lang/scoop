@@ -79,6 +79,10 @@ path = "src/input/pointer.scoop"
 when = { os = "ios" }
 
 [[sources]]
+path = "src/input/gesture.scoop"
+when = { os = "ios" }
+
+[[sources]]
 path = "src/input/keyboard.scoop"
 when = { os = "ios" }
 

@@ -16,9 +16,11 @@
 - `scoop.surface` 是普通 Cone，依赖 graphics、window 及实际使用的 core／std／math／platform，提供 SurfaceHost、SurfaceWindow、帧调度、动画、InputArea 与区域焦点。两库的几何与动画所需数学函数复用 scoop.math。
 - window 继续拥有原生窗口、输入归一、IME 协议、事件循环和 native lease；Surface 的平台适配拥有 surface 与呈现。共享层不依赖 AppKit、Metal 或其他窗口／GPU API。
 
-当前实施目标为 `aarch64-apple-darwin`、`x86_64-apple-darwin`，Windows x64 的 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-ucrt`、`x86_64-w64-windows-llvm-mingw-msvcrt`，以及 Linux GNU 的 `x86_64-unknown-linux-gnu`。各平台实现同一共享合同；按 target 选择源码和原生依赖，不复制共享状态机，不为未实施平台加入空后端。采用现有语言、FFI、native 编译及资源释放规则，不新增编译器或 runtime 的 Surface 特殊通道。
+当前实施目标为 `aarch64-apple-ios`、`aarch64-apple-ios-sim`、`aarch64-apple-darwin`、`x86_64-apple-darwin`，Windows x64 的 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-ucrt`、`x86_64-w64-windows-llvm-mingw-msvcrt`，以及 Linux GNU 的 `x86_64-unknown-linux-gnu`。各平台实现同一共享合同；按 target 选择源码和原生依赖，不复制共享状态机，不为未实施平台加入空后端。采用现有语言、FFI、native 编译及资源释放规则，不新增编译器或 runtime 的 Surface 特殊通道。
 
 ### UIKit 上的 Metal 呈现
+
+UIKit 应用将场景事件交给公共 `SurfaceHost`，在 `SceneConnected(window)` 中调用 `attach(window, content)`。内容使用同一个 `FrameContext.canvas`、输入路由与帧完成回调。场景进入后台时保留内容根，真正断开时关闭内容并归还租约。
 
 iOS 17 及以上的设备和模拟器使用窗口租约中的内容视图。该视图以 `CAMetalLayer` 为 backing layer；按视图显示比例设置像素尺寸。设备、队列和 drawable 按现有 Metal 后端与 Skia 共享。没有有效 drawable、帧代次已变更、视图当前配置不符或场景已失活时不提交该帧，最近一次 Accepted 几何保持有效。一个内容视图同时只能有一个呈现者。
 

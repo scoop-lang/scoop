@@ -1,0 +1,7 @@
+package scoop.surface
+
+import scoop.window.WindowEvent
+
+internal fun SurfaceWindow.otherWindowEvent(event: WindowEvent) {
+    inputs.dispatchWindowInput(event)
+}

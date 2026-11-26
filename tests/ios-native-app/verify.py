@@ -19,10 +19,15 @@ PROBES = {
     "platform": (HERE / "platform/cone", HERE / "platform/PlatformHost.h"),
     "graphics": (HERE / "graphics/cone", HERE / "graphics/GraphicsResult.h"),
     "window": (HERE / "window/cone", HERE / "window/WindowHost.h"),
+    "surface": (HERE / "surface/cone", HERE / "surface/SurfaceHost.h"),
 }
 
 
-SCENE_DELEGATES = {"protected": "ProtectedDataScene", "window": "WindowProbeScene"}
+SCENE_DELEGATES = {
+    "protected": "ProtectedDataScene",
+    "window": "WindowProbeScene",
+    "surface": "SurfaceProbeScene",
+}
 
 
 def run(*args, **options):
@@ -246,6 +251,13 @@ def main():
         dest="probe",
         const="window",
         help="exercise a real UIWindowScene with the installed Scoop window library",
+    )
+    probes.add_argument(
+        "--surface",
+        action="store_const",
+        dest="probe",
+        const="surface",
+        help="paint accepted Skia frames in a real UIKit SurfaceHost",
     )
     args = parser.parse_args()
     work = args.work_dir.resolve()

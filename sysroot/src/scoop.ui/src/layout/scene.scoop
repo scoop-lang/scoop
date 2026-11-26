@@ -6,6 +6,7 @@ import scoop.surface.FrameContext
 import scoop.surface.FrameCompletion
 import scoop.surface.InputArea
 import scoop.surface.WindowRegionHandle
+import scoop.surface.place
 import scoop.platform.time.MonotonicInstant
 import scoop.ui.text.NativeTextSource
 

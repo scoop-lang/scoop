@@ -92,7 +92,7 @@ Git/GitHub 可指定 branch、tag 或 rev，最终完整 commit 写入 `Cone.loc
 
 普通应用验证使用 release，已有项目的明确 profile 要求优先。选择其他 target 时先确认工具包及 native 环境确实支持它，使用 `--target <triple>`，不从规划文档推断已支持的平台。
 
-iOS Swift／Objective-C 宿主可链接 `kind = "native-app"` 的动态 framework。用 `--target aarch64-apple-ios-sim` 构建 arm64 模拟器切片，用 `--target aarch64-apple-ios` 构建 arm64 设备切片。`when = { os = "ios" }` 选择两者，加上 `env = "simulator"` 可选择模拟器。显式设定 framework 的 install name，组装 XCFramework 后让 Xcode 宿主嵌入并签名。宿主从 C 模块调用 `scoop_app_init`，再持有返回的函数表和 context。自绘窗口在 `appInit` 创建 `scoop.window.ios.UIKitApplication`，由场景代理转发连接和断开，在 `SceneConnected` 接收窗口。完整命令和双向调用示例见 [iOS native-app](../../../tests/ios-native-app/README.md)。
+iOS Swift／Objective-C 宿主可链接 `kind = "native-app"` 的动态 framework。用 `--target aarch64-apple-ios-sim` 构建 arm64 模拟器切片，用 `--target aarch64-apple-ios` 构建 arm64 设备切片。`when = { os = "ios" }` 选择两者，加上 `env = "simulator"` 可选择模拟器。显式设定 framework 的 install name，组装 XCFramework 后让 Xcode 宿主嵌入并签名。宿主从 C 模块调用 `scoop_app_init`，再持有返回的函数表和 context。自绘窗口在 `appInit` 创建 `scoop.window.ios.UIKitApplication`，由场景代理转发连接和断开，在 `SceneConnected` 接收窗口。用 `SurfaceHost.attach(window, content)` 挂载 Skia 绘制内容，场景失活和恢复继续使用同一个根。完整命令和双向调用示例见 [iOS native-app](../../../tests/ios-native-app/README.md)。
 
 single-file run 允许第一个普通程序位置参数开始转发；为避免选项歧义，示例统一使用显式 `--`。从样例复制命令时，确认工作目录、文件名、运行前提和参数都对应当前项目。
 

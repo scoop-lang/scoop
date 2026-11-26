@@ -7,13 +7,16 @@ kind = "library"
 
 [[sources]]
 path = "src/shared"
-when = { os = ["darwin", "windows"] }
+when = { os = ["darwin", "windows", "ios"] }
 [[sources]]
 path = "src/platform/metal"
 when = { os = ["darwin", "ios"] }
 [[sources]]
-path = "src/shared/frame/renderer.scoop"
-when = { os = "ios" }
+path = "src/platform/desktop"
+when = { os = ["darwin", "windows"] }
+[[sources]]
+path = "src/platform/desktop"
+when = { os = "linux", env = "gnu" }
 [[sources]]
 path = "src/platform/ios"
 when = { os = "ios" }

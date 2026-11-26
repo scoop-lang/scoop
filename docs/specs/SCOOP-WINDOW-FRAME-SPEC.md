@@ -4,6 +4,8 @@
 
 ## 1. 窗框模式与实际几何
 
+已打开的桌面窗口通过 `Window.frameCapabilities` 查询当前后端的窗框能力。该属性与 `ActiveApplication.desktopCapabilities().frame` 返回相同字段，只调用窗框查询。它与其他窗框操作同样要求 owner 线程。
+
 `WindowFrame.System(WindowContentMode.Standard | Extended)` 由平台宿主绘制装饰；`WindowFrame.Client` 由应用绘制，应用也可以完全不绘制标题栏。创建属性 `frame` 默认 System(Standard)，运行中使用 `setFrame`。删除 decorations／setDecorations；macOS TitlebarOptions 只保留 transparent、titleHidden，fullSizeContent 合并为 Extended，不保留双轨配置。resizable、buttons、transparent、level 继续独立工作。
 
 System 包含 GTK/libadwaita CSD 标题栏；Client 隐藏该标题栏和系统可见边框，保留现有内容 widget／renderer。Extended 保留系统按钮，让内容进入标题栏：AppKit 使用 FullSizeContentView，Win32 使用 NCCALCSIZE／DWM 原生按钮，GTK 使用 AdwToolbarView 的内容延伸。不能实现的后端或具体组合返回 Unsupported，不悄悄替换模式。

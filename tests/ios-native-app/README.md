@@ -85,6 +85,10 @@ xcodebuild test -project tests/ios-native-app/interaction/Interaction.xcodeproj 
 xcrun simctl launch --console --terminate-running-process "$SIMULATOR_UUID" dev.scoop.ios-probe.window --clipboard
 ```
 
+## 公共 Surface 首帧和恢复
+
+准备好 `scoop.graphics`、`scoop.window` 和 `scoop.surface` 后，给上面的 `verify.py` 命令添加 `--surface --include-device`，并指定新的工作目录。模拟器应用在场景连接时挂载 `SurfaceContent`，检查首个接受帧、空闲停帧、显式重绘及关闭次序，成功输出 `scoop-ios-surface-ok`。在同一模拟器执行上述 XCUITest 命令，把测试方法改为 `testSurfacePresentation`，用真实截图核对初次绘制为绿色，按 Home 并重新激活后同一内容根绘制蓝色。
+
 ## UIKit 受保护数据
 
 在上述模拟器验证命令加上 `--protected-data` 并使用另一个工作目录，会构建普通 release 应用。UIKit 启动后，宿主通过 Scoop 回调查询数据保护状态，与同一时刻的 UIKit 返回值对照。成功标记为 `scoop-ios-protected-data-ok`。

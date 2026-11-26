@@ -54,6 +54,10 @@ macOS 应用在附着窗口前调用 `scoop.surface.configureFpsReportingFromEnv
 
 `scoop-surface-fps` 样本使用 Metal 回执时间，`frames / seconds` 为该区间的 `fps`。样本的 `start` 和 `end` 可用于判断区间是否跨过静止期。窗口静止时探针随呈现停采，关闭时输出累计有效回执数 `presented_total`、无有效时间的回执数 `without_time_total` 和 `last_presented`。
 
+iOS 宿主在 `UIKitApplication` 收到 `SceneConnected(window)` 时调用 `SurfaceHost.attach(window, content)`。可在模拟器观察 Skia 首帧、空闲停帧及切回前台后的同根重绘。[完整示例](../../../tests/ios-native-app/surface/cone/src/app.scoop)
+
+桌面如单独导入符号，使用窗口装饰还需导入 `scoop.surface.createWindowRegion` 和 `scoop.surface.place`。首次登记装饰区域时才查询窗口装饰能力。
+
 关闭 SurfaceWindow 只卸载绘制层，Window 可继续存在或重新 attach。关闭 Window 或 Application 则由 SurfaceHost 自动退休 Surface 资源。SurfaceHost 事件处理器、paint 或输入回调内关闭先进入 Closing，整个业务回调和 Canvas 借用结束后，依次关闭 content、renderer 和 lease；不会在回调内等待自己。内容清理失败仍继续释放其余窗口与底层资源，并沿 Application 的既有异常通路传播。
 
 同一个 SurfaceHost 可直接用于 `scoop.window.asyncio` 的 `runWithAsyncio`；Surface 不创建第二套主循环或任务树。应用负责 CloseRequested 策略、内容内部的资源组织及显式状态更新，最外层 host.use 覆盖所附着的全部内容根。
