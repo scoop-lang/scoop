@@ -19,15 +19,6 @@ brotli = "1.2.0"
 skia = "f326a1e25fc736704063922b9ce76b527b1c5efe"
 
 [system_cones]
-aarch64-unknown-linux-gnu = [
-    "scoop.core", "scoop.cli", "scoop.std", "scoop.test",
-    "scoop.idna", "scoop.json", "scoop.math", "scoop.platform",
-    "scoop.regex", "scoop.url", "scoop.crypto", "scoop.charset",
-    "scoop.concurrent", "scoop.log", "scoop.os.linux", "scoop.os.nix",
-    "scoop.terminal", "scoop.tls", "scoop.http", "scoop.asyncio",
-    "scoop.log.console", "scoop.readline", "scoop.compression", "scoop.terminal.asyncio",
-    "scoop.tls.asyncio", "scoop.http.asyncio", "scoop.http.client", "scoop.http.server",
-]
 aarch64-apple-ios = ["scoop.core", "scoop.std", "scoop.os.ios"]
 aarch64-apple-ios-sim = ["scoop.core", "scoop.std", "scoop.os.ios"]
 
@@ -64,9 +55,15 @@ build_system = "Ubuntu 26.04.1"
 
 [targets.aarch64-unknown-linux-gnu]
 cpu = "generic"
+minimum_libc = "2.43"
+minimum_gtk = "4.18"
+minimum_libadwaita = "1.4"
+build_system = "Ubuntu 26.04.1"
 
 [targets.aarch64-unknown-linux-musl]
 cpu = "generic"
+minimum_libc = "1.2.5"
+build_system = "Ubuntu 26.04.1"
 
 [targets.x86_64-unknown-linux-musl]
 cpu = "x86-64"

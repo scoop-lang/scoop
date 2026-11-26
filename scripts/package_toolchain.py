@@ -34,11 +34,10 @@ from build_support import RELEASE_CONFIG, ROOT, build_lock
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
 from download_support import download_directory
 from prepare_gtk import LINK_INPUTS as GTK_LINK_INPUTS
-from prepare_gtk import TARGET as GTK_TARGET
 from prepare_sysroot import cone_order, target_dependencies
 from prepare_tray import LINK_INPUTS as TRAY_LINK_INPUTS
-from prepare_tray import TARGET as TRAY_TARGET
 from target_catalog import (
+    LINUX_GNU_TARGETS,
     NATIVE_TARGETS,
     TARGETS,
     current_host,
@@ -150,10 +149,12 @@ def prepare_desktop_dependencies(args, target, sysroot, environment):
             ],
             environment,
         )
-    if target == GTK_TARGET:
+    if target in LINUX_GNU_TARGETS:
         run_script(
             "prepare_gtk.py",
             [
+                "--target",
+                target,
                 "--development-prefix",
                 args.gtk_prefix,
                 "--build-dir",
@@ -161,10 +162,11 @@ def prepare_desktop_dependencies(args, target, sysroot, environment):
             ],
             environment,
         )
-    if target == TRAY_TARGET:
         run_script(
             "prepare_tray.py",
             [
+                "--target",
+                target,
                 "--development-prefix",
                 args.tray_prefix,
                 "--build-dir",
@@ -403,10 +405,9 @@ def assemble_gui_libraries(root, target, args, cones):
     ios_skia = TARGETS[target]["os"] == "ios" and "scoop.graphics" in cones
     if target in SKIA_TARGETS or ios_skia:
         shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
-    if target == GTK_TARGET:
+    if target in LINUX_GNU_TARGETS:
         for library in GTK_LINK_INPUTS:
             shutil.copy2(source / library, destination / library)
-    if target == TRAY_TARGET:
         for library in TRAY_LINK_INPUTS:
             shutil.copy2(source / library, destination / library)
     package_licenses.collect_gui_libraries(root, sysroot, target, ios_skia=ios_skia)

@@ -72,15 +72,16 @@ Windows graphics／GUI 使用相同的 `build_skia.py` 入口。对 Microsoft UC
 Linux GNU 的 GUI 使用 GTK 4／libadwaita，支持 Wayland 和 X11；窗口标题栏、圆角和阴影由 GTK／libadwaita 绘制，内容仍使用 Skia Ganesh GLES，字体使用 Fontconfig／FreeType。需要 GTK 4.18 以上、libadwaita 1.4 以上，以及 EGL、GLES、Fontconfig、FreeType、zlib、X11 和 xkbcommon 开发包。Skia 构建还需要已有的 GN、Ninja、Clang／Clang++、llvm-ar 和 pkg-config。先准备 GTK 开发资源，再使用固定 vendor 源码构建 Skia：
 
 ```sh
-python3 scripts/prepare_gtk.py --build-dir ../scoop-work/gtk/x86_64-unknown-linux-gnu
-python3 scripts/build_skia.py --target x86_64-unknown-linux-gnu \
-  --build-dir ../scoop-work/skia/x86_64-unknown-linux-gnu --gn /path/to/gn \
+target="$(uname -m)-unknown-linux-gnu"
+python3 scripts/prepare_gtk.py --target "$target" --build-dir "../scoop-work/gtk/$target"
+python3 scripts/build_skia.py --target "$target" \
+  --build-dir "../scoop-work/skia/$target" --gn /path/to/gn \
   --cc /path/to/llvm/bin/clang --cxx /path/to/llvm/bin/clang++
 ```
 
 `prepare_gtk.py --development-prefix /path/to/usr` 可选择单独解压的开发包目录；其 pkg-config 路径优先于系统目录，缺少的系统头文件和运行库仍从本机开发环境取得。脚本将头文件和七个链接输入（包括原生输入区域使用的 Cairo）放入目标 sysroot，输入未变化时直接复用。完整打包使用相同入口，`package_toolchain.py --gtk-prefix /path/to/usr` 传递该选择；GNU GUI 组件包含链接输入及许可，程序运行时使用系统安装的 GTK/libadwaita。musl 目标不包含 GUI。
 
-独立的 `scoop.tray` 通过 StatusNotifierItem／DBusMenu 提供 Linux 托盘，额外使用发行版维护的 libdbusmenu-glib 0.4 开发包（Debian／Ubuntu：`libdbusmenu-glib-dev`），不依赖 GTK3。单独执行 `python3 scripts/prepare_tray.py --build-dir ../scoop-work/tray/x86_64-unknown-linux-gnu`；`--development-prefix /path/to/usr` 同样支持解压的开发包。它只准备 `include/tray`、libdbusmenu 链接输入和许可，不改变 `scoop.window` 的依赖。完整打包由 `package_toolchain.py --tray-prefix /path/to/usr` 选择来源。消费托盘的程序运行时需要系统 `libdbusmenu-glib.so.4` 和支持该协议的桌面宿主；未使用托盘的 window／UI 应用无需此额外运行库。注册成功不保证宿主显示了图标，Linux 不提供原生托盘矩形查询。
+独立的 `scoop.tray` 通过 StatusNotifierItem／DBusMenu 提供 Linux 托盘，额外使用发行版维护的 libdbusmenu-glib 0.4 开发包（Debian／Ubuntu：`libdbusmenu-glib-dev`），不依赖 GTK3。单独执行 `python3 scripts/prepare_tray.py --target "$target" --build-dir "../scoop-work/tray/$target"`；`--development-prefix /path/to/usr` 同样支持解压的开发包。它只准备 `include/tray`、libdbusmenu 链接输入和许可，不改变 `scoop.window` 的依赖。完整打包由 `package_toolchain.py --tray-prefix /path/to/usr` 选择来源。消费托盘的程序运行时需要系统 `libdbusmenu-glib.so.4` 和支持该协议的桌面宿主；未使用托盘的 window／UI 应用无需此额外运行库。注册成功不保证宿主显示了图标，Linux 不提供原生托盘矩形查询。
 
 随后按普通 `prepare_sysroot.py` 流程构建 GUI Cones。Linux 完整打包使用 `--llvm-prefix` 的 Clang 准备 GNU Skia，发行只收集静态库，头文件留在维护 sysroot；运行时动态使用以上系统图形库，musl 目标不包含 GUI。显示后端由 `SCOOP_WINDOW_BACKEND=wayland`／`x11` 选择，默认优先环境中的 Wayland。测试和运行限制见 [Linux GUI 记录](../docs/linux-gui/PROGRESS.md)。
 

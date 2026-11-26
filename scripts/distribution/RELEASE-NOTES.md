@@ -2,7 +2,9 @@
 
 宿主工具统一由 `scoop-<version>-bin-<host>.tar.xz` 提供，包括 Scoop 命令、外部命令、所需 LLVM／LLDB 工具、Python 与实际动态依赖。停止生成独立的 llvm 宿主包；LLVM SDK 开发头、静态库、CMake exports、llvm-config 和 llc 留在维护构建目录。Windows 在同一 bin 归档内以硬链接共享相同 DLL，保留加载所需的相邻文件名。base／GUI 包只保留 .slib、对象、链接库、runtime 索引和许可，移除第三方开发头。Windows 的两个 MinGW 目标分别新增 native 包，保存 CRT 配置、启动对象、导入库、C++ 库和 compiler-rt；公共工具和头文件随 bin 共享。全局 sources 只保留自有 Cone、胶水、头、资源与示例，上游源码及补丁改由按需的 vendor 组件交付；系统库预编译，post-install 只生成已安装目标的 API 文档。
 
-版本 tag 通过 GitHub Release workflow 构建 macOS AArch64、Windows x64、Linux GNU x64 的宿主组件包与各目标 lib 包。官网提供 `curl -fsSL https://scoop-lang.org/install.sh | sh`，完成组件包下载、解压、post-install 和 shell PATH 配置。
+版本 tag 通过 GitHub Release workflow 构建 macOS AArch64、Windows x64、Linux GNU x64 和 ARM64 的宿主组件包与各目标 lib 包。官网提供 `curl -fsSL https://scoop-lang.org/install.sh | sh`，完成组件包下载、解压、post-install 和 shell PATH 配置。
+
+Linux ARM64 默认安装 GNU 宿主与 glibc 基础库。可追加 `lib-base-aarch64-unknown-linux-musl` 构建静态 CLI，或追加 `lib-gui-aarch64-unknown-linux-gnu` 构建 GTK／libadwaita 桌面应用。构建环境为 Ubuntu 26.04.1，GNU 与 musl 的发行基线分别为 glibc 2.43 和 musl 1.2.5。
 
 Windows 工具包的主驱动安装为 `sco.exe`，例如 `sco build`、`sco run`、`sco pm` 和 `sco example`，避免与 Windows Scoop 包管理器重名。其他 Scoop 可执行程序保留原名，外部命令仍为 `scoop-<command>.exe`。macOS／Linux 的主驱动继续使用 `scoop`，交叉编译目标不影响宿主命令名称。
 

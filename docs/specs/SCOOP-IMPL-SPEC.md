@@ -86,7 +86,7 @@ MinGW 的 native sysroot 是对应 CRT 的完整 LLVM-MinGW prefix。Microsoft �
 
 Microsoft 发现同时支持普通 shell 与已初始化的 Visual Studio 开发环境。工具发现结果的环境覆盖当前进程的同名 INCLUDE／LIB／PATH；发现库复用开发环境而未返回覆盖项时，保留继承的有效搜索路径。解析后的目录进入正常调用记录，不能因随后清理编译器子进程环境而丢失已选 SDK／CRT。
 
-仓库的 `scripts/release.toml` 记录发行所用 LLVM 精确版本、系统与 CPU 基线。构建宿主命令时将各已登记 Darwin target 的默认部署版本编入工具；普通命令不读取打包配置或发行清单。`MACOSX_DEPLOYMENT_TARGET` 可为一次编译／链接选择明确的 `major.minor[.patch]`，非法值必须诊断。未覆盖时使用所选 target 的编入基线，不查询运行机器的系统版本。所选最低版本贯通 LLVM 对象、generated-C、用户 native、runtime 和最终链接，进入原有生产配置与更新键；SDK 版本继续只记录实际 SDK。Linux 使用既有 x86-64 CPU 基线和所选 libc 工具链，发行最低 libc 版本由对应构建／验证环境确定，不能仅靠一个版本参数降低实际动态依赖。
+仓库的 `scripts/release.toml` 记录发行所用 LLVM 精确版本、系统与 CPU 基线。构建宿主命令时将各已登记 Darwin target 的默认部署版本编入工具；普通命令不读取打包配置或发行清单。`MACOSX_DEPLOYMENT_TARGET` 可为一次编译／链接选择明确的 `major.minor[.patch]`，非法值必须诊断。未覆盖时使用所选 target 的编入基线，不查询运行机器的系统版本。所选最低版本贯通 LLVM 对象、generated-C、用户 native、runtime 和最终链接，进入原有生产配置与更新键；SDK 版本继续只记录实际 SDK。Linux 按架构使用 x86-64 或 Armv8-A CPU 基线和所选 libc 工具链，发行最低 libc 版本由对应构建／验证环境确定，不能仅靠一个版本参数降低实际动态依赖。
 
 显式从源码构建 runtime 时，所选 Darwin 最低部署版本是 runtime 更新键的输入，改变它必须重新生产对应对象。消费现有 runtime 索引仍按最低版本兼容性判断；不能用消费时允许较低版本的规则代替源码构建的输入更新判断。
 
@@ -106,9 +106,9 @@ GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不�
 
 Linux 的默认 C／C++、runtime 与 startup 编译按机器显式使用 `-march=x86-64` 或 `-march=armv8-a`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
 
-Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 6；PM 的清单解析记录使用 `manifests-v6`，含已解析清单的 registry 缓存使用 `registry-v3`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
+Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 与 AArch64 的 GNU 环境，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 6；PM 的清单解析记录使用 `manifests-v6`，含已解析清单的 registry 缓存使用 `registry-v3`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
 
-Linux GNU GUI 的维护准备通过 `pkg-config` 选择 GTK 4.18 以上和 libadwaita 1.4 以上的开发输入，将实际头文件和链接输入放入目标 sysroot。GNU target 组件包交付这些资源及相应许可，运行时依赖系统的 GTK/libadwaita SONAME；不复制一套私有桌面环境或驱动。输入未变化时复用准备结果，不重新调用 `pkg-config` 或复制输入。musl 不交付 GUI 资源。
+Linux GNU GUI 的维护准备按目标架构选择对应的 multiarch 目录，通过 `pkg-config` 取得 GTK 4.18 以上和 libadwaita 1.4 以上的开发输入，将实际头文件和链接输入放入目标 sysroot。GNU target 组件包交付这些资源及相应许可，运行时依赖系统的 GTK/libadwaita SONAME；不复制一套私有桌面环境或驱动。输入未变化时复用准备结果，不重新调用 `pkg-config` 或复制输入。musl 不交付 GUI 资源。
 
 runtime 源码组合直接消费目录投影，不再登记重复 OS＋arch 的 runtime profile。结构完备的 build selection 分别选择 OS services、primitive API adapter、object image parser、loaded-image provider、startup/argv adapter、trace/symbolizer adapter、ISA helper、machine frame recovery、ManagedEntry、Scoop ABI shim、unwind provider 与已有实测 runtime tuning；缺少任一当前 target 必需组件时不能形成目录记录。`platform/arch` 只保存纯 ISA helper；frame decoder／virtual unwind 按 machine-frame profile 选择，ManagedEntry 与返回 shim 另外按 procedure ABI、Scoop ABI 和 object target 选择。red-zone 等参数属于实际 ABI／frame component，不由 x86_64 等 ISA 名称普遍推导；GC 私有 helper 的内联策略由目录绑定的 runtime tuning 显式形成编译参数，不在 C 源中从宿主或 target 架构宏推导。PE image parser 的 machine 核对同样由 object target 提供，不能把 AMD64 写成通用 PE 条件。源码路径、编译参数的更新沿既有 runtime 构建记录处理，不添加动态插件、运行时注册或重复平台探测。
 

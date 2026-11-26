@@ -11,9 +11,8 @@ import tempfile
 from pathlib import Path
 
 from build_support import ROOT, build_lock, metadata, reusable
-from prepare_gtk import development_path
+from prepare_gtk import add_target_argument, development_path, pkg_config_paths
 
-TARGET = "x86_64-unknown-linux-gnu"
 MODULE = "dbusmenu-glib-0.4"
 LINK_INPUTS = ("libdbusmenu-glib.so",)
 NOTICE_DIRECTORY = "tray-licenses"
@@ -26,6 +25,7 @@ def prepare(args):
             metadata(ROOT / "scripts/build_support.py"),
             metadata(ROOT / "scripts/prepare_gtk.py"),
         ],
+        "target": args.target,
         "development_prefix": str(args.development_prefix),
         "prefix": str(args.prefix),
         "environment": {
@@ -44,12 +44,7 @@ def prepare(args):
     if tool is None:
         raise ValueError("Tray preparation requires pkg-config")
     prefix = args.development_prefix
-    directories = [prefix / "lib/pkgconfig", prefix / "share/pkgconfig"]
-    directories += sorted((prefix / "lib").glob("*/pkgconfig"))
-    environment = dict(os.environ)
-    environment["PKG_CONFIG_PATH"] = os.pathsep.join(
-        [*(str(path) for path in directories), environment.get("PKG_CONFIG_PATH", "")]
-    )
+    directories, environment = pkg_config_paths(args.target, prefix)
 
     def query(*arguments):
         return subprocess.check_output([tool, *arguments], env=environment, text=True).strip()
@@ -121,12 +116,13 @@ def prepare(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    add_target_argument(parser)
     parser.add_argument("--development-prefix", type=Path, default=Path("/usr"))
-    parser.add_argument("--prefix", type=Path, default=ROOT / "sysroot/lib" / TARGET)
+    parser.add_argument("--prefix", type=Path)
     parser.add_argument("--build-dir", type=Path, required=True)
     args = parser.parse_args()
     args.development_prefix = args.development_prefix.resolve()
-    args.prefix = args.prefix.resolve()
+    args.prefix = (args.prefix or ROOT / "sysroot/lib" / args.target).resolve()
     args.build_dir = args.build_dir.resolve()
     args.build_dir.mkdir(parents=True, exist_ok=True)
     with build_lock(args.build_dir / "build.lock"):

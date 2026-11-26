@@ -71,6 +71,9 @@ jobs:
           - runner: ubuntu-26.04
             host: x86_64-unknown-linux-gnu
             rust-targets: x86_64-unknown-linux-gnu,x86_64-unknown-linux-musl
+          - runner: ubuntu-26.04-arm
+            host: aarch64-unknown-linux-gnu
+            rust-targets: aarch64-unknown-linux-gnu,aarch64-unknown-linux-musl
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
     env:
@@ -111,7 +114,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential clang cmake ninja-build swig pkg-config \
             libedit-dev libffi-dev liblzma-dev libncurses-dev libxml2-dev libzstd-dev zlib1g-dev \
-            musl-tools linux-libc-dev patchelf perl xz-utils
+            musl-tools linux-libc-dev patchelf perl xz-utils generate-ninja \
+            libgtk-4-dev libadwaita-1-dev libdbusmenu-glib-dev libfontconfig-dev libfreetype-dev libegl-dev libgles-dev
       - name: Select the Windows SDK and MSVC tools
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
@@ -188,15 +192,16 @@ jobs:
           if sys.platform == 'linux':
               headers = work / 'linux-uapi'
               headers.mkdir(exist_ok=True)
+              multiarch = subprocess.check_output(['gcc', '-print-multiarch'], text=True).strip()
               for name, origin in (
                   ('linux', '/usr/include/linux'), ('asm-generic', '/usr/include/asm-generic'),
-                  ('asm', '/usr/include/x86_64-linux-gnu/asm'),
+                  ('asm', f'/usr/include/{multiarch}/asm'),
               ):
                   (headers / name).symlink_to(origin, target_is_directory=True)
               compiler = work / 'musl-gcc'
               compiler.write_text('#!/bin/sh\nexec /usr/bin/musl-gcc -isystem ' + shlex.quote(str(headers)) + ' "$@"\n')
               compiler.chmod(0o755)
-              arguments += ['--musl-cc', str(compiler), '--musl-include', '/usr/include/x86_64-linux-musl']
+              arguments += ['--musl-cc', str(compiler), '--musl-include', f'/usr/include/{platform.machine()}-linux-musl']
           elif sys.platform == 'win32':
               for crt in ('msvcrt', 'ucrt'):
                   prefix = Path('tmp/llvm-mingw', f'llvm-mingw-{release["llvm_mingw"]}-{crt}-x86_64').resolve()
@@ -229,7 +234,7 @@ jobs:
                       raise SystemExit(f'{component} must not contain slibs or generated API documentation')
                   package.extractall(installed, filter='data')
           available = (installed / 'share/scoop/install/targets.list').read_text().splitlines()
-          targets = available if windows else available[:1]
+          targets = available if windows or sys.platform == 'linux' else available[:1]
           ios_targets = [target for target in available if TARGETS[target]['os'] == 'ios']
           for target in [*targets, *ios_targets]:
               for component in ('base', 'gui'):

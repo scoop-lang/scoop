@@ -32,7 +32,12 @@ from target_catalog import WINDOWS_TARGETS, host_definition
 class ComponentArchiveTests(unittest.TestCase):
     def test_component_packages_are_assembled_and_archived(self):
         release = tomllib.loads(package_toolchain.RELEASE_CONFIG.read_text())
-        hosts = ("x86_64-pc-windows-gnullvm", "aarch64-apple-darwin", "x86_64-unknown-linux-gnu")
+        hosts = (
+            "x86_64-pc-windows-gnullvm",
+            "aarch64-apple-darwin",
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-gnu",
+        )
         for host, populated in product(hosts, (False, True)):
             with (
                 self.subTest(host=host, populated=populated),
@@ -151,9 +156,9 @@ class ComponentArchiveTests(unittest.TestCase):
                         package_toolchain.SKIA_LIBRARY,
                         "include/skia/include/core/SkCanvas.h",
                     ]
-                if target == package_toolchain.GTK_TARGET:
+                if target.endswith("-linux-gnu"):
                     target_files += ["include/gtk/gtk/gtk.h", *package_toolchain.GTK_LINK_INPUTS]
-                if target == package_toolchain.TRAY_TARGET:
+                if target.endswith("-linux-gnu"):
                     target_files += [
                         "include/tray/libdbusmenu-glib/menuitem.h",
                         *package_toolchain.TRAY_LINK_INPUTS,
@@ -434,7 +439,7 @@ class ComponentArchiveTests(unittest.TestCase):
                     )
                     self.assertFalse((gui_root / "include").exists())
                 self.assertFalse((lib_root / "include/gtk").exists())
-                if target == package_toolchain.GTK_TARGET:
+                if target.endswith("-linux-gnu"):
                     self.assertFalse((gui_root / "include").exists())
                     for library in package_toolchain.GTK_LINK_INPUTS:
                         self.assertEqual((gui_root / library).read_text(), library)
@@ -442,7 +447,7 @@ class ComponentArchiveTests(unittest.TestCase):
                 else:
                     self.assertFalse((gui_root / "include/gtk").exists())
                 self.assertFalse((lib_root / "include/tray").exists())
-                if target == package_toolchain.TRAY_TARGET:
+                if target.endswith("-linux-gnu"):
                     self.assertFalse(
                         (gui_root / "include/tray/libdbusmenu-glib/menuitem.h").is_file()
                     )
@@ -484,6 +489,8 @@ class ComponentArchiveTests(unittest.TestCase):
             *WINDOWS_TARGETS,
             "x86_64-unknown-linux-gnu",
             "x86_64-unknown-linux-musl",
+            "aarch64-unknown-linux-gnu",
+            "aarch64-unknown-linux-musl",
         ):
             with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
                 work = Path(temporary)
@@ -517,27 +524,25 @@ class ComponentArchiveTests(unittest.TestCase):
                 arguments = run.call_args.args[1]
                 self.assertNotIn("--runtime-only", arguments)
                 self.assertEqual(arguments[arguments.index("--scoop") + 1], binaries[0])
-                self.assertEqual(
-                    "prepare_gtk.py" in scripts, target == package_toolchain.GTK_TARGET
-                )
-                if target == package_toolchain.GTK_TARGET:
+                self.assertEqual("prepare_gtk.py" in scripts, target.endswith("-linux-gnu"))
+                if target.endswith("-linux-gnu"):
                     gtk = next(
                         call.args[1]
                         for call in run.call_args_list
                         if call.args[0] == "prepare_gtk.py"
                     )
+                    self.assertEqual(gtk[gtk.index("--target") + 1], target)
                     self.assertEqual(gtk[gtk.index("--development-prefix") + 1], args.gtk_prefix)
-                self.assertEqual(
-                    "prepare_tray.py" in scripts, target == package_toolchain.TRAY_TARGET
-                )
-                if target == package_toolchain.TRAY_TARGET:
+                self.assertEqual("prepare_tray.py" in scripts, target.endswith("-linux-gnu"))
+                if target.endswith("-linux-gnu"):
                     tray = next(
                         call.args[1]
                         for call in run.call_args_list
                         if call.args[0] == "prepare_tray.py"
                     )
+                    self.assertEqual(tray[tray.index("--target") + 1], target)
                     self.assertEqual(tray[tray.index("--development-prefix") + 1], args.tray_prefix)
-                if target == "x86_64-unknown-linux-musl":
+                if target.endswith("-linux-musl"):
                     self.assertNotIn("build_skia.py", scripts)
                     continue
                 self.assertIn("build_skia.py", scripts)
@@ -550,7 +555,7 @@ class ComponentArchiveTests(unittest.TestCase):
                         skia[skia.index("--cc") + 1],
                         package_toolchain.package_windows.compiler(args, target),
                     )
-                elif target == "x86_64-unknown-linux-gnu":
+                elif target.endswith("-linux-gnu"):
                     self.assertEqual(skia[skia.index("--cc") + 1], args.llvm_prefix / "bin/clang")
 
     def test_extract_directly_into_installation_root(self):
