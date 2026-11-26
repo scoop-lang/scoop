@@ -16,7 +16,9 @@
 
 五个 Cone 使用 `scoop` group，分别位于 `sysroot/src/<Cone 名>/`。应用可只依赖其中一个，同时使用 Unix 公共 API 和 Linux 扩展时再声明两个直接依赖。扩展库按实际使用的类型依赖 `scoop.platform`。首个 iOS 查询只需要 core 和 UIKit。异步调度、窗口事件循环和终端会话分别由 `scoop.asyncio`、`scoop.window`、`scoop.terminal` 提供。[Cone 与 package 规则，语言规范 §12](../specs/SCOOP-SPEC.md) · [当前目标目录](../../compiler/target-data/targets.toml)
 
-`nix` 的每个公开接口都应在表中列出的 macOS 和 Linux 目标上具有一致的语义。后续可按此原则扩展文件描述符、文件归属、进程组和本机 IPC。比如，基于文件系统路径的 Unix 域套接字适合在 `nix` 定义公共接口。Linux 的抽象套接字地址独立于文件系统，适合放在 `linux`。macOS 和 iOS 若有共同的 Apple 原生实现，可以共用该段实现，有跨两端的实际调用方时再决定公开入口。[Unix 域套接字地址语义](https://man7.org/linux/man-pages/man7/unix.7.html)
+`nix` 的每个公开接口都应在表中列出的 macOS 和 Linux 目标上具有一致的语义。后续可按此原则扩展文件描述符、文件归属和本机 IPC。比如，基于文件系统路径的 Unix 域套接字适合在 `nix` 定义公共接口。Linux 的抽象套接字地址独立于文件系统，适合放在 `linux`。macOS 和 iOS 若有共同的 Apple 原生实现，可以共用该段实现，有跨两端的实际调用方时再决定公开入口。[Unix 域套接字地址语义](https://man7.org/linux/man-pages/man7/unix.7.html)
+
+首版明确排除 `fork()`。多线程进程调用它后，子进程只保留调用线程，同时继承内存中的锁状态。Scoop GC 依赖已登记线程与停顿协议，直接从子进程返回 Scoop 代码缺少运行时契约。是否支持这种执行方式留待单独设计。启动外部程序沿用现有 `scoop.platform.process.Command`。[fork(2)](https://man7.org/linux/man-pages/man2/fork.2.html) · [运行时线程与 GC](../specs/SCOOP-RUNTIME-SPEC.md) · [现有进程 API](../specs/SCOOP-PLATFORM-SPEC.md)
 
 ## 2. iOS 是否应当单列
 
@@ -26,14 +28,11 @@
 | --- | --- | --- |
 | 文件元数据 | 在 iPhoneOS 和 iPhoneSimulator 27.2 SDK 上，arm64 目标均通过了 `stat`、`lstat`、`fstat` 的声明检查。应用也有读取自己容器内文件属性的用例。 | `unixMetadata` 是值得在三端共享的候选，需在真机上核对符号链接、文件身份和路径错误。 |
 | 文件描述符与 FIFO | 同一检查中，`openat`、`read`、`write`、`dup`、`mkfifo` 均可编译。 | 已有 fd 的读写与创建命名管道是两种能力。`createFifo` 在应用容器中的创建、打开和传输仍待真机验证。 |
-| 子进程与进程组 | 普通 iOS 应用不能自行派生子进程。 | 若 `nix` 提供启动子进程、重定向并等待退出的组合，iOS 无法承诺这套语义。 |
 | 受保护数据 | UIKit 的 `isProtectedDataAvailable` 查询当前应用的数据保护状态。 | 归入 `ios.app`，与文件 API 是否将来加入三端共享无关。 |
 
-SDK 检查使用 `xcrun clang -fsyntax-only`，覆盖设备与模拟器的目标头文件。设备上的沙盒及文件系统行为仍以实际应用调用为准。[Apple 文件系统指南](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html) · [Apple DTS 对子进程的说明](https://developer.apple.com/forums/thread/747499) · [UIKit 数据保护状态](https://developer.apple.com/documentation/uikit/uiapplication/isprotecteddataavailable)
+SDK 检查使用 `xcrun clang -fsyntax-only`，覆盖设备与模拟器的目标头文件。设备上的沙盒及文件系统行为仍以实际应用调用为准。[Apple 文件系统指南](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html) · [UIKit 数据保护状态](https://developer.apple.com/documentation/uikit/uiapplication/isprotecteddataavailable)
 
-Scoop 给子进程设置工作目录所用的 `posix_spawn_file_actions_addchdir` 及其 `_np` 版本也在 iOS SDK 标为不可用。另一些接口虽可调用，用途却不同。例如 `getuid()` 可取得真实 UID，而普通 iOS 应用通常以同一 `mobile` 用户运行，应用隔离由沙盒实施。[Scoop 子进程实现](../../sysroot/src/scoop.platform/native/process.c) · [Apple 平台安全说明](https://support.apple.com/en-ie/guide/security-pdf/sec15bfe098e/1/web/1)
-
-首版建议让 macOS、Linux 的调用方可以依赖 `nix` 的完整公开接口，iOS 真机和模拟器则独立发布 `scoop.os.ios`。这样可以按 Unix 程序的需要规划进程和 IPC 接口，代价是 iOS 调用方暂时无法以同一条 import 使用其中的文件子集。目前 `scoop.platform` 的 POSIX 源集选择 macOS 和 Linux，两个 iOS sysroot 也只列出 core 和 std。[平台清单](../../sysroot/src/scoop.platform/Cone.toml) · [发行目标配置](../../scripts/release.toml)
+首版建议先向 macOS、Linux 发布完整的 Unix 文件接口，iOS 独立发布 UIKit 入口。当前 `Path`、`FileMetadata` 和 `PlatformException` 所属的 `scoop.platform` 只为 macOS 和 Linux 选择 POSIX 后端，iOS 尚缺这组库依赖和 FIFO 行为的真机验证。这个选择的代价是 iOS 调用方暂时无法用同一条 import 读取 Unix 文件元数据。[平台清单](../../sysroot/src/scoop.platform/Cone.toml) · [发行目标配置](../../scripts/release.toml)
 
 若同一份库代码确实需要在三端使用 `openat`、`fstat` 等接口，再评估给 iOS 发布 `scoop.os.nix.fs` 子集。届时用该调用方验证相同的路径表示、错误和 fd 所有权，并先解决 `Path`、`PlatformException` 等直接依赖在 iOS 上的供应。判断依据是该用例在真机上成立，以及共享公开 API 能省去多少调用方适配。
 

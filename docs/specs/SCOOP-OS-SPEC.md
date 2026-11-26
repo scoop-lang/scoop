@@ -8,6 +8,8 @@
 
 `Path.createFifo(mode: Int)` 创建命名管道节点并返回 Unit。mode 要求位于 0 到 0xfff，实际权限受 umask 影响。路径按原始字节传递，系统失败抛 PlatformException，包含 PosixErrno 和原始路径。重复创建保留 EEXIST。节点的打开、读写与删除使用已有 File 和 Path 操作。
 
+首版 Unix 扩展的进程边界排除 `fork()`。Scoop 子进程继续执行 managed 代码所需的运行时语义留待单独设计。
+
 ## Linux 事件计数器
 
 `scoop.os.linux.io.EventFd` 在 Linux GNU 和 musl 上由 `scoop.os.linux` 提供。open() 创建初值为零的非阻塞、close-on-exec 普通 eventfd。`tryAdd(value: ULong): Boolean` 成功返回 true，空间不足返回 false，ULong.MAX_VALUE 抛 IllegalArgumentException。`tryTake(): ULong?` 返回累计值并清零，空计数器返回 None。无进度的 EINTR 重试，其余系统错误保留 PosixErrno。
