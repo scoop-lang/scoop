@@ -51,6 +51,8 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/drawing.scoop"
 [[test.sources]]
+path = "tests/image_decoding.scoop"
+[[test.sources]]
 path = "tests/path.scoop"
 [[test.sources]]
 path = "tests/rounded.scoop"
