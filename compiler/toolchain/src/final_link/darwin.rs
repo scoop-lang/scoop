@@ -1,5 +1,6 @@
 //! Explicit Darwin final-link toolchain; independent of the Scoop backend.
 use super::{FinalLinkOptions, FinalOutputKind, OutputConfiguration, output::NATIVE_APP_ENTRY};
+use scoop_process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -135,6 +136,28 @@ impl DarwinFinalLinkProfile {
 
     pub fn cxx(&self) -> bool {
         self.data.cxx.is_some()
+    }
+
+    /// Ask the selected C driver for the compiler runtime for this deployment.
+    pub fn compiler_builtins_archive(&self) -> Result<PathBuf, ToolchainError> {
+        let output = self
+            .startup
+            .driver_command()
+            .arg("-print-libgcc-file-name")
+            .scoop_output()
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2302, cause))?;
+        if !output.status.success() {
+            return Err(error(
+                scoop_source::DiagnosticCode::E2302,
+                format!(
+                    "cannot locate Darwin compiler builtins: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                ),
+            ));
+        }
+        let path = std::str::from_utf8(&output.stdout)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2302, cause))?;
+        Ok(PathBuf::from(path.trim_end()))
     }
 
     /// Only queried after an actually required Swift library was absent in the SDK.

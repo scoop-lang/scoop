@@ -45,7 +45,8 @@ pub(super) fn resolve(
                     format!("source extern {symbol} conflicts with a compiler-owned definition"),
                 ));
             }
-            let candidate = selection::candidate(symbol, declaration.contract.library(), inputs)?;
+            let candidate =
+                selection::candidate(symbol, declaration.contract.library(), inputs, profile)?;
             match candidate {
                 selection::Candidate::Object(id) => {
                     let (index, _) = inputs.native.object(id)?;

@@ -110,6 +110,7 @@ pub(crate) struct NativeInputs {
     pub files: BTreeMap<NativeInputId, NativeFile>,
     pub libraries: BTreeMap<NativeLinkRequirementId, LibraryInput>,
     pub selected: BTreeMap<NativeObjectId, String>,
+    compiler_builtins: Option<NativeInputId>,
     bindings: BTreeMap<String, (PathBuf, NativeFileKind)>,
     embedded: BTreeMap<(scoop_identity::ConeIdentity, scoop_slib::SlibMemberId), NativeInputId>,
 }
@@ -204,6 +205,27 @@ impl NativeInputs {
         Ok(true)
     }
 
+    pub fn compiler_builtin(
+        &mut self,
+        symbol: &str,
+        profile: &ValidatedFinalLinkProfile,
+    ) -> Result<Option<NativeObjectId>, LinkError> {
+        let ValidatedFinalLinkProfile::Darwin(darwin) = profile else {
+            return Ok(None);
+        };
+        let id = if let Some(id) = self.compiler_builtins {
+            id
+        } else {
+            let path = darwin.compiler_builtins_archive()?;
+            let file = locate::read(&path, NativeFileKind::Archive, profile, false)?;
+            let id = file.id;
+            self.files.entry(id).or_insert(file);
+            self.compiler_builtins = Some(id);
+            id
+        };
+        Ok(self.files[&id].candidate(symbol).map(|(member, _)| member))
+    }
+
     pub fn input_paths(&self) -> Vec<PathBuf> {
         let embedded: std::collections::BTreeSet<_> = self.embedded.values().copied().collect();
         self.files
@@ -220,6 +242,16 @@ impl NativeInputs {
     }
 
     pub fn ordered_files(&self) -> Vec<&NativeFile> {
+        let mut files = self.declared_files();
+        if let Some(id) = self.compiler_builtins
+            && !files.iter().any(|file| file.id == id)
+        {
+            files.push(&self.files[&id]);
+        }
+        files
+    }
+
+    pub fn declared_files(&self) -> Vec<&NativeFile> {
         let mut libraries: Vec<_> = self.libraries.iter().collect();
         libraries.sort_by_key(|(id, value)| (value.key.grouping(), **id));
         let mut seen = std::collections::BTreeSet::new();
