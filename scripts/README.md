@@ -67,7 +67,7 @@ python3 scripts/prepare_sysroot.py \
   --work-dir "$PWD/tmp/sysroot/aarch64-apple-darwin"
 ```
 
-ARM64 Linux 宿主默认编译 `aarch64-unknown-linux-gnu`，显式传入 `--target aarch64-unknown-linux-musl` 可构建 musl 程序。两种目标分别准备 LLVM libunwind、OpenSSL（`linux-aarch64`）、nghttp2、文本与其他非图形库，再用同一 triple 运行 `prepare_sysroot.py`。GNU 使用配套的 C 或 C++ driver。musl 使用 C driver，默认静态链接，`--link-mode dynamic` 使用 musl loader。从其他宿主准备时用 `--cc` 与 `--native-sysroot` 选择目标的 headers、启动对象和 GNU ld。开发命令与依赖解析所用的 `scoop-pm` 须来自同一次构建。[Linux ARM64 移植设计](../docs/linux-arm64/DESIGN.md)
+ARM64 Linux 宿主默认编译 `aarch64-unknown-linux-gnu`，显式传入 `--target aarch64-unknown-linux-musl` 可构建 musl 程序。两种目标分别准备 LLVM libunwind、OpenSSL（`linux-aarch64`）、nghttp2、文本与其他非图形库，再用同一 triple 运行 `prepare_sysroot.py`。GNU 使用配套的 C 或 C++ driver。musl 使用 C driver，默认静态链接，`--link-mode dynamic` 使用 musl loader。为 ARM64 GNU 和 musl 链接时，C／C++ driver 调用配套 LLVM 22.1.8 的 `ld.lld`。从其他宿主准备目标资源时，用 `--cc` 与 `--native-sysroot` 选择目标编译器、头文件和启动对象。开发命令与依赖解析所用的 `scoop-pm` 须来自同一次构建。[Linux ARM64 移植设计](../docs/linux-arm64/DESIGN.md)
 
 Windows graphics／GUI 使用相同的 `build_skia.py` 入口。对 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 分别指定完整 `--target`、独立 `--build-dir`、`--gn` 与对应 `--cc`；Microsoft 使用 clang-cl 及当前 x64 SDK／MSVC 开发环境，toolset 与 SDK 版本取自该环境的 `VCToolsVersion`／`WindowsSDKVersion`，不在发行配置中固定，MinGW 使用所选 CRT prefix 的 clang。输出为 Ganesh D3D12、DirectWrite、段落和内嵌 ICU 数据的静态资源，不需要应用分发旁置 ICU 数据文件。完整 Windows 打包会按同一配置准备并收集这三套 Skia 资源。
 

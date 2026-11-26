@@ -41,7 +41,7 @@ ABI 规划保留在 codegen。栈传参的对齐随参数计划传给发射器�
 
 ### ELF 对象、精确栈根与异常
 
-**ELF 对象。** 在 LIR 增加小端 ELF64 AArch64 对象目标，在 slib 的 ELF reader 中按 `EM_AARCH64`、`e_flags = 0` 和 RELA 规则解析。元数据与 stackmap 的函数地址使用 `R_AARCH64_ABS64`，异常样例使用 `PREL32/64`，直接调用及跳转使用 `CALL26`／`JUMP26`。PIC 外部数据及线程局部数据还出现 GOT 页寻址和 `TLSDESC_*` 指令组。按实际发射形式区分重定位字段宽度、绝对指针和 TLS 用途，沿用现有 ELF 容器解析及系统 linker。用 Scoop 对象、generated C、native archive 和 DSO 检验这些生产者与消费者，另测混入 amd64 对象时的目标诊断。[ELF 架构选择](../../compiler/slib/src/link_object/elf/architecture.rs) · [Arm ELF ABI](https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst)
+**ELF 对象。** 在 LIR 增加小端 ELF64 AArch64 对象目标，在 slib 的 ELF reader 中按 `EM_AARCH64`、`e_flags = 0` 和 RELA 规则解析。元数据与 stackmap 的函数地址使用 `R_AARCH64_ABS64`，异常样例使用 `PREL32/64`，直接调用及跳转使用 `CALL26`／`JUMP26`。PIC 外部数据及线程局部数据还出现 GOT 页寻址和 `TLSDESC_*` 指令组。按实际发射形式区分重定位字段宽度、绝对指针和 TLS 用途，沿用现有 ELF 容器解析。ARM64 GNU 和 musl 通过 C／C++ driver 调用配套 LLD，支持 DWARF 线程局部变量地址所用的 `R_AARCH64_TLS_DTPREL64`。用 Scoop 对象、generated C、native archive 和 DSO 检验这些生产者与消费者，另测混入 amd64 对象时的目标诊断。[ELF 架构选择](../../compiler/slib/src/link_object/elf/architecture.rs) · [Arm ELF ABI](https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst)
 
 构建 release 版 `scoop.std` 时，LLVM 的 ADRP 和 128 位 LDR 会分别以 section symbol 加偏移引用 `.rodata.cst16` 内的常量。实际对象含 0、16 至 112 字节的多个元素偏移。写入 `.slib` 时按偏移取该元素的 16 字节参与 callable 指纹，保留原生对象的指令与重定位。阶段一用完整的 `scoop.std.slib` 检验这条路径。[常量池读取](../../compiler/slib/src/link_object/literal_pools.rs)
 
