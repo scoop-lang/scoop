@@ -1,0 +1,18 @@
+schema = 1
+[cone]
+group = "scoop.tests"
+name = "ios-ui"
+version = "0.1.0"
+kind = "native-app"
+
+[[sources]]
+path = "src"
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.ui" = "0.1.0"
+"scoop:scoop.ui.component" = "0.1.0"
+"scoop:scoop.ui.style" = "0.1.0"
+"scoop:scoop.ui.style.shadcn" = "0.1.0"
+"scoop:scoop.window" = "0.1.0"

@@ -1,0 +1,51 @@
+package scoop.ui
+
+import scoop.window.*
+
+internal fun platformUiIntegration(host: UiHost): UiWindowIntegration? = Some(UiNativeEvents(host))
+internal val UiHost.nativeEvents: UiNativeEvents get() = integration!! as UiNativeEvents
+internal val UiHost.menuBars: UiMenuBars get() = nativeEvents.menuBars
+
+internal class UiNativeEvents(host: UiHost) : UiWindowIntegration {
+    private val checkThread = { host.checkThread() }
+    val menuBars = UiMenuBars(host)
+    public override fun attached(window: Window) { menuBars.attached(window) }
+    public override fun detached(window: Window) { menuBars.detached(window) }
+    val menus = UiEventTable<MenuId, MenuActivation>(checkThread)
+    val popups = UiEventTable<PopupSessionId, PopupResult>(checkThread)
+    val modals = UiEventTable<ModalSessionId, ModalResult>(checkThread)
+    val files = UiEventTable<FileDialogSessionId, Unit>(checkThread)
+
+    public override fun event(event: ApplicationEvent) {
+        when (event) {
+            case Menu(val value) -> menus.deliver(value.menu, value)
+            case PopupCompleted(val id, val result) -> popups.deliver(id, result)
+            case ModalCompleted(val id, val result) -> modals.deliver(id, result)
+            case FileDialogCompleted(val id) -> files.deliver(id, Unit)
+            else -> {}
+        }
+        menuBars.event(event)
+    }
+    public override fun close() {
+        var failure = cleanupUi(None) { menuBars.close() }
+        failure = cleanupUi(failure) { menus.close() }
+        popups.close();
+        modals.close();
+        files.close();
+        throwUi(failure)
+    }
+}
+
+internal fun uiFrameChanged(event: WindowEvent): Boolean = when (event) {
+    case FrameChanged -> true
+    case GeometryChanged(_) -> true
+    else -> false
+}
+internal fun interruptsTouch(event: WindowEvent): Boolean = when (event) {
+    case Pointer(PointerEvent.Button(_, _, ElementState.Pressed, _)) -> true
+    case Pointer(PointerEvent.Wheel(_, _, _, _)) -> true
+    case Gesture(_) -> true
+    case Keyboard(val key) -> key.state == ElementState.Pressed
+    case TextCommand(_) -> true
+    else -> false
+}

@@ -25,8 +25,9 @@ public class UiHost public constructor(
     private val pending = ArrayList<UiUpdateRoot>()
     private var applicationRoot: UiApplicationRoot? = None
     private var active: ActiveApplication? = None
-    internal val nativeEvents = UiNativeEvents { checkThread() }
-    internal val menuBars = UiMenuBars(this)
+    internal val windowEvents = UiEventTable<WindowId, WindowEvent> { checkThread() }
+    internal val frameEvents = UiEventTable<WindowId, Unit> { checkThread() }
+    internal val integration = platformUiIntegration(this)
     private var proxy: ApplicationProxy? = None
     private var queued = false
     private var processing = false
@@ -51,8 +52,14 @@ public class UiHost public constructor(
             handler =
                 {
                     _, application, event ->
-                    nativeEvents.deliver(event)
-                    menuBars.event(event)
+                    when (event) {
+                        case Window(val id, val value) -> {
+                            windowEvents.deliver(id, value)
+                            if (uiFrameChanged(value)) frameEvents.deliver(id, Unit)
+                        }
+                        else -> {}
+                    }
+                    integration?.event(event)
                     handler(this, application, event)
                 }
         )
@@ -148,7 +155,7 @@ public class UiHost public constructor(
                 val attached = surfaces.attach(window, created)
                 surface = Some(attached)
                 if (attached.dispatch { created.mount(attached) }) {
-                    menuBars.attached(window)
+                    integration?.attached(window)
                     Some(UiWindow(created))
                 } else
                     None
@@ -197,7 +204,7 @@ public class UiHost public constructor(
             nativeDepth += 1
             try {
                 when (event) {
-                    case Exiting -> menuBars.close()
+                    case Exiting -> integration?.close()
                     else -> {}
                 }
                 surfaces.onEvent(application, event)
@@ -300,7 +307,7 @@ public class UiHost public constructor(
     internal fun detached(root: UiRoot) {
         removeRoot(roots, root)
         removePending(root)
-        menuBars.detached(root.window)
+        integration?.detached(root.window)
     }
     private fun removePending(root: UiUpdateRoot) {
         for (index in 0L ..< pending.size)
@@ -315,8 +322,9 @@ public class UiHost public constructor(
         if (closing)
             return
         closing = true
-        var failure = cleanupUi(None) { menuBars.close() }
-        failure = cleanupUi(failure) { nativeEvents.close() }
+        var failure = cleanupUi(None) { integration?.close() }
+        failure = cleanupUi(failure) { windowEvents.close() }
+        failure = cleanupUi(failure) { frameEvents.close() }
         failure = cleanupUi(failure) { applicationRoot?.close() }
         failure = cleanupUi(failure) { hostShortcuts?.close() }
         hostShortcuts = None
@@ -343,29 +351,4 @@ private fun removeRoot(values: ArrayList<UiRoot>, root: UiRoot) {
         }
         index += 1L
     }
-}
-
-/** A single-window entry point with the same explicit root ownership as UiHost.use. */
-public fun <C: Component> runUiApplication(
-    title: String,
-    create: (ComponentScope) -> C,
-    fonts: FontCollection? = None,
-    preferences: UiPreferences = uiPreferences()
-) {
-    val application =
-        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
-    UiHost(onRootError = { _, error -> throw error }) {
-        host,
-        active,
-        event -> when (event) {
-            case Resumed -> host.attach(
-                active.createWindow(windowAttributes { this.title = title }),
-                create,
-                fonts,
-                preferences
-            )
-            case Window(val id, WindowEvent.CloseRequested) -> active.requestExit()
-            else -> {}
-        }
-    }.use { host -> application.run(host) }
 }

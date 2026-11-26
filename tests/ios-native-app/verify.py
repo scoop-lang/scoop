@@ -20,6 +20,7 @@ PROBES = {
     "graphics": (HERE / "graphics/cone", HERE / "graphics/GraphicsResult.h"),
     "window": (HERE / "window/cone", HERE / "window/WindowHost.h"),
     "surface": (HERE / "surface/cone", HERE / "surface/SurfaceHost.h"),
+    "ui": (HERE / "ui/cone", HERE / "ui/UiHost.h"),
 }
 
 
@@ -27,6 +28,7 @@ SCENE_DELEGATES = {
     "protected": "ProtectedDataScene",
     "window": "WindowProbeScene",
     "surface": "SurfaceProbeScene",
+    "ui": "UiSceneDelegate",
 }
 
 
@@ -122,6 +124,11 @@ def build_app(framework, work, language, simulator):
                 "CFBundleVersion": "1",
                 **(
                     {
+                        "UISupportedInterfaceOrientations": [
+                            "UIInterfaceOrientationPortrait",
+                            "UIInterfaceOrientationLandscapeLeft",
+                            "UIInterfaceOrientationLandscapeRight",
+                        ],
                         "UIApplicationSceneManifest": {
                             "UIApplicationSupportsMultipleScenes": False,
                             "UISceneConfigurations": {
@@ -132,7 +139,7 @@ def build_app(framework, work, language, simulator):
                                     }
                                 ]
                             },
-                        }
+                        },
                     }
                     if language in SCENE_DELEGATES
                     else {}
@@ -259,6 +266,13 @@ def main():
         const="surface",
         help="paint accepted Skia frames in a real UIKit SurfaceHost",
     )
+    probes.add_argument(
+        "--ui",
+        action="store_const",
+        dest="probe",
+        const="ui",
+        help="mount and interact with real Scoop controls on the simulator",
+    )
     args = parser.parse_args()
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=False)
@@ -274,7 +288,23 @@ def main():
     for language in ("swift", "objc") if args.probe == "callbacks" else (args.probe,):
         app, identifier = build_app(frameworks["simulator"], work / "simulator", language, True)
         run("xcrun", "simctl", "install", args.simulator, app)
-        if args.probe != "callbacks":
+        if language == "ui":
+            run(
+                "xcodebuild",
+                "test",
+                "-project",
+                HERE / "interaction/Interaction.xcodeproj",
+                "-scheme",
+                "Interaction",
+                "-destination",
+                f"platform=iOS Simulator,id={args.simulator}",
+                "-parallel-testing-enabled",
+                "NO",
+                "-only-testing:InteractionTests/InteractionTests/testUiControls",
+                "-derivedDataPath",
+                work / "xctest",
+            )
+        elif args.probe != "callbacks":
             marker = "protected-data" if language == "protected" else language
             exercise(args.simulator, identifier, f"scoop-ios-{marker}-ok", gc_stress=False)
         else:

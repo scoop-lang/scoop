@@ -60,8 +60,11 @@ public:
           fields[index] = bytes(*value.text[index]);
       swi_ax_update(projection, &value.data, fields);
     }
-    if (!reorder)
+    if (!reorder) {
+      if (change.before->focused != change.after->focused)
+        swi_ax_focus(projection, change.after->focused);
       return;
+    }
     std::vector<int64_t> order, stack{0};
     while (!stack.empty()) {
       auto number = stack.back();
@@ -76,7 +79,7 @@ public:
         stack.insert(stack.end(), children->second.rbegin(),
                      children->second.rend());
     }
-    swi_ax_order(projection, order.data(), order.size());
+    swi_ax_order(projection, order.data(), order.size(), change.after->focused);
   }
   void announce(int64_t node, const std::string &text,
                 int32_t priority) override {

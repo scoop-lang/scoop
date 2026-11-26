@@ -4,7 +4,7 @@
 
 ## UIKit 内容视图
 
-iOS 连接的场景窗口可创建同一个 `AccessibilityProvider`。内容视图按语义顺序公开有可见几何的节点，复用稳定的 `UIAccessibilityElement`。名称、值、已选、禁用、标题和按钮等特征来自发布的属性，元素位置和激活点使用已提交的视图逻辑点。滑动、增减、激活和关闭动作只进入对应的 Scoop 回调一次。关闭节点或断开场景后，系统持有的旧元素不能再触发动作。输入框获得编辑焦点后沿用窗口的系统文本连接，受保护文本不对外提供正文。读屏焦点与键盘焦点分开，布局变化与实时公告按 UIKit 通知交付。[UIKit 无障碍元素](https://developer.apple.com/documentation/uikit/uiaccessibilityelement)
+iOS 连接的场景窗口可创建同一个 `AccessibilityProvider`。内容视图按语义顺序公开有可见几何的节点，复用稳定的 `UIAccessibilityElement`。名称、值、已选、禁用、标题和按钮等特征来自发布的属性，元素位置和激活点使用已提交的视图逻辑点。滑动、增减、激活和关闭动作只进入对应的 Scoop 回调一次。关闭节点或断开场景后，系统持有的旧元素不能再触发动作。静态文本未指定名称时以公开正文作为朗读标签。编辑器成为第一响应者时，容器在同一阅读位置公开实际的 UITextView，沿用语义节点的标识、名称和已呈现几何。结束编辑后恢复该节点。受保护文本不对外提供正文。读屏焦点与键盘焦点分开，布局变化与实时公告按 UIKit 通知交付。[UIKit 无障碍元素](https://developer.apple.com/documentation/uikit/uiaccessibilityelement)
 
 ## 1. 包、身份与寿命
 

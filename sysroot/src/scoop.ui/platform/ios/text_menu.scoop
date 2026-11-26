@@ -1,0 +1,86 @@
+package scoop.ui.text
+
+import scoop.surface.InputArea
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.ios.UIKitEditMenu
+
+internal class TextContextMenu(
+    private val scope: ComponentScope,
+    private val area: InputArea,
+    private val configuration: () -> TextContextMenuOptions,
+    private val canUse: () -> Boolean,
+    private val perform: (TextEditCommand) -> Boolean,
+    private val editing: Boolean
+) : Closeable {
+    private var session: UIKitEditMenu? = None
+    private var options: TextContextMenuOptions? = None
+    private var closed = false
+    val hasTarget: Boolean get() = pending
+    val pending: Boolean get() = session?.isPresented ?: false
+    fun eligible(): Boolean = !closed &&
+        scope.isMounted &&
+        !area.isClosed &&
+        canUse() &&
+        configuration().mode !=
+        TextContextMenuMode.Disabled &&
+        scope.nativeWindow.state ==
+        WindowState.Open &&
+        !scope.nativeWindow.isInputBlocked &&
+        area.scope.isInputAllowed
+    fun open(template: TextContextMenuTemplate, placement: PopupPlacement): Boolean {
+        if (pending || !eligible()) return false
+        cancel()
+        val selected = configuration()
+        options = Some(selected)
+        session = Some(
+            UIKitEditMenu(
+                scope.nativeWindow, placement, template, availability(),
+                selected.mode == TextContextMenuMode.PreferSystem && selected.labels == None
+            ) { command ->
+                if (eligible() &&
+                    configuration() ==
+                    selected &&
+                    textMenuSupports(command, editing) &&
+                    textMenuAvailable(availability(), command)
+                )
+                    scope.dispatch { perform(command) }
+            }
+        )
+        return true
+    }
+    private fun availability(): TextCommandAvailability = area.scope.textCommandAvailability ?:
+        TextCommandAvailability()
+    fun refresh() {
+        val menu = session ?: return
+        if (!eligible() || !menu.isPresented || options != Some(configuration()))
+            cancel()
+        else
+            menu.update(availability())
+    }
+    fun cancel() {
+        val current = session
+        session = None
+        options = None
+        current?.close()
+    }
+    public override fun close() {
+        closed = true
+        cancel()
+    }
+}
+
+internal fun openEditorTextMenu(
+    host: TextEditHost,
+    template: TextContextMenuTemplate,
+    placement: PopupPlacement
+): Boolean = host.contextMenu.open(template, placement)
+
+internal fun openSelectableTextMenu(
+    host: SelectableTextHost,
+    template: TextContextMenuTemplate,
+    placement: PopupPlacement
+): Boolean = host.contextMenu.open(template, placement)
+
+/** Autocorrection and replacement are already delivered in the UIKit text transaction. */
+internal fun editorNativeReplacements(host: TextEditHost, raw: EditorPreparedInput): Array<TextEditReplacement> = []

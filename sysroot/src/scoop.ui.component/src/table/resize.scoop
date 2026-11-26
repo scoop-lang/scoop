@@ -265,10 +265,7 @@ internal class TableResizeHeader(
     private fun updateCursor() {
         val next = props.value.enabled && (area.scope.isHovered || drag.isDragging)
         if (next || cursor)
-            window
-                .setCursorIcon(
-                    if (next) CursorIcon.ResizeHorizontal else CursorIcon.Default
-                )
+            resizeCursor?.invoke(window, if (next) Some(Orientation.Horizontal) else None)
         cursor = next
     }
     public override fun update(): UiInvalidation {
@@ -357,6 +354,6 @@ internal class TableResizeHeader(
         if (cursor &&
             (window.state == WindowState.Open || window.state == WindowState.PendingConfigure)
         )
-            window.setCursorIcon(CursorIcon.Default)
+            resizeCursor?.invoke(window, None)
     }
 }

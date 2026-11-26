@@ -1,0 +1,6 @@
+package scoop.ui.component
+
+import scoop.ui.style.Orientation
+import scoop.window.Window
+
+internal val resizeCursor: ((Window, Orientation?) -> Unit)? = None

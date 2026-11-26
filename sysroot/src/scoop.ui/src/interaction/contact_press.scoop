@@ -125,13 +125,7 @@ internal class ContactPress(
                 if (!area.hitTest(Point(point.x, point.y)))
                     cancel()
             }
-            case Pointer(PointerEvent.Button(_, _, ElementState.Pressed, _)) -> cancel()
-            case Pointer(PointerEvent.Wheel(_, _, _, _)) -> cancel()
-            case Keyboard(val value) -> if (value.state == ElementState.Pressed)
-                cancel()
-            case TextCommand(_) -> cancel()
-            case Gesture(_) -> cancel()
-            else -> {}
+            else -> if (interruptsTouch(event)) cancel()
         }
     }
 

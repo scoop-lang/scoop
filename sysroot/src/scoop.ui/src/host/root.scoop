@@ -1,6 +1,10 @@
 package scoop.ui
 
 import scoop.collections.sortedBy
+import scoop.graphics.Rect
+import scoop.graphics.Size
+import scoop.math.min
+import scoop.math.max
 import scoop.graphics.Point
 import scoop.graphics.Color
 import scoop.graphics.text.FontCollection
@@ -168,11 +172,20 @@ internal class UiRoot(
         var success = false
         var failure: Throwable? = None
         try {
-            val result = current.measure(Constraints.tight(frame.size), frame.time)
+            val insets = frame.safeAreaInsets
+            val x = min(frame.size.width, insets.left)
+            val y = min(frame.size.height, insets.top)
+            val extent = Size(max(0.0, frame.size.width - x - insets.right),
+                max(0.0, frame.size.height - y - insets.bottom))
+            val bounds = Rect(x, y, extent.width, extent.height)
+            val result = current.measure(Constraints.tight(extent), frame.time)
             result.finishMeasurement()
             semantics?.publish()
-            result.scene(frame, Point(0.0, 0.0))
-            overlays.paint(frame)
+            frame.withState { content ->
+                content.canvas.clipRect(bounds)
+                result.scene(content, Point(x, y))
+                overlays.paint(content, bounds)
+            }
             success = true
         } catch (error: Throwable) {
             if (!(error is UiLayoutEnded) || isOpen)

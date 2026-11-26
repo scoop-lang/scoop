@@ -9,6 +9,7 @@
 
 @interface SWITextView : UITextView <UITextViewDelegate>
 @property(nonatomic, weak) SWIView *content;
+@property(nonatomic, weak) UIAccessibilityElement *semanticElement;
 @property(nonatomic) BOOL connected;
 @property(nonatomic) int64_t connection, sequence, applied, revision;
 @property(nonatomic, copy) NSString *publishedText, *projection;
@@ -24,6 +25,8 @@
 - (NSRange)markedRange;
 - (void)rememberProjection;
 @end
+
+void swi_ax_editor_changed(SWIView *view);
 
 @interface SWITextView (Changes)
 - (void)publishChanges;

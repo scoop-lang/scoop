@@ -213,7 +213,8 @@ public class SurfaceWindow internal constructor(
                                                                         size,
                                                                         time,
                                                                         placements,
-                                                                        metrics.scaleFactor
+                                                                        metrics.scaleFactor,
+                                                                        metrics.safeAreaInsets
                                                                     )
                                                                 )
                                                         }

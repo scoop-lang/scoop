@@ -1,0 +1,27 @@
+package scoop.ui.text
+
+import scoop.window.*
+
+internal fun textMenuSupports(command: TextEditCommand, editing: Boolean): Boolean =
+    when (command) {
+        case Copy -> true
+        case SelectAll -> true
+        case Undo -> editing
+        case Redo -> editing
+        case Cut -> editing
+        case Paste -> editing
+        case DeleteSelection -> editing
+        else -> false
+    }
+
+internal fun textMenuAvailable(value: TextCommandAvailability, command: TextEditCommand): Boolean =
+    when (command) {
+        case Undo -> value.undo
+        case Redo -> value.redo
+        case Cut -> value.cut
+        case Copy -> value.copy
+        case Paste -> value.paste
+        case DeleteSelection -> value.deleteSelection
+        case SelectAll -> value.selectAll
+        else -> false
+    }

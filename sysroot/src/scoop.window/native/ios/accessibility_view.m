@@ -1,10 +1,12 @@
 #import "accessibility.h"
-#import "window.h"
+#import "text.h"
 
 @class SWIAXElement;
 @interface SWIAXProjection : NSObject
 @property(nonatomic, weak) SWIScene *scene;
 @property(nonatomic) void *tree;
+@property(nonatomic, copy) NSArray<SWIAXElement *> *order;
+@property(nonatomic) int64_t focused;
 @property(nonatomic, strong)
     NSMutableDictionary<NSNumber *, SWIAXElement *> *elements;
 @end
@@ -145,12 +147,15 @@ void *swi_ax_attach(void *scene, void *tree) {
   p.scene = (__bridge SWIScene *)scene;
   p.tree = tree;
   p.elements = [NSMutableDictionary dictionary];
+  p.scene.view.semanticProjection = p;
   p.scene.view.isAccessibilityElement = NO;
   p.scene.view.accessibilityElements = @[];
   return (__bridge_retained void *)p;
 }
 void swi_ax_detach(void *handle) {
   SWIAXProjection *p = CFBridgingRelease(handle);
+  p.scene.view.semanticProjection = nil;
+  swi_ax_editor_changed(p.scene.view);
   p.tree = NULL;
   p.scene.view.accessibilityElements = nil;
   [p.elements removeAllObjects];
@@ -202,11 +207,13 @@ void swi_ax_update(void *handle, const SWAccessibilityData *data,
     p.elements[@(data->number)] = element;
   }
   element.node = *data;
-  element.accessibilityLabel = string(fields[0]);
+  NSString *name = string(fields[0]);
+  NSString *value = (data->flags & SWAXProtected) ? nil : string(fields[3]);
+  BOOL textLabel = data->role == 1 && !name.length;
+  element.accessibilityLabel = textLabel ? value : name;
   element.accessibilityHint = string(fields[4]) ?: string(fields[1]);
   element.accessibilityIdentifier = string(fields[2]);
-  element.accessibilityValue =
-      (data->flags & SWAXProtected) ? nil : string(fields[3]);
+  element.accessibilityValue = textLabel ? nil : value;
   if (data->has_range)
     element.accessibilityValue = [NSNumberFormatter
         localizedStringFromNumber:@(data->number_value)
@@ -221,16 +228,45 @@ void swi_ax_remove(void *handle, int64_t number) {
   p.elements[@(number)].projection = nil;
   [p.elements removeObjectForKey:@(number)];
 }
-void swi_ax_order(void *handle, const int64_t *numbers, size_t count) {
+void swi_ax_editor_changed(SWIView *view) {
+  SWIAXProjection *p = view.semanticProjection;
+  SWITextView *editor = view.editor;
+  NSArray *order = p.order ?: @[];
+  SWIAXElement *field = p.elements[@(p.focused)];
+  NSUInteger index = editor.connected && editor.isFirstResponder && field &&
+                             field.node.role == 4
+                         ? [order indexOfObjectIdenticalTo:field]
+                         : NSNotFound;
+  BOOL editing = index != NSNotFound;
+  editor.semanticElement = editing ? field : nil;
+  editor.isAccessibilityElement = editing;
+  editor.accessibilityElementsHidden = !editing;
+  if (!p)
+    return;
+  if (editing) {
+    NSMutableArray *withEditor = [order mutableCopy];
+    withEditor[index] = editor;
+    order = withEditor;
+  }
+  if (![view.accessibilityElements isEqualToArray:order]) {
+    view.accessibilityElements = order;
+    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification,
+                                    nil);
+  }
+}
+void swi_ax_focus(void *handle, int64_t focused) {
+  SWIAXProjection *p = (__bridge SWIAXProjection *)handle;
+  p.focused = focused;
+  swi_ax_editor_changed(p.scene.view);
+}
+void swi_ax_order(void *handle, const int64_t *numbers, size_t count,
+                  int64_t focused) {
   SWIAXProjection *p = (__bridge SWIAXProjection *)handle;
   NSMutableArray *order = [NSMutableArray arrayWithCapacity:count];
   for (size_t i = 0; i < count; ++i)
     [order addObject:p.elements[@(numbers[i])]];
-  if (![p.scene.view.accessibilityElements isEqualToArray:order]) {
-    p.scene.view.accessibilityElements = order;
-    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification,
-                                    nil);
-  }
+  p.order = order;
+  swi_ax_focus(handle, focused);
 }
 void swi_ax_announce(void *handle, SWAccessibilityBytes text, int priority) {
   if (!swi_ax_query(handle, SWIVisible))

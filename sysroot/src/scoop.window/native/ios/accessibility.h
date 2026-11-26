@@ -24,7 +24,9 @@ int swi_ax_geometry(void *projection, enum SWIAccessibilitySpace space,
 void swi_ax_update(void *projection, const SWAccessibilityData *data,
                    const SWAccessibilityBytes fields[6]);
 void swi_ax_remove(void *projection, int64_t number);
-void swi_ax_order(void *projection, const int64_t *numbers, size_t count);
+void swi_ax_order(void *projection, const int64_t *numbers, size_t count,
+                  int64_t focused);
+void swi_ax_focus(void *projection, int64_t focused);
 void swi_ax_announce(void *projection, SWAccessibilityBytes text, int priority);
 int swi_ax_perform(void *tree, int64_t number, int32_t action);
 int swi_ax_scroll(void *tree, int64_t number, int axis, int forward);

@@ -14,7 +14,7 @@
         UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     // UIKit supplies UITextInput, its tokenizer and keyboard. Scoop draws the
     // editor.
-    self.layer.opacity = 0;
+    self.layer.mask = [CALayer layer];
     self.isAccessibilityElement = NO;
     self.accessibilityElementsHidden = YES;
     self.backgroundColor = UIColor.clearColor;
@@ -26,6 +26,38 @@
     [self observeKeyboard];
   }
   return self;
+}
+- (BOOL)becomeFirstResponder {
+  BOOL result = [super becomeFirstResponder];
+  if (result)
+    swi_ax_editor_changed(self.content);
+  return result;
+}
+- (BOOL)resignFirstResponder {
+  BOOL result = [super resignFirstResponder];
+  if (result)
+    swi_ax_editor_changed(self.content);
+  return result;
+}
+- (CGRect)accessibilityFrame {
+  return self.semanticElement ? self.semanticElement.accessibilityFrame
+                              : [super accessibilityFrame];
+}
+- (CGPoint)accessibilityActivationPoint {
+  return self.semanticElement
+             ? self.semanticElement.accessibilityActivationPoint
+             : [super accessibilityActivationPoint];
+}
+- (NSString *)accessibilityLabel {
+  return self.semanticElement ? self.semanticElement.accessibilityLabel
+                              : [super accessibilityLabel];
+}
+- (NSString *)accessibilityIdentifier {
+  return self.semanticElement ? self.semanticElement.accessibilityIdentifier
+                              : [super accessibilityIdentifier];
+}
+- (NSString *)accessibilityValue {
+  return self.secureTextEntry ? nil : [super accessibilityValue];
 }
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
   return nil;

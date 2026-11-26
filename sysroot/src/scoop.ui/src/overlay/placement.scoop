@@ -121,11 +121,11 @@ internal enum OverlayPlanPlacement {
 
 internal fun planOverlay(
     placement: OverlayPlacement,
-    viewport: Size,
+    viewport: Rect,
     anchor: Rect?,
     direction: LayoutDirection = LayoutDirection.Ltr
 ): OverlayMeasurePlan {
-    checkLayoutSize(viewport)
+    checkLayoutSize(Size(viewport.width, viewport.height))
     return when (placement) {
         case Viewport(val horizontal, val vertical, val padding) -> {
             val available = insetViewport(viewport, padding)
@@ -176,7 +176,7 @@ private fun pointOverlayPlan(
     gap: Double,
     padding: Double,
     matchWidth: Boolean,
-    viewport: Size,
+    viewport: Rect,
     direction: LayoutDirection,
     contentAligned: Boolean = false
 ): OverlayMeasurePlan {
@@ -237,10 +237,10 @@ private fun maximum(a: Double, b: Double): Double =
 private fun clamp(value: Double, lower: Double, upper: Double): Double =
     minimum(maximum(value, lower), upper)
 
-private fun insetViewport(size: Size, padding: Double): Rect {
+private fun insetViewport(size: Rect, padding: Double): Rect {
     val x = minimum(padding, size.width / 2.0)
     val y = minimum(padding, size.height / 2.0)
-    return Rect(x, y, size.width - x * 2.0, size.height - y * 2.0)
+    return Rect(size.x + x, size.y + y, size.width - x * 2.0, size.height - y * 2.0)
 }
 
 private fun aligned(

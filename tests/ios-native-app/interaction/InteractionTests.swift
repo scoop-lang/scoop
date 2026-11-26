@@ -34,6 +34,46 @@ final class InteractionTests: XCTestCase {
         return bytes
     }
 
+    func testUiControls() {
+        let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.ui")
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        app.launch()
+        let button = app.buttons["increment"]
+        let label = app.descendants(matching: .any).matching(identifier: "counter-label").firstMatch
+        guard button.waitForExistence(timeout: 8) else { return XCTFail(app.debugDescription) }
+        XCTAssertEqual(label.label, "Count 0")
+        XCTAssertGreaterThan(label.frame.minY, 0)
+        button.tap()
+        XCTAssertEqual(label.label, "Count 1")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let wide = expectation(for: NSPredicate { _, _ in button.frame.width > 600 }, evaluatedWith: button)
+        wait(for: [wide], timeout: 8)
+        button.tap()
+        XCTAssertEqual(label.label, "Count 2")
+        XCUIDevice.shared.orientation = .portrait
+        let narrow = expectation(for: NSPredicate { _, _ in button.frame.width < 500 }, evaluatedWith: button)
+        wait(for: [narrow], timeout: 8)
+        let notes = app.descendants(matching: .any).matching(identifier: "notes").firstMatch
+        notes.tap()
+        app.typeText("Scoop")
+        XCTAssertEqual(notes.value as? String, "Scoop")
+        button.tap()
+        XCTAssertEqual(label.label, "Count 3")
+        let last = app.descendants(matching: .any).matching(identifier: "last-row").firstMatch
+        XCTAssertFalse(last.isHittable)
+        for _ in 0..<8 where !last.isHittable {
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.79))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.37))
+            start.press(forDuration: 0.1, thenDragTo: end)
+        }
+        XCTAssertTrue(last.isHittable)
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertEqual(label.label, "Count 3")
+        XCTAssertEqual(notes.value as? String, "Scoop")
+    }
+
     func testTextEditMenu() {
         let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.window")
         app.launchArguments = ["--edit-menu"]

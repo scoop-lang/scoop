@@ -49,15 +49,7 @@ internal fun textHandleWindow(host: TextSelectionHandles, event: WindowEvent) {
             if (!host.area.hitTest(textHandlePoint(value)))
                 host.hide()
         }
-        case Pointer(PointerEvent.Button(_, _, ElementState.Pressed, _)) -> host.hide()
-        case Pointer(PointerEvent.Wheel(_, _, _, _)) -> host.hide()
-        case Keyboard(val value) -> {
-            if (value.state == ElementState.Pressed)
-                host.hide()
-        }
-        case TextCommand(_) -> host.hide()
-        case Gesture(_) -> host.hide()
-        else -> {}
+        else -> if (interruptsTouch(event)) host.hide()
     }
 }
 

@@ -5,8 +5,6 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.accessibility.*
-import scoop.window.CursorIcon
-import scoop.window.setCursorIcon
 
 private class SidebarRailInput(val props: SidebarProps, val theme: Theme, val toggle: () -> Unit)
 
@@ -46,12 +44,7 @@ private class SidebarRail(
     private fun refreshCursor() {
         val hover = props.value.props.enabled && area!!.scope.isHovered
         if (hover != cursor) {
-            scope.nativeWindow.setCursorIcon(
-                if (hover)
-                    CursorIcon.ResizeHorizontal
-                else
-                    CursorIcon.Default
-            )
+            resizeCursor?.invoke(scope.nativeWindow, if (hover) Some(Orientation.Horizontal) else None)
             cursor = hover
         }
     }
@@ -113,6 +106,6 @@ private class SidebarRail(
     }
     public override fun onUnmount() {
         if (cursor && scope.isMounted)
-            scope.nativeWindow.setCursorIcon(CursorIcon.Default)
+            resizeCursor?.invoke(scope.nativeWindow, None)
     }
 }

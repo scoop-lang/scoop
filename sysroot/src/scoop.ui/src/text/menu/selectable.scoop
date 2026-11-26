@@ -109,7 +109,7 @@ internal fun selectableContextMenu(
     if (host.closed || !host.scope.isMounted || !sameMenuText(document, host.content))
         return false
     return if (popup)
-        host.contextMenu.open(template!!, placement, selectableSystemMenuActions(host))
+        openSelectableTextMenu(host, template!!, placement)
     else
         true
 }

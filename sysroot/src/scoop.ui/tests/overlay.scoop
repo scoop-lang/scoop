@@ -8,7 +8,7 @@ import scoop.test.*
 private class OverlayPlacementTest {
     @Test
     fun `viewport alignment stays bounded even when padding fills the window`() {
-        val plan = planOverlay(OverlayPlacement.Viewport(), Size(320.0, 200.0), None)
+        val plan = planOverlay(OverlayPlacement.Viewport(), Rect(0.0, 0.0, 320.0, 200.0), None)
         assertEquals(Some(304.0), plan.constraints.maxWidth)
         assertEquals(Some(184.0), plan.constraints.maxHeight)
         val layout = plan.layout(Size(40.0, 20.0))
@@ -38,7 +38,7 @@ private class OverlayPlacementTest {
     fun `anchored layout measures once for either side then flips and shifts`() {
         val anchor = Rect(270.0, 160.0, 30.0, 20.0)
         val plan =
-            planOverlay(OverlayPlacement.Anchored(LayoutAnchor()), Size(320.0, 200.0), Some(anchor))
+            planOverlay(OverlayPlacement.Anchored(LayoutAnchor()), Rect(0.0, 0.0, 320.0, 200.0), Some(anchor))
         assertEquals(Some(148.0), plan.constraints.maxHeight)
         val layout = plan.layout(Size(80.0, 50.0))
         assertEquals(Some(OverlaySide.Top), layout.side)

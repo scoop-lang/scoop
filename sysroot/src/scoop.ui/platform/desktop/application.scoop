@@ -1,0 +1,29 @@
+package scoop.ui
+
+import scoop.graphics.text.FontCollection
+import scoop.window.*
+
+/** A single-window entry point with the same explicit root ownership as UiHost.use. */
+public fun <C: Component> runUiApplication(
+    title: String,
+    create: (ComponentScope) -> C,
+    fonts: FontCollection? = None,
+    preferences: UiPreferences = uiPreferences()
+) {
+    val application =
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
+    UiHost(onRootError = { _, error -> throw error }) {
+        host,
+        active,
+        event -> when (event) {
+            case Resumed -> host.attach(
+                active.createWindow(windowAttributes { this.title = title }),
+                create,
+                fonts,
+                preferences
+            )
+            case Window(val id, WindowEvent.CloseRequested) -> active.requestExit()
+            else -> {}
+        }
+    }.use { host -> application.run(host) }
+}

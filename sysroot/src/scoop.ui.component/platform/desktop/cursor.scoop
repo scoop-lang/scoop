@@ -1,0 +1,12 @@
+package scoop.ui.component
+
+import scoop.ui.style.Orientation
+import scoop.window.*
+
+internal val resizeCursor: ((Window, Orientation?) -> Unit)? = Some { window, orientation ->
+    window.setCursorIcon(when (orientation) {
+        case Some(Horizontal) -> CursorIcon.ResizeHorizontal
+        case Some(Vertical) -> CursorIcon.ResizeVertical
+        case None -> CursorIcon.Default
+    })
+}

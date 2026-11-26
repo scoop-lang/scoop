@@ -9,7 +9,7 @@ private class LayoutDirectionTest {
     @Test
     fun `logical overlay sides and horizontal alignment resolve before collision handling`() {
         val anchor = LayoutAnchor()
-        val viewport = Size(400.0, 200.0)
+        val viewport = Rect(0.0, 0.0, 400.0, 200.0)
         val bounds = Some(Rect(160.0, 80.0, 20.0, 20.0))
         val logical =
             OverlayPlacement.Anchored(anchor, OverlaySide.Start, gap = 4.0, viewportPadding = 0.0)

@@ -35,3 +35,5 @@ WindowChrome 的整个窗框模式、标题栏布局及窗口区域配置仍由�
 AppKit CAMetalLayer 安装时读取 NSWindow.opaque；之后 window 的透明度／背景更新同步当前 contentView.layer.opaque。透明度本身不表示窗框几何发生变化；实际尺寸和窗框变化通过对应事件驱动必要重绘。Win32 DirectComposition 和 GTK GtkGLArea 保持预乘 alpha；GTK 继续使用已有物理 framebuffer 尺寸，不再次应用显示器分数缩放。
 
 测试覆盖最终 transform／clip、Discarded 不发布、尺寸改变撤销、空覆盖与未放置、卸载／禁用、输入边界、Surface 关闭后的 Window 存活，以及原生区域与透明呈现的组合。使用真实 renderer 和原生快照或输入探针，不把观察自有候选数组当作 OS 命中结果。
+
+公开的 `FrameContext.safeAreaInsets` 来自本次渲染配置的窗口快照，单位为逻辑点。画布尺寸仍覆盖整个内容视图，子画布保留同一组边距。

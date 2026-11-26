@@ -1,0 +1,11 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.surface.*
+
+public fun SceneContext.place(region: WindowRegionHandle, shape: Rect) {
+    uncachedFrame().place(region, shape)
+}
+public fun SceneContext.place(region: WindowRegionHandle, shape: Path) {
+    uncachedFrame().place(region, shape)
+}

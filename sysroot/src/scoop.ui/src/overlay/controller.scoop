@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.graphics.Point
+import scoop.graphics.Rect
 import scoop.surface.*
 
 /** Frame identity contains values only; it never retains a Canvas borrow. */
@@ -46,7 +47,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         activity = Some(root.window.observeActivity { _ -> scheduleIfUnavailable() })
         geometry =
             Some(
-                root.host.nativeEvents.frames.subscribe(root.window.id, false) {
+                root.host.frameEvents.subscribe(root.window.id, false) {
                     _ -> scheduleIfUnavailable()
                 }
             )
@@ -131,11 +132,11 @@ internal class OverlayController(private val root: UiRoot): Closeable {
     fun include(value: PortalInstance) {
         value.included = Some(frame)
     }
-    fun paint(context: FrameContext) {
-        paintDomain(None, context)
+    fun paint(context: FrameContext, bounds: Rect) {
+        paintDomain(None, context, bounds)
         for (session in focusSessions)
             if (session.isModal)
-                paintDomain(Some(session), context)
+                paintDomain(Some(session), context, bounds)
         for (portal in sessions) {
             val included = portal.included
             when (included) {
@@ -145,7 +146,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             }
         }
     }
-    private fun paintDomain(domain: OverlayFocusSession?, context: FrameContext) {
+    private fun paintDomain(domain: OverlayFocusSession?, context: FrameContext, bounds: Rect) {
         for (portal in sessions) {
             val included = portal.included ?: continue
             if (!portal.isPresent || included !== frame || !sameModal(portal.domain, domain))
@@ -174,7 +175,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             val plan =
                 planOverlay(
                     portal.options.placement,
-                    context.size,
+                    bounds,
                     anchor,
                     portal.node.layoutDirection
                 )

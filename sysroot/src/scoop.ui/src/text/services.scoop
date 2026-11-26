@@ -1,7 +1,6 @@
 package scoop.ui.text
 
 import scoop.window.*
-import scoop.collections.sortedBy
 
 internal struct TextCheckingContext(val text: String, val start: Long)
 
@@ -21,68 +20,3 @@ internal fun textCheckTouches(finding: Utf8Range, selection: Utf8Range): Boolean
         finding.start <= selection.start && finding.end >= selection.end
     else
         finding.start < selection.end && finding.end > selection.start
-
-internal fun editorNativeReplacements(host: TextEditHost, raw: EditorPreparedInput): Array<
-    TextEditReplacement
-> {
-    if (
-        !host.options.automaticTextReplacement ||
-            !raw.completed ||
-            raw.pending.size !=
-            0L ||
-            host.options.protectedText ||
-            host.options.projection.masked ||
-            !host.copyAllowed
-    )
-        return []
-    val services = host.scope.application.textServices
-    if (!services.capabilities.automaticReplacement)
-        return []
-    val text = raw.current.input.surroundingText
-    val inserted = editorInsertedRanges(raw.committedSpans)
-    val result = ArrayList<TextEditReplacement>()
-    try {
-        for (changed in inserted) {
-            val addition = text.utf8Slice(changed)
-            if (
-                addition.charLength ==
-                    0L ||
-                    !textReplacementBoundary(addition.getCharAt(addition.charLength - 1L))
-            )
-                continue
-            val context = textCheckingContext(text, changed)
-            val findings =
-                services.checkText(
-                    context.text,
-                    TextCheckingOptions(spelling = false, grammar = false, replacements = true)
-                )
-            for (finding in findings) {
-                if (finding.kind != TextCheckKind.Replacement || finding.suggestions.size == 0L)
-                    continue
-                val range =
-                    Utf8Range(
-                        context.start + finding.range.start,
-                        context.start + finding.range.end
-                    )
-                if (!(textCheckTouches(range, changed) || range.end == changed.start))
-                    continue
-                var overlaps = false
-                for (existing in result)
-                    if (existing.range.start <= range.end && existing.range.end >= range.start)
-                        overlaps = true
-                if (!overlaps)
-                    result.add(TextEditReplacement(range, finding.suggestions[0L]))
-            }
-        }
-    } catch (_: WindowException) {
-        return []
-    }
-    return result.sortedBy<TextEditReplacement, Long> { value -> value.range.start }.toArray()
-}
-
-private fun textReplacementBoundary(character: Char): Boolean =
-    when (character.code) {
-        9, 10, 13, 32, 33, 34, 39, 44, 45, 46, 58, 59, 63,
-        0x3000, 0x3001, 0x3002, 0xff01, 0xff0c, 0xff0e, 0xff1a, 0xff1b, 0xff1f -> true
-        else -> false
-    }

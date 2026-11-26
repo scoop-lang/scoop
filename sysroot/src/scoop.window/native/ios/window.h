@@ -12,7 +12,7 @@ typedef struct {
   int32_t visible, focused, occluded, dark;
 } SWISnapshot;
 
-@class SWITextEdit, SWITextView;
+@class SWITextEdit, SWITextView, SWIAXProjection;
 
 @interface SWIEvent : NSObject
 @property(nonatomic) SWEventHeader header;
@@ -40,6 +40,7 @@ typedef struct {
 @interface SWIView : UIView
 @property(nonatomic, weak) SWIScene *owner;
 @property(nonatomic, strong) SWITextView *editor;
+@property(nonatomic, weak) SWIAXProjection *semanticProjection;
 @property(nonatomic) int32_t editFlags;
 @property(nonatomic, strong) NSUndoManager *editUndo;
 - (void)cancelContacts:(SWPointerCancelReason)reason;

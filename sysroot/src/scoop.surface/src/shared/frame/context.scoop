@@ -2,6 +2,7 @@ package scoop.surface
 
 import scoop.graphics.*
 import scoop.platform.time.MonotonicInstant
+import scoop.window.WindowInsets
 
 /** One owner-thread frame; its Canvas is valid only while the painter runs. */
 public class FrameContext internal constructor(
@@ -10,11 +11,12 @@ public class FrameContext internal constructor(
     public val size: Size,
     public val time: MonotonicInstant,
     internal val input: InputFrame,
-    internal val scaleFactor: Double
+    internal val scaleFactor: Double,
+    public val safeAreaInsets: WindowInsets = WindowInsets()
 ) {
     /** Keeps this frame's input collector while borrowing an isolated child canvas. */
     public fun <T> withState(block: (FrameContext) -> T): T = canvas
-        .withState { child -> block(FrameContext(window, child, size, time, input, scaleFactor)) }
+        .withState { child -> block(FrameContext(window, child, size, time, input, scaleFactor, safeAreaInsets)) }
 
     public fun place(area: InputArea, shape: Rect) {
         input.place(canvas, area, shape)
