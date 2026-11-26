@@ -81,8 +81,14 @@ impl ValidatedObjectEnvelopeV1 {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ObjectSectionFlagsV1 {
     MachO(u32),
-    Elf { section_type: u32, flags: u64 },
-    Coff { characteristics: u32 },
+    Elf {
+        section_type: u32,
+        flags: u64,
+        entry_size: u64,
+    },
+    Coff {
+        characteristics: u32,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

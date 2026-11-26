@@ -24,6 +24,7 @@ pub fn validate_elf_object_envelope_v1(
             flags: ObjectSectionFlagsV1::Elf {
                 section_type: header.sh_type(endian),
                 flags: header.sh_flags(endian),
+                entry_size: header.sh_entsize(endian),
             },
             byte_size: section.size(),
             alignment_power: section.align().max(1).trailing_zeros(),

@@ -16,6 +16,7 @@ pub(crate) fn sections(
             let ObjectSectionFlagsV1::Elf {
                 section_type,
                 flags,
+                ..
             } = section.flags()
             else {
                 unreachable!("ELF reader produces ELF section flags")
