@@ -126,6 +126,8 @@ struct User(val name: String, val note: String? = None) {
 
 外部命令用 `io/processes` 查 `Command` 与 `ChildProcess`。需要有限等待时使用 `child.communicate(timeout: Duration, input: List<Byte>? = None)`；同一单调期限覆盖输入、两个输出和进程等待。`ProcessTimeoutException.stdout/stderr` 保留部分字节，返回异常前库收尾所拥有的 child 与端点；后代进程不属于其管理范围。正常退出、非零退出、启动失败与超时分别处理；清理还失败时保留 `ResourceUseException.primaryFailure/cleanupFailure`。普通 `close` 不杀进程，不能用外包线程后放弃 join 的办法模拟超时。
 
+参数按元素传给 `Command`，不自行加包围引号。Windows 使用 CRT 编码，普通开关保持未加引号，可显式调用 `cmd.exe` 并分别传入 `/d`、`/c` 与脚本正文；脚本中的展开和转义由解释器决定，库不会自动添加 shell。普通进程与 ConPTY 使用同一编码。
+
 终端／行编辑示例可能需要真实 TTY，异步 HTTP 示例需要活动事件循环与服务，线程共享状态需要同步。用符合各自前提的方式验证，不能把无 TTY 或服务未启动造成的失败归为语言错误。
 
 需要启动带控制终端的子进程时，在活动事件循环内调用 `EventLoop.spawnPty(command, columns, rows)`。用 `AsyncPty` 异步读写并调整尺寸，分别等待直接子进程退出和输出 EOF。用 `useAsync` 收尾，已关闭的会话会结束仍存活的直接子进程。参见 `scoop.asyncio/examples/pty.scoop`。

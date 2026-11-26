@@ -319,6 +319,8 @@ spawn(searchPath: Boolean = false): ChildProcess 启动进程；默认按明确 
 
 Windows 使用 CreateProcessW，executable、argv、环境与 cwd 无损传入 UTF-16；显式 lpApplicationName 不触发系统 PATH 或 shell 搜索，工作目录和可执行路径先按请求的 cwd 解析。命令行沿 Microsoft CRT 的参数引号／反斜杠规则编码，argv[0] 保留原始 executable；只保证采用该常规解析规则的 child 能逐项还原参数，不把 cmd／PowerShell 的脚本语法当作普通 argv 规则。Windows 的 searchPath 对含 `/`、`\\` 或 drive prefix 的 executable 按路径启动，否则按命令环境中不区分大小写的 PATH、以分号分隔的目录顺序查找；空项或缺失 PATH 使用 child cwd。每项先尝试原名，无扩展名时再尝试 `.exe`，不通过 PATHEXT 启动脚本。成对包围目录项的引号被去掉，其余字符保留。
 
+argv[0] 始终加引号；其余非空且不含空格、制表符、回车、换行或双引号的参数直接写入，其余参数加引号并按 CRT 规则转义。这样 `/d`、`/c` 等普通开关不附带不必要的引号，允许显式调用 `cmd.exe /d /c`；脚本正文仍由所选解释器解析，库不提供 shell 脚本转义。普通进程和 ConPTY 使用相同的参数编码。
+
 Windows 环境按名称的不区分大小写 ordinal 顺序构造双 NUL 结尾的 Unicode block，拒绝大小写不同但等价的重复名称。stdin／stdout／stderr 的临时 child 句柄使用可继承副本，STARTUPINFOEX 的 HANDLE_LIST 仅包含这三个流；父端管道不可继承，Redirect 不转移原 File 的所有权，Null 使用 NUL，缺失的继承标准句柄仍为空。创建成功后关闭 primary-thread handle 和临时 child 副本，仅移交进程 HANDLE 与父端 pipes；失败关闭全部临时资源并保留本次 Win32 code。
 
 ### 11.2 观察、端点转移与释放

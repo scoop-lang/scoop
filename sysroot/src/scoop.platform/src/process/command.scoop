@@ -33,7 +33,8 @@ public enum Stdio {
 /**
  * A process launch description with copied argument/environment data, an explicit working
  * directory, and standard-stream routing. Arguments are passed directly without shell
- * interpretation.
+ * interpretation. Windows uses CRT argument encoding and leaves ordinary nonempty arguments
+ * unquoted. Scripts passed to an explicitly selected interpreter still follow its syntax.
  */
 public class Command internal constructor(
     /**
