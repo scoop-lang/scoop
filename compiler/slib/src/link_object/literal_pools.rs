@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 
 use super::{
     ObjectDefinitionReadError as Error, ObjectDefinitionV1, ObservedObjectSectionV1,
-    ValidatedBuiltinObjectSectionInventoryV1,
+    ValidatedBuiltinObjectSectionInventoryV1, VerifiedObjectRelocationFormV1,
 };
 
 mod tables;
@@ -49,6 +49,37 @@ pub(super) fn literal_width(section: &ObservedObjectSectionV1) -> Option<usize> 
 }
 
 impl LiteralPools {
+    pub(super) fn rebase_elf_section_literal(
+        &self,
+        section: NonZeroU32,
+        form: &mut VerifiedObjectRelocationFormV1,
+    ) -> Option<ObjectLiteral> {
+        use object::elf::*;
+        let VerifiedObjectRelocationFormV1::ElfRela {
+            machine: scoop_lir::ObjectMachineV1::Aarch64,
+            kind:
+                R_AARCH64_ADR_PREL_PG_HI21
+                | R_AARCH64_ADR_PREL_PG_HI21_NC
+                | R_AARCH64_ADR_PREL_LO21
+                | R_AARCH64_LD_PREL_LO19
+                | R_AARCH64_ADD_ABS_LO12_NC
+                | R_AARCH64_LDST8_ABS_LO12_NC
+                | R_AARCH64_LDST16_ABS_LO12_NC
+                | R_AARCH64_LDST32_ABS_LO12_NC
+                | R_AARCH64_LDST64_ABS_LO12_NC
+                | R_AARCH64_LDST128_ABS_LO12_NC,
+            addend,
+            ..
+        } = form
+        else {
+            return None;
+        };
+        let literal = self.at(section, u64::try_from(*addend).ok()?)?;
+        // The selected element accounts for the entire pool offset.
+        *addend = 0;
+        Some(literal)
+    }
+
     pub(super) fn read(
         object: &[u8],
         sections: &ValidatedBuiltinObjectSectionInventoryV1,

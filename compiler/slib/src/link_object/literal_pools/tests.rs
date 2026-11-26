@@ -8,6 +8,43 @@ use crate::link_object::{
 use std::sync::Arc;
 
 #[test]
+fn elf_section_symbol_page_and_load_select_the_same_constant() {
+    use object::elf::{R_AARCH64_ADR_PREL_PG_HI21, R_AARCH64_LDST128_ABS_LO12_NC};
+    let section = NonZeroU32::new(4).unwrap();
+    let pools = LiteralPools(vec![LiteralPool {
+        section,
+        address: 0,
+        width: 16,
+        bytes: [vec![0x11; 16], vec![0x22; 16]].concat(),
+    }]);
+    for kind in [R_AARCH64_ADR_PREL_PG_HI21, R_AARCH64_LDST128_ABS_LO12_NC] {
+        let form = |addend| VerifiedObjectRelocationFormV1::ElfRela {
+            machine: scoop_lir::ObjectMachineV1::Aarch64,
+            kind,
+            storage_width: 4,
+            addend,
+        };
+        for (offset, byte) in [(0, 0x11), (16, 0x22)] {
+            let mut canonical = form(offset);
+            let literal = pools
+                .rebase_elf_section_literal(section, &mut canonical)
+                .unwrap();
+            assert_eq!(literal, ObjectLiteral::Bytes16([byte; 16]));
+            assert_eq!(canonical, form(0));
+        }
+        for offset in [-16, 8, 32] {
+            let mut canonical = form(offset);
+            assert!(
+                pools
+                    .rebase_elf_section_literal(section, &mut canonical)
+                    .is_none()
+            );
+            assert_eq!(canonical, form(offset));
+        }
+    }
+}
+
+#[test]
 fn distinct_referenced_tables_in_one_section_keep_their_own_bytes() {
     let (bytes, mut sections) = table();
     let mut second = sections.envelope.symbols[0].clone();
