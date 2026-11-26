@@ -6,6 +6,9 @@ fn run_image_test(fixture: &str, expected: &str) {
     let binary = std::env::temp_dir().join(format!("scoop_{fixture}_{}", std::process::id()));
     let mut command = std::process::Command::new("cc");
     command.args(["-std=c11", "-Wall", "-Wextra", "-Werror"]);
+    // glibc exposes the anonymous mmap flags through its default feature set.
+    #[cfg(target_os = "linux")]
+    command.arg("-D_DEFAULT_SOURCE");
     command.arg("-I").arg(workspace.join("runtime/include"));
     for source in [
         "runtime/src/image/ranges.c",

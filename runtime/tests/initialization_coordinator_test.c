@@ -66,16 +66,14 @@ static void initialize_test_unit(TestUnit *unit, uint8_t identity_byte,
 
 __attribute__((noinline)) static uint64_t
 managed_enter(const ScoopInitializationUnitDescriptorV1 *unit) {
-    uintptr_t stack_marker = 0;
-    return scoop_rt_init_enter_impl(unit, 1, (uintptr_t)&stack_marker,
-                                    (uintptr_t)__builtin_frame_address(0));
+    _Alignas(16) uintptr_t frame[4] = {0};
+    return scoop_rt_init_enter_impl(unit, 1, (uintptr_t)frame, (uintptr_t)&frame[2]);
 }
 
 __attribute__((noinline)) static void empty_collection(void) {
-    uintptr_t stack_marker = 0;
+    _Alignas(16) uintptr_t frame[4] = {0};
     ScoopManagedAnchor anchor;
-    scoop_thread_push_managed_anchor(&anchor, 1, (uintptr_t)&stack_marker,
-                                     (uintptr_t)__builtin_frame_address(0));
+    scoop_thread_push_managed_anchor(&anchor, 1, (uintptr_t)frame, (uintptr_t)&frame[2]);
     assert(scoop_thread_begin_collection());
     scoop_thread_end_collection();
     scoop_thread_pop_managed_anchor(&anchor);
