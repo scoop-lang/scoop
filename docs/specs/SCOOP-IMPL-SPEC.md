@@ -1489,6 +1489,8 @@ native-app 最终链接由 root `.slib` 的完整 entry 分支选择 shared-libr
 
 ResolvedLinkPlan 使用 `scoop-resolved-link-plan-v11`，覆盖 root/依赖、Code 与对象内容、runtime/native/startup 输入、ODR 选择、最终 image 内容、系统 providers、库绑定、archive members、加载路径、工具配置和有序操作。动态依赖保存普通 load、weak-load、re-export 的种类及实际 provider 或缺席的 weak-load；物化与输出 locator 不进入内容身份，实际 install name/runpath、普通符号保留与最终 dead strip 策略必须进入。源码构建的最终产物复用键同样包含生效的裁剪策略。
 
+Darwin 最终链接在默认 native 命名空间缺少实现时，使用当前 C 编译器为同一 target 和 SDK 选择的 compiler-rt builtins archive。按实际引用抽取目标切片的成员，包括 Clang 为系统版本判断生成的调用。显式指定库的 extern 只在该库解析；已有的对象和系统符号沿用原有绑定。
+
 面向用户的 native 缺失符号诊断显示声明请求的库名；Mach-O 动态 provider 的文本计划按实际 install name 排序，再以 provider identity 区分同名记录。对象内容变化不能仅因内容摘要的排序改变这部分报告顺序；真实链接顺序、绑定、依赖边和 canonical 内容编码保持原合同。
 
 本次链接按实际 target、symbol、Strong/ODR 选择、startup/image 与 GC/EH 要求生成程序，native linker 不能改选另一份 ODR 实现。工具成功后普通 rename 发布并保存链接结果，不重新读取刚生成的 executable 完整复核生产过程。目标装载格式与执行位属于输出工作；后端、链接与 GC 合同由针对性程序／结构测试验证，不成为每次发布和命中的重放阶段。失败不发布部分文件。

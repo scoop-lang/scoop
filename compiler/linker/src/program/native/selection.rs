@@ -136,7 +136,7 @@ pub(super) fn resolve(
             .get(&symbol)
             .map(|origins| origins.join(", "))
             .unwrap_or_else(|| "program startup/linker support".into());
-        let candidate = match candidate(source_symbol, binding, inputs) {
+        let candidate = match candidate(source_symbol, binding, inputs, profile) {
             Ok(candidate) => candidate,
             Err(err) => {
                 let err = error(
@@ -193,7 +193,7 @@ pub(super) fn resolve(
         let binding = declaration.map_or(NativeLibraryBinding::DefaultNativeNamespace, |decl| {
             decl.contract.library()
         });
-        let candidate = candidate(&symbol, binding, inputs).map_err(|err| {
+        let candidate = candidate(&symbol, binding, inputs, profile).map_err(|err| {
             let origins = declaration
                 .map(|decl| decl.origins.join(", "))
                 .unwrap_or_default();

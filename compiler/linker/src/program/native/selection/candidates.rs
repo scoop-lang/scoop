@@ -10,7 +10,8 @@ pub(in crate::program::native) enum Candidate {
 pub(in crate::program::native) fn candidate(
     symbol: &str,
     binding: NativeLibraryBinding,
-    inputs: &ProgramInputs<'_>,
+    inputs: &mut ProgramInputs<'_>,
+    profile: &ValidatedFinalLinkProfile,
 ) -> Result<Candidate, LinkError> {
     let explicit = match binding {
         NativeLibraryBinding::DefaultNativeNamespace => None,
@@ -49,7 +50,7 @@ pub(in crate::program::native) fn candidate(
         .collect();
     for file in inputs
         .native
-        .ordered_files()
+        .declared_files()
         .into_iter()
         .filter(|file| explicit.is_none_or(|ids| ids.contains(&file.id)))
     {
@@ -67,16 +68,28 @@ pub(in crate::program::native) fn candidate(
         // shared runtime exports, including Rust staticlib arithmetic builtins.
         candidates.retain(|(candidate, _)| !system_candidate(candidate));
     }
-    choose(symbol, candidates, inputs.target.native_object_format())?.or_else(|| {
-        (explicit.is_none() && matches!(inputs.namespace, crate::namespace::NativeNamespace::Coff(_)))
-            .then_some(Candidate::Dynamic(crate::namespace::NativeBinding::Coff(crate::namespace::coff::CoffBinding::Linker)))
-    }).ok_or_else(|| error(scoop_source::DiagnosticCode::E2308, match binding {
-        NativeLibraryBinding::Requirement(id) => format!(
-            "native library {} does not provide {symbol}",
-            inputs.native.libraries[&id].key.library().as_str(),
-        ),
-        NativeLibraryBinding::DefaultNativeNamespace => format!("unresolved native symbol {symbol} in default namespace (unresolved symbol {symbol})"),
-    }))
+    if let Some(candidate) = choose(symbol, candidates, inputs.target.native_object_format())? {
+        return Ok(candidate);
+    }
+    match binding {
+        NativeLibraryBinding::Requirement(id) => Err(error(
+            scoop_source::DiagnosticCode::E2308,
+            format!(
+                "native library {} does not provide {symbol}",
+                inputs.native.libraries[&id].key.library().as_str()
+            ),
+        )),
+        NativeLibraryBinding::DefaultNativeNamespace => {
+            if matches!(inputs.namespace, crate::namespace::NativeNamespace::Coff(_)) {
+                return Ok(Candidate::Dynamic(crate::namespace::NativeBinding::Coff(
+                    crate::namespace::coff::CoffBinding::Linker,
+                )));
+            }
+            inputs.native.compiler_builtin(symbol, profile)?.map(Candidate::Object).ok_or_else(||
+                error(scoop_source::DiagnosticCode::E2308,
+                    format!("unresolved native symbol {symbol} in default namespace (unresolved symbol {symbol})")))
+        }
+    }
 }
 
 fn system_candidate(candidate: &Candidate) -> bool {
