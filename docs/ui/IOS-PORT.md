@@ -106,11 +106,12 @@
 | --- | --- |
 | 全部页面 | 在 iPhone 竖屏逐项点击 65 个组件页和 4 个组合应用，核对每页标题后返回目录，69/69 通过。搜索、切后台恢复、四套样式、明暗、RTL 和减少动态切换均通过。 |
 | 四个组合应用 | 在 iPhone 用系统拼音选中“你好”，填写邮箱和六位验证码后保存 Settings。iPad 上切页返回后 Workspace 草稿保留，Data 横向滚动至行菜单后可删除付款并撤销。Conversation 可流式回复，另一次发送中切页会取消剩余任务。 |
+| VoiceOver（iPhone 模拟器） | 系统依次朗读 Settings app 和 Workspace app，向后轻扫会再读出 Settings app，双击进入 Profile settings。目录中的布局滚动区域不再产生空白焦点。独立窗口用例也验证了具名滚动节点仍可接受辅助操作。 |
 | 触摸与窗口 | 在 iPad 把 `notes.scoop` 拖入 `archive`，移动计数增加一次，保留原选中行。把 834 点的双栏窗口拖到 375 点宽后，Settings 仍在，点 Examples 可返回目录。另用系统「左右」排列让 Gallery 和照片并排，412 点宽的 Gallery 同样能返回目录并恢复全屏。自绘内容按 UIKit 的垂直避让区域给窗口按钮留出空间。[iPad 窗口排列](https://support.apple.com/guide/ipad/work-with-multiple-windows-at-the-same-time-ipad08c9970c/ipados) · [UIKit 窗口布局](https://developer.apple.com/videos/play/wwdc2025/282/?time=783) |
 | 桌面回归 | macOS 的真实 Gallery 窗口分别通过主题、方向和动画切换，以及四个组合应用的编辑焦点与资源生命周期用例。桌面窗口装饰、原生菜单绑定与退出用例也通过。 |
 | 本地构建与交付 | 设备与模拟器分别生成基础库和 GUI 库，共四个本地包。从单独解包的 sysroot 编译 Gallery，所得模拟器框架二进制与示例构建的一致。一个 XCFramework 包含两份 arm64 切片。Xcode 生成两个宿主，宿主和内嵌框架的 Mach-O 分别标记为 `IOS` 和 `IOSSIMULATOR`，部署下限均为 17.0。 |
-| iPhone 真机 | 已通过无线连接到开启开发者模式的 iPhone 13 Pro Max（iOS 27.2.1）。Xcode 开发账号登录失效，本机缺少 `dev.scoop.gallery` 对应的开发描述文件，签名在安装前中止。真机上的触摸、中文输入、前后台恢复和 VoiceOver 朗读待验收。 |
+| iPhone 真机 | 使用 Personal Team 的开发签名将 `dev.scoop.gallery` 安装到 iPhone 13 Pro Max（iOS 27.2.1）。通过 USB 和 Device Hub 在手机上打开 Dialog、点 Examples 返回、滚动目录并进入 Settings。按 Home 再打开 Gallery 后，同一进程回到原来的 Settings 页面。 |
 
-真机复验时，用开发签名安装同一工程，打开 Settings，用系统拼音选词并保存，按 Home 返回后核对当前页。在系统开启 VoiceOver，从目录逐项向右轻扫，核对朗读名称和顺序，双击进入页面，再用三指滚动到表单并编辑。模拟器已验证 UIKit 无障碍元素和动作，真机听读结果在此单独记录。
+真机的 XCTest 运行器已安装并启动，但在第一个用例开始前，设备拒绝了与 Xcode 的测试连接（退出码 74）。无线和 USB 均复现。上表的真机操作通过 Device Hub 完成。
 
 本期交付使用本地开发包，iOS target 未发布。[Gallery Xcode 工程](../../sysroot/src/scoop.ui.component/examples/shadcn/ios/Gallery.xcodeproj) · [Gallery 场景入口](../../sysroot/src/scoop.ui.component/examples/shadcn/ios/src/app.scoop) · [系统交互测试](../../tests/ios-native-app/interaction/GalleryTests.swift)
