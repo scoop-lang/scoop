@@ -1,0 +1,55 @@
+package scoop.os.linux.io
+
+import scoop.test.*
+
+@Test
+private class EventFdTest {
+    @Test
+    fun `counter accumulates and reports nonblocking saturation`() {
+        EventFd
+            .open()
+            .use { event ->
+                assertTrue(event.tryTake() == None)
+                assertTrue(event.tryAdd(2uL))
+                assertTrue(event.tryAdd(3uL))
+                assertEquals(5uL, event.tryTake()!!)
+                assertTrue(event.tryTake() == None)
+                val largest = ULong.MAX_VALUE - 1uL
+                assertTrue(event.tryAdd(largest))
+                assertFalse(event.tryAdd(1uL))
+                assertFailsWith<IllegalArgumentException> { event.tryAdd(ULong.MAX_VALUE) }
+                assertEquals(largest, event.tryTake()!!)
+            }
+    }
+
+    @Test
+    fun `borrow protects owner from reentrant close and releases after an exception`() {
+        val event = EventFd.open()
+        try {
+            @Unsafe {
+                assertFailsWith<IllegalStateException> {
+                    @Unsafe {
+                        event
+                            .withFileDescriptor { fd ->
+                                assertTrue(fd >= 0)
+                                event.close()
+                            }
+                    }
+                }
+            }
+            assertFalse(event.isClosed)
+            assertTrue(event.tryAdd(1uL))
+        } finally {
+            event.close()
+        }
+        assertTrue(event.isClosed)
+        event.close()
+        assertFailsWith<IllegalStateException> { event.tryTake() }
+        assertFailsWith<IllegalStateException> { event.tryAdd(1uL) }
+        assertFailsWith<IllegalStateException> {
+            @Unsafe {
+                event.withFileDescriptor { fd -> fd }
+            }
+        }
+    }
+}
