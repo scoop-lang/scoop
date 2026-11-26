@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #ifndef __APPLE__
+#include <linux/fs.h>
 #include <sys/syscall.h>
 #endif
 
