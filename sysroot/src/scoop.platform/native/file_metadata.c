@@ -24,32 +24,36 @@ static int file_kind(mode_t mode) {
     return 7;
 }
 
-ScoopPlatformFileMetadata scoop_platform_file_metadata(int fd, const char *path, bool follow) {
-    ScoopPlatformFileMetadata result = {.kind = -1};
-    struct stat data;
-    int status = fd >= 0 ? fstat(fd, &data) : (follow ? stat(path, &data) : lstat(path, &data));
-    if (status < 0)
-        return result;
-    result.kind = file_kind(data.st_mode);
-    result.permissions = data.st_mode & 07777;
-    result.size = data.st_size;
+ScoopPlatformFileMetadata scoop_platform_metadata_from_stat(const struct stat *data) {
+    ScoopPlatformFileMetadata result;
+    result.kind = file_kind(data->st_mode);
+    result.permissions = data->st_mode & 07777;
+    result.size = data->st_size;
 #ifdef __APPLE__
-    result.accessed_seconds = data.st_atimespec.tv_sec;
-    result.accessed_nanos = data.st_atimespec.tv_nsec;
-    result.modified_seconds = data.st_mtimespec.tv_sec;
-    result.modified_nanos = data.st_mtimespec.tv_nsec;
-    result.changed_seconds = data.st_ctimespec.tv_sec;
-    result.changed_nanos = data.st_ctimespec.tv_nsec;
-    result.created_seconds = data.st_birthtimespec.tv_sec;
-    result.created_nanos = data.st_birthtimespec.tv_nsec;
+    result.accessed_seconds = data->st_atimespec.tv_sec;
+    result.accessed_nanos = data->st_atimespec.tv_nsec;
+    result.modified_seconds = data->st_mtimespec.tv_sec;
+    result.modified_nanos = data->st_mtimespec.tv_nsec;
+    result.changed_seconds = data->st_ctimespec.tv_sec;
+    result.changed_nanos = data->st_ctimespec.tv_nsec;
+    result.created_seconds = data->st_birthtimespec.tv_sec;
+    result.created_nanos = data->st_birthtimespec.tv_nsec;
 #else
-    result.accessed_seconds = data.st_atim.tv_sec;
-    result.accessed_nanos = data.st_atim.tv_nsec;
-    result.modified_seconds = data.st_mtim.tv_sec;
-    result.modified_nanos = data.st_mtim.tv_nsec;
-    result.changed_seconds = data.st_ctim.tv_sec;
-    result.changed_nanos = data.st_ctim.tv_nsec;
+    result.accessed_seconds = data->st_atim.tv_sec;
+    result.accessed_nanos = data->st_atim.tv_nsec;
+    result.modified_seconds = data->st_mtim.tv_sec;
+    result.modified_nanos = data->st_mtim.tv_nsec;
+    result.changed_seconds = data->st_ctim.tv_sec;
+    result.changed_nanos = data->st_ctim.tv_nsec;
     result.created_nanos = -1;
 #endif
     return result;
+}
+
+ScoopPlatformFileMetadata scoop_platform_file_metadata(int fd, const char *path, bool follow) {
+    struct stat data;
+    int status = fd >= 0 ? fstat(fd, &data) : (follow ? stat(path, &data) : lstat(path, &data));
+    if (status < 0)
+        return (ScoopPlatformFileMetadata){.kind = -1};
+    return scoop_platform_metadata_from_stat(&data);
 }
