@@ -14,3 +14,7 @@ when = { os = "ios" }
 name = "Foundation"
 kind = "framework"
 when = { os = "ios" }
+
+[[native.libraries]]
+name = "m"
+when = { os = "ios" }

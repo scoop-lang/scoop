@@ -33,7 +33,7 @@ python3 tests/ios-native-app/verify.py --simulator SIMULATOR_UUID \
   --work-dir target/ios-native-app-verification --linker /path/to/ld64.lld
 ```
 
-脚本以同一个 XCFramework 构建、签名和启动 Swift 与 Objective-C 宿主。Swift 另启动一个进程验证初始化异常返回。两种宿主都在主线程和工作线程调用 Scoop，Scoop 回调宿主服务并检查实际搬迁计数及回写后的对象引用。输出应包含 `scoop-swift-moving-gc-ok`、`scoop-objc-moving-gc-ok` 和 `scoop-swift-init-failure-ok`。
+脚本以同一个 XCFramework 构建、签名和启动 Swift 与 Objective-C 宿主。Swift 另启动一个进程验证初始化异常返回。两个宿主初始化时都经 SDK 的 `m` 库调用 `cos`，覆盖系统库别名的显式符号绑定。两种宿主都在主线程和工作线程调用 Scoop，Scoop 回调宿主服务并检查实际搬迁计数及回写后的对象引用。输出应包含 `scoop-swift-moving-gc-ok`、`scoop-objc-moving-gc-ok` 和 `scoop-swift-init-failure-ok`。
 
 加上 `--include-device` 可同时组装设备切片，并交叉编译和链接两份真机宿主 App。用 Xcode 的 iOS 开发签名和包含该设备的 provisioning profile 安装，首次启动时按设备提示信任该开发签名。以 `SCOOP_GC_STRESS_MOVE=1` 启动，检查同样的成功标记。
 
