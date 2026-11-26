@@ -141,7 +141,7 @@ pub(crate) fn lower(
     // registration counts. Returning calls retain their call-duration roots.
     lowered::discard_terminal_relocations(module);
     crate::debug::finalize_values(module);
-    Ok(lowered::collect(module))
+    lowered::finalize(module)
 }
 
 #[cfg(test)]

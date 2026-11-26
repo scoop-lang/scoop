@@ -2126,7 +2126,7 @@ release 对 typed ArraySet 的 stride 大于 16 bytes、恰有一个 managed lea
 
 依据语言规范 1.2，编译器可以假定普通非原子访问不存在数据竞争，不为竞争场景提供单字或逐字段不撕裂的保证。普通字段、数组元素、全局存储和聚合值复制无需为此改用 LLVM `unordered` 原子 load/store、增加发布屏障或限制访问的机器指令粒度；显式同步原语以及 runtime/GC 内部同步的契约仍须保持。
 
-最终 GC 计划从实际保留的 callable/site 和完整逻辑 managed leaves 得到。普通优化后保留逻辑根身份，标明包含可移动对象的 base phi/select；RS4GC 完成真实下降后，先清理 unreachable 前末尾无使用者的 gc.relocate，再按实际保留的 gc.relocate 引用的不同 derived SSA 值数量生成物理根生产记录，随后执行机器发射和原 stackmap 格式／根合同检查。此清理只处理终止块中连续的末尾无用 relocation，不重写控制流、不运行 InstCombine、PRE 或代码复制；它使无返回后继的调用后无用 relocation 与机器准备阶段一致。调用实参仍按 ABI 传入，被调用帧负责它实际继续使用的引用；正常返回调用的仅调用期间根和显式 native／EH roots 保持。多个逻辑 leaf 可以对应同一 SSA 值；已知 null／不可移动常量通常不产生 relocation pair，但不能仅按已折叠的逻辑恢复标记提前推算物理根数：共享后继或循环仍可能使原动态 SSA 值跨站点存活。该计数消费实际下降结果，不添加独立的指针活跃性分析或 RS4GC 策略复核器。每个保留 site 具有唯一 owner/role，site identity 不因删除其他 site 而重编号。
+最终 GC 计划从实际保留的 callable/site 和完整逻辑 managed leaves 得到。普通优化后保留逻辑根身份，标明包含可移动对象的 base phi/select；RS4GC 完成真实下降后，先清理 unreachable 前末尾无使用者的 gc.relocate，再按实际保留的 gc.relocate 引用的不同 derived SSA 值数量生成物理根生产记录，随后执行机器发射和原 stackmap 格式／根合同检查。此清理只处理终止块中连续的末尾无用 relocation，不重写控制流、不运行 InstCombine、PRE 或代码复制；它使无返回后继的调用后无用 relocation 与机器准备阶段一致。调用实参仍按 ABI 传入，被调用帧负责它实际继续使用的引用；正常返回的调用实参即使没有后续源码用途，也须在调用期间保有机器根。RS4GC 为这种实参生成的 gc.relocate 若无其他使用者，在结果上保留一个零代码的 llvm.fake.use，使目标指令选择前的死指令清理仍保留栈映射中的 base／derived 位置对。显式 native／EH roots 保持现有表示。多个逻辑 leaf 可以对应同一 SSA 值；已知 null／不可移动常量通常不产生 relocation pair，但不能仅按已折叠的逻辑恢复标记提前推算物理根数：共享后继或循环仍可能使原动态 SSA 值跨站点存活。该计数消费实际下降结果，不添加独立的指针活跃性分析或 RS4GC 策略复核器。每个保留 site 具有唯一 owner/role，site identity 不因删除其他 site 而重编号。
 
 普通优化可删除已经没有后继用途的恢复标记，例如不可能取得正常结果的协程适配入口。仅当保留的调用紧接 unreachable、二者之间没有其他指令时，根身份定稿允许原逻辑 leaf 的标记缺失；仍拒绝额外或重复身份。具有正常返回后继、分支、invoke 异常出口或后续操作的调用继续要求完整恢复。最终物理根数仍由上述 RS4GC 与机器 stackmap 路径取得，不从原始逻辑数量推算，也不为这种终止路径重新插入保活用途。
 
