@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and exercise an iOS native-app in two real Simulator host processes."""
+"""Build and exercise an iOS native-app in real Simulator host processes."""
 
 import argparse
 import os
@@ -19,15 +19,15 @@ def run(*args, **options):
     return subprocess.run(args, check=True, **options)
 
 
-def build_library(work, sysroot, binaries, linker, target):
+def build_library(work, sysroot, binaries, linker, target, protected_data):
     work.mkdir()
     name = work / MODULE
     run(
         binaries / "scoop",
         "build",
-        HERE / "cone",
+        HERE / ("protected-data/cone" if protected_data else "cone"),
         "--release",
-        "--enable-gc-stress",
+        *([] if protected_data else ["--enable-gc-stress"]),
         "--target",
         target,
         "--sysroot",
@@ -52,10 +52,12 @@ def build_library(work, sysroot, binaries, linker, target):
     return name
 
 
-def build_xcframework(work, sysroot, binaries, linker, variants):
+def build_xcframework(work, sysroot, binaries, linker, variants, protected_data):
     inputs = []
     for variant in variants:
-        library = build_library(work / variant, sysroot, binaries, linker, TARGETS[variant])
+        library = build_library(
+            work / variant, sysroot, binaries, linker, TARGETS[variant], protected_data
+        )
         inputs.extend([f"--{variant}", library])
     xcframework = work / f"{MODULE}.xcframework"
     run(
@@ -67,7 +69,7 @@ def build_xcframework(work, sysroot, binaries, linker, variants):
         "dev.scoop.ios-probe",
         *inputs,
         "--header",
-        HERE / "ScoopHostApi.h",
+        HERE / ("protected-data/ProtectedDataApi.h" if protected_data else "ScoopHostApi.h"),
         "--output",
         xcframework,
     )
@@ -104,6 +106,23 @@ def build_app(framework, work, language, simulator):
                 "CFBundleShortVersionString": "1.0",
                 "CFBundleSupportedPlatforms": ["iPhoneSimulator" if simulator else "iPhoneOS"],
                 "CFBundleVersion": "1",
+                **(
+                    {
+                        "UIApplicationSceneManifest": {
+                            "UIApplicationSupportsMultipleScenes": False,
+                            "UISceneConfigurations": {
+                                "UIWindowSceneSessionRoleApplication": [
+                                    {
+                                        "UISceneConfigurationName": "Protected data",
+                                        "UISceneDelegateClassName": "ProtectedDataScene",
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                    if language == "protected"
+                    else {}
+                ),
                 "LSRequiresIPhoneOS": True,
                 "MinimumOSVersion": minimum,
                 "UIDeviceFamily": [1, 2],
@@ -128,8 +147,8 @@ def build_app(framework, work, language, simulator):
             "-fmodules",
             f"-fmodules-cache-path={work / 'module-cache'}",
             "-framework",
-            "Foundation",
-            HERE / "main.m",
+            "UIKit" if language == "protected" else "Foundation",
+            HERE / ("protected-data/main.m" if language == "protected" else "main.m"),
         )
     run(
         "xcrun",
@@ -155,7 +174,7 @@ def build_app(framework, work, language, simulator):
     return app, identifier
 
 
-def exercise(simulator, identifier, expected, *args):
+def exercise(simulator, identifier, expected, *args, gc_stress=True):
     output = run(
         "xcrun",
         "simctl",
@@ -165,7 +184,7 @@ def exercise(simulator, identifier, expected, *args):
         simulator,
         identifier,
         *args,
-        env=dict(os.environ, SIMCTL_CHILD_SCOOP_GC_STRESS_MOVE="1"),
+        env=dict(os.environ, SIMCTL_CHILD_SCOOP_GC_STRESS_MOVE="1") if gc_stress else None,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -186,17 +205,28 @@ def main():
     parser.add_argument(
         "--include-device", action="store_true", help="also build the device slice and hosts"
     )
+    parser.add_argument(
+        "--protected-data", action="store_true", help="exercise scoop.os.ios in a UIKit application"
+    )
     args = parser.parse_args()
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=False)
     variants = ("simulator", "device") if args.include_device else ("simulator",)
     frameworks = build_xcframework(
-        work, args.sysroot.resolve(), args.binaries.resolve(), args.linker, variants
+        work,
+        args.sysroot.resolve(),
+        args.binaries.resolve(),
+        args.linker,
+        variants,
+        args.protected_data,
     )
-    for language in ("swift", "objc"):
+    for language in ("protected",) if args.protected_data else ("swift", "objc"):
         app, identifier = build_app(frameworks["simulator"], work / "simulator", language, True)
         run("xcrun", "simctl", "install", args.simulator, app)
-        exercise(args.simulator, identifier, f"scoop-{language}-moving-gc-ok")
+        if args.protected_data:
+            exercise(args.simulator, identifier, "scoop-ios-protected-data-ok", gc_stress=False)
+        else:
+            exercise(args.simulator, identifier, f"scoop-{language}-moving-gc-ok")
         if language == "swift":
             exercise(args.simulator, identifier, "scoop-swift-init-failure-ok", "--fail")
         if args.include_device:

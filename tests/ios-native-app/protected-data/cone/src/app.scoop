@@ -1,0 +1,15 @@
+package scoop.tests.ios
+
+import scoop.os.ios.app.isProtectedDataAvailable
+
+@CLayout
+private struct ProtectedDataApi(val query: FunPtr<(Ptr<Unit>) -> Boolean>, val context: Ptr<Unit>)
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    // The UIKit host uses this registration throughout its process lifetime.
+    val query = foreignCallback<(Ptr<Unit>) -> Boolean>(
+        { isProtectedDataAvailable() }, 0L, ForeignCallbackMode.Reusable
+    )
+    outAppApi.cast<ProtectedDataApi>().store(ProtectedDataApi(query.function, query.context))
+}

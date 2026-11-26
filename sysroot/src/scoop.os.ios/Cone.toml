@@ -1,0 +1,27 @@
+schema = 1
+
+[cone]
+group = "scoop"
+name = "scoop.os.ios"
+version = "0.1.0"
+kind = "library"
+
+[[sources]]
+path = "src"
+when = { os = "ios" }
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+
+[[native.sources]]
+path = "native/protected_data.m"
+when = { os = "ios" }
+
+[[native.libraries]]
+name = "UIKit"
+kind = "framework"
+when = { os = "ios" }
+
+[[native.libraries]]
+name = "objc"
+when = { os = "ios" }

@@ -35,14 +35,14 @@ cpu = "generic"
 minimum_os = "17.0"
 sdk = "27.2"
 build_system = "macOS with Xcode"
-system_cones = ["scoop.core", "scoop.std"]
+system_cones = ["scoop.core", "scoop.std", "scoop.os.ios"]
 
 [targets.aarch64-apple-ios-sim]
 cpu = "generic"
 minimum_os = "17.0"
 sdk = "27.2"
 build_system = "macOS with Xcode"
-system_cones = ["scoop.core", "scoop.std"]
+system_cones = ["scoop.core", "scoop.std", "scoop.os.ios"]
 
 [targets.x86_64-unknown-linux-gnu]
 cpu = "x86-64"
