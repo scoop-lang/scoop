@@ -2,6 +2,22 @@
 
 use super::*;
 
+pub(super) fn build_fake_use<'ctx>(
+    module: &LlvmModule<'ctx>,
+    builder: &Builder<'ctx>,
+    value: BasicValueEnum<'ctx>,
+) -> Result<CallSiteValue<'ctx>, CodegenError> {
+    let intrinsic = inkwell::intrinsics::Intrinsic::find("llvm.fake.use")
+        .and_then(|intrinsic| intrinsic.get_declaration(module, &[]))
+        .ok_or_else(|| {
+            CodegenError::internal("LLVM lacks required llvm.fake.use intrinsic".into())
+                .with_code(scoop_source::DiagnosticCode::ICE1101)
+        })?;
+    builder
+        .build_call(intrinsic, &[value.into()], "")
+        .map_err(|error| CodegenError::backend(format!("retain GC leaf use: {error}"), error))
+}
+
 pub(crate) fn mark_root_identity<'ctx>(
     context: &'ctx Context,
     module: &LlvmModule<'ctx>,
@@ -11,15 +27,7 @@ pub(crate) fn mark_root_identity<'ctx>(
     source: scoop_lir::CallerRootSource,
     byte_offset: u64,
 ) -> Result<(), CodegenError> {
-    let intrinsic = inkwell::intrinsics::Intrinsic::find("llvm.fake.use")
-        .and_then(|intrinsic| intrinsic.get_declaration(module, &[]))
-        .ok_or_else(|| {
-            CodegenError::internal("LLVM lacks required llvm.fake.use intrinsic".into())
-                .with_code(scoop_source::DiagnosticCode::ICE1101)
-        })?;
-    let call = builder
-        .build_call(intrinsic, &[value.into()], "")
-        .map_err(|error| CodegenError::backend(format!("retain GC leaf use: {error}"), error))?;
+    let call = build_fake_use(module, builder, value.into())?;
     mark_nonduplicable(context, call);
     let instruction = call
         .try_as_basic_value()

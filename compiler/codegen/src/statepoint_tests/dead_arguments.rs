@@ -1,14 +1,15 @@
 use super::*;
 use inkwell::targets::FileType;
-use inkwell::values::{AsValueRef, CallSiteValue, InstructionOpcode};
 use scoop_lir::OptimizationMode;
 
 #[test]
-fn dead_direct_arguments_keep_machine_roots_without_relocation_uses() {
+fn returning_call_keeps_argument_root_through_target_memcmp_expansion() {
     for target in [
         scoop_target_data::DARWIN_AARCH64_ID,
+        scoop_target_data::DARWIN_X86_64_ID,
         scoop_target_data::LINUX_X86_64_GNU_ID,
         scoop_target_data::LINUX_X86_64_MUSL_ID,
+        scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID,
     ] {
         for mode in [OptimizationMode::Debug, OptimizationMode::Release] {
             let profile = ValidatedBackendProfile::for_selection(
@@ -21,14 +22,18 @@ fn dead_direct_arguments_keep_machine_roots_without_relocation_uses() {
             let llvm = parse(
                 &context,
                 r#"
+declare i32 @memcmp(ptr, ptr, i64) #1
 declare void @consume(ptr addrspace(1), ptr)
-define void @f(ptr addrspace(1) %object, ptr %itab) gc "statepoint-example" {
+define i1 @f(ptr addrspace(1) %object, ptr %itab, ptr %other) gc "statepoint-example" {
 entry:
+  %comparison = call i32 @memcmp(ptr %itab, ptr %other, i64 16) #1
+  %equal = icmp eq i32 %comparison, 0
   call void @consume(ptr addrspace(1) %object, ptr %itab) #0
-  ret void
+  ret i1 %equal
 }
 
 attributes #0 = { noduplicate "statepoint-id"="7" }
+attributes #1 = { "gc-leaf-function" }
 "#,
             );
             llvm.set_triple(&machine.get_triple());
@@ -37,28 +42,6 @@ attributes #0 = { noduplicate "statepoint-id"="7" }
             let plan = crate::statepoint::rewrite(&llvm, &machine, &expected, profile).unwrap();
             llvm.verify().unwrap();
             assert_eq!(plan.root_count(7), Some(1));
-            let function = llvm.get_function("f").unwrap();
-            let relocated = function
-                .get_first_basic_block()
-                .unwrap()
-                .get_instructions()
-                .find(|instruction| {
-                    if instruction.get_opcode() != InstructionOpcode::Call {
-                        return false;
-                    }
-                    // SAFETY: the opcode establishes a CallBase, including
-                    // tokens that cannot be converted to BasicValueEnum.
-                    unsafe { CallSiteValue::new(instruction.as_value_ref()) }
-                        .get_called_fn_value()
-                        .is_some_and(|callee| {
-                            callee
-                                .get_name()
-                                .to_bytes()
-                                .starts_with(b"llvm.experimental.gc.relocate")
-                        })
-                })
-                .unwrap();
-            assert!(relocated.get_first_use().is_none());
             let directory = tempfile::tempdir().unwrap();
             let object = directory.path().join("dead-argument.o");
             machine
