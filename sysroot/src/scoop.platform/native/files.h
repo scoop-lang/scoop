@@ -14,6 +14,11 @@ typedef struct {
     int64_t created_seconds, created_nanos;
 } ScoopPlatformFileMetadata;
 
+#ifndef _WIN32
+struct stat;
+ScoopPlatformFileMetadata scoop_platform_metadata_from_stat(const struct stat *data);
+#endif
+
 int scoop_platform_file_open(const char *path, int flags, int mode);
 int scoop_platform_file_sync(int fd, bool data_only);
 int64_t scoop_platform_file_seek(int fd, int64_t offset, bool current);
