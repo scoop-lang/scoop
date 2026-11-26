@@ -1,0 +1,5 @@
+link inputs: startup, cone/member order, runtime/object order, native CRT/libc/LLVM unwind
+native library m23_scoopabi requirement=01c570de5475dd93de7114e6eac7f84982989a7a698a245c5228e44018f7e16f input=$NATIVE_INPUT_0 origins=dev.programlink:scoopabi-provider:0.1.0
+native library m23_scoop_leaf requirement=59c8ea164ee5d741537f22abeb9f6c3d70fbc08f492d2a9eed06270faa0f6f1a input=$NATIVE_INPUT_1 origins=dev.programlink:scoopabi-provider:0.1.0
+native object $NATIVE_INPUT_0 slice=0..$NATIVE_INPUT_SIZE
+native object $NATIVE_INPUT_1 slice=0..$NATIVE_INPUT_SIZE

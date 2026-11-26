@@ -2,7 +2,7 @@ schema = 1
 name = "native-link-formats-pointers"
 inputs = ["cone", "../../../language/native-link/final/root.scoop", "../../../language/native-link/final/native.c"]
 tools = ["scoop", "scoopc", "cc"]
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+when = { os = ["darwin", "linux"] }
 tags = ["native-link", "program-link", "compiler-correctness"]
 [[steps]]
 name = "prepare"
@@ -51,7 +51,7 @@ stdout = ""
 stderr = ""
 json = "stderr"
 diagnostics = []
-checks = [{"actual" = "${unoptimized.result.link_plan}", "snapshot" = "${cc_family}/unoptimized.${target}.plan", "normalize" = ["paths", "native-digests", "native-link-plan"]}]
+checks = [{"actual" = "${unoptimized.result.link_plan}", "snapshot" = "unoptimized.${target}.plan", "normalize" = ["paths", "native-digests", "native-link-plan"]}]
 
 [[steps]]
 name = "run_unoptimized"

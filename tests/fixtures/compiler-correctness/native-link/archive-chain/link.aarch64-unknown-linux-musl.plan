@@ -1,0 +1,9 @@
+link inputs: startup, cone/member order, runtime/object order, native CRT/libc/LLVM unwind
+native library m23_tail requirement=0458d189ad0edf575cf62179077de9058c6c3370792f94a43cb8a6bdc4303353 input=$NATIVE_INPUT_0 origins=dev.programlink:archive:0.1.0
+native library m23_chain requirement=592484f03e3a9a301201d5389f3c70f5aa0da66a1f368b4c7a0e78b17425582d input=$NATIVE_INPUT_1 origins=dev.programlink:archive:0.1.0
+native archive $NATIVE_INPUT_0 members=1
+  member 0 name="middle.o" digest=$NATIVE_MEMBER_0 selected=true
+native archive $NATIVE_INPUT_1 members=3
+  member 0 name="entry.o" digest=$NATIVE_MEMBER_1 selected=true
+  member 1 name="end.o" digest=$NATIVE_MEMBER_2 selected=true
+  member 2 name="unused.o" digest=$NATIVE_MEMBER_3 selected=false

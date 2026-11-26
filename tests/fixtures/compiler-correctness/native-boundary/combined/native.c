@@ -28,22 +28,6 @@ void native_mixed_storage(int8_t i8, int16_t i16, int32_t i32, int64_t i64,
 void verify_finished(void) { verify(calls == 3); }
 
 /* Expose the Scoop byval storage as C argument 9. */
-#if defined(__APPLE__) && defined(__aarch64__)
-__asm__(
-    ".text\n"
-    ".globl _native_mixed\n"
-    ".p2align 2\n"
-    "_native_mixed:\n"
-    "mov x9, sp\n"
-    "sub sp, sp, #32\n"
-    "stp x29, x30, [sp, #16]\n"
-    "mov x29, sp\n"
-    "str x9, [sp]\n"
-    "bl _native_mixed_storage\n"
-    "ldp x29, x30, [sp, #16]\n"
-    "add sp, sp, #32\n"
-    "ret\n");
-#elif defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__))
 #if defined(__APPLE__)
 #define SCOOP_TEST_ASM_SYMBOL(name) "_" name
 #define SCOOP_TEST_ASM_ELF(directive) ""
@@ -51,6 +35,25 @@ __asm__(
 #define SCOOP_TEST_ASM_SYMBOL(name) name
 #define SCOOP_TEST_ASM_ELF(directive) directive
 #endif
+
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+__asm__(
+    ".text\n"
+    ".globl " SCOOP_TEST_ASM_SYMBOL("native_mixed") "\n"
+    SCOOP_TEST_ASM_ELF(".type native_mixed,%function\n")
+    ".p2align 2\n"
+    SCOOP_TEST_ASM_SYMBOL("native_mixed") ":\n"
+    "mov x9, sp\n"
+    "sub sp, sp, #32\n"
+    "stp x29, x30, [sp, #16]\n"
+    "mov x29, sp\n"
+    "str x9, [sp]\n"
+    "bl " SCOOP_TEST_ASM_SYMBOL("native_mixed_storage") "\n"
+    "ldp x29, x30, [sp, #16]\n"
+    "add sp, sp, #32\n"
+    "ret\n"
+    SCOOP_TEST_ASM_ELF(".size native_mixed,.-native_mixed\n"));
+#elif defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__))
 /* The first parameter is byval. Six scalars use registers, and the final
  * two scalars follow its 24-byte stack copy. */
 __asm__(

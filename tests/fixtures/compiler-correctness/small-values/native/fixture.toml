@@ -1,8 +1,8 @@
 schema = 1
 name = "small-values-native"
-inputs = ["program.scoop", "native.c", "scoop.aarch64-apple-darwin.ll", "scoop.x86_64-apple-darwin.ll", "scoop.x86_64-unknown-linux-gnu.ll", "scoop.x86_64-unknown-linux-musl.ll", "../inspect_abi.py"]
+inputs = ["program.scoop", "native.c", "scoop.aarch64.ll", "scoop.x86_64.ll", "../inspect_abi.py"]
 tools = ["scoop", "cc", "ar", "llc", "python"]
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+when = { os = ["darwin", "linux"] }
 tags = ["abi", "native", "compiler-correctness"]
 variants = [{name = "debug", vars = {profile = "debug"}}, {name = "release", vars = {profile = "release"}}]
 
@@ -15,7 +15,7 @@ stderr = ""
 
 [[steps]]
 name = "scoop_native"
-argv = ["${llc}", "-mtriple=${llvm_target}", "-filetype=obj", "-relocation-model=pic", "${fixture}/scoop.${target}.ll", "-o", "${work}/scoop.o"]
+argv = ["${llc}", "-mtriple=${llvm_target}", "-filetype=obj", "-relocation-model=pic", "${fixture}/scoop.${target_facts.arch}.ll", "-o", "${work}/scoop.o"]
 exit = 0
 stdout = ""
 stderr = ""

@@ -45,20 +45,6 @@ BoxedWide *m36_result_boxed_storage(BoxedWide *result, const ScoopString *value)
 }
 
 /* Adapt Scoop's sret register to the ordinary C helper's first parameter. */
-#if defined(__APPLE__) && defined(__aarch64__)
-__asm__(".text\n"
-        ".globl _m36_result_wide\n"
-        ".p2align 2\n"
-        "_m36_result_wide:\n"
-        "mov x0, x8\n"
-        "b _m36_result_wide_storage\n"
-        ".globl _m36_result_boxed\n"
-        ".p2align 2\n"
-        "_m36_result_boxed:\n"
-        "mov x1, x0\n"
-        "mov x0, x8\n"
-        "b _m36_result_boxed_storage\n");
-#elif defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__))
 #if defined(__APPLE__)
 #define SCOOP_TEST_ASM_SYMBOL(name) "_" name
 #define SCOOP_TEST_ASM_ELF(directive) ""
@@ -66,6 +52,25 @@ __asm__(".text\n"
 #define SCOOP_TEST_ASM_SYMBOL(name) name
 #define SCOOP_TEST_ASM_ELF(directive) directive
 #endif
+
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+__asm__(".text\n"
+        ".globl " SCOOP_TEST_ASM_SYMBOL("m36_result_wide") "\n"
+        SCOOP_TEST_ASM_ELF(".type m36_result_wide,%function\n")
+        ".p2align 2\n"
+        SCOOP_TEST_ASM_SYMBOL("m36_result_wide") ":\n"
+        "mov x0, x8\n"
+        "b " SCOOP_TEST_ASM_SYMBOL("m36_result_wide_storage") "\n"
+        SCOOP_TEST_ASM_ELF(".size m36_result_wide,.-m36_result_wide\n")
+        ".globl " SCOOP_TEST_ASM_SYMBOL("m36_result_boxed") "\n"
+        SCOOP_TEST_ASM_ELF(".type m36_result_boxed,%function\n")
+        ".p2align 2\n"
+        SCOOP_TEST_ASM_SYMBOL("m36_result_boxed") ":\n"
+        "mov x1, x0\n"
+        "mov x0, x8\n"
+        "b " SCOOP_TEST_ASM_SYMBOL("m36_result_boxed_storage") "\n"
+        SCOOP_TEST_ASM_ELF(".size m36_result_boxed,.-m36_result_boxed\n"));
+#elif defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__))
 __asm__(".text\n"
         ".globl " SCOOP_TEST_ASM_SYMBOL("m36_result_wide") "\n"
         SCOOP_TEST_ASM_ELF(".type m36_result_wide,@function\n")

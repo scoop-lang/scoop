@@ -67,15 +67,6 @@ void m23_aggregate_storage(Aggregate *result, Aggregate *value) {
 }
 
 /* Expose Scoop's result and byval storage without using the C classifier. */
-#if defined(__APPLE__) && defined(__aarch64__)
-__asm__(".text\n"
-        ".globl _m23_aggregate\n"
-        ".p2align 2\n"
-        "_m23_aggregate:\n"
-        "mov x1, sp\n"
-        "mov x0, x8\n"
-        "b _m23_aggregate_storage\n");
-#elif defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__))
 #if defined(__APPLE__)
 #define SCOOP_TEST_ASM_SYMBOL(name) "_" name
 #define SCOOP_TEST_ASM_ELF(directive) ""
@@ -83,6 +74,18 @@ __asm__(".text\n"
 #define SCOOP_TEST_ASM_SYMBOL(name) name
 #define SCOOP_TEST_ASM_ELF(directive) directive
 #endif
+
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+__asm__(".text\n"
+        ".globl " SCOOP_TEST_ASM_SYMBOL("m23_aggregate") "\n"
+        SCOOP_TEST_ASM_ELF(".type m23_aggregate,%function\n")
+        ".p2align 2\n"
+        SCOOP_TEST_ASM_SYMBOL("m23_aggregate") ":\n"
+        "mov x1, sp\n"
+        "mov x0, x8\n"
+        "b " SCOOP_TEST_ASM_SYMBOL("m23_aggregate_storage") "\n"
+        SCOOP_TEST_ASM_ELF(".size m23_aggregate,.-m23_aggregate\n"));
+#elif defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__))
 __asm__(".text\n"
         ".globl " SCOOP_TEST_ASM_SYMBOL("m23_aggregate") "\n"
         SCOOP_TEST_ASM_ELF(".type m23_aggregate,@function\n")

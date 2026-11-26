@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2305",
+    "message": "native candidate ${work}/native/libm23_math.a: native archive member 0 (nested.a) is a nested archive; requirement bbae28adc51c89fff32a8d2b6491a3a31947a9c7212d9beca01fd538da0852a6; origins: dev.programlink:archive:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

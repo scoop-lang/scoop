@@ -2,7 +2,7 @@ schema = 1
 name = "executable-tools"
 inputs = ["main.scoop", "tools.py", "../executable-record/state.py"]
 tools = ["scoop", "scoopc", "cc", "python"]
-targets = ["x86_64-unknown-linux-gnu"]
+when = { os = "linux", env = "gnu" }
 tags = ["executable", "cache", "tool-inputs", "driver"]
 [vars]
 options = ["--target", "${target}", "--cc", "${work}/tools/gcc", "--unwind-prefix", "${repo}/sysroot/lib/${target}/unwind", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${work}/cache", "--runtime-root", "${runtime}", "--target-dir", "${work}/target", "--message-format", "json", "-o", "${work}/program"]

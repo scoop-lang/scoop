@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2305",
+    "message": "native candidate ${work}/libraries/libm.a: Could not read file magic; requirement 92a0f66e55a3115ecfd5e0dcc364b6b810a31485bd42f3c36677dd90521dc6f0; origins: dev.m33:library-negative:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2305",
+    "message": "native candidate ${work}/native/libm23_math.a: Invalid archive member header; requirement 773a1c3791df43f455df0bb32a942f590c26945dc23d94b12e13a2fadcc29d31; origins: dev.programlink:archive:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

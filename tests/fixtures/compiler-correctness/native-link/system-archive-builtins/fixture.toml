@@ -2,7 +2,7 @@ schema = 1
 name = "native-link-system-archive-builtins"
 inputs = ["program.scoop", "provider.c", "builtins.c"]
 tools = ["scoop", "cc"]
-targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+when = { os = "linux" }
 tags = ["native-link", "compiler-correctness"]
 
 [[steps]]

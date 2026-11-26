@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2306",
+    "message": "native object $NATIVE_INPUT_0 selected by direct input (dev.m33:native-right:0.1.0:native.c) conflicts with dev.m33:native-left:0.1.0:native.c at m33_duplicate",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]
