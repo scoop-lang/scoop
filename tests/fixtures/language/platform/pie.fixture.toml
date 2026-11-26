@@ -2,7 +2,7 @@ schema = 1
 name = "platform-cone-musl-pie"
 inputs = ["provider", "consumer"]
 tools = ["scoop", "scoopc", "scoop-link"]
-targets = ["x86_64-unknown-linux-musl"]
+when = { os = "linux", env = "musl" }
 tags = ["ffi", "native", "callback", "atomics", "language"]
 variants = [{"name" = "release", "vars" = {"profile" = "release"}}]
 [[steps]]

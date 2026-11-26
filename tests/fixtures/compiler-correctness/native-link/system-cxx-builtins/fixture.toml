@@ -3,7 +3,7 @@ name = "native-link-system-cxx-builtins"
 inputs = ["Cone.toml", "main.scoop", "provider.cpp"]
 support = ["../system-archive-builtins/builtins.c"]
 tools = ["scoop", "cc"]
-targets = ["x86_64-unknown-linux-gnu"]
+when = { os = "linux", env = "gnu" }
 tags = ["native-link", "compiler-correctness"]
 
 [[steps]]

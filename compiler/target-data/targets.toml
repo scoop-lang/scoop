@@ -122,6 +122,30 @@ c_bridge_profile = "linux-aarch64-gnu-c"
 native_rust_target = "aarch64-unknown-linux-gnu"
 
 [[targets]]
+symbol = "LINUX_AARCH64_MUSL"
+canonical = "aarch64-unknown-linux-musl"
+profile = "linux-aarch64-musl"
+version = 1
+aliases = ["aarch64-linux-musl"]
+os = "linux"
+arch = "aarch64"
+env = "musl"
+llvm_triple = "aarch64-unknown-linux-musl"
+llvm_data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
+object_target = "ElfAarch64"
+procedure_abi = "Aapcs64"
+scoop_abi = "ScalarInterfaceAndSmallValueParts"
+exception_model = "ItaniumDwarf"
+tuning = "LinuxAarch64"
+runtime_tuning = "OutOfLineGcForwarding"
+backend = "LLVM_22_1_LINUX_AARCH64"
+deployment = "Linux"
+native_environment = "LinuxMusl"
+final_link = "Linux"
+c_bridge_profile = "linux-aarch64-musl-c"
+native_rust_target = "aarch64-unknown-linux-musl"
+
+[[targets]]
 symbol = "LINUX_X86_64_GNU"
 canonical = "x86_64-unknown-linux-gnu"
 profile = "linux-x86-64-gnu"
@@ -267,7 +291,7 @@ system = "Linux"
 machines = ["aarch64", "arm64"]
 rust_target = "aarch64-unknown-linux-gnu"
 default_target = "aarch64-unknown-linux-gnu"
-distribution_targets = []
+distribution_targets = ["aarch64-unknown-linux-gnu", "aarch64-unknown-linux-musl"]
 
 [[hosts]]
 os = "linux"

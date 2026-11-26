@@ -27,6 +27,8 @@ VERSION = "3.5.9"
 CONFIGURATIONS = {
     ("Darwin", "aarch64"): "darwin64-arm64-cc",
     ("Darwin", "x86_64"): "darwin64-x86_64-cc",
+    ("LinuxGnu", "aarch64"): "linux-aarch64",
+    ("LinuxMusl", "aarch64"): "linux-aarch64",
     ("LinuxGnu", "x86_64"): "linux-x86_64",
     ("LinuxMusl", "x86_64"): "linux-x86_64",
     ("MicrosoftUcrt", "x86_64"): "VC-WIN64A",

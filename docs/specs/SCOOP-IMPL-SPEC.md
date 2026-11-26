@@ -35,6 +35,7 @@ Swift 原生库第一阶段见 2.7.1～2.8.1 及 [Swift 设计](../swift-librari
 | `aarch64-apple-ios` | `org.scoop-lang.target-profile/ios-aarch64/1` | Mach-O relocatable | iOS 设备/AArch64 |
 | `aarch64-apple-ios-sim` | `org.scoop-lang.target-profile/ios-simulator-aarch64/1` | Mach-O relocatable | iOS Simulator/AArch64 |
 | `aarch64-unknown-linux-gnu` | `org.scoop-lang.target-profile/linux-aarch64-gnu/1` | AArch64 ELF64 relocatable | Linux/AArch64、glibc |
+| `aarch64-unknown-linux-musl` | `org.scoop-lang.target-profile/linux-aarch64-musl/1` | AArch64 ELF64 relocatable | Linux/AArch64、musl |
 | `x86_64-unknown-linux-gnu` | `org.scoop-lang.target-profile/linux-x86-64-gnu/1` | ELF64 relocatable | Linux/amd64、glibc |
 | `x86_64-unknown-linux-musl` | `org.scoop-lang.target-profile/linux-x86-64-musl/1` | ELF64 relocatable | Linux/amd64、musl |
 | `x86_64-pc-windows-msvc-ucrt` | `org.scoop-lang.target-profile/windows-x86-64-msvc-ucrt/1` | AMD64 COFF | Windows/amd64、Microsoft UCRT |
@@ -59,7 +60,7 @@ backend 的 machine frame 是必需数据，恢复机制为 fixed-frame 或 plat
 
 backend contract 使用 LLVM 22.1、LLVM stackmap v3 和本规范的 GC/EH 约束。Linux/amd64 两个 libc target 共用 `org.scoop-lang.backend-profile/llvm-22-1-linux-x86-64/1`，但 native、runtime 与最终链接输入不能混用 glibc/musl。target、对象格式、调用约定、pointer/storage ABI 及实际 producer 配置必须相容；不支持的组合在生成目标产物前诊断。
 
-Linux/AArch64 选择 `org.scoop-lang.backend-profile/llvm-22-1-linux-aarch64/1`，CPU 为 generic Armv8-A，采用小端 LP64、AAPCS64 和 ELF64 RELA。对象头的 machine 是 `EM_AARCH64`，flags 为零。LLVM 的数据布局为 `e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32`。函数地址使用 64 位绝对重定位，EH、代码、PIC 数据和 TLS 使用各自的 AArch64 重定位。managed safepoint 处保留固定 SP 和实际 FP，每层按运行时规范 3.2 的帧记录恢复。GNU 宿主的默认输出目标为 `aarch64-unknown-linux-gnu`。
+Linux/AArch64 选择 `org.scoop-lang.backend-profile/llvm-22-1-linux-aarch64/1`，CPU 为 generic Armv8-A，采用小端 LP64、AAPCS64 和 ELF64 RELA。对象头的 machine 是 `EM_AARCH64`，flags 为零。LLVM 的数据布局为 `e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32`。函数地址使用 64 位绝对重定位，EH、代码、PIC 数据和 TLS 使用各自的 AArch64 重定位。managed safepoint 处保留固定 SP 和实际 FP，每层按运行时规范 3.2 的帧记录恢复。GNU 宿主的默认输出目标为 `aarch64-unknown-linux-gnu`。显式选择 `aarch64-unknown-linux-musl` 时共用该机器 backend，使用 musl 自己的 target profile、C bridge、runtime、libunwind 和系统库。GNU 默认为动态 PIE。musl 可执行文件默认为静态链接，`--link-mode dynamic` 选择目标 musl loader。
 
 LLVM architecture 只负责对应 LLVM target 的初始化、项目自建 LLVM 的 component 名称和 LLVM 接口需要的 machine 标识；完整 backend profile 继续绑定 LLVM 版本、triple、CPU／features、object target、unwind／LSDA、pipeline、frame 与已测 tuning。LLVM component build list 从当前目录实际引用的 architecture 去重取得，不手写完整 target，也不包含未实现 architecture。LLVM command-line options 在进程内只初始化一次：只有对全部当前 backend 均已验证的确定性选项可以进入进程全局集合，target-specific policy 使用 TargetMachine、function attributes、pass pipeline 或对应 backend 实现表达。先后建立不同 target 的 TargetMachine 不能改变任一输出合同。
 

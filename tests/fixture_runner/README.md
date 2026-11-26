@@ -13,7 +13,7 @@ runner 本身使用 Python 3.11+ 标准库；Python peer 和辅助进程统一�
 不复制完整 sysroot，也不自动调用准备、LLVM 构建或打包脚本。
 `${cache}` 依次采用 `--cache-dir`、`SCOOP_CACHE_DIR`、仓库 `target/fixture-cache`，
 跨用例及不同 `--work-dir` 复用；清理本次 work 不清理该缓存。
-Linux amd64 与 ARM64 的默认应用目标均使用 glibc。用 `--target aarch64-unknown-linux-gnu` 显式选择 ARM64 GNU，用 `--target x86_64-unknown-linux-musl` 选择 amd64 musl。
+Linux amd64 与 ARM64 的默认应用目标均使用 glibc。用 `--target aarch64-unknown-linux-musl` 或 `--target x86_64-unknown-linux-musl` 选择对应机器的 musl。
 fixture 的 Scoop 命令通过 `${target}` 传递该选择。`${cc}` 默认分别为 GCC / musl-gcc，
 可用 `--cc` 覆盖；Linux 不提供 Darwin 的 `${sdk}` / `${deployment}`。
 显式 `--cc` 保留符号链接的调用路径，避免将 `clang` 展开为 `clang-22` 后误选配套 C++ driver；

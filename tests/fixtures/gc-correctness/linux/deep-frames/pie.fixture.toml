@@ -3,7 +3,7 @@ name = "deep-frames-musl-pie"
 root = "program.scoop"
 inputs = ["program.scoop"]
 tools = ["scoop", "scoopc"]
-targets = ["x86_64-unknown-linux-musl"]
+when = { os = "linux", env = "musl" }
 tags = ["gc-correctness", "gc", "eh", "abi", "deep-stack"]
 variants = [
   {name = "release", vars = {profile = "release"}},
