@@ -6,7 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from target_catalog import TARGETS, native_configuration
+from target_catalog import TARGETS, linux_compiler_builtins, native_configuration
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -49,6 +49,7 @@ def check_mode(args, llc, target_name, target, musl, mode, cc, flags, prefix):
     build.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ, TMPDIR=str(build))
     obj, binary, link_map = build / "frames.o", build / "unwind-test", build / "link.map"
+    builtins = linux_compiler_builtins(target_name)
     subprocess.run(
         [
             llc,
@@ -87,6 +88,7 @@ def check_mode(args, llc, target_name, target, musl, mode, cc, flags, prefix):
             str(ROOT / "runtime/src/eh_personality.c"),
             str(ROOT / "runtime/src/eh/lsda.c"),
             str(obj),
+            "-Wl,--start-group",
             str(prefix / "lib/libunwind.a"),
             "-pthread",
             "-nodefaultlibs",
@@ -94,7 +96,8 @@ def check_mode(args, llc, target_name, target, musl, mode, cc, flags, prefix):
             f"-Wl,-Map,{link_map}",
             *flags,
             "-lc",
-            "-lgcc",
+            str(prefix / "lib" / builtins) if builtins else "-lgcc",
+            "-Wl,--end-group",
             "-o",
             str(binary),
         ],

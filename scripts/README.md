@@ -154,6 +154,8 @@ python3 scripts/package_toolchain.py --jobs 6
 
 上例用于 Darwin。Linux 还要提供 `--musl-include /usr/include/x86_64-linux-musl`，并安装 `musl-gcc`、`patchelf` 和适用于 LLVM libunwind 的 Clang／Clang++；Rust 工具链需要同时具有 `x86_64-unknown-linux-musl` 目标。可通过 `--gnu-cc`、`--musl-cc`、`--unwind-cc`、`--unwind-cxx` 明确选择工具。Linux 宿主发行同时包含 GNU 与 musl 目标资源。
 
+ARM64 musl 从相同的 LLVM 源码准备 libunwind 和 compiler-rt builtins。运行 `build_llvm_unwind.py` 时用 `--musl-include` 指向该目标的 musl 头文件。静态、动态程序均从目标的 unwind prefix 使用 `lib/libclang_rt.builtins-aarch64.a`，发行时该归档随 musl 基础库包交付。
+
 musl 的 C 开发环境也需要 Linux UAPI 头。Debian／Ubuntu 的 `musl-gcc` 默认搜索目录可能缺少 `linux/mman.h`；此时可在工作目录准备仅包含 `linux`、`asm`、`asm-generic` 的头文件搜索根，以编译器包装脚本添加该根，并通过 `--musl-cc` 选择包装脚本。这些目录可指向系统已安装的对应 Linux 头；保留 musl 自己的 libc 头文件搜索顺序。
 
 `--download-dir` 指定可跨工作目录复用的外部依赖原文件目录，优先于 `SCOOP_DOWNLOAD_DIR`，默认仓库 `tmp/downloads`；相对路径按调用 cwd 解析。自动选择先复用该目录固定条目，再用 vendor 的已有输入，均缺失才下载；命中不发送网络请求或重新计算摘要。LLVM 按 `llvm-project/<version>/<filename>` 保存原归档，工作目录的 `inputs` 只存解包副本及更新记录。LLVM-MinGW ZIP 和所选 CPython LICENSE 也复用此目录；补丁只应用于工作副本。也可传入已有的 `--llvm-source` 和 `--llvm-archive`，显式路径不存在时直接报错。已经准备的匹配版本宿主 LLVM 可通过 `--llvm-prefix` 复用；省略时脚本在自己的工作目录构建。`--version` 和 `--revision` 可显式设置发行标识，默认采用配置版本与当前 Git revision，存在未提交修改时标注 `+modified`。这些参数也写入安装根的 `VERSION`。
