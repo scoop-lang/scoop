@@ -26,6 +26,10 @@ values after machine block labels. PHI elimination can then put its destination
 copies before those debug values while keeping them after the landing-pad label.
 Otherwise exception dispatch skips the copies and reads stale stack values.
 
+The Linux AArch64 DWARF TLS patch backports LLVM's [debug info emission](https://github.com/llvm/llvm-project/commit/8e20a6dc866c54683f801d1ca041c6b3ba302485), [MC encoding](https://github.com/llvm/llvm-project/commit/60c102036acf1508b66b1c3e29ffba10d21a6645), [LLD relocation](https://github.com/llvm/llvm-project/commit/14ce208a45eb0673f8b28409eec0628ad809923b), and [object reader](https://github.com/llvm/llvm-project/commit/fa136df3e74c1fd0b838352484aa38c471d21cbd) changes. This SDK enables the location on Linux and uses the LLVM 22 assembler's `@DTPREL` spelling for its ELF data relocation.
+
+The paired ELF linker also implements the GNU linker script `(READONLY)` output-section attribute used by the static musl layout. It clears SHF_WRITE on that output section after merging its inputs. This preserves the existing read-only load segment for statically relocated metadata.
+
 `scripts/build_windows_unwind.py` builds each Windows target's static libunwind from this source. For the Microsoft target, `patches/llvm-libunwind-msvc-seh.patch` adds an explicit clang-cl x64 static Level-I SEH build option. It preserves exception metadata on the C unwinding functions and disables C++ exceptions and RTTI within libunwind. It does not provide an Itanium C++ ABI on MSVC targets or replace VCRuntime's C++ exception handler. The patch is applied only to the preparation work directory; Microsoft objects use `/MD`, and MinGW objects use the selected CRT prefix.
 
 The host SDK also includes Clang headers, clang-cpp, resource headers and debug-file

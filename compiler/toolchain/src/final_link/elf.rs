@@ -27,11 +27,20 @@ const GNU_ELF_OPTIONS: &[&str] = &[
 pub(super) struct GnuElfLinkPlan<'a> {
     output: &'a OutputConfiguration,
     mode: LinkMode,
+    dynamic_script: &'static str,
 }
 
 impl<'a> GnuElfLinkPlan<'a> {
-    pub(super) const fn new(output: &'a OutputConfiguration, mode: LinkMode) -> Self {
-        Self { output, mode }
+    pub(super) const fn new(
+        output: &'a OutputConfiguration,
+        mode: LinkMode,
+        dynamic_script: &'static str,
+    ) -> Self {
+        Self {
+            output,
+            mode,
+            dynamic_script,
+        }
     }
 
     pub(super) fn linker_args(&self) -> Vec<&'static str> {
@@ -45,7 +54,7 @@ impl<'a> GnuElfLinkPlan<'a> {
     pub(super) fn metadata_script(&self) -> &'static str {
         match self.mode {
             LinkMode::Static => include_str!("../elf/static.ld"),
-            LinkMode::Dynamic => include_str!("../elf/dynamic.ld"),
+            LinkMode::Dynamic => self.dynamic_script,
         }
     }
 
@@ -106,7 +115,11 @@ mod tests {
         let output = OutputConfiguration::SharedLibrary {
             loader_name: Some("libscoop-example.so.1".to_owned()),
         };
-        let plan = GnuElfLinkPlan::new(&output, LinkMode::Dynamic);
+        let plan = GnuElfLinkPlan::new(
+            &output,
+            LinkMode::Dynamic,
+            include_str!("../elf/dynamic.ld"),
+        );
         let arguments = plan.linker_args();
         assert!(arguments.contains(&"-shared"));
         assert!(!arguments.contains(&"-pthread"));

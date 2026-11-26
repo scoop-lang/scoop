@@ -59,24 +59,31 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
         .unwrap();
         let binary = directory.path().join("program");
         let mut command = linux.command(directory.path(), &binary).unwrap();
-        command.arg("-Wl,-t").arg(object);
+        let depfile = directory.path().join("linked.d");
+        command
+            .args(["-Xlinker", "--dependency-file", "-Xlinker"])
+            .arg(&depfile)
+            .arg(object);
         linux.append_system_libraries(&mut command);
-        let linked = probe::run(&mut command).unwrap();
-        let inputs = String::from_utf8(linked.stdout).unwrap();
+        probe::run(&mut command).unwrap();
+        let inputs = probe::linker_libraries(&depfile, &binary).unwrap();
         for input in linux.elf_inputs().system_paths {
             assert!(
-                inputs.lines().any(|line| Path::new(line.trim()) == input),
-                "system library {} was not used by the real link: {inputs}",
+                inputs.contains(input),
+                "system library {} was not opened by the real link: {inputs:?}",
                 input.display()
             );
         }
         assert!(
-            inputs.lines().any(|line| line.ends_with("libunwind.a")),
-            "{inputs}"
+            inputs.iter().any(|path| path.ends_with("libunwind.a")),
+            "{inputs:?}"
         );
         assert!(
-            !inputs.contains("libgcc_s") && !inputs.contains("libgcc_eh"),
-            "{inputs}"
+            inputs.iter().all(|path| {
+                let name = path.file_name().unwrap().to_string_lossy();
+                !name.starts_with("libgcc_s") && !name.starts_with("libgcc_eh")
+            }),
+            "{inputs:?}"
         );
         let output = probe::run(&mut Command::new(binary)).unwrap();
         assert_eq!(
