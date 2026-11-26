@@ -30,6 +30,27 @@
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
   return nil;
 }
+- (void)pressesBegan:(NSSet<UIPress *> *)presses
+           withEvent:(UIPressesEvent *)event {
+  BOOL composing = self.markedTextRange != nil;
+  [super pressesBegan:presses withEvent:event];
+  if (self.isFirstResponder)
+    [self.content.owner
+        deliverPresses:presses
+             composing:composing || self.markedTextRange != nil];
+}
+- (void)pressesEnded:(NSSet<UIPress *> *)presses
+           withEvent:(UIPressesEvent *)event {
+  if (self.isFirstResponder)
+    [self.content.owner deliverPresses:presses composing:NO];
+  [super pressesEnded:presses withEvent:event];
+}
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses
+               withEvent:(UIPressesEvent *)event {
+  if (self.isFirstResponder)
+    [self.content.owner deliverPresses:presses composing:NO];
+  [super pressesCancelled:presses withEvent:event];
+}
 - (BOOL)canPerformAction:(SEL)action withSender:(id)sender {
   SWIEditAction edit = swi_edit_action(action);
   if (self.content.editFlags && edit != SWIEditNone)

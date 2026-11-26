@@ -1,7 +1,6 @@
 #import "edit_actions.h"
 #import "text.h"
 #import <QuartzCore/CAMetalLayer.h>
-#include <time.h>
 
 @implementation SWIView {
   NSMapTable<UITouch *, NSNumber *> *_contacts;
@@ -22,6 +21,24 @@
 }
 - (BOOL)canBecomeFirstResponder {
   return YES;
+}
+- (void)pressesBegan:(NSSet<UIPress *> *)presses
+           withEvent:(UIPressesEvent *)event {
+  if (self.isFirstResponder)
+    [self.owner deliverPresses:presses composing:NO];
+  [super pressesBegan:presses withEvent:event];
+}
+- (void)pressesEnded:(NSSet<UIPress *> *)presses
+           withEvent:(UIPressesEvent *)event {
+  if (self.isFirstResponder)
+    [self.owner deliverPresses:presses composing:NO];
+  [super pressesEnded:presses withEvent:event];
+}
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses
+               withEvent:(UIPressesEvent *)event {
+  if (self.isFirstResponder)
+    [self.owner deliverPresses:presses composing:NO];
+  [super pressesCancelled:presses withEvent:event];
 }
 - (BOOL)canPerformAction:(SEL)action withSender:(id)sender {
   SWIEditAction edit = swi_edit_action(action);
@@ -56,15 +73,8 @@
   [self.owner geometryChanged];
 }
 - (void)enqueueContact:(SWContactData)data {
-  struct timespec now;
-  if (clock_gettime(CLOCK_MONOTONIC, &now))
-    [NSException raise:NSInternalInconsistencyException
-                format:@"Cannot read the input clock"];
   SWIEvent *event = [SWIEvent new];
-  event.header = (SWEventHeader){.window = self.owner.identity,
-                                 .kind = SWContact,
-                                 .time_seconds = now.tv_sec,
-                                 .time_nanoseconds = now.tv_nsec};
+  event.header = swi_input_header(self.owner, SWContact);
   event.contact = data;
   [self.owner.application enqueue:event];
 }

@@ -25,7 +25,8 @@ private struct Host(
     val inspect: FunPtr<(Ptr<Unit>, Ptr<Unit>, Snapshot) -> Unit>,
     val event: FunPtr<(Int) -> Unit>,
     val ime: FunPtr<(Int) -> Unit>,
-    val textProbe: Int
+    val textProbe: Int,
+    val keyProbe: Int
 )
 
 @CLayout
@@ -38,6 +39,7 @@ private class Probe(val host: Host) : ApplicationHandler {
     var timer: WindowDeadline? = None
 
     private val contacts = HashSet<ContactId>()
+    private val keys = HardwareKeyProbe()
     private val editor = ImeProbe { step ->
         @Unsafe {
             host.ime(step)
@@ -134,6 +136,11 @@ private class Probe(val host: Host) : ApplicationHandler {
                 if (id != window!!.id) throw IllegalStateException(Some("window identity changed"))
                 when (change) {
                     case Contact(val value) -> touch(value)
+                    case Keyboard(val key) ->
+                        if (host.keyProbe != 0) {
+                            val observed = keys.received(window!!, key)
+                            if (observed != 0) report(observed)
+                        }
                     case TextInput(val value) ->
                         if (host.textProbe != 0) editor.event(window!!, value)
                     case TextCommand(val command) ->

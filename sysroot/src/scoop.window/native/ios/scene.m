@@ -47,8 +47,10 @@
   BOOL next = [note.name isEqualToString:UISceneDidActivateNotification];
   if (self.active == next)
     return;
-  if (!next)
+  if (!next) {
     [self.view cancelContacts:SWPointerFocusLost];
+    [self cancelKeys];
+  }
   self.active = next;
   [self emit:(next ? 101 : 102) flags:next];
   [self emit:4 flags:self.snapshot.focused];
@@ -61,8 +63,10 @@
     [self geometryChanged];
 }
 - (void)focus:(NSNotification *)note {
-  if (!self.window.isKeyWindow)
+  if (!self.window.isKeyWindow) {
     [self.view cancelContacts:SWPointerFocusLost];
+    [self cancelKeys];
+  }
   [self emit:4 flags:self.snapshot.focused];
 }
 - (void)preferencesChanged {
@@ -147,6 +151,7 @@ void *scoop_window_ios_scene_create(void *application, void *scenePointer,
 void scoop_window_ios_scene_show(void *pointer) {
   SWIScene *scene = (__bridge SWIScene *)pointer;
   [scene.window makeKeyAndVisible];
+  [scene.view becomeFirstResponder];
   [scene.view layoutIfNeeded];
   [scene geometryChanged];
 }

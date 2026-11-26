@@ -8,8 +8,8 @@
 
 static ScoopWindowApi api;
 static __weak UIWindowScene *currentScene;
-static unsigned events[13];
-static BOOL touchProbe, textProbe, clipboardProbe;
+static unsigned events[17];
+static BOOL touchProbe, textProbe, clipboardProbe, keyProbe;
 extern void probeTextStep(UIView *content, int32_t step);
 static void ime(int32_t step);
 static __weak UIView *resultView;
@@ -31,6 +31,12 @@ static void inspect(void *nativeWindow, void *nativeView,
     view.accessibilityIdentifier = @"scoop-touch-result";
     view.accessibilityLabel = @"Window contact probe";
   }
+  if (keyProbe && !resultView) {
+    resultView = view;
+    view.isAccessibilityElement = YES;
+    view.accessibilityIdentifier = @"scoop-key-result";
+    view.accessibilityLabel = @"Window keyboard probe";
+  }
   assert(view.multipleTouchEnabled && !window.hidden);
   assert(view.bounds.size.width == metrics.width &&
          view.bounds.size.height == metrics.height);
@@ -44,10 +50,17 @@ static void inspect(void *nativeWindow, void *nativeView,
 }
 
 static void event(int32_t kind) {
-  assert(NSThread.isMainThread && kind >= 1 && kind <= 12);
+  assert(NSThread.isMainThread && kind >= 1 && kind <= 16);
   events[kind]++;
   if (textProbe || clipboardProbe)
     return;
+  if (keyProbe) {
+    if (kind == 14 && events[13] == 1 && events[14] == 1)
+      resultView.accessibilityValue = @"Command-K delivered";
+    if (kind == 16 && events[15] == 1 && events[16] == 1)
+      resultView.accessibilityValue = @"arrow delivered";
+    return;
+  }
   if (touchProbe) {
     if (events[10] == 1 && events[8] == 1)
       resultView.accessibilityValue = @"tap delivered";
@@ -123,7 +136,8 @@ static void ime(int32_t step) {
       containsObject:@"--ime-transactions"];
   clipboardProbe =
       [NSProcessInfo.processInfo.arguments containsObject:@"--clipboard"];
-  ScoopWindowHost host = {inspect, event, ime, textProbe};
+  keyProbe = [NSProcessInfo.processInfo.arguments containsObject:@"--keys"];
+  ScoopWindowHost host = {inspect, event, ime, textProbe, keyProbe};
   ScoopAppError error = {0};
   assert(scoop_app_init(&host, &api, &error) == SCOOP_APP_INIT_OK);
   return YES;

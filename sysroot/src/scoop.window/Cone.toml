@@ -83,6 +83,26 @@ path = "src/input/keyboard.scoop"
 when = { os = "ios" }
 
 [[sources]]
+path = "src/input/shortcuts.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/shortcut_builder.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/key_names.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/shortcut_compare.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/input/keyboard.scoop"
+when = { os = "ios" }
+
+[[sources]]
 path = "src/input/time.scoop"
 when = { os = "ios" }
 
@@ -284,6 +304,14 @@ when = { os = "darwin" }
 [[native.sources]]
 path = "native/darwin/input/keyboard.m"
 when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/apple/shortcuts.m"
+when = { os = ["darwin", "ios"] }
+
+[[native.sources]]
+path = "native/ios/hardware_keys.m"
+when = { os = "ios" }
 
 [[native.sources]]
 path = "native/darwin/commands.m"

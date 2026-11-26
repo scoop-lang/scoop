@@ -69,6 +69,8 @@ target/release/scoop build sysroot/src/scoop.platform --release \
 
 安装上述 `--window` 宿主后，可通过 XCTest 在同一模拟器送入轻点、拖动和双指点击。最后在仍按住时切走 key window，检查接触取消且抬手不会重复结束。测试通过 Scoop 收到的事件检查每个触点的身份和逻辑／像素坐标。
 
+在 iPad 模拟器安装同一宿主，下面命令的 destination 改为该 iPad，将 `testWindowTouches` 换成 `testHardwareKeys`。用例经 UIKit 实际派送 Command-K 和向下方向键，核对逻辑和物理快捷键匹配、修饰键、显示标签以及按下与释放的配对。
+
 文本用例还会通过 UIKit 的 responder chain 执行复制与全选，并执行系统 undo manager 的撤销与重做。分别在编辑器开启和关闭键盘后验证命令可用性、交付次数及原文。
 
 ```sh

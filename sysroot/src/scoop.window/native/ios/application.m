@@ -1,5 +1,17 @@
 #import "window.h"
 #include <math.h>
+#include <time.h>
+
+SWEventHeader swi_input_header(SWIScene *scene, int32_t kind) {
+  struct timespec now;
+  if (clock_gettime(CLOCK_MONOTONIC, &now))
+    [NSException raise:NSInternalInconsistencyException
+                format:@"Cannot read the input clock"];
+  return (SWEventHeader){.window = scene.identity,
+                         .kind = kind,
+                         .time_seconds = now.tv_sec,
+                         .time_nanoseconds = now.tv_nsec};
+}
 
 @implementation SWIEvent
 @end

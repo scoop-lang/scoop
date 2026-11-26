@@ -6,6 +6,8 @@ iOS 的复制粘贴使用 `window.clipboard` 或 `application.clipboard`。用�
 
 通过 `window.textCommandAvailability` 将当前选区可执行的命令交给 UIKit。系统的编辑动作进入 `WindowEvent.TextCommand`，由文档模型执行一次。可选择的只读文字也可以发布复制动作。
 
+iPad 的外接键盘经 `WindowEvent.Keyboard` 交付。快捷键通常绑定 `ShortcutKey.Logical` 并设置 `primary = true` 表示 Command。需要固定键盘位置时使用 `ShortcutKey.Physical`，未知物理键保留其 USB HID usage。[UIKit 的键码](https://developer.apple.com/documentation/uikit/uikey/keycode)
+
 PRIMARY 使用 `application.primarySelection`／`window.primarySelection`，独立于普通 Clipboard；先查 `isAvailable`，`claimText` 返回可关闭的拥有凭据，旧凭据不会清掉后来者。GTK 仅在真实 X11／Wayland 协议存在时提供它，macOS／Windows 返回不可用。`application.textServices` 提供只读的拼写／语法／替换结果和平台文本 Services；范围以传入正文的 UTF-8 坐标表示。`window.showTextDefinition(text, anchor)` 和 `requestHapticFeedback` 分别请求实际可用的词典与触觉入口。能力、生命周期和限制见[文本服务核查](../../../docs/ui/interaction-polish/TEXT-SERVICES.md)。
 
 原生文本服务菜单使用 `MenuItemDescription("Services", MenuItemKind.TextServices(selectedText, acceptReplacement))`，先确认 `application.textServices.capabilities.services`。这一系统子菜单仅用于窗口 popup，每个 Menu 最多一个，子项由系统在展示时生成。服务完成后，父项的 `MenuActivation.textServiceResult` 返回正文：None 没有正文，Some("") 是空替换。调用方核对原文档、修订与选区后自行应用；只读目标传 false，禁止返回替换。不提前枚举系统菜单，不把返回值直接写入另一份编辑模型。已知名称的显式调用仍可使用 `performService(name, text)`。

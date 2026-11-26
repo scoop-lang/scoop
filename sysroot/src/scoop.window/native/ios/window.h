@@ -18,6 +18,8 @@ typedef struct {
 @property(nonatomic) SWEventHeader header;
 @property(nonatomic) SWEventData data;
 @property(nonatomic) SWContactData contact;
+@property(nonatomic) SWKeyboardData keyboard;
+@property(nonatomic, strong) NSData *keyText;
 @property(nonatomic, copy) NSArray<SWITextEdit *> *edits;
 @property(nonatomic) SWISnapshot snapshot;
 @property(nonatomic, strong) SWIEvent *next;
@@ -46,6 +48,9 @@ typedef struct {
 @interface SWIScene : NSObject
 @property(nonatomic, weak) SWIApplication *application;
 @property(nonatomic, strong) UIWindow *window;
+@property(nonatomic, strong)
+    NSMutableDictionary<NSNumber *, SWIEvent *> *pressedKeys;
+@property(nonatomic) int64_t keyModifiers;
 @property(nonatomic, strong) SWIView *view;
 @property(nonatomic) int64_t identity;
 @property(nonatomic) BOOL active;
@@ -54,5 +59,12 @@ typedef struct {
 - (void)geometryChanged;
 - (void)emit:(int32_t)kind flags:(int32_t)flags;
 @end
+
+@interface SWIScene (HardwareKeys)
+- (void)deliverPresses:(NSSet<UIPress *> *)presses composing:(BOOL)composing;
+- (void)cancelKeys;
+@end
+
+SWEventHeader swi_input_header(SWIScene *scene, int32_t kind);
 
 #endif

@@ -394,6 +394,8 @@ Window 的标准格式、操作协商、接收资源与同步边界见[数据拖
 
 UIKit 将直接触摸和 Pencil 交给内容视图。一次接触只发布一条 `WindowEvent.Contact` 序列；同时按下的触点各有独立标识。坐标为视图逻辑点和同一显示比例换算出的像素。仅在设备提供压力时上报归一化数值。取消触摸、失焦和场景失活时退休相应标识，晚到的移动或抬起不重新开始序列。接收时间取与窗口截止时间同源的单调时钟。
 
+外接键盘按 `UIKey.keyCode` 的 USB HID usage 识别物理位置，未知值保留为 `NativeKeyCode.UsbHidUsage`。逻辑字符来自 UIKit 当前布局，命名键、按下、释放及修饰状态沿用公共模型。焦点离开时补发已交付按键的释放。iOS 的 `ShortcutModifiers.primary` 对应 Command，显示采用 Apple 修饰键符号。系统组合输入和响应者的编辑动作分别使用文本事务和编辑命令通道。[UIKit 硬件按键](https://developer.apple.com/documentation/uikit/handling-key-presses-made-on-a-physical-keyboard)
+
 UIKit 的文本连接复用 `TextInputState`、`TextInputBatch` 和 UTF-8 字节范围。自绘内容视图为当前编辑器持有一个 UIKit 文本响应者；系统维护 marked text、选区与输入法交互，已发布的应用文本和已接受的光标几何供它查询。程序回写不产生新一轮用户编辑。每次连接使用独立的批次序号；关闭或替换连接后，旧的状态和光标发布返回 false。输入目的和软件键盘请求作用于当前连接，实际遮挡在内容视图的逻辑坐标中报告。浮动键盘按与该窗口的实际交集处理。
 
 Scoop 焦点目标可独立发布 `Window.textCommandAvailability`。UIKit 的标准剪切、复制、粘贴、全选、删除以及 undo manager 按该快照查询可用性，每次已启用的动作交付一个 `WindowEvent.TextCommand`。只读内容无需开启键盘便可接收复制。Scoop 编辑器拥有撤销历史，系统响应者的文本投影与应用回写不另建一份用户操作。

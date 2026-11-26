@@ -1,0 +1,46 @@
+package scoop.tests.ios
+
+import scoop.window.*
+
+internal class HardwareKeyProbe {
+    private val shortcut = shortcutChord(ShortcutKey.Logical(LogicalKey.Character("K"))) {
+        primary = true
+    }
+    private val physical = shortcutChord(ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyK))) {
+        superKey = true
+    }
+    private var held: KeyCode? = None
+    fun received(window: Window, key: KeyEvent): Int {
+        val code = when (key.physicalKey) {
+            case Code(val code) -> code
+            case Unidentified(_) -> return 0
+        }
+        if (code != KeyCode.KeyK && code != KeyCode.ArrowDown) return 0
+        if (key.isRepeat || key.synthetic || key.location != KeyLocation.Standard)
+            throw IllegalStateException(Some("unexpected key metadata"))
+        if (key.state == ElementState.Released) {
+            if (held != Some(code)) throw IllegalStateException(Some("unpaired release"))
+            held = None
+            return if (code == KeyCode.KeyK) 14 else 16
+        }
+        if (held != None) throw IllegalStateException(Some("duplicate key press"))
+        held = Some(code)
+        if (code == KeyCode.KeyK) {
+            val parts = window.shortcutLabel(shortcut).parts
+            if (!shortcut.matches(key) ||
+                !physical.matches(key) ||
+                parts.size !=
+                2L ||
+                parts[0L] !=
+                "⌘" ||
+                parts[1L] !=
+                "K"
+            )
+                throw IllegalStateException(Some("hardware Command-K did not match its binding"))
+            return 13
+        }
+        if (key.logicalKey != LogicalKey.Named(NamedKey.ArrowDown) || key.modifiers.superKey)
+            throw IllegalStateException(Some("arrow key or its modifiers were lost"))
+        return 15
+    }
+}

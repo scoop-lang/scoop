@@ -1,0 +1,68 @@
+package scoop.window
+
+@CLayout
+internal struct NativeKeyboardData(
+    val physicalCode: Long,
+    val logicalCode: Long,
+    val modifiers: Long,
+    val pressed: Int,
+    val repeat: Int,
+    val synthetic: Int,
+    val dead: Int,
+    val text: Ptr<UInt8>?,
+    val textLength: Long
+)
+
+@Extern(name = "scoop_window_event_keyboard")
+internal fun nativeEventKeyboard(event: Ptr<Unit>): NativeKeyboardData
+
+@Extern(name = "scoop_window_event_modifiers")
+internal fun nativeEventModifiers(event: Ptr<Unit>): Long
+
+private fun copyNativeText(event: NativeKeyboardData): String {
+    @Unsafe
+    {
+        return when (event.text) {
+            case Some(val bytes) -> String.fromUtf8(bytes, event.textLength)
+            case None -> ""
+        }
+    }
+}
+
+internal fun copyKeyEvent(
+    pointer: Ptr<Unit>,
+    header: NativeEventHeader,
+    event: NativeKeyboardData
+): KeyEvent {
+    val text = copyNativeText(event)
+    val logical = when (platformNamedKey(event.physicalCode, event.logicalCode)) {
+        case Some(val value) -> LogicalKey.Named(value)
+        case None ->
+            if (event.dead != 0)
+                LogicalKey
+                    .Dead(
+                        if (text.byteLength > 0L) Some(text) else None
+                    )
+            else if (text.byteLength > 0L)
+                LogicalKey.Character(text)
+            else
+                LogicalKey
+                    .Unidentified(
+                        platformUnknownLogicalKey(event.physicalCode, event.logicalCode)
+                    )
+    }
+    val state = if (event.pressed != 0) ElementState.Pressed else ElementState.Released
+    val modifiers = platformModifiers(event.modifiers)
+    val synthetic = event.synthetic != 0
+    return KeyEvent(
+        platformPhysicalKey(event.physicalCode),
+        logical,
+        platformKeyLocation(event.physicalCode),
+        state,
+        event.repeat != 0,
+        modifiers,
+        synthetic,
+        copyInputTime(header),
+        textCommands = platformTextCommands(pointer, logical, modifiers, state, synthetic)
+    )
+}

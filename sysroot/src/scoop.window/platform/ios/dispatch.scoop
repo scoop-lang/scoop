@@ -13,6 +13,26 @@ private fun ApplicationOwner.dispatch(event: Ptr<Unit>) {
         if (window.id.value != header.window || window.phase != WindowState.Open) continue
         val value = iosEventSnapshot(event)
         when (header.kind) {
+            10 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .Keyboard(
+                                    copyKeyEvent(event, header, nativeEventKeyboard(event))
+                                )
+                        )
+                )
+            11 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .ModifiersChanged(platformModifiers(nativeEventModifiers(event)))
+                        )
+                )
             13 ->
                 notify(
                     ApplicationEvent

@@ -11,6 +11,7 @@ public enum ApplicationEvent {
 }
 
 public enum WindowEvent {
+    Keyboard(KeyEvent), ModifiersChanged(Modifiers),
     Contact(ContactEvent), TextInput(TextInputEvent), TextCommand(
         TextEditCommand
     ), SoftwareKeyboardChanged(
