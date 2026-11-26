@@ -42,43 +42,11 @@ public enum PointerEvent {
     Cancelled(PointerCancelReason, InputTime)
 }
 
-/** System cursors available without owning a custom image or capture session. */
-public enum CursorIcon {
-    Default, Text, Crosshair, Pointer, Grab, Grabbing, NotAllowed, ResizeHorizontal, ResizeVertical
-}
-
-/** Selects the native cursor for this window's content area. */
-public fun Window.setCursorIcon(icon: CursorIcon) {
-    owner.requireOpen()
-    val value =
-        when (icon) {
-            case Default -> 0;
-            case Text -> 1;
-            case Crosshair -> 2;
-            case Pointer -> 3;
-            case Grab -> 4;
-            case Grabbing -> 5;
-            case NotAllowed -> 6;
-            case ResizeHorizontal -> 7;
-            case ResizeVertical -> 8
-        }
-    @Unsafe
-    {
-        checkNativeStatus(nativeCursorIcon(owner.pointer!!, value), "cursor_icon")
+internal fun copyPointerCancelReason(reason: Int): PointerCancelReason =
+    when (reason) {
+        0 -> PointerCancelReason.FocusLost
+        1 -> PointerCancelReason.CaptureLost
+        2 -> PointerCancelReason.SystemOperation
+        3 -> PointerCancelReason.Modal
+        else -> throw WindowException("unknown pointer cancellation", WindowErrorKind.NativeFailure)
     }
-}
-
-/** Hides only while the pointer belongs to this window; leaving restores it. */
-public fun Window.setCursorVisible(visible: Boolean) {
-    owner.requireOpen()
-    @Unsafe
-    {
-        checkNativeStatus(nativeCursorVisible(owner.pointer!!, flag(visible)), "cursor_visible")
-    }
-}
-
-@Extern(name = "scoop_window_cursor_icon")
-internal fun nativeCursorIcon(window: Ptr<Unit>, icon: Int): Long
-
-@Extern(name = "scoop_window_cursor_visible")
-internal fun nativeCursorVisible(window: Ptr<Unit>, visible: Int): Long

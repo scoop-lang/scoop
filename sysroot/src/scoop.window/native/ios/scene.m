@@ -1,20 +1,5 @@
 #import "window.h"
-#import <QuartzCore/CAMetalLayer.h>
 #include <math.h>
-
-@implementation SWIView
-+ (Class)layerClass {
-  return CAMetalLayer.class;
-}
-- (void)layoutSubviews {
-  [super layoutSubviews];
-  [self.owner geometryChanged];
-}
-- (void)safeAreaInsetsDidChange {
-  [super safeAreaInsetsDidChange];
-  [self.owner geometryChanged];
-}
-@end
 
 @implementation SWIScene {
   CGRect _bounds;
@@ -62,6 +47,8 @@
   BOOL next = [note.name isEqualToString:UISceneDidActivateNotification];
   if (self.active == next)
     return;
+  if (!next)
+    [self.view cancelContacts:SWPointerFocusLost];
   self.active = next;
   [self emit:(next ? 101 : 102) flags:next];
   [self emit:4 flags:self.snapshot.focused];
@@ -74,6 +61,8 @@
     [self geometryChanged];
 }
 - (void)focus:(NSNotification *)note {
+  if (!self.window.isKeyWindow)
+    [self.view cancelContacts:SWPointerFocusLost];
   [self emit:4 flags:self.snapshot.focused];
 }
 - (void)preferencesChanged {
@@ -101,6 +90,9 @@ void *scoop_window_ios_scene_create(void *application, void *scenePointer,
   record.window = [[UIWindow alloc] initWithWindowScene:scene];
   UIViewController *controller = [UIViewController new];
   record.view = [[SWIView alloc] initWithFrame:record.window.bounds];
+  // Give the scene a visible, interactive surface before its first Metal
+  // drawable.
+  record.view.backgroundColor = UIColor.systemBackgroundColor;
   record.view.multipleTouchEnabled = YES;
   record.view.owner = record;
   controller.view = record.view;

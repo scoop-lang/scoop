@@ -1,5 +1,6 @@
 package scoop.tests.ios
 
+import scoop.collections.HashSet
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.Duration
 import scoop.window.*
@@ -34,6 +35,49 @@ private class Probe(val host: Host) : ApplicationHandler {
     var mailbox: ApplicationProxy? = None
     var timer: WindowDeadline? = None
 
+    private val contacts = HashSet<ContactId>()
+
+    private fun checkContact(value: ContactState) {
+        val pointer = value.pointer
+        val metrics = window!!.metrics!!
+        if (pointer.scaleFactor !=
+            metrics.scaleFactor ||
+            pointer.physicalPosition !=
+            metrics.toPhysical(pointer.logicalPosition)
+        )
+            throw IllegalStateException(Some("touch coordinates use different view metrics"))
+    }
+    private fun touch(event: ContactEvent) {
+        when (event) {
+            case Began(val state) -> {
+                checkContact(state)
+                if (!contacts.add(state.id))
+                    throw IllegalStateException(Some("contact began twice"))
+                report(8)
+                if (contacts.size == 2L) report(12)
+            }
+
+            case Moved(val state) -> {
+                checkContact(state)
+                if (!contacts.contains(state.id))
+                    throw IllegalStateException(Some("moved unknown contact"))
+                report(9)
+            }
+
+            case Ended(val state) -> {
+                checkContact(state)
+                if (!contacts.remove(state.id))
+                    throw IllegalStateException(Some("ended unknown contact"))
+                report(10)
+            }
+
+            case Cancelled(val id, _, _) -> {
+                if (!contacts.remove(id))
+                    throw IllegalStateException(Some("cancelled unknown contact"))
+                report(11)
+            }
+        }
+    }
     fun report(value: Int) {
         @Unsafe {
             host.event(value)
@@ -81,6 +125,8 @@ private class Probe(val host: Host) : ApplicationHandler {
             case Window(val id, val change) -> {
                 if (id != window!!.id) throw IllegalStateException(Some("window identity changed"))
                 when (change) {
+                    case Contact(val value) -> touch(value)
+
                     case RedrawRequested -> {
                         inspectView(window!!);
                         report(3)

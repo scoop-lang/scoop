@@ -62,3 +62,5 @@ internal fun platformBackend(): WindowBackend = WindowBackend.UIKit
 @Unsafe
 internal fun platformNativeHandle(pointer: Ptr<Unit>): NativeWindowHandle = NativeWindowHandle
     .UIKit(iosUIWindow(pointer), iosView(pointer))
+
+internal fun platformModifiers(flags: Long): Modifiers = darwinModifiers(flags)

@@ -233,26 +233,3 @@ internal fun darwinKeyLocation(code: Long): KeyLocation {
         return KeyLocation.Numpad
     return KeyLocation.Standard
 }
-
-internal fun darwinModifiers(flags: Long): Modifiers =
-    Modifiers(
-        flags.and(131072L) != 0L,
-        flags.and(262144L) != 0L,
-        flags.and(524288L) != 0L,
-        flags.and(1048576L) != 0L,
-        flags.and(65536L) != 0L,
-        flags.and(8388608L) != 0L,
-        modifierSides(flags, 131072L, 2L, 4L),
-        modifierSides(flags, 262144L, 1L, 8192L),
-        modifierSides(flags, 524288L, 32L, 64L),
-        modifierSides(flags, 1048576L, 8L, 16L),
-        altGraph = Some(false)
-    )
-
-private fun modifierSides(flags: Long, aggregate: Long, left: Long, right: Long): ModifierSides {
-    if (flags.and(aggregate) == 0L)
-        return ModifierSides(Some(false), Some(false))
-    if (flags.and(left.or(right)) == 0L)
-        return ModifierSides(None, None)
-    return ModifierSides(Some(flags.and(left) != 0L), Some(flags.and(right) != 0L))
-}

@@ -15,6 +15,7 @@ typedef struct {
 @interface SWIEvent : NSObject
 @property(nonatomic) SWEventHeader header;
 @property(nonatomic) SWEventData data;
+@property(nonatomic) SWContactData contact;
 @property(nonatomic) SWISnapshot snapshot;
 @property(nonatomic, strong) SWIEvent *next;
 @end
@@ -33,6 +34,7 @@ typedef struct {
 @class SWIScene;
 @interface SWIView : UIView
 @property(nonatomic, weak) SWIScene *owner;
+- (void)cancelContacts:(SWPointerCancelReason)reason;
 @end
 
 @interface SWIScene : NSObject

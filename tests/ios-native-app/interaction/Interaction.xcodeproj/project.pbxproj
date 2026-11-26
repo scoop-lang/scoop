@@ -1,0 +1,98 @@
+// !$*UTF8*$!
+{
+  archiveVersion = 1;
+  classes = {};
+  objectVersion = 56;
+  objects = {
+    100000000000000000000001 = {
+      isa = PBXProject;
+      buildConfigurationList = 100000000000000000000002;
+      compatibilityVersion = "Xcode 14.0";
+      developmentRegion = en;
+      knownRegions = (en, Base);
+      mainGroup = 100000000000000000000003;
+      productRefGroup = 100000000000000000000004;
+      projectDirPath = "";
+      projectRoot = "";
+      targets = (100000000000000000000005);
+    };
+    100000000000000000000002 = {
+      isa = XCConfigurationList;
+      buildConfigurations = (100000000000000000000006);
+      defaultConfigurationIsVisible = 0;
+      defaultConfigurationName = Release;
+    };
+    100000000000000000000003 = {
+      isa = PBXGroup;
+      children = (100000000000000000000008, 100000000000000000000004);
+      sourceTree = "<group>";
+    };
+    100000000000000000000004 = {
+      isa = PBXGroup;
+      children = (100000000000000000000007);
+      name = Products;
+      sourceTree = "<group>";
+    };
+    100000000000000000000005 = {
+      isa = PBXNativeTarget;
+      buildConfigurationList = 100000000000000000000009;
+      buildPhases = (10000000000000000000000A);
+      buildRules = ();
+      dependencies = ();
+      name = InteractionTests;
+      productName = InteractionTests;
+      productReference = 100000000000000000000007;
+      productType = "com.apple.product-type.bundle.ui-testing";
+    };
+    100000000000000000000006 = {
+      isa = XCBuildConfiguration;
+      buildSettings = {
+        ALWAYS_SEARCH_USER_PATHS = NO;
+        SDKROOT = iphoneos;
+        IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+        SWIFT_VERSION = 5.0;
+        TARGETED_DEVICE_FAMILY = "1,2";
+      };
+      name = Release;
+    };
+    100000000000000000000007 = {
+      isa = PBXFileReference;
+      explicitFileType = wrapper.cfbundle;
+      includeInIndex = 0;
+      path = InteractionTests.xctest;
+      sourceTree = BUILT_PRODUCTS_DIR;
+    };
+    100000000000000000000008 = {
+      isa = PBXFileReference;
+      lastKnownFileType = sourcecode.swift;
+      path = InteractionTests.swift;
+      sourceTree = "<group>";
+    };
+    100000000000000000000009 = {
+      isa = XCConfigurationList;
+      buildConfigurations = (10000000000000000000000B);
+      defaultConfigurationIsVisible = 0;
+      defaultConfigurationName = Release;
+    };
+    10000000000000000000000A = {
+      isa = PBXSourcesBuildPhase;
+      buildActionMask = 2147483647;
+      files = (10000000000000000000000C);
+      runOnlyForDeploymentPostprocessing = 0;
+    };
+    10000000000000000000000B = {
+      isa = XCBuildConfiguration;
+      buildSettings = {
+        PRODUCT_BUNDLE_IDENTIFIER = "dev.scoop.ios-probe.interaction";
+        PRODUCT_NAME = "$(TARGET_NAME)";
+        GENERATE_INFOPLIST_FILE = YES;
+      };
+      name = Release;
+    };
+    10000000000000000000000C = {
+      isa = PBXBuildFile;
+      fileRef = 100000000000000000000008;
+    };
+  };
+  rootObject = 100000000000000000000001;
+}

@@ -8,7 +8,10 @@
 
 static ScoopWindowApi api;
 static __weak UIWindowScene *currentScene;
-static unsigned events[8];
+static unsigned events[13];
+static BOOL touchProbe;
+static __weak UIView *resultView;
+static UIWindow *interruptingWindow;
 static BOOL disconnecting;
 
 static void inspect(void *nativeWindow, void *nativeView,
@@ -18,6 +21,12 @@ static void inspect(void *nativeWindow, void *nativeView,
   assert(NSThread.isMainThread && window.windowScene == currentScene);
   assert(window.rootViewController.view == view &&
          [view.layer isKindOfClass:CAMetalLayer.class]);
+  if (touchProbe && !resultView) {
+    resultView = view;
+    view.isAccessibilityElement = YES;
+    view.accessibilityIdentifier = @"scoop-touch-result";
+    view.accessibilityLabel = @"Window contact probe";
+  }
   assert(view.multipleTouchEnabled && !window.hidden);
   assert(view.bounds.size.width == metrics.width &&
          view.bounds.size.height == metrics.height);
@@ -31,8 +40,35 @@ static void inspect(void *nativeWindow, void *nativeView,
 }
 
 static void event(int32_t kind) {
-  assert(NSThread.isMainThread && kind >= 1 && kind <= 7);
+  assert(NSThread.isMainThread && kind >= 1 && kind <= 12);
   events[kind]++;
+  if (touchProbe) {
+    if (events[10] == 1 && events[8] == 1)
+      resultView.accessibilityValue = @"tap delivered";
+    if (events[10] == 2 && events[8] == 2 && events[9] && !events[11])
+      resultView.accessibilityValue = @"drag delivered";
+    if (events[10] == 4 && events[8] == 4 && events[12] && !events[11])
+      resultView.accessibilityValue = @"two contacts delivered";
+    if (kind == 8 && events[8] == 5) {
+      // UIKit resigns the original key window during this contact.
+      dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *original = resultView.window;
+        interruptingWindow =
+            [[UIWindow alloc] initWithWindowScene:currentScene];
+        interruptingWindow.rootViewController = [UIViewController new];
+        [interruptingWindow makeKeyAndVisible];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 120 * NSEC_PER_MSEC),
+                       dispatch_get_main_queue(), ^{
+                         interruptingWindow.hidden = YES;
+                         interruptingWindow = nil;
+                         [original makeKeyAndVisible];
+                       });
+      });
+    }
+    if (events[11] == 1 && events[10] == 4)
+      resultView.accessibilityValue = @"contact cancelled";
+    return;
+  }
   if (!disconnecting && events[1] && events[2] && events[3] && events[4]) {
     disconnecting = YES;
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -70,6 +106,7 @@ static void event(int32_t kind) {
 @implementation WindowAppDelegate
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)options {
+  touchProbe = [NSProcessInfo.processInfo.arguments containsObject:@"--touch"];
   ScoopWindowHost host = {inspect, event};
   ScoopAppError error = {0};
   assert(scoop_app_init(&host, &api, &error) == SCOOP_APP_INIT_OK);

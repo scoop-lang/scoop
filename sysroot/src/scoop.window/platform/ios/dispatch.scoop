@@ -13,6 +13,14 @@ private fun ApplicationOwner.dispatch(event: Ptr<Unit>) {
         if (window.id.value != header.window || window.phase != WindowState.Open) continue
         val value = iosEventSnapshot(event)
         when (header.kind) {
+            21 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent.Contact(copyContactEvent(header, nativeEventContact(event)))
+                        )
+                )
             2 ->
                 notify(
                     ApplicationEvent.Window(window.id, WindowEvent.GeometryChanged(value.metrics()))

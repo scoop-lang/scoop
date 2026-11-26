@@ -55,6 +55,34 @@ path = "src/owner/deadlines.scoop"
 when = { os = "ios" }
 
 [[sources]]
+path = "src/input/contact.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/pointer.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/keyboard.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/input/time.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/text/commands.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "src/native/input/contacts.scoop"
+when = { os = "ios" }
+
+[[sources]]
+path = "platform/apple"
+when = { os = ["darwin", "ios"] }
+
+[[sources]]
 path = "platform/ios"
 when = { os = "ios" }
 
@@ -881,6 +909,10 @@ when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
 path = "native/ios/application.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/view.m"
 when = { os = "ios" }
 
 [[native.sources]]
