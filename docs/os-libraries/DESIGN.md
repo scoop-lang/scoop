@@ -1,6 +1,6 @@
 # Scoop 操作系统扩展库设计
 
-设计草案，2026-11-26。建议以 `scoop.os` 为命名前缀，按目标发布五个普通 library Cone。首批从 Unix 文件元数据和命名管道开始。iOS 单列是本草案的首版建议，依据和重新评估条件见第 2 节。
+设计草案，2026-11-26。建议以 `scoop.os` 为命名前缀，按目标发布五个普通 library Cone。首批从 Unix 文件元数据和命名管道开始。建议 iOS 的 UIKit 能力归入 `scoop.os.ios`，首版 `scoop.os.nix` 发布到 macOS 和 Linux。两项选择可以独立调整。
 
 ## 1. 库边界
 
@@ -20,9 +20,18 @@
 
 ## 2. iOS 是否应当单列
 
-评估对象是普通第三方 iOS 应用。如果 `nix` 只提供文件和 fd 原语，纳入 iOS 有明确收益。对 arm64 真机和模拟器 SDK 的声明检查中，`openat`、`read`、`write`、`dup` 和 `fstat` 均可编译。应用容器里的文件也确实有读写需求。这次检查的范围是目标头文件，具体文件系统行为还需在应用宿主中验证。[Apple 文件系统指南](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html)
+评估对象是普通第三方 iOS 应用。引入 `scoop.os.ios` 可以给 UIKit 专属能力一个明确入口。另一个问题是 iOS 应用能否同时依赖 `scoop.os.nix`，这取决于该 Cone 对使用者承诺哪些能力。
 
-覆盖完整 Unix 系统编程场景时，差异出现在一组操作能否组合使用。桌面工具可以启动 `git`、重定向标准流并等待退出。Apple 明确说明普通 iOS 应用不能自行派生子进程。Scoop 给子进程设置工作目录所用的 `posix_spawn_file_actions_addchdir` 及其 `_np` 版本也在 iOS SDK 标为不可用。另一些 API 虽可调用，用途却不同，例如 `getuid()` 可取得真实 UID，而普通 iOS 应用通常以同一 `mobile` 用户运行，应用隔离由沙盒实施。[Apple DTS 对子进程的说明](https://developer.apple.com/forums/thread/747499) · [Scoop 子进程实现](../../sysroot/src/scoop.platform/native/process.c) · [Apple 平台安全说明](https://support.apple.com/en-ie/guide/security-pdf/sec15bfe098e/1/web/1)
+| 候选能力 | 普通 iOS 应用中的依据 | 对公开接口的影响 |
+| --- | --- | --- |
+| 文件元数据 | 在 iPhoneOS 和 iPhoneSimulator 27.2 SDK 上，arm64 目标均通过了 `stat`、`lstat`、`fstat` 的声明检查。应用也有读取自己容器内文件属性的用例。 | `unixMetadata` 是值得在三端共享的候选，需在真机上核对符号链接、文件身份和路径错误。 |
+| 文件描述符与 FIFO | 同一检查中，`openat`、`read`、`write`、`dup`、`mkfifo` 均可编译。 | 已有 fd 的读写与创建命名管道是两种能力。`createFifo` 在应用容器中的创建、打开和传输仍待真机验证。 |
+| 子进程与进程组 | 普通 iOS 应用不能自行派生子进程。 | 若 `nix` 提供启动子进程、重定向并等待退出的组合，iOS 无法承诺这套语义。 |
+| 受保护数据 | UIKit 的 `isProtectedDataAvailable` 查询当前应用的数据保护状态。 | 归入 `ios.app`，与文件 API 是否将来加入三端共享无关。 |
+
+SDK 检查使用 `xcrun clang -fsyntax-only`，覆盖设备与模拟器的目标头文件。设备上的沙盒及文件系统行为仍以实际应用调用为准。[Apple 文件系统指南](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html) · [Apple DTS 对子进程的说明](https://developer.apple.com/forums/thread/747499) · [UIKit 数据保护状态](https://developer.apple.com/documentation/uikit/uiapplication/isprotecteddataavailable)
+
+Scoop 给子进程设置工作目录所用的 `posix_spawn_file_actions_addchdir` 及其 `_np` 版本也在 iOS SDK 标为不可用。另一些接口虽可调用，用途却不同。例如 `getuid()` 可取得真实 UID，而普通 iOS 应用通常以同一 `mobile` 用户运行，应用隔离由沙盒实施。[Scoop 子进程实现](../../sysroot/src/scoop.platform/native/process.c) · [Apple 平台安全说明](https://support.apple.com/en-ie/guide/security-pdf/sec15bfe098e/1/web/1)
 
 首版建议让 macOS、Linux 的调用方可以依赖 `nix` 的完整公开接口，iOS 真机和模拟器则独立发布 `scoop.os.ios`。这样可以按 Unix 程序的需要规划进程和 IPC 接口，代价是 iOS 调用方暂时无法以同一条 import 使用其中的文件子集。目前 `scoop.platform` 的 POSIX 源集选择 macOS 和 Linux，两个 iOS sysroot 也只列出 core 和 std。[平台清单](../../sysroot/src/scoop.platform/Cone.toml) · [发行目标配置](../../scripts/release.toml)
 
