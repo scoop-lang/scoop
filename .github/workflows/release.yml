@@ -276,12 +276,25 @@ jobs:
                   '-o', installed.parent / f'ScoopProbe-{target}',
               ], cwd=installed.parent, check=True)
           for target in targets:
+              options = ['--release', '--target', target, '--sysroot', str(installed)]
               result = subprocess.run(
-                  [str(driver), 'run', str(program), '--release', '--target', target, '--sysroot', str(installed)],
+                  [str(driver), 'run', str(program), *options],
                   cwd=installed.parent, text=True, stdout=subprocess.PIPE, check=True,
               )
               if result.stdout.strip() != 'Scoop release smoke':
                   raise SystemExit(f'Unexpected program output for {target}: {result.stdout!r}')
+              if TARGETS[target]['env'] == 'musl':
+                  pie = installed.parent / f'hello-{target}-dynamic'
+                  subprocess.run(
+                      [driver, 'build', program, *options, '--link-mode', 'dynamic', '-o', pie],
+                      cwd=installed.parent, check=True,
+                  )
+                  headers = subprocess.check_output(['readelf', '-Wld', pie], text=True)
+                  loader = f"/lib/ld-musl-{TARGETS[target]['arch']}.so.1"
+                  if loader not in headers or '[libc.so]' not in headers:
+                      raise SystemExit(f'Expected {loader} and libc.so in {pie}')
+                  if subprocess.check_output([pie], text=True).strip() != 'Scoop release smoke':
+                      raise SystemExit(f'Unexpected output from the dynamic musl program for {target}')
           if not (installed / 'docs/index.html').is_file():
               raise SystemExit('Post-install did not generate API documentation')
           upload = Path('tmp/release-upload')
