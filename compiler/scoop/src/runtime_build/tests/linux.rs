@@ -2,7 +2,8 @@ use super::*;
 
 #[test]
 fn musl_runtime_captures_selected_unwind_headers_without_needing_the_archive() {
-    let target = ResolvedTargetProfile::resolve("x86_64-linux-musl").unwrap();
+    let triple = format!("{}-unknown-linux-musl", std::env::consts::ARCH);
+    let target = ResolvedTargetProfile::resolve(&triple).unwrap();
     let directory = tempfile::tempdir().unwrap();
     let prefix = directory.path().join("unwind");
     let include = prefix.join("include");
@@ -30,10 +31,7 @@ fn musl_runtime_captures_selected_unwind_headers_without_needing_the_archive() {
     assert!(!first.cache_hit());
     assert!(build().cache_hit());
     assert!(first.input_paths().contains(&include.join("unwind.h")));
-    assert_eq!(
-        first.objects().target(),
-        scoop_target_data::LINUX_X86_64_MUSL
-    );
+    assert_eq!(first.objects().target(), target.lir_target());
     let header = include.join("unwind.h");
     let mut changed = std::fs::read(&header).unwrap();
     changed.extend_from_slice(b"\n/* Selected unwind headers changed. */\n");
