@@ -1,12 +1,16 @@
-; Exercise the actual LLVM 22.1 stack map and SysV entry ABI at O0 and O2.
+; Exercise the actual LLVM 22.1 stack map and Linux managed entry ABI at O0 and O2.
+declare void @check_probe_arguments(i64, i64)
+declare void @check_inner(ptr addrspace(1))
 declare void @scoop_rt_safepoint()
 declare void @scoop_rt_context_ensure_root(i64)
 declare void @scoop_rt_string_concat(i64, i64)
 declare void @scoop_rt_context_push(i64, i64, i64)
 declare token @llvm.experimental.gc.statepoint.p0(i64 immarg, i32 immarg, ptr, i32 immarg, i32 immarg, ...)
+declare ptr addrspace(1) @llvm.experimental.gc.result.p1(token)
 declare ptr addrspace(1) @llvm.experimental.gc.relocate.p1(token, i32 immarg, i32 immarg)
 
-define ptr addrspace(1) @probe0(ptr addrspace(1) %root) #0 gc "statepoint-example" {
+define ptr addrspace(1) @probe0(ptr addrspace(1) %root, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6, i64 %a7, i64 %a8, i64 %a9) #0 gc "statepoint-example" {
+  call void @check_probe_arguments(i64 %a8, i64 %a9)
   %t = call token (i64, i32, ptr, i32, i32, ...) @llvm.experimental.gc.statepoint.p0(i64 1, i32 0, ptr elementtype(void ()) @scoop_rt_safepoint, i32 0, i32 0, i32 0, i32 0) [ "gc-live"(ptr addrspace(1) %root) ]
   %r = call coldcc ptr addrspace(1) @llvm.experimental.gc.relocate.p1(token %t, i32 0, i32 0)
   ret ptr addrspace(1) %r
@@ -31,8 +35,10 @@ define ptr addrspace(1) @probe3(ptr addrspace(1) %root) #0 gc "statepoint-exampl
 }
 
 define ptr addrspace(1) @outer(ptr addrspace(1) %root) #0 gc "statepoint-example" {
-  %t = call token (i64, i32, ptr, i32, i32, ...) @llvm.experimental.gc.statepoint.p0(i64 5, i32 0, ptr elementtype(ptr addrspace(1) (ptr addrspace(1))) @probe0, i32 1, i32 0, ptr addrspace(1) %root, i32 0, i32 0) [ "gc-live"(ptr addrspace(1) %root) ]
+  %t = call token (i64, i32, ptr, i32, i32, ...) @llvm.experimental.gc.statepoint.p0(i64 5, i32 0, ptr elementtype(ptr addrspace(1) (ptr addrspace(1), i64, i64, i64, i64, i64, i64, i64, i64, i64)) @probe0, i32 10, i32 0, ptr addrspace(1) %root, i64 11, i64 22, i64 33, i64 44, i64 55, i64 66, i64 77, i64 88, i64 99, i32 0, i32 0) [ "gc-live"(ptr addrspace(1) %root) ]
+  %inner = call ptr addrspace(1) @llvm.experimental.gc.result.p1(token %t)
   %r = call coldcc ptr addrspace(1) @llvm.experimental.gc.relocate.p1(token %t, i32 0, i32 0)
+  call void @check_inner(ptr addrspace(1) %inner)
   ret ptr addrspace(1) %r
 }
 

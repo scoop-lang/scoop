@@ -200,7 +200,7 @@ fn final_link_strips_internal_names_and_keeps_runtime_data() {
     assert_eq!(run(&stripped.path), b"42\n");
 }
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[cfg(target_os = "linux")]
 #[test]
 fn elf_shared_library_link_tracks_real_symbol_version_updates() {
     let fixture = test_support::native_fixture();

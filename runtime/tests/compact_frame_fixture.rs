@@ -8,6 +8,11 @@ use object::{Object, ObjectSection};
 pub fn write(object: &Path, header: &Path) {
     let bytes = std::fs::read(object).unwrap();
     let file = object::File::parse(bytes.as_slice()).unwrap();
+    let (fp, sp) = match file.architecture() {
+        object::Architecture::X86_64 => (6, 7),
+        object::Architecture::Aarch64 => (29, 31),
+        other => panic!("no frame registers for {other:?}"),
+    };
     let section = file.section_by_name(".llvm_stackmaps").unwrap();
     let parsed = scoop_slib::parse_llvm_stackmap_section_v3(section.data().unwrap()).unwrap();
     assert_eq!(parsed.record_count(), 5);
@@ -22,9 +27,9 @@ pub fn write(object: &Path, header: &Path) {
         let root = site.locations()[3];
         assert_eq!(root, site.locations()[4]);
         assert_eq!((root.kind(), root.size()), (3, 8));
-        assert!(matches!(root.dwarf_register(), 6 | 7));
+        assert!([fp, sp].contains(&root.dwarf_register()));
         assert_eq!(root.offset() % 8, 0);
-        let encoded = root.offset() as u32 | u32::from(root.dwarf_register() == 6);
+        let encoded = root.offset() as u32 | u32::from(root.dwarf_register() == fp);
         let offset = site.instruction_offset();
         let stack_size = function.stack_size();
         writeln!(source, "static const struct {{ ScoopCallableGcMapV1 map; ScoopGcSiteV1 site; uint32_t roots[2]; }} gc_{id} = {{").unwrap();

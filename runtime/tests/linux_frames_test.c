@@ -6,9 +6,11 @@
 
 #include "../src/platform/platform.h"
 
-extern const ScoopManagedFrameOps scoop_sysv_amd64_managed_frame_ops;
+extern const ScoopManagedFrameOps SCOOP_PLATFORM_MANAGED_FRAME_OPS;
 extern const ScoopThreadVmOps scoop_linux_thread_vm_ops;
-extern void *probe0(void *), *probe1(void *), *probe2(void *), *probe3(void *);
+extern void *probe0(void *, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+                    uint64_t, uint64_t);
+extern void *probe1(void *), *probe2(void *), *probe3(void *);
 extern void *outer(void *);
 
 #include "compact_frames.h"
@@ -19,7 +21,7 @@ static int old_value, new_value;
 static unsigned expected_depth, visits;
 
 static void relocate(uintptr_t pc, uintptr_t sp, uintptr_t fp) {
-    const ScoopManagedFrameOps *ops = &scoop_sysv_amd64_managed_frame_ops;
+    const ScoopManagedFrameOps *ops = &SCOOP_PLATFORM_MANAGED_FRAME_OPS;
     ScoopPlatformStackBounds bounds;
     ScoopPlatformError error = {0};
     assert(scoop_linux_thread_vm_ops.stack_bounds(&bounds, &error));
@@ -61,8 +63,12 @@ void scoop_rt_context_push_impl(uint64_t a, uint64_t b, uint64_t c, uintptr_t pc
     relocate(pc, sp, fp);
 }
 
-static void reject_bad_roots(void) {
-    const ScoopManagedFrameOps *ops = &scoop_sysv_amd64_managed_frame_ops;
+void check_probe_arguments(uint64_t a8, uint64_t a9) { assert(a8 == 88 && a9 == 99); }
+void check_inner(void *relocated) { assert(relocated == &new_value); }
+
+#ifdef __x86_64__
+static void reject_bad_amd64_roots(void) {
+    const ScoopManagedFrameOps *ops = &SCOOP_PLATFORM_MANAGED_FRAME_OPS;
     struct {
         ScoopCallableGcMapV1 map;
         ScoopGcSiteV1 site;
@@ -97,6 +103,8 @@ static void reject_bad_roots(void) {
     assert(!ops->validate_record(&record, &error));
 }
 
+#endif
+
 static void *thread_bounds(void *unused) {
     (void)unused;
     ScoopPlatformStackBounds bounds;
@@ -113,18 +121,20 @@ int main(void) {
     ScoopPlatformError error = {0};
     for (size_t i = 0; i < stackmaps.record_count; ++i) {
         assert(
-            scoop_sysv_amd64_managed_frame_ops.validate_record(&stackmaps.records[i], &error));
+            SCOOP_PLATFORM_MANAGED_FRAME_OPS.validate_record(&stackmaps.records[i], &error));
     }
     boundary = (uintptr_t)__builtin_frame_address(0);
     expected_depth = 1;
-    assert(probe0(&old_value) == &new_value);
+    assert(probe0(&old_value, 11, 22, 33, 44, 55, 66, 77, 88, 99) == &new_value);
     assert(probe1(&old_value) == &new_value);
     assert(probe2(&old_value) == &new_value);
     assert(probe3(&old_value) == &new_value);
     expected_depth = 2;
     assert(outer(&old_value) == &new_value);
     assert(visits == 5);
-    reject_bad_roots();
+#ifdef __x86_64__
+    reject_bad_amd64_roots();
+#endif
     thread_bounds(NULL);
     pthread_t thread;
     assert(pthread_create(&thread, NULL, thread_bounds, NULL) == 0);
@@ -138,5 +148,5 @@ int main(void) {
     assert(scoop_linux_thread_vm_ops.protect_none(mapping, page, &error));
     assert(scoop_linux_thread_vm_ops.release_mapping(mapping, page, &error));
     scoop_stackmap_dispose_index(&stackmaps);
-    puts("amd64 anchors, relocated roots and Linux VM passed");
+    puts("Nested anchors, relocated roots and Linux VM passed");
 }

@@ -41,11 +41,7 @@ fn build_fixture(root_fixture: &str, native: bool) -> Fixture {
         compiler.is_file(),
         "build the paired scoopc before program-link tests"
     );
-    let triple = if cfg!(target_os = "linux") {
-        "x86_64-unknown-linux-gnu"
-    } else {
-        "aarch64-apple-darwin"
-    };
+    let triple = scoop_toolchain::host_target_triple().unwrap();
     let target = ResolvedTargetProfile::resolve(triple).unwrap();
     let sysroot = std::env::var_os("SCOOP_SYSROOT")
         .map(PathBuf::from)
