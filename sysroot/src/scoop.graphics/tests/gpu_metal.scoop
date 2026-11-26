@@ -1,7 +1,7 @@
 package scoop.graphics
 
 import scoop.graphics.native.RenderTarget
-import scoop.graphics.native.macos.MetalContext
+import scoop.graphics.native.metal.MetalContext
 import scoop.tests.graphics.TestMetalSurface
 import scoop.tests.graphics.TestMetalWrite
 import scoop.tests.graphics.testMetalPixelFormat

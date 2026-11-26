@@ -11,7 +11,7 @@ path = "tests"
 
 [[test.sources]]
 path = "test-platform/fused"
-when = {env = ["none", "gnu", "musl", "msvc-ucrt", "llvm-mingw-ucrt"]}
+when = {env = ["none", "simulator", "gnu", "musl", "msvc-ucrt", "llvm-mingw-ucrt"]}
 
 [[test.sources]]
 path = "test-platform/msvcrt"
@@ -32,4 +32,4 @@ path = "native/hypot.c"
 
 [[native.libraries]]
 name = "m"
-when = {os = ["darwin", "linux"]}
+when = {os = ["darwin", "ios", "linux"]}

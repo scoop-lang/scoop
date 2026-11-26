@@ -2,7 +2,7 @@ package scoop.graphics.text
 
 import scoop.graphics.*
 import scoop.graphics.native.*
-import scoop.graphics.native.macos.MetalContext
+import scoop.graphics.native.metal.MetalContext
 import scoop.tests.graphics.TestMetalSurface
 import scoop.test.*
 

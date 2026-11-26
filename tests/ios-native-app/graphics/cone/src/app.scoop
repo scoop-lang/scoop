@@ -1,0 +1,93 @@
+package scoop.tests.ios
+
+import scoop.charset.Charset
+import scoop.collections.contains
+import scoop.graphics.*
+import scoop.graphics.svg.*
+import scoop.graphics.text.*
+import scoop.icons.lucide.plus
+
+@CLayout
+private struct GraphicsResult(val lines: Int, val textPixels: Int)
+
+private fun channel(pixels: Array<Byte>, x: Int, y: Int, component: Int): Int = pixels[
+    ((y * 112 + x) * 4 + component).toLong()
+]
+    .toInt()
+    .and(255)
+
+private fun drawLayout(layout: TextLayout): Int {
+    val surface = RasterSurface(112, 100)
+    try {
+        val icon = SvgDocument.parse(plus.source)
+        try {
+            surface
+                .draw { canvas ->
+                    canvas.clear(Color.Transparent)
+                    canvas.drawRect(Rect(0.0, 0.0, 8.0, 8.0), Paint(Color(0.0, 1.0, 0.0)))
+                    canvas
+                        .drawSvg(
+                            icon, Rect(0.0, 12.0, 24.0, 24.0),
+                            SvgDrawOptions(currentColor = Some(Color(1.0, 0.0, 0.0)))
+                        )
+                    canvas.drawText(layout, Point(40.0, 0.0))
+                }
+        } finally {
+            icon.close()
+        }
+        val pixels = surface.readPixels()
+        if (channel(pixels, 4, 4, 1) !=
+            255 ||
+            channel(pixels, 12, 24, 0) !=
+            255 ||
+            channel(pixels, 1, 13, 3) !=
+            0
+        )
+            throw IllegalStateException(Some("incorrect raster or SVG pixels"))
+        var textPixels = 0
+        for (y in 0..<100)
+            for (x in 40..<112)
+                if (channel(pixels, x, y, 3) > 0) textPixels += 1
+        return textPixels
+    } finally {
+        surface.close()
+    }
+}
+
+private fun exercise(fonts: FontCollection): GraphicsResult {
+    val charset = Charset.forName("GBK")
+    val chinese = charset.decode(charset.encode("中文"))
+    if (chinese != "中文") throw IllegalStateException(Some("charset round trip failed"))
+    val paragraph = Paragraph(fonts, chinese + "🙂" + chinese, textStyle { fontSize = 20.0 })
+    try {
+        val layout = paragraph.layout(44.0)
+        try {
+            val expected: Array<Long> = [0L, 3L, 6L, 10L, 13L, 16L]
+            if (layout.unresolvedGlyphCount != 0 || layout.graphemeBoundaries.size != expected.size)
+                throw IllegalStateException(Some("missing system glyph or grapheme"))
+            for (i in 0L..<expected.size)
+                if (layout.graphemeBoundaries[i] != expected[i])
+                    throw IllegalStateException(Some("incorrect UTF-8 grapheme boundary"))
+            for (line in layout.lines) {
+                val offset = layout.hitTest(Point(10.0, line.baseline)).byteOffset
+                if (!expected.contains(offset))
+                    throw IllegalStateException(Some("hit test divided a grapheme"))
+            }
+            return GraphicsResult(layout.lines.size.toInt(), drawLayout(layout))
+        } finally {
+            layout.close()
+        }
+    } finally {
+        paragraph.close()
+    }
+}
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    val fonts = FontCollection()
+    try {
+        outAppApi.cast<GraphicsResult>().store(exercise(fonts))
+    } finally {
+        fonts.close()
+    }
+}
