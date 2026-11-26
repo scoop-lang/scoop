@@ -13,7 +13,8 @@
 `scoop build . --release --target aarch64-unknown-linux-musl --link-mode dynamic` 生成使用 musl 加载器的 ARM64 可执行文件。独立的 `scoop-link` 也接受该选项。用 GNU 目标重链接 musl 的 `.slib` 时实际得到 E2404。[CLI 构建与重链接](../../tests/fixtures/driver/linux/cli-program/fixture.toml) · [musl 动态用例](../../tests/fixtures/driver/linux/cli-program/pie.fixture.toml) · [Linux 共享库用例](../../tests/fixtures/driver/linux/native-dso/fixture.toml)
 
 - 原生 GNU 的 7 个和 musl 的 8 个定向 fixture 均通过。覆盖 C ABI 的 HFA 和栈参数、Scoop 小值、深递归、原生回调、DSO 符号版本和线程局部存储。GNU 动态、musl 静态与动态的异常展开均执行了清理、捕获及释放。[AAPCS64 互调用例](../../tests/fixtures/compiler-correctness/direct-c/linux-aapcs64/fixture.toml) · [展开探测](../../scripts/check_linux_unwind.py)
-- 两套目标均已用本机工具生成 `scoop.tls.slib` 和 `scoop.asyncio.slib`。Bookworm 上的构建覆盖了 32 字节 ELF 常量池、musl 原子操作辅助函数和 Linux UAPI 头的实际使用。[ELF 常量池修复](https://github.com/scoop-lang/scoop/pull/249) · [musl 最终链接修复](https://github.com/scoop-lang/scoop/pull/247) · [liburing 头文件修复](https://github.com/scoop-lang/scoop/pull/248)
+- GNU 和 musl 各构建了 28 个非图形基础库。每种目标均在 release 模式下运行 35 个库及消费者测试 Cone，共 2,104 项，2,094 项通过，10 项按用例声明忽略，0 项失败。两种目标的 core 消费者各通过 142 项测试，HTTP 客户端各通过 254 项。[core 消费者](../../sysroot/src/scoop.core/consumer-tests) · [HTTP 客户端测试](../../sysroot/src/scoop.http.client/tests)
+- Bookworm 上的构建覆盖了宽字符字符串、32 字节 ELF 常量池、musl 原子操作辅助函数和 Linux UAPI 头的实际使用。[宽字符常量修复](https://github.com/scoop-lang/scoop/pull/250) · [ELF 常量池修复](https://github.com/scoop-lang/scoop/pull/249) · [musl 最终链接修复](https://github.com/scoop-lang/scoop/pull/247) · [liburing 头文件修复](https://github.com/scoop-lang/scoop/pull/248)
 
 ## GC 与页大小
 
