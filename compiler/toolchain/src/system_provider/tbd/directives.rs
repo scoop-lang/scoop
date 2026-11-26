@@ -3,6 +3,7 @@ use super::*;
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PreviousExport {
     pub install_name: String,
+    pub current_version: u32,
     pub compatibility_version: u32,
     pub interface: NativeExport,
 }
@@ -21,9 +22,10 @@ impl StubDirectives {
         directive: &str,
         platform: ApplePlatform,
         deployment: DarwinPackedVersionV1,
+        record: &Record,
     ) -> Result<(), ToolchainError> {
         if let Some(previous) = directive.strip_prefix("$ld$previous$") {
-            return self.previous(exports, previous, platform, deployment);
+            return self.previous(exports, previous, platform, deployment, record);
         }
         let mut parts = directive.trim_start_matches("$ld$").splitn(3, '$');
         let operation = parts.next().unwrap_or_default();
@@ -63,6 +65,7 @@ impl StubDirectives {
         directive: &str,
         target: ApplePlatform,
         deployment: DarwinPackedVersionV1,
+        record: &Record,
     ) -> Result<(), ToolchainError> {
         let fields: Vec<_> = directive.splitn(6, '$').collect();
         let [name, compatibility, platform, start, end, symbol] = fields.as_slice() else {
@@ -72,7 +75,9 @@ impl StubDirectives {
         let platform: u32 = platform.parse().map_err(|_| invalid(directive))?;
         let start = parse_version(start)?;
         let end = parse_version(end)?;
-        let compatibility = parse_compatibility(compatibility)?;
+        let version = (!compatibility.is_empty())
+            .then(|| parse_version(compatibility))
+            .transpose()?;
         if name.is_empty() || start > end {
             return Err(invalid(directive));
         }
@@ -84,7 +89,9 @@ impl StubDirectives {
         }
         if symbol.is_empty() {
             self.install_name = Some((*name).to_owned());
-            self.compatibility_version = Some(compatibility);
+            if let Some(version) = version {
+                self.compatibility_version = Some(version);
+            }
         } else {
             let interface = *exports.entry(symbol.to_owned()).or_insert(NativeExport {
                 kind: SystemExportKind::Symbol,
@@ -94,7 +101,8 @@ impl StubDirectives {
                 symbol.to_owned(),
                 PreviousExport {
                     install_name: (*name).to_owned(),
-                    compatibility_version: compatibility,
+                    current_version: version.unwrap_or(record.current_version),
+                    compatibility_version: version.unwrap_or(record.compatibility_version),
                     interface,
                 },
             );
@@ -104,6 +112,9 @@ impl StubDirectives {
 }
 
 fn parse_version(value: &str) -> Result<u32, ToolchainError> {
+    if matches!(value, "0" | "0.0" | "0.0.0") {
+        return Ok(0);
+    }
     let value = if value.contains('.') {
         value.to_owned()
     } else {
@@ -115,7 +126,7 @@ fn parse_version(value: &str) -> Result<u32, ToolchainError> {
 
 fn parse_compatibility(value: &str) -> Result<u32, ToolchainError> {
     match value {
-        "" | "0" | "0.0" | "0.0.0" => Ok(0),
+        "" => Ok(0),
         _ => parse_version(value),
     }
 }

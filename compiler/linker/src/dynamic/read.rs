@@ -34,6 +34,7 @@ pub(crate) fn read(
             Ok(Arc::new(DynamicProvider {
                 id,
                 input,
+                directive_only: false,
                 install_name: record.install_name,
                 current_version: record.current_version,
                 compatibility_version: record.compatibility_version,
@@ -143,6 +144,7 @@ pub(crate) fn read(
     Ok(vec![Arc::new(DynamicProvider {
         id,
         input,
+        directive_only: false,
         install_name: commands.name,
         current_version: commands.current,
         compatibility_version: commands.compatibility,

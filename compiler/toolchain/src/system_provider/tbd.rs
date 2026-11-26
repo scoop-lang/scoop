@@ -228,7 +228,7 @@ impl Record {
         }
         let mut result = StubDirectives::default();
         for directive in directives {
-            result.apply(exports, directive, platform, deployment)?;
+            result.apply(exports, directive, platform, deployment, self)?;
         }
         Ok(result)
     }

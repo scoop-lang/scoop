@@ -126,6 +126,7 @@ impl SystemProvider {
                         .entry(symbol.clone())
                         .or_insert(PreviousExport {
                             install_name: install_name.clone(),
+                            current_version: record.current_version,
                             compatibility_version: directives
                                 .compatibility_version
                                 .unwrap_or(record.compatibility_version),

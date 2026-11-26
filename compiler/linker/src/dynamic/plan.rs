@@ -24,6 +24,7 @@ impl DynamicInputs {
                     LoadKind::Normal => 0,
                     LoadKind::Weak => 1,
                     LoadKind::Reexport => 2,
+                    LoadKind::Previous { .. } => 3,
                 })?;
                 e.unsigned(u64::from(dependency.compatibility_version))?;
                 match self.edges[&(provider.id, index)] {
@@ -97,6 +98,7 @@ impl DynamicInputs {
                         LoadKind::Normal => "load",
                         LoadKind::Weak => "weak-load",
                         LoadKind::Reexport => "re-export",
+                        LoadKind::Previous { .. } => "previous",
                     },
                     edge.name,
                     match self.edges[&(provider.id, index)] {

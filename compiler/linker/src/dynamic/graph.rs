@@ -35,6 +35,7 @@ impl DynamicInputs {
         let provider = Arc::new(DynamicProvider {
             id,
             input,
+            directive_only: false,
             install_name: system.install_name().into(),
             current_version: system.current_version(),
             compatibility_version: system.compatibility_version(),
@@ -68,6 +69,7 @@ impl DynamicInputs {
         let mut names = self
             .providers
             .values()
+            .filter(|p| !p.directive_only)
             .map(|p| (p.install_name.clone(), p.id))
             .collect();
         for file in native.ordered_files() {
@@ -97,6 +99,11 @@ impl DynamicInputs {
                     Some(LoadTarget::Provider(_)) => continue,
                     Some(LoadTarget::AbsentWeak) if !names.contains_key(&edge.name) => continue,
                     _ => {}
+                }
+                if let LoadKind::Previous { current_version } = edge.kind {
+                    let target = self.previous_target(&provider, edge, current_version, profile)?;
+                    self.edges.insert((id, index), LoadTarget::Provider(target));
+                    continue;
                 }
                 let target = if let Some(target) = names.get(&edge.name) {
                     *target
@@ -152,6 +159,33 @@ impl DynamicInputs {
         Ok(())
     }
 
+    // SDK previous-symbol directives can name a system image with no public stub.
+    fn previous_target(
+        &mut self,
+        parent: &DynamicProvider,
+        edge: &LoadDependency,
+        current_version: u32,
+        profile: &ValidatedFinalLinkProfile,
+    ) -> Result<NativeDynamicProviderId, LinkError> {
+        let input = parent.input;
+        let id = DynamicProvider::id(input, &edge.name, profile)?;
+        self.providers.entry(id).or_insert_with(|| {
+            Arc::new(DynamicProvider {
+                id,
+                input,
+                directive_only: true,
+                install_name: edge.name.clone(),
+                current_version,
+                compatibility_version: edge.compatibility_version,
+                exports: BTreeMap::new(),
+                dependencies: Vec::new(),
+                rpaths: Vec::new(),
+                locator: parent.locator.clone(),
+            })
+        });
+        Ok(id)
+    }
+
     fn insert(
         &mut self,
         record: Arc<DynamicProvider>,
@@ -170,7 +204,14 @@ impl DynamicInputs {
                 ),
             ));
         }
-        self.providers.entry(record.id).or_insert(record);
+        self.providers
+            .entry(record.id)
+            .and_modify(|current| {
+                if current.directive_only {
+                    *current = record.clone();
+                }
+            })
+            .or_insert(record);
         Ok(())
     }
 
@@ -180,10 +221,14 @@ impl DynamicInputs {
         roots: &[PathBuf],
         profile: &ValidatedFinalLinkProfile,
     ) -> Result<(), LinkError> {
+        let mut by_name =
+            BTreeMap::from([(&self.providers[&self.system].install_name, self.system)]);
         let mut imports: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
         for (symbol, binding) in bindings {
+            let name = &self.providers[&binding.owner].install_name;
+            let owner = *by_name.entry(name).or_insert(binding.owner);
             imports
-                .entry(binding.owner)
+                .entry(owner)
                 .or_default()
                 .insert(symbol.clone(), binding.interface);
         }
@@ -202,6 +247,9 @@ impl DynamicInputs {
             }
             let provider = &self.providers[&id];
             for (index, edge) in provider.dependencies.iter().enumerate() {
+                if matches!(edge.kind, LoadKind::Previous { .. }) {
+                    continue;
+                }
                 let Some(child) = self.edges[&(id, index)].provider() else {
                     continue;
                 };
