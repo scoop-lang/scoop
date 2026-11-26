@@ -55,11 +55,13 @@ public class EventFd private constructor() : Closeable {
     @Unsafe
     public fun <R> withFileDescriptor(block: (Int) -> R): R {
         if (isClosed) throw IllegalStateException(Some("eventfd is closed"))
+        val owner = getGcHandle(this)
         borrows.fetchAdd(1L, MemoryOrder.Relaxed)
         try {
             return block(descriptor)
         } finally {
             borrows.fetchSub(1L, MemoryOrder.Relaxed)
+            releaseGcHandle(owner)
         }
     }
 

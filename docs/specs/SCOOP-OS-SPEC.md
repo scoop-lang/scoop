@@ -14,7 +14,7 @@
 
 `scoop.os.linux.io.EventFd` 在 Linux GNU 和 musl 上由 `scoop.os.linux` 提供。open() 创建初值为零的非阻塞、close-on-exec 普通 eventfd。`tryAdd(value: ULong): Boolean` 成功返回 true，空间不足返回 false，ULong.MAX_VALUE 抛 IllegalArgumentException。`tryTake(): ULong?` 返回累计值并清零，空计数器返回 None。无进度的 EINTR 重试，其余系统错误保留 PosixErrno。
 
-EventFd 实现 Closeable，有 isClosed 属性。`@Unsafe fun <R> withFileDescriptor(block: (Int) -> R): R` 同步借用原生 fd，调用者在回调结束前退订借入 fd 的监听，不得关闭、转移或留存 fd。借用中重入 close 抛 IllegalStateException。调用者同步跨线程的关闭与使用。正常关闭先使对象失效，再关闭 fd 一次。关闭后拒绝新读写和借用，重复关闭无操作。
+EventFd 实现 Closeable，有 isClosed 属性。`@Unsafe fun <R> withFileDescriptor(block: (Int) -> R): R` 同步借用原生 fd，所有者在回调返回或抛出前保持存活。调用者在回调结束前退订借入 fd 的监听，不得关闭、转移或留存 fd。借用中重入 close 抛 IllegalStateException。调用者同步跨线程的关闭与使用。正常关闭先使对象失效，再关闭 fd 一次。关闭后拒绝新读写和借用，重复关闭无操作。
 
 ## Windows 注册表
 
