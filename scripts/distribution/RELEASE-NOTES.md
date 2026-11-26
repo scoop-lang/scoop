@@ -4,7 +4,7 @@
 
 版本 tag 通过 GitHub Release workflow 构建 macOS AArch64、Windows x64、Linux GNU x64 和 ARM64 的宿主组件包与各目标 lib 包。官网提供 `curl -fsSL https://scoop-lang.org/install.sh | sh`，完成组件包下载、解压、post-install 和 shell PATH 配置。
 
-Linux ARM64 默认安装 GNU 宿主与 glibc 基础库。可追加 `lib-base-aarch64-unknown-linux-musl` 构建静态 CLI，或追加 `lib-gui-aarch64-unknown-linux-gnu` 构建 GTK／libadwaita 桌面应用。构建环境为 Ubuntu 26.04.1，GNU 与 musl 的发行基线分别为 glibc 2.43 和 musl 1.2.5。
+Linux ARM64 默认安装 GNU 宿主与 glibc 基础库。追加 `lib-base-aarch64-unknown-linux-musl` 后，musl CLI 默认静态链接，显式指定 `--link-mode dynamic` 可生成使用 `/lib/ld-musl-aarch64.so.1` 的动态 PIE。追加 `lib-gui-aarch64-unknown-linux-gnu` 可构建 GTK／libadwaita 桌面应用。构建环境为 Ubuntu 26.04.1，GNU 与 musl 的发行基线分别为 glibc 2.43 和 musl 1.2.5。
 
 Windows 工具包的主驱动安装为 `sco.exe`，例如 `sco build`、`sco run`、`sco pm` 和 `sco example`，避免与 Windows Scoop 包管理器重名。其他 Scoop 可执行程序保留原名，外部命令仍为 `scoop-<command>.exe`。macOS／Linux 的主驱动继续使用 `scoop`，交叉编译目标不影响宿主命令名称。
 

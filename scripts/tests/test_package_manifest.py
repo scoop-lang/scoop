@@ -41,12 +41,13 @@ class ManifestTests(unittest.TestCase):
             tomllib.loads(RELEASE_CONFIG.read_text()),
         )
 
-    def test_three_hosts_share_one_source_selection_and_keep_target_dependencies(self):
+    def test_release_hosts_share_one_source_selection_and_keep_target_dependencies(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             hosts = (
                 "aarch64-apple-darwin",
                 "x86_64-unknown-linux-gnu",
+                "aarch64-unknown-linux-gnu",
                 "x86_64-pc-windows-gnullvm",
             )
             fragments = []
@@ -66,7 +67,13 @@ class ManifestTests(unittest.TestCase):
                 self.assertEqual(actual["targets"][target]["base"], f"lib-base-{target}")
                 self.assertNotIn("gui", actual["targets"][target])
                 self.assertNotIn("system_cones", actual["targets"][target]["requirements"])
-            self.assertNotIn("gui", actual["targets"]["x86_64-unknown-linux-musl"])
+            for arch in ("x86_64", "aarch64"):
+                gnu = f"{arch}-unknown-linux-gnu"
+                musl = f"{arch}-unknown-linux-musl"
+                self.assertEqual(actual["hosts"][gnu]["targets"], [gnu, musl])
+                self.assertEqual(actual["targets"][gnu]["gui"], f"lib-gui-{gnu}")
+                self.assertEqual(actual["targets"][musl]["base"], f"lib-base-{musl}")
+                self.assertNotIn("gui", actual["targets"][musl])
             for crt in ("ucrt", "msvcrt"):
                 target = f"x86_64-w64-windows-llvm-mingw-{crt}"
                 self.assertEqual(actual["targets"][target]["native"], "native-" + target)
