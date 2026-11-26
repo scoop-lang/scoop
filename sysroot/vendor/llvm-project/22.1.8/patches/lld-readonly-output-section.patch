@@ -1,0 +1,39 @@
+--- a/lld/ELF/OutputSections.h
++++ b/lld/ELF/OutputSections.h
+@@ -98,6 +98,7 @@
+   std::string memoryRegionName;
+   std::string lmaRegionName;
+   bool nonAlloc = false;
++  bool readOnly = false;
+   bool typeIsSet = false;
+   bool expressionsUseSymbols = false;
+   bool usedInExpression = false;
+--- a/lld/ELF/OutputSections.cpp
++++ b/lld/ELF/OutputSections.cpp
+@@ -175,6 +175,8 @@
+   flags = andFlags | orFlags;
+   if (nonAlloc)
+     flags &= ~(uint64_t)SHF_ALLOC;
++  if (readOnly)
++    flags &= ~(uint64_t)SHF_WRITE;
+ 
+   addralign = std::max(addralign, isec->addralign);
+ 
+--- a/lld/ELF/ScriptParser.cpp
++++ b/lld/ELF/ScriptParser.cpp
+@@ -923,12 +923,14 @@
+ // "(TYPE=<value>)".
+ bool ScriptParser::readSectionDirective(OutputSection *cmd, StringRef tok) {
+   if (tok != "NOLOAD" && tok != "COPY" && tok != "INFO" && tok != "OVERLAY" &&
+-      tok != "TYPE")
++      tok != "TYPE" && tok != "READONLY")
+     return false;
+ 
+   if (consume("NOLOAD")) {
+     cmd->type = SHT_NOBITS;
+     cmd->typeIsSet = true;
++  } else if (consume("READONLY")) {
++    cmd->readOnly = true;
+   } else if (consume("TYPE")) {
+     expect("=");
+     StringRef value = peek();
