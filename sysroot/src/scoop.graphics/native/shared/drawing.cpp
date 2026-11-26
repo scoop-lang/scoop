@@ -1,4 +1,7 @@
 #include "graphics.h"
+#include "include/codec/SkCodec.h"
+#include "include/codec/SkPixmapUtils.h"
+#include "include/core/SkBitmap.h"
 #include "include/core/SkPixmap.h"
 #include "include/effects/SkGradient.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
@@ -137,10 +140,31 @@ SGImage *scoop_graphics_image_rgba(int32_t width, int32_t height,
 }
 SGImage *scoop_graphics_image_decode(const uint8_t *bytes, int64_t count) {
   try {
-    auto result = SkImages::DeferredFromEncodedData(
+    auto codec = SkCodec::MakeFromData(
         SkData::MakeWithCopy(bytes, (size_t)count));
-    if (result)
-      result = result->makeRasterImage();
+    if (!codec)
+      return nullptr;
+    auto info = codec->getInfo();
+    if (info.alphaType() == kUnpremul_SkAlphaType)
+      info = info.makeAlphaType(kPremul_SkAlphaType);
+    SkBitmap pixels;
+    // The lazy image generator also accepts incomplete/error-in-input results. An owned
+    // decoded Image must instead finish all pixels successfully before publishing them.
+    if (!pixels.tryAllocPixels(info) ||
+        codec->getPixels(pixels.pixmap()) != SkCodec::kSuccess)
+      return nullptr;
+    const auto origin = codec->getOrigin();
+    if (origin != kTopLeft_SkEncodedOrigin) {
+      if (SkEncodedOriginSwapsWidthHeight(origin))
+        info = SkPixmapUtils::SwapWidthHeight(info);
+      SkBitmap oriented;
+      if (!oriented.tryAllocPixels(info) ||
+          !SkPixmapUtils::Orient(oriented.pixmap(), pixels.pixmap(), origin))
+        return nullptr;
+      pixels = std::move(oriented);
+    }
+    pixels.setImmutable();
+    auto result = SkImages::RasterFromBitmap(pixels);
     return result ? new SGImage(std::move(result)) : nullptr;
   } catch (...) {
     return nullptr;

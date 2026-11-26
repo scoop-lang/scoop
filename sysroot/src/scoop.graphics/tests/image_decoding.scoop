@@ -1,0 +1,102 @@
+package scoop.graphics
+
+import scoop.compiler.includeBytes
+import scoop.test.*
+
+@Test
+private class ImageDecodingTest {
+    @Test
+    fun rejectsIncompletePixelDataAndFilterErrorsAfterAValidHeader() {
+        // Each PNG has a valid IHDR, IDAT CRC and IEND. Failure is inside pixel decoding.
+        for (
+            encoded in [
+                includeBytes("data/decode/truncated-deflate.png"),
+                includeBytes("data/decode/short-pixels.png"),
+                includeBytes("data/decode/bad-filter.png")
+            ]
+        )
+            assertFailsWith<GraphicsException> { Image.decode(encoded) }
+    }
+
+    @Test
+    fun decodedTransparentPixelsHaveIndependentOwnership() {
+        Image
+            .decode(includeBytes("data/decode/rgba.png"))
+            .use { image ->
+                assertEquals(3, image.width)
+                assertEquals(2, image.height)
+                RasterSurface(3, 2)
+                    .use { surface ->
+                        surface
+                            .draw { canvas ->
+                                canvas.clear(Color.Transparent)
+                                canvas
+                                    .drawImage(
+                                        image,
+                                        Rect(0.0, 0.0, 3.0, 2.0),
+                                        ImageSampling.Nearest
+                                    )
+                            }
+                        image.close()
+                        val expected = [
+                            255,
+                            0,
+                            0,
+                            255,
+                            0,
+                            255,
+                            0,
+                            128,
+                            0,
+                            0,
+                            255,
+                            64,
+                            0,
+                            0,
+                            0,
+                            0,
+                            255,
+                            255,
+                            255,
+                            255,
+                            0,
+                            0,
+                            0,
+                            128
+                        ]
+                        val pixels = surface.readPixels()
+                        for (index in 0L..<expected.size)
+                            assertEquals(expected[index], pixels[index].toInt() and 255)
+                    }
+            }
+    }
+
+    @Test
+    fun strictDecodePreservesJpegExifOrientation() {
+        val plain = decodeTestPixels(includeBytes("data/pixels.jpg"))
+        val rotated = decodeTestPixels(includeBytes("data/decode/rotated.jpg"))
+        assertNotEquals(plain[0L], plain[4L])
+        // EXIF 6 rotates clockwise: [a b; c d] becomes [c a; d b].
+        for (pixel in 0L..<4L) {
+            val source = [2L, 0L, 3L, 1L][pixel]
+            for (channel in 0L..<4L)
+                assertEquals(plain[source * 4L + channel], rotated[pixel * 4L + channel])
+        }
+    }
+}
+
+private fun decodeTestPixels(encoded: Array<Byte>): Array<Byte> = Image
+    .decode(encoded)
+    .use { image ->
+        assertEquals(2, image.width)
+        assertEquals(2, image.height)
+        RasterSurface(2, 2)
+            .use { surface ->
+                surface
+                    .draw { canvas ->
+                        canvas.clear(Color.Transparent)
+                        canvas.drawImage(image, Rect(0.0, 0.0, 2.0, 2.0), ImageSampling.Nearest)
+                    }
+                surface.readPixels()
+            }
+    }

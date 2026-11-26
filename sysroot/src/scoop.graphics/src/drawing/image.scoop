@@ -55,7 +55,11 @@ public class Image internal constructor(internal val resource: GraphicsResource)
                     }
             }
         }
-        /** Decodes PNG or JPEG; malformed data reports GraphicsException. */
+        /**
+         * Decodes complete PNG or JPEG pixels and applies the encoded orientation.
+         * A codec error or incomplete pixel data reports GraphicsException; partial images are
+         * never returned. The result owns its decoded CPU pixels independently of encoded.
+         */
         public fun decode(encoded: Array<Byte>): Image {
             @Unsafe
             {
