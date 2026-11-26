@@ -160,11 +160,12 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
     public fun rotate(radians: Double) {
         concat(Transform.rotation(radians))
     }
-    public fun clipRect(rect: Rect) {
+    /** Hard clipping avoids fractional coverage seams between adjacent image tiles. */
+    public fun clipRect(rect: Rect, antiAlias: Boolean = true) {
         checkRect(rect)
         @Unsafe
         {
-            graphicsResult(canvasClipRect(resource.get(), rect), "clip rectangle")
+            graphicsResult(canvasClipRect(resource.get(), rect, antiAlias), "clip rectangle")
         }
     }
     public fun clipPath(path: Path) {
@@ -395,7 +396,7 @@ private fun canvasRestore(canvas: Ptr<Unit>): Int
 private fun canvasConcat(canvas: Ptr<Unit>, transform: Transform): Int
 
 @Extern(name = "scoop_graphics_canvas_clip_rect")
-private fun canvasClipRect(canvas: Ptr<Unit>, rect: Rect): Int
+private fun canvasClipRect(canvas: Ptr<Unit>, rect: Rect, antiAlias: Boolean): Int
 
 @Extern(name = "scoop_graphics_canvas_clip_path")
 private fun canvasClipPath(canvas: Ptr<Unit>, path: Ptr<Unit>): Int

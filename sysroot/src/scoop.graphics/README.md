@@ -29,6 +29,8 @@ Canvas 支持 save／restore、仿射变换、矩形／Path 裁剪、基本形�
 
 增量构造可显式使用 `PathBuilder(fillRule).use { builder -> ... }`；所有追加及 `reset()` 操作返回 Unit，`build()` 返回独立快照并保留 builder，`reset()` 清空几何但保留填充规则。后续修改或关闭 builder 不改变已有 Path，PathMeasure 也可在原 Path 关闭后继续使用。
 
+`canvas.clipRect(rect, antiAlias = false)` 在设备像素上硬裁剪，可用于相邻图像块的内部边界，防止分数像素处重复按覆盖率混合产生接缝。省略参数仍使用抗锯齿；逻辑裁剪几何与输入命中保持相同，save／restore 和绘图记录保留所选方式。线性采样仍需相邻源像素，不能用硬裁剪代替图片块的采样边缘。
+
 `canvas.withState { child -> ... }` 提供可嵌套的绘制作用域，子 Canvas 继承当前坐标和 clip，正常返回或异常退出都恢复全部子级保存状态。子回调只使用 child，父 Canvas 暂时不可用；退出后 child 失效，父 Canvas 恢复可用。该入口可用于自绘子组件，几何快照与绘制共享相同坐标且不会重复施加 DPI。
 
 `ImageFilter.blur` 提供局部逻辑单位 sigma 的 Gaussian blur；`dropShadow`／`dropShadowOnly` 根据实际内容 alpha 生成带源／不带源阴影。`a.then(b)` 执行 b(a(source))，结果独立保留输入引用。滤镜不以布局矩形隐式裁剪扩展像素，源外采样透明黑；`PathBuilder.addRoundRect` 为绘制、clip 与输入提供共用圆角轮廓。详细参数、顺序、颜色和 clip 合同见[图像滤镜规范](../../../docs/specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md)。该扩展已在 macOS aarch64 验证，x86_64 及 Windows 的补验状态见 UI 实施记录。
