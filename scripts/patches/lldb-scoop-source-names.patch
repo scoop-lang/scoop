@@ -90,7 +90,7 @@
  #include "llvm/Support/ThreadPool.h"
 
  #include <memory>
-@@ -794,10 +796,49 @@
+@@ -794,10 +796,60 @@
    return m_entry_point;
  }
 
@@ -99,7 +99,8 @@
 +  Target &target = process.GetTarget();
 +  const llvm::Triple &triple = target.GetArchitecture().GetTriple();
 +  if (triple.getOS() != llvm::Triple::Linux ||
-+      triple.getArch() != llvm::Triple::x86_64 ||
++      (triple.getArch() != llvm::Triple::x86_64 &&
++       triple.getArch() != llvm::Triple::aarch64) ||
 +      module != target.GetExecutableModule())
 +    return LLDB_INVALID_ADDRESS;
 +  auto *object = llvm::dyn_cast_or_null<ObjectFileELF>(module->GetObjectFile());
@@ -116,15 +117,25 @@
 +  if (!tls || offset >= tls->p_memsz)
 +    return LLDB_INVALID_ADDRESS;
 +
-+  // AMD64 variant II places the executable's static TLS below the thread
-+  // pointer, preserving the image's offset within its alignment boundary.
 +  uint64_t alignment = std::max<uint64_t>(tls->p_align, 1);
-+  if (!llvm::isPowerOf2_64(alignment))
++  addr_t tp = thread.GetThreadPointer();
++  if (!llvm::isPowerOf2_64(alignment) || tp == LLDB_INVALID_ADDRESS)
 +    return LLDB_INVALID_ADDRESS;
++
++  if (triple.getArch() == llvm::Triple::aarch64) {
++    // Variant I places TLS after a two-word TCB. Preserve the TLS image's
++    // offset within its alignment boundary, including an unaligned PT_TLS.
++    constexpr uint64_t tcb_size = 16;
++    uint64_t start = tcb_size + ((tls->p_vaddr - tcb_size) & (alignment - 1));
++    if (start > UINT64_MAX - tp || offset > UINT64_MAX - (tp + start))
++      return LLDB_INVALID_ADDRESS;
++    return tp + start + offset;
++  }
++
++  // AMD64 variant II places the executable's static TLS below the TP.
 +  uint64_t padding = (-tls->p_vaddr - tls->p_memsz) & (alignment - 1);
 +  uint64_t size = tls->p_memsz + padding;
-+  addr_t tp = thread.GetThreadPointer();
-+  if (size < tls->p_memsz || tp == LLDB_INVALID_ADDRESS || tp < size)
++  if (size < tls->p_memsz || tp < size)
 +    return LLDB_INVALID_ADDRESS;
 +  return tp - size + offset;
 +}
