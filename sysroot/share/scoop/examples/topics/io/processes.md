@@ -27,6 +27,8 @@ spawn failed before a child was created
 
 `Command` 分别保存可执行路径与参数；带空格的参数也无需自行拼接引号。所有标准流显式使用 Pipe，`communicate` 写入 stdin、关闭输入并同时收集 stdout/stderr，最后取得 `ExitStatus`。先保存 `ProcessOutput`，到展示边界才把本例已知的 UTF-8 协议解码为文本。
 
+Windows 的参数使用 CRT 引号／反斜杠编码，普通非空参数保持未加引号。显式调用 `cmd.exe` 时，把 `/d`、`/c` 和脚本正文分别作为参数传入；脚本中的特殊字符仍按 `cmd.exe` 语法解释。普通进程和 ConPTY 的参数规则相同。
+
 退出 0 且输出为空仍是成功；非零退出有实际退出码和 stderr；`spawn` 失败会抛出 `PlatformException`，此时没有可等待的子进程。`Signaled` 是另一种退出状态，不能伪装成正常退出 0。调用方负责决定哪些失败允许降级。
 
 `communicate(timeout: Duration, input: List<Byte>? = None)` 使用同一个单调期限覆盖输入、两个输出和最终等待。默认 `capture` 给命令五秒；等待模式给一秒并捕获 `ProcessTimeoutException`，异常中的 stdout/stderr 是已经收到的部分字节。到期后库关闭本次端点、终止并回收所拥有的 child，再抛出异常；部分输出不保证包含管道中尚未读取的尾部。示例 child 在等待前立即刷新输出，先前输出因而可在超时后使用。

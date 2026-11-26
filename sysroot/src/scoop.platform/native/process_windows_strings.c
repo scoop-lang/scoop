@@ -17,6 +17,14 @@ static bool emit(WCHAR *output, size_t *position, WCHAR value, size_t count) {
 }
 
 static bool quote(WCHAR *output, size_t *position, const WCHAR *argument, bool first) {
+    if (!first && *argument != 0 && wcspbrk(argument, L" \t\r\n\"") == NULL) {
+        // Keep ordinary switches usable by programs such as cmd.exe as well as CRT readers.
+        while (*argument != 0) {
+            if (!emit(output, position, *argument++, 1))
+                return false;
+        }
+        return true;
+    }
     if (!emit(output, position, L'"', 1))
         return false;
     while (*argument != 0) {
