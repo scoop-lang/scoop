@@ -28,7 +28,7 @@ static SGRect queryRect(const SkMatrix &matrix, SGRect rect) {
           std::abs(xx) + std::abs(xy), std::abs(yx) + std::abs(yy)};
 }
 
-static int32_t clip(SGCanvas *value, const SkPath &path) {
+static int32_t clip(SGCanvas *value, const SkPath &path, bool antiAlias = true) {
   try {
     auto transformed = path.tryMakeTransform(value->logical());
     if (!transformed)
@@ -44,7 +44,7 @@ static int32_t clip(SGCanvas *value, const SkPath &path) {
     }
     auto next =
         std::make_shared<SGClip>(std::move(*transformed), std::move(previous));
-    value->canvas->clipPath(path, true);
+    value->canvas->clipPath(path, antiAlias);
     value->clips.back() = std::move(next);
     return 1;
   } catch (...) {
@@ -146,9 +146,10 @@ int32_t scoop_graphics_canvas_concat(SGCanvas *value, SGTransform transform) {
   value->canvas->concat(matrix);
   return 1;
 }
-int32_t scoop_graphics_canvas_clip_rect(SGCanvas *value, SGRect rect) {
+int32_t scoop_graphics_canvas_clip_rect(SGCanvas *value, SGRect rect,
+                                      bool antiAlias) {
   try {
-    return clip(value, SkPathBuilder().addRect(sg_rect(rect)).detach());
+    return clip(value, SkPathBuilder().addRect(sg_rect(rect)).detach(), antiAlias);
   } catch (...) {
     return 0;
   }

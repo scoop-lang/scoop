@@ -1,0 +1,92 @@
+package scoop.graphics
+
+import scoop.test.*
+
+@Test
+private class CanvasClipTest {
+    @Test fun hardTileEdgesMatchOneClipAfterFractionalTranslationAndScaling() {
+        for (scale in [1.0, 1.25, 2.0]) {
+            for (recorded in [false, true]) {
+                val expected = clipTestPixels(scale, false, recorded)
+                val actual = clipTestPixels(scale, true, recorded)
+                for (index in 0L..<expected.size)
+                    assertEquals(expected[index], actual[index])
+            }
+        }
+    }
+
+    @Test fun defaultEdgesRemainAntialiasedAndSaveRestoreKeepsTheParentClip() {
+        val soft = clipEdgePixels(true)
+        val hard = clipEdgePixels(false)
+        val edge = (1L * 12L + 7L) * 4L + 3L
+        val alpha = soft[edge].toInt() and 255
+        assertTrue(alpha > 0 && alpha < 255)
+        val hardAlpha = hard[edge].toInt() and 255
+        assertTrue(hardAlpha == 0 || hardAlpha == 255)
+        for (pixels in [soft, hard]) {
+            assertEquals(255, pixels[(1L * 12L + 10L) * 4L + 1L].toInt() and 255)
+            assertEquals(0, pixels[(1L * 12L + 11L) * 4L + 3L].toInt() and 255)
+        }
+    }
+}
+
+private fun clipTestPixels(scale: Double, tiled: Boolean, recorded: Boolean): Array<Byte> =
+    RasterSurface(72, 56)
+        .use { surface ->
+            surface
+                .draw { canvas ->
+                    canvas.clear(Color.Transparent)
+                    canvas.scale(scale, scale)
+                    canvas.translate(0.35, 0.2)
+                    val paint: (Canvas) -> Unit = { target ->
+                        val xs = if (tiled) [0.0, 7.3, 18.6, 32.0] else [0.0, 32.0]
+                        val ys = if (tiled) [0.0, 11.4, 24.0] else [0.0, 24.0]
+                        for (row in 0L..<ys.size - 1L) {
+                            for (column in 0L..<xs.size - 1L) {
+                                target.save()
+                                target
+                                    .clipRect(
+                                        Rect(
+                                            xs[column],
+                                            ys[row],
+                                            xs[column + 1L] - xs[column],
+                                            ys[row + 1L] - ys[row]
+                                        ),
+                                        antiAlias = false
+                                    )
+                                target
+                                    .drawRect(
+                                        Rect(-10.0, -10.0, 60.0, 60.0),
+                                        Paint(Color(1.0, 0.25, 0.5, 0.5), antiAlias = false)
+                                    )
+                                target.restore()
+                            }
+                        }
+                    }
+                    if (recorded) {
+                        canvas
+                            .recordDrawing(Rect(-2.0, -2.0, 36.0, 28.0), paint)
+                            .use { drawing -> canvas.drawDrawing(drawing) }
+                    } else
+                        paint(canvas)
+                }
+            surface.readPixels()
+        }
+
+private fun clipEdgePixels(antiAlias: Boolean): Array<Byte> = RasterSurface(12, 4)
+    .use { surface ->
+        surface
+            .draw { canvas ->
+                canvas.clear(Color.Transparent)
+                canvas.clipRect(Rect(0.0, 0.0, 11.0, 4.0))
+                canvas.save()
+                if (antiAlias)
+                    canvas.clipRect(Rect(0.0, 0.0, 7.25, 4.0))
+                else
+                    canvas.clipRect(Rect(0.0, 0.0, 7.25, 4.0), antiAlias = false)
+                canvas.drawRect(Rect(0.0, 0.0, 12.0, 4.0), Paint(Color.White))
+                canvas.restore()
+                canvas.drawRect(Rect(10.0, 0.0, 2.0, 4.0), Paint(Color(0.0, 1.0, 0.0)))
+            }
+        surface.readPixels()
+    }
