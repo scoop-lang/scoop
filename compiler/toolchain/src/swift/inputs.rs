@@ -1,10 +1,10 @@
-//! Directory selection is re-evaluated only when a traversed directory changes.
+//! Select Swift inputs by path. File metadata is tracked by the build record.
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use super::{Input, ToolchainError, error, values};
+use super::{ToolchainError, error, values};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) enum Rule {
@@ -21,7 +21,6 @@ pub(super) struct Selection {
     root: PathBuf,
     present: bool,
     rule: Rule,
-    directories: Vec<Input>,
     #[serde(with = "values::paths")]
     files: Vec<PathBuf>,
 }
@@ -32,10 +31,11 @@ impl Selection {
             present: root.try_exists().map_err(error)?,
             root,
             rule,
-            directories: Vec::new(),
             files: Vec::new(),
         };
-        result.walk(Path::new(""), &mut BTreeSet::new())?;
+        if result.present {
+            result.walk(Path::new(""), None, &mut BTreeSet::new())?;
+        }
         result.files.sort();
         result.files.dedup();
         Ok(result)
@@ -44,6 +44,7 @@ impl Selection {
     fn walk(
         &mut self,
         relative: &Path,
+        entry: Option<std::fs::DirEntry>,
         ancestors: &mut BTreeSet<PathBuf>,
     ) -> Result<(), ToolchainError> {
         let path = if relative.as_os_str().is_empty() {
@@ -59,10 +60,17 @@ impl Selection {
         {
             return Ok(());
         }
+        // The directory entry already identifies ordinary files. Only directory
+        // traversal and symlink targets need further filesystem information.
+        if let Some(entry) = entry
+            && entry.file_type().map_err(error)?.is_file()
+        {
+            self.files.push(path);
+            return Ok(());
+        }
         let metadata = match path.metadata() {
             Ok(value) => value,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                self.directories.push(Input::read(&path)?);
                 return Ok(());
             }
             Err(e) => return Err(error(format!("{}: {e}", path.display()))),
@@ -76,16 +84,14 @@ impl Selection {
                     path.display()
                 )));
             }
-            self.directories.push(Input::read(&path)?);
             let mut entries = std::fs::read_dir(&path)
                 .map_err(error)?
-                .map(|entry| entry.map(|entry| entry.file_name()))
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(error)?;
-            entries.sort();
-            for name in entries {
-                let child = relative.join(&name);
-                self.walk(&child, ancestors)?;
+            entries.sort_by_key(std::fs::DirEntry::file_name);
+            for entry in entries {
+                let child = relative.join(entry.file_name());
+                self.walk(&child, Some(entry), ancestors)?;
             }
             ancestors.remove(&canonical);
         } else {
@@ -99,13 +105,8 @@ impl Selection {
     }
 
     pub(super) fn is_current(&self) -> Result<bool, ToolchainError> {
-        for directory in &self.directories {
-            if !directory.is_current()? {
-                let current = Self::read(self.root.clone(), self.rule.clone())?;
-                return Ok(current.present == self.present && current.files == self.files);
-            }
-        }
-        Ok(true)
+        let current = Self::read(self.root.clone(), self.rule.clone())?;
+        Ok(current.present == self.present && current.files == self.files)
     }
 }
 
