@@ -14,6 +14,13 @@ bool navigable(const State &state) {
   const auto &data = state.data;
   if (!data.visible || (data.flags & (SWAXHidden | SWAXIgnored)))
     return false;
+  if (data.role == 5 || data.role == 6) {
+    const auto spoken = [](const auto &field) {
+      return field && !field->empty();
+    };
+    return spoken(state.text[0]) || spoken(state.text[1]) ||
+           spoken(state.text[3]) || data.has_range;
+  }
   return data.role != 27 && (data.role != 0 || data.actions || state.text[0]);
 }
 

@@ -114,9 +114,12 @@ xcrun simctl launch --console --terminate-running-process "$SIMULATOR_UUID" dev.
 | 设备 | 方法名 | 观察结果 |
 | --- | --- | --- |
 | iPhone 竖屏 | `testGalleryCatalog`、`testGalleryNavigation` | 逐项打开、返回全部 69 个页面；搜索、Home 恢复、主题、RTL 和减少动态可操作。 |
+| iPhone，iOS 27 及以上、Xcode 27 | `testGalleryVoiceOver` | 开启系统读屏，取得目录项的实际朗读，向前、向后移动焦点核对 Settings 与 Workspace 的次序，再双击进入 Settings。测试结束时恢复开始前的读屏开关。[Apple 读屏测试接口](https://developer.apple.com/documentation/xcuiautomation/xcuivoiceoverservice) |
 | iPhone，软件键盘选简体拼音 | `testGalleryChineseSettings` | 逐键输入 nihao 并点选系统候选“你好”，填写邮箱和六位验证码后，Settings 显示保存成功。 |
 | iPad 宽窗口 | `testGalleryWide`、`testGalleryForms`、`testGalleryPaymentUndo` | 双栏同时显示目录和详情。保存表单、切页保留 Workspace 草稿、横向滚动付款表并删除和撤销一行。 |
 | iPad 宽窗口 | `testGalleryTimers`、`testGalleryTreeDrag`、`testGalleryConversation`、`testGalleryLeavingConversation` | 检查 Toast 延时完成、Tree 加载失败后重试、触摸拖动文件后保留选中行、消息流完成及离页取消。 |
 | iPad 开启窗口化应用 | `testGalleryResizedWindow`、`testGalleryBesidePhotos` | 分别拖动系统窗口右下角和从窗口控制选择「左右」与照片并排。两种窄窗都应保留当前详情，可返回目录，再恢复全屏。并排测试在预装「照片」的中文或英文模拟器运行。 |
 
 安装 `--ui` 宿主后，`InteractionTests/testSystemPinyin` 可单独验证编辑控件接收系统候选及失焦后的正文。`InteractionTests/testEditorClipboard` 在真实编辑控件上使用 Command-A/C/X/V，核对剪切后输入新文字再粘贴的结果。`InteractionTests/testLargeTextControls` 使用 `xcrun simctl ui "$SIMULATOR_UUID" content_size accessibility-large` 切换系统字号后运行，结束时将其恢复为之前的值。
+
+真机自动化需要给 Gallery 和 InteractionTests 运行器分别做开发签名，并在手机「设置 → 开发者」开启「启用 UI 自动化」。若 XCTest 在用例开始前断开，仍可从 Device Hub 点开实体设备的 View Screen 验证点击、滚动和 Home 恢复。在手机上用系统拼音选词和听取 VoiceOver 朗读，可以单独验收输入法和读屏体验。[Apple 设备交互说明](https://developer.apple.com/documentation/xcode/interacting-with-your-app-in-device-hub)

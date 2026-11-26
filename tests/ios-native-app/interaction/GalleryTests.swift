@@ -91,6 +91,35 @@ final class GalleryTests: XCTestCase {
         XCTAssertEqual(visited.count, 69, visited.sorted().joined(separator: ", "))
     }
 
+    #if compiler(>=6.4)
+        @available(iOS 27.0, *)
+        @MainActor
+        func testGalleryVoiceOver() throws {
+            let service = XCUIDevice.shared.voiceOverService
+            let alreadyEnabled = service.isEnabled
+            if !alreadyEnabled {
+                addTeardownBlock { @MainActor in try service.disable() }
+            }
+            try service.enable()
+
+            app.launch()
+            let settings = app.buttons[entryPrefix + "Settings app"]
+            XCTAssertTrue(settings.waitForExistence(timeout: 8))
+            var utterances = [try service.moveForward().utterance]
+            while utterances.count < 12 && utterances.last?.contains("Settings app") == false {
+                utterances.append(try service.moveForward().utterance)
+            }
+            XCTAssertTrue(
+                utterances.last?.contains("Settings app") == true, utterances.joined(separator: " → "))
+            let forward = try service.moveForward().utterance
+            XCTAssertTrue(forward.contains("Workspace app"), forward)
+            let back = try service.moveBackward().utterance
+            XCTAssertTrue(back.contains("Settings app"), back)
+            settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).doubleTap()
+            XCTAssertTrue(app.staticTexts["Profile settings"].waitForExistence(timeout: 5))
+        }
+    #endif
+
     private func reveal(_ target: XCUIElement, near x: CGFloat = 0.82) {
         for _ in 0..<8 {
             let window = app.windows.firstMatch
