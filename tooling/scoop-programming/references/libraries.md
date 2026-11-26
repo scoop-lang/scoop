@@ -122,6 +122,8 @@ struct User(val name: String, val note: String? = None) {
 
 对仅在部分目标发布的 Cone，在 `Cone.toml` 对直接依赖和使用相应 import 的源集设置相同的 `when` 条件。比如 `scoop.os.nix` 选择 `os = ["darwin", "linux"]`，iOS 真机与模拟器选择 `os = "ios"`。
 
+iOS 应用从源码构建 `scoop.platform` 后可使用路径和文件、标准流和管道、缓冲区、线程同步和时钟。读取随包文件时，由宿主从 `NSBundle` 取得资源路径，临时文件使用 `createTempFile()`。进程启动、PTY、网络和系统随机数属于当前桌面源集合。[本地构建与宿主示例](../../../tests/ios-native-app/README.md)
+
 从 `io/files` 查 `Path`、`OsString` 和文本／字节操作；从 `io/resources` 查正常与异常路径的关闭。路径表示、编码和字符串不是可任意互换的类型。只清理当前任务实际创建的临时资源。
 
 外部命令用 `io/processes` 查 `Command` 与 `ChildProcess`。需要有限等待时使用 `child.communicate(timeout: Duration, input: List<Byte>? = None)`；同一单调期限覆盖输入、两个输出和进程等待。`ProcessTimeoutException.stdout/stderr` 保留部分字节，返回异常前库收尾所拥有的 child 与端点；后代进程不属于其管理范围。正常退出、非零退出、启动失败与超时分别处理；清理还失败时保留 `ResourceUseException.primaryFailure/cleanupFailure`。普通 `close` 不杀进程，不能用外包线程后放弃 join 的办法模拟超时。

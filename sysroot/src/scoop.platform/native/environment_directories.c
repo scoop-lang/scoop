@@ -68,6 +68,9 @@ ScoopPlatformString scoop_platform_home_directory_result(void) {
 }
 #else
 #include <errno.h>
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
 #include <pwd.h>
 #include <unistd.h>
 
@@ -78,6 +81,7 @@ ScoopPlatformString scoop_platform_current_directory_result(void) {
     return (ScoopPlatformString){path, (int64_t)strlen(path), 0};
 }
 
+#if !defined(__APPLE__) || !TARGET_OS_IOS
 ScoopPlatformString scoop_platform_home_directory_result(void) {
     ScoopPlatformString configured = scoop_platform_environment_value_result("HOME");
     if (configured.error != 0 || configured.length != 0)
@@ -108,4 +112,5 @@ ScoopPlatformString scoop_platform_home_directory_result(void) {
         return (ScoopPlatformString){home, home == NULL ? 0 : (int64_t)strlen(home), error};
     }
 }
+#endif
 #endif

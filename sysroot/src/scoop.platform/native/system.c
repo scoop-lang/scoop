@@ -9,7 +9,6 @@
 NTSYSAPI NTSTATUS NTAPI RtlGetVersion(PRTL_OSVERSIONINFOW version);
 #else
 #include <errno.h>
-#include <signal.h>
 #include <string.h>
 #include <sys/utsname.h>
 #include <unistd.h>
@@ -51,8 +50,6 @@ struct ScoopPlatformSystemVersion scoop_platform_system_version(void) {
                                                version.dwBuildNumber, 0};
 }
 #else
-int scoop_platform_process_suspend(void) { return kill(getpid(), SIGTSTP); }
-
 char *scoop_platform_system_version(void) {
     struct utsname value;
     if (uname(&value) < 0)

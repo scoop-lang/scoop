@@ -1,0 +1,66 @@
+package scoop.tests.ios
+
+import scoop.platform.concurrent.Mutex
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.env.*
+import scoop.platform.fs.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.time.MonotonicTimeSource
+
+@CLayout
+private struct IOSPaths(
+    val home: Ptr<Byte>,
+    val temporary: Ptr<Byte>,
+    val executable: Ptr<Byte>,
+    val resource: Ptr<Byte>
+)
+
+@Unsafe
+private fun path(bytes: Ptr<Byte>): Path = Path.fromOsString(copyNativeString(bytes))
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    val paths = hostApi.cast<IOSPaths>().load()
+    if (homeDirectory()?.canonicalize() !=
+        Some(path(paths.home).canonicalize()) ||
+        temporaryDirectory().canonicalize() !=
+        path(paths.temporary).canonicalize() ||
+        executablePath() !=
+        path(paths.executable).canonicalize() ||
+        arguments().size !=
+        0L
+    )
+        throw IllegalStateException(Some("unexpected iOS application paths or arguments"))
+    if (path(paths.resource).readText() != "Scoop iOS bundle\n")
+        throw IllegalStateException(Some("unexpected bundle resource"))
+    val thread = currentThreadId()
+    val start = MonotonicTimeSource.now()
+    val mutex = Mutex()
+    try {
+        val matches = mutex
+            .withLock {
+                val buffer = NativeByteBuffer.allocate(1L)
+                try {
+                    buffer.writeByte(42.toByte())
+                    buffer.readByte() == 42.toByte()
+                } finally {
+                    buffer.close()
+                }
+            }
+        if (!matches) throw IllegalStateException(Some("buffer mismatch"))
+    } finally {
+        mutex.dispose()
+    }
+    val file = createTempFile()
+    try {
+        if (file.parent?.canonicalize() != Some(temporaryDirectory().canonicalize()))
+            throw IllegalStateException(Some("unexpected temporary file directory"))
+        file.writeText("Scoop iOS")
+        if (file.readText() != "Scoop iOS") throw IllegalStateException(Some("file mismatch"))
+    } finally {
+        file.delete()
+    }
+    if (file.exists() || currentThreadId() != thread || MonotonicTimeSource.now() < start)
+        throw IllegalStateException(Some("file cleanup, thread or clock mismatch"))
+    outAppApi.cast<Int>().store(1)
+}

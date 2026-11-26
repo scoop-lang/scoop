@@ -12,6 +12,8 @@ IO 端点、文件／进程观察权和 native buffer 使用 core Closeable.clos
 
 本期目标为 `aarch64-apple-darwin`、`x86_64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`。路径、参数与环境使用 POSIX 原始字节。阻塞操作走 NativeSafe FFI，只有符合语言规范 14 章的短操作才标记 GCLeaf。native 返回的错误在调用边界保存，不能晚些时候重新读取 errno。
 
+在 `aarch64-apple-ios` 和 `aarch64-apple-ios-sim` 上，应用可以从源码构建 `concurrent`、`env`、`fs`、`io`、`memory`、`system` 和 `time` 包。路径沿用 POSIX 字节，`homeDirectory()` 与 `temporaryDirectory()` 分别取 Foundation 提供的应用容器主目录和临时目录。`executablePath()` 返回宿主可执行文件的实际路径。随包资源由宿主从 `NSBundle` 取得文件系统路径并交给 `Path` 读取。`native-app` 的 `arguments()` 为空，见语言规范 12.4.4。`process`、`net`、`random` 和终端作业控制不在这两个目标的源集合中。
+
 库行为通过同 Cone 的 `tests/` 和 `scoop test` 验证；编译错误、真实产物消费及 GC／ABI／进程边界保留必要 fixture。普通库代码不要求重复整个编译器验收。原始验证日志不进入仓库，仅记录结果概要。
 
 ## 2. 系统字符串与路径
