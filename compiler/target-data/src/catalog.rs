@@ -71,6 +71,7 @@ impl NativeEnvironment {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CodegenTuning {
     DarwinAarch64,
+    LinuxAarch64,
     X86_64,
 }
 

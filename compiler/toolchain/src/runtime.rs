@@ -137,6 +137,10 @@ impl ValidatedRuntimeBuildProfile {
                 sources::DARWIN_AARCH64_FRAME,
                 sources::DARWIN_AARCH64_FRAME_OPS,
             ),
+            MachineFrameRecoveryV1::LinuxAarch64Fixed => (
+                sources::LINUX_AARCH64_FRAME,
+                sources::LINUX_AARCH64_FRAME_OPS,
+            ),
             MachineFrameRecoveryV1::SysvAmd64Fixed => {
                 (sources::SYSV_AMD64_FRAME, sources::SYSV_AMD64_FRAME_OPS)
             }
@@ -145,13 +149,17 @@ impl ValidatedRuntimeBuildProfile {
                 sources::WINDOWS_AMD64_FRAME_OPS,
             ),
         };
-        let frame_flags: &[_] = match backend.red_zone {
-            BackendRedZoneV1::Enabled => &[],
-            BackendRedZoneV1::Disabled => &["-mno-red-zone"],
+        let frame_flags: &[_] = match (backend.red_zone, target.architecture()) {
+            (BackendRedZoneV1::Disabled, TargetArchitecture::X86_64) => &["-mno-red-zone"],
+            // Linux AAPCS64 already forbids a red zone. GCC has no AArch64 flag for it.
+            _ => &[],
         };
         let managed_entry = match (target.procedure_abi(), target.object_target()) {
             (ProcedureAbi::DarwinAarch64, ObjectTargetProfileV1::MachOAarch64) => {
                 sources::DARWIN_AARCH64_MACHO_MANAGED_ENTRY
+            }
+            (ProcedureAbi::Aapcs64, ObjectTargetProfileV1::ElfAarch64) => {
+                sources::AAPCS64_ELF_MANAGED_ENTRY
             }
             (ProcedureAbi::SysvAmd64, ObjectTargetProfileV1::MachOX86_64) => {
                 sources::SYSV_AMD64_MACHO_MANAGED_ENTRY
@@ -180,6 +188,11 @@ impl ValidatedRuntimeBuildProfile {
                 ScoopAbiClassifier::ScalarInterfaceAndSmallValueParts,
                 ObjectTargetProfileV1::MachOAarch64,
             ) => sources::DARWIN_AARCH64_MACHO_ABI_SHIM,
+            (
+                ProcedureAbi::Aapcs64,
+                ScoopAbiClassifier::ScalarInterfaceAndSmallValueParts,
+                ObjectTargetProfileV1::ElfAarch64,
+            ) => sources::AAPCS64_ELF_ABI_SHIM,
             (
                 ProcedureAbi::SysvAmd64,
                 ScoopAbiClassifier::ScalarInterfaceAndSmallValueParts,

@@ -65,6 +65,8 @@ python3 scripts/prepare_sysroot.py \
   --work-dir "$PWD/tmp/sysroot/aarch64-apple-darwin"
 ```
 
+Linux ARM64 的开发目标为 `aarch64-unknown-linux-gnu`。在 ARM64 Linux 上准备该目标的 LLVM libunwind 后，使用同一 triple 运行 `prepare_sysroot.py`，得到预编译的 `scoop.core`、`scoop.std` 和 runtime。从其他宿主交叉准备时，给脚本传入 `--cc` 与 `--native-sysroot`，让配套 C driver 使用目标的 glibc headers、启动对象和 GNU ld。开发命令与依赖解析所用的 `scoop-pm` 须来自同一次构建。[Linux ARM64 移植阶段](../docs/linux-arm64/DESIGN.md)
+
 Windows graphics／GUI 使用相同的 `build_skia.py` 入口。对 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 分别指定完整 `--target`、独立 `--build-dir`、`--gn` 与对应 `--cc`；Microsoft 使用 clang-cl 及当前 x64 SDK／MSVC 开发环境，toolset 与 SDK 版本取自该环境的 `VCToolsVersion`／`WindowsSDKVersion`，不在发行配置中固定，MinGW 使用所选 CRT prefix 的 clang。输出为 Ganesh D3D12、DirectWrite、段落和内嵌 ICU 数据的静态资源，不需要应用分发旁置 ICU 数据文件。完整 Windows 打包会按同一配置准备并收集这三套 Skia 资源。
 
 Linux GNU 的 GUI 使用 GTK 4／libadwaita，支持 Wayland 和 X11；窗口标题栏、圆角和阴影由 GTK／libadwaita 绘制，内容仍使用 Skia Ganesh GLES，字体使用 Fontconfig／FreeType。需要 GTK 4.18 以上、libadwaita 1.4 以上，以及 EGL、GLES、Fontconfig、FreeType、zlib、X11 和 xkbcommon 开发包。Skia 构建还需要已有的 GN、Ninja、Clang／Clang++、llvm-ar 和 pkg-config。先准备 GTK 开发资源，再使用固定 vendor 源码构建 Skia：

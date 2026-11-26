@@ -30,6 +30,7 @@ pub type AbiPlanningValueId = Idx<AbiPlanningValue>;
 #[derive(Clone, Copy, Debug)]
 pub struct AbiAggregateField {
     pub offset: u64,
+    pub access_alignment: u64,
     pub value: AbiPlanningValueId,
 }
 

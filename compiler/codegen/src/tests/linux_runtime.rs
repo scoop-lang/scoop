@@ -207,6 +207,7 @@ fn compact_root_decoder_keeps_darwin_frame_alignment_in_its_adapter() {
     for source in [
         "runtime/tests/stackmap_test.c",
         "runtime/src/platform/frame/darwin_aarch64.c",
+        "runtime/src/platform/frame/linux_aarch64.c",
         "runtime/src/gc_binding/stackmap.c",
     ] {
         command.arg(workspace.join(source));

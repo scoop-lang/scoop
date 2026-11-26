@@ -99,6 +99,7 @@ pub struct BackendLsdaEncodingsV1 {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum MachineFrameRecoveryV1 {
     DarwinAarch64Fixed,
+    LinuxAarch64Fixed,
     SysvAmd64Fixed,
     WindowsAmd64VirtualUnwind,
 }
@@ -106,14 +107,14 @@ pub enum MachineFrameRecoveryV1 {
 impl MachineFrameRecoveryV1 {
     pub const fn registers(self) -> (u16, u16) {
         match self {
-            Self::DarwinAarch64Fixed => (31, 29),
+            Self::DarwinAarch64Fixed | Self::LinuxAarch64Fixed => (31, 29),
             Self::SysvAmd64Fixed | Self::WindowsAmd64VirtualUnwind => (7, 6),
         }
     }
 
     pub const fn object_machine(self) -> crate::ObjectMachineV1 {
         match self {
-            Self::DarwinAarch64Fixed => crate::ObjectMachineV1::Aarch64,
+            Self::DarwinAarch64Fixed | Self::LinuxAarch64Fixed => crate::ObjectMachineV1::Aarch64,
             Self::SysvAmd64Fixed | Self::WindowsAmd64VirtualUnwind => {
                 crate::ObjectMachineV1::X86_64
             }

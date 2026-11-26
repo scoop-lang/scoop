@@ -12,7 +12,9 @@ pub(super) fn classify(
         lir::LogicalCAbiResult::Value(value) => {
             match classify_value(input, value, lir::AbiValuePosition::Result, abi)? {
                 lir::DirectCArgument::Scalar(value) => lir::DirectCReturn::Value(value),
-                lir::DirectCArgument::DirectParts(parts) => lir::DirectCReturn::DirectParts(parts),
+                lir::DirectCArgument::DirectParts { parts, .. } => {
+                    lir::DirectCReturn::DirectParts(parts)
+                }
                 lir::DirectCArgument::Indirect { value, .. } => lir::DirectCReturn::Indirect(value),
             }
         }
@@ -34,7 +36,7 @@ pub(super) fn classify(
                     };
                     registers.scalar(carrier);
                 }
-                lir::DirectCArgument::DirectParts(parts) => {
+                lir::DirectCArgument::DirectParts { parts, .. } => {
                     if !registers.aggregate(parts.coercion()) {
                         *parameter = indirect(abi, parts.value().clone());
                     }
@@ -53,15 +55,31 @@ fn classify_value(
     abi: ProcedureAbi,
 ) -> Result<lir::DirectCArgument, lir::AbiValueError> {
     match &input.values[value.value] {
-        lir::AbiPlanningValue::Aggregate { value: storage, .. } => {
-            match layout::coercion(input, value.value, position, abi) {
-                Some(coercion) => Ok(lir::DirectCArgument::DirectParts(lir::AbiDirectParts::new(
-                    storage.clone(),
-                    coercion,
-                )?)),
-                None => Ok(indirect(abi, storage.clone())),
+        lir::AbiPlanningValue::Aggregate {
+            value: storage,
+            fields,
+        } => match layout::coercion(input, value.value, position, abi) {
+            Some(coercion) => {
+                let hfa_parameter = abi == ProcedureAbi::Aapcs64
+                    && position == lir::AbiValuePosition::Argument
+                    && matches!(
+                        coercion.parts()[0].carrier(),
+                        lir::AbiCarrier::Array {
+                            element: lir::AbiArrayElement::F32 | lir::AbiArrayElement::F64,
+                            ..
+                        }
+                    );
+                let stack_alignment = hfa_parameter.then(|| {
+                    NonZeroU64::new(layout::field_alignment(fields).clamp(8, 16))
+                        .expect("positive AAPCS64 stack alignment")
+                });
+                Ok(lir::DirectCArgument::DirectParts {
+                    parts: lir::AbiDirectParts::new(storage.clone(), coercion)?,
+                    stack_alignment,
+                })
             }
-        }
+            None => Ok(indirect(abi, storage.clone())),
+        },
         lir::AbiPlanningValue::Scalar { value: storage, .. } => {
             Ok(lir::DirectCArgument::Scalar(lir::DirectCValue {
                 storage: storage.clone(),
@@ -79,7 +97,9 @@ fn indirect(abi: ProcedureAbi, value: lir::AbiValue) -> lir::DirectCArgument {
 
 pub fn c_indirect_passing(abi: ProcedureAbi, value: &lir::AbiValue) -> lir::CIndirectPassing {
     match abi {
-        ProcedureAbi::DarwinAarch64 | ProcedureAbi::Win64 => lir::CIndirectPassing::CallerCopy,
+        ProcedureAbi::DarwinAarch64 | ProcedureAbi::Aapcs64 | ProcedureAbi::Win64 => {
+            lir::CIndirectPassing::CallerCopy
+        }
         ProcedureAbi::SysvAmd64 => lir::CIndirectPassing::ByValue {
             alignment: NonZeroU64::new(value.layout().alignment().get().max(8))
                 .expect("nonzero C byval alignment"),
@@ -90,6 +110,7 @@ pub fn c_indirect_passing(abi: ProcedureAbi, value: &lir::AbiValue) -> lir::CInd
 pub fn c_integer_extension(abi: ProcedureAbi, ty: &lir::CType) -> lir::CIntegerExtension {
     use lir::CIntegerExtension as Extension;
     match abi {
+        ProcedureAbi::Aapcs64 => Extension::None,
         ProcedureAbi::Win64 => match ty {
             lir::CType::Boolean => Extension::Zero,
             _ => Extension::None,

@@ -20,6 +20,11 @@ fn layout(size: u64, alignment: u64, fields: &[(u64, AbiCarrier)]) -> AbiAggrega
     AbiAggregateLayout {
         size,
         alignment,
+        field_alignment: fields
+            .iter()
+            .map(|(_, carrier)| carrier.byte_size().min(alignment))
+            .max()
+            .unwrap_or(1),
         leaves: fields
             .iter()
             .map(|&(offset, carrier)| AbiScalarLeaf {
@@ -122,6 +127,36 @@ fn aggregate_carriers_match_independent_clang_probes() {
         ),
         [AbiCarrier::Integer(128)]
     );
+}
+
+#[test]
+fn aapcs64_distinguishes_field_alignment_and_result_alignment() {
+    let target = scoop_target_data::LINUX_AARCH64_GNU;
+    let bytes: Vec<_> = (0..15).map(|i| (i, AbiCarrier::Integer(8))).collect();
+    let aligned = layout(16, 16, &bytes);
+    assert_eq!(
+        carriers(&aligned, target, AbiValuePosition::Argument),
+        [AbiCarrier::Array {
+            element: AbiArrayElement::I64,
+            count: 2
+        }]
+    );
+    assert_eq!(
+        carriers(&aligned, target, AbiValuePosition::Result),
+        [AbiCarrier::Integer(128)]
+    );
+    let float = AbiCarrier::Float(FloatKind::F32);
+    for count in 1..=4 {
+        let fields: Vec<_> = (0..count).map(|i| (u64::from(i) * 4, float)).collect();
+        let hfa = layout(u64::from(count) * 4, 4, &fields);
+        assert_eq!(
+            carriers(&hfa, target, AbiValuePosition::Argument),
+            [AbiCarrier::Array {
+                element: AbiArrayElement::F32,
+                count
+            }]
+        );
+    }
 }
 
 #[test]

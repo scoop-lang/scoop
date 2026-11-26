@@ -14,15 +14,16 @@ impl SignatureBuilder<'_> {
                     lir::IntrinsicTypeRepresentation::MaybeUninit { value, .. },
                 ) = &definition.representation
                 {
-                    vec![(0, value.as_ref().clone())]
+                    vec![(0, definition.align, value.as_ref().clone())]
                 } else {
                     (0..definition.field_count())
                         .map(|index| {
+                            let layout = definition
+                                .field_layout(index)
+                                .expect("existing field has a layout");
                             (
-                                definition
-                                    .field_layout(index)
-                                    .expect("existing field has a layout")
-                                    .offset,
+                                layout.offset,
+                                layout.access_align,
                                 definition
                                     .field_storage_type(index)
                                     .expect("existing field has a type"),
@@ -46,7 +47,11 @@ impl SignatureBuilder<'_> {
                             size,
                             alignment,
                         )?)?;
-                        Ok((placement.offset(), ty.clone()))
+                        Ok((
+                            placement.offset(),
+                            placement.access_alignment().get(),
+                            ty.clone(),
+                        ))
                     })
                     .collect::<StorageResult<Vec<_>>>()?
             }
@@ -58,9 +63,10 @@ impl SignatureBuilder<'_> {
         };
         fields
             .into_iter()
-            .map(|(offset, ty)| {
+            .map(|(offset, access_alignment, ty)| {
                 Ok(lir::AbiAggregateField {
                     offset,
+                    access_alignment,
                     value: self.value(ty)?,
                 })
             })

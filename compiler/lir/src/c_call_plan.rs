@@ -25,7 +25,10 @@ pub struct DirectCSignature {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DirectCArgument {
     Scalar(DirectCValue),
-    DirectParts(AbiDirectParts),
+    DirectParts {
+        parts: AbiDirectParts,
+        stack_alignment: Option<NonZeroU64>,
+    },
     Indirect {
         value: AbiValue,
         passing: CIndirectPassing,
@@ -63,7 +66,7 @@ impl DirectCArgument {
     pub fn abi_argument(&self) -> AbiArgument {
         match self {
             Self::Scalar(value) => AbiArgument::Direct(value.storage.clone().into()),
-            Self::DirectParts(parts) => {
+            Self::DirectParts { parts, .. } => {
                 AbiArgument::Direct(AbiDirectValue::DirectParts(parts.clone()))
             }
             Self::Indirect { value, .. } => AbiArgument::Indirect(value.clone()),
@@ -73,7 +76,7 @@ impl DirectCArgument {
     pub fn value(&self) -> &AbiValue {
         match self {
             Self::Scalar(value) => &value.storage,
-            Self::DirectParts(parts) => parts.value(),
+            Self::DirectParts { parts, .. } => parts.value(),
             Self::Indirect { value, .. } => value,
         }
     }
@@ -112,7 +115,16 @@ impl DirectCSignature {
             .iter()
             .map(|argument| match argument {
                 DirectCArgument::Scalar(value) => scalar_name(value),
-                DirectCArgument::DirectParts(parts) => parts_name(parts),
+                DirectCArgument::DirectParts {
+                    parts,
+                    stack_alignment,
+                } => {
+                    let name = parts_name(parts);
+                    match stack_alignment {
+                        Some(alignment) => format!("{name} alignstack/{alignment}"),
+                        None => name,
+                    }
+                }
                 DirectCArgument::Indirect { value, passing } => {
                     let kind = match passing {
                         CIndirectPassing::ByValue { alignment } => {

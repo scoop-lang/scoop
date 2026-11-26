@@ -157,6 +157,7 @@ impl WireEncode for TargetProfileContract {
             super::ProcedureAbi::DarwinAarch64 => 1,
             super::ProcedureAbi::SysvAmd64 => 2,
             super::ProcedureAbi::Win64 => 3,
+            super::ProcedureAbi::Aapcs64 => 4,
         })?;
         encoder.field(18)?;
         encoder.unsigned(match self.profile.exception_model() {
@@ -171,7 +172,7 @@ impl WireEncode for TargetProfileContract {
         encoder.field(20)?;
         encoder.unsigned(match self.object_target().header_abi() {
             super::ObjectHeaderAbiV1::MachO64 => 1,
-            super::ObjectHeaderAbiV1::ElfX86_64FlagsZero => 2,
+            super::ObjectHeaderAbiV1::ElfFlagsZero => 2,
             super::ObjectHeaderAbiV1::CoffAmd64 => 3,
         })?;
         encoder.field(21)?;
@@ -180,6 +181,7 @@ impl WireEncode for TargetProfileContract {
             super::ObjectRelocationProfileV1::MachOX86_64 => 2,
             super::ObjectRelocationProfileV1::ElfX86_64Rela => 3,
             super::ObjectRelocationProfileV1::CoffAmd64 => 4,
+            super::ObjectRelocationProfileV1::ElfAarch64Rela => 5,
         })?;
         encoder.field(22)?;
         encoder.unsigned(match self.object_target().unwind_image() {

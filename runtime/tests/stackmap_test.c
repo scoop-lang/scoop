@@ -6,6 +6,7 @@
 #include "../src/platform/platform.h"
 
 extern const ScoopManagedFrameOps scoop_darwin_aarch64_managed_frame_ops;
+extern const ScoopManagedFrameOps scoop_linux_aarch64_managed_frame_ops;
 
 typedef struct TestMap {
     ScoopCallableGcMapV1 map;
@@ -97,8 +98,49 @@ static void aarch64_roots(void) {
     assert(!has_next);
 }
 
+static void linux_aarch64_roots(void) {
+    TestMap data = make_map();
+    ScoopGcPcEntry record = {0x1020, &data.map, &data.sites[0]};
+    const ScoopManagedFrameOps *ops = &scoop_linux_aarch64_managed_frame_ops;
+    _Alignas(16) uintptr_t stack[24] = {0};
+    uintptr_t sp = (uintptr_t)stack, fp = (uintptr_t)&stack[2];
+    uintptr_t boundary = (uintptr_t)&stack[22];
+    stack[2] = (uintptr_t)&stack[10];
+    stack[3] = 0x2040;
+    ScoopPlatformStackBounds bounds = {(const char *)stack, (const char *)(stack + 24)};
+    ScoopManagedAnchor anchor = {record.return_pc, sp, fp, NULL};
+    ScoopPlatformError error = {0};
+    ScoopManagedFrame frame;
+    assert(ops->frame_from_anchor(&anchor, &record, bounds, &frame, &error));
+    void **slot;
+    data.roots[1] = 40;
+    assert(ops->validate_record(&record, &error));
+    assert(ops->resolve_root(&frame, 0, &slot, &error) && slot == (void **)(sp + 40));
+    data.roots[1] = (uint32_t)-16 | 3;
+    assert(ops->validate_record(&record, &error));
+    assert(ops->resolve_root(&frame, 0, &slot, &error) && slot == (void **)sp);
+    data.roots[1] = 16 | 3;
+    assert(ops->validate_record(&record, &error));
+    assert(ops->resolve_root(&frame, 0, &slot, &error) && slot == (void **)(fp + 16));
+    /* This SP-relative region table overlaps the first saved word only. */
+    data.roots[1] = 8 | 2;
+    assert(ops->validate_record(&record, &error));
+    assert(!ops->resolve_root(&frame, 0, &slot, &error));
+    assert(error.code == SCOOP_PLATFORM_ROOT_OUTSIDE_FRAME);
+    data.roots[1] = (uint32_t)-8 | 3;
+    assert(!ops->validate_record(&record, &error));
+    uintptr_t next_pc, next_sp, next_fp;
+    bool has_next;
+    assert(ops->next_frame(&frame, boundary, bounds, &next_pc, &next_sp, &next_fp,
+                           &has_next, &error));
+    assert(has_next && next_pc == stack[3] && next_sp == sp + 64 && next_fp == stack[2]);
+    anchor.frame_pointer = sp + 56;
+    assert(!ops->frame_from_anchor(&anchor, &record, bounds, &frame, &error));
+}
+
 int main(void) {
     pc_index();
     aarch64_roots();
+    linux_aarch64_roots();
     puts("compact GC index tests passed");
 }

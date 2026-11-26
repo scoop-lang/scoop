@@ -1,0 +1,11 @@
+package test.machine
+
+@Extern(name = "fixture_linux_is_aarch64")
+private fun isArm64(): Boolean
+
+public fun machineName(): String {
+    @Unsafe {
+        if (isArm64()) return "aarch64"
+    }
+    return "x86_64"
+}

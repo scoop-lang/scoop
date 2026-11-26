@@ -9,6 +9,8 @@ pub enum CanonicalCBridgeFlagContractV1 {
     DarwinAppleClangAarch64,
     DarwinAppleClangX86_64,
     LinuxGccX86_64,
+    LinuxGccAarch64,
+    LinuxClangAarch64,
     LinuxClangX86_64,
     WindowsClangAmd64,
 }
@@ -19,7 +21,9 @@ impl CanonicalCBridgeFlagContractV1 {
             Self::DarwinAppleClangAarch64 => &CanonicalCBridgeFlagV1::DARWIN_AARCH64,
             Self::DarwinAppleClangX86_64 => &CanonicalCBridgeFlagV1::DARWIN_X86_64,
             Self::LinuxGccX86_64 => &CanonicalCBridgeFlagV1::LINUX_GCC_X86_64,
+            Self::LinuxGccAarch64 => &CanonicalCBridgeFlagV1::LINUX_GCC_AARCH64,
             Self::LinuxClangX86_64 => &CanonicalCBridgeFlagV1::LINUX_CLANG_X86_64,
+            Self::LinuxClangAarch64 => &CanonicalCBridgeFlagV1::LINUX_CLANG_AARCH64,
             Self::WindowsClangAmd64 => &CanonicalCBridgeFlagV1::WINDOWS_CLANG_AMD64,
         }
     }
@@ -58,6 +62,7 @@ pub enum CanonicalCBridgeFlagV1 {
     NoBuiltinSubstitution,
     PositionIndependent,
     X86_64Baseline,
+    Armv8ABaseline,
     WindowsSeh,
     WindowsCrt,
     Windows10Baseline,
@@ -104,37 +109,47 @@ impl CanonicalCBridgeFlagV1 {
         Self::Windows10Baseline,
         Self::ReproducibleCoff,
     ];
-    pub const LINUX_CLANG_X86_64: [Self; 14] = [
-        Self::SeparateFunctionAndDataSections,
-        Self::ExplicitCanonicalTarget,
-        Self::X86_64Baseline,
-        Self::C11,
-        Self::RelocatableObject,
-        Self::SelectedOptimization,
-        Self::NoDebugInformation,
-        Self::NoCommonSymbols,
-        Self::OmitCompilerIdentification,
-        Self::NoStackProtector,
-        Self::UnwindTables,
-        Self::AsynchronousUnwindTables,
-        Self::NoBuiltinSubstitution,
-        Self::PositionIndependent,
-    ];
-    pub const LINUX_GCC_X86_64: [Self; 13] = [
-        Self::SeparateFunctionAndDataSections,
-        Self::X86_64Baseline,
-        Self::C11,
-        Self::RelocatableObject,
-        Self::SelectedOptimization,
-        Self::NoDebugInformation,
-        Self::NoCommonSymbols,
-        Self::OmitCompilerIdentification,
-        Self::NoStackProtector,
-        Self::UnwindTables,
-        Self::AsynchronousUnwindTables,
-        Self::NoBuiltinSubstitution,
-        Self::PositionIndependent,
-    ];
+    pub const LINUX_CLANG_X86_64: [Self; 14] = Self::linux_clang(Self::X86_64Baseline);
+    pub const LINUX_CLANG_AARCH64: [Self; 14] = Self::linux_clang(Self::Armv8ABaseline);
+
+    const fn linux_clang(baseline: Self) -> [Self; 14] {
+        [
+            Self::SeparateFunctionAndDataSections,
+            Self::ExplicitCanonicalTarget,
+            baseline,
+            Self::C11,
+            Self::RelocatableObject,
+            Self::SelectedOptimization,
+            Self::NoDebugInformation,
+            Self::NoCommonSymbols,
+            Self::OmitCompilerIdentification,
+            Self::NoStackProtector,
+            Self::UnwindTables,
+            Self::AsynchronousUnwindTables,
+            Self::NoBuiltinSubstitution,
+            Self::PositionIndependent,
+        ]
+    }
+    pub const LINUX_GCC_X86_64: [Self; 13] = Self::linux_gcc(Self::X86_64Baseline);
+    pub const LINUX_GCC_AARCH64: [Self; 13] = Self::linux_gcc(Self::Armv8ABaseline);
+
+    const fn linux_gcc(baseline: Self) -> [Self; 13] {
+        [
+            Self::SeparateFunctionAndDataSections,
+            baseline,
+            Self::C11,
+            Self::RelocatableObject,
+            Self::SelectedOptimization,
+            Self::NoDebugInformation,
+            Self::NoCommonSymbols,
+            Self::OmitCompilerIdentification,
+            Self::NoStackProtector,
+            Self::UnwindTables,
+            Self::AsynchronousUnwindTables,
+            Self::NoBuiltinSubstitution,
+            Self::PositionIndependent,
+        ]
+    }
     pub const DARWIN_AARCH64: [Self; 14] = [
         Self::ExplicitCanonicalTarget,
         Self::ExplicitResolvedSdkRoot,
@@ -170,6 +185,7 @@ impl CanonicalCBridgeFlagV1 {
             Self::NoBuiltinSubstitution => 13,
             Self::PositionIndependent => 14,
             Self::X86_64Baseline => 16,
+            Self::Armv8ABaseline => 25,
             Self::WindowsSeh => 20,
             Self::WindowsCrt => 21,
             Self::Windows10Baseline => 22,

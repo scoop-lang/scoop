@@ -22,6 +22,14 @@ impl TargetTuning {
                 reuse_thread_addresses: true,
                 retain_card_stack_reloads: true,
             },
+            scoop_target_data::CodegenTuning::LinuxAarch64 => Self {
+                reuse_interface_values: false,
+                direct_array_regions: false,
+                allocation_initialization_limit: 64,
+                optimize_tlab_range: false,
+                reuse_thread_addresses: false,
+                retain_card_stack_reloads: true,
+            },
             scoop_target_data::CodegenTuning::X86_64 => Self {
                 reuse_interface_values: true,
                 // Direct queries, larger initialization regions, range folding

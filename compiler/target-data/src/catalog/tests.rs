@@ -8,6 +8,7 @@ fn backend_machine_policies_are_explicit_catalog_contracts() {
     );
     for backend in [
         crate::LLVM_22_1_DARWIN_X86_64,
+        crate::LLVM_22_1_LINUX_AARCH64,
         crate::LLVM_22_1_LINUX_X86_64,
         crate::LLVM_22_1_WINDOWS_X86_64,
     ] {
@@ -124,7 +125,10 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
             .default_target,
         crate::LINUX_X86_64_MUSL.contract().canonical_triple()
     );
-    assert!(crate::host("linux", "aarch64", "").is_none());
+    assert_eq!(
+        crate::host("linux", "aarch64", "").unwrap().default_target,
+        crate::LINUX_AARCH64_GNU.contract().canonical_triple()
+    );
     for alias in ["x86_64-apple-darwin27.0.1", "x86_64-apple-macosx27.0.1"] {
         assert_eq!(
             crate::named_target(alias).unwrap().selection,

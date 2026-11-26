@@ -1,9 +1,9 @@
 schema = 1
 name = "cli-program"
 root = "program"
-inputs = ["program"]
+inputs = ["program", "machine"]
 tools = ["scoop", "scoopc", "scoop-link", "cc"]
-targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+when = { os = "linux" }
 tags = ["cli", "eh", "artifact-link", "driver"]
 variants = [{"name" = "release", "vars" = {"profile" = "release"}}]
 [[steps]]
@@ -21,7 +21,7 @@ checks = [{ actual = "${build.result.kind}", equals = "executable" }]
 name = "run"
 argv = ["${build.result.output}"]
 exit = 0
-stdout = "Linux amd64\nGC and EH passed\n"
+stdout = "Linux ${target_facts.arch}\nGC and EH passed\n"
 stderr = ""
 
 [[steps]]
@@ -36,5 +36,5 @@ stderr = ""
 name = "run-relinked"
 argv = ["${work}/relinked"]
 exit = 0
-stdout = "Linux amd64\nGC and EH passed\n"
+stdout = "Linux ${target_facts.arch}\nGC and EH passed\n"
 stderr = ""

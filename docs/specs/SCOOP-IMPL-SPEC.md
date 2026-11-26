@@ -34,6 +34,7 @@ Swift 原生库第一阶段见 2.7.1～2.8.1 及 [Swift 设计](../swift-librari
 | `x86_64-apple-darwin` | `org.scoop-lang.target-profile/darwin-x86-64/1` | Mach-O relocatable | Darwin/amd64、SysV AMD64 |
 | `aarch64-apple-ios` | `org.scoop-lang.target-profile/ios-aarch64/1` | Mach-O relocatable | iOS 设备/AArch64 |
 | `aarch64-apple-ios-sim` | `org.scoop-lang.target-profile/ios-simulator-aarch64/1` | Mach-O relocatable | iOS Simulator/AArch64 |
+| `aarch64-unknown-linux-gnu` | `org.scoop-lang.target-profile/linux-aarch64-gnu/1` | AArch64 ELF64 relocatable | Linux/AArch64、glibc |
 | `x86_64-unknown-linux-gnu` | `org.scoop-lang.target-profile/linux-x86-64-gnu/1` | ELF64 relocatable | Linux/amd64、glibc |
 | `x86_64-unknown-linux-musl` | `org.scoop-lang.target-profile/linux-x86-64-musl/1` | ELF64 relocatable | Linux/amd64、musl |
 | `x86_64-pc-windows-msvc-ucrt` | `org.scoop-lang.target-profile/windows-x86-64-msvc-ucrt/1` | AMD64 COFF | Windows/amd64、Microsoft UCRT |
@@ -52,11 +53,13 @@ Darwin 两个架构分别使用自身 target sysroot。amd64 的 generated-C、n
 
 Windows x64 宿主默认选择 `x86_64-pc-windows-msvc-ucrt`，不根据构建 Scoop 自身的 Rust ABI 或 PATH 上的 compiler 改选应用 target。显式 Windows target 使用上表完整名称，不将 LLVM machine triple 或缺少 native 环境／CRT 的简称当作别名。Windows 系统库、调试器和配套工具包的入口见 [Windows 支持范围](../windows-targets/README.md)，具体资源由发行配置按 target 选择。
 
-LIR 目标数据显式保存机器架构、过程 ABI、Scoop ABI classifier 与 EH 约定。过程 ABI 选择 Darwin AArch64、SysV AMD64 或 Win64 的完整签名分类器；Scoop classifier 不从 COFF 推导，SEH personality 的名称与签名不从对象格式推导。静态目录绑定这些已实现的规则，IR crate 只保存和编码数据，具体分类算法继续属于 codegen 的 ABI planner。
+LIR 目标数据显式保存机器架构、过程 ABI、Scoop ABI classifier 与 EH 约定。过程 ABI 选择 Darwin AArch64、AAPCS64、SysV AMD64 或 Win64 的完整签名分类器；Scoop classifier 不从 COFF 推导，SEH personality 的名称与签名不从对象格式推导。静态目录绑定这些已实现的规则，IR crate 只保存和编码数据，具体分类算法继续属于 codegen 的 ABI planner。
 
-backend 的 machine frame 是必需数据，恢复机制为 fixed-frame 或 platform virtual-unwind 等封闭分支，每个 profile 再完整保存实际寄存器、slot、anchor、return-PC 与 next-frame 合同。当前实现明确选择 Darwin AArch64 固定帧、SysV AMD64 固定帧或 Windows AMD64 virtual-unwind；不以空值代表任一平台，也不从架构／容器推定。Windows profile 中的 RSP／RBP 与 DWARF 编号属于 AMD64 profile 数据，不能藏在看似适用于所有 Windows machine 的分支中。profile 编码包含实际选择，配套目标产物据此重建。LLVM 架构初始化、对象 section 名称、machine triple、CPU／features 和源码调试信息格式分别消费其投影，不继承另一个平台的完整描述；当前 Darwin／Linux backend 显式选择 DWARF 5，Windows backend 显式选择 CodeView。接口复用、数组区域、TLAB 和 card-region 的既有调优由 codegen 内的数据选项提供，目录绑定已有调优组，通用发射与优化流程不比较 LLVM target 名称。此次重构保持当前参数／结果、根槽与运行时机器 ABI 行为。
+backend 的 machine frame 是必需数据，恢复机制为 fixed-frame 或 platform virtual-unwind 等封闭分支，每个 profile 再完整保存实际寄存器、slot、anchor、return-PC 与 next-frame 合同。当前实现明确选择 Darwin AArch64 固定帧、Linux AArch64 固定帧、SysV AMD64 固定帧或 Windows AMD64 virtual-unwind；不以空值代表任一平台，也不从架构／容器推定。Windows profile 中的 RSP／RBP 与 DWARF 编号属于 AMD64 profile 数据，不能藏在看似适用于所有 Windows machine 的分支中。profile 编码包含实际选择，配套目标产物据此重建。LLVM 架构初始化、对象 section 名称、machine triple、CPU／features 和源码调试信息格式分别消费其投影，不继承另一个平台的完整描述；当前 Darwin／Linux backend 显式选择 DWARF 5，Windows backend 显式选择 CodeView。接口复用、数组区域、TLAB 和 card-region 的既有调优由 codegen 内的数据选项提供，目录绑定已有调优组，通用发射与优化流程不比较 LLVM target 名称。此次重构保持当前参数／结果、根槽与运行时机器 ABI 行为。
 
-backend contract 使用 LLVM 22.1、LLVM stackmap v3 和本规范的 GC/EH 约束。Linux 两个 libc target 共用 `org.scoop-lang.backend-profile/llvm-22-1-linux-x86-64/1`，但 native、runtime 与最终链接输入不能混用 glibc/musl。target、对象格式、调用约定、pointer/storage ABI 及实际 producer 配置必须相容；不支持的组合在生成目标产物前诊断。
+backend contract 使用 LLVM 22.1、LLVM stackmap v3 和本规范的 GC/EH 约束。Linux/amd64 两个 libc target 共用 `org.scoop-lang.backend-profile/llvm-22-1-linux-x86-64/1`，但 native、runtime 与最终链接输入不能混用 glibc/musl。target、对象格式、调用约定、pointer/storage ABI 及实际 producer 配置必须相容；不支持的组合在生成目标产物前诊断。
+
+Linux/AArch64 选择 `org.scoop-lang.backend-profile/llvm-22-1-linux-aarch64/1`，CPU 为 generic Armv8-A，采用小端 LP64、AAPCS64 和 ELF64 RELA。对象头的 machine 是 `EM_AARCH64`，flags 为零。LLVM 的数据布局为 `e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32`。函数地址使用 64 位绝对重定位，EH、代码、PIC 数据和 TLS 使用各自的 AArch64 重定位。managed safepoint 处保留固定 SP 和实际 FP，每层按运行时规范 3.2 的帧记录恢复。GNU 宿主的默认输出目标为 `aarch64-unknown-linux-gnu`。
 
 LLVM architecture 只负责对应 LLVM target 的初始化、项目自建 LLVM 的 component 名称和 LLVM 接口需要的 machine 标识；完整 backend profile 继续绑定 LLVM 版本、triple、CPU／features、object target、unwind／LSDA、pipeline、frame 与已测 tuning。LLVM component build list 从当前目录实际引用的 architecture 去重取得，不手写完整 target，也不包含未实现 architecture。LLVM command-line options 在进程内只初始化一次：只有对全部当前 backend 均已验证的确定性选项可以进入进程全局集合，target-specific policy 使用 TargetMachine、function attributes、pass pipeline 或对应 backend 实现表达。先后建立不同 target 的 TargetMachine 不能改变任一输出合同。
 
@@ -100,7 +103,7 @@ Linux generated-C 支持 GCC 与 GNU 风格 Clang。GNU 环境省略 `--cc` 时�
 
 GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不传给 GCC。GCC 专用的 specs、`cc1`／`cc1plus`、`collect2` 与隐式 sysroot 查询只在相应 GCC 操作中使用。Linux Clang 沿用当前 GNU ld、libgcc、GNU C++ 标准库及 LLVM unwind 配置；接入 Clang 不同时新增另一套 libc／C++ ABI／linker 环境。两种 producer 的实际对象、C ABI、TLS 和原生链接通过定向验证，工具探测仍只编译／读取对象，不执行交叉目标程序。compiler protocol 的调用配置显式保存 Linux compiler 选择；不保存工具状态巡检记录。
 
-两个 Linux 目标的默认 C／C++、runtime 与 startup 编译显式使用 `-march=x86-64`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
+Linux 的默认 C／C++、runtime 与 startup 编译按机器显式使用 `-march=x86-64` 或 `-march=armv8-a`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
 
 Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择；Boolean 或 `when` 条件在所选 target 下产生同一项 C++ 需求。GTK/libadwaita 的 Linux GNU 窗口后端据此声明其动态依赖所需的 C++ 运行库，其他平台的窗口后端不引入这项需求。目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。展开 manifest 保存已解析的目标条件，compiler protocol 为 27、package protocol 为 6；PM 的清单解析记录使用 `manifests-v6`，含已解析清单的 registry 缓存使用 `registry-v3`。旧本机请求和解析记录按 namespace 自然失效，`.slib` 仍保存所选 target 的 Boolean 需求，产物格式与 runtime ABI 不变。
 
@@ -572,9 +575,11 @@ C ABI storage 为封闭类型结构：integer、Boolean、Float/Double、带完�
 
 nullable data/code pointer 保留对应 exact enum 与 pointer 类型，不得把同一 enum 绑定到不同 pointee/signature。CLayout 的 aligned/packed 各为 Natural、A1、A2、A4、A8 或 A16。C ABI storage 与 Scoop 值表示分别准确保存；C ABI 分类不能用 Scoop aggregate ABI 代替。
 
-在当前两个 Darwin、Linux/amd64 GNU 和 musl profile 上，固定参数的 cdecl C extern 未选择 `captureErrno = true` 时，合法 canonical C signature 必须使用 DirectC，包括 integer、Boolean、Float/Double、data/code pointer 和按值 C-layout struct。条件按已有 C-FFI-safe projection 判断，包括 Char、PinnedPtr／GcHandle 与合法 nullable pointer；不把普通 C-layout struct 凭大小或字段数当作标量。Unit 仅映射为 void 结果。errno 捕获继续使用 StorageBridge；本条不扩展 callback、FunPtr 或 native global/TLS 协议。
+在 Apple 与 Linux 的 AArch64 和 amd64 profile 上，固定参数的 cdecl C extern 未选择 `captureErrno = true` 时，合法 canonical C signature 必须使用 DirectC，包括 integer、Boolean、Float/Double、data/code pointer 和按值 C-layout struct。条件按已有 C-FFI-safe projection 判断，包括 Char、PinnedPtr／GcHandle 与合法 nullable pointer；不把普通 C-layout struct 凭大小或字段数当作标量。Unit 仅映射为 void 结果。errno 捕获继续使用 StorageBridge；本条不扩展 callback、FunPtr 或 native global/TLS 协议。
 
-Darwin/amd64 与 Linux GNU／musl 共享 SysV AMD64 eightbyte 分类，保留 INTEGER／SSE／MEMORY、整 aggregate 的寄存器耗尽回退、byval 和 sret。Darwin/AArch64 使用对应 AAPCS64／Darwin 分类，保留 HFA、普通 aggregate、栈参数和间接结果；四个 Double 的 HFA 不受 Scoop 16-byte 小值阈值限制。完整物理签名覆盖 nested layout、padding、alignment、扩展、coercion 与隐藏参数顺序。classifier 只消费已有 C projection 和完整签名，不建立运行期 libffi 或 FFI 插件；以所选目标 C compiler 产生的独立函数作互调验证。
+Darwin/amd64 与 Linux/amd64 GNU／musl 共享 SysV AMD64 eightbyte 分类，保留 INTEGER／SSE／MEMORY、整 aggregate 的寄存器耗尽回退、byval 和 sret。Darwin/AArch64 使用对应 AAPCS64／Darwin 分类，保留 HFA、普通 aggregate、栈参数和间接结果；四个 Double 的 HFA 不受 Scoop 16-byte 小值阈值限制。完整物理签名覆盖 nested layout、padding、alignment、扩展、coercion 与隐藏参数顺序。classifier 只消费已有 C projection 和完整签名，不建立运行期 libffi 或 FFI 插件；以所选目标 C compiler 产生的独立函数作互调验证。
+
+Linux/AArch64 的 C ABI 对窄整数与 Boolean 参数和结果使用其自然位宽，LLVM 签名不带 `signext` 或 `zeroext`。普通小聚合、HFA、caller copy 和通过 x8 的间接返回按 AAPCS64 分类。聚合入参按 C ABI 的栈对齐传入，直接调用、函数指针和 C 回调使用同一份参数计划。
 
 DirectC 由 codegen 的 ABI 规划入口根据 LIR 准备提供的 canonical C signature 与目标 C ABI 确定完整的物理参数/结果、calling convention、小整数扩展和 Boolean 表示转换，codegen 按该计划发射 LLVM 类型与 ABI 属性，目标后端分配寄存器及栈位置。不构造 storage bridge 专用的参数局部变量、返回缓冲区或 memcpy 往返；目标 ABI 要求的栈传参、byval、sret 与表示转换保留。StorageBridge 保留完整 storage signature，由系统 C compiler 生成桥接；不能只设置 LLVM C calling convention 就把未经分类的 struct 直接传递。
 

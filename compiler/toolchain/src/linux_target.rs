@@ -7,6 +7,7 @@ use crate::ToolchainError;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LinuxMachine {
+    Aarch64,
     X86_64,
 }
 
@@ -14,11 +15,13 @@ impl LinuxMachine {
     pub(crate) fn compiler_flags(self) -> &'static [&'static str] {
         match self {
             Self::X86_64 => &["-march=x86-64"],
+            Self::Aarch64 => &["-march=armv8-a"],
         }
     }
     pub(crate) fn object_architecture(self) -> object::Architecture {
         match self {
             Self::X86_64 => object::Architecture::X86_64,
+            Self::Aarch64 => object::Architecture::Aarch64,
         }
     }
 }
@@ -77,12 +80,7 @@ impl LinuxTarget {
         };
         let machine = match definition.selection.target().architecture() {
             TargetArchitecture::X86_64 => LinuxMachine::X86_64,
-            architecture => {
-                return Err(ToolchainError::new(
-                    scoop_source::DiagnosticCode::E2301,
-                    format!("no Linux machine toolchain for {architecture:?}"),
-                ));
-            }
+            TargetArchitecture::Aarch64 => LinuxMachine::Aarch64,
         };
         Ok(Self { machine, libc })
     }
