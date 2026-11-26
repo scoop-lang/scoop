@@ -36,6 +36,8 @@ ApplicationScope 提供 application、uiHost、isMounted、resource、onDispose 
 | observeModal(session, action) | ModalResult |
 | observeFileDialog(session, action) | FileDialogResult<T> |
 
+菜单、弹出菜单、模态和文件对话框的观察接口是 `scoop.ui` 包里的桌面扩展。按名导入 `ApplicationScope` 或 `ComponentScope` 的调用方还需导入使用的扩展，例如 `import scoop.ui.observeMenu`。`import scoop.ui.*` 已包含这些扩展。
+
 登记按对应的 MenuId／PopupSessionId／ModalSessionId／FileDialogSessionId 路由，只交付所属资源。session 已完成时，在该次登记的所属同步边界交付既有结果一次；未完成时等真实完成事件，不轮询。回调执行前移除一次性 session 登记，显式关闭或卸载后的迟到事件不执行旧动作。菜单动作保留完整 MenuSource，独立托盘组件通过 NativeMenuUseId 判断自身的原生使用。
 
 ComponentScope 另提供 `observeFrameMetrics(action: (WindowFrameMetrics?) -> Unit)`。登记后立即在所属边界交付当前值，之后只在该窗口 FrameChanged／GeometryChanged 时读取 native 快照；关闭窗口后不再查询。它使实际窗框变化驱动 State，而不是逐帧查询或长期使用创建时的期望值。
