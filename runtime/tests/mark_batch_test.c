@@ -54,7 +54,15 @@ static const ScoopTypeDescriptor reordered_td = {
 
 static void collect_and_check(size_t workers, size_t objects, size_t references) {
     ScoopGcMetrics before = nursery_metrics();
+#if SCOOP_ENABLE_GC_STRESS
+    /* Exercise relocation on the complete graph at the collection under test. */
+    scoop_gc_heap_state.stress_move = true;
+#endif
     nursery_collect(false);
+#if SCOOP_ENABLE_GC_STRESS
+    scoop_gc_heap_state.stress_move = false;
+    assert((scoop_rt_gc_debug_last_moved_count() != 0) == (objects != 0));
+#endif
     ScoopGcMetrics after = nursery_metrics();
     assert(after.last_mark_workers == workers);
     assert(after.traced_objects - before.traced_objects == objects);
@@ -126,9 +134,6 @@ static void run_case(size_t workers, bool bounded) {
     scoop_test_image_init(types, 4, NULL, 0, NULL, 0);
     scoop_thread_attach_main();
     scoop_thread_enter_managed((void *)scoop_rt_thread_debug_stack_high());
-#if SCOOP_ENABLE_GC_STRESS
-    scoop_gc_heap_state.stress_move = true;
-#endif
     void *objects[ROOT_COUNT] = {0};
     void **slots[ROOT_COUNT];
     for (size_t index = 0; index < ROOT_COUNT; index++) {
@@ -232,9 +237,7 @@ static void run_case(size_t workers, bool bounded) {
 }
 
 int main(void) {
-    /* O0 stress repeatedly scans the 1025-root graph while it is built. Allow
-     * each child to finish under parallel test load, with an outer guard that
-     * covers all four cases instead of expiring halfway through the run. */
+    /* Bound each child separately and retain a guard for the full matrix. */
     alarm(4 * 60 + 10);
     for (size_t workers = 1; workers <= 4; workers *= 4) {
         for (unsigned bounded = 0; bounded < 2; bounded++) {
