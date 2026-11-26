@@ -3,7 +3,28 @@ use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::process::Output;
 
-pub(super) fn driver_program(mut command: Command, name: &str) -> Result<PathBuf, ToolchainError> {
+pub(super) fn linker(
+    startup: &ValidatedCBridgeToolchainInvocation,
+    runtime: &RuntimeLibraries,
+) -> Result<PathBuf, ToolchainError> {
+    let command = runtime.command(startup);
+    if startup.target().architecture() != scoop_lir::TargetArchitecture::Aarch64 {
+        return driver_program(command, "ld");
+    }
+    let packaged = crate::linux_c::bundled_llvm_tool("ld.lld")?;
+    let sdk = std::env::var_os("LLVM_SYS_221_PREFIX")
+        .map(|prefix| PathBuf::from(prefix).join("bin/ld.lld"));
+    if let Some(path) = std::iter::once(packaged)
+        .chain(sdk)
+        .find(|path| path.is_file())
+    {
+        return std::path::absolute(path)
+            .map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause));
+    }
+    driver_program(command, "ld.lld")
+}
+
+fn driver_program(mut command: Command, name: &str) -> Result<PathBuf, ToolchainError> {
     let path = command
         .get_envs()
         .find(|(key, _)| *key == OsStr::new("PATH"))
@@ -28,11 +49,15 @@ pub(super) fn system_inputs(
     // No source, startup object, program object or published output is needed.
     let scratch =
         tempfile::tempdir().map_err(|cause| error(scoop_source::DiagnosticCode::E2201, cause))?;
-    let mut command = profile.data.runtime.command(&profile.startup);
+    let depfile = scratch.path().join("link-probe.d");
+    let output = scratch.path().join("link-probe");
+    let mut command = profile.driver_command();
     command
         .args(profile.linker_args())
-        .args(["-nostartfiles", "-Wl,-t", "-Wl,-e,0", "-o"])
-        .arg(scratch.path().join("link-probe"));
+        .args(["-nostartfiles", "-Xlinker", "--dependency-file", "-Xlinker"])
+        .arg(&depfile)
+        .args(["-Wl,-e,0", "-o"])
+        .arg(&output);
     if profile.cxx() {
         // A library operand makes the driver run its normal C++ library plan.
         command.arg("-lc");
@@ -40,12 +65,28 @@ pub(super) fn system_inputs(
         command.arg("-nodefaultlibs");
     }
     profile.append_system_libraries(&mut command);
-    let output = run(&mut command)?;
-    let trace = String::from_utf8(output.stdout)
+    run(&mut command)?;
+    linker_libraries(&depfile, &output)
+}
+
+pub(super) fn linker_libraries(
+    depfile: &Path,
+    output: &Path,
+) -> Result<Vec<PathBuf>, ToolchainError> {
+    // The depfile includes linker scripts and archives even if no member was extracted.
+    let dependencies = std::fs::read_to_string(depfile)
         .map_err(|cause| error(scoop_source::DiagnosticCode::E2303, cause))?;
-    let paths = trace
-        .lines()
-        .map(|line| Path::new(line.trim()))
+    let first_rule = dependencies
+        .split_once("\n\n")
+        .map_or(dependencies.as_str(), |(rule, _)| rule);
+    let paths = scoop_process::parse_make_dependencies(first_rule, &output.to_string_lossy())
+        .ok_or_else(|| {
+            error(
+                scoop_source::DiagnosticCode::E2303,
+                "invalid Linux linker dependency file",
+            )
+        })?
+        .into_iter()
         .filter(|path| {
             path.is_absolute()
                 && path
@@ -53,7 +94,6 @@ pub(super) fn system_inputs(
                     .and_then(|name| name.to_str())
                     .is_some_and(|name| name.ends_with(".a") || name.contains(".so"))
         })
-        .map(Path::to_owned)
         .collect::<BTreeSet<_>>();
     if !paths.iter().any(|path| {
         path.file_name()
@@ -61,7 +101,7 @@ pub(super) fn system_inputs(
     }) {
         return Err(error(
             scoop_source::DiagnosticCode::E2303,
-            "linker trace does not identify the selected libc development input",
+            "linker dependencies do not identify the selected libc development input",
         ));
     }
     Ok(paths.into_iter().collect())

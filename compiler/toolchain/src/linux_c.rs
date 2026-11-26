@@ -16,13 +16,13 @@ use crate::ToolchainError;
 use crate::linux_target::{LinuxLibc, LinuxTarget};
 use crate::paths::find_program;
 
-pub(crate) fn bundled_clang_path() -> Result<PathBuf, ToolchainError> {
+pub(crate) fn bundled_llvm_tool(name: &str) -> Result<PathBuf, ToolchainError> {
     crate::installed_executable()?
         .parent()
         .and_then(Path::parent)
         .map(|root| {
             root.join("libexec/llvm/bin")
-                .join(crate::host_executable_name("clang"))
+                .join(crate::host_executable_name(name))
         })
         .ok_or_else(|| {
             error(
@@ -40,7 +40,7 @@ pub fn resolve_linux_c_toolchain(
     let selected = LinuxTarget::select(target.id())?;
     let default_driver = selected.libc.default_c_driver();
     let bundled = (compiler.is_none() && selected.libc == LinuxLibc::Gnu)
-        .then(bundled_clang_path)
+        .then(|| bundled_llvm_tool("clang"))
         .transpose()?;
     let selected_driver = compiler
         .or_else(|| bundled.as_deref().filter(|path| path.is_file()))

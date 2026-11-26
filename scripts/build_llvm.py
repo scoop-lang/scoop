@@ -42,7 +42,17 @@ BYVAL_DEBUG_PATCH = (
 LANDINGPAD_DEBUG_PATCH = (
     ROOT / "sysroot/vendor/llvm-project/22.1.8/patches/llvm-landingpad-debug-values.patch"
 )
-SOURCE_PATCHES = (STATEPOINT_PATCH, DSYMUTIL_PATCH, BYVAL_DEBUG_PATCH, LANDINGPAD_DEBUG_PATCH)
+AARCH64_DWARF_TLS_PATCH = (
+    ROOT / "sysroot/vendor/llvm-project/22.1.8/patches/llvm-aarch64-dwarf-tls.patch"
+)
+SOURCE_PATCHES = (
+    STATEPOINT_PATCH,
+    DSYMUTIL_PATCH,
+    BYVAL_DEBUG_PATCH,
+    LANDINGPAD_DEBUG_PATCH,
+    AARCH64_DWARF_TLS_PATCH,
+    ROOT / "sysroot/vendor/llvm-project/22.1.8/patches/lld-readonly-output-section.patch",
+)
 SOURCE_PARTS = ("llvm", "clang", "lld", "cmake", "third-party")
 
 

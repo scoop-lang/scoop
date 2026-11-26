@@ -9,8 +9,6 @@ mod runtime;
 use runtime::RuntimeLibraries;
 mod wire;
 
-const LINUX_DRIVER_OPTIONS: &[&str] = &["-pthread"];
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinuxFinalLinkProfile {
     startup: ValidatedCBridgeToolchainInvocation,
@@ -61,7 +59,7 @@ impl LinuxFinalLinkProfile {
             ));
         }
         let runtime = RuntimeLibraries::resolve(startup.target(), options, cxx)?;
-        let linker = probe::driver_program(runtime.command(&startup), "ld")?;
+        let linker = probe::linker(&startup, &runtime)?;
         let mut profile = Self {
             startup,
             target: selected,
@@ -99,8 +97,32 @@ impl LinuxFinalLinkProfile {
             linker_defined_symbols: GNU_ELF_LINKER_SYMBOLS,
         }
     }
+    fn uses_paired_lld(&self) -> bool {
+        self.startup.target().architecture() == scoop_lir::TargetArchitecture::Aarch64
+    }
+
+    fn driver_options(&self) -> &'static [&'static str] {
+        match (self.uses_paired_lld(), self.mode()) {
+            (false, _) => &["-pthread"],
+            (true, LinkMode::Dynamic) => &["-pthread", "-fuse-ld=lld"],
+            // musl-gcc supplies an interpreter even when invoking the static linker.
+            (true, LinkMode::Static) => &["-pthread", "-fuse-ld=lld", "-Wl,--no-dynamic-linker"],
+        }
+    }
+
+    fn driver_command(&self) -> Command {
+        let mut command = self.data.runtime.command(&self.startup);
+        if self.uses_paired_lld() {
+            // Both GCC and Clang search this directory first for ld.lld.
+            command
+                .arg("-B")
+                .arg(self.data.linker.parent().expect("absolute linker path"));
+        }
+        command
+    }
+
     pub fn linker_args(&self) -> Vec<&'static str> {
-        LINUX_DRIVER_OPTIONS
+        self.driver_options()
             .iter()
             .copied()
             .chain(self.elf_plan().linker_args())
@@ -114,11 +136,11 @@ impl LinuxFinalLinkProfile {
     }
 
     pub fn command(&self, scratch: &Path, output: &Path) -> Result<Command, ToolchainError> {
-        let mut command = self.data.runtime.command(&self.startup);
+        let mut command = self.driver_command();
         if !self.cxx() {
             command.arg("-nodefaultlibs");
         }
-        command.env("TMPDIR", scratch).args(LINUX_DRIVER_OPTIONS);
+        command.env("TMPDIR", scratch).args(self.driver_options());
         self.elf_plan()
             .configure_command(&mut command, scratch, output)?;
         Ok(command)
@@ -143,7 +165,12 @@ impl LinuxFinalLinkProfile {
     }
 
     fn elf_plan(&self) -> GnuElfLinkPlan<'_> {
-        GnuElfLinkPlan::new(&self.data.output, self.data.mode)
+        let dynamic_script = if self.uses_paired_lld() {
+            include_str!("../elf/lld-dynamic.ld")
+        } else {
+            include_str!("../elf/dynamic.ld")
+        };
+        GnuElfLinkPlan::new(&self.data.output, self.data.mode, dynamic_script)
     }
 }
 

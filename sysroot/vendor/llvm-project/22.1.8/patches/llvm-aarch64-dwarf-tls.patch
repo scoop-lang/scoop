@@ -1,0 +1,124 @@
+--- a/lld/ELF/Arch/AArch64.cpp
++++ b/lld/ELF/Arch/AArch64.cpp
+@@ -140,6 +140,8 @@
+ RelExpr AArch64::getRelExpr(RelType type, const Symbol &s,
+                             const uint8_t *loc) const {
+   switch (type) {
++  case R_AARCH64_TLS_DTPREL64:
++    return R_DTPREL;
+   case R_AARCH64_ABS16:
+   case R_AARCH64_ABS32:
+   case R_AARCH64_ABS64:
+@@ -544,6 +546,9 @@
+     checkInt(ctx, loc, val, 32, rel);
+     write32(ctx, loc, val);
+     break;
++  case R_AARCH64_TLS_DTPREL64:
++    write64(ctx, loc, val);
++    break;
+   case R_AARCH64_ADD_ABS_LO12_NC:
+   case R_AARCH64_AUTH_GOT_ADD_LO12_NC:
+     write32Imm12(loc, val);
+--- a/llvm/lib/Object/RelocationResolver.cpp
++++ b/llvm/lib/Object/RelocationResolver.cpp
+@@ -79,6 +79,7 @@
+   case ELF::R_AARCH64_PREL16:
+   case ELF::R_AARCH64_PREL32:
+   case ELF::R_AARCH64_PREL64:
++  case ELF::R_AARCH64_TLS_DTPREL64:
+     return true;
+   default:
+     return false;
+@@ -91,6 +92,7 @@
+   case ELF::R_AARCH64_ABS32:
+     return (S + Addend) & 0xFFFFFFFF;
+   case ELF::R_AARCH64_ABS64:
++  case ELF::R_AARCH64_TLS_DTPREL64:
+     return S + Addend;
+   case ELF::R_AARCH64_PREL16:
+     return (S + Addend - Offset) & 0xFFFF;
+--- a/llvm/lib/Target/AArch64/AArch64TargetObjectFile.cpp
++++ b/llvm/lib/Target/AArch64/AArch64TargetObjectFile.cpp
+@@ -28,9 +28,8 @@
+   PLTRelativeSpecifier = AArch64::S_PLT;
+   SupportIndirectSymViaGOTPCRel = true;
+ 
+-  // AARCH64 ELF ABI does not define static relocation type for TLS offset
+-  // within a module.  Do not generate AT_location for TLS variables.
+-  SupportDebugThreadLocalLocation = false;
++  // The paired ELF linker resolves DTPREL64 in non-allocated DWARF sections.
++  SupportDebugThreadLocalLocation = TM.getTargetTriple().isOSLinux();
+ 
+   // Make sure the implicitly created empty .text section has the
+   // SHF_AARCH64_PURECODE flag set if the "+execute-only" target feature is
+@@ -186,3 +185,8 @@
+ 
+   return TargetLoweringObjectFileELF::SelectSectionForGlobal(GO, Kind, TM);
+ }
++
++const MCExpr *AArch64_ELFTargetObjectFile::getDebugThreadLocalSymbol(
++    const MCSymbol *Sym) const {
++  return MCSymbolRefExpr::create(Sym, AArch64::S_DTPREL, getContext());
++}
+--- a/llvm/lib/Target/AArch64/AArch64TargetObjectFile.h
++++ b/llvm/lib/Target/AArch64/AArch64TargetObjectFile.h
+@@ -40,6 +40,9 @@
+ 
+   MCSection *SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind,
+                                     const TargetMachine &TM) const override;
++
++  /// Describe a TLS variable address within debug info.
++  const MCExpr *getDebugThreadLocalSymbol(const MCSymbol *Sym) const override;
+ };
+ 
+ /// AArch64_MachoTargetObjectFile - This TLOF implementation is used for Darwin.
+--- a/llvm/lib/Target/AArch64/AsmParser/AArch64AsmParser.cpp
++++ b/llvm/lib/Target/AArch64/AsmParser/AArch64AsmParser.cpp
+@@ -4669,6 +4669,7 @@
+                   .Case("prel_g1_nc", AArch64::S_PREL_G1_NC)
+                   .Case("prel_g0", AArch64::S_PREL_G0)
+                   .Case("prel_g0_nc", AArch64::S_PREL_G0_NC)
++                  .Case("dtprel", AArch64::S_DTPREL)
+                   .Case("dtprel_g2", AArch64::S_DTPREL_G2)
+                   .Case("dtprel_g1", AArch64::S_DTPREL_G1)
+                   .Case("dtprel_g1_nc", AArch64::S_DTPREL_G1_NC)
+@@ -8490,6 +8491,8 @@
+       Spec = AArch64::S_GOTPCREL;
+     else if (Identifier == "plt")
+       Spec = AArch64::S_PLT;
++    else if (Identifier == "dtprel")
++      Spec = AArch64::S_DTPREL;
+     else if (Identifier == "funcinit")
+       Spec = AArch64::S_FUNCINIT;
+   }
+--- a/llvm/lib/Target/AArch64/MCTargetDesc/AArch64ELFObjectWriter.cpp
++++ b/llvm/lib/Target/AArch64/MCTargetDesc/AArch64ELFObjectWriter.cpp
+@@ -232,6 +232,8 @@
+       }
+       if (RefKind == AArch64::S_AUTH || RefKind == AArch64::S_AUTHADDR)
+         return ELF::R_AARCH64_AUTH_ABS64;
++      if (RefKind == AArch64::S_DTPREL)
++        return ELF::R_AARCH64_TLS_DTPREL64;
+       if (RefKind == AArch64::S_FUNCINIT)
+         return ELF::R_AARCH64_FUNCINIT64;
+       return ELF::R_AARCH64_ABS64;
+@@ -448,6 +450,8 @@
+         return R_CLS(MOVW_PREL_G0);
+       if (RefKind == AArch64::S_PREL_G0_NC)
+         return R_CLS(MOVW_PREL_G0_NC);
++      if (RefKind == AArch64::S_DTPREL)
++        return ELF::R_AARCH64_TLS_DTPREL64;
+       if (RefKind == AArch64::S_DTPREL_G2)
+         return ELF::R_AARCH64_TLSLD_MOVW_DTPREL_G2;
+       if (RefKind == AArch64::S_DTPREL_G1)
+--- a/llvm/lib/Target/AArch64/MCTargetDesc/AArch64MCAsmInfo.cpp
++++ b/llvm/lib/Target/AArch64/MCTargetDesc/AArch64MCAsmInfo.cpp
+@@ -40,7 +40,8 @@
+     {AArch64::S_GOT, "GOT"},
+     {AArch64::S_GOTPCREL, "GOTPCREL"},
+     {AArch64::S_PLT, "PLT"},
++    {AArch64::S_DTPREL, "DTPREL"},
+     {AArch64::S_FUNCINIT, "FUNCINIT"},
+ };
+ 
+ const MCAsmInfo::AtSpecifier MachOAtSpecifiers[] = {
