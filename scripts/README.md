@@ -114,6 +114,14 @@ PCRE2 的三个 Windows target 在 Windows 构建，使用原生 Ninja；Microso
 
 Apple Silicon macOS 的发行 manifest 提供 `lib-base-aarch64-apple-ios` 和 `lib-base-aarch64-apple-ios-sim`。安装所需组件即可用对应的预编译库和 runtime 链接 UIKit 应用。
 
+本地开发 iOS 图形应用时，可用下列命令准备模拟器专用的原生库。Skia 从仓库的固定归档构建，文字后端使用 vendored Rust 依赖。设备资源将目标改为 `aarch64-apple-ios` 并选择单独的工作目录。这些命令只写本地 sysroot。
+
+```sh
+rustup target add aarch64-apple-ios-sim
+python3 scripts/build_text_backends.py --target aarch64-apple-ios-sim --build-dir tmp/ios-text-sim
+python3 scripts/build_skia.py --target aarch64-apple-ios-sim --build-dir tmp/ios-skia-sim --gn /path/to/gn
+```
+
 macOS Xcode 宿主可用 `prepare_sysroot.py --target aarch64-apple-ios-sim --scoop target/release/scoop` 准备模拟器的 `scoop.core`、`scoop.std`、`scoop.os.ios` 与 runtime，真机使用 `--target aarch64-apple-ios`。用 `package_ios_xcframework.py` 将 iOS `native-app` Mach-O 和 C 头打成宿主可导入的 XCFramework。构建命令、平台选择和模拟器验收见 [iOS native-app 示例](../tests/ios-native-app/README.md)。
 
 需要重新配置已有 CMake 构建目录时，若其缓存的 `CMAKE_<LANG>_COMPILER` 与本次选择不同，准备脚本先删除 `CMakeCache.txt` 和 `CMakeFiles`（等同 `cmake --fresh`）；否则 CMake 会自行清空缓存并丢弃脚本传入的其余 `-D` 选项。编译器未变化时仍使用普通增量构建。

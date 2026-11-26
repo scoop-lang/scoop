@@ -2,7 +2,7 @@ package scoop.surface
 
 import scoop.graphics.*
 import scoop.graphics.native.RenderTarget
-import scoop.graphics.native.macos.MetalContext
+import scoop.graphics.native.metal.MetalContext
 import scoop.window.*
 import scoop.window.native.*
 
