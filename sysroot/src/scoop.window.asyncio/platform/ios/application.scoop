@@ -1,0 +1,83 @@
+package scoop.window.asyncio
+
+import scoop.asyncio.*
+import scoop.asyncio.host.MainDispatchHost
+import scoop.window.*
+import scoop.window.ios.UIKitApplication
+
+/** Attach one UIWindowScene to the main dispatch queue; close it at scene disconnection. */
+@Unsafe
+public fun attachUIKitScene(
+    scene: Ptr<Unit>,
+    handler: ApplicationHandler,
+    onClosed: (Throwable?) -> Unit
+): Closeable {
+    val owner = UIKitSceneOwner(scene, handler, onClosed)
+    owner.start()
+    return owner
+}
+
+private class UIKitSceneOwner(
+    private val scene: Ptr<Unit>,
+    private val handler: ApplicationHandler,
+    private val onClosed: (Throwable?) -> Unit
+) : Closeable {
+    private var application: UIKitApplication? = None
+    private var session: EventLoopSession? = None
+    private var closing = false
+
+    fun start() {
+        val io = eventLoop()
+            .attach(MainDispatchHost()) { error ->
+                session = None
+                try {
+                    closeWindow()
+                } catch (cleanup: Throwable) {
+                    onClosed(
+                        Some(
+                            when (error) {
+                                case Some(val primary) -> ResourceUseException(primary, cleanup)
+                                case None -> cleanup
+                            }
+                        )
+                    )
+                    return@attach
+                }
+                onClosed(error)
+            }
+        session = Some(io)
+        io
+            .post {
+                val scope = this;
+                val owner = this @UIKitSceneOwner
+                context(ScopeBinding(scope)) {
+                    val app = UIKitApplication(owner.handler)
+                    owner.application = Some(app)
+                    @Unsafe {
+                        app.connect(owner.scene)
+                    }
+                }
+            }
+    }
+
+    private fun closeWindow() {
+        val app = application ?: return
+        application = None
+        try {
+            @Unsafe {
+                app.disconnect(scene)
+            }
+        } finally {
+            app.close()
+        }
+    }
+    public override fun close() {
+        if (closing) return
+        closing = true
+        try {
+            closeWindow()
+        } finally {
+            session?.requestClose()
+        }
+    }
+}

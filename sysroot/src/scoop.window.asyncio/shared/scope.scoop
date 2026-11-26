@@ -1,0 +1,9 @@
+package scoop.window.asyncio
+
+/** Returns the active business scope; cleanup notifications have no application scope. */
+public fun currentApplicationScope(): CoroutineScope = applicationScope()
+
+internal class ScopeBinding(val scope: CoroutineScope)
+
+context(binding: ScopeBinding)
+private fun applicationScope(): CoroutineScope = binding.scope
