@@ -1,4 +1,7 @@
 //! Real PM preparation shared by driver tests that consume source Cone graphs.
+#[path = "../../../tests/support/cargo_tools.rs"]
+mod cargo_tools;
+
 use std::{path::Path, process::Command};
 
 use scoop_protocol::{CompilationPurpose, package::PreparedWorkspaceV1};
@@ -8,13 +11,7 @@ pub(crate) fn root(
     sysroot: &Path,
     purpose: CompilationPurpose,
 ) -> crate::BuildRootInput {
-    let pm = std::env::current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join(format!("scoop-pm{}", std::env::consts::EXE_SUFFIX));
+    let pm = cargo_tools::companion("scoop-pm");
     let invoke = |action: &str| {
         let output = Command::new(&pm)
             .arg(action)

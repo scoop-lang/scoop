@@ -1,3 +1,6 @@
+#[path = "../../../../tests/support/cargo_tools.rs"]
+mod cargo_tools;
+
 use scoop_analysis::ProjectConfiguration;
 use scoop_protocol::CompilationPurpose;
 use std::path::{Path, PathBuf};
@@ -43,13 +46,7 @@ pub fn setup_without_lock(root: &Path) -> ProjectConfiguration {
         purpose: Some(CompilationPurpose::Production),
         sysroot: root.join("sysroot"),
         artifact_search_roots: Vec::new(),
-        package_manager: std::env::current_exe()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join(format!("scoop-pm{}", std::env::consts::EXE_SUFFIX)),
+        package_manager: cargo_tools::companion("scoop-pm"),
         package_cache: Some(root.join("pm-cache")),
         lockfile: None,
     }

@@ -6,17 +6,7 @@ fn artifact_cxx_requirement_rejects_both_musl_final_link_modes() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path();
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let compiler = std::env::var_os("SCOOP_TEST_PAIRED_SCOOPC")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            std::env::current_exe()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .join("scoopc")
-        });
+    let compiler = crate::cargo_tools::companion("scoopc");
     let gnu = ResolvedTargetProfile::resolve("x86_64-unknown-linux-gnu").unwrap();
     let sysroot = std::env::var_os("SCOOP_SYSROOT")
         .map(PathBuf::from)
