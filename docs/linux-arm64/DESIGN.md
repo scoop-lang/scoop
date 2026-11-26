@@ -27,6 +27,8 @@ Linux ARM64 另选 codegen 与 runtime 的初始调优配置。先用保留栈�
 
 ABI 规划保留在 codegen。栈传参的对齐随参数计划传给发射器，例如 Clang 对含两个 Double 的 HFA 参数发出 `[2 x double] alignstack(8)`。用前置参数占满浮点寄存器的用例验证实际栈位置，覆盖直接调用和通过函数指针调用。[ABI 规划器](../../compiler/codegen/abi-plan/src/c.rs) · [C bridge 配置](../../compiler/target-data/src/c_bridge.rs) · [Arm AAPCS64](https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst)
 
+小聚合的实参与返回值分别分类。以一个只含 `char bytes[15]`、结构体显式对齐到 16 字节的 C 类型为例，仓库 Clang 在 Linux AArch64 上用 `[2 x i64]` 传参、用 `i128` 返回。布局规划需同时保留成员要求的对齐和结构体最终对齐。用同一结构体在 C 与 Scoop 之间往返，能发现只测函数声明时容易漏掉的寄存器错位。[聚合 ABI 规划](../../compiler/codegen/abi-plan/src/aggregate.rs)
+
 ### ELF 对象、精确栈根与异常
 
 **ELF 对象。** 在 LIR 增加小端 ELF64 AArch64 对象目标，在 slib 的 ELF reader 中按 `EM_AARCH64`、`e_flags = 0` 和 RELA 规则解析。元数据与 stackmap 的函数地址使用 `R_AARCH64_ABS64`，异常样例使用 `PREL32/64`，直接调用及跳转使用 `CALL26`／`JUMP26`。PIC 外部数据及线程局部数据还出现 GOT 页寻址和 `TLSDESC_*` 指令组。按实际发射形式区分重定位字段宽度、绝对指针和 TLS 用途，沿用现有 ELF 容器解析及系统 linker。用 Scoop 对象、generated C、native archive 和 DSO 检验这些生产者与消费者，另测混入 amd64 对象时的目标诊断。[ELF 架构选择](../../compiler/slib/src/link_object/elf/architecture.rs) · [Arm ELF ABI](https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst)
@@ -52,6 +54,8 @@ Linux AArch64 使用保留 FP 的固定大小帧，关闭 red zone 和影响遍�
 
 在 4 KiB 页的原生 ARM64 Linux 上构建配套的 `scoop`、`scoopc`、`scoop-link`，使用同一套仓库 LLVM 22.1.8 SDK。用现有 `[system_cones]` 配置先选择 `scoop.core`、`scoop.std`，显式准备目标 runtime、unwind 和开发 sysroot。普通程序消费 `lib/aarch64-unknown-linux-gnu/` 中的预编译输入，默认链接动态 PIE。[sysroot 准备入口](../../scripts/prepare_sysroot.py) · [Linux 链接模式](../../compiler/toolchain/src/final_link/linux.rs)
 
+准备顺序是先在目标目录登记 GNU triple，并在 `release.toml` 的对应目标表中填写 `cpu = "generic"`，再构建目标 libunwind，然后准备 runtime 和两个系统 Cone。`build_llvm_unwind.py` 直接从该表取 CPU，缺少这项时，即使 LLVM 已能发射 AArch64 对象，开发 sysroot 也无法从头准备。[libunwind 构建脚本](../../scripts/build_llvm_unwind.py) · [目标构建配置](../../scripts/release.toml)
+
 - 扩展现有 Linux CLI fixture。一个库 Cone 提供有 C 边界的函数，应用跨 Cone 调用、分配对象、触发收集并捕获异常。先运行 `scoop build` 的结果，再由 `scoop-link` 从同一组应用与依赖 `.slib` 和 runtime index 重链接，两个程序给出相同的预期输出和退出码。[CLI 编译与重链接用例](../../tests/fixtures/driver/linux/cli-program/fixture.toml)
 - 定向 GC 专测在 debug 和 release 上运行深栈、移动后重读及 callback 重入。ABI 专测覆盖负窄整数、Boolean、HFA 溢出到栈、大结构体返回和浮点结果 shim。GNU 目标与 ARM64 宿主的登记随这些实际入口一起交付。[深栈用例](../../tests/fixtures/gc-correctness/linux/deep-frames/fixture.toml) · [native 互调用例](../../tests/fixtures/compiler-correctness/native-link/)
 - 展开验证脚本现会遍历所有 Linux triple 并固定传入 `0x9b`。改为按所测目标选择 encoding、C driver 和链接模式，在对应架构上执行。通用 Linux fixture 以目标条件选择，预期输出中的机器名取自该目标。保留针对特定机器指令或重定位的专测。[展开验证脚本](../../scripts/check_linux_unwind.py) · [fixture 目标条件](../../tests/fixture_runner/README.md)
@@ -67,6 +71,8 @@ Linux AArch64 使用保留 FP 的固定大小帧，关闭 red zone 和影响遍�
 
 **基础库准备。** 按现有 Cone 依赖图扩展至全部适用的非图形库。为两种 libc 增加 OpenSSL 的 `linux-aarch64` 配方，按目标重建 Rust 文本后端、nghttp2、压缩库、PCRE2 及其余实际依赖。让 Python 准备脚本从目标目录选择配方。用各目标的头和库构建 `scoop.platform`、`scoop.os.linux`、`scoop.asyncio`、TLS 等真实消费者。将语言规范 §12.2.1 的 Linux GNU C++ 范围同步到 ARM64。§12.2.2 已能表达这两个目标的源文件条件。[依赖准备与基础库划分](../../scripts/package_toolchain.py) · [OpenSSL 配方](../../scripts/build_openssl.py) · [语言规范](../specs/SCOOP-SPEC.md)
 
+OpenSSL、nghttp2 等脚本的 `--target` 选项取自宿主目录中的 `distribution_targets`。在两套配方接入时就将 GNU、musl 一起列入 ARM64 GNU 宿主的该字段，同批运行两个目标的依赖准备。阶段三的发行任务再消费这份清单，生成实际可安装的包。[Python 目标目录](../../scripts/target_catalog.py) · [nghttp2 构建入口](../../scripts/build_nghttp2.py)
+
 **按系统页归还和保护内存。** Immix 普通 block 为 32 KiB，当前 full GC 要求系统页大小整除 block，遇到 64 KiB 页会终止。保留 32 KiB block、128 字节 line 和现有对象头，修改运行时规范 §3.1、§3.7 中的页归还与 stress 保护合同。[整页归还](../../runtime/src/gc/memory_return.c) · [块保护](../../runtime/src/gc/block_release.c) · [region 创建](../../runtime/src/gc/regions.c)
 
 - 普通 full GC 在 64 KiB 页上按系统页遍历普通 region。一页覆盖相邻两个 block，仅当整页均无存活 line、包含待归还空间且不含 region owner、未被隔离保护时，才合并范围交给 `madvise`。同页任一 block 含存活对象就保留整页。沿用现有标记结果、失败重试和按实际字节计数的规则。4 KiB 和 16 KiB 页沿用 block 内归还路径。
@@ -78,7 +84,7 @@ Linux AArch64 使用保留 FP 的固定大小帧，关闭 red zone 和影响遍�
 
 ## 阶段三　发行、桌面与开发工具
 
-**发行与安装。** GNU 宿主的 `distribution_targets` 列出两个输出目标。在 ARM64 Linux runner 原生构建宿主命令、配套 LLVM／LLDB／Python，并为两个目标打包资源。把 release workflow 的 x86 UAPI、musl include 路径改为所选机器的 multiarch 目录。以仓库已有的 Ubuntu 26.04.1、glibc 2.43、musl 1.2.5 为候选发行基线，在对应 ARM64 环境验证后写入发行说明。同步独立 `scoop-install` 的 Linux ARM64 宿主识别及构建矩阵。[发行基线](../../scripts/release.toml) · [发行 workflow](../../.github/workflows/release.yml) · [scoop-install](https://github.com/scoop-lang/scoop-install)
+**发行与安装。** 在 ARM64 Linux runner 原生构建宿主命令、配套 LLVM／LLDB／Python，并按 GNU 宿主的目标清单打包资源。把 release workflow 的 x86 UAPI、musl include 路径改为所选机器的 multiarch 目录。以仓库已有的 Ubuntu 26.04.1、glibc 2.43、musl 1.2.5 为候选发行基线，在对应 ARM64 环境验证后写入发行说明。同步独立 `scoop-install` 的 Linux ARM64 宿主识别及构建矩阵。[发行基线](../../scripts/release.toml) · [发行 workflow](../../.github/workflows/release.yml) · [scoop-install](https://github.com/scoop-lang/scoop-install)
 
 | 新增组件 | 安装用途 |
 | --- | --- |
