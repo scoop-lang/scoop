@@ -33,81 +33,51 @@ impl Concretizer<'_> {
         source: concrete::TypeId,
         target: concrete::TypeId,
     ) -> bool {
-        if let Some(relations) = self.concrete_nominal_relations(source) {
-            for parent in relations.ordinary {
-                let parent = self.lower_type(parent, &relations.arguments);
-                if self.concrete_subtype(parent, target) {
-                    return true;
-                }
+        let Some(relations) = self.concrete_nominal_relations(source) else {
+            return false;
+        };
+        for parent in relations.ordinary {
+            let parent = self.lower_type(parent, &relations.arguments);
+            if self.concrete_subtype(parent, target) {
+                return true;
             }
-            if matches!(self.types[target].kind, concrete::TypeKind::Interface(_)) {
-                for declaration in relations.conditional {
-                    // First establish the guard; its target can contain a
-                    // companion projection whose existence is conditional.
-                    if self.concrete_interface_condition_holds(declaration, &relations.arguments) {
-                        let interface =
-                            self.lower_type(declaration.interface, &relations.arguments);
-                        if self.concrete_subtype(interface, target) {
-                            return true;
-                        }
+        }
+        if matches!(self.types[target].kind, concrete::TypeKind::Interface(_)) {
+            for declaration in relations.conditional {
+                // Its target can contain a companion projection whose existence is conditional.
+                if self.concrete_interface_condition_holds(declaration, &relations.arguments) {
+                    let interface = self.lower_type(declaration.interface, &relations.arguments);
+                    if self.concrete_subtype(interface, target) {
+                        return true;
                     }
                 }
             }
-            return false;
         }
-        let concrete::TypeKind::Interface(interface) = self.types[target].kind else {
-            return false;
-        };
-        match self.types[source].kind {
-            concrete::TypeKind::Interface(_) => {
-                self.concrete_interface_closure(&[source]).contains(&target)
-            }
-            concrete::TypeKind::Any
-            | concrete::TypeKind::Tuple(_)
-            | concrete::TypeKind::Function(_)
-            | concrete::TypeKind::FunPtr(_)
-            | concrete::TypeKind::GcLeafFunPtr(_) => false,
-            _ => self
-                .concrete_bound_conformances(source)
-                .iter()
-                .any(|implementation| implementation.interface == interface),
-        }
+        false
     }
 }
 
 impl<'a> Concretizer<'a> {
     fn concrete_nominal_relations(&self, ty: concrete::TypeId) -> Option<NominalRelations<'a>> {
-        match self.types[ty].kind {
+        let (ordinary, conditional): (_, &[_]) = match self.types[ty].kind {
             concrete::TypeKind::Class(id) => {
                 let concrete = &self.classes[id];
                 let source = self
                     .source
                     .class_definition(concrete.origin.declaration_id());
-                Some(NominalRelations {
-                    ordinary: source
+                (
+                    source
                         .base_class
                         .into_iter()
                         .chain(source.interfaces.iter().copied())
                         .collect(),
-                    conditional: &source.conditional_interfaces,
-                    arguments: concrete.type_arguments.clone(),
-                })
+                    &source.conditional_interfaces,
+                )
             }
-            concrete::TypeKind::Struct(id)
-                if matches!(
-                    self.structs[id].representation,
-                    concrete::StructRepresentation::Declared(_)
-                ) =>
-            {
-                let concrete = &self.structs[id];
-                let source = self
-                    .source
-                    .struct_definition(concrete.origin.declaration_id());
-                Some(NominalRelations {
-                    ordinary: source.interfaces.clone(),
-                    conditional: &source.conditional_interfaces,
-                    arguments: concrete.type_arguments.clone(),
-                })
+            concrete::TypeKind::Struct(_) | concrete::TypeKind::Ptr(_) => {
+                let owner = self.type_nominal(ty).expect("a struct has a source owner");
+                let source = self.source.struct_definition(owner);
+                (source.interfaces.clone(), &source.conditional_interfaces)
             }
             concrete::TypeKind::Enum(id) => {
                 let concrete = &self.enums[id];
@@ -118,13 +88,31 @@ impl<'a> Concretizer<'a> {
                 if let Some(kind) = source.representation.integer_kind() {
                     ordinary.extend_from_slice(self.source.integer_interface_roots(kind));
                 }
-                Some(NominalRelations {
-                    ordinary,
-                    conditional: &source.conditional_interfaces,
-                    arguments: concrete.type_arguments.clone(),
-                })
+                (ordinary, &source.conditional_interfaces)
             }
-            _ => None,
-        }
+            concrete::TypeKind::Interface(id) => {
+                let source = self
+                    .source
+                    .interface_definition(self.interfaces[id].origin.declaration_id());
+                (source.parents.clone(), &[])
+            }
+            concrete::TypeKind::Unit
+            | concrete::TypeKind::Integer(_)
+            | concrete::TypeKind::Boolean
+            | concrete::TypeKind::String => {
+                let (interfaces, _) = self.scalar_conformance_source(ty);
+                (interfaces.to_vec(), &[])
+            }
+            concrete::TypeKind::Any
+            | concrete::TypeKind::Tuple(_)
+            | concrete::TypeKind::Function(_)
+            | concrete::TypeKind::FunPtr(_)
+            | concrete::TypeKind::GcLeafFunPtr(_) => return None,
+        };
+        Some(NominalRelations {
+            ordinary,
+            conditional,
+            arguments: self.type_arguments(ty),
+        })
     }
 }

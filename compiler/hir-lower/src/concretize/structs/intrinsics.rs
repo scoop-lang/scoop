@@ -2,6 +2,39 @@
 
 use super::*;
 
+impl<'a> Concretizer<'a> {
+    /// Scalar representations keep their declared parents even if no method
+    /// of those interfaces was needed in this Cone.
+    pub(in crate::concretize) fn scalar_conformance_source(
+        &self,
+        ty: concrete::TypeId,
+    ) -> (&'a [export::TypeId], &'a [export::InterfaceImplementation]) {
+        if let export::CoreProtocols::Defined(_) = self.core {
+            let owner = self.type_nominal(ty).expect("a scalar has a source owner");
+            return match self.source.nominal_identities.declaration(owner) {
+                Some(export::NominalOwner::Struct(id)) => {
+                    let source = &self.source.structs[id];
+                    (&source.interfaces, &source.interface_implementations)
+                }
+                Some(export::NominalOwner::Class(id)) => {
+                    let source = &self.source.classes[id];
+                    (&source.interfaces, &source.interface_implementations)
+                }
+                _ => unreachable!("a scalar is declared by a core struct or class"),
+            };
+        }
+        let family = match self.types[ty].kind {
+            concrete::TypeKind::Integer(kind) => export::IntrinsicTypeKind::Integer(kind),
+            concrete::TypeKind::Unit => export::IntrinsicTypeKind::Unit,
+            concrete::TypeKind::Boolean => export::IntrinsicTypeKind::Boolean,
+            concrete::TypeKind::String => export::IntrinsicTypeKind::String,
+            _ => unreachable!("a scalar conformance has a scalar representation"),
+        };
+        let source = &self.source.imported_intrinsic_types[&family];
+        (&source.interfaces, &source.interface_implementations)
+    }
+}
+
 impl Concretizer<'_> {
     pub(in crate::concretize) fn ensure_box_source(&mut self, ty: concrete::TypeId) {
         let (family, application) = match self.types[ty].kind {

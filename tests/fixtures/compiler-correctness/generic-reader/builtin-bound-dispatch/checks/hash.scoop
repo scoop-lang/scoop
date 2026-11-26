@@ -1,0 +1,10 @@
+package test.provider
+
+// A hash-only bound keeps Boolean expressions out of the imported generic body.
+public class HashCase<T : Hash> public constructor(private val value: T, private val expected: Long) {
+    public fun verify() = checkHash(value.hash(), expected)
+}
+
+private fun checkHash(actual: Long, expected: Long) {
+    if (actual != expected) throw IllegalStateException()
+}

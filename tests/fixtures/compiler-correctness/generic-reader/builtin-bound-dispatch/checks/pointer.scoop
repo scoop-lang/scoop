@@ -1,0 +1,16 @@
+package test.provider
+
+@Global private var first: Int = 1
+@Global private var second: Int = 1
+
+public class PointerCase<T : Equals<T>> public constructor(private val left: T, private val right: T) {
+    public fun verify() = checkAddresses(left.equals(left), left.equals(right))
+}
+
+private fun checkAddresses(equalsSelf: Boolean, equalsOther: Boolean) {
+    if (!equalsSelf || equalsOther) throw IllegalStateException()
+}
+
+internal fun pointerCase(): PointerCase<Ptr<Int>> {
+    @Unsafe { return PointerCase(addressOf(first), addressOf(second)) }
+}

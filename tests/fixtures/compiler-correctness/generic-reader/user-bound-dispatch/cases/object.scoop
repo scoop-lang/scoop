@@ -1,0 +1,9 @@
+package test.provider
+
+public object Reading : ChildScore<Int> {
+    public override fun score(input: Int): Int = input + 34
+}
+
+public class Wrapper public constructor() {
+    public val sample = Probe(Reading)
+}

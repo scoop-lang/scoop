@@ -1,0 +1,14 @@
+package test.provider
+
+public enum Level: Int16 { Chosen = 37 }
+
+public class Check<T : Hash> public constructor(private val value: T) {
+    public fun verify() {
+        val underlying: Int16 = 37
+        if (value.hash() != underlying.hash()) throw IllegalStateException()
+    }
+}
+
+public class Wrapper public constructor() {
+    public val sample = Check(Level.Chosen)
+}

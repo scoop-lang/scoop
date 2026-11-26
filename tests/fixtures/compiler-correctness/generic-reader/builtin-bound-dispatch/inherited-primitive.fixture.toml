@@ -1,0 +1,58 @@
+schema = 1
+name = "generic-reader-inherited-primitive-bound"
+inputs = ["provider", "consumer", "checks/equality.scoop", "checks/hash.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["generic-reader", "cross-cone", "compiler-correctness"]
+
+# Keep the concrete method and change only how its owner reaches the bound.
+[[variants]]
+name = "unit"
+vars = {source = "unit.scoop", original = "Unit : Equals<Unit>", changed = "Unit : UnitEquality", parents = "public interface UnitEquality : Equals<Unit> {}\n", check = "equality", sample = "EqualityCase<Unit>(Unit, Unit, true)"}
+
+[[variants]]
+name = "boolean"
+vars = {source = "types.scoop", original = "Equals<Boolean>, ToString, Hash", changed = "Equals<Boolean>, ToString, BooleanHash", parents = "public interface BaseHash : Hash {}\npublic interface BooleanHash : BaseHash {}\n", check = "hash", sample = "HashCase<Boolean>(true, true.hash())"}
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${sysroot}/src/scoop.core", to = "${work}/core"}},
+  {replace = {path = "${work}/core/src/${source}", old = "${original}", new = "${changed}"}},
+  {write = {path = "${work}/core/src/bound_parents.scoop", data = "${parents}"}},
+  {copy = {from = "${fixture}/provider", to = "${work}/provider"}},
+  {copy = {from = "${fixture}/checks/${check}.scoop", to = "${work}/provider/src/check.scoop"}},
+  {write = {path = "${work}/provider/src/wrapper.scoop", data = """\
+package test.provider
+
+public class Wrapper public constructor() {
+    public val sample = ${sample}
+}
+"""}},
+  {copy = {from = "${fixture}/consumer", to = "${work}/consumer"}},
+]
+
+[[steps]]
+name = "core"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/core", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target-core", "--message-format", "json", "-o", "${work}/artifacts/scoop/scoop.core/0.1.0/cone.slib"]
+timeout = 900
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/consumer", "--cone-path", "${work}/artifacts", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = ""
+stderr = ""

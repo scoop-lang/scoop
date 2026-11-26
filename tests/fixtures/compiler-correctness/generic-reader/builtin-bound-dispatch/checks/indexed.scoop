@@ -1,0 +1,15 @@
+package test.provider
+
+public interface IndexedCheck<T : IndexGet<Long, Int>> {
+    public fun values(): T
+
+    public fun verify() = checkElement(values().get(1L))
+}
+
+private fun checkElement(value: Int) {
+    if (value != 37) throw IllegalStateException()
+}
+
+public class IndexedCase<T : IndexGet<Long, Int>> public constructor(private val data: T) : IndexedCheck<T> {
+    public override fun values(): T = data
+}

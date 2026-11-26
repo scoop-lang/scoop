@@ -1,0 +1,15 @@
+[
+  {
+    "code": "E0603",
+    "message": "dependency function `Probe`: type argument `Reading<Key>` for `T` must satisfy upper bound `Score<Int>`",
+    "notes": [],
+    "origin": {
+      "cone": "fe7852d738da592b3b41bda195dc6e6dae252f8d8169a96ca7ebc685f9e58743",
+      "end": 163,
+      "kind": "source",
+      "path": "src/main.scoop",
+      "start": 142
+    },
+    "severity": "error"
+  }
+]

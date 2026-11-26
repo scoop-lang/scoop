@@ -1,0 +1,23 @@
+schema = 1
+name = "generic-reader-reject-unhashable-unit"
+inputs = ["provider", "checks/hash.scoop", "consumer/Cone.toml", "unhashable-unit.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["generic-reader", "cross-cone", "negative", "compiler-correctness"]
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${fixture}/provider", to = "${work}/provider"}},
+  {copy = {from = "${fixture}/checks/hash.scoop", to = "${work}/provider/src/check.scoop"}},
+  {copy = {from = "${fixture}/consumer/Cone.toml", to = "${work}/consumer/Cone.toml"}},
+  {copy = {from = "${fixture}/unhashable-unit.scoop", to = "${work}/consumer/src/main.scoop"}},
+]
+
+[[steps]]
+name = "reject"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/consumer", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "unhashable-unit.diagnostics.json"}

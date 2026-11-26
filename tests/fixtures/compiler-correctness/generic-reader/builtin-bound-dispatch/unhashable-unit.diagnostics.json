@@ -1,0 +1,15 @@
+[
+  {
+    "code": "E0603",
+    "message": "dependency function `HashCase`: type argument `Unit` for `T` must satisfy upper bound `Hash`",
+    "notes": [],
+    "origin": {
+      "cone": "fe7852d738da592b3b41bda195dc6e6dae252f8d8169a96ca7ebc685f9e58743",
+      "end": 95,
+      "kind": "source",
+      "path": "src/main.scoop",
+      "start": 71
+    },
+    "severity": "error"
+  }
+]

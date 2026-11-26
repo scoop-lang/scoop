@@ -1,0 +1,9 @@
+package test.provider
+
+public class AtomicCase<T : AtomicInt> public constructor(private val cell: T) {
+    public fun verify() = checkValue(cell.load())
+}
+
+private fun checkValue(value: Int) {
+    if (value != 37) throw IllegalStateException()
+}

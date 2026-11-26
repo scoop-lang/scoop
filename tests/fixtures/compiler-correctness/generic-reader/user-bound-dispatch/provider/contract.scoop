@@ -1,0 +1,13 @@
+package test.provider
+
+public interface Score<T> {
+    public fun score(input: T): Int
+}
+
+public interface ChildScore<T> : Score<T> {}
+
+public class Probe<T : Score<Int>> public constructor(public val value: T) {
+    public fun verify(actual: Int = this.value.score(3)) {
+        if (actual != 37) throw IllegalStateException()
+    }
+}

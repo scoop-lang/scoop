@@ -1,0 +1,13 @@
+package test.provider
+
+public open class Base public constructor() : ChildScore<Int> {
+    public open override fun score(input: Int): Int = input
+}
+
+public class Derived public constructor() : Base() {
+    public override fun score(input: Int): Int = input + 34
+}
+
+public class Wrapper public constructor() {
+    public val sample = Probe<Base>(Derived())
+}

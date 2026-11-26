@@ -59,12 +59,9 @@ impl Lowerer {
                 }
                 hir::Type::Ptr(pointee) => {
                     pending.push(*pointee);
-                    self.retain_imported_box_source(ty)?;
+                    self.pointer_interfaces(*pointee);
                 }
-                hir::Type::String => {
-                    self.resolve_imported_intrinsic_type(hir::IntrinsicTypeKind::String)?;
-                }
-                _ => self.retain_imported_box_source(ty)?,
+                _ => self.resolve_imported_member_receiver_type(ty)?,
             }
         }
         Ok(())

@@ -1,0 +1,11 @@
+package test.provider
+
+public struct Reading<T>(val payload: T) {
+    override interface ChildScore<Int> where T : Hash {
+        public override fun score(input: Int): Int = input + 34
+    }
+}
+
+public class Wrapper public constructor() {
+    public val sample = Probe(Reading(true))
+}

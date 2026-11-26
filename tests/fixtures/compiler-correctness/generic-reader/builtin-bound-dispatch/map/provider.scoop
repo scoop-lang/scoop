@@ -1,0 +1,26 @@
+package test.provider
+
+import scoop.collections.HashMap
+
+public class Entry public constructor()
+
+public class Wrapper public constructor() {
+    public val items = HashMap<Key, Entry>()
+
+    public fun verify() {
+        val replacement = Entry()
+        val other = Entry()
+        items[firstKey()] = Entry()
+        items[secondKey()] = other
+        items[firstKey()] = replacement
+        checkEntry(items[firstKey()], replacement)
+        checkEntry(items[secondKey()], other)
+    }
+}
+
+private fun checkEntry(found: Option<Entry>, expected: Entry) {
+    when (found) {
+        case Some(val item) -> if (item !== expected) throw IllegalStateException()
+        case None -> throw IllegalStateException()
+    }
+}

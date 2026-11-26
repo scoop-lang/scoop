@@ -1,0 +1,39 @@
+schema = 1
+name = "generic-reader-user-bound-dispatch"
+inputs = ["../builtin-bound-dispatch/provider/Cone.toml", "../builtin-bound-dispatch/consumer", "provider", "cases", "consumer-direct.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["generic-reader", "cross-cone", "compiler-correctness"]
+vars = {implementation = "${variant}", main = "../builtin-bound-dispatch/consumer/src/main.scoop"}
+
+variants = [
+  {name = "struct-default"}, {name = "enum"}, {name = "virtual"},
+  {name = "interface"}, {name = "object"}, {name = "conditional"},
+  {name = "conditional-marker"}, {name = "integer-enum"},
+  {name = "conditional-direct", vars = {implementation = "conditional", main = "consumer-direct.scoop"}},
+]
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${fixture}/../builtin-bound-dispatch/provider/Cone.toml", to = "${work}/provider/Cone.toml"}},
+  {copy = {from = "${fixture}/provider/contract.scoop", to = "${work}/provider/src/contract.scoop"}},
+  {copy = {from = "${fixture}/cases/${implementation}.scoop", to = "${work}/provider/src/wrapper.scoop"}},
+  {copy = {from = "${fixture}/../builtin-bound-dispatch/consumer/Cone.toml", to = "${work}/consumer/Cone.toml"}},
+  {copy = {from = "${fixture}/${main}", to = "${work}/consumer/src/main.scoop"}},
+]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/consumer", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = ""
+stderr = ""

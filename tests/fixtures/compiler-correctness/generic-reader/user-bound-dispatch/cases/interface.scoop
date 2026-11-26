@@ -1,0 +1,10 @@
+package test.provider
+
+public struct Dual() : Score<Boolean>, ChildScore<Int> {
+    public override fun score(input: Boolean): Int = if (input) { 1 } else { 2 }
+    public override fun score(input: Int): Int = input + 34
+}
+
+public class Wrapper public constructor() {
+    public val sample = Probe<ChildScore<Int>>(Dual())
+}

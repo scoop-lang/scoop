@@ -1,0 +1,14 @@
+package test.provider
+
+public enum Reading<T> : ChildScore<Int> {
+    Empty, Value(val payload: T, val bias: Int)
+
+    public override fun score(input: Int): Int = when (this) {
+        case Empty -> input
+        case Value(_, val bias) -> bias + input
+    }
+}
+
+public class Wrapper public constructor() {
+    public val sample = Probe(Reading.Value("payload", 34))
+}
