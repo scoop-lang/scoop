@@ -879,7 +879,7 @@ Cycle 的 path 在复制为 managed String 之前保持稳定，随后调用已�
 
 `scoop_eh_personality` 消费 LLVM 22.1 Itanium LSDA，只接受 Scoop catch-all 与 cleanup；源码 catch 类型在 landing pad 后按普通类型关系匹配，不使用 C++ RTTI。
 
-runtime 构建从所选 backend profile 取得 LPStart、TType、call-site 和省略类型表的编码，并作为普通 C 编译输入传给 personality 和 LSDA reader。当前 profile 的 LPStart 为 `DW_EH_PE_omit (0xff)`，call-site 为 ULEB128。有 catch-all 时，现有 Darwin／Linux backend 使用 TType `0x9b`（4-byte entry），Windows AMD64 backend 使用 `DW_EH_PE_absptr (0x00)`（8-byte entry），两种编码都只接受一个 null type entry。profile 未单列省略类型表的编码时使用 LSDA 的标准 `DW_EH_PE_omit (0xff)`，此时所有 call-site action 为零，有效表在 call-site 表结束。
+runtime 构建从所选 backend profile 取得 LPStart、TType、call-site 和省略类型表的编码，并作为普通 C 编译输入传给 personality 和 LSDA reader。当前 profile 的 LPStart 为 `DW_EH_PE_omit (0xff)`，call-site 为 ULEB128。有 catch-all 时，按 backend 的 TType 编码确定唯一全零类型表项的宽度。间接 PC 相对编码 `0x9b` 为 4 字节，LLVM 在 AArch64 ELF 上发出的 `0x9c` 为 8 字节，Windows AMD64 的 `DW_EH_PE_absptr (0x00)` 使用指针宽度。profile 未单列省略类型表的编码时使用 LSDA 的标准 `DW_EH_PE_omit (0xff)`，此时所有 call-site action 为零，有效表在 call-site 表结束。
 
 Windows 的机器入口 `scoop_eh_personality_seh` 使用系统 SEH 的四参数签名，通过 `_GCC_specific_handler` 调用同一个 Level-I `scoop_eh_personality` 与 LSDA decoder。LLVM `invoke`／`landingpad` 保留该入口，`.pdata`／`.xdata` 提供系统 frame 信息。exception／selector 的机器寄存器来自该目标的 `__builtin_eh_return_data_regno`，不复用 SysV 的寄存器假设。W0 的独立实验先验证实际发射与运行，再开放正式 target，见实现规范 1。
 
