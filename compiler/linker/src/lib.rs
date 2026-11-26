@@ -13,6 +13,9 @@ mod runtime;
 mod startup;
 
 #[cfg(all(test, unix))]
+#[path = "../../../tests/support/cargo_tools.rs"]
+mod cargo_tools;
+#[cfg(all(test, unix))]
 mod test_support;
 
 pub use artifacts::{ArtifactLinkRequest, read_program_artifacts, resolve_program_link_profile};
