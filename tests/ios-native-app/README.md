@@ -69,6 +69,8 @@ target/release/scoop build sysroot/src/scoop.platform --release \
 
 安装上述 `--window` 宿主后，可通过 XCTest 在同一模拟器送入轻点、拖动和双指点击。最后在仍按住时切走 key window，检查接触取消且抬手不会重复结束。测试通过 Scoop 收到的事件检查每个触点的身份和逻辑／像素坐标。
 
+文本用例还会通过 UIKit 的 responder chain 执行复制与全选，并执行系统 undo manager 的撤销与重做。分别在编辑器开启和关闭键盘后验证命令可用性、交付次数及原文。
+
 ```sh
 xcodebuild test -project tests/ios-native-app/interaction/Interaction.xcodeproj \
   -scheme Interaction -destination "platform=iOS Simulator,id=$SIMULATOR_UUID" \

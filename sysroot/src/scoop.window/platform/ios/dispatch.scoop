@@ -42,6 +42,16 @@ private fun ApplicationOwner.dispatch(event: Ptr<Unit>) {
                 notify(ApplicationEvent.Window(window.id, WindowEvent.TextInput(change)))
             }
 
+            16 ->
+                notify(
+                    ApplicationEvent
+                        .Window(
+                            window.id,
+                            WindowEvent
+                                .TextCommand(menuTextCommand(nativeEventData(event).a.toInt()))
+                        )
+                )
+
             22 -> {
                 val data = nativeEventData(event)
                 notify(

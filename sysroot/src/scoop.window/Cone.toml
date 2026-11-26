@@ -91,6 +91,10 @@ path = "src/text/commands.scoop"
 when = { os = "ios" }
 
 [[sources]]
+path = "src/text/menu_commands.scoop"
+when = { os = "ios" }
+
+[[sources]]
 path = "src/native/input/contacts.scoop"
 when = { os = "ios" }
 
@@ -969,6 +973,10 @@ when = { os = "ios" }
 
 [[native.sources]]
 path = "native/ios/keyboard.m"
+when = { os = "ios" }
+
+[[native.sources]]
+path = "native/ios/edit_actions.m"
 when = { os = "ios" }
 
 [[native.sources]]

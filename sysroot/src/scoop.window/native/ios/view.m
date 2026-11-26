@@ -1,3 +1,4 @@
+#import "edit_actions.h"
 #import "text.h"
 #import <QuartzCore/CAMetalLayer.h>
 #include <time.h>
@@ -18,6 +19,32 @@
 }
 + (Class)layerClass {
   return CAMetalLayer.class;
+}
+- (BOOL)canBecomeFirstResponder {
+  return YES;
+}
+- (BOOL)canPerformAction:(SEL)action withSender:(id)sender {
+  SWIEditAction edit = swi_edit_action(action);
+  return edit == SWIEditNone ? [super canPerformAction:action withSender:sender]
+                             : swi_can_edit(self, edit);
+}
+- (void)cut:(id)sender {
+  swi_edit(self, SWIEditCut);
+}
+- (void)copy:(id)sender {
+  swi_edit(self, SWIEditCopy);
+}
+- (void)paste:(id)sender {
+  swi_edit(self, SWIEditPaste);
+}
+- (void)selectAll:(id)sender {
+  swi_edit(self, SWIEditSelectAll);
+}
+- (void)delete:(id)sender {
+  swi_edit(self, SWIEditDelete);
+}
+- (NSUndoManager *)undoManager {
+  return self.editFlags ? swi_edit_undo_manager(self) : super.undoManager;
 }
 - (void)layoutSubviews {
   [super layoutSubviews];

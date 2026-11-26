@@ -8,6 +8,7 @@ internal class ImeProbe(private val advance: (Int) -> Unit) {
     private var active = false
     private var started = false
     private var step = 0
+    private var commands = 0
 
     fun connect(window: Window) {
         window.setImeAllowed(true)
@@ -65,7 +66,11 @@ internal class ImeProbe(private val advance: (Int) -> Unit) {
                 publish(window, batch.origin)
                 if (window.publishTextInputCaret(connection!!, previous.revision, None))
                     throw IllegalStateException(Some("stale caret accepted"))
-                if (step == 6) window.setImeAllowed(false) else advance(step)
+                if (step == 6)
+                    window.textCommandAvailability = Some(
+                        TextCommandAvailability(copy = true, undo = true)
+                    )
+                advance(step)
             }
 
             case Disabled(val value) -> {
@@ -76,8 +81,27 @@ internal class ImeProbe(private val advance: (Int) -> Unit) {
                     window.publishTextInputState(connection!!, state)
                 )
                     throw IllegalStateException(Some("stale text connection accepted"))
-                advance(6)
+                window.textCommandAvailability = Some(
+                    TextCommandAvailability(selectAll = true, redo = true)
+                )
+                advance(7)
             }
+        }
+    }
+    fun command(window: Window, command: TextEditCommand) {
+        val expected = [
+            TextEditCommand.Copy,
+            TextEditCommand.Undo,
+            TextEditCommand.SelectAll,
+            TextEditCommand.Redo
+        ]
+        if (step != 6 || commands >= 4 || command != expected[commands.toLong()])
+            throw IllegalStateException(Some("duplicate or incorrect responder action"))
+        commands += 1
+        if (commands == 2) window.setImeAllowed(false)
+        if (commands == 4) {
+            window.textCommandAvailability = None
+            advance(8)
         }
     }
     private fun check(text: String, marked: Utf8Range?, anchor: Long, cursor: Long) {

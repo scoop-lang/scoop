@@ -9,13 +9,24 @@ void probeTextStep(UIView *content, int32_t step) {
     if ([child conformsToProtocol:@protocol(UITextInput)])
       editor = (UITextView *)child;
   assert(editor);
-  if (step == 6) {
+  if (step == 8) {
     assert(!editor.isFirstResponder && [editor.text isEqualToString:@"A🙂拟"]);
     puts("scoop-ios-ime-ok");
     fflush(stdout);
 #if TARGET_OS_SIMULATOR
     exit(0);
 #endif
+    return;
+  }
+  if (step == 7) {
+    assert(!editor.isFirstResponder && content.isFirstResponder);
+    assert(![content canPerformAction:@selector(copy:) withSender:nil]);
+    assert([UIApplication.sharedApplication sendAction:@selector(selectAll:)
+                                                    to:nil
+                                                  from:nil
+                                              forEvent:nil]);
+    assert(!content.undoManager.canUndo && content.undoManager.canRedo);
+    [content.undoManager redo];
     return;
   }
   assert(editor.isFirstResponder);
@@ -48,6 +59,15 @@ void probeTextStep(UIView *content, int32_t step) {
     break;
   case 5:
     [editor insertText:@"🙂"];
+    break;
+  case 6:
+    assert(![editor canPerformAction:@selector(paste:) withSender:nil]);
+    assert([UIApplication.sharedApplication sendAction:@selector(copy:)
+                                                    to:nil
+                                                  from:nil
+                                              forEvent:nil]);
+    assert(editor.undoManager.canUndo && !editor.undoManager.canRedo);
+    [editor.undoManager undo];
     break;
   default:
     abort();

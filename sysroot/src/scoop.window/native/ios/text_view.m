@@ -1,3 +1,4 @@
+#import "edit_actions.h"
 #import "text.h"
 
 @implementation SWITextEdit
@@ -28,6 +29,46 @@
 }
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
   return nil;
+}
+- (BOOL)canPerformAction:(SEL)action withSender:(id)sender {
+  SWIEditAction edit = swi_edit_action(action);
+  if (self.content.editFlags && edit != SWIEditNone)
+    return swi_can_edit(self.content, edit);
+  return [super canPerformAction:action withSender:sender];
+}
+- (void)cut:(id)sender {
+  if (self.content.editFlags)
+    swi_edit(self.content, SWIEditCut);
+  else
+    [super cut:sender];
+}
+- (void)copy:(id)sender {
+  if (self.content.editFlags)
+    swi_edit(self.content, SWIEditCopy);
+  else
+    [super copy:sender];
+}
+- (void)paste:(id)sender {
+  if (self.content.editFlags)
+    swi_edit(self.content, SWIEditPaste);
+  else
+    [super paste:sender];
+}
+- (void)selectAll:(id)sender {
+  if (self.content.editFlags)
+    swi_edit(self.content, SWIEditSelectAll);
+  else
+    [super selectAll:sender];
+}
+- (void)delete:(id)sender {
+  if (self.content.editFlags)
+    swi_edit(self.content, SWIEditDelete);
+  else
+    [super delete:sender];
+}
+- (NSUndoManager *)undoManager {
+  return self.content.editFlags ? swi_edit_undo_manager(self.content)
+                                : super.undoManager;
 }
 - (NSRange)markedRange {
   UITextRange *marked = self.markedTextRange;
@@ -118,6 +159,8 @@
     return;
   self.connected = NO;
   [self resignFirstResponder];
+  if (self.content.editFlags && self.content.window.isKeyWindow)
+    [self.content becomeFirstResponder];
   [self unmarkText];
   self.publishedText = nil;
   self.caretKnown = NO;

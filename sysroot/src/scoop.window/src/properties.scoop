@@ -290,12 +290,6 @@ public fun Window.requestAttention(kind: AttentionKind): RequestStatus {
     }
 }
 
-internal fun flag(value: Boolean): Int =
-    if (value)
-        1
-    else
-        0
-
 internal fun checkIncrements(value: LogicalSize) {
     checkSize(value)
     requireWindow(value.width > 0.0 && value.height > 0.0, "resize increments must be positive")

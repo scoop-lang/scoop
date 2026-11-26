@@ -38,3 +38,5 @@ internal fun created(result: NativeCreateResult, operation: String): Ptr<Unit> {
         }
     }
 }
+
+internal fun flag(value: Boolean): Int = if (value) 1 else 0

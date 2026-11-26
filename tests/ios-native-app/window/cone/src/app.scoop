@@ -136,6 +136,8 @@ private class Probe(val host: Host) : ApplicationHandler {
                     case Contact(val value) -> touch(value)
                     case TextInput(val value) ->
                         if (host.textProbe != 0) editor.event(window!!, value)
+                    case TextCommand(val command) ->
+                        if (host.textProbe != 0) editor.command(window!!, command)
 
                     case RedrawRequested -> {
                         inspectView(window!!);

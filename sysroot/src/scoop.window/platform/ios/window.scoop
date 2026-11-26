@@ -49,6 +49,7 @@ internal class WindowOwner(
     var pointer: Ptr<Unit>? = Some(native)
     var phase = WindowState.Open
     var dirty = true
+    var textCommands: TextCommandAvailability? = None
     var leases = 0L
     val closingLeases = ArrayList<NativeWindowLease>()
     val activityObservers = ArrayList<WindowActivityObserver>()

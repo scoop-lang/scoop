@@ -38,6 +38,8 @@ typedef struct {
 @interface SWIView : UIView
 @property(nonatomic, weak) SWIScene *owner;
 @property(nonatomic, strong) SWITextView *editor;
+@property(nonatomic) int32_t editFlags;
+@property(nonatomic, strong) NSUndoManager *editUndo;
 - (void)cancelContacts:(SWPointerCancelReason)reason;
 @end
 
