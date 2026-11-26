@@ -1,0 +1,41 @@
+package scoop.asyncio
+
+import scoop.platform.system.*
+
+internal struct NativeEvent(val id: Long, val result: IoResult)
+
+internal enum IoStart {
+    Pending, Finished(NativeEvent)
+}
+
+internal fun nativeStatus(id: Long, status: Int): IoStart = if (status < 0)
+    IoStart.Finished(NativeEvent(id, IoResult.Failed(nativeStatusError(status), 0L)))
+else
+    IoStart.Pending
+
+internal fun nativeStatus(id: Long, status: NativeIoStatus): IoStart = if (status.code != 0)
+    IoStart.Finished(NativeEvent(id, IoResult.Failed(nativeStatusError(status), 0L)))
+else
+    IoStart.Pending
+
+internal fun resultFailure(
+    operation: String,
+    result: IoResult,
+    context: OsString? = None
+): Throwable? = when (result) {
+    case Failed(val error, _) ->
+        Some(
+            PlatformException(operation, error.kind, Some(error), context)
+        )
+    case _ -> None
+}
+
+internal fun completionFailure(
+    operation: String,
+    result: IoResult,
+    selected: Throwable?,
+    context: OsString? = None
+): Throwable? = when (selected) {
+    case Some(_) -> selected;
+    case None -> resultFailure(operation, result, context)
+}

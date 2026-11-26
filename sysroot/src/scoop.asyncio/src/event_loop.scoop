@@ -105,33 +105,3 @@ public interface EventLoop {
         reuseAddress: Boolean = false
     ): AsyncTcpListener
 }
-
-/**
- * Returns the EventLoop supplied by the current context binding.
- */
-context(loop: EventLoop)
-public fun currentEventLoop(): EventLoop = loop
-
-internal fun hasEventLoop(): Boolean =
-    when (contextOrNone<EventLoop>()) {
-        case Some(_) -> true
-        case None -> false
-    }
-
-/**
- * Reports an operation attempted on a closed I/O resource.
- */
-public class IoClosedException public constructor(): Exception(Some("I/O resource is closed"))
-
-internal class IoLock {
-    private val held: AtomicBoolean = AtomicBoolean(false)
-    fun <T> withLock(block: () -> T): T {
-        while (!held.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
-        try {
-            return block()
-        }
-        finally {
-            held.store(false, MemoryOrder.Release)
-        }
-    }
-}

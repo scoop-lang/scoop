@@ -1,4 +1,5 @@
 #include "wait.h"
+#include <TargetConditionals.h>
 #include <errno.h>
 #include <limits.h>
 
@@ -29,12 +30,14 @@ int scoop_io_wait_fd(ScoopIoWait *wait, int fd, bool writing, dispatch_function_
     return add_source(wait, source, ready);
 }
 
+#if TARGET_OS_OSX
 int scoop_io_wait_process(ScoopIoWait *wait, int pid, dispatch_function_t ready) {
     dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_PROC, (uintptr_t)pid,
                                                        DISPATCH_PROC_EXIT,
                                                        wait->request.loop->queue);
     return add_source(wait, source, ready);
 }
+#endif
 
 int scoop_io_wait_timer(ScoopIoWait *wait, ScoopIoDeadline deadline, dispatch_function_t ready) {
     dispatch_source_t source =

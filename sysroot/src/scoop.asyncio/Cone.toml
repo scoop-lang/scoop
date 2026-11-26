@@ -8,6 +8,19 @@ kind = "library"
 
 [[sources]]
 path = "src"
+when = { os = ["darwin", "linux", "windows"] }
+
+[[sources]]
+path = "src/loop"
+when = { os = "ios" }
+
+[[sources]]
+path = "platform/ios"
+when = { os = "ios" }
+
+[[sources]]
+path = "platform/unix/notification.scoop"
+when = { os = "ios" }
 
 [[sources]]
 path = "platform/unix"
@@ -15,7 +28,7 @@ when = { os = ["darwin", "linux"] }
 
 [[sources]]
 path = "platform/darwin"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [[sources]]
 path = "platform/windows"
@@ -23,6 +36,7 @@ when = { os = "windows" }
 
 [[test.sources]]
 path = "tests"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[test.sources]]
 path = "test-platform/darwin"
@@ -65,19 +79,23 @@ path = "native/common/batch.c"
 
 [[native.sources]]
 path = "native/common/tcp_batch.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/deadline.c"
-when = { os = ["darwin", "linux"] }
+when = { os = ["darwin", "ios", "linux"] }
 
 [[native.sources]]
 path = "native/common/directory.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/directory_next.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/file_control.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/file_io.c"
@@ -85,9 +103,11 @@ when = { os = ["darwin", "windows"] }
 
 [[native.sources]]
 path = "native/common/file_metadata.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/file_open.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/file_temporary.c"
@@ -98,6 +118,7 @@ path = "native/common/work.c"
 
 [[native.sources]]
 path = "native/common/pty_work.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/darwin/pty.c"
@@ -157,15 +178,19 @@ when = { os = "windows" }
 
 [[native.sources]]
 path = "native/common/temporary.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/paths.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/resolve.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/common/strings.c"
+when = { os = ["darwin", "linux", "windows"] }
 
 [[native.sources]]
 path = "native/darwin/endpoint.c"
@@ -173,15 +198,15 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/darwin/host.c"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [[native.sources]]
 path = "native/darwin/loop.c"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [[native.sources]]
 path = "native/darwin/request.c"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [[native.sources]]
 path = "native/darwin/socket_create.c"
@@ -193,7 +218,7 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/darwin/timer.c"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [[native.sources]]
 path = "native/darwin/tty.c"
@@ -205,7 +230,7 @@ when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/darwin/wait.c"
-when = { os = "darwin" }
+when = { os = ["darwin", "ios"] }
 
 [[native.sources]]
 path = "native/linux/endpoint.c"

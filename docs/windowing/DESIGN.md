@@ -19,10 +19,10 @@ Scoop 尚未发布任何版本。语言、库 API、runtime ABI、native 产物�
 | 已有实现 | 可复用的事实 | 窗口层的责任 |
 | --- | --- | --- |
 | [PlatformEventLoop](../../sysroot/src/scoop.asyncio/src/platform_event_loop.scoop) | 单次 run／attach；attach 捕获 Context；初始化失败回滚 | 从主线程、当前 Job 外安装，不在窗口事件内再启动 loop |
-| [LoopDriver](../../sysroot/src/scoop.asyncio/src/loop_drive.scoop) | 有限批次、非阻塞 pump、阻止递归进入 | 宿主保留原生输入和重绘的执行机会 |
-| [LoopMailbox](../../sysroot/src/scoop.asyncio/src/loop_mailbox.scoop) | post 经根 continuation 执行；取消交给 owner | 直接复用任务、Context 和取消规则，不另建 GUI Job |
-| [EventLoopSession](../../sysroot/src/scoop.asyncio/src/event_loop_session.scoop) | I/O 排空后注销 watch，再销毁并通知 onClosed | 在 onClosed 之前维持原生主循环 |
-| [EventLoopHost](../../sysroot/src/scoop.asyncio/src/host/host.scoop) | 已迁入 Windows 分支的 EventLoopNotification 与 watch；remove 等 ready 退出 | 提供真实窗口宿主适配 |
+| [LoopDriver](../../sysroot/src/scoop.asyncio/src/loop/loop_drive.scoop) | 有限批次、非阻塞 pump、阻止递归进入 | 宿主保留原生输入和重绘的执行机会 |
+| [LoopMailbox](../../sysroot/src/scoop.asyncio/src/loop/loop_mailbox.scoop) | post 经根 continuation 执行；取消交给 owner | 直接复用任务、Context 和取消规则，不另建 GUI Job |
+| [EventLoopSession](../../sysroot/src/scoop.asyncio/src/loop/event_loop_session.scoop) | I/O 排空后注销 watch，再销毁并通知 onClosed | 在 onClosed 之前维持原生主循环 |
+| [EventLoopHost](../../sysroot/src/scoop.asyncio/src/loop/host/host.scoop) | 已迁入 Windows 分支的 EventLoopNotification 与 watch；remove 等 ready 退出 | 提供真实窗口宿主适配 |
 | [MainDispatchHost](../../sysroot/src/scoop.asyncio/platform/darwin/main_dispatch_host.scoop) | 主队列通知及 ForeignCallback 保活／异常观察 | 继续验证菜单跟踪、拖动和模态，不把 CFRunLoop 测试当成完整 AppKit 验收 |
 
 [实施记录](../asyncio-backends/PROGRESS.md)已报告 Darwin／GNU／musl、Linux 6.1、取消竞争和定向 moving GC 验收。本次复核 Darwin 常规 release 测试及真实 AppKit 模态／菜单 tracking，未重跑 Linux 或完整 GC stress 专测。[性能记录](../asyncio-backends/PERFORMANCE.md)是窗口接入前的基线；本阶段不预设新窗口层具有性能优势。

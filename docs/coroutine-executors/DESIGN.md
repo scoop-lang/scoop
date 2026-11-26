@@ -38,9 +38,9 @@
 
 - [core 协程入口](../../sysroot/src/scoop.core/src/coroutine.scoop)、[结构化并发](../../sysroot/src/scoop.core/src/coroutine_scope.scoop)、[可取消等待](../../sysroot/src/scoop.core/src/cancellable_coroutine.scoop)。
 - [suspend 调用](../../compiler/mir-lower/src/coroutine/sites.rs)、[挂起握手 lowering](../../compiler/mir-lower/src/coroutine/intrinsics.rs)、[完成发布](../../compiler/mir-lower/src/coroutine/adapters/completion.rs)、[恢复驱动](../../compiler/mir-lower/src/coroutine/adapters/drive.rs)、[启动 helper](../../compiler/mir-lower/src/coroutine_registry/start.rs)。
-- [LoopOwner](../../sysroot/src/scoop.asyncio/src/loop_owner.scoop)、[loop 驱动](../../sysroot/src/scoop.asyncio/src/loop_drive.scoop)、[I/O 操作仲裁](../../sysroot/src/scoop.asyncio/src/loop_operation.scoop)。
+- [LoopOwner](../../sysroot/src/scoop.asyncio/src/loop/loop_owner.scoop)、[loop 驱动](../../sysroot/src/scoop.asyncio/src/loop/loop_drive.scoop)、[I/O 操作仲裁](../../sysroot/src/scoop.asyncio/src/loop/loop_operation.scoop)。
 - [managed Thread](../../sysroot/src/scoop.platform/src/concurrent/thread.scoop)、[阻塞条件变量](../../sysroot/src/scoop.platform/src/concurrent/condition.scoop)。
-- 原 NativeWork 与三平台独立阻塞池已由[原生任务退休](../../sysroot/src/scoop.asyncio/native/common/work.c)、[managed 阻塞投递](../../sysroot/src/scoop.asyncio/src/native_blocking.scoop)和 [TLS 类型化工作](../../sysroot/src/scoop.tls.asyncio/src/blocking.scoop)接替。
+- 原 NativeWork 与三平台独立阻塞池已由[原生任务退休](../../sysroot/src/scoop.asyncio/native/common/work.c)、[managed 阻塞投递](../../sysroot/src/scoop.asyncio/src/loop/native_blocking.scoop)和 [TLS 类型化工作](../../sysroot/src/scoop.tls.asyncio/src/blocking.scoop)接替。
 
 当前没有通用 async executor。I/O 挂起点由 loop owner 恢复，但第三方 `suspendCoroutine` 可以从其他线程恢复；已有 native work 的并发执行也不代表协程正文能在多个 managed worker 上执行。
 
