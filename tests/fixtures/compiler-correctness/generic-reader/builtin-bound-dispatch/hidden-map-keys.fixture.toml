@@ -3,6 +3,7 @@ name = "generic-reader-hidden-map-keys"
 inputs = ["../string-map-bound-dispatch/provider/Cone.toml", "../string-map-bound-dispatch/consumer/Cone.toml", "map"]
 tools = ["scoop", "scoopc"]
 tags = ["generic-reader", "cross-cone", "compiler-correctness"]
+vars = {declaration = ""}
 
 # The public field brings the closed map into each consumer. A direct call on
 # the map in consumer source would exercise a different declaration-loading path.
@@ -18,6 +19,12 @@ variants = [
   {name = "boolean", vars = {key = "Boolean", first = "true",                   second = "false"}},
   {name = "string",  vars = {key = "String",  first = '"left"',                 second = '"right"'}},
   {name = "char",    vars = {key = "Char",    first = "'界'",                   second = "'a'"}},
+  {name = "colliding-user-keys", vars = {key = "KeyValue", first = "KeyValue(7)", second = "KeyValue(9)", declaration = """
+public struct KeyValue(val id: Int) : Hash, Equals<KeyValue> {
+    public override fun hash(): Long = 1L
+    public override operator fun equals(other: KeyValue): Boolean = id == other.id
+}
+"""}},
 ]
 
 [[steps]]
@@ -33,7 +40,7 @@ package test.provider
 internal typealias Key = ${key}
 internal fun firstKey(): Key = ${first}
 internal fun secondKey(): Key = ${second}
-"""}},
+${declaration}"""}},
 ]
 
 [[steps]]
