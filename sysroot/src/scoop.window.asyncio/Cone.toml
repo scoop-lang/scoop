@@ -8,6 +8,7 @@ kind = "library"
 
 [[sources]]
 path = "shared"
+when = { os = ["darwin", "windows", "ios"] }
 
 [[sources]]
 path = "platform/ios"
@@ -43,6 +44,10 @@ when = { os = "windows" }
 [test-dependencies]
 "scoop:scoop.test" = "0.1.0"
 "scoop.tests:window-native" = { version = "0.1.0", path = "../scoop.window/test-native" }
+
+[[sources]]
+path = "shared"
+when = { os = "linux", env = "gnu" }
 
 [[sources]]
 path = "src"
