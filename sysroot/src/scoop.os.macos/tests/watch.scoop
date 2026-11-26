@@ -1,0 +1,113 @@
+package scoop.os.macos.fsevents
+
+import scoop.platform.concurrent.Thread
+import scoop.platform.fs.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.platform.time.sleep
+import scoop.test.*
+import scoop.time.Duration
+
+private fun awaitFlag(flag: AtomicBoolean): Boolean {
+    val limit = MonotonicTimeSource.now() + Duration.seconds(10L)
+    while (!flag.load(MemoryOrder.Acquire) && MonotonicTimeSource.now() < limit) {
+        sleep(Duration.milliseconds(10L))
+    }
+    return flag.load(MemoryOrder.Acquire)
+}
+
+@Test
+private class DirectoryWatchTest {
+    @Test
+    fun `directory events lead the reader to a changed file`() {
+        val directory = createTempDirectory()
+        try {
+            val root = directory.canonicalize()
+            val file = root.resolve(Path.fromString("文件"))
+            DirectoryWatch
+                .open(root)
+                .use { watch ->
+                    val observed = AtomicBoolean(false)
+                    val reader = Thread
+                        .start {
+                            while (!observed.load(MemoryOrder.Acquire)) {
+                                val batch = watch.nextBatch() ?: break
+                                for (event in batch) {
+                                    if (event.path == file || event.path == root) {
+                                        assertTrue(event.id > 0uL)
+                                        root
+                                            .entries()
+                                            .use { entries ->
+                                                for (entry in entries) {
+                                                    if (entry.path ==
+                                                        file &&
+                                                        file.readText() ==
+                                                        "changed"
+                                                    )
+                                                        observed.store(true, MemoryOrder.Release)
+                                                }
+                                            }
+                                    }
+                                }
+                            }
+                        }
+                    try {
+                        file.writeText("changed")
+                        assertTrue(awaitFlag(observed))
+                    } finally {
+                        watch.close()
+                        reader.join()
+                    }
+                    assertTrue(watch.isClosed)
+                    when (watch.nextBatch()) {
+                        case None -> {}
+                        case Some(_) -> fail(Some("closed watch returned a batch"))
+                    }
+                }
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `a concurrent read is rejected and close wakes the pending read`() {
+        val root = createTempDirectory()
+        try {
+            DirectoryWatch
+                .open(root)
+                .use { watch ->
+                    val conflict = AtomicBoolean(false)
+                    val ended = AtomicLong(0L)
+                    val read = {
+                        try {
+                            while (true) {
+                                when (watch.nextBatch()) {
+                                    case None -> break
+                                    case Some(_) -> {}
+                                }
+                            }
+                            ended.fetchAdd(1L, MemoryOrder.Relaxed)
+                        } catch (error: IllegalStateException) {
+                            conflict.store(true, MemoryOrder.Release)
+                        }
+                        Unit
+                    }
+                    val first = Thread.start(read)
+                    try {
+                        val second = Thread.start(read)
+                        try {
+                            assertTrue(awaitFlag(conflict))
+                        } finally {
+                            watch.close()
+                            second.join()
+                        }
+                    } finally {
+                        watch.close()
+                        first.join()
+                    }
+                    assertEquals(1L, ended.load(MemoryOrder.Relaxed))
+                }
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+}

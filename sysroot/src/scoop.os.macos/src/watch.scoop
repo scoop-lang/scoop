@@ -1,0 +1,136 @@
+package scoop.os.macos.fsevents
+
+import scoop.platform.fs.*
+import scoop.platform.system.*
+
+/** An FSEvents item with its native event ID and unmodified flag bits. */
+public struct DirectoryEvent(val path: Path, val id: ULong, val flags: UInt)
+
+/** A directory tree subscription. Close from any thread to wake the pending reader. */
+public class DirectoryWatch private constructor(private val root: Path) : Closeable {
+    private var state: Ptr<Unit>? = None
+
+    public companion object {
+        /** Subscribes to events from now on. The system may coalesce nearby changes. */
+        public fun open(root: Path): DirectoryWatch {
+            val watch = DirectoryWatch(root)
+            @Unsafe {
+                val opened = root
+                    .withNativePath { path ->
+                        @Unsafe {
+                            return@withNativePath nativeOpen(path)
+                        }
+                    }
+                if (opened.watch == None) failWatch("open FSEvents", opened.error, root)
+                watch.state = opened.watch
+            }
+            return watch
+        }
+    }
+
+    // The control block is owned until GC. A close can race with a read, and a release
+    // hook must not free the block while a native call is still using its address.
+    private fun <R> withState(block: (Ptr<Unit>) -> R): R {
+        @Unsafe {
+            val owner = getGcHandle(this)
+            try {
+                return block(state!!)
+            } finally {
+                releaseGcHandle(owner)
+            }
+        }
+    }
+
+    /** True once this subscription has started closing. */
+    public val isClosed: Boolean
+        get() = withState { watch ->
+            @Unsafe {
+                return@withState nativeClosed(watch)
+            }
+        }
+
+    /** Waits for the next batch. A competing reader throws; a closed subscription returns None. */
+    public fun nextBatch(): Array<DirectoryEvent>? {
+        return withState { watch ->
+            @Unsafe {
+                val result = nativeNext(watch)
+                if (result.error == -1)
+                    throw IllegalStateException(Some("an FSEvents reader is active"))
+                if (result.error != 0) failWatch("read FSEvents", result.error, root)
+                val batch = result.batch ?: return@withState None
+                try {
+                    val events = Array<DirectoryEvent>(result.count) { index ->
+                        @Unsafe {
+                            val item = nativeEvent(batch, index)
+                            return@Array DirectoryEvent(
+                                Path.fromOsString(copyNativeString(item.path)),
+                                item.id,
+                                item.flags
+                            )
+                        }
+                    }
+                    return@withState Some(events)
+                } finally {
+                    nativeFinish(watch, batch)
+                }
+            }
+        }
+    }
+
+    /** Stops delivery, discards queued batches and waits for callbacks already in progress. */
+    public override fun close() {
+        withState { watch ->
+            @Unsafe {
+                nativeClose(watch)
+            }
+        }
+    }
+
+    release {
+        when (state) {
+            case Some(val watch) ->
+                @Unsafe {
+                    nativeRelease(watch)
+                }
+            case None -> {}
+        }
+    }
+}
+
+private fun failWatch(operation: String, code: Int, root: Path): Nothing {
+    val context = Some(root.toOsString())
+    if (code == 0) throw PlatformException(operation, PlatformErrorKind.Other, None, context)
+    val error = NativeError(NativeErrorDomain.PosixErrno, code)
+    throw PlatformException(operation, error.kind, Some(error), context)
+}
+
+@CLayout
+private struct OpenResult(val watch: Ptr<Unit>?, val error: Int)
+
+@CLayout
+private struct ReadResult(val batch: Ptr<Unit>?, val count: Long, val error: Int)
+
+@CLayout
+private struct NativeEvent(val path: Ptr<Byte>, val id: ULong, val flags: UInt)
+
+@Extern(name = "scoop_os_macos_watch_open")
+private fun nativeOpen(path: Ptr<Byte>): OpenResult
+
+@Extern(name = "scoop_os_macos_watch_closed")
+private fun nativeClosed(watch: Ptr<Unit>): Boolean
+
+@Extern(name = "scoop_os_macos_next_batch")
+private fun nativeNext(watch: Ptr<Unit>): ReadResult
+
+@GCLeaf
+@Extern(name = "scoop_os_macos_batch_event")
+private fun nativeEvent(batch: Ptr<Unit>, index: Long): NativeEvent
+
+@Extern(name = "scoop_os_macos_finish_read")
+private fun nativeFinish(watch: Ptr<Unit>, batch: Ptr<Unit>)
+
+@Extern(name = "scoop_os_macos_watch_close")
+private fun nativeClose(watch: Ptr<Unit>)
+
+@Extern(name = "scoop_os_macos_watch_release")
+private fun nativeRelease(watch: Ptr<Unit>)
