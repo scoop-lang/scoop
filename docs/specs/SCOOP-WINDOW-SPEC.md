@@ -383,3 +383,9 @@ WindowAttributes 和 ApplicationOptions 发布只读值；完整修改通过 cop
 ## 13. 数据拖放
 
 Window 的标准格式、操作协商、接收资源与同步边界见[数据拖放规范](SCOOP-WINDOW-DRAG-DROP-SPEC.md)。三个桌面后端提供 registerDropTarget 和从当前真实输入启动的 beginDrag；源结果报告系统实际接受的操作，不自动删除来源。UI 接收沿 Accepted 路由。Touch／Pen 来源沿各平台公开入口启动，Windows 等待真实的系统兼容鼠标入口；真实设备与跨程序验收继续按交互打磨计划集中执行。
+
+## 14. iOS 场景宿主
+
+在 `aarch64-apple-ios` 和 `aarch64-apple-ios-sim` 上，UIKit 管理应用主循环。Scoop 的 `native-app` 在进程初始化时创建一个 `scoop.window.ios.UIKitApplication(handler)`。场景代理在主线程将本次连接的 `UIWindowScene` 交给其 Unsafe `connect(scene)`，并在断开时调用 `disconnect(scene)`。每次连接分配一个新的 `WindowId`，其 `UIWindow` 和内容 `UIView` 由这一连接持有。`ApplicationEvent.SceneConnected(window)` 在视图安装后交付，宿主可在此事件中挂载内容。失活和再次激活沿用同一窗口与内容。系统断开场景时先交付 `Closing`，既有 native 租约归还后交付 `Destroyed`。
+
+`ApplicationProxy.post` 从其他线程唤醒主队列。一次性 `WindowDeadline` 使用单调时钟，和桌面共享排序、取消及关闭语义。窗口的逻辑尺寸取自内容视图的 bounds，像素尺寸由视图显示比例换算并向上取整。`WindowMetrics.safeAreaInsets` 以视图逻辑点记录上、左、下、右边距，桌面窗口默认四边为零。旋转、显示比例或安全区变化均触发几何更新。桥接到渲染器时，通过 `NativeWindowLease.handle.UIKit` 在有效租期内读取 `UIWindow`、`UIView`。应用退出、桌面窗体装饰、菜单与 asyncio 宿主由桌面目标提供。

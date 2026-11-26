@@ -1,0 +1,82 @@
+package scoop.window
+
+import scoop.window.native.NativeWindowLease
+
+/** The window installed into one connected UIWindowScene. */
+public class Window internal constructor(internal val owner: WindowOwner) {
+    public val id: WindowId get() = owner.id
+    public val state: WindowState
+        get() {
+            owner.application.checkThread()
+            return owner.phase
+        }
+    public val metrics: WindowMetrics? get() = Some(owner.snapshot().metrics())
+    public val activity: WindowActivity get() = owner.activitySnapshot()
+    public val isFocused: Boolean get() = activity.focused
+    public val isVisible: Boolean get() = activity.visible
+    public val isOccluded: Boolean get() = activity.occluded
+    public val observedTheme: Theme?
+        get() = Some(if (owner.snapshot().dark != 0) Theme.Dark else Theme.Light)
+
+    public fun observeActivity(callback: (WindowActivity) -> Unit): Closeable {
+        owner.requireOpen()
+        val value = WindowActivityObserver(owner, activity, callback)
+        owner.activityObservers.add(value)
+        return value
+    }
+    public fun createDeadline(callback: () -> Unit): WindowDeadline {
+        owner.requireOpen()
+        val value = WindowDeadline(owner, callback)
+        owner.application.deadlines.add(value)
+        return value
+    }
+    public fun requestRedraw() {
+        owner.requireOpen()
+        owner.dirty = true
+        owner.application.mailbox.wake()
+    }
+    public fun prePresentNotify() {
+        owner.requireOpen()
+    }
+}
+
+internal class WindowOwner(
+    val application: ApplicationOwner,
+    val id: WindowId,
+    val scene: Ptr<Unit>,
+    native: Ptr<Unit>
+) {
+    var pointer: Ptr<Unit>? = Some(native)
+    var phase = WindowState.Open
+    var dirty = true
+    var leases = 0L
+    val closingLeases = ArrayList<NativeWindowLease>()
+    val activityObservers = ArrayList<WindowActivityObserver>()
+
+    fun requireOpen() {
+        application.checkThread()
+        if (phase != WindowState.Open)
+            throw WindowException("window operation", WindowErrorKind.InvalidState)
+    }
+    fun snapshot(): UIKitSnapshot {
+        requireOpen()
+        @Unsafe {
+            return iosSceneSnapshot(pointer!!)
+        }
+    }
+    fun beginClose() {
+        if (phase != WindowState.Open) return
+        phase = WindowState.Closing
+        dirty = false
+        application.retireDeadlines(this)
+        for (observer in activityObservers.toArray())
+            observer.close()
+        try {
+            application.notify(ApplicationEvent.Window(id, WindowEvent.Closing))
+        } finally {
+            for (lease in closingLeases.toArray())
+                lease.requestClose()
+            application.mailbox.wake()
+        }
+    }
+}

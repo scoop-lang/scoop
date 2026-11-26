@@ -3,7 +3,7 @@ package scoop.window.native
 import scoop.window.*
 
 /** An explicit native borrow that prevents active destruction until owner-side retirement. */
-public class NativeWindowLease internal constructor(private val owner: WindowOwner): Closeable {
+public class NativeWindowLease internal constructor(private val owner: WindowOwner) : Closeable {
     private val closed: AtomicBoolean = AtomicBoolean(false)
     private var closing: (() -> Unit)? = None
     internal fun onClosing(callback: () -> Unit) {
@@ -13,31 +13,30 @@ public class NativeWindowLease internal constructor(private val owner: WindowOwn
     internal fun requestClose() {
         val callback = closing ?: return
         closing = None
-        owner.application.mailbox.postControl {
-            if (!closed.load())
-                callback()
-        }
+        owner.application.mailbox.postControl { if (!closed.load()) callback() }
     }
     /** Queries the typed native handles on the owner thread while this lease is active. */
-    public val handle: NativeWindowHandle@Unsafe get() {
-        owner.application.checkThread()
-        if (closed.load())
-            throw IllegalStateException(Some("native window lease is closed"))
-        return platformNativeHandle(owner.pointer!!)
-    }
+    public val handle: NativeWindowHandle
+        @Unsafe get() {
+            owner.application.checkThread()
+            if (closed.load()) throw IllegalStateException(Some("native window lease is closed"))
+            return platformNativeHandle(owner.pointer!!)
+        }
     /** Ends the borrow once, from any thread; actual release remains on the owner. */
     public override fun close() {
-        if (closed.exchange(true))
-            return
-        owner.application.mailbox.postControl {
-            closing = None
-            for (index in 0L ..< owner.closingLeases.size)
-                if (owner.closingLeases[index] === this) {
-                    owner.closingLeases.removeAt(index)
-                    break
-                }
-            owner.leases -= 1L
-        }
+        if (closed.exchange(true)) return
+        owner
+            .application
+            .mailbox
+            .postControl {
+                closing = None
+                for (index in 0L..<owner.closingLeases.size)
+                    if (owner.closingLeases[index] === this) {
+                        owner.closingLeases.removeAt(index)
+                        break
+                    }
+                owner.leases -= 1L
+            }
     }
 }
 
@@ -47,42 +46,4 @@ public fun Window.acquireNativeWindow(): NativeWindowLease {
     owner.requireOpen()
     owner.leases += 1L
     return NativeWindowLease(owner)
-}
-
-/** Business delivery owned by the existing asyncio session. */
-public interface ApplicationAttachment {
-    public fun post(block: () -> Unit): Boolean
-    public fun requestClose()
-}
-
-/** Native application operations used by the separate asyncio integration Cone. */
-public class ApplicationHost internal constructor(internal val owner: ApplicationOwner) {
-    public fun isCurrentThread(): Boolean = owner.isCurrentThread()
-    /** Borrows a readable descriptor without consuming, resetting, or closing it. */
-    @Unsafe
-    public fun watchReadable(descriptor: Int, ready: () -> Unit): ApplicationWatch =
-        installReadableWatch(owner, descriptor, ready)
-    /** Borrows a Windows manual-reset event without resetting or closing it. */
-    @Unsafe
-    public fun watchWindowsEvent(event: Ptr<Unit>, ready: () -> Unit): ApplicationWatch =
-        installWindowsWatch(owner, event, ready)
-    public fun postControl(block: () -> Unit): Boolean = owner.mailbox.postControl(block)
-    /** Reports session completion exactly once; its watches must already be retired. */
-    public fun complete(failure: Throwable?) {
-        owner.complete(failure)
-    }
-    /** Starts shutdown from an owner control callback, including root cancellation. */
-    public fun requestExit() {
-        owner.checkThread();
-        owner.beginExit()
-    }
-}
-
-/** Runs with an attachment installed before the first business event can be served. */
-@Unsafe
-public fun Application.runAttached(
-    handler: ApplicationHandler,
-    attach: (ApplicationHost) -> ApplicationAttachment
-) {
-    owner.run(handler, Some(attach))
 }

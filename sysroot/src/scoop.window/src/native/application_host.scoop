@@ -1,0 +1,41 @@
+package scoop.window.native
+
+import scoop.window.*
+
+/** Business delivery owned by the existing asyncio session. */
+public interface ApplicationAttachment {
+    public fun post(block: () -> Unit): Boolean
+    public fun requestClose()
+}
+
+/** Native application operations used by the separate asyncio integration Cone. */
+public class ApplicationHost internal constructor(internal val owner: ApplicationOwner) {
+    public fun isCurrentThread(): Boolean = owner.isCurrentThread()
+    /** Borrows a readable descriptor without consuming, resetting, or closing it. */
+    @Unsafe
+    public fun watchReadable(descriptor: Int, ready: () -> Unit): ApplicationWatch =
+        installReadableWatch(owner, descriptor, ready)
+    /** Borrows a Windows manual-reset event without resetting or closing it. */
+    @Unsafe
+    public fun watchWindowsEvent(event: Ptr<Unit>, ready: () -> Unit): ApplicationWatch =
+        installWindowsWatch(owner, event, ready)
+    public fun postControl(block: () -> Unit): Boolean = owner.mailbox.postControl(block)
+    /** Reports session completion exactly once; its watches must already be retired. */
+    public fun complete(failure: Throwable?) {
+        owner.complete(failure)
+    }
+    /** Starts shutdown from an owner control callback, including root cancellation. */
+    public fun requestExit() {
+        owner.checkThread();
+        owner.beginExit()
+    }
+}
+
+/** Runs with an attachment installed before the first business event can be served. */
+@Unsafe
+public fun Application.runAttached(
+    handler: ApplicationHandler,
+    attach: (ApplicationHost) -> ApplicationAttachment
+) {
+    owner.run(handler, Some(attach))
+}

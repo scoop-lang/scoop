@@ -1,0 +1,150 @@
+package scoop.tests.ios
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+import scoop.window.*
+import scoop.window.ios.UIKitApplication
+import scoop.window.native.*
+
+@CLayout
+private struct Snapshot(
+    val width: Double,
+    val height: Double,
+    val scale: Double,
+    val top: Double,
+    val left: Double,
+    val bottom: Double,
+    val right: Double,
+    val pixelsWide: Int,
+    val pixelsHigh: Int
+)
+
+@CLayout
+private struct Host(
+    val inspect: FunPtr<(Ptr<Unit>, Ptr<Unit>, Snapshot) -> Unit>,
+    val event: FunPtr<(Int) -> Unit>
+)
+
+@CLayout
+private struct Api(val control: FunPtr<(Ptr<Unit>, Int, Ptr<Unit>) -> Int>, val context: Ptr<Unit>)
+
+private class Probe(val host: Host) : ApplicationHandler {
+    var window: Window? = None
+    var lease: NativeWindowLease? = None
+    var mailbox: ApplicationProxy? = None
+    var timer: WindowDeadline? = None
+
+    fun report(value: Int) {
+        @Unsafe {
+            host.event(value)
+        }
+    }
+    fun inspectView(window: Window) {
+        val metrics = window.metrics!!
+        val size = metrics.logicalSize
+        val insets = metrics.safeAreaInsets
+        @Unsafe {
+            when (lease!!.handle) {
+                case UIKit(val nativeWindow, val view) ->
+                    host
+                        .inspect(
+                            nativeWindow, view,
+                            Snapshot(
+                                size.width, size.height, metrics.scaleFactor, insets.top, insets
+                                    .left, insets.bottom, insets.right,
+                                metrics.physicalSize.width, metrics.physicalSize.height
+                            )
+                        )
+            }
+        }
+    }
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case SceneConnected(val connected) -> {
+                when (window) {
+                    case Some(_) -> throw IllegalStateException(Some("duplicate scene connection"));
+                    case None -> {}
+                }
+                window = Some(connected)
+                mailbox = Some(application.proxy())
+                @Unsafe {
+                    lease = Some(connected.acquireNativeWindow())
+                }
+                inspectView(connected)
+                timer = Some(connected.createDeadline { report(2) })
+                timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(40L))
+                connected.requestRedraw()
+                connected.requestRedraw()
+                report(1)
+            }
+
+            case Window(val id, val change) -> {
+                if (id != window!!.id) throw IllegalStateException(Some("window identity changed"))
+                when (change) {
+                    case RedrawRequested -> {
+                        inspectView(window!!);
+                        report(3)
+                    }
+
+                    case Closing -> {
+                        if (window!!.state != WindowState.Closing || !timer!!.isClosed)
+                            throw IllegalStateException(Some("closing did not retire deadline"))
+                        report(5)
+                    }
+
+                    case Destroyed -> {
+                        if (window!!.state != WindowState.Destroyed)
+                            throw IllegalStateException(Some("window still live"))
+                        report(6)
+                        window = None
+                    }
+
+                    else -> {}
+                }
+            }
+
+            else -> {}
+        }
+    }
+    @Unsafe
+    fun control(app: UIKitApplication, action: Int, scene: Ptr<Unit>): Int {
+        when (action) {
+            1 -> {
+                app.connect(scene)
+            }
+
+            2 -> if (!mailbox!!.post { active -> report(4) }) return 0
+            3 -> app.disconnect(scene)
+
+            4 -> {
+                // The window remains borrowed after Closing until this release has run.
+                when (lease!!.handle) {
+                    case UIKit(val nativeWindow, val view) -> report(7)
+                }
+                lease!!.close()
+                lease = None
+            }
+
+            5 -> app.close()
+            else -> return 0
+        }
+        return 1
+    }
+}
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {
+    val probe = Probe(hostApi.cast<Host>().load())
+    val application = UIKitApplication(probe)
+    val control = foreignCallback<(Ptr<Unit>, Int, Ptr<Unit>) -> Int>(
+        { action: Int, scene: Ptr<Unit> ->
+            var outcome = 0
+            @Unsafe {
+                outcome = probe.control(application, action, scene)
+            }
+            outcome
+        },
+        0L, ForeignCallbackMode.Reusable
+    )
+    outAppApi.cast<Api>().store(Api(control.function, control.context))
+}

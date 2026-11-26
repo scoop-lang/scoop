@@ -1,0 +1,11 @@
+package scoop.window
+
+/** Why a new external event batch started. */
+public enum StartCause {
+    Init, Poll, Wake, Deadline
+}
+
+/** Receives serial application events on the native owner thread. */
+public interface ApplicationHandler {
+    public fun onEvent(application: ActiveApplication, event: ApplicationEvent)
+}

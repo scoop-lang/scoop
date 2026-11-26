@@ -18,59 +18,44 @@ internal fun ApplicationOwner.takeDeadlines(now: MonotonicInstant): Array<Deadli
     val ready = ArrayList<DeadlineDelivery>()
     for (deadline in deadlines) {
         when (deadline.scheduled) {
-            case Some(val time) -> if (time <= now) {
-                ready.add(DeadlineDelivery(deadline, deadline.revision, time))
-                deadline.scheduled = None
-            }
+            case Some(val time) ->
+                if (time <= now) {
+                    ready.add(DeadlineDelivery(deadline, deadline.revision, time))
+                    deadline.scheduled = None
+                }
             case None -> {}
         }
     }
     return ready.sortedBy<DeadlineDelivery, MonotonicInstant> { item -> item.time }.toArray()
 }
 
-internal fun ApplicationOwner.consumeFlowDeadline(now: MonotonicInstant): Boolean =
-    when (flow) {
-        case WaitUntil(val time) -> if (time <= now) {
-            flow = ControlFlow.Wait
-            true
-        } else
-            false
-        else -> false
-    }
-
-internal fun ApplicationOwner.refreshDeadline(force: Boolean = false) {
+internal fun ApplicationOwner.refreshWindowDeadlines(policy: MonotonicInstant?, force: Boolean) {
     val pointer = native ?: return
-    var next: MonotonicInstant? = None
+    var next: MonotonicInstant? = if (exiting) None else policy
     if (!exiting) {
-        when (flow) {
-            case WaitUntil(val time) -> next = Some(time)
-            else -> {}
-        }
         for (deadline in deadlines) {
             when (deadline.scheduled) {
-                case Some(val time) -> if (next == None || time < next!!)
-                    next = Some(time)
+                case Some(val time) -> if (next == None || time < next!!) next = Some(time)
                 case None -> {}
             }
         }
     }
-    if (!force && next == armedDeadline)
-        return
-    val seconds =
-        when (next) {
-            case None -> -1.0
-            case Some(val time) -> {
-                val now = MonotonicTimeSource.now()
-                if (time <= now)
-                    0.0
-                else {
-                    val remaining = time - now
-                    remaining.floorSeconds.toDouble() +
-                        remaining.nanosecondsOfSecond.toDouble() /
-                        1000000000.0
-                }
+    if (!force && next == armedDeadline) return
+    val seconds = when (next) {
+        case None -> -1.0
+
+        case Some(val time) -> {
+            val now = MonotonicTimeSource.now()
+            if (time <= now)
+                0.0
+            else {
+                val remaining = time - now
+                remaining.floorSeconds.toDouble() +
+                    remaining.nanosecondsOfSecond.toDouble() /
+                    1000000000.0
             }
         }
+    }
     armedDeadline = next
     @Unsafe
     {

@@ -63,6 +63,10 @@ target/release/scoop build sysroot/src/scoop.platform --release \
 
 这个宿主通过 Scoop 绘制色块、Lucide 加号和换行的中文与 emoji，验证颜色读回、系统字体、UTF-8 命中边界和 GBK 往返。控制台输出实际行数、覆盖像素数及 `scoop-ios-graphics-ok`。
 
+## UIKit 场景与窗口
+
+在同一 sysroot 为两个目标预编译 `scoop.window`。用独立工作目录运行上述命令并加 `--window --include-device`。iPhone 模拟器会创建真实的 `UIWindowScene`，对照 UIKit 核对窗口、视图、安全区、显示比例和像素尺寸。工作线程投递、重绘合并、一次性定时和断开后的原生借用回收通过后，输出 `scoop-ios-window-ok`。设备宿主在本步骤交叉链接。
+
 ## UIKit 受保护数据
 
 在上述模拟器验证命令加上 `--protected-data` 并使用另一个工作目录，会构建普通 release 应用。UIKit 启动后，宿主通过 Scoop 回调查询数据保护状态，与同一时刻的 UIKit 返回值对照。成功标记为 `scoop-ios-protected-data-ok`。

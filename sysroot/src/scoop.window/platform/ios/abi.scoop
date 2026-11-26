@@ -1,0 +1,64 @@
+package scoop.window
+
+import scoop.window.native.NativeWindowHandle
+
+@CLayout
+internal struct UIKitSnapshot(
+    val width: Double,
+    val height: Double,
+    val scale: Double,
+    val top: Double,
+    val left: Double,
+    val bottom: Double,
+    val right: Double,
+    val visible: Int,
+    val focused: Int,
+    val occluded: Int,
+    val dark: Int
+) {
+    fun metrics(): WindowMetrics {
+        val size = LogicalSize(width, height)
+        return WindowMetrics(
+            size,
+            size.toPhysical(scale),
+            scale,
+            WindowInsets(top, left, bottom, right)
+        )
+    }
+}
+
+@Extern(name = "scoop_window_ios_application_create")
+internal fun iosApplicationCreate(
+    callback: FunPtr<(Ptr<Unit>, Int) -> Int>,
+    context: Ptr<Unit>
+): Ptr<Unit>?
+
+@Extern(name = "scoop_window_ios_application_destroy")
+internal fun iosApplicationDestroy(application: Ptr<Unit>)
+
+@Extern(name = "scoop_window_ios_scene_create")
+internal fun iosSceneCreate(application: Ptr<Unit>, scene: Ptr<Unit>, identity: Long): Ptr<Unit>?
+
+@Extern(name = "scoop_window_ios_scene_show")
+internal fun iosSceneShow(window: Ptr<Unit>)
+
+@Extern(name = "scoop_window_ios_scene_destroy")
+internal fun iosSceneDestroy(window: Ptr<Unit>)
+
+@Extern(name = "scoop_window_ios_snapshot")
+internal fun iosSceneSnapshot(window: Ptr<Unit>): UIKitSnapshot
+
+@Extern(name = "scoop_window_ios_event_snapshot")
+internal fun iosEventSnapshot(event: Ptr<Unit>): UIKitSnapshot
+
+@Extern(name = "scoop_window_ios_uiwindow")
+private fun iosUIWindow(window: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_window_ios_view")
+private fun iosView(window: Ptr<Unit>): Ptr<Unit>
+
+internal fun platformBackend(): WindowBackend = WindowBackend.UIKit
+
+@Unsafe
+internal fun platformNativeHandle(pointer: Ptr<Unit>): NativeWindowHandle = NativeWindowHandle
+    .UIKit(iosUIWindow(pointer), iosView(pointer))

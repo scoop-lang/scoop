@@ -18,7 +18,11 @@ PROBES = {
     "protected": (HERE / "protected-data/cone", HERE / "protected-data/ProtectedDataApi.h"),
     "platform": (HERE / "platform/cone", HERE / "platform/PlatformHost.h"),
     "graphics": (HERE / "graphics/cone", HERE / "graphics/GraphicsResult.h"),
+    "window": (HERE / "window/cone", HERE / "window/WindowHost.h"),
 }
+
+
+SCENE_DELEGATES = {"protected": "ProtectedDataScene", "window": "WindowProbeScene"}
 
 
 def run(*args, **options):
@@ -117,14 +121,14 @@ def build_app(framework, work, language, simulator):
                             "UISceneConfigurations": {
                                 "UIWindowSceneSessionRoleApplication": [
                                     {
-                                        "UISceneConfigurationName": "Protected data",
-                                        "UISceneDelegateClassName": "ProtectedDataScene",
+                                        "UISceneConfigurationName": language,
+                                        "UISceneDelegateClassName": SCENE_DELEGATES[language],
                                     }
                                 ]
                             },
                         }
                     }
-                    if language == "protected"
+                    if language in SCENE_DELEGATES
                     else {}
                 ),
                 "LSRequiresIPhoneOS": True,
@@ -153,7 +157,7 @@ def build_app(framework, work, language, simulator):
             "-fmodules",
             f"-fmodules-cache-path={work / 'module-cache'}",
             "-framework",
-            "UIKit" if language == "protected" else "Foundation",
+            "UIKit" if language in SCENE_DELEGATES else "Foundation",
             (PROBES[language][1].parent if language in PROBES else HERE) / "main.m",
         )
     run(
@@ -233,6 +237,13 @@ def main():
         dest="probe",
         const="graphics",
         help="draw and read back shaped text and SVG using the installed Scoop libraries",
+    )
+    probes.add_argument(
+        "--window",
+        action="store_const",
+        dest="probe",
+        const="window",
+        help="exercise a real UIWindowScene with the installed Scoop window library",
     )
     args = parser.parse_args()
     work = args.work_dir.resolve()

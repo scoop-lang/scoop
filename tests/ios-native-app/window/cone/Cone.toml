@@ -1,0 +1,12 @@
+schema = 1
+
+[cone]
+group = "scoop.tests"
+name = "ios-window"
+version = "0.1.0"
+kind = "native-app"
+
+[dependencies]
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.window" = "0.1.0"

@@ -1,0 +1,34 @@
+package scoop.window
+
+/** A library-assigned monitor identity, independent of native display identifiers. */
+public struct MonitorId(val value: Long) : Equals<MonitorId>, Hash {
+    public override operator fun equals(other: MonitorId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
+
+/** The application's behavior after its last window is actually destroyed. */
+public enum LastWindowPolicy {
+    KeepRunning, Exit
+}
+
+/** Window-manager ordering requests. */
+public enum WindowLevel {
+    Normal, AlwaysOnTop, AlwaysOnBottom
+}
+
+/** Why the system is asking the application to exit. */
+public enum ExitReason {
+    User, System
+}
+
+/** Attention requests do not promise keyboard focus. */
+public enum AttentionKind {
+    Informational, Critical, Cancel
+}
+
+/** Native titlebar buttons enabled by the application. */
+public struct WindowButtons(
+    val close: Boolean = true,
+    val minimize: Boolean = true,
+    val maximize: Boolean = true
+)
