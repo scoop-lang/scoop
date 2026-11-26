@@ -2576,6 +2576,6 @@ Windows PDB 的 procedure 源码名称用于调试器显示，原生符号名仍
 
 Windows/x86_64 的 PDB TLS 位置按选中线程的 TEB、模块 PE TLS index 和变量在模板中的偏移解析到该线程的实际存储，不把初始化模板当作变量值。无法取得对应线程或模块 TLS 时显示 unavailable；调试器不调用目标函数来查询 TLS。
 
-Linux 静态主程序通过 DWARF TLS 地址操作描述线程局部变量（DW_OP_form_tls_address 或 GNU 等价操作）。对没有 PT_INTERP 的主程序，LLDB 在所选线程内解析该地址。AArch64 使用 variant I，从 TPIDR_EL0 越过 16 字节 TCB，再按 PT_TLS 的对齐和起始地址在对齐边界内的偏移定位模板。amd64 使用 variant II，根据 PT_TLS 的大小、对齐和起始偏移在线程指针以下定位模板。两者均从模板起点加上符号的 TLS 偏移。动态程序与共享库继续通过动态 loader 定位。
+Linux 静态主程序通过 DWARF TLS 地址操作描述线程局部变量（DW_OP_form_tls_address 或 GNU 等价操作）。对没有 PT_INTERP 的主程序，LLDB 在所选线程内解析该地址。AArch64 使用 variant I，从 TPIDR_EL0 越过 16 字节 TCB，再按 PT_TLS 的对齐和起始地址在对齐边界内的偏移定位模板。amd64 使用 variant II，根据 PT_TLS 的大小、对齐和起始偏移在线程指针以下定位模板。两者均从模板起点加上符号的 TLS 偏移。动态程序与共享库继续通过动态 loader 定位。AArch64 glibc 的动态 TLS 查询从 TPIDR_EL0 指向的 TCB 首字段读取 DTV，再按 link map 的模块 ID 定位当前线程的存储。
 
 闭包捕获值的调试观察复用 ClosureEnvironment 中的真实 captured-value 身份和共享声明，只在现有字段读取产生 LIR temporary 后记录值；不为调试读取捕获对象、延长生命期或增加 GC roots。相同声明／内联作用域复用一个 DWARF 变量，managed 观察在 safepoint 后失效。人工 helper 使用 DW_AT_artificial，源码 inline 函数仍保留用户属性。
