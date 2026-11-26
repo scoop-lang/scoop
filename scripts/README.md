@@ -276,6 +276,8 @@ Windows 对应的入口是 `bin/scoop-lldb.exe` 和 `bin/scoop-lldb-dap.exe`，�
 
 随包 LLDB 优先使用 PE 的匹配 PDB，避免 LLVM-MinGW CRT 的 DWARF 遮蔽 Scoop 程序的调试信息；没有匹配 PDB 时保留 DWARF 回退。相关修正在 `patches/lldb-scoop-source-names.patch`，与源码名称、类型布局和线程 TLS 修正一起应用。
 
+Linux ARM64 glibc 的动态 TLS 查找从当前线程的 TPIDR_EL0 取得 DTV 指针，再按模块 ID 查表。配套调试器采用了 [LLVM 的 ARM TLS 修复](https://github.com/llvm/llvm-project/commit/a4d786630c4757ce91aef65fc2744fbde650632d) 在 AArch64 上的取址规则。
+
 本地调试器专项验证使用启用 Python 的真实 LLDB 构建：将打包目录移动到含空格的路径，
 以仅保留系统 PATH 的环境启动 LLDB，验证 formatter、Python 标准模块和动态库加载。
 未移走或隐藏原工具；通过 dyld 加载记录确认没有引用原 Homebrew／构建目录的私有动态库。
