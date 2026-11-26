@@ -26,11 +26,11 @@ from build_support import (
     save_record,
     source_patch_environment,
 )
+from target_catalog import IOS_TARGETS, native_configuration
 from target_catalog import TARGETS as CATALOG_TARGETS
-from target_catalog import native_configuration
 
 REVISION = "f326a1e25fc736704063922b9ce76b527b1c5efe"
-TARGETS = tuple(
+DISTRIBUTION_TARGETS = tuple(
     name
     for name, target in CATALOG_TARGETS.items()
     if target["os"] in {"darwin", "windows"} or target["native_environment"] == "LinuxGnu"
@@ -164,13 +164,15 @@ def prepare(args):
             / ("windows-toolchain.patch" if windows else "macos-deployment.patch")
         ]
     )
+    if args.target in IOS_TARGETS:
+        platform_patch = [vendor / "patches/ios-arm64.patch"]
     patches = [
         *platform_patch,
         vendor / "patches/python-command.patch",
         vendor / "patches/text-baselines.patch",
         vendor / "patches/graphics-pathops.patch",
     ]
-    apple = target_configuration["os"] == "darwin"
+    apple = target_configuration["os"] in ("darwin", "ios")
     gn_targets = (
         "skia",
         "skparagraph",
@@ -228,6 +230,10 @@ def prepare(args):
             )
         },
     }
+    if args.target in IOS_TARGETS:
+        inputs["environment"]["IPHONEOS_DEPLOYMENT_TARGET"] = os.environ.get(
+            "IPHONEOS_DEPLOYMENT_TARGET"
+        )
     record = args.build_dir / "inputs.json"
     outputs = [args.prefix / LIBRARY, *(args.prefix / "include/skia" / path for path in HEADERS)]
     if reusable(record, inputs, outputs):
@@ -244,7 +250,7 @@ def prepare(args):
     elif linux:
         platform_options, platform_tools = linux_configuration(args, release)
     else:
-        platform_options, platform_tools = darwin_configuration(args, release)
+        platform_options, platform_tools = apple_configuration(args, release)
     source = args.build_dir / "source"
     source_record = args.build_dir / "source.json"
     if not source_record.exists() or json.loads(source_record.read_text()) != sources:
@@ -356,7 +362,7 @@ def linux_configuration(args, release):
     }, [cc, cxx, pkg_config, ar]
 
 
-def darwin_configuration(args, release):
+def apple_configuration(args, release):
     tools = [
         shutil.which(name)
         for name in (args.cc or "/usr/bin/clang", args.cxx or "/usr/bin/clang++", "xcrun")
@@ -364,11 +370,30 @@ def darwin_configuration(args, release):
     if any(tool is None for tool in tools):
         raise ValueError("Darwin Skia preparation requires Apple Clang and Xcode")
     cc, cxx, xcrun = tools
-    sdk = subprocess.check_output([xcrun, "--sdk", args.sdk, "--show-sdk-path"], text=True).strip()
+    facts = CATALOG_TARGETS[args.target]
+    architecture = facts["arch"]
+    if facts["os"] == "ios":
+        simulator = facts["env"] == "simulator"
+        sdk_name = "iphonesimulator" if simulator else "iphoneos"
+        deployment = os.environ.get("IPHONEOS_DEPLOYMENT_TARGET") or release["minimum_os"]
+        triple = f"{apple_architecture(architecture)}-apple-ios{deployment}"
+        if simulator:
+            triple += "-simulator"
+        options = {
+            "target_os": "ios",
+            "ios_min_target": deployment,
+            "ios_use_simulator": simulator,
+            "skia_ios_use_signing": False,
+        }
+    else:
+        sdk_name = "macosx"
+        deployment = os.environ.get("MACOSX_DEPLOYMENT_TARGET") or release["minimum_os"]
+        triple = f"{apple_architecture(architecture)}-apple-macos{deployment}"
+        options = {"mac_min_target": deployment}
+    sdk = subprocess.check_output(
+        [xcrun, "--sdk", args.sdk or sdk_name, "--show-sdk-path"], text=True
+    ).strip()
     libtool = subprocess.check_output([xcrun, "--find", "libtool"], text=True).strip()
-    architecture = native_configuration(args.target)["arch"]
-    deployment = os.environ.get("MACOSX_DEPLOYMENT_TARGET") or release["minimum_os"]
-    triple = f"{apple_architecture(architecture)}-apple-macos{deployment}"
     flags = ["-target", triple, "-isysroot", sdk]
     return {
         "target_cpu": gn_cpu(architecture),
@@ -376,7 +401,7 @@ def darwin_configuration(args, release):
         "skia_use_apple_unicode": True,
         "cc": cc,
         "cxx": cxx,
-        "mac_min_target": deployment,
+        **options,
         "xcode_sysroot": sdk,
         "extra_cflags": [*flags, cpu_flag(architecture, release["cpu"])],
         "extra_asmflags": flags,
@@ -386,16 +411,16 @@ def darwin_configuration(args, release):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target", choices=TARGETS, required=True)
+    parser.add_argument("--target", choices=(*DISTRIBUTION_TARGETS, *IOS_TARGETS), required=True)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--prefix", type=Path)
     parser.add_argument("--gn", default="gn")
     parser.add_argument("--cc")
     parser.add_argument("--cxx")
-    parser.add_argument("--sdk", default="macosx")
+    parser.add_argument("--sdk", help="override the Apple SDK selected by the target")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 6))
     args = parser.parse_args()
-    host = {"darwin": "Darwin", "windows": "Windows", "linux": "Linux"}[
+    host = {"darwin": "Darwin", "ios": "Darwin", "windows": "Windows", "linux": "Linux"}[
         native_configuration(args.target)["os"]
     ]
     if platform.system() != host:

@@ -28,6 +28,7 @@ NATIVE_TARGETS = {
     for name, target in TARGETS.items()
     if name in _DISTRIBUTION_TARGETS and target["os"] != "ios"
 }
+IOS_TARGETS = tuple(name for name, target in TARGETS.items() if target["os"] == "ios")
 WINDOWS_TARGETS = tuple(name for name, target in TARGETS.items() if target["os"] == "windows")
 _LLVM_COMPONENT_BY_ARCH = {"aarch64": "AArch64", "x86_64": "X86"}
 _LLVM_MINGW_RESOURCE_TRIPLE_BY_ARCH = {"x86_64": "x86_64-w64-mingw32"}

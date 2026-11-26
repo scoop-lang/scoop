@@ -20,7 +20,7 @@ Cone 名称为 `scoop:scoop.graphics.text`，公共 package 为 `scoop.graphics.
 
 文本算法继续采用当前固定版本的 SkParagraph、HarfBuzz 与 SkUnicode，系统字体发现继续复用 CoreText／DirectWrite／Fontconfig。拆分不要求新的文本引擎、语言语法、编译器处理、runtime ABI 或插件协议。
 
-macOS 使用 Skia Apple Unicode，以 Core Foundation 的分词、断行和字素行为为准，允许随系统更新；双向算法使用 Skia 配套的 ICU Bidi 子集。其他当前目标沿用 ICU 后端。公开文本偏移在各平台都以 UTF-8 字节计。
+macOS 和 iOS 使用 Skia Apple Unicode，以 Core Foundation 的分词、断行和字素行为为准，允许随系统更新。双向算法使用 Skia 配套的 ICU Bidi 子集。iOS 设备和模拟器各自使用相应 SDK 构建 arm64 Skia 静态库，Ganesh 使用 Metal，系统字体来自 CoreText。其他当前目标沿用 ICU 后端。公开文本偏移在各平台都以 UTF-8 字节计。
 
 当前实施批次先以 macOS aarch64 的 CoreText 与真实离屏／Metal 绘图为验收目标，本期功能完成后统一补验 x86_64。拆分时一起移动已有的 DirectWrite 工厂及目标选择，避免保留两套文本所有权；Windows 的新增接入和运行验收留待后续。共享文本模型仍按本规范实现，目标平台的可用性以已交付的 Cone 源码和验证记录为准。
 

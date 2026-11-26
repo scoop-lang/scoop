@@ -61,6 +61,10 @@ def prepare_locked(args, source, archive, build):
             )
         },
     }
+    if target_configuration["os"] == "ios":
+        inputs["environment"]["IPHONEOS_DEPLOYMENT_TARGET"] = os.environ.get(
+            "IPHONEOS_DEPLOYMENT_TARGET"
+        )
     record = build / "inputs.json"
     outputs = [args.prefix / LIBRARY, args.prefix / "include" / HEADER]
     outputs += [args.prefix / NOTICE_DIRECTORY / Path(name).name for name in NOTICE_FILES]
@@ -131,6 +135,10 @@ def prepare_locked(args, source, archive, build):
         tools.extend([Path(cc), Path("/usr/bin/libtool"), Path(sdk) / "SDKSettings.json"])
         environment["MACOSX_DEPLOYMENT_TARGET"] = (
             inputs["environment"]["MACOSX_DEPLOYMENT_TARGET"] or release["minimum_os"]
+        )
+    elif target_configuration["os"] == "ios":
+        environment["IPHONEOS_DEPLOYMENT_TARGET"] = (
+            os.environ.get("IPHONEOS_DEPLOYMENT_TARGET") or release["minimum_os"]
         )
     command = [
         cargo,

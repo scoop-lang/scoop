@@ -16,6 +16,8 @@
 
 归档保留上游 tar 内容，仅将 gzip 压缩改为 xz；源码、许可及版权声明均保留。常用许可另置于本目录，随既有发行许可收集流程发布。Darwin 使用所选 macOS SDK 的系统 zlib，不额外编入另一份 zlib。
 
+iOS 设备和模拟器分别使用 `iphoneos`、`iphonesimulator` SDK。两者的归档均为 arm64 单架构，`patches/ios-arm64.patch` 从上游 iOS arm64 选择中移除额外的 arm64e 切片。两个目标各自链接 SDK 的 zlib、Metal 和 CoreText。
+
 Windows 不依赖外置 `icudtl.dat`；将同一 ICU common 数据通过上游的 C++ 数据生成器编入静态库。`patches/windows-toolchain.patch` 区分 Windows OS 与 MSVC driver 的参数约定，使 Microsoft 和 LLVM-MinGW 分别使用自己的工具链／CRT，并选择内嵌 ICU 数据。补丁同时适配 mingw-w64 为 DirectWrite 重载使用的 `CreateFontFaceReference_`／`GetGlyphImageFormats_` 名称，调用对应的原 COM 接口；MSVC 专用 warning pragma 仅在 `_MSC_VER` 下启用。D3D12MemoryAllocator、SPIRV-Cross 及 zlib 按上述 DEPS 固定版本一并静态合并，不从应用程序当前目录查找数据或下载依赖。
 
 `scripts/build_skia.py` 显式准备 Ganesh Metal、CPU raster、PathOps、SkParagraph、HarfBuzz、SkUnicode ICU、Skia SVG／skresources／Expat 与 PNG／JPEG 解码。关闭 Graphite／Dawn／Vulkan／GL、PDF、工具和其他可选图像编码器。Expat 按上述 DEPS 版本静态构建，不依赖宿主的系统 Expat。`patches/graphics-pathops.patch` 将 PathOps 作为 skia 静态库的直接公共依赖；关闭 PDF／XPS 时仍导出路径相交 API，供区域可见性查询使用。需要 Python、GN、Ninja、Xcode 和 Apple Clang；GN 可经 `--gn` 指定已有可执行文件，普通应用不构建工具、不运行依赖同步程序、不联网。

@@ -28,8 +28,8 @@ import package_tooling
 import package_windows
 from build_llvm import VERSION
 from build_rust_text import LIBRARY as RUST_TEXT_LIBRARY
+from build_skia import DISTRIBUTION_TARGETS as SKIA_TARGETS
 from build_skia import LIBRARY as SKIA_LIBRARY
-from build_skia import TARGETS as SKIA_TARGETS
 from build_support import RELEASE_CONFIG, ROOT, build_lock
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
 from download_support import download_directory

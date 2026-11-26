@@ -8,18 +8,18 @@ from pathlib import Path
 
 import build_rust_text
 from build_support import ROOT
-from target_catalog import NATIVE_TARGETS as TARGETS
+from target_catalog import IOS_TARGETS, NATIVE_TARGETS
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target", choices=TARGETS, required=True)
+    parser.add_argument("--target", choices=(*NATIVE_TARGETS, *IOS_TARGETS), required=True)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--prefix", type=Path)
     parser.add_argument("--cc")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 6))
     args = parser.parse_args()
-    host, _ = TARGETS[args.target]
+    host = "Darwin" if args.target in IOS_TARGETS else NATIVE_TARGETS[args.target][0]
     if platform.system() != host:
         parser.error(f"prepare {args.target} on a {host} build host")
     if args.jobs < 1:
