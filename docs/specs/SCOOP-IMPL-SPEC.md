@@ -700,9 +700,9 @@ body 的 EH、LSDA、unwind、紧凑 GC 表、关联常量与私有 Context cell
 
 LLVM 在机器发射中由 switch 生成的引用查找表和跳转表同样属于该 callable 的关联常量。AddressTakenConstant／Singleton 描述需要装载期地址重定位的后端常量；ELF 的 .rodata 贡献另用 AddressTakenConstant／BackendReadOnlyData 描述，包含指向本函数代码的相对跳转表。BackendReadOnlyData 是 DefinitionAtomSubkey 的无 payload 变体（wire tag 10），不改变既有子键的编码。两个贡献均在机器发射后按实际对象保留或移除，表内引用沿用普通引用闭合及 fingerprint。ELF 同时识别普通段名及带当前 callable 实际符号后缀的 COMDAT 段名，不把其他函数、字符串或固定宽度 literal 段归入该贡献。Mach-O 的地址表放入只读 __DATA_CONST 段；ELF 分别使用 .data.rel.ro.scoop.constants 与 .rodata.scoop.constants，保留各自权限，并与 callable 一同进行 ODR 选择。它们不获得源码实体身份，不通过忽略 orphan relocation 或关闭 switch 优化绕过对象合同；固定宽度、无引用的数值 literal pool 保持原有按内容表示。
 
-ELF 的非合并 `.rodata`（ODR body 为 `.rodata.<primary symbol>`）可以与已有 atom 共享。后端表位于该段前缀，范围止于首个已有 atom 的起点（没有已有 atom 时止于段尾）；后续已有定义保持各自范围，空前缀不产生后端 atom。该前缀沿用 BackendReadOnlyData 子键，与 Singleton 引用表可以同时存在；`.rodata.cst4/8/16` 的数值 literal pool 保持原路径。
+ELF 的非合并 `.rodata`（ODR body 为 `.rodata.<primary symbol>`）可以与已有 atom 共享。后端表位于该段前缀，范围止于首个已有 atom 的起点（没有已有 atom 时止于段尾）；后续已有定义保持各自范围，空前缀不产生后端 atom。该前缀沿用 BackendReadOnlyData 子键，与 Singleton 引用表可以同时存在；LLVM 的 `.rodata.cst4`、`.rodata.cst8`、`.rodata.cst16` 和 `.rodata.cst32` 数值常量池分别按 4、8、16 和 32 字节元素处理。
 
-ELF AArch64 的 PC 相对取址和低位地址指令可以用 section symbol 加 RELA addend 引用数值常量池中的具体元素。例如一对 ADRP／LDR 可以分别指向 `.rodata.cst16 + 16`。对象生产按该偏移选取完整对齐的常量元素，将元素字节纳入 callable 内容指纹。指纹中的目标已是该元素，剩余 addend 为零；实际对象保留原指令和两条带原 addend 的重定位。
+ELF AArch64 的 PC 相对取址和低位地址指令可以用 section symbol 加 RELA addend 引用数值常量池中的具体元素。例如 ADRP／LDR 可以引用 `.rodata.cst16 + 16`，ADRP／ADD 可以取得 `.rodata.cst32` 中 32 字节常量的地址。对象生产按该偏移选取完整对齐的常量元素，将元素字节纳入 callable 内容指纹。指纹中的目标已是该元素，剩余 addend 为零；实际对象保留原指令和两条带原 addend 的重定位。
 
 已有 CallableCStringIdentity 的 C 字符串直接发射到所选目标的 C 字符串段（Mach-O 的 __TEXT,__cstring 或 ELF 的 .rodata.str1.1），沿用自身的 callable 归属与起止边界，不重复计入后端 .rodata 贡献。该规则同时适用于普通 callable 和 ODR callable；不把任意 byte array 当作 C 字符串。
 

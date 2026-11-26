@@ -45,6 +45,49 @@ fn elf_section_symbol_page_and_load_select_the_same_constant() {
 }
 
 #[test]
+fn elf_cst32_page_and_add_select_the_full_element() {
+    use object::elf::*;
+    let bytes: Vec<u8> = (0..64).collect();
+    let section = ObservedObjectSectionV1 {
+        segment_name: Vec::new(),
+        section_name: b".rodata.cst32".to_vec(),
+        virtual_address: 0,
+        file_offset: Some(0),
+        flags: ObjectSectionFlagsV1::Elf {
+            section_type: SHT_PROGBITS,
+            flags: u64::from(SHF_ALLOC | SHF_MERGE),
+        },
+        byte_size: 64,
+        alignment_power: 3,
+    };
+    let ordinal = NonZeroU32::new(1).unwrap();
+    let width = literal_width(&section).unwrap();
+    let pool = read_pool(&bytes, &section, ordinal, 0, width, section.byte_size()).unwrap();
+    let pools = LiteralPools(vec![pool]);
+    for kind in [R_AARCH64_ADR_PREL_PG_HI21, R_AARCH64_ADD_ABS_LO12_NC] {
+        let form = |addend| VerifiedObjectRelocationFormV1::ElfRela {
+            machine: scoop_lir::ObjectMachineV1::Aarch64,
+            kind,
+            storage_width: 4,
+            addend,
+        };
+        for offset in [0, 32] {
+            let mut canonical = form(offset as i64);
+            let literal = pools
+                .rebase_elf_section_literal(ordinal, &mut canonical)
+                .unwrap();
+            assert_eq!(literal.bytes(), &bytes[offset..offset + 32]);
+            assert_eq!(canonical, form(0));
+        }
+        assert!(
+            pools
+                .rebase_elf_section_literal(ordinal, &mut form(8))
+                .is_none()
+        );
+    }
+}
+
+#[test]
 fn distinct_referenced_tables_in_one_section_keep_their_own_bytes() {
     let (bytes, mut sections) = table();
     let mut second = sections.envelope.symbols[0].clone();
