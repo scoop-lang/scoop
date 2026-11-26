@@ -10,6 +10,8 @@
 
 现有代码可复用 LLVM 的 AArch64 后端、Linux 线程与虚拟内存服务、ELF 映像枚举、AArch64 浮点环境，以及 Linux 链接器驱动。过程 ABI、ELF machine、机器帧和 libc 由目标目录分别选择。各阶段先修订对应规范，再提交实现与验收用例。[目标组合设计](../target-refactor/COMPOSITION.md) · [编译器与产物规范](../specs/SCOOP-IMPL-SPEC.md) · [运行时规范](../specs/SCOOP-RUNTIME-SPEC.md)
 
+三阶段的原生构建与运行结果见[验收记录](VALIDATION.md)。
+
 ## 实施与验收环境
 
 | 环境 | 用途 |
