@@ -18,11 +18,14 @@ class Request(val value: Int, val state: AppState)
 @Extern(name = "scoop_test_last_moved")
 fun lastMoved(): Long
 
+@Extern(name = "cos", lib = "m")
+fun cosine(value: Double): Double
+
 @Unsafe
 fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit {
     val host = hostApi.cast<HostApi>().load()
     val bias = host.service(7)
-    if (host.fail != 0 || bias != 35) {
+    if (host.fail != 0 || bias != 35 || cosine(0.0) != 1.0) {
         throw IllegalStateException()
     }
     val state = AppState(bias)

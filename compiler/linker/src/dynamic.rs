@@ -112,8 +112,8 @@ pub(crate) struct DynamicBinding {
     pub storage: ExportStorage,
 }
 
-#[derive(Default)]
 pub(crate) struct DynamicInputs {
+    system: NativeDynamicProviderId,
     pub providers: BTreeMap<NativeDynamicProviderId, Arc<DynamicProvider>>,
     pub roots: BTreeSet<NativeDynamicProviderId>,
     pub edges: BTreeMap<(NativeDynamicProviderId, usize), LoadTarget>,
