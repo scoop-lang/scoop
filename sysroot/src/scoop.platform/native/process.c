@@ -8,6 +8,8 @@
 #include <string.h>
 #include <unistd.h>
 
+int scoop_platform_process_suspend(void) { return kill(getpid(), SIGTSTP); }
+
 struct SpawnDescriptors {
     int child[3];
     int parent[3];

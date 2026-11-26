@@ -45,6 +45,18 @@ xcrun devicectl device process launch --device "$DEVICE_ID" --console \
 
 使用 `dev.scoop.ios-probe.objc` 验证 Objective-C 宿主。在 Swift 启动命令末尾加 `-- --fail` 验证初始化异常返回。
 
+## iOS 平台基础库
+
+用本地开发 sysroot 构建平台库，模拟器命令如下。设备切片使用 `aarch64-apple-ios`。这两份本地库供开发宿主消费。
+
+```sh
+target/release/scoop build sysroot/src/scoop.platform --release \
+  --target aarch64-apple-ios-sim --sysroot sysroot \
+  -o sysroot/lib/aarch64-apple-ios-sim/scoop.platform.slib
+```
+
+在模拟器验证命令中加 `--platform` 并使用独立工作目录。宿主把 Foundation 的目录及随包资源路径传给 Scoop，对照应用主目录、临时目录和可执行文件，并从 bundle 读出文本、在容器中创建和删除文件。该用例同时通过主线程调用时钟、互斥锁和缓冲区，成功标记为 `scoop-ios-platform-ok`。
+
 ## UIKit 受保护数据
 
 在上述模拟器验证命令加上 `--protected-data` 并使用另一个工作目录，会构建普通 release 应用。UIKit 启动后，宿主通过 Scoop 回调查询数据保护状态，与同一时刻的 UIKit 返回值对照。成功标记为 `scoop-ios-protected-data-ok`。

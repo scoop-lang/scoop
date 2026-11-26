@@ -92,7 +92,8 @@ public fun currentDirectory(): Path {
 
 /**
  * Queries the user's home directory. Windows prefers USERPROFILE then the process user's
- * profile; POSIX prefers HOME then the current uid's passwd record.
+ * profile; iOS uses its application container. Other POSIX targets prefer HOME then the
+ * current uid's passwd record.
  */
 public fun homeDirectory(): Path? {
     @Unsafe

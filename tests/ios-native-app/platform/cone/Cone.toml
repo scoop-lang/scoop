@@ -1,0 +1,10 @@
+schema = 1
+
+[cone]
+group = "scoop.tests"
+name = "ios-platform"
+version = "0.1.0"
+kind = "native-app"
+
+[dependencies]
+"scoop:scoop.platform" = "0.1.0"

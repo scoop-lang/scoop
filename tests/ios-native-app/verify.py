@@ -13,21 +13,26 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 MODULE = "ScoopProbe"
 TARGETS = {"simulator": "aarch64-apple-ios-sim", "device": "aarch64-apple-ios"}
+PROBES = {
+    "callbacks": (HERE / "cone", HERE / "ScoopHostApi.h"),
+    "protected": (HERE / "protected-data/cone", HERE / "protected-data/ProtectedDataApi.h"),
+    "platform": (HERE / "platform/cone", HERE / "platform/PlatformHost.h"),
+}
 
 
 def run(*args, **options):
     return subprocess.run(args, check=True, **options)
 
 
-def build_library(work, sysroot, binaries, linker, target, protected_data):
+def build_library(work, sysroot, binaries, linker, target, probe):
     work.mkdir()
     name = work / MODULE
     run(
         binaries / "scoop",
         "build",
-        HERE / ("protected-data/cone" if protected_data else "cone"),
+        PROBES[probe][0],
         "--release",
-        *([] if protected_data else ["--enable-gc-stress"]),
+        *(["--enable-gc-stress"] if probe == "callbacks" else []),
         "--target",
         target,
         "--sysroot",
@@ -52,12 +57,10 @@ def build_library(work, sysroot, binaries, linker, target, protected_data):
     return name
 
 
-def build_xcframework(work, sysroot, binaries, linker, variants, protected_data):
+def build_xcframework(work, sysroot, binaries, linker, variants, probe):
     inputs = []
     for variant in variants:
-        library = build_library(
-            work / variant, sysroot, binaries, linker, TARGETS[variant], protected_data
-        )
+        library = build_library(work / variant, sysroot, binaries, linker, TARGETS[variant], probe)
         inputs.extend([f"--{variant}", library])
     xcframework = work / f"{MODULE}.xcframework"
     run(
@@ -69,7 +72,7 @@ def build_xcframework(work, sysroot, binaries, linker, variants, protected_data)
         "dev.scoop.ios-probe",
         *inputs,
         "--header",
-        HERE / ("protected-data/ProtectedDataApi.h" if protected_data else "ScoopHostApi.h"),
+        PROBES[probe][1],
         "--output",
         xcframework,
     )
@@ -129,6 +132,8 @@ def build_app(framework, work, language, simulator):
             },
             file,
         )
+    if language == "platform":
+        shutil.copyfile(HERE / "platform/resource.txt", app / "resource.txt")
     if language == "swift":
         compiler = (
             "swiftc",
@@ -148,7 +153,7 @@ def build_app(framework, work, language, simulator):
             f"-fmodules-cache-path={work / 'module-cache'}",
             "-framework",
             "UIKit" if language == "protected" else "Foundation",
-            HERE / ("protected-data/main.m" if language == "protected" else "main.m"),
+            (PROBES[language][1].parent if language in PROBES else HERE) / "main.m",
         )
     run(
         "xcrun",
@@ -205,9 +210,22 @@ def main():
     parser.add_argument(
         "--include-device", action="store_true", help="also build the device slice and hosts"
     )
-    parser.add_argument(
-        "--protected-data", action="store_true", help="exercise scoop.os.ios in a UIKit application"
+    probes = parser.add_mutually_exclusive_group()
+    probes.add_argument(
+        "--protected-data",
+        action="store_const",
+        dest="probe",
+        const="protected",
+        help="exercise scoop.os.ios in a UIKit application",
     )
+    probes.add_argument(
+        "--platform",
+        action="store_const",
+        dest="probe",
+        const="platform",
+        help="exercise scoop.platform in the application container",
+    )
+    parser.set_defaults(probe="callbacks")
     args = parser.parse_args()
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=False)
@@ -218,13 +236,14 @@ def main():
         args.binaries.resolve(),
         args.linker,
         variants,
-        args.protected_data,
+        args.probe,
     )
-    for language in ("protected",) if args.protected_data else ("swift", "objc"):
+    for language in ("swift", "objc") if args.probe == "callbacks" else (args.probe,):
         app, identifier = build_app(frameworks["simulator"], work / "simulator", language, True)
         run("xcrun", "simctl", "install", args.simulator, app)
-        if args.protected_data:
-            exercise(args.simulator, identifier, "scoop-ios-protected-data-ok", gc_stress=False)
+        if args.probe != "callbacks":
+            marker = "protected-data" if language == "protected" else language
+            exercise(args.simulator, identifier, f"scoop-ios-{marker}-ok", gc_stress=False)
         else:
             exercise(args.simulator, identifier, f"scoop-{language}-moving-gc-ok")
         if language == "swift":

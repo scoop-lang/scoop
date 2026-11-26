@@ -7,7 +7,40 @@ version = "0.1.0"
 kind = "library"
 
 [[sources]]
-path = "src"
+path = "src/concurrent"
+
+[[sources]]
+path = "src/env"
+
+[[sources]]
+path = "src/fs"
+
+[[sources]]
+path = "src/io"
+
+[[sources]]
+path = "src/memory"
+
+[[sources]]
+path = "src/native"
+
+[[sources]]
+path = "src/system"
+
+[[sources]]
+path = "src/time"
+
+[[sources]]
+path = "src/net"
+when = {os = ["darwin", "linux", "windows"]}
+
+[[sources]]
+path = "src/process"
+when = {os = ["darwin", "linux", "windows"]}
+
+[[sources]]
+path = "src/random"
+when = {os = ["darwin", "linux", "windows"]}
 
 [[sources]]
 path = "platform/windows"
@@ -16,6 +49,18 @@ when = {os = "windows"}
 [[sources]]
 path = "platform/posix"
 when = {os = ["darwin", "linux"]}
+
+[[sources]]
+path = "platform/posix/files.scoop"
+when = {os = "ios"}
+
+[[sources]]
+path = "platform/posix/system_version.scoop"
+when = {os = "ios"}
+
+[[sources]]
+path = "platform/posix/temporary.scoop"
+when = {os = "ios"}
 
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
@@ -26,6 +71,51 @@ when = {os = ["darwin", "linux"]}
 
 [[test.sources]]
 path = "tests"
+when = {os = ["darwin", "linux", "windows"]}
+
+[[test.sources]]
+path = "tests/concurrent"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/env"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/fs"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/memory"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/resources"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/system"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/time"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/io/buffered.scoop"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/io/pipes.scoop"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/io/streams.scoop"
+when = {os = "ios"}
+
+[[test.sources]]
+path = "tests/io/support.scoop"
+when = {os = "ios"}
 
 [[test.sources]]
 path = "test-windows"
@@ -37,6 +127,15 @@ when = {os = ["darwin", "linux"]}
 
 [native]
 c_flags = ["-Wextra", "-Werror"]
+
+[[native.libraries]]
+name = "Foundation"
+kind = "framework"
+when = {os = "ios"}
+
+[[native.libraries]]
+name = "objc"
+when = {os = "ios"}
 
 [[native.libraries]]
 name = "bcrypt"
@@ -59,6 +158,10 @@ name = "ntdll"
 when = {os = "windows"}
 
 [[native.sources]]
+path = "native/ios_directories.m"
+when = {os = "ios"}
+
+[[native.sources]]
 path = "native/errors.c"
 
 [[native.sources]]
@@ -66,13 +169,13 @@ path = "native/memory.c"
 
 [[native.sources]]
 path = "native/io.c"
-when = {os = ["darwin", "linux"]}
+when = {os = ["darwin", "ios", "linux"]}
 [[native.sources]]
 path = "native/files.c"
-when = {os = ["darwin", "linux"]}
+when = {os = ["darwin", "ios", "linux"]}
 [[native.sources]]
 path = "native/file_metadata.c"
-when = {os = ["darwin", "linux"]}
+when = {os = ["darwin", "ios", "linux"]}
 [[native.sources]]
 path = "native/file_handles.c"
 [[native.sources]]
@@ -83,18 +186,19 @@ path = "native/file_handle_metadata.c"
 path = "native/path_operations.c"
 [[native.sources]]
 path = "native/paths.c"
-when = {os = ["darwin", "linux"]}
+when = {os = ["darwin", "ios", "linux"]}
 [[native.sources]]
 path = "native/path_links.c"
 [[native.sources]]
 path = "native/path_canonical.c"
 [[native.sources]]
 path = "native/temporary_directory.c"
+when = {os = ["darwin", "linux", "windows"]}
 [[native.sources]]
 path = "native/strings.c"
 [[native.sources]]
 path = "native/directory.c"
-when = {os = ["darwin", "linux"]}
+when = {os = ["darwin", "ios", "linux"]}
 [[native.sources]]
 path = "native/directory_owner.c"
 [[native.sources]]
@@ -111,6 +215,7 @@ path = "native/target.c"
 path = "native/time.c"
 [[native.sources]]
 path = "native/random.c"
+when = {os = ["darwin", "linux", "windows"]}
 [[native.sources]]
 path = "native/threads.c"
 [[native.sources]]
@@ -119,7 +224,7 @@ path = "native/mutex.c"
 path = "native/condition.c"
 [[native.sources]]
 path = "native/pipes.c"
-when = {os = ["darwin", "linux"]}
+when = {os = ["darwin", "ios", "linux"]}
 [[native.sources]]
 path = "native/process.c"
 when = {os = ["darwin", "linux"]}
@@ -134,8 +239,10 @@ path = "native/process_windows_pipes.c"
 when = {os = "windows"}
 [[native.sources]]
 path = "native/process_wait.c"
+when = {os = ["darwin", "linux", "windows"]}
 [[native.sources]]
 path = "native/pty.c"
+when = {os = ["darwin", "linux", "windows"]}
 [[native.sources]]
 path = "native/pty_posix.c"
 when = {os = ["darwin", "linux"]}
@@ -144,15 +251,20 @@ path = "native/pty_windows.c"
 when = {os = "windows"}
 [[native.sources]]
 path = "native/socket_addresses.c"
+when = {os = ["darwin", "linux", "windows"]}
 [[native.sources]]
 path = "native/socket_open.c"
+when = {os = ["darwin", "linux", "windows"]}
 [[native.sources]]
 path = "native/socket_io.c"
+when = {os = ["darwin", "linux", "windows"]}
 [[native.sources]]
 path = "native/resolve.c"
+when = {os = ["darwin", "linux", "windows"]}
 
 [[native.sources]]
 path = "native/tty/managed.c"
+when = {os = ["darwin", "linux", "windows"]}
 [[native.sources]]
 path = "native/tty/session.c"
 when = {os = ["darwin", "linux"]}
