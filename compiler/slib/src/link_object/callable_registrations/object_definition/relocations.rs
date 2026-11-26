@@ -10,11 +10,13 @@ pub(in crate::link_object) fn canonicalize_relocations_with_associated_atoms(
     associated_atoms: &[DefinitionAtomRangeV1],
 ) -> Result<Vec<CanonicalObjectRelocationV1>, ObjectDefinitionRelocationFailureV1> {
     let mut output = Vec::new();
+    let literal_pools = member.definitions().literal_pools();
     for (index, relocation) in member.relocations_for_atom(atom) {
         let bindings = closure.bindings_for_relocation(index, relocation);
         let mut binding_count = 0;
         let mut targets = Vec::new();
         let mut canonical_value = relocation.encoded_value();
+        let mut form = relocation.shape().form();
         for (slot, target) in relocation_targets(relocation.shape()) {
             let target = match target {
                 VerifiedRelocationTargetV1::LocalDefinition {
@@ -23,12 +25,9 @@ pub(in crate::link_object) fn canonicalize_relocations_with_associated_atoms(
                     value,
                     ..
                 } => CanonicalRelocationTargetKindV1::Literal(
-                    member
-                        .definitions()
-                        .literal_at(*section_ordinal, *value)
-                        .ok_or(
-                            ObjectDefinitionRelocationFailureV1::UnsupportedLocalOrSectionTarget,
-                        )?,
+                    literal_pools.at(*section_ordinal, *value).ok_or(
+                        ObjectDefinitionRelocationFailureV1::UnsupportedLocalOrSectionTarget,
+                    )?,
                 ),
                 VerifiedRelocationTargetV1::LocalDefinition {
                     owner_atom: Some(target_atom),
@@ -59,27 +58,30 @@ pub(in crate::link_object) fn canonicalize_relocations_with_associated_atoms(
                 VerifiedRelocationTargetV1::SectionBase {
                     section_ordinal, ..
                 } if matches!(
-                    relocation.shape().form(),
+                    form,
                     VerifiedObjectRelocationFormV1::ElfRela { .. }
                         | VerifiedObjectRelocationFormV1::Coff { .. }
                 ) =>
                 {
-                    // Preserve S + A: the atom at the section base supplies S,
-                    // and the relocation form/field keeps A and any PC bias.
-                    let range = associated_atoms
-                        .iter()
-                        .find(|range| {
-                            range.section_ordinal() == *section_ordinal
-                                && range.start() == 0
-                                && range.end() != 0
-                        })
-                        .ok_or(
-                            ObjectDefinitionRelocationFailureV1::UnsupportedLocalOrSectionTarget,
-                        )?;
-                    CanonicalRelocationTargetKindV1::OwningAssociatedAtomOffset {
-                        atom: range.atom(),
-                        role: range.atom_role(),
-                        offset_within_atom: 0,
+                    if let Some(literal) =
+                        literal_pools.rebase_elf_section_literal(*section_ordinal, &mut form)
+                    {
+                        CanonicalRelocationTargetKindV1::Literal(literal)
+                    } else {
+                        // The atom at the section base supplies S. The form retains A and any PC bias.
+                        let range = associated_atoms
+                            .iter()
+                            .find(|range| {
+                                range.section_ordinal() == *section_ordinal
+                                    && range.start() == 0
+                                    && range.end() != 0
+                            })
+                            .ok_or(ObjectDefinitionRelocationFailureV1::UnsupportedLocalOrSectionTarget)?;
+                        CanonicalRelocationTargetKindV1::OwningAssociatedAtomOffset {
+                            atom: range.atom(),
+                            role: range.atom_role(),
+                            offset_within_atom: 0,
+                        }
                     }
                 }
                 VerifiedRelocationTargetV1::SectionBase {
@@ -133,9 +135,7 @@ pub(in crate::link_object) fn canonicalize_relocations_with_associated_atoms(
                         .section_target_address(relocation.encoded_value(), site)
                         .ok_or_else(invalid)?;
                     canonical_value = 0;
-                    if let Some(literal) =
-                        member.definitions().literal_at(*section_ordinal, address)
-                    {
+                    if let Some(literal) = literal_pools.at(*section_ordinal, address) {
                         CanonicalRelocationTargetKindV1::Literal(literal)
                     } else {
                         let range = associated_atoms
@@ -174,7 +174,7 @@ pub(in crate::link_object) fn canonicalize_relocations_with_associated_atoms(
         targets.sort_unstable_by_key(|target| target.slot);
         output.push(CanonicalObjectRelocationV1 {
             offset_within_atom: relocation.offset_within_atom(),
-            form: CanonicalObjectRelocationFormV1::Object(relocation.shape().form()),
+            form: CanonicalObjectRelocationFormV1::Object(form),
             canonical_value,
             targets,
         });

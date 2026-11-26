@@ -16,7 +16,7 @@ use super::{
 };
 use crate::SlibMemberId;
 
-use super::literal_pools::{LiteralPools, ObjectLiteral};
+use super::literal_pools::LiteralPools;
 mod ranges;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -138,8 +138,8 @@ pub struct MemberObjectDefinitionIndexV1 {
 }
 
 impl MemberObjectDefinitionIndexV1 {
-    pub(super) fn literal_at(&self, section: NonZeroU32, address: u64) -> Option<ObjectLiteral> {
-        self.literal_pools.at(section, address)
+    pub(super) fn literal_pools(&self) -> &LiteralPools {
+        &self.literal_pools
     }
     pub const fn producer(&self) -> ConeIdentity {
         self.producer
