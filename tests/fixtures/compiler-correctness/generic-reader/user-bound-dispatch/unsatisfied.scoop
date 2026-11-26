@@ -1,0 +1,12 @@
+package test.consumer
+
+import test.provider.Probe
+import test.provider.Reading
+
+struct Key() {
+    fun hash(): Long = 37L
+}
+
+fun main() {
+    Probe(Reading(Key()))
+}

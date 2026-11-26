@@ -1,0 +1,24 @@
+schema = 1
+name = "generic-reader-reject-conditional-bound"
+inputs = ["../builtin-bound-dispatch/provider/Cone.toml", "../builtin-bound-dispatch/consumer/Cone.toml", "provider", "cases/conditional.scoop", "unsatisfied.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["generic-reader", "cross-cone", "negative", "compiler-correctness"]
+
+[[steps]]
+name = "prepare"
+files = [
+  {copy = {from = "${fixture}/../builtin-bound-dispatch/provider/Cone.toml", to = "${work}/provider/Cone.toml"}},
+  {copy = {from = "${fixture}/provider/contract.scoop", to = "${work}/provider/src/contract.scoop"}},
+  {copy = {from = "${fixture}/cases/conditional.scoop", to = "${work}/provider/src/wrapper.scoop"}},
+  {copy = {from = "${fixture}/../builtin-bound-dispatch/consumer/Cone.toml", to = "${work}/consumer/Cone.toml"}},
+  {copy = {from = "${fixture}/unsatisfied.scoop", to = "${work}/consumer/src/main.scoop"}},
+]
+
+[[steps]]
+name = "reject"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/consumer", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "unsatisfied.diagnostics.json"}

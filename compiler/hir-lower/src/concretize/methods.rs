@@ -160,17 +160,8 @@ impl Concretizer<'_> {
                 {
                     return class.interface_implementations.clone();
                 }
-                let family = match self.types[receiver].kind {
-                    concrete::TypeKind::Integer(kind) => export::IntrinsicTypeKind::Integer(kind),
-                    concrete::TypeKind::Unit => export::IntrinsicTypeKind::Unit,
-                    concrete::TypeKind::Boolean => export::IntrinsicTypeKind::Boolean,
-                    concrete::TypeKind::String => export::IntrinsicTypeKind::String,
-                    _ => unreachable!("scalar conformance has a scalar representation"),
-                };
-                let source = self.source.imported_intrinsic_types[&family]
-                    .interface_implementations
-                    .clone();
-                self.lower_interface_implementations(&source, &[])
+                let (_, implementations) = self.scalar_conformance_source(receiver);
+                self.lower_interface_implementations(implementations, &[])
             }
             _ => unreachable!("a checked nominal bound has an explicit conformance"),
         }

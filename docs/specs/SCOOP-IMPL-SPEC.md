@@ -301,7 +301,7 @@ singleton、runtime property 与 generic delegated application 保存完整初�
 
 core 的 Add 等普通运算符接口不进入编译器内建 protocol 表。HIR 先将 operator 表达式形成相应角色的普通调用请求，在定义处完成成员、bound 或扩展决议；不以某个 core 接口的实现关系作为前置过滤。generic/default body 保存所选 typed callable 或 bound slot，具体化按实际 conformance 映射实现，消费方不得重新按 import 或方法名选择。已有数值 intrinsic 可以显式覆写普通 interface slot：其声明保持 Final，产物保存实际 slot 关系与原 intrinsic implementation，不能要求它只能是 DirectOnly。top-level、extension、constructor 与 source extern 仍遵守原直接调用合同。NoGC 实现与 Managed slot 的适配复用现有 callable/ABI；具体值直接调用仍保留 intrinsic。LocalConcrete intrinsic 必须从已解析的 source parameter interface（或已导入模板签名）保留完整物理参数类型，包括 receiver；它没有源码 local arena，不伪造参数 local id。当实际 itable 引用 intrinsic 实现时，MIR 以该实现原有 callable materialization 生成一个具备完整参数、返回值及 effect 的可调用正文，复用直接运算与 callable reference 的 typed 运算降级；不为未参与分派的 intrinsic 额外生成入口。装箱与 receiver 调整仍使用既有 interface adapter。由声明 slot 或 nominal dispatch selection 实际引用的 intrinsic 实现入口随普通 callable binding 导出，供 dependency 的 itable、装箱适配与 bound 具体化引用；只有直接展开用途的 intrinsic 不导出机器入口。
 
-跨 Cone 具体化泛型正文或展开默认实参时，消费方 HIR 保留实际接收者的声明，以及定义处选定的接口槽对应的实现。接收者仅经依赖字段或嵌套泛型实参引入时（如 `HashMap<String, T>` 的键），以及接收者经子接口满足上界时，均遵循此规则。
+跨 Cone 具体化泛型正文或展开默认实参时，消费方 HIR 保留实际接收者的声明，以及定义处选定的接口槽对应的实现。接收者仅经依赖字段或嵌套泛型实参引入时（如 `HashMap<String, T>` 的键），以及接收者经子接口满足上界时，均遵循此规则。具体化条件实现时，上界按实参声明的父类型和适用的条件接口判定，即使正文没有调用上界接口的任何方法也一样。
 
 `==` / `!=` 按语言规范 9.3、11.11 从普通成员中选择 operator equals，保存实际 callable 或普通接口 bound target；不要求 core Equals conformance。`Equals<T>.equals` 按普通 interface 声明、override 和 bound call 处理，不进入 core operator／protocol 身份表，也不为同形方法或结构比较补齐接口。
 

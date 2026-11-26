@@ -1,0 +1,14 @@
+package test.provider
+
+public interface Adjusted : ChildScore<Int> {
+    public fun base(): Int
+    public override fun score(input: Int): Int = base() + input
+}
+
+public struct Reading<T>(val payload: T, val bias: Int) : Adjusted {
+    public override fun base(): Int = bias
+}
+
+public class Wrapper public constructor() {
+    public val sample = Probe(Reading("payload", 34))
+}

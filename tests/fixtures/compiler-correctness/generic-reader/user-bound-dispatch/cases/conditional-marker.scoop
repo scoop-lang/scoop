@@ -1,0 +1,19 @@
+package test.provider
+
+public interface Mark {}
+public interface Enabled : Mark {}
+public struct Flag() : Enabled {}
+
+public struct Entry<T>(val value: T) {
+    override interface Enabled where T : Mark {}
+}
+
+public struct Reading<T>(val value: T) {
+    override interface ChildScore<Int> where T : Mark {
+        public override fun score(input: Int): Int = input + 34
+    }
+}
+
+public class Wrapper public constructor() {
+    public val sample = Probe(Reading(Entry(Flag())))
+}

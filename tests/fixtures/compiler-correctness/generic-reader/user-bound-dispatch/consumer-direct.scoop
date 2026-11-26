@@ -1,0 +1,10 @@
+package test.consumer
+
+import test.provider.Wrapper
+
+private fun <T : Hash> hashOf(value: T): Long = value.hash()
+
+fun main() {
+    Wrapper().sample.verify()
+    if (hashOf(true) != true.hash()) throw IllegalStateException()
+}
