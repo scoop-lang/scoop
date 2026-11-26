@@ -87,8 +87,8 @@ static void *target_thread(void *context) {
     Rendezvous *sync = context;
     assert(scoop_rt_attach_foreign_thread());
     assert(scoop_rt_poll_state == &scoop_thread_current_required()->poll);
-    const void *boundary = __builtin_frame_address(0);
     _Alignas(16) uintptr_t frame[4];
+    const void *boundary = frame + 4;
     frame_init(frame, boundary);
     if (sync->scenario == NESTED_CALLBACK) {
         nested_target(sync, boundary);
@@ -129,8 +129,8 @@ static void *target_thread(void *context) {
 static void *collector_thread(void *unused) {
     (void)unused;
     assert(scoop_rt_attach_foreign_thread());
-    const void *boundary = __builtin_frame_address(0);
     _Alignas(16) uintptr_t frame[4];
+    const void *boundary = frame + 4;
     frame_init(frame, boundary);
     scoop_thread_enter_managed(boundary);
     /* This test holds the heap lock until the handshake completes. Bypass the
@@ -241,7 +241,7 @@ static void invalid_entry(unsigned test) {
         assert(freopen("/dev/null", "w", stderr) != NULL);
         _Alignas(16) uintptr_t frame[4];
         ScoopManagedAnchor anchor;
-        const void *boundary = __builtin_frame_address(0);
+        const void *boundary = frame + 4;
         frame_init(frame, boundary);
         if (test == 2) {
             scoop_thread_enter_managed(boundary);
