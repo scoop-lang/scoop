@@ -1,0 +1,12 @@
+schema = 1
+
+[cone]
+group = "scoop.tests"
+name = "ios-asyncio"
+version = "0.1.0"
+kind = "native-app"
+
+[dependencies]
+"scoop:scoop.asyncio" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.std" = "0.1.0"

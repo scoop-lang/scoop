@@ -14,6 +14,7 @@ ROOT = HERE.parent.parent
 MODULE = "ScoopProbe"
 TARGETS = {"simulator": "aarch64-apple-ios-sim", "device": "aarch64-apple-ios"}
 PROBES = {
+    "asyncio": (HERE / "asyncio/cone", HERE / "asyncio/AsyncResult.h"),
     "callbacks": (HERE / "cone", HERE / "ScoopHostApi.h"),
     "protected": (HERE / "protected-data/cone", HERE / "protected-data/ProtectedDataApi.h"),
     "platform": (HERE / "platform/cone", HERE / "platform/PlatformHost.h"),
@@ -243,6 +244,13 @@ def main():
         dest="probe",
         const="platform",
         help="exercise scoop.platform in the application container",
+    )
+    probes.add_argument(
+        "--asyncio",
+        action="store_const",
+        dest="probe",
+        const="asyncio",
+        help="exercise structured timers and cancellation on the main dispatch queue",
     )
     parser.set_defaults(probe="callbacks")
     probes.add_argument(

@@ -1,0 +1,104 @@
+package scoop.asyncio
+
+import scoop.asyncio.host.EventLoopHost
+
+internal class SingleLoop(private val config: LoopBlockingConfig) {
+    private val accepted = AtomicBoolean(false)
+    val state = LoopOwner()
+
+    /**
+     * Runs the root structured scope and drives its operations to completion. The loop is
+     * single-use and cannot be nested or called from an existing Job.
+     */
+    fun <T> run(loop: EventLoop, block: suspend CoroutineScope.() -> T): T {
+        requireLoopRootCaller()
+        return runPrepared(loop, block)
+    }
+
+    private fun <T> runPrepared(loop: EventLoop, block: suspend CoroutineScope.() -> T): T {
+        acceptInstance()
+        val native = state.open(loop, config)
+        val result = LoopResult<T>()
+        context(loop) {
+            startDispatchedCoroutine<T>(
+                state.executor,
+                {
+                    coroutineScope<T> {
+                        this @SingleLoop.state.bindRoot(job)
+                        block(this)
+                    }
+                },
+                LoopCompletion(state, result)
+            )
+        }
+        state.drive(native)
+        @Unsafe
+        {
+            return result.value.assumeInit()
+        }
+    }
+
+    /** Attaches without running application callbacks on the registration stack. */
+    fun attach(
+        loop: EventLoop,
+        host: EventLoopHost,
+        onClosed: (Throwable?) -> Unit
+    ): EventLoopSession {
+        if (!host.isCurrentThread())
+            throw IllegalStateException(Some("attach requires the host owner thread"))
+        acceptStart()
+        val native = state.open(loop, config)
+        val mailbox = LoopMailbox(state)
+        context(loop) {
+            startDispatchedCoroutine<Unit>(
+                state.executor,
+                {
+                    coroutineScope<Unit> {
+                        val scope = this
+                        mailbox.run(scope)
+                    }
+                },
+                SessionCompletion(mailbox)
+            )
+        }
+        try {
+            LoopAttachment(state, native, mailbox, onClosed).install(host)
+        } catch (error: Throwable) {
+            mailbox.requestClose()
+            try {
+                state.drive(native)
+            } catch (cleanup: Throwable) {
+                throw ResourceUseException(error, cleanup)
+            }
+            throw error
+        }
+        return EventLoopSession(loop, mailbox)
+    }
+
+    private fun acceptStart() {
+        requireLoopRootCaller()
+        acceptInstance()
+    }
+
+    private fun acceptInstance() {
+        if (!accepted.compareAndSet(false, true))
+            throw IllegalStateException(Some("event loop already used"))
+    }
+}
+
+private class LoopResult<T> {
+    var value: MaybeUninit<T> = MaybeUninit<T>.uninit()
+}
+
+private class LoopCompletion<T>(
+    val state: LoopOwner,
+    private val result: LoopResult<T>
+) : Continuation<T> {
+    public override fun resume(value: T) {
+        result.value = MaybeUninit<T>.initialized(value)
+        state.finishRoot(None)
+    }
+    public override fun resumeWithException(exception: Throwable) {
+        state.finishRoot(Some(exception))
+    }
+}

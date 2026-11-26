@@ -4,6 +4,8 @@
 
 第 1～10 节规定公共 I/O 语义，第 11 节规定平台后端与宿主接入合同。实施状态与验证范围见 [实施记录](../asyncio-backends/PROGRESS.md)。详细拆分、平台映射与验收见 [EventLoop 后端设计](../asyncio-backends/DESIGN.md)。
 
+iOS 的目标集合公开 `eventLoop`、`currentEventLoop`、`executor`、`sleep`、`schedule` 及 `EventLoopSession`。场景在主线程通过 `MainDispatchHost` 附着既有循环，普通回调和计时恢复沿用同一 owner，关闭时取消整棵 Job 树并等待已登记的工作退出。桌面文件、网络和终端操作仍按各自目标选入。
+
 ## 1. 分层与目标
 
 源码位于 `sysroot/src/scoop.asyncio/`，显式依赖 core、std、platform、concurrent，测试依赖 scoop.test；公共声明属于 `scoop.asyncio`。不默认导入，不引入 compiler-known role、runtime 调度入口或新的 ABI。任务树与 execution 使用语言规范 11.9.1～11.9.3；阻塞池和跨 executor 同步使用[并发库](SCOOP-CONCURRENT-SPEC.md)，路径、地址、错误、时间和 buffer 直接复用平台库与标准库。

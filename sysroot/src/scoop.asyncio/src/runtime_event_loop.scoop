@@ -10,7 +10,7 @@ import scoop.platform.fs.*
 import scoop.platform.process.Command
 
 // One public service binding; resources retain one of its physical reactor owners.
-internal class RuntimeEventLoop private constructor(count: Int): EventLoop, Closeable {
+internal class RuntimeEventLoop private constructor(count: Int): EventLoop, Closeable, LoopWorkers {
     val identity = RuntimeWorkerContext.nextIdentity()
     private val reactors =
         Array<RuntimeReactor>(count.toLong()) { index -> RuntimeReactor(this, index.toInt()) }
@@ -43,9 +43,9 @@ internal class RuntimeEventLoop private constructor(count: Int): EventLoop, Clos
             reactor.owner.bindRoot(job)
     }
 
-    fun isCurrentWorker(index: Int): Boolean = RuntimeWorkerContext.current(identity) == index
+    public override fun isCurrentWorker(index: Int): Boolean = RuntimeWorkerContext.current(identity) == index
 
-    fun nextOwner(): LoopOwner {
+    public override fun nextOwner(): LoopOwner {
         var current = assignment.load(MemoryOrder.Relaxed)
         while (true) {
             val next =

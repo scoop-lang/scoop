@@ -1,9 +1,10 @@
 package scoop.asyncio
 
-internal class TcpTransfer(private val owner: OwnedEndpoint, writing: Boolean): ByteTransfer(
-    owner.loop,
-    writing
-) {
+internal class TcpTransfer(private val owner: OwnedEndpoint, writing: Boolean) :
+    ByteTransfer(
+        owner.loop,
+        writing
+    ) {
     protected override fun acquire() {
         owner.acquireDirection(writing)
     }
@@ -32,11 +33,35 @@ internal class TcpTransfer(private val owner: OwnedEndpoint, writing: Boolean): 
 
     protected override fun failure(result: IoResult, selected: Throwable?): Throwable? =
         completionFailure(
-            if (writing)
-                "TCP write"
-            else
-                "TCP read",
+            if (writing) "TCP write" else "TCP read",
             result,
             selected
         )
+}
+
+internal fun LoopOwner.submitTcp(
+    endpoint: Ptr<Unit>,
+    id: Long,
+    bytes: Ptr<Byte>?,
+    count: Long,
+    writing: Boolean
+) {
+    @Unsafe
+    {
+        while (!nativeTcpEnqueue(nativePointer(), endpoint, id, bytes, count, writing))
+            flushTransfers()
+    }
+    pendingTransfers = Some(flushTcpBatch)
+}
+
+private val flushTcpBatch: (LoopOwner) -> Unit = { loop ->
+    @Unsafe
+    {
+        val completed = nativeTcpFlush(loop.nativePointer())
+        var index = 0L
+        while (index < completed.count) {
+            loop.complete(decodeEvent(completed.records.load(index)))
+            index += 1L
+        }
+    }
 }

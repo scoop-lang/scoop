@@ -2,8 +2,17 @@ package scoop.asyncio
 
 import scoop.collections.HashMap
 
+internal interface LoopWorkers {
+    fun nextOwner(): LoopOwner
+    fun isCurrentWorker(index: Int): Boolean
+}
+
+internal interface LoopResource {
+    fun closeFromLoop()
+}
+
 internal class LoopOwner(
-    private val runtime: RuntimeEventLoop? = None,
+    private val runtime: LoopWorkers? = None,
     private val worker: Int = -1
 ) {
     // Root results use this lock; I/O publication has its own parking mutex.
@@ -26,7 +35,7 @@ internal class LoopOwner(
     private val resources: ArrayList<LoopResource> = ArrayList<LoopResource>()
     private val timers = LoopTimers(this)
     private var cleaning: Boolean = false
-    private var pendingTransfers: Boolean = false
+    internal var pendingTransfers: ((LoopOwner) -> Unit)? = None
     private var ready: ArrayList<LoopWork> = ArrayList<LoopWork>()
 
     fun open(loop: EventLoop, config: LoopBlockingConfig): Ptr<Unit> {
@@ -158,28 +167,10 @@ internal class LoopOwner(
         operation.begin(pointer!!)
     }
 
-    fun submitTcp(endpoint: Ptr<Unit>, id: Long, bytes: Ptr<Byte>?, count: Long, writing: Boolean) {
-        @Unsafe
-        {
-            while (!nativeTcpEnqueue(pointer!!, endpoint, id, bytes, count, writing))
-                flushTransfers()
-        }
-        pendingTransfers = true
-    }
-
     fun flushTransfers() {
-        if (!pendingTransfers)
-            return
-        pendingTransfers = false
-        @Unsafe
-        {
-            val completed = nativeTcpFlush(pointer!!)
-            var index = 0L
-            while (index < completed.count) {
-                complete(decodeEvent(completed.records.load(index)))
-                index += 1L
-            }
-        }
+        val flush = pendingTransfers ?: return
+        pendingTransfers = None
+        flush(this)
     }
 
     fun enqueueReady(action: () -> Unit) {

@@ -1,0 +1,36 @@
+package scoop.asyncio
+
+import scoop.asyncio.host.EventLoopHost
+import scoop.time.Duration
+
+/**
+ * A single-use platform event loop. Run it from outside a Job and outside another event loop; I/O
+ * requires an active job in this loop's context.
+ */
+public class PlatformEventLoop internal constructor(
+    config: LoopBlockingConfig
+) : EventLoop {
+    private val lifetime = SingleLoop(config)
+    internal val state: LoopOwner get() = lifetime.state
+
+    /** The owner executor for this active loop lifetime. */
+    public override val executor: CoroutineExecutor get() = state.activeExecutor()
+
+    /** Runs a root scope on the caller's thread until all children finish. */
+    public fun <T> run(block: suspend CoroutineScope.() -> T): T = lifetime.run(this, block)
+
+    /** Drives this scope from the existing host until shutdown and watch removal. */
+    public fun attach(host: EventLoopHost, onClosed: (Throwable?) -> Unit): EventLoopSession =
+        lifetime.attach(this, host, onClosed)
+
+    /**
+     * Suspends for a nonnegative duration and follows current-job cancellation.
+     */
+    public override suspend fun sleep(duration: Duration) {
+        sleepOnLoop(state, duration)
+    }
+
+    /** Registers a cancellable ordinary timer notification on this loop's owner. */
+    public override fun schedule(duration: Duration, completion: (Throwable?) -> Unit): Disposable =
+        scheduleOnLoop(state, duration, completion)
+}
