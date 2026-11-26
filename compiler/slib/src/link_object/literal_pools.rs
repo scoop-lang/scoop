@@ -44,6 +44,7 @@ pub(super) fn literal_width(section: &ObservedObjectSectionV1) -> Option<usize> 
         (b"__TEXT", b"__literal4") | (b"", b".rodata.cst4") => Some(4),
         (b"__TEXT", b"__literal8") | (b"", b".rodata.cst8") => Some(8),
         (b"__TEXT", b"__literal16") | (b"", b".rodata.cst16") => Some(16),
+        (b"", b".rodata.cst32") => Some(32),
         _ => None,
     }
 }
