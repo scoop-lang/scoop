@@ -23,6 +23,19 @@ impl<'a> Tools<'a> {
     }
 
     pub fn find(&mut self, name: &str, inputs: &mut Inputs) -> Result<PathBuf> {
+        self.find_with_preferred_name(name, None, inputs)
+    }
+
+    pub fn appimage_runtime(&mut self, arch: &str, inputs: &mut Inputs) -> Result<PathBuf> {
+        self.find_with_preferred_name("appimage-runtime", Some(&format!("runtime-{arch}")), inputs)
+    }
+
+    fn find_with_preferred_name(
+        &mut self,
+        name: &str,
+        preferred: Option<&str>,
+        inputs: &mut Inputs,
+    ) -> Result<PathBuf> {
         if let Some(path) = self.resolved.get(name) {
             return Ok(path.clone());
         }
@@ -36,12 +49,14 @@ impl<'a> Tools<'a> {
             };
             let path = std::env::var_os("PATH").unwrap_or_default();
             let mut found = None;
-            for directory in std::env::split_paths(&path) {
-                let candidate = directory.join(&file_name);
-                inputs.watch(&candidate)?;
-                if candidate.is_file() {
-                    found = Some(candidate);
-                    break;
+            'search: for candidate_name in preferred.into_iter().chain([file_name.as_str()]) {
+                for directory in std::env::split_paths(&path) {
+                    let candidate = directory.join(candidate_name);
+                    inputs.watch(&candidate)?;
+                    if candidate.is_file() {
+                        found = Some(candidate);
+                        break 'search;
+                    }
                 }
             }
             found.with_context(|| {

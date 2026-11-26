@@ -130,7 +130,8 @@ maintainer = "Scoop Tests <noreply@example.com>"
 "#;
     let config = root.join("Bundle.toml");
     fs::write(&config, configuration).unwrap();
-    let command = |formats: &[&str]| {
+    let triple = format!("{}-unknown-linux-gnu", std::env::consts::ARCH);
+    let for_target = |target: &str, formats: &[&str]| {
         let mut command = Command::new(env!("CARGO_BIN_EXE_scoop-bundle"));
         command
             .current_dir(root)
@@ -140,7 +141,7 @@ maintainer = "Scoop Tests <noreply@example.com>"
                 "--config",
                 "Bundle.toml",
                 "--target",
-                "x86_64-unknown-linux-gnu",
+                target,
                 "--message-format",
                 "json",
             ]);
@@ -149,6 +150,26 @@ maintainer = "Scoop Tests <noreply@example.com>"
         }
         command
     };
+    let command = |formats: &[&str]| for_target(&triple, formats);
+    let other_arch = if std::env::consts::ARCH == "aarch64" {
+        "x86_64"
+    } else {
+        "aarch64"
+    };
+    for (target, expected) in [
+        (format!("{other_arch}-unknown-linux-gnu"), "ELF image"),
+        (
+            format!("{}-unknown-linux-musl", std::env::consts::ARCH),
+            "ELF interpreter",
+        ),
+    ] {
+        let output = for_target(&target, &["deb"]).output().unwrap();
+        let message = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && message.contains(expected),
+            "{target}: {message}"
+        );
+    }
     let records = |output: Output| -> BTreeMap<String, Value> {
         String::from_utf8(output.stdout)
             .unwrap()
@@ -169,6 +190,25 @@ maintainer = "Scoop Tests <noreply@example.com>"
             )
         })
         .collect();
+    let deb_arch = successful(Command::new("dpkg").arg("--print-architecture")).stdout;
+    assert_eq!(
+        successful(
+            Command::new("dpkg-deb")
+                .arg("-f")
+                .arg(&packages["deb"])
+                .arg("Architecture")
+        )
+        .stdout,
+        deb_arch
+    );
+    assert_eq!(
+        rpm::Package::open(&packages["rpm"])
+            .unwrap()
+            .metadata
+            .get_arch()
+            .unwrap(),
+        std::env::consts::ARCH
+    );
     let run = |program: &Path| {
         let output = successful(Command::new(program).arg("a b 中文").current_dir("/tmp"));
         assert_eq!(

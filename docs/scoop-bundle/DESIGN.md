@@ -223,7 +223,7 @@ macOS 的 `LC_LOAD_WEAK_DYLIB` 允许无实际候选；缺席搜索路径进入�
 
 - **macOS**：系统 framework 和系统 dylib 由系统提供；选定第三方 framework/dylib 复制到 `Contents/Frameworks`。在副本上调整 `@rpath`、`@loader_path`、`@executable_path` 及 install name，覆盖内部库之间的引用，再进行签名。只有 dylib 或实际引用私有依赖的 image 才加入 Frameworks 的相对 rpath；没有需调整的装载命令时跳过 install_name_tool，纯静态 bridge 和 resource bundle 不产生额外加载路径。`.tbd` 只是链接输入，不能当作运行库打包。
 - **deb/rpm**：配置列出的私有库随包部署，其他依赖由显式 `depends`/`requires` 声明。ELF SONAME 不是发行版包名，不自行猜测 GTK 等依赖的跨发行版映射。保留系统搜索能力，将私有 RUNPATH 改为实际相对位置。
-- **AppImage**：根据明确的最低系统基线部署非基线依赖。使用 linuxdeploy/appimagetool 等成熟能力处理库和模块，并保留显式文件声明以覆盖 `dlopen`、图像 loader、schema 等无法由普通 ELF imports 推导的输入。
+- **AppImage**：按应用 target 选择 ELF machine、loader 和对应架构的 type-2 runtime。Debian 为 x86_64／AArch64 分别使用 amd64／arm64，RPM 使用 x86_64／aarch64。根据明确的最低系统基线部署非基线依赖。使用 linuxdeploy/appimagetool 等成熟能力处理库和模块，并保留显式文件声明以覆盖 `dlopen`、图像 loader、schema 等无法由普通 ELF imports 推导的输入。
 - **Windows**：按 PE imports 部署实际非系统 DLL及其传递依赖，系统 DLL/API-set 由 Windows 提供。MSVC、LLVM-MinGW 的 CRT/运行库按各自目标选择；不从开发机偶然可见的同名 DLL 替换已选依赖。是否分发 VC runtime 必须显式配置。
 
 当前 Linux GUI 使用 GTK 4.18 以上和 libadwaita 1.4 以上，且依赖对应 SONAME；包的发行版/runtime 基线必须满足真实二进制要求。AppImage 不能降低已构建程序的 glibc 符号版本要求。现有 linker 可能留下开发目录的 rpath，bundle 只在本次暂存副本上调整。
