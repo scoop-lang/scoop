@@ -1,0 +1,58 @@
+package scoop.platform.process
+
+import scoop.platform.env.*
+import scoop.platform.fs.*
+import scoop.test.*
+
+@Test
+private class WindowsCommandArgumentsTest {
+    @Test
+    fun explicitCommandInterpreterReceivesPlainSwitchesAndOneScriptArgument() {
+        val executable = Path
+            .fromOsString(environmentVariable("SystemRoot")!!)
+            .resolve(Path.fromString("System32\\cmd.exe"))
+        command(executable) {
+            this.arguments = [
+                processOs("/d"),
+                processOs("/c"),
+                processOs("echo scoop-cmd&exit /b 7")
+            ]
+            this.stdin = Stdio.Null
+            this.stdout = Stdio.Pipe
+            this.stderr = Stdio.Pipe
+        }
+            .spawn()
+            .use { child ->
+                val result = child.communicate()
+                assertEquals("", String.fromUtf8(result.stderr))
+                windowsExited(result.status, 7)
+                assertEquals("scoop-cmd\r\n", String.fromUtf8(result.stdout))
+            }
+    }
+
+    @Test
+    fun ordinaryTrailingBackslashesReachTheCrtReader() {
+        command(powerShellPath()) {
+            this.arguments = [
+                processOs("-NoLogo"),
+                processOs("-NoProfile"),
+                processOs("-NonInteractive"),
+                processOs("-Command"),
+                processOs(
+                    "$values=[Environment]::GetCommandLineArgs(); [Console]::Write($values[-1]); #"
+                ),
+                processOs("bare\\")
+            ]
+            this.stdin = Stdio.Null
+            this.stdout = Stdio.Pipe
+            this.stderr = Stdio.Pipe
+        }
+            .spawn()
+            .use { child ->
+                val result = child.communicate()
+                assertEquals("bare\\", String.fromUtf8(result.stdout))
+                assertEquals(0L, result.stderr.size)
+                windowsExited(result.status)
+            }
+    }
+}
