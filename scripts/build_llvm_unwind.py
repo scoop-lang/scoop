@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a private LLVM libunwind archive for a supported Linux target."""
+"""Build the LLVM unwind and compiler support archives for a Linux target."""
 
 import argparse
 import os
@@ -20,7 +20,7 @@ from build_support import (
     source_metadata,
 )
 from target_catalog import TARGETS as CATALOG
-from target_catalog import native_configuration
+from target_catalog import linux_compiler_builtins, native_configuration
 
 TARGETS = tuple(name for name, target in CATALOG.items() if target["os"] == "linux")
 PATCH = ROOT / "sysroot/vendor/llvm-project/22.1.8/patches/llvm-libunwind-eh-index-miss.patch"
@@ -56,6 +56,15 @@ def prepare_sources(source: Path, build: Path, environment: dict) -> Path:
     return overlay
 
 
+def build_and_install(configure, objects, install_target, jobs, environment):
+    configure_cmake([*configure, "-B", str(objects)], env=environment)
+    subprocess.run(
+        ["cmake", "--build", str(objects), "--target", install_target, "--parallel", str(jobs)],
+        check=True,
+        env=environment,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", choices=TARGETS, required=True)
@@ -89,10 +98,12 @@ def main():
 
     build = (args.build_dir or ROOT / "tmp/unwind" / args.target).resolve()
     prefix = (args.prefix or ROOT / "sysroot/lib" / args.target / "unwind").resolve()
+    builtins = linux_compiler_builtins(args.target)
+    source_dirs = ["libunwind", "runtimes", "cmake", "llvm/cmake", "llvm/include", "third-party"]
+    if builtins:
+        source_dirs.extend(["compiler-rt/lib/builtins", "compiler-rt/cmake"])
     inputs = {
-        "source": source_metadata(
-            source, ("libunwind", "runtimes", "cmake", "llvm/cmake", "llvm/include", "third-party")
-        ),
+        "source": source_metadata(source, source_dirs),
         "tools": [
             metadata(path)
             for path in (
@@ -111,6 +122,10 @@ def main():
     }
     record = build / "inputs.json"
     outputs = [prefix / "include/unwind.h", prefix / "lib/libunwind.a"]
+    if builtins:
+        inputs["compiler_rt_license"] = metadata(source / "compiler-rt/LICENSE.TXT")
+        license_file = prefix / "share/compiler-rt/LICENSE.TXT"
+        outputs.extend([prefix / "lib" / builtins, license_file])
     if reusable(record, inputs, outputs):
         print(f"Reusing {args.target} LLVM libunwind: {prefix}")
         return
@@ -126,10 +141,7 @@ def main():
         "Unix Makefiles",
         "-S",
         str(prepared / "runtimes"),
-        "-B",
-        str(build / "objects"),
         "-DLLVM_ENABLE_RUNTIMES=libunwind",
-        "-DCMAKE_BUILD_TYPE=Release",
         "-DLLVM_INCLUDE_TESTS=OFF",
         "-DLLVM_INCLUDE_DOCS=OFF",
         "-DLIBUNWIND_INCLUDE_TESTS=OFF",
@@ -143,10 +155,10 @@ def main():
         "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY",
         "-DLIBUNWIND_INSTALL_LIBRARY_DIR=lib",
         "-DLIBUNWIND_INSTALL_INCLUDE_DIR=include",
-        f"-DCMAKE_INSTALL_PREFIX={prefix}",
     ]
+    toolchain = ["-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_INSTALL_PREFIX={prefix}"]
     for language, compiler in (("C", cc), ("CXX", cxx), ("ASM", cc)):
-        configure.extend(
+        toolchain.extend(
             [
                 f"-DCMAKE_{language}_COMPILER={compiler}",
                 f"-DCMAKE_{language}_COMPILER_TARGET={target['llvm_triple']}",
@@ -164,23 +176,33 @@ def main():
         ]
     for language in ("C", "CXX", "ASM"):
         selected = flags + (["-nostdinc++"] if musl and language == "CXX" else [])
-        configure.append(f"-DCMAKE_{language}_FLAGS={shlex.join(selected)}")
-    configure_cmake(configure, env=environment)
-    subprocess.run(
-        [
-            "cmake",
-            "--build",
-            str(build / "objects"),
-            "--target",
-            "install-unwind",
-            "--parallel",
-            str(args.jobs),
-        ],
-        check=True,
-        env=environment,
+        toolchain.append(f"-DCMAKE_{language}_FLAGS={shlex.join(selected)}")
+    build_and_install(
+        [*configure, *toolchain], build / "objects", "install-unwind", args.jobs, environment
     )
+    if builtins:
+        build_and_install(
+            [
+                "cmake",
+                "-G",
+                "Unix Makefiles",
+                "-S",
+                str(source / "compiler-rt/lib/builtins"),
+                "-DCMAKE_SYSTEM_NAME=Linux",
+                f"-DCMAKE_SYSTEM_PROCESSOR={target['arch']}",
+                "-DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON",
+                f"-DCOMPILER_RT_INSTALL_LIBRARY_DIR={prefix / 'lib'}",
+                *toolchain,
+            ],
+            build / "builtins",
+            f"install-clang_rt.builtins-{target['arch']}",
+            args.jobs,
+            environment,
+        )
+        license_file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / "compiler-rt/LICENSE.TXT", license_file)
     save_record(record, inputs, build / "objects")
-    print(f"Installed {args.target} LLVM libunwind in {prefix}")
+    print(f"Installed {args.target} LLVM runtime archives in {prefix}")
     print("Verify the target libc with the EH link/run test before using this archive.")
 
 

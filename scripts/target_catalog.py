@@ -63,6 +63,14 @@ def llvm_mingw_resource_triple(architecture):
         ) from error
 
 
+def linux_compiler_builtins(target):
+    """Select the packaged compiler support archive when the libc needs it."""
+    definition = TARGETS[target]
+    if definition["arch"] == "aarch64" and definition["native_environment"] == "LinuxMusl":
+        return "libclang_rt.builtins-aarch64.a"
+    return None
+
+
 def native_configuration(target):
     return {
         key: TARGETS[target][key]

@@ -102,7 +102,7 @@ Windows 发行包按宿主 PE 的实际 imports 收集非系统 DLL，递归包�
 
 Linux generated-C 支持 GCC 与 GNU 风格 Clang。GNU 环境省略 `--cc` 时优先使用当前 Scoop 命令安装目录下的 `libexec/llvm/bin/clang`，未配套 LLVM 的开发布局回退到 PATH 中的 `gcc`；musl 环境默认仍为 `musl-gcc`。显式 `--cc` 优先，native C++ 默认沿已有配对规则选择同一套 `clang++` 或 `g++`。随包 Clang 与显式编译器均在实际需要编译时定位，不为缓存更新监视安装位置与候选状态。先通过无系统头文件的预定义宏探测实际 compiler family；Clang 显式使用所选 LLVM machine triple，两者使用所选 native sysroot。`REALGCC` 只传给实际 `musl-gcc` wrapper；直接 GCC、Clang 不依赖第二个 GCC 可执行文件。真实 header/object probe 检查 libc、LP64 与机器，误选另一 libc 的 driver 必须得到不匹配诊断。Linux producer 合同保存 GCC 或 Clang 的版本和预处理配置；Clang identity 与 Windows 共用纯数据编码，native 环境仍由完整 target 区分。
 
-GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不传给 GCC。GCC 专用的 specs、`cc1`／`cc1plus`、`collect2` 与隐式 sysroot 查询只在相应 GCC 操作中使用。Linux Clang 沿用当前 GNU ld、libgcc、GNU C++ 标准库及 LLVM unwind 配置；接入 Clang 不同时新增另一套 libc／C++ ABI／linker 环境。两种 producer 的实际对象、C ABI、TLS 和原生链接通过定向验证，工具探测仍只编译／读取对象，不执行交叉目标程序。compiler protocol 的调用配置显式保存 Linux compiler 选择；不保存工具状态巡检记录。
+GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不传给 GCC。GCC 专用的 specs、`cc1`／`cc1plus`、`collect2` 与隐式 sysroot 查询只在相应 GCC 操作中使用。Linux Clang 与 GCC 沿用目标选择的 GNU ld、编译器辅助库、GNU C++ 标准库及 LLVM unwind 配置；接入 Clang 不同时新增另一套 libc／C++ ABI／linker 环境。两种 producer 的实际对象、C ABI、TLS 和原生链接通过定向验证，工具探测仍只编译／读取对象，不执行交叉目标程序。compiler protocol 的调用配置显式保存 Linux compiler 选择；不保存工具状态巡检记录。
 
 Linux 的默认 C／C++、runtime 与 startup 编译按机器显式使用 `-march=x86-64` 或 `-march=armv8-a`，与 LLVM backend 的 CPU 基线一致；该选项属于普通 C 生产配置。用户 manifest 仍可按既有 native 参数规则显式选择自己的附加编译选项。
 
@@ -1425,6 +1425,8 @@ post-install 在所选目标的组件包（含预编译系统 `.slib` 的 `lib-b
 外部命令 `scoop api search`／`scoop api show` 读取这些公开数据，提供 text／JSON、目标和 Cone 筛选。默认读取所选安装根的宿主默认目标文档；`--docs` 选择一个具体项目站点，`--target` 在提供时必须与其记录相同。search 搜索名称、package、receiver、文档与别名，show 按名称、限定名或文档键保留全部匹配重载；有多个声明时列出实际候选，不猜测当前位置的可调用性。正常查询包括空结果退出 0；读取／格式错误退出 1，用法错误退出 2；JSON 使用显式 schema、kind 和 status，错误写 stderr。查询不隐式执行编译、安装、网络访问或缓存准备，文档中存在 API 也不代表当前项目已声明依赖。具体字段与命令见 [API 查询](../scoop-doc/API.md)。
 
 普通 build／run／test 的 executable 和两个 link 命令默认消费 `lib/<canonical-target-triple>/runtime/index.cbor`，不触发 runtime 源码构建。显式 `--runtime-objects` 选择另一份索引；build／run／test 的 `--runtime-root` 明确请求从源码构建，与对象选项互斥。缺失实际需要的索引时报告目标和所选路径，不补建或改选其他目标；library 构建不读取未使用的 runtime。
+
+Linux AArch64 musl 的 C 链接使用相同目标的 LLVM compiler-rt builtins。Armv8-A 代码可调用独立的原子操作辅助函数。其 CPU 能力探测使用 musl 提供的 `getauxval`。该目标的基础库包在 unwind prefix 的 `lib/libclang_rt.builtins-aarch64.a` 提供这些函数，静态和动态链接共用此归档。其他 Linux 目标继续由所选 driver 提供 libgcc。
 
 Linux 和 Windows 的最终链接直接使用所选 Scoop sysroot 的 `lib/<target>/unwind/lib/libunwind.a`，显式 `--unwind-prefix` 选择该 prefix 的 `lib/libunwind.a`；不为最终链接读取 `unwind.h` 或编译探测程序。实际链接需要时才选择 archive，最终程序命中时跳过链接准备。runtime 源码构建仍使用维护 prefix 的头文件与 archive，不要求先组装发行目录，并按普通更新规则跟踪自身实际源码与头文件输入。随包公共 unwind 头继续供实际源码编译使用，不构成工具资格检查。
 

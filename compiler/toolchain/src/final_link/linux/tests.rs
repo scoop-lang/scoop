@@ -32,9 +32,11 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
         let source = directory.path().join("main.c");
         let object = directory.path().join("main.o");
         let source_text = format!(
-            "#include <stdlib.h>\n#define main unwind_main\n{}\n#undef main\n\
+            "#include <stdlib.h>\n#include <stdatomic.h>\n#define main unwind_main\n{}\n#undef main\n\
+             static _Atomic unsigned count;\n\
              static void cleanup(void) {{ puts(\"C atexit passed\"); }}\n\
-             int main(void) {{ if (atexit(cleanup)) return 1; return unwind_main(); }}\n",
+             int main(void) {{ if (atomic_fetch_add(&count, 1) || atexit(cleanup)) return 1;\n\
+             return unwind_main(); }}\n",
             probe::SOURCE,
         );
         std::fs::write(&source, source_text).unwrap();

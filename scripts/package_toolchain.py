@@ -42,6 +42,7 @@ from target_catalog import (
     TARGETS,
     current_host,
     host_definition,
+    linux_compiler_builtins,
     native_target_for_host,
 )
 
@@ -376,10 +377,12 @@ def assemble_base_libraries(root, target, args, cones):
         for package in COMPRESSION_PACKAGES:
             for library in package["libraries"]:
                 shutil.copy2(source / library, destination / library)
+        builtins = linux_compiler_builtins(target)
+        unwind = ("libunwind.a", builtins) if builtins else ("libunwind.a",)
         for component, libraries in (
             ("openssl", ("libcrypto.a", "libssl.a")),
             ("nghttp2", ("libnghttp2.a",)),
-            ("unwind", ("libunwind.a",)),
+            ("unwind", unwind),
         ):
             if component == "unwind" and TARGETS[target]["os"] == "darwin":
                 continue
