@@ -36,10 +36,12 @@ static const uint8_t cleanup_lsda[] = {
     32,
     0};
 
-static const uint8_t catch_lsda[] = {
+/* Two call-site header bytes, one four-byte call site and a two-byte action
+ * precede LLVM's null type entry. Zero-initialize the entire type entry. */
+static const uint8_t catch_lsda[11 + SCOOP_EH_TYPE_ENTRY_SIZE] = {
     SCOOP_EH_DW_PE_OMIT,
-    SCOOP_EH_DW_PE_PCREL_SDATA4_INDIRECT,
-    12,
+    SCOOP_EH_TTYPE_ENCODING,
+    8 + SCOOP_EH_TYPE_ENTRY_SIZE,
     SCOOP_EH_DW_PE_ULEB128,
     4,
     0,
@@ -47,10 +49,6 @@ static const uint8_t catch_lsda[] = {
     48,
     1,
     1,
-    0,
-    0,
-    0,
-    0,
     0};
 
 static _Noreturn void test_fail(const char *condition, int line) {
