@@ -38,19 +38,18 @@ fn symbol_plans() -> SymbolPlanIndex {
 fn optimized_declarations_do_not_leave_hidden_undefined_elf_symbols() {
     let directory = tempfile::tempdir().unwrap();
     let plans = symbol_plans();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for definition in scoop_target_data::TARGETS {
+        if definition.os != scoop_target_data::TargetOs::Linux {
+            continue;
+        }
         for mode in [
             scoop_lir::OptimizationMode::Debug,
             scoop_lir::OptimizationMode::Release,
         ] {
-            let profile = crate::target::ValidatedBackendProfile::for_selection(
-                scoop_target_data::selection(target).unwrap(),
-            )
-            .unwrap()
-            .with_optimization(mode);
+            let profile =
+                crate::target::ValidatedBackendProfile::for_selection(definition.selection)
+                    .unwrap()
+                    .with_optimization(mode);
             let machine = profile.create_target_machine().unwrap();
             let context = Context::create();
             let llvm = context
@@ -95,8 +94,8 @@ fn optimized_declarations_do_not_leave_hidden_undefined_elf_symbols() {
                 .unwrap();
             verify_object(&path);
 
-            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-            if target == scoop_target_data::LINUX_X86_64_GNU_ID {
+            #[cfg(target_os = "linux")]
+            if definition.canonical() == scoop_toolchain::host_target_triple().unwrap() {
                 link_and_run(directory.path(), &path);
             }
         }
@@ -154,7 +153,7 @@ fn verify_object(path: &Path) {
     assert!(file.section_by_name(".group").is_some());
 }
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[cfg(target_os = "linux")]
 fn link_and_run(directory: &Path, object: &Path) {
     use std::process::Command;
 

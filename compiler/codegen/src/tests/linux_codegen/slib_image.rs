@@ -6,10 +6,7 @@ use scoop_slib::*;
 #[test]
 fn elf_cone_image_emits_the_runtime_record() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         for module in [
             for_target(
                 moving_gc::qualification::stackmap_qualification_module(),

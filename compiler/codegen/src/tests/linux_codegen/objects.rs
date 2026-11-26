@@ -8,10 +8,11 @@ use super::*;
 fn linux_elf_members_materialize_boundaries_tls_and_odr_groups() {
     #[cfg(target_os = "linux")]
     let parent = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for definition in scoop_target_data::TARGETS {
+        if definition.os != scoop_target_data::TargetOs::Linux {
+            continue;
+        }
+        let target = definition.selection.target().id();
         for odr in [false, true] {
             let mut module = for_target(exceptions_module(), target);
             module.output = scoop_lir::LirOutput::Library;
@@ -137,7 +138,9 @@ fn linux_elf_members_materialize_boundaries_tls_and_odr_groups() {
             assert_eq!(observed_tls, tls_symbols);
             assert_eq!(odr_member.is_some(), odr);
             #[cfg(target_os = "linux")]
-            if let Some(member) = odr_member {
+            if let Some(member) = odr_member
+                && definition.source_arch() == std::env::consts::ARCH
+            {
                 check_coalescing(member, parent.path(), &odr_symbol);
             }
         }

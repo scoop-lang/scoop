@@ -8,10 +8,7 @@ use super::*;
 #[test]
 fn elf_stackmaps_read_actual_roots_and_callables() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         let mut module = for_target(
             moving_gc::qualification::stackmap_qualification_module(),
             target,

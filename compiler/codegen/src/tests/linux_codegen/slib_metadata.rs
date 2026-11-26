@@ -1,3 +1,4 @@
+use super::native_linux_targets;
 use super::slib_support::SlibObjects;
 use object::{Object, ObjectSection, ObjectSymbol};
 use scoop_slib::*;
@@ -5,10 +6,7 @@ use scoop_slib::*;
 #[test]
 fn elf_static_immortal_and_lazy_initialization_registrations() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         let fixture = SlibObjects::new(
             super::slib_metadata_fixture::module(target),
             directory.path(),
@@ -38,10 +36,7 @@ fn elf_static_immortal_and_lazy_initialization_registrations() {
 #[test]
 fn elf_encoded_storage_records() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         for initial in [0, 42] {
             let fixture = SlibObjects::new(
                 super::slib_metadata_fixture::encoded_only(target, initial),
@@ -55,10 +50,7 @@ fn elf_encoded_storage_records() {
 #[test]
 fn elf_partitioned_zeroed_storage_records() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         let fixture = SlibObjects::new(
             super::slib_metadata_fixture::zeroed_odr_only(target),
             directory.path(),

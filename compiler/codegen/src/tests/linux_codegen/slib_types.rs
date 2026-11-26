@@ -8,10 +8,7 @@ use super::*;
 #[test]
 fn elf_type_registrations_hash_descriptor_diagnostic_and_itable_data() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         for odr in [false, true] {
             let mut module = super::super::objects::classes_module_for(
                 scoop_target_data::layout(target)
