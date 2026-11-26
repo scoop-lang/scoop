@@ -87,7 +87,7 @@ export SCOOP_SYSROOT="$PWD/sysroot"
 
 普通构建和测试消费已准备的系统库与 runtime；首次运行或内置库变更后需重新执行对应准备步骤。开发构建通过 `SCOOP_SYSROOT` 选择仓库资源，安装包则默认使用安装目录中的资源。
 
-目标包括 macOS AArch64／x86_64、iOS arm64 真机与模拟器、Linux x86_64（glibc／musl），以及 Windows x86_64 的 MSVC UCRT、LLVM-MinGW MSVCRT／UCRT。目标与 ABI 规则见[编译器与产物规范](docs/specs/SCOOP-IMPL-SPEC.md)，构建环境基线见[发行配置](scripts/release.toml)；各目标需要匹配的 SDK 和 native 资源。
+目标包括 macOS AArch64／x86_64、iOS arm64 真机与模拟器、Linux AArch64／x86_64（均支持 glibc 和 musl），以及 Windows x86_64 的 MSVC UCRT、LLVM-MinGW MSVCRT／UCRT。目标与 ABI 规则见[编译器与产物规范](docs/specs/SCOOP-IMPL-SPEC.md)，构建环境基线见[发行配置](scripts/release.toml)；各目标需要匹配的 SDK 和 native 资源。
 
 ## 开发与验证
 

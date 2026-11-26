@@ -56,8 +56,8 @@ runtime-owned exception ABI:
   that omit TType for cleanup-only functions. Lookup reads an ordered prefix
   and only the selected action without revalidating the entire table;
 - `src/platform/` provides the target-selected image, OS/VM and frame/ABI
-  components for Darwin/AArch64 and Linux/amd64 with glibc or musl. OS/image
-  code and architecture-specific frame/entry code are separate components.
+  components. Linux AArch64 and AMD64 share the Linux image and OS services
+  for glibc and musl. Each architecture supplies its own frame and entry code.
 
 Ordinary builds and both link commands use the selected Scoop sysroot's
 `lib/<canonical-target-triple>/runtime/index.cbor` and precompiled objects.
