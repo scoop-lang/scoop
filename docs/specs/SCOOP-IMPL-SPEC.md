@@ -698,6 +698,8 @@ ELF 的非合并 `.rodata`（ODR body 为 `.rodata.<primary symbol>`）可以与
 
 ELF AArch64 的 PC 相对取址和低位地址指令可以用 section symbol 加 RELA addend 引用数值常量池中的具体元素。例如 ADRP／LDR 可以引用 `.rodata.cst16 + 16`，ADRP／ADD 可以取得 `.rodata.cst32` 中 32 字节常量的地址。对象生产按该偏移选取完整对齐的常量元素，将元素字节纳入 callable 内容指纹。指纹中的目标已是该元素，剩余 addend 为零；实际对象保留原指令和两条带原 addend 的重定位。
 
+LLVM 也会把以零结尾的常量数组放入带 `SHF_MERGE | SHF_STRINGS` 的只读 ELF 段，例如 `.rodata.str4.4`。按节头 `sh_entsize` 读取 1、2 或 4 字节代码单元。从重定位指向的单元到首个全零单元（含终止符）的字节构成指纹中的 literal，后续相邻串独立。显式发射的 callable 字符串段没有这组合并标志，按其已有 atom 处理。
+
 已有 CallableCStringIdentity 的 C 字符串直接发射到所选目标的 C 字符串段（Mach-O 的 __TEXT,__cstring 或 ELF 的 .rodata.str1.1），沿用自身的 callable 归属与起止边界，不重复计入后端 .rodata 贡献。该规则同时适用于普通 callable 和 ODR callable；不把任意 byte array 当作 C 字符串。
 
 编译器生成的失败消息（包括 foreign callback 状态解码失败）由 LIR lowering 建立 callable 所属的 CString global，相关指令显式引用它；codegen 沿用该 global 发射调用，不另建缺少 atom 归属的匿名字符串。

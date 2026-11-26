@@ -15,6 +15,7 @@ fn elf_section_symbol_page_and_load_select_the_same_constant() {
         section,
         address: 0,
         width: 16,
+        string_ends: None,
         bytes: [vec![0x11; 16], vec![0x22; 16]].concat(),
     }]);
     for kind in [R_AARCH64_ADR_PREL_PG_HI21, R_AARCH64_LDST128_ABS_LO12_NC] {
@@ -56,6 +57,7 @@ fn elf_cst32_page_and_add_select_the_full_element() {
         flags: ObjectSectionFlagsV1::Elf {
             section_type: SHT_PROGBITS,
             flags: u64::from(SHF_ALLOC | SHF_MERGE),
+            entry_size: 32,
         },
         byte_size: 64,
         alignment_power: 3,
@@ -85,6 +87,60 @@ fn elf_cst32_page_and_add_select_the_full_element() {
                 .is_none()
         );
     }
+}
+
+#[test]
+fn elf_mergeable_strings_use_complete_code_units_and_stop_at_the_terminator() {
+    use object::elf::*;
+    let bytes: Vec<_> = [0x41u32, 0x96ea, 0x1f680, 0, 0x55, 0]
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect();
+    let mut section = ObservedObjectSectionV1 {
+        segment_name: Vec::new(),
+        section_name: b".rodata.str4.4".to_vec(),
+        virtual_address: 0,
+        file_offset: Some(0),
+        flags: ObjectSectionFlagsV1::Elf {
+            section_type: SHT_PROGBITS,
+            flags: u64::from(SHF_ALLOC | SHF_MERGE | SHF_STRINGS),
+            entry_size: 4,
+        },
+        byte_size: bytes.len() as u64,
+        alignment_power: 2,
+    };
+    let ordinal = NonZeroU32::new(1).unwrap();
+    let width = literal_width(&section).unwrap();
+    let pool = read_pool(&bytes, &section, ordinal, 0, width, section.byte_size()).unwrap();
+    let pools = LiteralPools(vec![pool]);
+    for (start, end) in [(0, 16), (4, 16), (12, 16), (16, 24)] {
+        let mut form = VerifiedObjectRelocationFormV1::ElfRela {
+            machine: scoop_lir::ObjectMachineV1::Aarch64,
+            kind: R_AARCH64_ADD_ABS_LO12_NC,
+            storage_width: 4,
+            addend: start as i64,
+        };
+        assert_eq!(
+            pools
+                .rebase_elf_section_literal(ordinal, &mut form)
+                .unwrap()
+                .bytes(),
+            &bytes[start..end]
+        );
+        assert!(matches!(
+            form,
+            VerifiedObjectRelocationFormV1::ElfRela { addend: 0, .. }
+        ));
+    }
+    assert!(pools.at(ordinal, 1).is_none());
+    assert!(pools.at(ordinal, 24).is_none());
+    assert!(read_pool(&bytes, &section, ordinal, 0, width, 20).is_err());
+    section.flags = ObjectSectionFlagsV1::Elf {
+        section_type: SHT_PROGBITS,
+        flags: u64::from(SHF_ALLOC),
+        entry_size: 0,
+    };
+    assert_eq!(literal_width(&section), None);
 }
 
 #[test]
