@@ -106,3 +106,17 @@ xcrun simctl launch --console --terminate-running-process "$SIMULATOR_UUID" dev.
 同时加上 `--include-device` 会生成 `device/protected.app`。在启用密码和数据保护的设备上开发签名并安装该宿主，以 `dev.scoop.ios-probe.protected` 启动并观察控制台。锁屏、等待数据保护生效、解锁，记录 `will-lock` 与 `did-unlock` 通知中的两次查询。前者发生在状态即将改变时。宿主会在后台短暂继续采样，`background scoop=0 UIKit=0` 表示两次查询都观测到数据已受保护。
 
 在验证命令中选用 `--asyncio`，可在模拟器的主运行循环验证一次计时恢复、长定时子任务随会话关闭而取消，以及主线程收到最终关闭结果。成功标记为 `scoop-ios-asyncio-ok`。
+
+## UI Gallery
+
+先按 [Gallery 构建说明](../../sysroot/src/scoop.ui.component/examples/shadcn/README.md)把 ScoopGallery 安装到 iPhone 和 iPad 模拟器。两个设备都使用 `dev.scoop.gallery`。用上文的 `xcodebuild test` 命令指定对应 destination，并用下表的方法名替换 `-only-testing:InteractionTests/GalleryTests/方法名` 的最后一段。
+
+| 设备 | 方法名 | 观察结果 |
+| --- | --- | --- |
+| iPhone 竖屏 | `testGalleryCatalog`、`testGalleryNavigation` | 逐项打开、返回全部 69 个页面；搜索、Home 恢复、主题、RTL 和减少动态可操作。 |
+| iPhone，软件键盘选简体拼音 | `testGalleryChineseSettings` | 逐键输入 nihao 并点选系统候选“你好”，填写邮箱和六位验证码后，Settings 显示保存成功。 |
+| iPad 宽窗口 | `testGalleryWide`、`testGalleryForms`、`testGalleryPaymentUndo` | 双栏同时显示目录和详情。保存表单、切页保留 Workspace 草稿、横向滚动付款表并删除和撤销一行。 |
+| iPad 宽窗口 | `testGalleryTimers`、`testGalleryTreeDrag`、`testGalleryConversation`、`testGalleryLeavingConversation` | 检查 Toast 延时完成、Tree 加载失败后重试、触摸拖动文件后保留选中行、消息流完成及离页取消。 |
+| iPad 开启窗口化应用 | `testGalleryResizedWindow`、`testGalleryBesidePhotos` | 分别拖动系统窗口右下角和从窗口控制选择「左右」与照片并排。两种窄窗都应保留当前详情，可返回目录，再恢复全屏。并排测试在预装「照片」的中文或英文模拟器运行。 |
+
+安装 `--ui` 宿主后，`InteractionTests/testSystemPinyin` 可单独验证编辑控件接收系统候选及失焦后的正文。`InteractionTests/testEditorClipboard` 在真实编辑控件上使用 Command-A/C/X/V，核对剪切后输入新文字再粘贴的结果。`InteractionTests/testLargeTextControls` 使用 `xcrun simctl ui "$SIMULATOR_UUID" content_size accessibility-large` 切换系统字号后运行，结束时将其恢复为之前的值。

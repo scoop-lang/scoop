@@ -74,6 +74,59 @@ final class InteractionTests: XCTestCase {
         XCTAssertEqual(notes.value as? String, "Scoop")
     }
 
+    func testLargeTextControls() {
+        let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.ui")
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        let text = app.staticTexts["counter-label"]
+        XCTAssertTrue(text.waitForExistence(timeout: 8))
+        XCTAssertGreaterThan(text.frame.height, 30, app.debugDescription)
+        app.buttons["increment"].tap()
+        XCTAssertEqual(text.label, "Count 1")
+    }
+
+    func testEditorClipboard() {
+        let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.ui")
+        app.launch()
+        let notes = app.descendants(matching: .any).matching(identifier: "notes").firstMatch
+        XCTAssertTrue(notes.waitForExistence(timeout: 8))
+        notes.tap()
+        app.typeText("Gallery")
+        app.buttons["increment"].tap()
+        notes.tap()
+        XCTAssertEqual(notes.value as? String, "Gallery")
+        app.typeKey("a", modifierFlags: .command)
+        app.typeKey("c", modifierFlags: .command)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeKey("x", modifierFlags: .command)
+        app.typeText("A")
+        XCTAssertEqual(notes.value as? String, "A", app.debugDescription)
+        app.typeKey("v", modifierFlags: .command)
+        XCTAssertEqual(notes.value as? String, "AGallery", app.debugDescription)
+    }
+
+    func testSystemPinyin() {
+        let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.ui")
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        let notes = app.descendants(matching: .any).matching(identifier: "notes").firstMatch
+        XCTAssertTrue(notes.waitForExistence(timeout: 10))
+        notes.tap()
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        for letter in "nihao" {
+            let key = keyboard.keys.matching(NSPredicate(format: "label ==[c] %@", String(letter))).firstMatch
+            XCTAssertTrue(key.exists, keyboard.debugDescription)
+            key.tap()
+        }
+        let candidate = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "你好")).firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 5), app.debugDescription)
+        candidate.tap()
+        XCTAssertEqual(notes.value as? String, "你好")
+        app.buttons["increment"].tap()
+        XCTAssertEqual(notes.value as? String, "你好")
+    }
+
     func testTextEditMenu() {
         let app = XCUIApplication(bundleIdentifier: "dev.scoop.ios-probe.window")
         app.launchArguments = ["--edit-menu"]

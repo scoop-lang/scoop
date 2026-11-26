@@ -24,7 +24,7 @@
     };
     100000000000000000000003 = {
       isa = PBXGroup;
-      children = (100000000000000000000008, 100000000000000000000004);
+      children = (100000000000000000000008, 10000000000000000000000D, 100000000000000000000004);
       sourceTree = "<group>";
     };
     100000000000000000000004 = {
@@ -77,7 +77,7 @@
     10000000000000000000000A = {
       isa = PBXSourcesBuildPhase;
       buildActionMask = 2147483647;
-      files = (10000000000000000000000C);
+      files = (10000000000000000000000C, 10000000000000000000000E);
       runOnlyForDeploymentPostprocessing = 0;
     };
     10000000000000000000000B = {
@@ -92,6 +92,16 @@
     10000000000000000000000C = {
       isa = PBXBuildFile;
       fileRef = 100000000000000000000008;
+    };
+    10000000000000000000000D = {
+      isa = PBXFileReference;
+      lastKnownFileType = sourcecode.swift;
+      path = GalleryTests.swift;
+      sourceTree = "<group>";
+    };
+    10000000000000000000000E = {
+      isa = PBXBuildFile;
+      fileRef = 10000000000000000000000D;
     };
   };
   rootObject = 100000000000000000000001;

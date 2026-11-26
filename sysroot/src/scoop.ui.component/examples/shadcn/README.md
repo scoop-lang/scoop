@@ -47,12 +47,13 @@ xcrun simctl launch "$SIMULATOR_UDID" dev.scoop.gallery
 
 真机开发运行还需用相同的 `prepare_ios_ui.py` 命令准备 `aarch64-apple-ios`，再运行 `python3 "$demo/build_framework.py" --sdk both --linker "$SCOOP_LLD"`。在 Xcode 的 Signing & Capabilities 选择自己的开发团队和可用的 Bundle ID，然后选中已配对的 iPhone 或 iPad 运行。两个切片的最低系统版本为 iOS 17。
 
-如需复验本地拆包，在准备命令后加 `--package-dir tmp/ios-ui/packages`；已有库时加 `--package-only`。基础包包含 runtime、异步定时和文字后端，GUI 包包含 Skia、窗口、组件及四套样式。模拟器和设备的包分开生成。[阶段验收与实测记录](../../../../../docs/ui/IOS-PORT.md)
+如需复验本地拆包，在准备命令后加 `--package-dir tmp/ios-ui/packages`。已有库时可加 `--package-only`。基础包包含 runtime、异步定时和文字后端，GUI 包包含 Skia、窗口、组件及四套样式。模拟器和设备分别制包。
 
+本期在 iPhone 模拟器逐页打开、返回了全部 69 页，用系统拼音填写并保存了 Settings。iPad 模拟器验证了 Workspace 草稿、付款删除和撤销、Conversation 的流式回复和离页取消，以及宽窄窗口切换。[阶段验收与真机进度](../../../../../docs/ui/IOS-PORT.md#本期交付记录)
 
 Gallery 的 macOS 入口在附着窗口前调用 `configureFpsReportingFromEnvironment()`。在同一命令前加 `SCOOP_SURFACE_FPS=1` 即可查看实际呈现帧率。Button 页可供静止对照，Spinner 或 Skeleton 页可测连续动画。输出字段见 [Surface README](../../../scoop.surface/README.md)。
 
-顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion，右上角 Style 下拉框选择整套视觉风格；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。Style 支持方向键、Enter 和文字搜索，切换后保留当前页面、文字、业务状态、方向、明暗及动态偏好；组件继续通过同一 ThemeSource 更新。此轮只在 macOS 验证。
+顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion，右上角 Style 下拉框选择整套视觉风格；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。Style 支持方向键、Enter 和文字搜索，切换后保留当前页面、文字、业务状态、方向、明暗及动态偏好；组件继续通过同一 ThemeSource 更新。iOS 的已验收操作见上节。
 
 Style 始终提供 `shadcn`、`macOS`、`Material` 和 `Fluent`。其左侧的 `Colors: Preset／System` 独立选择配色来源：Preset 使用当前风格的预设配色，System 把系统强调色、背景、文字及分隔线应用于任意风格，同时保留该风格的字体、尺寸、轮廓及动效。切换 Style 保留配色来源，切换 Colors 保留 Style。macOS 默认 shadcn + System；只有启用 System 时，切换明暗或重新聚焦窗口才读取系统颜色。其他平台固定 Preset，系统取色适配只在 macOS 提供。
 

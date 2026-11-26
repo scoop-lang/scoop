@@ -17,7 +17,7 @@ Scoop 尚未发布首个版本。语言、库和工具随主线一起演进。�
 - 编译器性能优先处理真实工程中耗时或内存占用最大的阶段。冷编译、缓存命中和最终链接分别测量。[编译性能记录与后续优先级](compiler-performance/PROGRESS.md)
 - 程序执行性能按工作负载比较，GC、代码生成和内置库的改动分别保留正确性覆盖。[基准入口](../benchmark/README.md) · [已启用的优化](program-performance/ENABLED-OPTIMIZATIONS.md)
 - 编辑器、调试器、桌面及控件库分别记录其功能边界。DataGrid 在独立仓库实施，各平台的实际支持与验收以所属文档为准。[语言服务](language-service/PROGRESS.md) · [桌面与控件规范](specs/SCOOP-UI-COMPONENT-SPEC.md) · [DataGrid 设计](ui/data-grid/DESIGN.md)
-- iOS 自绘 UI 的平台接口取舍、UIKit 宿主和分阶段验收见 [iOS 移植方案](ui/IOS-PORT.md)。
+- iOS 自绘 UI 的平台接口取舍与分阶段验收见 [iOS 移植方案](ui/IOS-PORT.md)。现有 69 页 UI Gallery 已接入 iPhone 和 iPad，构建与运行见 [Gallery 示例](../sysroot/src/scoop.ui.component/examples/shadcn/README.md)。
 - 仍待实施或明确的工作集中记录在[待办清单](TODO.md)。
 
 首次发布前的代码审查记录了编译阶段的数据所有权、错误诊断、系统库查找成本与 fixture 的维护边界。[首次发布前代码审查](RELEASE-REVIEW.md)
