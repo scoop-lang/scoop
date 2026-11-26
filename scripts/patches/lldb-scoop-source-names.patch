@@ -151,6 +151,21 @@
    Log *log = GetLog(LLDBLog::DynamicLoader);
    std::optional<addr_t> link_map_addr_opt = GetLoadedModuleLinkAddr(module_sp);
    if (!link_map_addr_opt.has_value()) {
+@@ -847,7 +899,13 @@
+   }
+ 
+   // Lookup the DTV structure for this thread.
+-  addr_t dtv_ptr = tp + metadata.dtv_offset;
++  const llvm::Triple &triple = module_sp->GetArchitecture().GetTriple();
++  // AArch64 glibc places struct pthread below TP. Its DTV pointer is the
++  // first word at TP, not pthread_dtvp bytes beyond it.
++  addr_t dtv_ptr =
++      triple.isOSLinux() && triple.getArch() == llvm::Triple::aarch64
++          ? tp
++          : tp + metadata.dtv_offset;
+   addr_t dtv = ReadPointer(dtv_ptr);
+   if (dtv == LLDB_INVALID_ADDRESS) {
+     LLDB_LOGF(log, "GetThreadLocalData error: fail to read dtv");
 --- a/lldb/source/Plugins/SymbolFile/DWARF/ManualDWARFIndex.cpp
 +++ b/lldb/source/Plugins/SymbolFile/DWARF/ManualDWARFIndex.cpp
 @@ -335,7 +335,11 @@
