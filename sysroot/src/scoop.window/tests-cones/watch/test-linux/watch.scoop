@@ -18,13 +18,15 @@ private class LinuxWatchTest {
                 @Unsafe {
                     event
                         .withFileDescriptor { descriptor ->
-                            Application()
-                                .runAttached(handler) { host ->
-                                    val attachment = LinuxWatchAttachment(host, event)
-                                    handler.attachment = Some(attachment)
-                                    attachment.install(descriptor)
-                                    attachment
-                                }
+                            @Unsafe {
+                                Application()
+                                    .runAttached(handler) { host ->
+                                        val attachment = LinuxWatchAttachment(host, event)
+                                        handler.attachment = Some(attachment)
+                                        attachment.install(descriptor)
+                                        attachment
+                                    }
+                            }
                         }
                 }
                 val attachment = handler.attachment!!
