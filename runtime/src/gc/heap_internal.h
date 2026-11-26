@@ -209,6 +209,7 @@ typedef struct ScoopGcHeapState {
     ScoopGcRegion *available_regions;
     ScoopGcBlockMeta *free_blocks;
     ScoopGcFreeRun *free_runs;
+    size_t page_size;
     size_t committed_bytes;
     size_t collection_threshold;
     uint64_t active_block_heads;
@@ -257,6 +258,15 @@ typedef struct ScoopGcHeapState {
 } ScoopGcHeapState;
 
 extern ScoopGcHeapState scoop_gc_heap_state;
+
+static inline uint16_t scoop_heap_block_stride(void) {
+#if SCOOP_ENABLE_GC_STRESS
+    if (scoop_gc_heap_state.page_size > GC_BLOCK_SIZE) {
+        return (uint16_t)(scoop_gc_heap_state.page_size / GC_BLOCK_SIZE);
+    }
+#endif
+    return 1;
+}
 
 static inline bool scoop_heap_adaptive_nursery_enabled(void) {
 #if SCOOP_ENABLE_GC_STRESS
