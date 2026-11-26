@@ -3,8 +3,9 @@
 use std::num::NonZeroU32;
 
 use super::{
-    ObjectDefinitionReadError as Error, ObjectDefinitionV1, ObservedObjectSectionV1,
-    ValidatedBuiltinObjectSectionInventoryV1, VerifiedObjectRelocationFormV1,
+    ObjectDefinitionReadError as Error, ObjectDefinitionV1, ObjectSectionFlagsV1,
+    ObservedObjectSectionV1, ValidatedBuiltinObjectSectionInventoryV1,
+    VerifiedObjectRelocationFormV1,
 };
 
 mod tables;
@@ -33,6 +34,7 @@ struct LiteralPool {
     section: NonZeroU32,
     address: u64,
     width: usize,
+    string_ends: Option<Vec<usize>>,
     bytes: Vec<u8>,
 }
 
@@ -45,8 +47,22 @@ pub(super) fn literal_width(section: &ObservedObjectSectionV1) -> Option<usize> 
         (b"__TEXT", b"__literal8") | (b"", b".rodata.cst8") => Some(8),
         (b"__TEXT", b"__literal16") | (b"", b".rodata.cst16") => Some(16),
         (b"", b".rodata.cst32") => Some(32),
-        _ => None,
+        _ => elf_string_unit(section),
     }
+}
+
+fn elf_string_unit(section: &ObservedObjectSectionV1) -> Option<usize> {
+    use object::elf::*;
+    let ObjectSectionFlagsV1::Elf {
+        section_type: SHT_PROGBITS,
+        flags,
+        entry_size: unit @ (1 | 2 | 4),
+    } = section.flags()
+    else {
+        return None;
+    };
+    let required = u64::from(SHF_ALLOC | SHF_MERGE | SHF_STRINGS);
+    (flags & (required | u64::from(SHF_WRITE | SHF_EXECINSTR)) == required).then_some(unit as usize)
 }
 
 impl LiteralPools {
@@ -135,8 +151,12 @@ impl LiteralPools {
                 if offset % pool.width != 0 {
                     return None;
                 }
-                let bytes = pool.bytes.get(offset..offset.checked_add(pool.width)?)?;
-                match pool.width {
+                let end = match &pool.string_ends {
+                    Some(ends) => *ends.get(ends.partition_point(|&end| end <= offset))?,
+                    None => offset.checked_add(pool.width)?,
+                };
+                let bytes = pool.bytes.get(offset..end)?;
+                match bytes.len() {
                     4 => Some(ObjectLiteral::Bytes4(bytes.try_into().ok()?)),
                     8 => Some(ObjectLiteral::Bytes8(bytes.try_into().ok()?)),
                     16 => Some(ObjectLiteral::Bytes16(bytes.try_into().ok()?)),
@@ -172,7 +192,22 @@ fn read_pool(
     if bytes.len() % width != 0 {
         return Err(invalid());
     }
+    let string_ends = if elf_string_unit(section).is_some() {
+        let ends: Vec<_> = bytes
+            .chunks_exact(width)
+            .enumerate()
+            .filter(|(_, unit)| unit.iter().all(|&byte| byte == 0))
+            .map(|(index, _)| (index + 1) * width)
+            .collect();
+        if !bytes.is_empty() && ends.last() != Some(&bytes.len()) {
+            return Err(invalid());
+        }
+        Some(ends)
+    } else {
+        None
+    };
     Ok(LiteralPool {
+        string_ends,
         section: ordinal,
         address,
         width,
