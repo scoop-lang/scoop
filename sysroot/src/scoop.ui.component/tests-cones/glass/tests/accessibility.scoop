@@ -1,0 +1,267 @@
+package scoop.tests.ui.glass
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class FusionAccessibilityTest {
+    @Test(useProcess = true)
+    fun `fused buttons keep independent native semantics through reorder disabled state and preferences`() {
+        SemanticGlassProbe()
+            .use { probe ->
+                context(probe.theme) {
+                    UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                        probe.event(host, active, event)
+                    }
+                        .use { host -> Application().run(host) }
+                }
+                assertTrue(probe.finished)
+                assertEquals(2, probe.leftClicks)
+                assertEquals(1, probe.rightClicks)
+            }
+    }
+}
+
+private class SemanticGlassProbe : Closeable {
+    val theme = ThemeSource(
+        shadcnTheme { tokens { glassSurfaces { control = Some(glassMaterial()) } } }
+    )
+    val version = state(0)
+    var accepted = -1
+    var leftClicks = 0
+    var rightClicks = 0
+    var finished = false
+    private var phase = 0
+    private var active: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var tree: NativeNode? = None
+    private var left: NativeNode? = None
+    private var right: NativeNode? = None
+    private var calls: NativeCalls? = None
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                val native = application
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop glass accessibility"
+                            size = LogicalSize(300.0, 180.0)
+                            level = WindowLevel.AlwaysOnTop
+                            requestActivation = false
+                        }
+                    )
+                window = Some(native)
+                native
+                    .createDeadline { fail(Some(f"glass accessibility phase ${phase} timed out")) }
+                    .schedule(MonotonicTimeSource.now() + Duration.seconds(20L))
+                ui = host.attach(native, { mount -> SemanticGlassRoot(this, scope = mount) })
+                @Unsafe {
+                    native
+                        .acquireNativeWindow()
+                        .use { lease ->
+                            @Unsafe {
+                                when (lease.handle) {
+                                    case AppKit(_, val view) ->
+                                        tree = Some(NativeNode(nativeRoot(view)!!))
+                                }
+                            }
+                        }
+                }
+                calls = Some(
+                    NativeCalls(application.proxy()) { tag, result -> completed(tag, result) }
+                )
+            }
+
+            case AboutToWait -> advance()
+            else -> {}
+        }
+    }
+    private fun advance() {
+        if (accepted != version.value) return
+        when (phase) {
+            case 0 -> {
+                left = Some(tree!!.find("glass-left")!!)
+                right = Some(tree!!.find("glass-right")!!)
+                assertEquals(2L, tree!!.count)
+                assertTrue(left!!.text(2, Some("AXButton")))
+                assertTrue(right!!.text(2, Some("AXButton")))
+                assertTrue(left!!.text(0, Some("Left action")))
+                phase = 1
+                calls!!.post(left!!, 0)
+            }
+
+            case 2 -> {
+                assertIdentity()
+                assertFalse(left!!.flag(1))
+                assertTrue(right!!.flag(1))
+                verifyFrame(left!!, Rect(44.0, 104.0, 92.0, 32.0))
+                phase = 3
+                calls!!.post(left!!, 1)
+            }
+
+            case 4 -> {
+                assertIdentity()
+                assertTrue(left!!.flag(1))
+                verifyFrame(left!!, Rect(44.0, 94.0, 92.0, 52.0))
+                phase = 5
+                calls!!.post(left!!, 3)
+            }
+
+            else -> {}
+        }
+    }
+    private fun assertIdentity() {
+        assertEquals(2L, tree!!.count)
+        tree!!.find("glass-left")!!.use { current -> assertTrue(current.same(left!!)) }
+        tree!!.find("glass-right")!!.use { current -> assertTrue(current.same(right!!)) }
+    }
+    private fun verifyFrame(node: NativeNode, bounds: Rect) {
+        @Unsafe {
+            window!!
+                .acquireNativeWindow()
+                .use { lease ->
+                    @Unsafe {
+                        when (lease.handle) {
+                            case AppKit(_, val view) ->
+                                assertTrue(
+                                    node
+                                        .frame(
+                                            view,
+                                            bounds.x,
+                                            bounds.y,
+                                            bounds.width,
+                                            bounds.height
+                                        )
+                                )
+                        }
+                    }
+                }
+        }
+    }
+    private fun completed(tag: Int, result: Int) {
+        when (tag) {
+            case 0 -> {
+                assertEquals(1, result)
+                assertEquals(1, leftClicks)
+                version.value = 1
+                phase = 2
+            }
+
+            case 1 -> {
+                assertEquals(0, result)
+                assertEquals(1, leftClicks)
+                calls!!.post(right!!, 2)
+            }
+
+            case 2 -> {
+                assertEquals(1, result)
+                ui!!.preferences = uiPreferences {
+                    highContrast = Some(true)
+                    reduceTransparency = Some(true)
+                    reduceMotion = Some(true)
+                    textScaleFactor = Some(1.5)
+                }
+                version.value = 2
+                phase = 4
+            }
+
+            case 3 -> {
+                assertEquals(1, result)
+                finished = true
+                active!!.requestExit()
+            }
+
+            else -> fail()
+        }
+    }
+    public override fun close() {
+        calls?.close();
+        left?.close();
+        right?.close();
+        tree?.close()
+    }
+}
+
+private class SemanticGlassRoot(private val probe: SemanticGlassProbe, scope: ComponentScope) :
+    Component(scope) {
+    private val material = glassMaterial()
+    public override fun render(): View {
+        val probe = this.probe
+        val version = probe.version.value
+        val first = glassEffect(
+            ViewKey.Text("left"),
+            if (version == 0) Rect(20.0, 20.0, 110.0, 50.0) else Rect(40.0, 90.0, 100.0, 60.0),
+            frame(
+                button("Left action", { probe.leftClicks += 1 }) {
+                    variant = ButtonVariant.Ghost
+                    enabled = version != 1
+                    semantics = ComponentSemantics(automationId = Some("glass-left"))
+                }
+            ) { padding = Some(Insets.all(4.0)) }
+        )
+        val second = glassEffect(
+            ViewKey.Text("right"), Rect(140.0, 20.0, 110.0, 50.0),
+            frame(
+                button("Right action", { probe.rightClicks += 1 }) {
+                    variant = ButtonVariant.Ghost
+                    semantics = ComponentSemantics(automationId = Some("glass-right"))
+                }
+            ) { padding = Some(Insets.all(4.0)) }
+        )
+        val group = glassEffectContainer(material) {
+            width = Some(300.0);
+            height = Some(180.0)
+            blendRadius = 40.0
+            animation = None
+            if (version == 0) {
+                add(first);
+                add(second)
+            } else {
+                add(second);
+                add(first)
+            }
+        }
+        return element(
+            version,
+            { current, mount -> SemanticGlassScene(current, probe, scope = mount) },
+            [group]
+        )
+    }
+}
+
+private class SemanticGlassScene(
+    private val props: Props<Int>,
+    private val probe: SemanticGlassProbe,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun update(): UiInvalidation = UiInvalidation.Layout
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val version = props.value
+        context.draw { paint -> paint.canvas.clear(Color(0.2, 0.4, 0.6)) }
+        context.children()
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) probe.accepted = version
+            }
+    }
+}

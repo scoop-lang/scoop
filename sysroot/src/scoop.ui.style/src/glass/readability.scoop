@@ -1,0 +1,66 @@
+package scoop.ui.style
+
+import scoop.graphics.Color
+
+/**
+ * A semantic fill to draw after glass, covering any sRGB backdrop without reading its pixels.
+ * Preserve the original foreground and at least its original contrast, capped by minimum.
+ * The canvas must be opaque. Explicit application colors remain the caller's responsibility.
+ */
+public fun glassSurfaceFill(pair: ColorPair, canvas: Color, minimum: Double = 4.5): Color {
+    requireStyle(
+        minimum.isFinite() && minimum >= 1.0 && minimum <= 21.0,
+        "glass contrast minimum must be finite and between 1 and 21"
+    )
+    requireStyle(
+        finiteContrastColor(pair.background) &&
+            finiteContrastColor(pair.foreground) &&
+            finiteContrastColor(canvas),
+        "glass contrast colors must be finite"
+    )
+    requireStyle(canvas.alpha == 1.0, "glass contrast canvas must be opaque")
+    val background = opaqueThemeColor(pair.background, opaqueThemeColor(canvas, Color.White))
+    val foreground = pair.foreground
+    val original = themeContrast(opaqueThemeColor(foreground, background), background)
+    val target = themeMin(minimum, original)
+    if (target <= 1.0) return background.withAlpha(0.0)
+    var low = 0.0
+    var high = 1.0
+    for (step in 0..<24) {
+        val alpha = (low + high) * 0.5
+        if (glassContrastFloor(background.withAlpha(alpha), foreground) >= target)
+            high = alpha
+        else
+            low = alpha
+    }
+    return background.withAlpha(themeMin(1.0, high + 1.0 / 255.0))
+}
+
+private fun glassContrastFloor(fill: Color, foreground: Color): Double {
+    val dark = opaqueThemeColor(fill, Color.Black)
+    val light = opaqueThemeColor(fill, Color.White)
+    val lowBackground = themeLuminance(dark)
+    val highBackground = themeLuminance(light)
+    val lowForeground = themeLuminance(opaqueThemeColor(foreground, dark))
+    val highForeground = themeLuminance(opaqueThemeColor(foreground, light))
+    if (lowForeground > highBackground) return (lowForeground + 0.05) / (highBackground + 0.05)
+    if (lowBackground > highForeground) return (lowBackground + 0.05) / (highForeground + 0.05)
+    return 1.0
+}
+
+internal fun glassThemeFill(theme: Theme, background: Color, foregrounds: Array<Color>): Color {
+    val palette = theme.tokens.palette
+    val canvas = opaqueThemeColor(
+        palette.background.background,
+        if (theme.tokens.mode == ThemeMode.Dark) Color.Black else Color.White
+    )
+    var fill = opaqueThemeColor(background, canvas).withAlpha(0.0)
+    for (foreground in foregrounds) {
+        val next = glassSurfaceFill(
+            ColorPair(background, foreground), canvas,
+            if (theme.preferences.highContrast) 7.0 else 4.5
+        )
+        if (next.alpha > fill.alpha) fill = next
+    }
+    return fill
+}

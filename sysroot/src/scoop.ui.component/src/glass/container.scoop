@@ -52,7 +52,10 @@ private class GlassEffectLayout(private val props: Props<GlassEffectInput>, scop
             .motions
             .update(
                 scope, input.props.items,
-                if (input.theme.preferences.reduceMotion) None else input.props.animation
+                if (input.theme.preferences.reduceMotion)
+                    None
+                else
+                    input.theme.tokens.motion.resolve(input.props.animation)
             )
     }
     public override fun update(): UiInvalidation {

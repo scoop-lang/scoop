@@ -3,12 +3,13 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.style.*
 
-/** Resolve local clearing before deriving a component's default translucent fill. */
+/** Resolve local clearing before deriving readable defaults from the actual foreground colors. */
 internal fun StyleOverrideBuilder.glassSurface(
     theme: Theme,
     role: SurfaceRole,
     fill: Color,
-    local: StyleOverride
+    local: StyleOverride,
+    foregrounds: Array<Color> = glassSurfaceForegrounds(theme, role)
 ) {
     val selected = local.glass.resolve(theme.tokens.glassSurfaces.get(role))
     glass(selected)
@@ -16,10 +17,39 @@ internal fun StyleOverrideBuilder.glassSurface(
         Some(
             Paint(
                 when (selected) {
-                    case Some(_) -> fill.withAlpha(fill.alpha * 0.18)
+                    case Some(_) -> readableGlassFill(theme, fill, foregrounds)
                     case None -> fill
                 }
             )
         )
     )
+}
+
+internal fun glassSurfaceForegrounds(theme: Theme, role: SurfaceRole): Array<Color> {
+    val palette = theme.tokens.palette
+    val main = when (role) {
+        case Content -> palette.card.foreground
+        case Popover -> palette.popover.foreground
+        case Dialog -> palette.popover.foreground
+        case Notification -> palette.popover.foreground
+        else -> palette.background.foreground
+    }
+    return [main, palette.muted.foreground]
+}
+
+private fun readableGlassFill(theme: Theme, background: Color, foregrounds: Array<Color>): Color {
+    val source = theme.tokens.palette.background.background
+    val canvas = mixThemeColor(
+        if (theme.tokens.mode == ThemeMode.Dark) Color.Black else Color.White,
+        source.withAlpha(1.0), lowerBound(upperBound(source.alpha, 1.0), 0.0)
+    )
+    var result = canvas.withAlpha(0.0)
+    for (foreground in foregrounds) {
+        val fill = glassSurfaceFill(
+            ColorPair(background, foreground), canvas,
+            if (theme.preferences.highContrast) 7.0 else 4.5
+        )
+        if (fill.alpha > result.alpha) result = fill
+    }
+    return result
 }

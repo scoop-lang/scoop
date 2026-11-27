@@ -41,12 +41,17 @@ internal fun toggleOptions(
     else
         componentBackground(theme, sampled)
     val border = controlBorder(theme, style.surface, visual, colors.input)
+    val foreground = actionTextColor(
+        theme, ActionShape.Toggle(variant, size, selected), ButtonVariant.Ghost,
+        SurfaceVisual(style.kind, visual, SurfaceRole.Control)
+    )
     val local = styleOverride {
         glassSurface(
             theme,
             SurfaceRole.Control,
             fill,
-            style.states.apply(style.surface.style, visual)
+            style.states.apply(style.surface.style, visual),
+            [foreground]
         )
         this
             .border(

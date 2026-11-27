@@ -40,7 +40,17 @@ public class ShapeTheme internal constructor(
                         background = Some(
                             Paint(
                                 when (glass) {
-                                    case Some(_) -> fill.withAlpha(fill.alpha * 0.18)
+                                    case Some(_) ->
+                                        glassThemeFill(
+                                            this, fill,
+                                            if (visual.role == SurfaceRole.Input)
+                                                [
+                                                    part.foreground.resolve(visual.interaction),
+                                                    tokens.palette.muted.foreground
+                                                ]
+                                            else
+                                                [part.foreground.resolve(visual.interaction)]
+                                        )
                                     case None -> fill
                                 }
                             )

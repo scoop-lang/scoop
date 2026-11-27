@@ -135,7 +135,7 @@ internal class InputGroupInk(
                 context.layoutDirection
             )
         val painter = painters!!.get(props.value.theme)
-        if (shape.opacity < 1.0) context.saveLayer(shape.opacity)
+        if (shape.opacity < 1.0) context.saveBackdropLayer(shape.opacity)
         context
             .draw { paint ->
                 painter.drawSurface(paint.canvas, shape, visual, SurfaceLayer.Background)

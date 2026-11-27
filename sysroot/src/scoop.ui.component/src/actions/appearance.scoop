@@ -197,13 +197,18 @@ internal fun actionOptions(
     else
         componentBackground(theme, sampled)
     val resolvedBorder = border
+    val foreground = actionTextColor(
+        theme, shape, variant,
+        SurfaceVisual(actionSurfaceKind(shape, variant, style.kind), visual, SurfaceRole.Control)
+    )
     val variantStyle = styleOverride {
         if (variant != ButtonVariant.Default && !outlinedButton(shape, variant)) {
             glassSurface(
                 theme,
                 SurfaceRole.Control,
                 fill,
-                style.states.apply(style.surface.style, visual)
+                style.states.apply(style.surface.style, visual),
+                [foreground]
             )
             this
                 .border(

@@ -73,6 +73,8 @@ val theme = materialTheme {
 
 `GlassEffectPainter.scene(context, outlines, material, blendRadius)` 把多个物理 RoundedOutline 绘成连续的共享材质；paint 提供相同 Canvas 入口。blendRadius 默认为 24，0 保留普通并集；表面靠近时形成平滑连接，重叠部分只处理一次下层。遮罩、折射和高光沿同一融合轮廓计算，子内容随后清晰绘制。传入 Color 替代 material 的重载以相同形状绘制实体底色，适用于减少透明度。painter 是需注册到 scope 的 Closeable，只保留当前形状和光学资源，不改变输入几何。组件层的 [GlassEffectContainer](../scoop.ui.component/README.md) 同时处理 keyed 内容、形变动画、布局、裁剪与主题偏好。
 
+主题默认玻璃填充按实际前景计算可读性，普通控件维持状态颜色与边界。自绘内容可用 `glassSurfaceFill(ColorPair(background, foreground), opaqueCanvas, minimum = 4.5)` 得到放在材质之后的背景 Paint 颜色。它在保持文字颜色的前提下，为任意 sRGB 底图求出足够的染色 alpha；目标为 minimum 与原配对对比度的较小值，必要时返回实体色。调用不读取屏幕，也不创建资源。直接材质的内容颜色、显式 background 覆盖仍由应用负责配对；高对比度／减少透明度关闭默认玻璃，恢复偏好后恢复原策略。
+
 `styleOverride { ... }` 只替换明确指定的属性：StyleValue.Inherit 继承本轮输入，StyleValue.Set(None) 可以清除可空背景或边框；`border(None)` 等同名设置方法把同一槽写为 Set(value)。赋入 StyleValue.Inherit 恢复继承。`existing.copy { ... }` 保留未改的配置，发布后修改 builder 不改变结果。字体、段落和混排仍使用 graphics.text 的 TextStyle／SpanStyle／ParagraphStyle。
 
 没有独立效果时钟，也没有子树像素缓存。真实帧每次绘制当帧内容，仅复用当前滤镜与几何。参数动画在 Element 的 update／输入中设置 Surface Animatable，在 paint 中读取采样值；完成、暂停、取消或隐藏后按 Surface 规则停帧。

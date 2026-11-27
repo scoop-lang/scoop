@@ -248,7 +248,9 @@ glassEffectContainer(material) {
 }
 ```
 
-更新同一 key 的位置、尺寸或四角会从当前显示形状开始过渡，默认 Tween 300ms，可设置 animation 或用 None 立即更新。布局与材质使用同一帧采样，连接区域本身不可点击。前景按各自圆角裁剪；给带外部焦点环的内容预留内边距，例如 `frame(action) { padding = Insets.all(4.0) }`。opacity 统一作用于背景处理和前景，保持实时下层。高对比度／减少透明度使用主题 card 的实体底色；减少动画立即收束形变。静止、隐藏及卸载不保留帧需求。独立描述可用 glassEffect 工厂加 add，或直接构造 GlassEffectContainerProps 挂载 GlassEffectContainer。
+更新同一 key 的位置、尺寸或四角会从当前显示形状开始过渡，默认 Tween 300ms，可设置 animation 或用 None 立即更新。布局与材质使用同一帧采样，连接区域本身不可点击。前景按各自圆角裁剪；给带外部焦点环的内容预留内边距，例如 `frame(action) { padding = Some(Insets.all(4.0)) }`。opacity 统一作用于背景处理和前景，保持实时下层。高对比度／减少透明度使用主题 card 的实体底色；减少动画立即收束形变，也遵守基础主题的 MotionPreference.Reduced。静止、隐藏及卸载不保留帧需求。独立描述可用 glassEffect 工厂加 add，或直接构造 GlassEffectContainerProps 挂载 GlassEffectContainer。
+
+主题默认玻璃底色会按当前正文、占位和说明文字计算可读性染色，避免复杂明暗底图降低文字对比度。染色强度以 4.5:1 与原主题配对对比度的较小值为目标，必要时可回到实体底色；整体禁用透明度仍表达原有禁用状态。Hover、pressed、focus 和 invalid 保留当前主题的状态色与轮廓，带内容的淡化组统一继承下层。显式 background／text 覆盖及直接 GlassEffectContainer 内容由应用配对；可用 `glassSurfaceFill(ColorPair(background, foreground), opaqueCanvas)` 求出材质之后的可读性填充。根偏好热更新不重建控件或语义节点，高对比度／减少透明度恢复实体表面，文字缩放仍按真实内容布局。
 
 Row／Column 使用 Flex 的主轴分配和交叉轴对齐。Flex 可以在本次测量选择方向、间距和内缩。下面的工具栏随自己的父容器宽度切换方向。只在宽布局显示的子项保留挂载，窄布局会跳过它及相邻间距。
 

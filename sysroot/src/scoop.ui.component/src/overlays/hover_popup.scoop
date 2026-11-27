@@ -90,7 +90,7 @@ private class HoverPopup(private val read: () -> HoverPopupInput, scope: Compone
             theme.tokens.typography.body
         val text = bodyStyle.resolve(base, foreground, None)
         val visual = styleOverride {
-            glassSurface(theme, SurfaceRole.Popover, backgroundColor, input.style)
+            glassSurface(theme, SurfaceRole.Popover, backgroundColor, input.style, [foreground])
             corners(
                 Corners
                     .all(

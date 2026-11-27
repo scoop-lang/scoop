@@ -103,7 +103,8 @@ internal fun tabOptions(
             theme,
             SurfaceRole.Navigation,
             fill,
-            style.states.apply(style.surface.style, visual)
+            style.states.apply(style.surface.style, visual),
+            [tabTextColor(theme, variant, selected, visual)]
         )
         this
             .border(

@@ -20,10 +20,9 @@ private class AdvancedComponentSemanticsTest {
     fun `compound controls publish real states and reject refused changes without requiring activation`() {
         val probe = AdvancedProbe()
         try {
-            context(ThemeSource(shadcnTheme())) {
-                UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                    host -> Application().run(host)
-                }
+            context(glassAccessibilityTheme()) {
+                UiHost { host, active, event -> probe.event(host, active, event) }
+                    .use { host -> Application().run(host) }
             }
             assertTrue(probe.finished)
             assertEquals(2, probe.traceClicks)
@@ -33,7 +32,7 @@ private class AdvancedComponentSemanticsTest {
     }
 }
 
-internal class AdvancedProbe: Closeable {
+internal class AdvancedProbe : Closeable {
     val selects = SelectValueSemanticsProbe()
     val values = state<Array<Double>>([25.0])
     val open = state(false)
@@ -61,11 +60,12 @@ internal class AdvancedProbe: Closeable {
         when (event) {
             case Resumed -> {
                 active = Some(application)
-                application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
-                )
-                val window =
-                    application.createWindow(
+                application
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
+                    )
+                val window = application
+                    .createWindow(
                         windowAttributes {
                             title = "Scoop compound accessibility"
                             requestActivation = false
@@ -77,19 +77,20 @@ internal class AdvancedProbe: Closeable {
                 {
                     val lease = window.acquireNativeWindow()
                     try {
-                        val view =
-                            when (lease.handle) {
-                                case AppKit(_, val pointer) -> pointer
-                            }
+                        val view = when (lease.handle) {
+                            case AppKit(_, val pointer) -> pointer
+                        }
                         tree = Some(NativeNode(nativeRoot(view)!!))
                     } finally {
                         lease.close()
                     }
                 }
-                calls =
-                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                calls = Some(
+                    NativeCalls(application.proxy()) { tag, result -> completed(tag, result) }
+                )
                 later { initial() }
             }
+
             case NewEvents(StartCause.Deadline) -> fail(Some("compound accessibility timed out"))
             else -> {}
         }
@@ -121,12 +122,13 @@ internal class AdvancedProbe: Closeable {
         assertEquals(2L, find("table").trait(7))
         assertTrue(find("table").tableSpan())
         anchor = Some(NativeTextAnchor(find("document"), 1L, 5L))
-        document.applyInput(
-            TextInputBatch(
-                None,
-                [TextInputOperation.Commit("X", TextReplacement.Range(Utf8Range(0L, 0L)))]
+        document
+            .applyInput(
+                TextInputBatch(
+                    None,
+                    [TextInputOperation.Commit("X", TextReplacement.Range(Utf8Range(0L, 0L)))]
+                )
             )
-        )
         later {
             assertTrue(anchor!!.matches(2L, 6L))
             assertTrue(document.undo())
@@ -142,10 +144,7 @@ internal class AdvancedProbe: Closeable {
     }
     private fun completed(tag: Int, result: Int) {
         assertEquals(
-            if (tag == 1 || tag == 4 || tag == 6)
-                0
-            else
-                1,
+            if (tag == 1 || tag == 4 || tag == 6) 0 else 1,
             result
         )
         when (tag) {
@@ -154,38 +153,45 @@ internal class AdvancedProbe: Closeable {
                 reject = true
                 calls!!.post(find("range"), 1, action = 10)
             }
+
             case 1 -> {
                 assertEquals(30.0, values.value[0L])
                 reject = false
                 calls!!.post(find("tab-b"), 2)
             }
+
             case 2 -> {
                 assertEquals(Some("b"), tab.value)
                 assertEquals(1L, find("tab-b").trait(0))
                 calls!!.post(find("disclosure"), 3)
             }
+
             case 3 -> {
                 assertTrue(open.value)
                 assertEquals(1L, find("disclosure").trait(1))
                 reject = true
                 calls!!.post(find("disclosure"), 4)
             }
+
             case 4 -> {
                 assertTrue(open.value)
                 reject = false
                 calls!!.post(find("trace"), 5)
             }
+
             case 5 -> {
                 assertTrue(traceOpen.value)
                 assertEquals(1L, find("trace").trait(1))
                 reject = true
                 calls!!.post(find("trace"), 6)
             }
+
             case 6 -> {
                 assertTrue(traceOpen.value)
                 reject = false
                 calls!!.post(find("2026-11-19"), 7)
             }
+
             case 7 -> {
                 assertEquals(Some(LocalDate(2026, 11, 19)), date.value)
                 val selectedDay = find("2026-11-19")
@@ -202,17 +208,21 @@ internal class AdvancedProbe: Closeable {
                     calls!!.post(nextMonth!!, 10)
                 }
             }
+
             case 10 -> {
                 assertEquals(Some(LocalDate(2026, 12, 1)), calendar.page)
                 assertEquals(Some(LocalDate(2026, 11, 19)), date.value)
-                calendarLocale.value =
-                    CalendarLocale(previousMonth = "Earlier", nextMonth = "Later")
+                calendarLocale.value = CalendarLocale(
+                    previousMonth = "Earlier",
+                    nextMonth = "Later"
+                )
                 later {
                     assertTrue(previousMonth!!.text(0, Some("Earlier")))
                     assertTrue(nextMonth!!.text(0, Some("Later")))
                     calls!!.post(previousMonth!!, 11)
                 }
             }
+
             case 11 -> {
                 assertEquals(Some(LocalDate(2026, 11, 1)), calendar.page)
                 assertEquals(Some(LocalDate(2026, 11, 19)), date.value)
@@ -224,11 +234,13 @@ internal class AdvancedProbe: Closeable {
                     calls!!.post(find("page-2"), 8)
                 }
             }
+
             case 8 -> {
                 assertEquals(2L, page.value)
                 assertEquals(1L, find("page-2").trait(0))
                 calls!!.post(find("otp"), 9, action = 1, value = "9876")
             }
+
             case 9 -> {
                 assertEquals("9876", otp.text)
                 protectedText.value = true
@@ -242,13 +254,13 @@ internal class AdvancedProbe: Closeable {
                     active!!.requestExit()
                 }
             }
+
             else -> fail(Some("unexpected compound accessibility phase"))
         }
     }
     private fun named(node: NativeNode, name: String): NativeNode? {
-        if (node.text(0, Some(name)))
-            return Some(node)
-        for (index in 0L ..< node.count) {
+        if (node.text(0, Some(name))) return Some(node)
+        for (index in 0L..<node.count) {
             val child = node.child(index)
             retained.add(child)
             when (val found = named(child, name)) {

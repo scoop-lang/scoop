@@ -1,0 +1,22 @@
+package scoop.tests.ui.component.accessibility
+
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun glassAccessibilityTheme(): ThemeSource {
+    val material = glassMaterial()
+    return ThemeSource(
+        shadcnTheme {
+            tokens {
+                glassSurfaces {
+                    control = Some(material)
+                    input = Some(material)
+                    content = Some(material)
+                    popover = Some(material)
+                    dialog = Some(material)
+                    navigation = Some(material)
+                }
+            }
+        }
+    )
+}

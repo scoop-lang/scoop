@@ -9,12 +9,11 @@ import scoop.ui.text.*
 import scoop.window.TextInputPurpose
 import scoop.window.accessibility.*
 
-internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentScope): Element<
-    OtpDrawing
->(scope) {
+internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentScope) :
+    Element<OtpDrawing>(scope) {
     private val projection = textProjection()
-    internal val host =
-        scope.resource {
+    internal val host = scope
+        .resource {
             val value = props.value
             TextEditHost(
                 scope,
@@ -25,8 +24,8 @@ internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentSc
             )
         }
     private val semantics = createComponentSemantics(scope, SemanticRole.TextField)
-    private val field =
-        scope.resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
+    private val field = scope
+        .resource { FieldLink(scope, host.area, host.focus, semantics) { updateSemantics() } }
     private val painters = scope.resource { ThemePainterCache() }
 
     init {
@@ -36,26 +35,24 @@ internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentSc
 
     public override fun update(): UiInvalidation {
         val input = props.value.input
-        host.update(
-            input.state,
-            otpAppearance(input, props.value.theme, props.value.text, props.value.fonts),
-            otpOptions(input, projection),
-            input.focus,
-            onEdited = { state -> props.value.input.onEdited(state) },
-            onCommitted =
-                {
-                    state ->
+        host
+            .update(
+                input.state,
+                otpAppearance(input, props.value.theme, props.value.text, props.value.fonts),
+                otpOptions(input, projection),
+                input.focus,
+                onEdited = { state -> props.value.input.onEdited(state) },
+                onCommitted = { state ->
                     val current = props.value.input
-                    if (
-                        state ===
-                            current.state &&
-                            graphemeBoundaries(state.text).size -
-                            1L ==
-                            current.length
+                    if (state ===
+                        current.state &&
+                        graphemeBoundaries(state.text).size -
+                        1L ==
+                        current.length
                     )
                         current.onComplete(state)
                 }
-        )
+            )
         field.update(input.labelTarget, input.enabled)
         updateSemantics()
         painters.get(props.value.theme)
@@ -63,18 +60,20 @@ internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentSc
     }
     private fun updateSemantics() {
         val handle = semantics ?: return
-        if (handle.isClosed)
-            return
+        if (handle.isClosed) return
         val input = props.value.input
         handle.bindReference(input.semantics.reference)
-        handle.updateTextEditor(
-            host,
-            input.semantics.properties(
-                required = field.isRequired(handle),
-                invalid = input.invalid
-            ),
-            field.relations(handle, input.semantics.relations)
-        )
+        handle
+            .updateTextEditor(
+                host,
+                input
+                    .semantics
+                    .properties(
+                        required = field.isRequired(handle),
+                        invalid = input.invalid
+                    ),
+                field.relations(handle, input.semantics.relations)
+            )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         OtpDrawing
@@ -82,59 +81,62 @@ internal class OtpInk(internal val props: Props<OtpInkProps>, scope: ComponentSc
     public override fun scene(context: SceneContext, current: OtpDrawing) {
         val value = props.value
         when (semantics) {
-            case Some(val handle) -> context.semantics(
-                handle,
-                Rect(0.0, 0.0, context.size.width, context.size.height)
-            )
+            case Some(val handle) ->
+                context
+                    .semantics(
+                        handle,
+                        Rect(0.0, 0.0, context.size.width, context.size.height)
+                    )
             case None -> {}
         }
         val painter = painters.get(value.theme)
         val adapter = host
         val offset = current.editor.scrollSnapshot.offset
-        if (!value.input.enabled)
-            context.saveLayer(value.theme.tokens.disabledOpacity)
+        if (!value.input.enabled) context.saveBackdropLayer(value.theme.tokens.disabledOpacity)
         context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
         context.translate(current.origin.x, current.origin.y)
-        context.draw {
-            paint ->
-            paint.canvas.translate(-offset.x, -offset.y)
-            for (slot in current.slots)
-                painter.drawSurface(
-                    paint.canvas,
-                    slot.geometry,
-                    slot.visual,
-                    SurfaceLayer.Background
-                )
-        }
+        context
+            .draw { paint ->
+                paint.canvas.translate(-offset.x, -offset.y)
+                for (slot in current.slots)
+                    painter
+                        .drawSurface(
+                            paint.canvas,
+                            slot.geometry,
+                            slot.visual,
+                            SurfaceLayer.Background
+                        )
+            }
         adapter.scene(context, current.editor)
-        context.withState<Unit> {
-            content ->
-            val viewport = current.editor.scrollSnapshot.viewport
-            content.clipRect(Rect(0.0, -current.origin.y, viewport.width, content.size.height))
-            content.translate(-offset.x, -offset.y)
-            content.children()
-        }
-        context.draw {
-            paint ->
-            paint.canvas.translate(-offset.x, -offset.y)
-            for (index in 0L ..< current.slots.size)
-                if (index != current.active)
-                    painter.drawSurface(
+        context
+            .withState<Unit> { content ->
+                val viewport = current.editor.scrollSnapshot.viewport
+                content.clipRect(Rect(0.0, -current.origin.y, viewport.width, content.size.height))
+                content.translate(-offset.x, -offset.y)
+                content.children()
+            }
+        context
+            .draw { paint ->
+                paint.canvas.translate(-offset.x, -offset.y)
+                for (index in 0L..<current.slots.size)
+                    if (index != current.active)
+                        painter
+                            .drawSurface(
+                                paint.canvas,
+                                current.slots[index].geometry,
+                                current.slots[index].visual,
+                                SurfaceLayer.Foreground
+                            )
+                val active = current.slots[current.active]
+                painter
+                    .drawSurface(
                         paint.canvas,
-                        current.slots[index].geometry,
-                        current.slots[index].visual,
+                        active.geometry,
+                        active.visual,
                         SurfaceLayer.Foreground
                     )
-            val active = current.slots[current.active]
-            painter.drawSurface(
-                paint.canvas,
-                active.geometry,
-                active.visual,
-                SurfaceLayer.Foreground
-            )
-        }
-        if (!value.input.enabled)
-            context.restore()
+            }
+        if (!value.input.enabled) context.restore()
     }
 }
 
@@ -157,14 +159,16 @@ internal fun otpAppearance(
         style.markedColor ?: colors.primary.background,
         style.caretWidth,
         theme.tokens.motion.preference == MotionPreference.Reduced,
-        selectionTextColor =
-            selectionTextColor(style.selectionTextColor, style.selectionColor, selection.text),
-        inactiveSelectionTextColor =
-            selectionTextColor(
-                style.inactiveSelectionTextColor,
-                style.inactiveSelectionColor,
-                selection.inactiveText
-            )
+        selectionTextColor = selectionTextColor(
+            style.selectionTextColor,
+            style.selectionColor,
+            selection.text
+        ),
+        inactiveSelectionTextColor = selectionTextColor(
+            style.inactiveSelectionTextColor,
+            style.inactiveSelectionColor,
+            selection.inactiveText
+        )
     )
 }
 
@@ -183,12 +187,11 @@ internal fun otpOptions(input: InputOtpProps, projection: TextProjection): TextE
         touch = input.touch,
         touchScroll = input.touchScroll,
         scrollPhysics = input.scrollPhysics,
-        inputPurpose =
-            input.inputPurpose ?:
-                when (input.pattern) {
-                    case Digits -> TextInputPurpose.Digits
-                    else -> TextInputPurpose.Normal
-                },
+        inputPurpose = input.inputPurpose ?:
+            when (input.pattern) {
+                case Digits -> TextInputPurpose.Digits
+                else -> TextInputPurpose.Normal
+            },
         softwareKeyboard = input.softwareKeyboard,
         primarySelection = input.primarySelection,
         automaticTextReplacement = input.automaticTextReplacement

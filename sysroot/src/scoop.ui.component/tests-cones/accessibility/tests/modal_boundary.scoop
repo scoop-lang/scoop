@@ -20,10 +20,9 @@ private class ModalSemanticBoundaryTest {
     fun `modal semantics name the close button exclude background actions and respect veto`() {
         val probe = ModalSemanticProbe()
         try {
-            context(ThemeSource(shadcnTheme())) {
-                UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                    host -> Application().run(host)
-                }
+            context(glassAccessibilityTheme()) {
+                UiHost { host, active, event -> probe.event(host, active, event) }
+                    .use { host -> Application().run(host) }
             }
             assertTrue(probe.finished)
             assertEquals(1, probe.clicks)
@@ -33,7 +32,7 @@ private class ModalSemanticBoundaryTest {
     }
 }
 
-internal class ModalSemanticProbe: Closeable {
+internal class ModalSemanticProbe : Closeable {
     val open = state(false)
     var veto = true
     var clicks = 0
@@ -50,11 +49,12 @@ internal class ModalSemanticProbe: Closeable {
         when (event) {
             case Resumed -> {
                 active = Some(application)
-                application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
-                )
-                val window =
-                    application.createWindow(
+                application
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
+                    )
+                val window = application
+                    .createWindow(
                         windowAttributes {
                             title = "Scoop modal semantic boundary"
                             requestActivation = false
@@ -66,23 +66,26 @@ internal class ModalSemanticProbe: Closeable {
                 {
                     val lease = window.acquireNativeWindow()
                     try {
-                        val view =
-                            when (lease.handle) {
-                                case AppKit(_, val pointer) -> pointer
-                            }
+                        val view = when (lease.handle) {
+                            case AppKit(_, val pointer) -> pointer
+                        }
                         tree = Some(NativeNode(nativeRoot(view)!!))
                     } finally {
                         lease.close()
                     }
                 }
-                background =
-                    Some(tree!!.find("background") ?: fail(Some("background semantics missing")))
-                calls =
-                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                background = Some(
+                    tree!!.find("background") ?: fail(Some("background semantics missing"))
+                )
+                calls = Some(
+                    NativeCalls(application.proxy()) { tag, result -> completed(tag, result) }
+                )
             }
-            case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"modal semantic phase ${phase} timed out")
-            )
+
+            case NewEvents(StartCause.Deadline) ->
+                fail(
+                    Some(f"modal semantic phase ${phase} timed out")
+                )
             else -> {}
         }
     }
@@ -93,29 +96,26 @@ internal class ModalSemanticProbe: Closeable {
                 assertTrue(background!!.flag(0))
                 open.value = true
             }
-        } else
-            if (phase == 1 && showing) {
-                phase = 2
-                later {
-                    assertFalse(background!!.flag(0))
-                    modal = Some(tree!!.find("modal") ?: fail(Some("dialog semantics missing")))
-                    assertEquals(1L, modal!!.trait(9))
-                    assertTrue(modal!!.text(6, Some("AXDialog")))
-                    closeButton =
-                        Some(
-                            namedCloseButton(modal!!) ?:
-                                fail(Some("the default close button has no accessible name"))
-                        )
-                    calls!!.post(background!!, 0)
-                }
-            } else
-                if (phase == 3 && !showing) {
-                    phase = 4
-                    later {
-                        assertTrue(background!!.flag(0))
-                        calls!!.post(background!!, 3)
-                    }
-                }
+        } else if (phase == 1 && showing) {
+            phase = 2
+            later {
+                assertFalse(background!!.flag(0))
+                modal = Some(tree!!.find("modal") ?: fail(Some("dialog semantics missing")))
+                assertEquals(1L, modal!!.trait(9))
+                assertTrue(modal!!.text(6, Some("AXDialog")))
+                closeButton = Some(
+                    namedCloseButton(modal!!) ?:
+                        fail(Some("the default close button has no accessible name"))
+                )
+                calls!!.post(background!!, 0)
+            }
+        } else if (phase == 3 && !showing) {
+            phase = 4
+            later {
+                assertTrue(background!!.flag(0))
+                calls!!.post(background!!, 3)
+            }
+        }
     }
     private fun completed(tag: Int, result: Int) {
         when (tag) {
@@ -124,22 +124,26 @@ internal class ModalSemanticProbe: Closeable {
                 assertEquals(0, clicks)
                 calls!!.post(modal!!, 1, action = 18)
             }
+
             case 1 -> {
                 assertEquals(0, result)
                 assertTrue(open.value)
                 veto = false
                 calls!!.post(closeButton!!, 2)
             }
+
             case 2 -> {
                 assertEquals(1, result)
                 assertFalse(open.value)
                 phase = 3
             }
+
             case 3 -> {
                 assertEquals(1, result)
                 finished = true
                 active!!.requestExit()
             }
+
             else -> fail(Some("unexpected modal semantic action"))
         }
     }
@@ -161,10 +165,9 @@ internal class ModalSemanticProbe: Closeable {
 }
 
 private fun namedCloseButton(parent: NativeNode): NativeNode? {
-    for (index in 0L ..< parent.count) {
+    for (index in 0L..<parent.count) {
         val child = parent.child(index)
-        if (child.text(2, Some("AXButton")) && child.text(0, Some("Close")))
-            return Some(child)
+        if (child.text(2, Some("AXButton")) && child.text(0, Some("Close"))) return Some(child)
         val found = namedCloseButton(child)
         child.close()
         when (found) {
@@ -178,22 +181,23 @@ private fun namedCloseButton(parent: NativeNode): NativeNode? {
 private class ModalSemanticRoot(
     private val probe: ModalSemanticProbe,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     public override fun render(): View {
         val probe = this.probe
         val showing = probe.open.value
-        val body =
-            column {
-                this.button("Background", { probe.clicks += 1 }) {
+        val body = column {
+            this
+                .button("Background", { probe.clicks += 1 }) {
                     semantics = advancedSemantics("background", "Background")
                 }
-                this.dialog(probe.open.binding(), semanticLabel("Dialog content")) {
+            this
+                .dialog(probe.open.binding(), semanticLabel("Dialog content")) {
                     semantics = advancedSemantics("modal", "Confirmation")
                     this.title("Confirmation")
                     this.transition(None)
                     onCloseRequest = { _ -> !probe.veto }
                 }
-            }
+        }
         return element(showing, { value, mount -> ModalSemanticFrame(value, probe, mount) }, [body])
     }
 }
@@ -202,7 +206,7 @@ private class ModalSemanticFrame(
     private val props: Props<Boolean>,
     private val probe: ModalSemanticProbe,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -213,9 +217,10 @@ private class ModalSemanticFrame(
     public override fun scene(context: SceneContext, value: Unit) {
         val showing = props.value
         context.children()
-        context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted)
-                probe.accepted(showing)
-        }
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted && scope.isMounted)
+                    probe.accepted(showing)
+            }
     }
 }

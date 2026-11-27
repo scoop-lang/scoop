@@ -263,7 +263,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
             case Some(val semantic) -> context.semantics(semantic, geometry.bounds)
             case None -> {}
         }
-        if (geometry.opacity < 1.0) context.saveLayer(geometry.opacity)
+        if (geometry.opacity < 1.0) context.saveBackdropLayer(geometry.opacity)
         context
             .draw { paint ->
                 painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)

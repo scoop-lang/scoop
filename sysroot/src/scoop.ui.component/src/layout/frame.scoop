@@ -230,7 +230,7 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
                         context.layoutDirection
                     )
                 val painter = painters!!.get(theme)
-                if (geometry.opacity < 1.0) context.saveLayer(geometry.opacity)
+                if (geometry.opacity < 1.0) context.saveBackdropLayer(geometry.opacity)
                 context
                     .draw { paint ->
                         painter

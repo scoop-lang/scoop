@@ -40,7 +40,9 @@ private class ComponentGlassPolicyTest {
             val defaults = styleOverride { glassSurface(theme, role, Color.White, styleOverride()) }
                 .resolve(style())
             assertSame(material, defaults.glass!!)
-            assertTrue(defaults.background!!.color.alpha < 1.0)
+            assertTrue(
+                defaults.background!!.color.alpha > 0.0 && defaults.background!!.color.alpha <= 1.0
+            )
             val clear = styleOverride { glass(None) }
             val cleared = styleOverride { glassSurface(theme, role, Color.White, clear) }
                 .then(clear)
@@ -78,6 +80,11 @@ private class ComponentGlassPolicyTest {
                 options
             )
         assertSame(material, surface.style.glass!!)
-        assertTrue(surface.style.background!!.color.alpha < 1.0)
+        assertTrue(
+            surface.style.background!!.color.alpha >
+                0.0 &&
+                surface.style.background!!.color.alpha <=
+                1.0
+        )
     }
 }

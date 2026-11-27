@@ -165,6 +165,12 @@ Button 根据主题建议尺寸、自己的标签 metrics 和内容内缩决定�
 
 主题按用途选择材质，然后应用 SurfaceOptions.style.glass 的继承、替换或显式清除。有效材质存在时，默认填充作为透光的语义染色；显式 background 覆盖仍由调用方决定。显式清除材质会恢复原默认填充。几何、内容排版及输入范围不因选择材质改变。减少透明度或高对比度偏好将主题策略解析为全部关闭；恢复偏好从基础主题恢复选择。应用显式 Style.glass 仍属于局部自定义。
 
+默认玻璃表面根据当前状态的实际前景计算可读性底色，不使用固定低透明度替代普通填充。`glassSurfaceFill(pair: ColorPair, canvas: Color, minimum: Double = 4.5): Color` 返回供材质之后绘制的语义染色；canvas 必须不透明，输入颜色通道有限，minimum 为有限 1～21。先将原背景合成到 canvas，以原前景在该背景上的对比度与 minimum 的较小值为目标，保持文字色与状态区分。利用下层 sRGB 通道在 0～1 内的范围，求足以覆盖任意底图的染色 alpha；不采样屏幕、不依赖上一帧。原配对已低于 minimum 时不改写调用方文字色，但不能因玻璃而进一步降低其对比度。像素量化保留必要余量。
+
+公共 Surface 使用当前 StateColors 前景；输入表面还覆盖默认 placeholder 等次要文字。Card、弹层、通知、导航与工具栏按实际正文／次要文字选择较强的底色，操作变体按其实际文字颜色选择。Hover／pressed／disabled／focus／invalid 继续使用原有状态采样、边界及语义；带内容的整体淡化组使用 saveBackdropLayer，避免禁用时隔断玻璃与下层。禁用的整体透明度仍由主题表达，高对比度则沿 §6.1 去掉该透明度并满足原有对比度要求。
+
+高对比度／减少透明度解析后不会重新引入默认玻璃；偏好热更新保持控件与焦点身份。减少动画立即收束已运行的形变和状态过渡，文字缩放走真实布局。直接 Style.glass、GlassEffectContainer 的显式材质、自定义内容颜色与显式 background 继续由应用配对；容器的实体回退、键控内容语义和命中边界遵守组件规范 §6.8。
+
 ### 4.2 Checkbox 标记
 
 CheckboxVisual 包含 `CheckMark.Off／On／Mixed` 与交互视觉状态；可选采样参数控制标记显现等外观，主题不决定何时切换。CheckboxMetrics 给出建议／最小标记尺寸、内缩与焦点外扩。CheckboxGeometry 明确标记外框、内部区域、勾选／混合标记使用区域和焦点轮廓。

@@ -19,7 +19,7 @@ internal class CandidateRowInkProps(
 internal class CandidateRowInk(
     private val props: Props<CandidateRowInkProps>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private var area: InputArea? = None
     private var press: Press? = None
     private var semantics: SemanticsHandle? = None
@@ -27,41 +27,44 @@ internal class CandidateRowInk(
         val area = scope.createArea(focusable = false)
         this.area = Some(area)
         scope.routeChildren(area)
-        press =
-            Some(
-                scope.press(area, PressOptions(props.value.enabled)) {
+        press = Some(
+            scope
+                .press(area, PressOptions(props.value.enabled)) {
                     props.value.select(props.value.key, true)
                 }
-            )
-        area.scope.addEventHandler {
-            context, event ->
-            if (!props.value.enabled || context.phase == RoutedPhase.Capture)
-                return@addEventHandler
-            when (event) {
-                case Pointer(InputPointerEvent.Moved(_)) -> props.value.highlight(props.value.key)
-                case Pointer(
-                    InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
-                ) -> props.value.highlight(props.value.key)
-                case Contact(InputContactEvent.Began(_)) -> props.value.highlight(props.value.key)
-                else -> {}
+        )
+        area
+            .scope
+            .addEventHandler { context, event ->
+                if (!props.value.enabled || context.phase == RoutedPhase.Capture)
+                    return@addEventHandler
+                when (event) {
+                    case Pointer(InputPointerEvent.Moved(_)) ->
+                        props.value.highlight(props.value.key)
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> props.value.highlight(props.value.key)
+                    case Contact(InputContactEvent.Began(_)) ->
+                        props.value.highlight(props.value.key)
+                    else -> {}
+                }
             }
-        }
     }
     public override fun update(): UiInvalidation {
         area!!.scope.enabled = props.value.enabled
-        press!!.update(PressOptions(props.value.enabled)) {
-            props.value.select(props.value.key, true)
-        }
+        press!!
+            .update(PressOptions(props.value.enabled)) { props.value.select(props.value.key, true) }
         updateSemantics()
         return UiInvalidation.Layout
     }
     private fun updateSemantics() {
         val input = props.value
         when (semantics) {
-            case Some(val previous) -> if (previous.role != input.role) {
-                previous.close()
-                semantics = None
-            }
+            case Some(val previous) ->
+                if (previous.role != input.role) {
+                    previous.close()
+                    semantics = None
+                }
             case None -> {}
         }
         if (!panelPresent(semantics)) {
@@ -71,21 +74,23 @@ internal class CandidateRowInk(
                     handle.mergeLabels = true
                     scope.routeSemanticsChildren(Some(handle))
                 }
+
                 case None -> {}
             }
         }
         val action: () -> SemanticActionResult = { props.value.select(props.value.key, false) }
-        semantics?.update(
-            SemanticProperties(
-                name = Some(input.name),
-                enabled = input.enabled,
-                checked = input.checked
-            ),
-            if (input.role == SemanticRole.Checkbox)
-                SemanticActions(toggle = Some(action))
-            else
-                SemanticActions(invoke = Some(action))
-        )
+        semantics
+            ?.update(
+                SemanticProperties(
+                    name = Some(input.name),
+                    enabled = input.enabled,
+                    checked = input.checked
+                ),
+                if (input.role == SemanticRole.Checkbox)
+                    SemanticActions(toggle = Some(action))
+                else
+                    SemanticActions(invoke = Some(action))
+            )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -95,18 +100,18 @@ internal class CandidateRowInk(
         return LayoutResult(measured, Unit)
     }
     public override fun scene(context: SceneContext, measured: Unit) {
-        if (!props.value.enabled)
-            context.saveLayer(0.5)
+        if (!props.value.enabled) context.saveBackdropLayer(0.5)
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
         when (semantics) {
-            case Some(val handle) -> context.semantics(
-                handle,
-                Rect(0.0, 0.0, context.size.width, context.size.height)
-            )
+            case Some(val handle) ->
+                context
+                    .semantics(
+                        handle,
+                        Rect(0.0, 0.0, context.size.width, context.size.height)
+                    )
             case None -> {}
         }
         context.children()
-        if (!props.value.enabled)
-            context.restore()
+        if (!props.value.enabled) context.restore()
     }
 }
