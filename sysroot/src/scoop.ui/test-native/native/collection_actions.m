@@ -1,4 +1,4 @@
-#import <AppKit/AppKit.h>
+#import "collection_rows.h"
 
 @interface ScoopCollectionActionProbe : NSObject
 @property(nonatomic, strong) id root, list, row, other, child, replacement;
@@ -17,13 +17,6 @@ static id findList(id node) {
       return found;
   }
   return nil;
-}
-static id at(id list, NSUInteger index) {
-  NSArray *rows =
-      [list accessibilityArrayAttributeValues:NSAccessibilityRowsAttribute
-                                        index:index
-                                     maxCount:1];
-  return rows.count == 1 ? rows[0] : nil;
 }
 static BOOL perform(NSAccessibilityCustomAction *action) {
   id target = action.target;
@@ -97,7 +90,8 @@ static int32_t check(ScoopCollectionActionProbe *probe, int32_t phase,
     callback(context, -1, 0);
     [probe.other setAccessibilityFocused:NO];
     REQUIRE(!perform([probe.other accessibilityCustomActions][1]));
-    id bar = [[probe.list accessibilityParent] accessibilityVerticalScrollBar];
+    id bar = [[[probe.list accessibilityParent] accessibilityParent]
+        accessibilityVerticalScrollBar];
     REQUIRE(bar);
     [bar setAccessibilityValue:@0.0];
     break;

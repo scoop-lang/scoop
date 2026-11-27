@@ -290,6 +290,8 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 
 `virtualList(source, ItemExtent.Fixed(24.0)) { state = Some(scroll); height = Some(240.0) }` 使用 ItemSource 按需创建固定高度项，orientation 可选 Vertical／Horizontal；两轴须有界或提供明确尺寸。overscan 是视口前后额外实现的逻辑长度，默认 0。列表复用同一套滚轮、键盘、主题滚动条与视口 clip，只为可见范围、overscan 和活动交互实现条目。水平 RTL 从右侧排列，默认首屏显示逻辑首项；方向切换保留阅读 key 和已保留的条目实例，图片和文字不镜像。离开范围且无活动交互的项正常卸载，再进入时创建新实例；数据本身可以保存在外部模型。
 
+在 macOS 上，超过 4096 行的虚拟列表按页提供给辅助技术，每页最多 100 行。使用“Go to row”输入从 1 开始的全局行号，或使用递增、递减和首尾页动作翻页。翻页保留窗口的滚动位置和键盘焦点；要在窗口中显示目标行，可执行该行的 Scroll to Visible 动作。
+
 条目的焦点、按下序列和等待惯性的路由在滚出屏幕后继续有效，交互结束后恢复淘汰；真实删除不受这种保留阻止。固定范围算法、零视口和参数检查在本 Cone 测试；`tests-cones/virtual` 用一亿条的数据源验证实际构建数、Dispose、横纵轴、缩小范围以及跨帧的指针／焦点／惯性行为。`tests-cones/variable` 覆盖可变 extent、按 key 对齐、阅读锚点、FollowEnd 与失败帧。
 
 `retention = ItemRetention.KeepAlive(32L)` 额外保留最近使用的 32 个离屏实例，复用其局部 State 与资源。它不改变 viewport／overscan 和交互固定范围，也不创建绘制缓存；默认 Dispose。容量缩小和真实删除在隐藏窗口中也会处理。`tests-cones/retention` 覆盖缓存淘汰、状态及 shape 更新、嵌套缓存、动画停帧和模态输入边界的保留。

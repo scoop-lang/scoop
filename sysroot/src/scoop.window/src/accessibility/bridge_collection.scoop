@@ -285,7 +285,15 @@ private fun queryCollection(
                 )
                 return 1
             }
-            return if (source.contains(key)) 1 else 2
+            val position = source.indexOf(key) ?: return 2
+            when (reply) {
+                case Some(val target) ->
+                    @Unsafe {
+                        target.cast<Long>().store(position)
+                    }
+                case None -> {}
+            }
+            return 1
         } catch (error: Throwable) {
             application.failAccessibility(error)
             return 4

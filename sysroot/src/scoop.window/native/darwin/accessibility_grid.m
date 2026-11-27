@@ -349,10 +349,8 @@ static void collectRole(SWAccessibilityNode *node, int32_t role, BOOL visible,
 NSArray *sw_accessibility_table_rows(SWAccessibilityNode *node, BOOL visible) {
   SWAccessibilityCollection *collection = [node.tree collection:node.number];
   if (collection)
-    return visible
-               ? collection.visibleRows
-               : [collection rowsFrom:0
-                                count:(NSUInteger)MAX(node.state.itemCount, 0)];
+    return visible ? collection.visibleRows
+                   : [collection presentedRowsFrom:0 count:NSUIntegerMax];
   NSMutableArray *result = [NSMutableArray new];
   if (node.isAccessibilityElement)
     collectRole(node, 28, visible, result);
@@ -491,7 +489,7 @@ static id staticCell(SWAccessibilityNode *node, NSInteger column,
   SWAccessibilityCollection *collection = [self.tree collection:self.number];
   if (!collection)
     return staticCell(self, column, row);
-  NSArray *rows = [collection rowsFrom:(NSUInteger)row count:1];
+  NSArray *rows = [collection rowsFrom:(NSUInteger)row count:1 selectedOnly:NO];
   return rows.count
              ? [rows[0]
                    cellForKey:self.state.gridColumns[(NSUInteger)column].key]

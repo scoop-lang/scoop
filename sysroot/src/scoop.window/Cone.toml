@@ -306,6 +306,10 @@ path = "native/darwin/accessibility_collection.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/accessibility_paging.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/accessibility_grid.m"
 when = { os = "darwin" }
 

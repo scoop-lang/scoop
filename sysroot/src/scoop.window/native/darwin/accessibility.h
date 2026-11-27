@@ -67,7 +67,7 @@ typedef struct {
 @property(nonatomic) BOOL retired;
 - (SWAccessibilityState *)state;
 - (BOOL)participatesInAccessibility;
-- (void)appendChildrenOf:(int64_t)parent to:(NSMutableArray *)children;
+- (id)publishedAccessibilityParent;
 - (int32_t)perform:(int32_t)action text:(NSString *)text range:(NSRange)range;
 - (int32_t)perform:(int32_t)action
               text:(NSString *)text
@@ -118,7 +118,9 @@ typedef struct {
 @interface SWAccessibilityCollection : NSObject
 @property(nonatomic, weak) SWAccessibilityTree *tree;
 @property(nonatomic) int64_t number;
-- (NSArray *)rowsFrom:(NSUInteger)index count:(NSUInteger)count;
+- (NSArray *)rowsFrom:(NSUInteger)index
+                count:(NSUInteger)count
+         selectedOnly:(BOOL)selectedOnly;
 - (NSArray *)visibleRows;
 - (id)itemForKey:(id)key;
 - (id)cachedItemForKey:(id)key;
@@ -130,7 +132,7 @@ BOOL sw_accessibility_collections_commit(
     SWAccessibilityTree *tree,
     NSDictionary<NSNumber *, SWAccessibilityState *> *previous,
     NSDictionary<NSNumber *, SWAccessibilityState *> *changes,
-    NSSet<NSNumber *> *removed);
+    NSSet<NSNumber *> *removed, int64_t previousFocus);
 
 id sw_accessibility_focused(SWView *view);
 void sw_accessibility_grid_commit(SWAccessibilityTree *tree);
