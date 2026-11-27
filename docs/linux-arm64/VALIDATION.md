@@ -33,3 +33,9 @@ Bookworm 上的 GNU 动态 PIE 和默认静态 musl 程序均通过配套 LLDB �
 默认安装后编译并运行了 GNU 程序。追加 musl 目标后，通过系统的 `/usr/bin/musl-gcc` 构建并运行了默认静态程序和显式动态 PIE，`readelf` 结果与上表一致。发行包内的 `scoop-lldb-dap` 也在生成独立 `.debug` 文件的 GNU 程序上通过了源码断点、回溯与 TLS 变量检查。[调试验收程序](../../tooling/vscode-scoop/test/debugger/program.scoop)
 
 追加 GNU GUI 组件后，安装的工具链构建了一个使用 GTK 和 Skia 的窗口程序，在 X11 和 Wayland 上分别完成绘制并关闭。使用 `scoop bundle` 生成 deb（`arm64`）、RPM（`aarch64`）及 AArch64 AppImage。解包后分别运行了 deb 和 RPM 中的程序，AppImage 通过自身的 `APPIMAGE_EXTRACT_AND_RUN=1` 模式启动。三种部署布局均成功读取随包资源并输出预期文本。[打包验收示例](../../tooling/scoop-bundle/examples/resources)
+
+## 编译器与维护工具
+
+在 Bookworm 上运行 `cargo test --workspace --no-fail-fast --locked`，共 6,532 项。首轮通过 6,521 项，11 项失败。修复后整组复验 `scoop-codegen`（410/410）和 `scoop-toolchain`（72/72）。`scoopc` 首轮通过 97 项，余下 3 项跨 Cone 产物与类型依赖用例在同一轮定向复验中全部通过。[runtime 测试栈帧](https://github.com/scoop-lang/scoop/pull/255) · [启动网关](https://github.com/scoop-lang/scoop/pull/256) · [并行标记与移动](https://github.com/scoop-lang/scoop/pull/259) · [Swift 输入更新](https://github.com/scoop-lang/scoop/pull/257) · [泛型产物](https://github.com/scoop-lang/scoop/pull/258) · [类型依赖投影](https://github.com/scoop-lang/scoop/pull/260)
+
+`cargo fmt --all --check` 和 `cargo clippy --workspace --all-targets --locked` 完成。fixture runner 的 Python 测试共 86 项，跳过 4 项。发行维护脚本在 o6 的 Ubuntu ARM64 环境运行了 83 项，跳过 9 项。两组均无失败，94 个 Python 文件通过 Ruff 0.16.10 格式与 lint 检查。[fixture runner](../../tests/fixture_runner/README.md) · [发行脚本](../../scripts/README.md)
