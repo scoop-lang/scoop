@@ -1,0 +1,187 @@
+package scoop.tests.ui.layout
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.window.*
+
+@Test
+private class ResponsiveLayoutWindowTest {
+    @Test(useProcess = true)
+    fun `flex frame and grid place the final constraint trial in the native frame`() {
+        val wide = state(true)
+        val accepted = state(0)
+        UiHost { host, active, event ->
+            when (event) {
+                case Resumed -> {
+                    val window = active
+                        .createWindow(windowAttributes { size = LogicalSize(260.0, 140.0) })
+                    host
+                        .attach(
+                            window,
+                            { scope ->
+                                ResponsiveLayoutRoot(
+                                    wide,
+                                    {
+                                        accepted.value += 1
+                                        if (accepted.value < 3)
+                                            wide.value = !wide.value
+                                        else
+                                            window.requestDestroy()
+                                    },
+                                    scope
+                                )
+                            }
+                        )
+                }
+
+                case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+                else -> {}
+            }
+        }
+            .use { host -> Application().run(host) }
+        assertEquals(3, accepted.value)
+    }
+}
+
+private class ResponsiveLayoutRoot(
+    private val wide: State<Boolean>,
+    private val accepted: () -> Unit,
+    scope: ComponentScope
+) : Component(scope) {
+    private val open = state(true)
+    public override fun render(): View = responsiveContract(wide.value, open.binding(), accepted)
+}
+
+private struct ResponsiveBox(val natural: Size, val expected: Rect?)
+
+private fun responsiveBox(width: Double, height: Double, expected: Rect?): View = element(
+    ResponsiveBox(Size(width, height), expected),
+    { props, mount -> ResponsiveInk(props, scope = mount) }
+)
+
+private class ResponsiveInk(private val props: Props<ResponsiveBox>, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(props.value.natural)), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val expected = props.value.expected!!
+        context
+            .draw { paint ->
+                assertEquals(
+                    expected,
+                    windowBounds(paint.canvas, Rect(0.0, 0.0, paint.size.width, paint.size.height))
+                )
+            }
+    }
+}
+
+private fun responsiveContract(wide: Boolean, open: Binding<Boolean>, accepted: () -> Unit): View {
+    val linear = flex {
+        layoutFor { limits ->
+            if ((limits.maxWidth ?: 100.0) < 100.0)
+                FlexLayout(FlexAxis.Vertical, 3.0)
+            else
+                FlexLayout(FlexAxis.Horizontal, 7.0)
+        }
+        itemFor(responsiveBox(30.0, 7.0, if (wide) Some(Rect(0.0, 0.0, 30.0, 7.0)) else None)) {
+            limits
+            ->
+            if ((limits.maxWidth ?: 100.0) < 100.0) None else Some(FlexItemOptions())
+        }
+        add(responsiveBox(20.0, 12.0, Some(Rect(if (wide) 37.0 else 0.0, 0.0, 20.0, 12.0))))
+        add(
+            responsiveBox(
+                10.0,
+                8.0,
+                Some(Rect(if (wide) 64.0 else 0.0, if (wide) 0.0 else 15.0, 10.0, 8.0))
+            )
+        )
+    }
+    val grid = direction(
+        flexGrid(30.0) {
+            columnGap = 4.0
+            rowGap = 3.0
+            logicalPadding = Some(LogicalInsets(2.0, 1.0, 4.0, 2.0))
+            add(responsiveBox(50.0, 7.0, Some(Rect(38.0, 1.0, 30.0, 7.0))))
+            add(responsiveBox(50.0, 12.0, Some(Rect(4.0, 1.0, 30.0, 12.0))))
+            add(responsiveBox(50.0, 8.0, Some(Rect(38.0, 16.0, 30.0, 8.0))))
+        },
+        LayoutDirection.Rtl
+    )
+    val cap = if (wide) 40.0 else 30.0
+    val capped = frame(
+        responsiveBox(200.0, 80.0, Some(Rect((104.0 - cap) / 2.0, 22.0, cap - 4.0, 16.0)))
+    ) {
+        maxWidth = Some(cap)
+        maxHeight = Some(20.0)
+        padding = Some(Insets.all(2.0))
+    }
+    val dialog = portal(open, empty()) {
+        options {
+            mode = OverlayMode.Modal
+            focus {}
+        }
+    }
+    val modalSlot = flex {
+        itemFor(dialog) { limits ->
+            if ((limits.maxWidth ?: 100.0) < 100.0) None else Some(FlexItemOptions())
+        }
+    }
+    return element(
+        wide,
+        { props, mount -> ResponsivePanel(props, accepted, scope = mount) },
+        [linear, grid, capped, modalSlot]
+    )
+}
+
+private class ResponsivePanel(
+    private val wide: Props<Boolean>,
+    private val accepted: () -> Unit,
+    scope: ComponentScope
+) :
+    Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val narrow = Constraints(maxWidth = Some(99.0))
+        val broad = Constraints(maxWidth = Some(100.0))
+        assertEquals(Size(20.0, 23.0), context.measureChild(0L, narrow).size)
+        assertEquals(Size(74.0, 12.0), context.measureChild(0L, broad).size)
+        if (!wide.value) context.measureChild(0L, narrow)
+        context.placeChild(0L, Point(0.0, 0.0))
+        val two = Constraints(maxWidth = Some(70.0))
+        assertEquals(Size(70.0, 26.0), context.measureChild(1L, two).size)
+        assertEquals(
+            Size(69.0, 36.0),
+            context.measureChild(1L, Constraints(maxWidth = Some(69.0))).size
+        )
+        context.measureChild(1L, two)
+        context.placeChild(1L, Point(0.0, 0.0))
+        val cap = if (wide.value) 40.0 else 30.0
+        assertEquals(Size(cap, 20.0), context.measureChild(2L, Constraints()).size)
+        assertEquals(
+            Size(100.0, 60.0),
+            context.measureChild(2L, Constraints.tight(Size(100.0, 60.0))).size
+        )
+        context.placeChild(2L, Point(0.0, 0.0))
+        context.measureChild(3L, if (wide.value) narrow else broad)
+        context.measureChild(3L, if (wide.value) broad else narrow)
+        context.placeChild(3L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 60.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) {
+                    assertEquals(!wide.value, scope.input.isInputAllowed)
+                    accepted()
+                }
+            }
+    }
+}

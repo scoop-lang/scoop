@@ -49,6 +49,8 @@ internal class MountedNode(
     val layoutRequests = ArrayList<NodeLayout>()
     private var framesAllowed = true
     val localFrameEnabled: Boolean get() = framesAllowed
+    var hiddenByLayout = false
+    var layoutConcealed: Boolean = parent?.layoutConcealed ?: false
     private var participates = true
     val participatesInFrame: Boolean get() = participates
     var frameEnabled: Boolean = parent?.frameEnabled ?: true
@@ -82,6 +84,25 @@ internal class MountedNode(
         scope.updateFrameParticipation()
         for (child in children)
             child.inheritFrameParticipation(next)
+    }
+
+    fun setLayoutHidden(value: Boolean) {
+        if (hiddenByLayout == value) return
+        hiddenByLayout = value
+        inheritLayoutVisibility(parent?.layoutConcealed ?: false)
+        scope.setLayoutInputHidden(value)
+        root.semantics?.contentChanged()
+    }
+    private fun inheritLayoutVisibility(parentHidden: Boolean) {
+        val next = hiddenByLayout || parentHidden
+        if (layoutConcealed == next) return
+        layoutConcealed = next
+        when (body) {
+            case Portal(val portal) -> portal.focusSession?.updateLayoutVisibility()
+            else -> {}
+        }
+        for (child in children)
+            child.inheritLayoutVisibility(next)
     }
 
     fun clearPaintSubtree() {

@@ -18,6 +18,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         ScopedNativeEvents(root.host, resources, { checkMounted() }, { action -> dispatch(action) })
     private var route: InputScope? = None
     private var childRoute: InputScope? = None
+    private var layoutRoute: InputScope? = None
     private var animationGroup: AnimationGroup? = None
 
     internal fun createDragSource(
@@ -204,12 +205,26 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
             child.scope.reparentInput(area.scope)
         childRoute = Some(area.scope)
     }
-    private fun reparentInput(parent: InputScope) {
-        when (route) {
-            case Some(val value) -> if (!value.isClosed)
-                value.parent = Some(parent)
-            case None -> {}
+    /** Keep the component's own enabled setting independent of layout visibility. */
+    internal fun setLayoutInputHidden(hidden: Boolean) {
+        val gate = when (layoutRoute) {
+            case Some(val existing) -> existing
+
+            case None -> {
+                if (!hidden) return
+                val own = input
+                val created = root.surface.createScope(own.parent)
+                own.parent = Some(created)
+                managed.add(created)
+                layoutRoute = Some(created)
+                created
+            }
         }
+        gate.enabled = !hidden
+    }
+    private fun reparentInput(parent: InputScope) {
+        val top = layoutRoute ?: (route ?: return)
+        if (!top.isClosed) top.parent = Some(parent)
     }
 
     public val isMounted: Boolean get() {

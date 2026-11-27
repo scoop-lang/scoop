@@ -1,0 +1,143 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** An eager grid of equal-width columns and content-height rows in declaration order. */
+public class FlexGridProps public constructor(
+    public val minColumnWidth: Double,
+    public val children: Array<View>,
+    public val columnGap: Double = 0.0,
+    public val rowGap: Double = 0.0,
+    public val padding: Insets = Insets(),
+    public val logicalPadding: LogicalInsets? = None,
+    public val clip: Boolean = false
+) {
+    init {
+        requireComponent(
+            minColumnWidth.isFinite() && minColumnWidth > 0.0,
+            "flex grid minimum column width must be finite and positive"
+        )
+        nonnegative(columnGap, "invalid flex grid column gap")
+        nonnegative(rowGap, "invalid flex grid row gap")
+        padding.totals()
+        logicalPadding?.resolve(LayoutDirection.Ltr)?.totals()
+    }
+}
+
+public class FlexGridBuilder internal constructor() : ChildrenBuilder() {
+    public var columnGap: Double = 0.0
+    public var rowGap: Double = 0.0
+    public var padding: Insets = Insets()
+    public var logicalPadding: LogicalInsets? = None
+    public var clip: Boolean = false
+
+    internal fun snapshot(minimum: Double): FlexGridProps = FlexGridProps(
+        minimum,
+        childrenSnapshot(),
+        columnGap,
+        rowGap,
+        padding,
+        logicalPadding,
+        clip
+    )
+}
+
+public fun flexGrid(minColumnWidth: Double, configure: FlexGridBuilder.() -> Unit = {}): View =
+    makeFlexGrid(minColumnWidth, configure)
+
+internal fun makeFlexGrid(minimum: Double, configure: FlexGridBuilder.() -> Unit): View {
+    val builder = FlexGridBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(minimum),
+        { props, mount -> FlexGrid(props, scope = mount) },
+        builder.key
+    )
+}
+
+public class FlexGrid public constructor(
+    private val props: Props<FlexGridProps>,
+    scope: ComponentScope
+) : Component(scope) {
+    public override fun render(): View = element(
+        props.value,
+        { input, mount -> FlexGridInk(input, scope = mount) },
+        props.value.children
+    )
+}
+
+internal struct FlexGridColumns(val count: Long, val width: Double)
+
+internal fun flexGridColumns(
+    count: Long,
+    minimum: Double,
+    gap: Double,
+    available: Double?,
+    lower: Double
+): FlexGridColumns {
+    if (count == 0L) return FlexGridColumns(0L, 0.0)
+    val width = available ?: return FlexGridColumns(1L, lowerBound(minimum, lower))
+    // Bound the search by actual items, including when finite width/minimum would overflow.
+    var low = 1L
+    var high = count
+    while (low < high) {
+        val middle = low + (high - low + 1L) / 2L
+        if (middle.toDouble() * minimum + flexGaps(middle, gap) <= width)
+            low = middle
+        else
+            high = middle - 1L
+    }
+    return FlexGridColumns(low, (width - flexGaps(low, gap)) / low.toDouble())
+}
+
+private class FlexGridInk(private val props: Props<FlexGridProps>, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val input = props.value
+        val edges = input.logicalPadding?.resolve(context.layoutDirection) ?: input.padding
+        val inset = edges.totals()
+        if (context.childCount == 0L)
+            return LayoutResult(LayoutMetrics(constraints.constrain(inset)), Unit)
+        val available = insetMaximum(constraints.maxWidth, inset.width)
+        val columns = flexGridColumns(
+            context.childCount, input.minColumnWidth, input.columnGap, available,
+            lowerBound(constraints.minWidth - inset.width, 0.0)
+        )
+        val width = available ?: columns.width
+        val cell = Constraints(
+            columns.width,
+            Some(columns.width),
+            maxHeight = insetMaximum(constraints.maxHeight, inset.height)
+        )
+        var y = 0.0
+        var rowHeight = 0.0
+        for (index in 0L..<context.childCount) {
+            val column = index % columns.count
+            if (column == 0L && index > 0L) {
+                y += rowHeight + input.rowGap
+                rowHeight = 0.0
+            }
+            val child = context.measureChild(index, cell)
+            val start = column.toDouble() * columns.width + column.toDouble() * input.columnGap
+            context
+                .placeChild(
+                    index,
+                    Point(
+                        edges.left + logicalX(start, columns.width, width, context.layoutDirection),
+                        edges.top + y
+                    )
+                )
+            rowHeight = lowerBound(rowHeight, child.size.height)
+        }
+        val size = constraints.constrain(Size(width + inset.width, y + rowHeight + inset.height))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+
+    public override fun scene(context: SceneContext, measured: Unit) {
+        containerScene(context, props.value.clip)
+    }
+}

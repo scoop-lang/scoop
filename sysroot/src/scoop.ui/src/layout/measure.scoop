@@ -7,6 +7,7 @@ import scoop.platform.time.MonotonicInstant
 private class ChildMeasure(val node: MountedNode) {
     var measuring = false
     var skipped = false
+    var hidden = false
     var constraints: Constraints? = None
     var result: NodeLayout? = None
     var origin: Point? = None
@@ -105,13 +106,14 @@ public class MeasureContext internal constructor(
         if (entry.origin != None) throw IllegalStateException(Some("child was already placed"))
         entry.origin = Some(origin)
     }
-    /** Retains the mounted child without measuring or presenting it in this layout. */
-    public fun skipChild(index: Long) {
+    /** Skips measurement and placement. Hidden subtrees also leave input and accessibility on submission. */
+    public fun skipChild(index: Long, hidden: Boolean = false) {
         checkActive()
         val entry = entries[index]
         if (entry.skipped || entry.measuring || entry.constraints != None || entry.origin != None)
             throw IllegalStateException(Some("child was already measured or skipped"))
         entry.skipped = true
+        entry.hidden = hidden
     }
     internal fun finish(): Array<ChildLayout> {
         for (entry in entries) {
@@ -126,7 +128,7 @@ public class MeasureContext internal constructor(
         }
         return Array<ChildLayout>(entries.size) { index ->
             val entry = entries[index]
-            ChildLayout(entry.node, entry.result, entry.origin)
+            ChildLayout(entry.node, entry.result, entry.origin, entry.hidden)
         }
     }
     internal fun end() {

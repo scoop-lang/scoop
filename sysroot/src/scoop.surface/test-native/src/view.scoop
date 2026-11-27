@@ -6,6 +6,7 @@ public class ViewProbe public constructor(
     customLayer: Boolean = false
 ): Closeable {
     private var native: Ptr<Unit>? = None
+    internal val nativeHandle: Ptr<Unit> get() = native!!
     init {
         @Unsafe
         {

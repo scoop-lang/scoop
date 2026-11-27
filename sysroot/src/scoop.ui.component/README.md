@@ -228,7 +228,23 @@ Button／Badge、Toggle 和 Tabs 的默认状态配色在高对比度下保留�
 
 主题 painter、字体、段落和滤镜归 Element 的 ComponentScope 所有，应用无需为每个控件添加 use。主题和效果没有自己的时钟，控件动画只使用 Surface Animatable；静止时不安排更新或绘制。
 
-Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props 更新；Stack 按描述顺序叠放。Frame 提供明确的尺寸、padding、两轴对齐和公共装饰，也可以选择 SurfaceKind 使用主题表面。未选表面时无需主题来源；从普通 Frame 切换为主题表面或反向切换都保留内容身份。Frame 透传经实际偏移后的基线，其他容器首期没有基线对齐策略。
+Row／Column 使用 Flex 的主轴分配和交叉轴对齐。Flex 可以在本次测量选择方向、间距和内缩。下面的工具栏随自己的父容器宽度切换方向。只在宽布局显示的子项保留挂载，窄布局会跳过它及相邻间距。
+
+```kotlin
+val narrow = FlexLayout(FlexAxis.Vertical, spacing = 8.0)
+val wide = FlexLayout(FlexAxis.Horizontal, spacing = 16.0)
+flex {
+    layoutFor { limits -> if ((limits.maxWidth ?: 640.0) < 640.0) narrow else wide }
+    add(editor)
+    itemFor(actions) { limits ->
+        if ((limits.maxWidth ?: 640.0) < 640.0) None else Some(FlexItemOptions())
+    }
+}
+```
+
+`frame(content) { maxWidth = Some(720.0) }` 允许正文按自然宽度收缩并限制最长行。上限含内缩，父级强制填满时外框扩展，正文仍限宽并按 alignment 放置。maxHeight 同理。Frame 支持原有固定尺寸、主题表面及基线透传。
+
+`flexGrid(152.0) { columnGap = 8.0; rowGap = 8.0; addAll(cards) }` 按内容区能容纳的等宽列数排放卡片，最后一行也沿列线对齐。无界宽度采用单列，窄于 152 时随父级收缩。逻辑内缩和列起点跟随 RTL。完整目录／详情组合见 [Gallery](examples/shadcn/src/gallery.scoop)。
 
 `absolute([AbsoluteChild(view, horizontal, vertical, zIndex), ...], width, height, padding)` 在有限容器内定位。AbsoluteAxis 提供 Start／End／Center 的偏移与可选 tight 尺寸，以及 Stretch 两端定位；允许负偏移，无界父轴需要显式容器尺寸。容器不由子项撑开，每项只测量一次，不隐式裁剪。zIndex 控制同层呈现和命中，同值按描述顺序；子项 key、逻辑挂载和 Tab 顺序保留。布局错误在参数／测量边界报告，外观可组合 Frame。
 

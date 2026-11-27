@@ -1,0 +1,83 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** Geometry for one Flex measurement, in logical units. */
+public class FlexLayout public constructor(
+    public val axis: FlexAxis = FlexAxis.Horizontal,
+    public val spacing: Double = 0.0,
+    public val alignment: CrossAlignment = CrossAlignment.Start,
+    public val justify: MainAlignment = MainAlignment.Start,
+    public val padding: Insets = Insets(),
+    public val logicalPadding: LogicalInsets? = None
+) {
+    init {
+        nonnegative(spacing, "invalid flex spacing")
+        padding.totals()
+        logicalPadding?.resolve(LayoutDirection.Ltr)?.totals()
+    }
+}
+
+/** Selects allocation for an existing child. None skips it for this measurement. */
+public struct FlexItemRule(val index: Long, val resolve: (Constraints) -> FlexItemOptions?)
+
+public class FlexProps public constructor(
+    public val axis: FlexAxis,
+    public val layout: LinearProps,
+    public val layoutFor: ((Constraints) -> FlexLayout)? = None,
+    public val itemRules: Array<FlexItemRule> = []
+) {
+    internal val base = layout.arrangement(axis)
+    init {
+        var previous = -1L
+        for (rule in itemRules) {
+            requireComponent(
+                rule.index > previous && rule.index < layout.items.size,
+                "flex item rules must follow child order"
+            )
+            previous = rule.index
+        }
+    }
+}
+
+/** The allocation arrays are dense; placement uses the original mounted indices. */
+internal class FlexSelection(
+    val options: Array<FlexItemOptions>,
+    val indices: Array<Long>? = None
+) {
+    fun child(index: Long): Long = when (indices) {
+        case Some(val slots) -> slots[index]
+        case None -> index
+    }
+}
+
+internal fun selectFlexItems(
+    context: MeasureContext,
+    constraints: Constraints,
+    items: Array<FlexItem>,
+    rules: Array<FlexItemRule>
+): FlexSelection {
+    if (rules.size == 0L)
+        return FlexSelection(Array<FlexItemOptions>(items.size) { index -> items[index].options })
+    val options = ArrayList<FlexItemOptions>()
+    val indices = ArrayList<Long>()
+    var next = 0L
+    for (index in 0L..<items.size) {
+        val option = if (next < rules.size && rules[next].index == index) {
+            val rule = rules[next]
+            next += 1L
+            rule.resolve(constraints)
+        } else
+            Some(items[index].options)
+        when (option) {
+            case Some(val selected) -> {
+                indices.add(index)
+                options.add(selected)
+            }
+
+            case None -> context.skipChild(index, hidden = true)
+        }
+    }
+    return FlexSelection(options.toArray(), Some(indices.toArray()))
+}

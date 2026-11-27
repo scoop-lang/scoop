@@ -30,6 +30,12 @@ final class GalleryTests: XCTestCase {
 
     func testGalleryNavigation() {
         XCTAssertTrue(element("gallery-search").waitForExistence(timeout: 15), app.debugDescription)
+        let settings = app.buttons[entryPrefix + "Settings app"].frame
+        let workspace = app.buttons[entryPrefix + "Workspace app"].frame
+        if app.windows.firstMatch.frame.width >= 380 {
+            XCTAssertEqual(settings.midY, workspace.midY, accuracy: 1)
+            XCTAssertGreaterThan(workspace.minX, settings.maxX)
+        }
         open("Settings app")
         let back = app.buttons["gallery-back"]
         XCTAssertTrue(back.waitForExistence(timeout: 5), app.debugDescription)
@@ -37,6 +43,9 @@ final class GalleryTests: XCTestCase {
         XCUIDevice.shared.press(.home)
         app.activate()
         XCTAssertTrue(app.staticTexts["Profile settings"].exists)
+        let resumed = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in back.isHittable }, object: back)
+        XCTAssertEqual(XCTWaiter.wait(for: [resumed], timeout: 5), .completed)
         back.tap()
         open("Toast")
         XCTAssertTrue(back.waitForExistence(timeout: 5), app.debugDescription)
@@ -370,6 +379,10 @@ final class GalleryTests: XCTestCase {
 
     func testGalleryWide() {
         XCTAssertTrue(element("gallery-search").waitForExistence(timeout: 15), app.debugDescription)
+        let settings = app.buttons[entryPrefix + "Settings app"].frame
+        let workspace = app.buttons[entryPrefix + "Workspace app"].frame
+        XCTAssertEqual(settings.minX, workspace.minX, accuracy: 1)
+        XCTAssertGreaterThan(workspace.minY, settings.maxY)
         open("Settings app")
         XCTAssertTrue(app.staticTexts["Profile settings"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("gallery-search").isHittable)

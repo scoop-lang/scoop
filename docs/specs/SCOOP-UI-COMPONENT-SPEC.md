@@ -316,6 +316,16 @@ FrameProps 保存 content、可选 width／height、可选 padding、Alignment�
 
 Flex／Row／Column 的位置按本次 MeasureContext.layoutDirection 解析；水平逻辑起点在 RTL 时位于右侧，垂直排列仅翻转交叉轴逻辑起点。声明顺序、子 key 和 Tab 顺序不变，内容自身不镜像。logicalPadding 非 None 时先按方向解析为 Insets，再替代 physical padding；两个字段是不同值类型，赋入 None 恢复 physical padding。
 
+#### 按父约束选择 Flex 布局
+
+`flex` 的 `layoutFor { constraints -> FlexLayout(...) }` 在每次实际测量时选择本轮排列。FlexLayout 保存 axis、spacing、alignment、justify、padding 和 logicalPadding，缺省值与 Flex 相同。没有选择函数时使用 builder 的静态设置。有选择函数时使用其完整返回值，clip 始终沿用容器设置。回调接收父级给此容器的原始 Constraints，单位为逻辑长度，先判断再扣本轮 padding。最大值 None 表示无界，由调用方明确选择排列。显式阈值按原值比较，例中的“窄于”使用严格小于，等于阈值进入宽布局。
+
+`FlexBuilder.itemFor(content) { constraints -> FlexItemOptions? }` 声明一个稳定子项。Some 参与本轮分配，None 使用 skipChild(index, hidden = true) 保留挂载，且不占 basis、间距、基线、对齐或放置。普通 add／item 仍按静态选项参与。选择函数和普通 measure 一样只读。同轮试测可以传入不同约束，业务状态在 render 中读取并捕获。调整排列保持逻辑父级、子项顺序及实例。隐藏期间的输入、辅助功能与绘制资格遵守 UI 规范第 7.1 节。公开 FlexProps 提供相同的布局选择函数和按直接子项索引声明的规则，索引须在范围内且严格递增。
+
+#### Frame 尺寸上限
+
+FrameProps 和 FrameBuilder 提供可选的 maxWidth、maxHeight，均为含 padding 与主题内缩的外框逻辑长度，须有限非负。每轴先用上限收敛原有子测量范围，再扣内缩，子项可以返回较小的自然尺寸。指定尺寸、子自然尺寸加内缩、主题最小／建议尺寸所决定的期望外框同样受上限约束，再服从父约束。父最小尺寸大于上限时外框满足父最小尺寸，内容继续按上限测量并使用原有 alignment 在实际外框中定位。两轴独立，上限改变会使布局失效。
+
 ### 6.1 Absolute
 
 AbsoluteProps 包含 children: Array<AbsoluteChild>、可选 width／height、padding: Insets（默认零）及 logicalPadding: LogicalInsets?（默认 None）。AbsoluteChild 保存 View、horizontal／vertical: AbsoluteAxis（默认 Start(0)）和 zIndex: Int = 0；absolute 工厂与 Absolute 组件消费同一 Props。子 View 的 key 及逻辑顺序直接保留，不为 zIndex 重排逻辑子树。
@@ -453,6 +463,13 @@ GridProps 保存 columns／rows: Array<GridTrack>、items: Array<GridItem>、col
 `resizePair(first,second,delta,firstMin=0,firstMax=None,secondMin=0,secondMax=None)` 在两侧 min／max 内限制同一个位移，返回保留总长度的 SplitSizes；现有尺寸和位移必须可表示且满足配置。不会由两侧各自计算导致总量漂移。
 
 `snapTarget(position,velocity,anchors,projectionSeconds=0.15)` 从真实布局提供的有限锚点中，按释放速度投影后选择最近项，返回可选的 SnapTarget(index,position)；空锚点返回 None，同距离按速度方向选择、零速取较小位置。anchors 可保留调用方声明顺序，结果下标对应原数组。结果目标始终是实际有限锚点；函数不持有 Window、不启动动画、不管理条目模型。调用方在布局变化后重新解析锚点，用已有 Animatable／spring 推进，新拖动从当前值接管并取消旧目标。
+
+### 6.7 FlexGrid
+
+`flexGrid(minColumnWidth) { ... }` 接受按顺序追加的子项，ChildrenBuilder 提供同名成员。FlexGridBuilder 支持 columnGap、rowGap、padding、logicalPadding、clip 和 key。minColumnWidth 有限且严格为正，间距和内缩有限非负。空集合的自然尺寸为内缩之和。非空且父宽有界时扣除内缩，用能容纳的最多列数均分内容宽度，列数在一与子项数之间。恰好容纳所需列宽与间距时增加一列，不足一列时让单列收缩。无界宽度使用一列，列宽取 minColumnWidth 与父最小宽度扣除内缩的较大值。
+
+每列以同一紧宽测量子项，每行高度取该行最大的实际高度，子项顶边对齐，相邻两行之间留出 rowGap。末行沿用完整列宽并从逻辑起点排列。RTL 只翻转列位置，声明、Tab 及绘制顺序保持。最终尺寸服从父约束，clip 显式控制溢出裁剪。改变宽度只重新分配原有直接子项，不生成行节点。
+
 
 ## 7. 样式与资源归属
 

@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
+import scoop.ui.component.flex as makeFlex
 import scoop.ui.component.row as makeRow
 import scoop.ui.component.wrap as makeWrap
 import scoop.ui.component.frame as makeFrame
@@ -20,97 +21,86 @@ public class GalleryScene public constructor() {
     public fun root(scope: ComponentScope): Component = Gallery(model, scope)
 }
 
+private enum GalleryDestination {
+    Initial, Catalog, Detail
+}
+
 internal class Gallery(private val model: GalleryModel, scope: ComponentScope) : Component(scope) {
-    private val compact = state(isNarrow(scope.nativeWindow.metrics))
     private val keyboardInset = state(0.0)
-    private val detail = state(false)
+    private val destination = state(GalleryDestination.Initial)
     private val appearance = state(false)
 
     public override fun onMount() {
+        val window = scope.nativeWindow
+        updateKeyboard(dockedInset(window.metrics, window.softwareKeyboard))
         scope
-            .observeWindow(scope.nativeWindow) { event ->
+            .observeWindow(window) { event ->
                 when (event) {
-                    case GeometryChanged(val metrics) -> {
-                        compact.value = isNarrow(Some(metrics))
-                        keyboardInset.value = dockedInset(
-                            Some(metrics),
-                            scope.nativeWindow.softwareKeyboard
-                        )
-                    }
-
+                    case GeometryChanged(val metrics) ->
+                        updateKeyboard(dockedInset(Some(metrics), window.softwareKeyboard))
                     case SoftwareKeyboardChanged(val keyboard) ->
-                        keyboardInset.value = dockedInset(scope.nativeWindow.metrics, keyboard)
+                        updateKeyboard(dockedInset(window.metrics, keyboard))
                     else -> {}
                 }
             }
     }
 
+    private fun updateKeyboard(inset: Double) {
+        if (keyboardInset.value != inset) keyboardInset.value = inset
+    }
+
+    private fun selectEntry(entry: Demo) {
+        if (entry == Demo.AppWorkspace || entry == Demo.Sidebar) {
+            val width = scope.nativeWindow.metrics?.logicalSize?.width
+            if (compactGallery(Constraints(maxWidth = width))) {
+                if (entry == Demo.AppWorkspace)
+                    model.appWorkspace.navigation.value = false
+                else
+                    model.sidebars.open.value = false
+            }
+        }
+        model.selected.value = entry
+        destination.value = GalleryDestination.Detail
+        appearance.value = false
+    }
+
     public override fun render(): View {
         val model = this.model
-        if (!compact.value)
-            return galleryView(model) { entry ->
-                model.selected.value = entry
-                detail.value = true
-            }
         val entries = model.entries()
         val current = model.current(entries)
-        val panel = this
+        val route = destination.value
+        val inDetail = route == GalleryDestination.Detail && current != None
+        val header = galleryHeader(
+            model, current, inDetail, appearance.value,
+            { destination.value = GalleryDestination.Catalog },
+            { appearance.value = !appearance.value }
+        )
+        val catalog = galleryNavigation(model, entries, current) { entry -> selectEntry(entry) }
+        val content = when (current) {
+            case Some(val entry) ->
+                if (route == GalleryDestination.Catalog)
+                    galleryText(model, "Select an example", 24.0, 600)
+                else
+                    galleryDemo(model, entry)
+            case None -> galleryText(model, "No matching examples", 24.0, 600)
+        }
+        val detail = makeScrollArea(
+            makeFrame(content) {
+                maxWidth = Some(960.0)
+                padding = Some(Insets.all(6.0))
+                alignment = Alignment(AxisAlignment.Center, AxisAlignment.Start)
+            }
+        )
+        val panes = galleryPanes(catalog, detail, inDetail, keyboardInset.value)
         return cachedScene(
             direction(
                 makeFrame(
                     makeColumn {
-                        spacing = 8.0
-                        padding = Insets(12.0, 12.0, 12.0, 12.0 + panel.keyboardInset.value)
                         alignment = CrossAlignment.Stretch
-                        add(
-                            makeRow {
-                                spacing = 8.0
-                                alignment = CrossAlignment.Center
-                                if (panel.detail.value)
-                                    button("Examples", { panel.detail.value = false }) {
-                                        variant = ButtonVariant.Outline
-                                        semantics = ComponentSemantics(
-                                            automationId = Some("gallery-back")
-                                        )
-                                    }
-                                item(
-                                    galleryText(
-                                        model,
-                                        if (panel.detail.value && current != None)
-                                            demoTitle(current!!)
-                                        else
-                                            "UI Gallery",
-                                        18.0,
-                                        600
-                                    )
-                                ) { grow = 1.0 }
-                                button(
-                                    "Appearance",
-                                    { panel.appearance.value = !panel.appearance.value }
-                                ) { variant = ButtonVariant.Outline }
-                            }
-                        )
-                        if (panel.appearance.value) add(galleryAppearance(model))
-                        val page = if (panel.detail.value && current != None)
-                            makeScrollArea(
-                                makeFrame(galleryDemo(model, current!!)) {
-                                    padding = Some(Insets.all(4.0))
-                                }
-                            )
-                        else
-                            galleryNavigation(model, entries, current, true) { entry ->
-                                when (entry) {
-                                    case AppWorkspace -> model.appWorkspace.navigation.value = false
-                                    case Sidebar -> model.sidebars.open.value = false
-                                    else -> {}
-                                }
-                                model.selected.value = entry
-                                panel.detail.value = true
-                                panel.appearance.value = false
-                            }
-                        item(page) {
-                            grow = 1.0;
+                        add(header)
+                        item(panes) {
                             basis = FlexBasis.Fixed(0.0)
+                            grow = 1.0
                         }
                     }
                 ) {
@@ -130,10 +120,33 @@ internal class Gallery(private val model: GalleryModel, scope: ComponentScope) :
     }
 }
 
-private fun isNarrow(metrics: WindowMetrics?): Boolean {
-    val value = metrics ?: return false
-    return value.logicalSize.width - value.safeAreaInsets.left - value.safeAreaInsets.right < 720.0
+private fun compactGallery(constraints: Constraints): Boolean = when (constraints.maxWidth) {
+    case Some(val width) -> width < 720.0
+    case None -> false
 }
+
+private fun galleryPanes(catalog: View, detail: View, inDetail: Boolean, keyboard: Double): View =
+    makeFlex {
+        val narrow = FlexLayout(
+            FlexAxis.Vertical,
+            8.0,
+            CrossAlignment.Stretch,
+            padding = Insets(12.0, 0.0, 12.0, 12.0 + keyboard)
+        )
+        val wide = FlexLayout(
+            FlexAxis.Horizontal,
+            32.0,
+            CrossAlignment.Stretch,
+            padding = Insets(28.0, 0.0, 28.0, 20.0 + keyboard)
+        )
+        val fill = FlexItemOptions(basis = FlexBasis.Fixed(0.0), grow = 1.0)
+        val rail = FlexItemOptions(basis = FlexBasis.Fixed(206.0), shrink = 0.0)
+        layoutFor { limits -> if (compactGallery(limits)) narrow else wide }
+        itemFor(catalog) { limits ->
+            if (!compactGallery(limits)) Some(rail) else if (inDetail) None else Some(fill)
+        }
+        itemFor(detail) { limits -> if (compactGallery(limits) && !inDetail) None else Some(fill) }
+    }
 
 private fun dockedInset(metrics: WindowMetrics?, keyboard: SoftwareKeyboardState): Double {
     val window = metrics ?: return 0.0
@@ -155,71 +168,54 @@ private fun dockedInset(metrics: WindowMetrics?, keyboard: SoftwareKeyboardState
     return if (covered > 0.0) covered else 0.0
 }
 
-private fun galleryView(model: GalleryModel, select: (Demo) -> Unit): View {
-    val palette = model.source.current.value.tokens.palette
-    val entries = model.entries()
-    val current = model.current(entries)
-    val content = when (current) {
-        case Some(val value) -> galleryDemo(model, value)
-        case None ->
-            makeColumn {
-                spacing = 12.0
-                add(galleryText(model, "No matching examples", 24.0, 600))
-                add(
-                    galleryText(model, "Try Card, Alert, Button, Input, or Empty.", 14.0, 400, true)
-                )
-            }
-    }
-    return cachedScene(
-        direction(
-            makeFrame(
-                makeColumn {
-                    spacing = 24.0
-                    padding = Insets.all(28.0)
-                    alignment = CrossAlignment.Stretch
-                    add(galleryToolbar(model))
-                    item(
-                        makeRow {
-                            spacing = 32.0
-                            alignment = CrossAlignment.Stretch
-                            add(
-                                galleryNavigation(model, entries, current, false, select)
-                            )
-                            item(
-                                makeScrollArea(
-                                    makeFrame(content) { padding = Some(Insets.all(6.0)) }
-                                )
-                            ) {
-                                grow = 1.0
-                                basis = FlexBasis.Fixed(0.0)
-                            }
-                        }
-                    ) {
-                        grow = 1.0
-                        basis = FlexBasis.Fixed(0.0)
-                    }
-                    add(
-                        galleryText(
-                            model,
-                            f"${galleryStyleTitle(model.style.value)}  /  Native Scoop controls",
-                            12.0,
-                            400,
-                            true
-                        )
-                    )
-                }
-            ) { style { background(Some(Paint(palette.background.background))) } },
-            model.direction.value
-        )
+private fun galleryHeader(
+    model: GalleryModel,
+    current: Demo?,
+    inDetail: Boolean,
+    expanded: Boolean,
+    back: () -> Unit,
+    toggle: () -> Unit
+): View = makeFlex {
+    val narrow = FlexLayout(
+        FlexAxis.Vertical,
+        8.0,
+        CrossAlignment.Stretch,
+        padding = Insets(12.0, 12.0, 12.0, 8.0)
     )
-}
-
-private fun galleryToolbar(model: GalleryModel): View {
-    return makeRow {
-        alignment = CrossAlignment.Center
-        add(galleryText(model, "Scoop / UI Gallery", 22.0, 600))
-        item(empty()) { grow = 1.0 }
-        add(galleryAppearance(model))
+    val wide = FlexLayout(
+        FlexAxis.Horizontal,
+        12.0,
+        CrossAlignment.Center,
+        padding = Insets(28.0, 20.0, 28.0, 20.0)
+    )
+    val natural = FlexItemOptions()
+    val stretch = FlexItemOptions(grow = 1.0)
+    layoutFor { limits -> if (compactGallery(limits)) narrow else wide }
+    itemFor(
+        makeRow {
+            spacing = 8.0
+            alignment = CrossAlignment.Center
+            if (inDetail)
+                button("Examples", back) {
+                    variant = ButtonVariant.Outline
+                    semantics = ComponentSemantics(automationId = Some("gallery-back"))
+                }
+            item(
+                galleryText(
+                    model,
+                    if (inDetail && current != None) demoTitle(current!!) else "UI Gallery",
+                    18.0,
+                    600
+                )
+            ) { grow = 1.0 }
+            button("Appearance", toggle) { variant = ButtonVariant.Outline }
+        }
+    ) { limits -> if (compactGallery(limits)) Some(natural) else None }
+    itemFor(galleryText(model, "Scoop / UI Gallery", 22.0, 600)) { limits ->
+        if (compactGallery(limits)) None else Some(stretch)
+    }
+    itemFor(galleryAppearance(model)) { limits ->
+        if (!compactGallery(limits) || expanded) Some(natural) else None
     }
 }
 
@@ -274,7 +270,6 @@ private fun galleryNavigation(
     model: GalleryModel,
     entries: Array<Demo>,
     current: Demo?,
-    compact: Boolean,
     select: (Demo) -> Unit
 ): View = makeFrame(
     makeScrollArea(
@@ -298,42 +293,41 @@ private fun galleryNavigation(
                 var present = false
                 for (entry in entries)
                     if (applicationDemo(entry) == applications) present = true
-                if (present)
-                    add(
-                        galleryText(
-                            model,
-                            if (applications) "APPLICATIONS" else "COMPONENTS",
-                            11.0,
-                            600,
-                            true
-                        )
+                if (!present) continue
+                add(
+                    galleryText(
+                        model,
+                        if (applications) "APPLICATIONS" else "COMPONENTS",
+                        11.0,
+                        600,
+                        true
                     )
-                for (entry in entries)
-                    if (applicationDemo(entry) == applications)
-                        button(demoTitle(entry), { select(entry) }) {
-                            semantics = ComponentSemantics(
-                                automationId = Some("gallery-entry-" + demoTitle(entry))
-                            )
-                            variant = if (current == Some(entry))
-                                ButtonVariant.Default
-                            else
-                                ButtonVariant.Outline
-                            style {
-                                surface {
-                                    suggestedSize = Some(Size(190.0, if (compact) 44.0 else 32.0))
-                                }
+                )
+                flexGrid(152.0) {
+                    key = ViewKey.Text(if (applications) "applications" else "components")
+                    columnGap = 8.0
+                    rowGap = 8.0
+                    for (entry in entries)
+                        if (applicationDemo(entry) == applications)
+                            button(demoTitle(entry), { select(entry) }) {
+                                key = ViewKey.Text(demoTitle(entry))
+                                semantics = ComponentSemantics(
+                                    automationId = Some("gallery-entry-" + demoTitle(entry))
+                                )
+                                variant = if (current == Some(entry))
+                                    ButtonVariant.Default
+                                else
+                                    ButtonVariant.Outline
+                                style { surface { suggestedSize = Some(Size(0.0, 44.0)) } }
                             }
-                        }
+                }
             }
         }
     ) {
         state = Some(model.catalogScroll)
         scrollbarBehavior { placement = ScrollbarPlacement.Gutter }
     }
-) {
-    if (!compact) width = Some(190.0)
-    alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
-}
+) { alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start) }
 
 internal fun galleryText(
     model: GalleryModel,

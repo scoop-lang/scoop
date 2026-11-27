@@ -105,7 +105,7 @@ private class FeedbackProbe {
                         }
                     )
                 native = Some(window)
-                view = Some(observeWindow(window))
+                view = Some(observeWindow(window, scriptedPointer = true))
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 host.attach(window, { mount -> FeedbackScene(this, scope = mount) })

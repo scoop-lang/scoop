@@ -62,6 +62,8 @@ handle.mergeLabels 默认 false，可在正常更新阶段切换。开启后，�
 
 ### 4.1 不改变焦点的显露
 
+布局显式使用 `skipChild(index, hidden = true)` 时，Accepted 后整个逻辑子树对辅助功能隐藏，包括独立语义根的 Portal。重新参与布局后恢复各节点声明的属性。普通未放置只撤下几何。见 UI 规范第 7.1 节。
+
 UI 节点默认提供 reveal 动作，包括没有 InputArea 或 FocusTarget 的 Text。显式 `SemanticActions.reveal` 可替换默认实现，继续经过相同的根与动作边界。默认能力不使普通静态标签失去合并资格；显式业务 reveal 与其他显式动作一样保留独立语义。ignored／已合并节点及 hidden／disabled 祖先的后代不能执行显露。
 
 Scene 登记同时保存当次 ScrollViewport 路径，Rect 缓存重放重新取得当前路径。默认显露使用匹配内容版本的 Accepted bounds、精确裁剪得到的 visibleBounds 和原 ScrollReveal 算法，从最内层向外逐个提出 Nearest 定位，继续扣除 ScrollPadding；不为语义内容创建输入区域，也不计算另一份未呈现位置。每次实际移动等待下一次 Accepted 场景后再处理外层，最终必须有非空可见区域；目标大于视口时允许显示其可达部分。不可滚出的自有裁剪、空形状、未放置或内容版本失配返回 Unavailable，既不抢焦点，也不修改文本选区。

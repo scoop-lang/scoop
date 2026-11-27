@@ -38,7 +38,12 @@ internal class TypedElementLayout<L>(
 internal class LayoutRound
 
 /** An absent result means skipped; a measured child may intentionally remain unplaced. */
-internal class ChildLayout(val node: MountedNode, val result: NodeLayout?, val origin: Point?)
+internal class ChildLayout(
+    val node: MountedNode,
+    val result: NodeLayout?,
+    val origin: Point?,
+    val hidden: Boolean = false
+)
 
 internal enum LayoutBody {
     Empty, Transparent, Portal(PortalInstance), Element(ElementLayout),

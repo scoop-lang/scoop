@@ -7,43 +7,46 @@ public class Flex public constructor(
     private val props: Props<FlexProps>,
     scope: ComponentScope
 ): Component(scope) {
-    public override fun render(): View =
-        flexElement(props.value.layout, props.value.axis == FlexAxis.Vertical)
+    public override fun render(): View = flexElement(props.value)
 }
 
-internal fun flexElement(layout: LinearProps, vertical: Boolean): View =
-    element(
-        LinearInput(layout, vertical),
-        { props, mount -> LinearInk(props, scope = mount) },
-        layout.children
-    )
+internal fun flexElement(input: FlexProps): View = element(
+    input,
+    { props, mount -> LinearInk(props, scope = mount) },
+    input.layout.children
+)
 
-private class LinearInput(val value: LinearProps, val vertical: Boolean)
-
-private class LinearInk(private val props: Props<LinearInput>, scope: ComponentScope): Element<
-    Unit
->(scope) {
+private class LinearInk(private val props: Props<FlexProps>, scope: ComponentScope) :
+    Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
-    > =
-        LayoutResult(
-            measureFlex(context, constraints, props.value.value, props.value.vertical),
+    > {
+        val input = props.value
+        val layout = when (input.layoutFor) {
+            case Some(val resolve) -> resolve(constraints)
+            case None -> input.base
+        }
+        return LayoutResult(
+            measureFlex(context, constraints, input.layout.items, layout, rules = input.itemRules),
             Unit
         )
+    }
 
     public override fun scene(context: SceneContext, measured: Unit) {
-        containerScene(context, props.value.value.clip)
+        containerScene(context, props.value.layout.clip)
     }
 }
 
 internal fun measureFlex(
     context: MeasureContext,
     constraints: Constraints,
-    props: LinearProps,
-    vertical: Boolean,
-    fitCross: Boolean = false
+    items: Array<FlexItem>,
+    layout: FlexLayout,
+    fitCross: Boolean = false,
+    rules: Array<FlexItemRule> = []
 ): LayoutMetrics {
-    val edges = props.logicalPadding?.resolve(context.layoutDirection) ?: props.padding
+    val vertical = layout.axis == FlexAxis.Vertical
+    val edges = layout.logicalPadding?.resolve(context.layoutDirection) ?: layout.padding
     val padding = edges.totals()
     val mainMaximum =
         insetMaximum(
@@ -77,9 +80,11 @@ internal fun measureFlex(
             None
         else
             crossMaximum
-    val options = Array<FlexItemOptions>(props.items.size) { index -> props.items[index].options }
-    val aligns =
-        Array<CrossAlignment>(options.size) { index -> options[index].align ?: props.alignment }
+    val selection = selectFlexItems(context, constraints, items, rules)
+    val options = selection.options
+    val aligns = Array<CrossAlignment>(options.size) { index ->
+        options[index].align ?: layout.alignment
+    }
     for (align in aligns)
         requireComponent(
             !vertical || align != CrossAlignment.Baseline,
@@ -96,7 +101,7 @@ internal fun measureFlex(
                     case Content -> {
                         val measured =
                             context.measureChild(
-                                index,
+                                selection.child(index),
                                 flexConstraints(None, initialCross, vertical)
                             )
                         content[index] = Some(measured)
@@ -105,7 +110,7 @@ internal fun measureFlex(
                 }
             flexClamp(basis, option)
         }
-    val gaps = flexGaps(options.size, props.spacing)
+    val gaps = flexGaps(options.size, layout.spacing)
     nonnegative(gaps, "flex spacing overflow")
     val allocated =
         when (mainMaximum) {
@@ -130,7 +135,7 @@ internal fun measureFlex(
                 measured!!
             else
                 context.measureChild(
-                    index,
+                    selection.child(index),
                     flexConstraints(
                         Some(allocated[index]),
                         initialCross,
@@ -163,7 +168,7 @@ internal fun measureFlex(
         Array<LayoutMetrics>(first.size) {
             index -> if (aligns[index] == CrossAlignment.Stretch)
                 context.measureChild(
-                    index,
+                    selection.child(index),
                     flexConstraints(Some(allocated[index]), Some(availableCross), vertical, true)
                 )
             else
@@ -171,7 +176,7 @@ internal fun measureFlex(
         }
     val cross = flexCrossMetrics(metrics, aligns, vertical)
     val remaining = flexMain(size, vertical) - flexMain(padding, vertical) - main
-    val spacing = flexSpacing(props.justify, remaining, metrics.size)
+    val spacing = flexSpacing(layout.justify, remaining, metrics.size)
     var cursor = spacing.leading
     var alphabetic: Double? = None
     var ideographic: Double? = None
@@ -199,7 +204,7 @@ internal fun measureFlex(
                     else
                         offset
             )
-        context.placeChild(index, origin)
+        context.placeChild(selection.child(index), origin)
         if (alphabetic == None) {
             when (metric.alphabeticBaseline) {
                 case Some(val value) -> alphabetic = Some(value + origin.y)
@@ -212,7 +217,7 @@ internal fun measureFlex(
                 case None -> {}
             }
         }
-        cursor += flexMain(metric.size, vertical) + props.spacing + spacing.between
+        cursor += flexMain(metric.size, vertical) + layout.spacing + spacing.between
     }
     return LayoutMetrics(size, alphabetic, ideographic)
 }

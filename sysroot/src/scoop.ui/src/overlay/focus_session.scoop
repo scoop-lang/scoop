@@ -38,7 +38,7 @@ internal class OverlayFocusSession(
             )
         )
     private var openingRevision = root.surface.focusRevision
-    private val barrier = InputBoundary(input, boundaryMode(), constrained)
+    private val barrier = InputBoundary(input, boundaryMode(), constrained && !node.layoutConcealed)
     val boundary: InputBoundary? get() =
         if (constrained)
             Some(barrier)
@@ -109,10 +109,13 @@ internal class OverlayFocusSession(
                 fallback = fallback
             )
         if (changed) {
-            barrier.update(boundaryMode(), constrained)
+            updateLayoutVisibility()
             root.overlays.reclassify()
             node.request(UiInvalidation.Scene)
         }
+    }
+    fun updateLayoutVisibility() {
+        if (!finished) barrier.update(boundaryMode(), constrained && !node.layoutConcealed)
     }
     fun place(context: FrameContext) {
         context.place(proxy, Rect(0.0, 0.0, context.size.width, context.size.height))
@@ -167,11 +170,12 @@ internal class OverlayFocusSession(
                 case None -> portal.canCompleteClose
             }
     val isModal: Boolean get() = mode == OverlayMode.Modal
-    val inCurrentDomain: Boolean get() =
-        when (boundary) {
-            case Some(val value) -> value.isCurrent
-            case None -> withinCurrentFocusDomain()
-        }
+    val inCurrentDomain: Boolean
+        get() = !node.layoutConcealed &&
+            when (boundary) {
+                case Some(val value) -> value.isCurrent
+                case None -> withinCurrentFocusDomain()
+            }
     private fun withinCurrentFocusDomain(): Boolean {
         val boundary = root.surface.focusBoundary ?: return true
         var cursor: InputScope? = Some(input)

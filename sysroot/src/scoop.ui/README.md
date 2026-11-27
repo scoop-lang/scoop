@@ -150,6 +150,8 @@ DragSource.update 替换下一次准备的配置／函数；每份数据的 onCo
 
 ## 自绘与资源
 
+自绘容器在 measure 中调用 `context.skipChild(index)` 可保留子项并跳过本轮测量。对随可用空间收起的面板使用 `context.skipChild(index, hidden = true)`，最后提交的布局也会将它移出输入和无障碍浏览。恢复后沿用同一子项、编辑模型与声明顺序。
+
 `TextEditOptions.inputPurpose` 使用 Window 的 Normal／Digits／Decimal／Email／Url／Telephone／Password／Search 提示；它不校验文本，受保护宿主始终发布 Password。`softwareKeyboard` 默认 true，成功触摸定位只请求一次键盘；`host.requestSoftwareKeyboard()` 可显式请求并区分 Requested／Unavailable／Unsupported。外侧命中区可用 `host.requestFocus(FocusOrigin.Pointer, softwareKeyboard = true)`，连接尚未就绪时保留一次自动请求。Windows 的实际键盘遮挡沿原 Accepted 滚动路径显露 caret，浮动键盘选择最近可用侧；不猜测其他平台的遮挡。
 
 `HoverOptions.longPress` 默认关闭；启用后触摸／笔长按打开同一 Binding，释放后保持，组外按下或原关闭路径收束。Tooltip／HoverCard 默认启用此入口。它复用 LongPress 的取消与子内容优先规则，短按仍由原控件处理。完整消费者见[触摸输入示例](../scoop.ui.component/examples/touch-input/README.md)。

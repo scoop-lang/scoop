@@ -1,0 +1,99 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+@Test
+private class ResponsiveLayoutTest {
+    @Test
+    fun `flex grid shares remaining width and admits columns exactly at the threshold`() {
+        assertEquals(FlexGridColumns(1L, 495.0), flexGridColumns(5L, 240.0, 16.0, Some(495.0), 0.0))
+        assertEquals(FlexGridColumns(2L, 240.0), flexGridColumns(5L, 240.0, 16.0, Some(496.0), 0.0))
+        assertEquals(FlexGridColumns(3L, 241.0), flexGridColumns(5L, 240.0, 16.0, Some(755.0), 0.0))
+        assertEquals(FlexGridColumns(1L, 70.0), flexGridColumns(3L, 90.0, 8.0, Some(70.0), 0.0))
+        assertEquals(FlexGridColumns(1L, 0.0), flexGridColumns(3L, 90.0, 8.0, Some(0.0), 0.0))
+        assertEquals(FlexGridColumns(0L, 0.0), flexGridColumns(0L, 90.0, 8.0, None, 0.0))
+        assertEquals(FlexGridColumns(1L, 90.0), flexGridColumns(3L, 90.0, 8.0, None, 0.0))
+        assertEquals(FlexGridColumns(1L, 100.0), flexGridColumns(3L, 90.0, 8.0, None, 100.0))
+        assertEquals(FlexGridColumns(2L, 5e307), flexGridColumns(2L, 1e-200, 0.0, Some(1e308), 0.0))
+    }
+
+    @Test
+    fun `frame limits include padding under tight loose and unbounded parents`() {
+        val cap = Size(80.0, 15.0)
+        val padding = Size(12.0, 20.0)
+        for (parent in [Constraints(), Constraints.tight(Size(150.0, 40.0))]) {
+            assertEquals(
+                Constraints(maxWidth = Some(68.0), maxHeight = Some(0.0)),
+                frameChildConstraints(
+                    parent,
+                    None,
+                    None,
+                    padding,
+                    Some(cap.width),
+                    Some(cap.height)
+                )
+            )
+        }
+        assertEquals(
+            Constraints(maxWidth = Some(28.0), maxHeight = Some(19.0)),
+            frameChildConstraints(
+                Constraints(maxWidth = Some(40.0)),
+                Some(120.0),
+                Some(39.0),
+                padding,
+                Some(80.0)
+            )
+        )
+    }
+
+    @Test
+    fun `layout builders retain static children and capture ordered conditional slots`() {
+        val builder = FlexBuilder()
+        val child = empty()
+        builder.add(child)
+        builder
+            .itemFor(child) { limits ->
+                if (limits.maxWidth == None) None else Some(FlexItemOptions(grow = 2.0))
+            }
+        builder
+            .layoutFor { limits ->
+                FlexLayout(if (limits.maxWidth == None) FlexAxis.Vertical else FlexAxis.Horizontal)
+            }
+        val snapshot = builder.flexProps()
+        builder.itemFor(child) { _ -> None }
+        assertEquals(2L, snapshot.layout.children.size)
+        assertEquals(1L, snapshot.itemRules.size)
+        val rule = snapshot.itemRules[0L]
+        assertEquals(1L, rule.index)
+        assertTrue(
+            when (rule.resolve(Constraints())) {
+                case None -> true
+                case Some(_) -> false
+            }
+        )
+        assertEquals(2.0, rule.resolve(Constraints(maxWidth = Some(40.0)))!!.grow)
+        assertEquals(FlexAxis.Vertical, snapshot.layoutFor!!(Constraints()).axis)
+    }
+
+    @Test
+    fun `invalid caps column widths gaps and slot rules fail at construction`() {
+        assertFailsWith<IllegalArgumentException> { FrameProps(empty(), maxHeight = Some(-1.0)) }
+        assertFailsWith<IllegalArgumentException> {
+            FrameProps(empty(), maxWidth = Some(Double.POSITIVE_INFINITY))
+        }
+        assertFailsWith<IllegalArgumentException> { flexGrid(0.0) }
+        assertFailsWith<IllegalArgumentException> { flexGrid(Double.NaN) }
+        assertFailsWith<IllegalArgumentException> { flexGrid(20.0) { rowGap = -1.0 } }
+        assertFailsWith<IllegalArgumentException> { FlexLayout(spacing = -1.0) }
+        assertFailsWith<IllegalArgumentException> {
+            FlexProps(
+                FlexAxis.Horizontal,
+                LinearProps([]),
+                itemRules = [FlexItemRule(0L, { _ -> None })]
+            )
+        }
+    }
+}

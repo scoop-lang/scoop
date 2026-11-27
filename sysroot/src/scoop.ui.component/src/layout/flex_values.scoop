@@ -69,4 +69,11 @@ public class LinearProps public constructor(
     }
 }
 
-public class FlexProps public constructor(public val axis: FlexAxis, public val layout: LinearProps)
+internal fun LinearProps.arrangement(axis: FlexAxis): FlexLayout = FlexLayout(
+    axis,
+    spacing,
+    alignment,
+    justify,
+    padding,
+    logicalPadding
+)

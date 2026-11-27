@@ -151,7 +151,9 @@ internal class GroupLayoutProps(
     val axis: FlexAxis,
     val slots: Array<GroupSlot>,
     val fitCross: Boolean = axis == FlexAxis.Vertical
-)
+) {
+    val arrangement = layout.arrangement(axis)
+}
 
 internal class GroupLayout(
     private val props: Props<GroupLayoutProps>,
@@ -169,8 +171,8 @@ internal class GroupLayout(
         measureFlex(
             context,
             constraints,
-            props.value.layout,
-            props.value.axis == FlexAxis.Vertical,
+            props.value.layout.items,
+            props.value.arrangement,
             fitCross = props.value.fitCross
         ),
         Unit
