@@ -4,6 +4,7 @@ mod casts;
 mod dependency_binders;
 mod files;
 mod generic_references;
+mod invalid_constructors;
 mod local_calls;
 mod local_captures;
 mod local_owner_arguments;

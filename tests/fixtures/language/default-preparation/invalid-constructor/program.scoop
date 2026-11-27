@@ -1,0 +1,5 @@
+class Broken(val value: Int = 1, val missing: Missing)
+
+fun main() {
+    Broken()
+}
