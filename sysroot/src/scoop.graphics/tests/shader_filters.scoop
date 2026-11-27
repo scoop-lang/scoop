@@ -11,7 +11,7 @@ half4 main(float2 p) {
 }
 """
 
-private fun solidGpuShader(target: RenderTarget, color: Color): Shader = target
+internal fun solidGpuShader(target: RenderTarget, color: Color): Shader = target
     .draw { canvas -> canvas.createSurface(4, 4) }
     .use { surface ->
         surface.draw { canvas -> canvas.clear(color) }

@@ -277,7 +277,7 @@ private class BackdropLayerTest {
     }
 }
 
-private fun withBackdropTargets(verify: (((Canvas) -> Unit) -> Array<Byte>) -> Unit) {
+internal fun withBackdropTargets(verify: (((Canvas) -> Unit) -> Array<Byte>) -> Unit) {
     RasterSurface(64, 32)
         .use { surface ->
             verify { scene ->
@@ -301,7 +301,7 @@ private fun assertBackdropMix(pixels: Array<Byte>, x: Int, opacity: Double) {
     )
 }
 
-private fun assertBackdropPixel(
+internal fun assertBackdropPixel(
     pixels: Array<Byte>,
     x: Int,
     y: Int,
