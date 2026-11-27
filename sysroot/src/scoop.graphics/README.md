@@ -27,6 +27,10 @@ RasterSurface(320, 180).use { surface ->
 
 Canvas 支持 save／restore、仿射变换、矩形／Path 裁剪、基本形状、描边、线性／径向渐变、Image 及组透明度。`saveLayer(opacity = 1.0, filter = None, blendMode = BlendMode.SrcOver)` 对完整组应用滤镜，再以整体透明度和混合模式合成，`restore()` 结束该组。`path(fillRule = FillRule.NonZero) { ... }` 同步执行配置，返回由调用方拥有的不可变快照，并在正常／异常退出时关闭临时 builder；`path()` 创建空路径。Path 的 contains、bounds 和 PathMeasure 使用相同几何与填充规则。
 
+`canvas.saveBackdropLayer(opacity = 1.0, backdrop = None, bounds = None)` 从当前下层像素开始建立合成组，可在进入时用 ImageFilter.blur 或 runtimeShader 处理背景，然后绘制清晰的前景。restore 按组 opacity 在原背景和完整结果之间插值，半透明背景只计入一次。省略 backdrop 时，后代仍可调用 drawBackdrop 读取继承的背景，适合把玻璃面板与子控件一起淡入淡出。saveLayer 保持从透明开始的隔离语义；下层读取以当前合成层为界。
+
+这两个图层入口都可放在 withState 中自动收尾。bounds 是已知输出与采样范围的局部坐标提示，不建立 clip；未知范围时省略。需要圆角输出时先 clipPath，再 saveBackdropLayer。滤镜在调用时借用，进入后可以关闭包装；重放记录保留实际资源并读取当次目标背景，含此操作的 Drawing 不可独立光栅化为缓存瓦片。完整插值、裁剪和生命周期合同见[下层合成规范](../../../docs/specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md#21-与下层共同合成)，真实 UI 用法见[玻璃示例](../scoop.ui.component/examples/glass/README.md)。
+
 增量构造可显式使用 `PathBuilder(fillRule).use { builder -> ... }`；所有追加及 `reset()` 操作返回 Unit，`build()` 返回独立快照并保留 builder，`reset()` 清空几何但保留填充规则。后续修改或关闭 builder 不改变已有 Path，PathMeasure 也可在原 Path 关闭后继续使用。
 
 `canvas.clipRect(rect, antiAlias = false)` 在设备像素上硬裁剪，可用于相邻图像块的内部边界，防止分数像素处重复按覆盖率混合产生接缝。省略参数仍使用抗锯齿；逻辑裁剪几何与输入命中保持相同，save／restore 和绘图记录保留所选方式。线性采样仍需相邻源像素，不能用硬裁剪代替图片块的采样边缘。

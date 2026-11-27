@@ -17,7 +17,7 @@ import scoop.window.*
 @Test
 private class GlassWindowTest {
     @Test(useProcess = true)
-    fun scrollingRefreshesBothFixedPanels() {
+    fun scrollingAndGroupOpacityRefreshBothFixedPanelsThenStopFrames() {
         val probe = GlassWindowProbe()
         context(ThemeSource(materialTheme())) {
             UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
@@ -40,12 +40,17 @@ private class GlassWindowTest {
                     }
 
                     case AboutToWait -> probe.advance(active)
+
+                    case NewEvents(StartCause.Deadline) -> {
+                        if (probe.phase == 10) probe.finish(active)
+                    }
+
                     else -> {}
                 }
             }
                 .use { host -> Application().run(host) }
         }
-        assertEquals(6, probe.phase)
+        assertEquals(10, probe.phase)
     }
 }
 
@@ -55,11 +60,12 @@ private class GlassWindowProbe {
     var completed = 0
     var pixels = Array<Long>(0L) { _ -> 0L }
     private var lastFrame = 0
+    private var idleFrames = 0
     private var frames = ArrayList<Array<Long>>()
 
     fun advance(active: ActiveApplication) {
-        if (phase >= 6 || completed <= lastFrame) return
-        val expectedY = if (phase >= 1 && phase <= 3) 168.0 else 0.0
+        if (phase >= 10 || completed <= lastFrame) return
+        val expectedY = if ((phase >= 1 && phase <= 3) || phase >= 7) 168.0 else 0.0
         if (model.scroll.offset.y != expectedY) return
         lastFrame = completed
         frames.add(pixels)
@@ -95,12 +101,54 @@ private class GlassWindowProbe {
             case 5 -> {
                 same(frames[0L], pixels, 0L)
                 same(frames[0L], pixels, 12L)
-                active.requestExit()
+                model.opacity.value = 0.5
+            }
+
+            case 6 -> {
+                different(frames[0L], pixels, 0L, 6L)
+                different(frames[0L], pixels, 12L, 6L)
+                model.scroll.scrollTo(Point(0.0, 168.0))
+            }
+
+            case 7 -> {
+                // The unchanged cached group must inherit the newly scrolled background.
+                different(frames[6L], pixels, 0L, 35L)
+                different(frames[6L], pixels, 12L, 35L)
+                model.opacity.value = 0.0
+            }
+
+            case 8 -> model.opacity.value = 1.0
+
+            case 9 -> {
+                same(frames[1L], pixels, 0L)
+                same(frames[1L], pixels, 12L)
+                midpoint(frames[8L], frames[1L], frames[7L])
+                idleFrames = completed
+                active
+                    .setControlFlow(
+                        ControlFlow
+                            .WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(150L))
+                    )
             }
 
             else -> fail()
         }
         phase += 1
+    }
+    fun finish(active: ActiveApplication) {
+        assertEquals(idleFrames, completed, Some("static glass kept submitting frames"))
+        active.requestExit()
+    }
+    private fun midpoint(background: Array<Long>, glass: Array<Long>, faded: Array<Long>) {
+        for (i in 0L until 24L) {
+            for (divisor in [1L, 256L, 65536L]) {
+                val expected = (background[i] / divisor % 256L + glass[i] / divisor % 256L) / 2L
+                assertTrue(
+                    abs(faded[i] / divisor % 256L - expected) <= 3L,
+                    Some(f"group opacity did not interpolate the current backdrop at sample ${i}")
+                )
+            }
+        }
     }
     private fun difference(a: Long, b: Long): Long {
         assertTrue(a >= 0L && b >= 0L, Some("window pixel read failed"))

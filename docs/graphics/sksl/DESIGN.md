@@ -1,6 +1,6 @@
 # scoop.graphics 的 SkSL 与组件效果
 
-2026-11-23。形状着色、子树滤镜与背景采样采用同一份 SkSL 程序和 Skia 公共接口。公开合同见 [graphics 效果规范第 5 节](../../specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样)。[独立窗口示例](../../../sysroot/src/scoop.ui.component/examples/glass/README.md)展示高斯毛玻璃与圆角折射。
+2026-11-28。形状着色、子树滤镜与背景采样采用同一份 SkSL 程序和 Skia 公共接口。公开合同见 [graphics 效果规范第 5 节](../../specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样)。[独立窗口示例](../../../sysroot/src/scoop.ui.component/examples/glass/README.md)展示高斯毛玻璃、圆角折射与整体透明度。
 
 ## 1. 程序与输入
 
@@ -14,12 +14,17 @@
 | 已有图像 | 用 setChild 绑定 Image.toShader，在 SkSL 中用 eval 采样 |
 | 一组子项 | 用 ImageFilter.runtimeShader 创建滤镜，在 saveLayer 与 restore 之间绘制子项 |
 | 当前组件背后的内容 | 在 SceneContext.draw 中调用 Canvas.drawBackdrop，或向 StylePainter.scene 传入 backdrop，然后绘制前景 |
+| 保留下层的一组组件 | 在 Canvas／SceneContext.saveBackdropLayer 中绘制，入口 backdrop 可先处理下层，opacity 作用于完整组 |
 
 ## 3. 生命周期与刷新
 
 程序在同一 owner 上复用。小型参数变化只创建新的实例，已录制的命令保留原有参数。组件作用域持有长期资源，尺寸相关的资源也可以随 LayoutResult 释放。图像与滤镜持有的 GPU 输入沿用创建图像时的 context。
 
 工具栏在滚动视口之后绘制。Skia 在同一帧、同一合成层读取此前的像素，在抗锯齿路径内替换滤镜结果。背景跨出轮廓的采样按滤镜的实际邻域申请。路径、滤镜和绘图命令可以跨帧复用，新的背景来自当前目标。含背景读取的绘图记录按整段命令重放，瓦片缓存跳过该段。
+
+需要整体透明度时，外层使用 `withState { group -> group.saveBackdropLayer(opacity); ... }`，组内继续用 StylePainter 的 backdrop 和 children。新组继承当前下层 D，退出时把已含背景的结果 R 按预乘 RGBA 插值 `D * (1 - opacity) + R * opacity`；Skia 的 kInitWithPrevious／backdrop 初始化与 Arithmetic blender 完成此操作。没有 CPU 截图或逐帧 GPU 等待。普通 saveLayer 从透明开始，嵌套在其中的背景组只读取该隔离层。
+
+只需统一处理组背景时，可直接传 `saveBackdropLayer(opacity, backdrop = Some(filter))`；滤镜在进入时执行，随后绘制的文字和子项保持清晰。没有入口滤镜的 UI 场景可缓存组命令及其值参数，重放时仍取当前背景。带借用滤镜的 scene 沿原资源规则直接执行。drawLayer 始终隔离内容；关闭瓦片缓存不改变这个边界。bounds、输出 clip 和采样范围见[下层合成规范 §2.1](../../specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md#21-与下层共同合成)。
 
 ## 4. 动画示例与停帧
 
@@ -64,6 +69,8 @@ runtimeShader 通过 sourceChild 指定源输入，sampleRadius 用局部逻辑�
 ## 6. 验证入口
 
 graphics 的 Cone 测试覆盖编译诊断、反射类型、参数快照、输入寿命、GPU context、分组滤镜及半透明背景重放。Glass studies 的窗口测试使用同一工具栏与真实滚动列表，对比两种滤镜单独开关时的帧，并在复位后核对像素。运行命令见[示例说明](../../../sysroot/src/scoop.ui.component/examples/glass/README.md)。
+
+2026-11-28 的下层合成验证使用 macOS arm64、release：graphics 的 85 个测试全部通过，其中新增 5 组同时检查 Raster／Metal 的预乘插值、半透明与圆角空组、嵌套和异常恢复、邻域采样、清晰前景、2 倍 DPI 及关闭源资源后的记录重放。真实玻璃窗口通过 10 阶段滚动／透明度／停帧对照；UI scene-cache 测试同时通过，直接检查无入口滤镜的组复用场景计数、重放时的背景变化，以及借用滤镜时重新执行 scene。Scoop 格式与 check、C++ 告警检查、受影响 API 文档生成及 saveBackdropLayer 查询均通过。本次新增能力尚未在其他目标实跑。
 
 ## 7. 调研依据
 

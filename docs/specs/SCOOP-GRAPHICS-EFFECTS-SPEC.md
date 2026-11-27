@@ -1,6 +1,6 @@
 # Scoop 图像滤镜与图层规范
 
-更新于 2026-11-23。本文扩展 [Surface 规范第 2 节](SCOOP-SURFACE-SPEC.md#2-几何与绘制)的 graphics 合同。基础滤镜与图层优化的历史验证见 [UI 实施记录](../ui/PROGRESS.md)和[基础设施实施记录](../ui/infrastructure/PROGRESS.md)。SkSL 与背景采样的 UI 接入见[公共样式规范](SCOOP-UI-STYLE-SPEC.md)和[独立工具栏示例](../../sysroot/src/scoop.ui.component/examples/glass/README.md)。
+更新于 2026-11-28。本文扩展 [Surface 规范第 2 节](SCOOP-SURFACE-SPEC.md#2-几何与绘制)的 graphics 合同。基础滤镜与图层优化的历史验证见 [UI 实施记录](../ui/PROGRESS.md)和[基础设施实施记录](../ui/infrastructure/PROGRESS.md)。SkSL 与背景采样的 UI 接入见[公共样式规范](SCOOP-UI-STYLE-SPEC.md)和[独立工具栏示例](../../sysroot/src/scoop.ui.component/examples/glass/README.md)。
 
 ## 1. 职责与公开对象
 
@@ -38,6 +38,18 @@ clip 建立在 saveLayer 之前时约束恢复后的输出；滤镜可能为该�
 
 PathBuilder.addRoundRect(rect, radii) 与 Canvas.drawRoundRect(rect, radii, paint) 使用同一 CornerRadii 归一化和 Skia 圆角矩形。原有 radiusX／radiusY 形式是统一椭圆半径的便利入口，委托同一实现。PathBuilder 追加操作返回 Unit；同一 Path 用于填充、clip、contains 和输入几何，不另用 UI 的圆角近似。作用域清理与增量构造的快照所有权见 [Surface 规范 §2](SCOOP-SURFACE-SPEC.md#2-几何与绘制)。
 
+### 2.1 与下层共同合成
+
+`Canvas.saveBackdropLayer(opacity: Double = 1.0, backdrop: ImageFilter? = None, bounds: Rect? = None)` 保存同一变换／裁剪状态，以当前层已经绘制的像素 D 初始化新层。提供 backdrop 时，在初始化时过滤 D；之后的普通绘图与子层在此结果上合成。因此模糊或折射只处理下层，随后绘制的文字、图标和子项保持清晰。省略 backdrop 时继承原像素，组内仍可在不同轮廓上使用 drawBackdrop、既有混合模式和 SkSL 滤镜。
+
+restore 将完成后的组内容 R 按 `D * (1 - opacity) + R * opacity` 写回父层；插值同时作用于预乘 RGB 和 alpha。opacity 为有限的 0～1，0 保留下层，1 完整替换；没有背景滤镜的空组不改变下层。它不是将已含 D 的结果再次 SrcOver 到 D 上，半透明背景不能重复变浓。组内的 clear／Src 等操作可以替换或清除继承的像素，随后同样按此公式恢复。调用方需要透明隔离的内容组时使用原有 saveLayer；两种入口各自保持明确语义，不提供相互冲突的恢复 blendMode 参数。
+
+下层是调用处当前合成层，不是整窗快照，也不跨过更外层的透明隔离层。希望后代玻璃在组透明度动画中仍能访问页面背景时，该动画组应使用 saveBackdropLayer；普通 save／withState、变换和子组件作用域不隔离下层像素。嵌套的 backdrop 层各自在自己的进入点取下层，并各自应用一次组 opacity。
+
+backdrop 与普通滤镜一样只在入口借用；图层／绘图记录持有所需的实际原生依赖。bounds 沿 saveLayer 的可选范围提示规则，不建立额外 clip；提示须涵盖组的实际输出及组内背景读取所需的范围，不能只以组件布局盒子代替。进入时的 backdrop 滤镜由 graphics 计算所需外围样本，恢复输出仍受入口的显式 clip 限制。组内后续背景读取以该层实际已有的像素为源，不穿透其像素边界。
+
+实现复用 Skia 的初始化下层与预乘混合能力，不获取 CPU 截图、不逐帧等待 GPU。含此操作的 Drawing 必须令 canRasterizeTiles 为 false；重放时才读取新的目标下层，不能将某一帧的背景固化为可复用像素块。它与 restore／withState 共用保存栈、异常收尾和输入几何，不新增时钟或持续帧需求。UI 对应入口及场景缓存见 [UI 规范 §7.2](SCOOP-UI-SPEC.md#72-场景装配与纯绘制)。
+
 ## 3. 坐标、生命周期与能耗
 
 Canvas 根部仍只应用一次 DPI。滤镜参数保持局部逻辑单位，由当前 CTM 进入设备空间；调用方和 style 均不得预乘 DPI。嵌套图层、变换与原生 Canvas 借用保持同一坐标及 alpha 合同，不为了滤镜读回 CPU 或逐帧等待 GPU。
@@ -49,6 +61,8 @@ Canvas 根部仍只应用一次 DPI。滤镜参数保持局部逻辑单位，由
 ## 4. 定向验收与后续
 
 所属 Cone 的 scoop.test 验证真实 RasterSurface 和 Metal 像素：透明内容的 alpha 投影、源与影的合成、滤镜顺序、零 sigma、整体 opacity／混合、边界扩展、clip 顺序、变换与一次 DPI，以及组合后关闭输入、异常层恢复和错误线程。使用带容差的像素／覆盖范围断言，不要求两个后端逐位一致，也不只检查编译成功。
+
+下层合成另覆盖半透明下层的空组恒等、预乘插值、嵌套组与异常恢复、先过滤背景再绘制清晰前景、裁剪外的入口滤镜样本、记录在不同目标背景上的重放，以及真实 UI 的背景更新、组透明度和停帧组合。保留普通 saveLayer 的隔离行为回归。
 
 ## 5. SkSL 着色与背景采样
 

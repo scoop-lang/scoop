@@ -346,6 +346,23 @@ public class SceneContext internal constructor(
             case None -> recorder?.add(SceneCommand.SaveLayer(opacity, blendMode))
         }
     }
+    /**
+     * Groups this scene and its children with the current backdrop, including during opacity fades.
+     * The optional filter processes the backdrop on entry, leaving subsequent foreground sharp.
+     * This reads the current layer only; an outer saveLayer still isolates its contents.
+     */
+    public fun saveBackdropLayer(
+        opacity: Double = 1.0,
+        backdrop: ImageFilter? = None,
+        bounds: Rect? = None
+    ) {
+        checkActive()
+        frame.canvas.saveBackdropLayer(opacity, backdrop, bounds)
+        when (backdrop) {
+            case Some(_) -> pass.cacheable = false
+            case None -> recorder?.add(SceneCommand.SaveBackdropLayer(opacity, bounds))
+        }
+    }
     public fun restore() {
         checkActive()
         frame.canvas.restore()

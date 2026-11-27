@@ -24,6 +24,30 @@ half4 main(float2 p) {
 }
 """
 
+/** A cacheable scene group; child glass samples the current background on every replay. */
+internal class GlassOpacity(private val opacity: Props<Double>, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    public override fun update(): UiInvalidation = UiInvalidation.Scene
+
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+
+    public override fun scene(context: SceneContext, layout: Unit) {
+        // Reserve the blur's 3-sigma neighborhood and the lens's 13-unit displacement.
+        val bounds = Rect(-24.0, -24.0, context.size.width + 48.0, context.size.height + 48.0)
+        context
+            .withState { group ->
+                group.saveBackdropLayer(opacity.value, bounds = Some(bounds))
+                group.children()
+            }
+    }
+}
+
 internal class GlassPanel(
     private val name: String,
     private val program: ShaderProgram?,

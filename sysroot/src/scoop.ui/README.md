@@ -160,6 +160,10 @@ DragSource.update 替换下一次准备的配置／函数；每份数据的 onCo
 
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。
 
+玻璃等需要与下层共同合成的组件可在 `context.withState { group -> ... }` 内调用 `group.saveBackdropLayer(opacity = 1.0, backdrop = None, bounds = None)`，然后绘制前景并调用 group.children。backdrop 可借用模糊或 SkSL 图像滤镜，在进入组时处理下层；前景继续保持清晰。省略滤镜时子项可自行调用 drawBackdrop 或 StylePainter.scene，整个组恢复时仍按 opacity 在原下层与完成结果之间插值。该能力读取当前层已有的背景，透明隔离的 saveLayer 祖先仍限定可见范围。opacity 不改变输入区域或焦点资格。
+
+`cachedScene` 可复用没有入口滤镜的 saveBackdropLayer 命令，每次重放读取当前帧背景。借用入口滤镜的 scene 每帧执行；图像内容不能缓存为包含旧背景的瓦片。示例[Glass studies](../scoop.ui.component/examples/glass/README.md)组合了缓存场景、滚动下层和玻璃组透明度；完整合同见[graphics 规范](../../../docs/specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md#21-与下层共同合成)。
+
 有限且有可靠内容版本的绘图使用 `context.drawLayer(key, bounds, revision, samplingOutset = 1.0) { paint -> ... }`。PaintKey 由元素持有；回调使用独立局部坐标，结果以 SrcOver 合成。ScrollViewport.paintCache 默认 None，Tiles 按设备像素块复用实际图像；场景、输入和 children 每帧照常装配。版本必须覆盖 State、时间、动画与资源变化，普通 draw 仍直接执行。ParagraphHost 的正文已接入此协议。
 
 块采用与局部原点对齐的设备像素网格；纯平移复用重叠块，改变内容版本、尺寸、缩放或后端时重建。离开范围、未放置或卸载时及时释放。记录内的 ImageFilter 和未声明可独立裁剪的原生命令按 Drawing.canRasterizeTiles 结果直接重放；可把滤镜放到 SceneContext.saveLayer 的完整内容合成阶段，使其输入仍可缓存。

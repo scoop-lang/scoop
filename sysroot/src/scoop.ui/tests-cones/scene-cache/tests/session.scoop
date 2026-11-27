@@ -13,9 +13,8 @@ private class UiSceneCacheTest {
     @Test(useProcess = true)
     fun `cached local scenes retain drawings and reassemble current input anchors and clipping`() {
         val probe = SceneCacheProbe()
-        UiHost { host, active, event -> probe.event(host, active, event) }.use {
-            host -> Application().run(host)
-        }
+        UiHost { host, active, event -> probe.event(host, active, event) }
+            .use { host -> Application().run(host) }
         assertTrue(probe.finished)
         // A window manager may apply the resize after the current frame is accepted.
         assertTrue(probe.discarded == 0 || probe.discarded == 1)
@@ -66,16 +65,21 @@ internal class SceneCacheProbe {
     var discarded = 0
     var restoredMeasures = 0
     var restoredRecords = 0
+    var backdrop = false
+    var backdropFilter = false
+    var backdropScenes = 0
+    var background = Color.White
     var finished = false
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
-                active.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
-                )
-                val native =
-                    active.createWindow(
+                active
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
+                    )
+                val native = active
+                    .createWindow(
                         windowAttributes {
                             title = "Scoop scene cache"
                             size = LogicalSize(320.0, 160.0)
@@ -85,15 +89,17 @@ internal class SceneCacheProbe {
                 host.attach(native, { scope -> CachedTestScene(this, active, scope) })
                 native.requestFocus()
             }
-            case NewEvents(StartCause.Deadline) -> fail(
-                Some(
-                    f"scene cache timed out at ${phase}: frames=${frames}, completed=${
-                        completed
-                    }, mounts=${mounts}, visible=${window!!.isVisible}, occluded=${
-                        window!!.isOccluded
-                    }"
+
+            case NewEvents(StartCause.Deadline) ->
+                fail(
+                    Some(
+                        f"scene cache timed out at ${phase}: frames=${frames}, completed=${
+                            completed
+                        }, mounts=${mounts}, visible=${window!!.isVisible}, occluded=${
+                            window!!.isOccluded
+                        }"
+                    )
                 )
-            )
             else -> {}
         }
     }
@@ -101,7 +107,7 @@ internal class SceneCacheProbe {
     fun accepted(active: ActiveApplication) {
         when (phase) {
             case 0 -> {
-                for (index in 0L ..< 2L) {
+                for (index in 0L..<2L) {
                     assertEquals(1, measures[index])
                     assertEquals(1, scenes[index])
                     assertEquals(1, records[index])
@@ -109,6 +115,7 @@ internal class SceneCacheProbe {
                 assertEquals(0x00ff00L, overlap)
                 next()
             }
+
             case 1 -> {
                 assertEquals(1, groupScenes)
                 assertEquals(1, scenes[0L])
@@ -117,6 +124,7 @@ internal class SceneCacheProbe {
                 offset = 30.0
                 next()
             }
+
             case 2 -> {
                 assertEquals(Some(Rect(50.0, 20.0, 40.0, 30.0)), areas[0L]!!.visibleBounds)
                 assertEquals(Some(Point(25.0, 10.0)), areas[0L]!!.toLocal(Point(75.0, 30.0)))
@@ -126,6 +134,7 @@ internal class SceneCacheProbe {
                 clipWidth = 55.0
                 next()
             }
+
             case 3 -> {
                 assertEquals(Some(Rect(50.0, 20.0, 35.0, 30.0)), areas[0L]!!.visibleBounds)
                 assertEquals(Some(Rect(70.0, 20.0, 15.0, 30.0)), areas[1L]!!.visibleBounds)
@@ -135,6 +144,7 @@ internal class SceneCacheProbe {
                 phase += 1
                 group!!.requestFrame()
             }
+
             case 4 -> {
                 assertEquals(0x0000ffL, overlap)
                 assertEquals(2, groupScenes)
@@ -143,6 +153,7 @@ internal class SceneCacheProbe {
                 areas[0L]!!.scope.enabled = false
                 next()
             }
+
             case 5 -> {
                 assertFalse(areas[0L]!!.canFocus)
                 assertTrue(areas[1L]!!.canFocus)
@@ -152,6 +163,7 @@ internal class SceneCacheProbe {
                 phase += 1
                 root!!.requestLayout()
             }
+
             case 6 -> {
                 assertEquals(None, areas[0L]!!.visibleBounds)
                 assertEquals(None, areas[1L]!!.visibleBounds)
@@ -160,6 +172,7 @@ internal class SceneCacheProbe {
                 phase += 1
                 root!!.requestLayout()
             }
+
             case 7 -> {
                 assertTrue(areas[0L]!!.canFocus)
                 assertEquals(2, scenes[0L])
@@ -170,6 +183,7 @@ internal class SceneCacheProbe {
                 phase += 1
                 revision.value += 1L
             }
+
             case 8 -> {
                 assertEquals(3, scenes[0L])
                 assertEquals(3, scenes[1L])
@@ -179,6 +193,7 @@ internal class SceneCacheProbe {
                 phase += 1
                 animation!!.snapTo(0.5)
             }
+
             case 9 -> {
                 assertEquals(0.5, alpha)
                 assertEquals(2, dynamicRecords)
@@ -188,21 +203,64 @@ internal class SceneCacheProbe {
                 discardNext = true
                 next()
             }
+
             case 10 -> {
                 assertTrue(discarded == 0 || discarded == 1)
                 assertEquals(Some(Rect(65.0, 20.0, 35.0, 30.0)), areas[0L]!!.visibleBounds)
                 assertEquals(65.0, overlayX)
                 assertEquals(3, scenes[0L])
                 assertEquals(restoredRecords, records[0L])
+                backdrop = true
+                background = Color(0.0, 0.0, 1.0)
+                phase += 1
+                group!!.requestFrame()
+            }
+
+            case 11 -> {
+                assertPixel(0x800080L)
+                backdropScenes = groupScenes
+                background = Color(0.0, 1.0, 0.0)
+                next()
+            }
+
+            case 12 -> {
+                assertPixel(0x008080L)
+                assertEquals(backdropScenes, groupScenes)
+                assertEquals(3, scenes[0L])
+                assertEquals(restoredRecords, records[0L])
+                backdropFilter = true
+                phase += 1
+                group!!.requestFrame()
+            }
+
+            case 13 -> {
+                assertPixel(0x008080L)
+                assertEquals(backdropScenes + 1, groupScenes)
+                next()
+            }
+
+            case 14 -> {
+                // Borrowed filter wrappers were closed after each save, before restore.
+                assertPixel(0x008080L)
+                assertEquals(backdropScenes + 2, groupScenes)
+                assertEquals(3, scenes[0L])
                 finished = true
                 phase += 1
                 active.requestExit()
             }
+
             else -> {}
         }
     }
     private fun next() {
         phase += 1
         root!!.requestFrame()
+    }
+    private fun assertPixel(expected: Long) {
+        assertTrue(overlap >= 0L)
+        for (divisor in [1L, 256L, 65536L]) {
+            val channel = expected / divisor % 256L
+            assertTrue(overlap / divisor % 256L in channel - 2L..channel + 2L)
+        }
     }
 }

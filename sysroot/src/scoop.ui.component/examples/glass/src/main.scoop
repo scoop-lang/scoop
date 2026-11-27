@@ -22,6 +22,7 @@ internal class GlassModel {
     val scroll = ScrollState()
     val frosted = state(true)
     val refracted = state(true)
+    val opacity = state(1.0)
 }
 
 internal class GlassGallery(private val model: GlassModel, scope: ComponentScope) :
@@ -42,12 +43,18 @@ internal class GlassGallery(private val model: GlassModel, scope: ComponentScope
             this.state = Some(scroll)
             scrollbars = ScrollbarVisibility.Auto
         }
+        val opacity = model.opacity.value
+        val fade = button(
+            if (opacity == 1.0) "Glass opacity: 100%" else "Glass opacity: 50%",
+            { model.opacity.value = if (model.opacity.value == 1.0) 0.5 else 1.0 }
+        ) { variant = ButtonVariant.Secondary }
         return element(
             { mount -> GalleryLayout(mount) },
             [
                 list,
                 panel("Gaussian blur", None, model.frosted),
-                panel("Refraction", Some(lens), model.refracted)
+                panel("Refraction", Some(lens), model.refracted),
+                fade
             ]
         )
     }
@@ -59,11 +66,12 @@ internal class GlassGallery(private val model: GlassModel, scope: ComponentScope
             variant = ButtonVariant.Secondary
             semantics = ComponentSemantics(name = Some(name + (if (active) " on" else " off")))
         }
-        return element(
+        val content = element(
             active,
             { props, mount -> GlassPanel(name, program, props, mount) },
             [action]
         )
+        return cachedScene(element(model.opacity.value, ::GlassOpacity, [content]))
     }
 }
 
@@ -91,6 +99,14 @@ private class GalleryLayout(scope: ComponentScope) : Element<Unit>(scope) {
                 Point(left + offset * (width + 12.0), 18.0)
             context.placeChild(child, origin)
         }
+        val fade = context
+            .measureChild(
+                3L, Constraints.tight(Size(min(220.0, max(0.0, size.width - 28.0)), 36.0))
+            )
+        context
+            .placeChild(
+                3L, Point((size.width - fade.size.width) * 0.5, max(0.0, size.height - 54.0))
+            )
         return LayoutResult(LayoutMetrics(size), Unit)
     }
 
