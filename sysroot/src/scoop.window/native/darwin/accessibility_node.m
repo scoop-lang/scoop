@@ -1,6 +1,13 @@
 #import "accessibility_collection.h"
 #include <math.h>
 
+static BOOL isCollectionRowArray(NSAccessibilityAttributeName attribute) {
+  return
+      [attribute isEqual:NSAccessibilityChildrenAttribute] ||
+      [attribute isEqual:NSAccessibilityChildrenInNavigationOrderAttribute] ||
+      [attribute isEqual:NSAccessibilityRowsAttribute];
+}
+
 @implementation SWAccessibilityNode
 - (SWAccessibilityState *)state {
   if (![NSThread isMainThread] || self.retired)
@@ -386,9 +393,7 @@
 }
 - (NSUInteger)accessibilityArrayAttributeCount:
     (NSAccessibilityAttributeName)attribute {
-  if (self.state.itemCount >= 0 &&
-      ([attribute isEqual:NSAccessibilityRowsAttribute] ||
-       [attribute isEqual:NSAccessibilityChildrenAttribute]))
+  if (self.state.itemCount >= 0 && isCollectionRowArray(attribute))
     return [self participatesInAccessibility] ? (NSUInteger)self.state.itemCount
                                               : 0;
   return [super accessibilityArrayAttributeCount:attribute];
@@ -397,13 +402,22 @@
                  (NSAccessibilityAttributeName)attribute
                                          index:(NSUInteger)index
                                       maxCount:(NSUInteger)count {
-  if (self.state.itemCount >= 0 &&
-      ([attribute isEqual:NSAccessibilityRowsAttribute] ||
-       [attribute isEqual:NSAccessibilityChildrenAttribute]))
+  if (self.state.itemCount >= 0 && isCollectionRowArray(attribute))
     return [[self.tree collection:self.number] rowsFrom:index count:count];
   return [super accessibilityArrayAttributeValues:attribute
                                             index:index
                                          maxCount:count];
+}
+- (NSUInteger)accessibilityIndexOfChild:(id)child {
+  SWAccessibilityCollection *collection = [self.tree collection:self.number];
+  if (!collection)
+    return [super accessibilityIndexOfChild:child];
+  if (!self.isAccessibilityElement ||
+      ![child isKindOfClass:SWAccessibilityVirtualItem.class])
+    return NSNotFound;
+  SWAccessibilityVirtualItem *row = child;
+  return row.collection == collection ? (NSUInteger)row.accessibilityIndex
+                                      : NSNotFound;
 }
 - (NSRect)accessibilityFrame {
   SWAccessibilityState *state = self.state;

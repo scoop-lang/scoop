@@ -52,6 +52,17 @@ static int32_t checkCollection(ScoopCollectionProbe *probe, int32_t phase) {
     REQUIRE([list accessibilityVisibleRows].count < 20);
     probe.row = at(list, 50000);
     REQUIRE(probe.row);
+    REQUIRE([list accessibilityArrayAttributeCount:
+                      NSAccessibilityChildrenInNavigationOrderAttribute] ==
+            (NSUInteger)[list accessibilityRowCount]);
+    NSArray *navigation =
+        [list accessibilityArrayAttributeValues:
+                  NSAccessibilityChildrenInNavigationOrderAttribute
+                                          index:50000
+                                       maxCount:2];
+    REQUIRE(navigation.count == 2 && navigation[0] == probe.row);
+    REQUIRE([list accessibilityIndexOfChild:probe.row] == 50000);
+    REQUIRE([list accessibilityIndexOfChild:probe.root] == NSNotFound);
     REQUIRE([[probe.row accessibilityLabel] isEqual:@"Row 50000"]);
     REQUIRE([[probe.row accessibilityIdentifier] isEqual:@"row-50000"]);
     REQUIRE([probe.row accessibilityIndex] == 50000);
@@ -74,6 +85,7 @@ static int32_t checkCollection(ScoopCollectionProbe *probe, int32_t phase) {
   }
   case 1: {
     REQUIRE(at(list, 49999) == probe.row);
+    REQUIRE([list accessibilityIndexOfChild:probe.row] == 49999);
     REQUIRE([probe.row accessibilityIndex] == 49999);
     REQUIRE([[probe.row accessibilityLabel] isEqual:@"Row 50000"]);
     id emptyRow = at(list, 1);
@@ -88,6 +100,7 @@ static int32_t checkCollection(ScoopCollectionProbe *probe, int32_t phase) {
   case 2:
     REQUIRE([list accessibilityRowCount] == 99999);
     REQUIRE(![probe.row isAccessibilityElement]);
+    REQUIRE([list accessibilityIndexOfChild:probe.row] == NSNotFound);
     REQUIRE(![probe.row accessibilityRole]);
     REQUIRE([[at(list, 49999) accessibilityLabel] isEqual:@"Row 49999"]);
     probe.retiredRow = probe.row;
