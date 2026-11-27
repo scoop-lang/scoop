@@ -426,7 +426,7 @@ internal fun advanceEditing(probe: EditProbe) {
 private fun inputPolicy(limit: Long): TextEditPolicy =
     textEditPolicy {
         this.maxLength = Some(limit)
-        accepts {
+        acceptsInsertedText {
             text ->
             var accepted = true
             for (character in text)

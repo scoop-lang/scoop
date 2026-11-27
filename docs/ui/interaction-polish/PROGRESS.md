@@ -419,7 +419,7 @@ required／invalid 等表单状态、复杂焦点、模态和其余控件仍按 
 
 - TextEditHost 在 macOS 接入同一区域的 DropArea；TextEditOptions、Input／Textarea／OTP 的 Props／builder 增加 acceptDrops=true，组合输入透传。只协商 Text／Url Copy，禁用、只读、关闭或旧模型／修订／投影的 Accepted 几何拒绝接收；受保护用途允许导入，不因此开放导出。
 - 临时落点 caret 复用实际排版、投影、槽位、裁剪和滚动变换，保持正文选区。数据拖入在有效视口内侧 16 个逻辑像素启动边缘滚动，窄视口不超过半边；普通拖选继续越界滚动。每次滚动等 Accepted 后重新定位，再判断焦点显露，避免抢回原光标；Leave 和退休撤销 deadline。
-- TextEditSource.DragDrop 复用 Paste 清洗、一般 transform／accepts／grapheme 长度限制。拒绝不发布候选，完整保留 composition；接受将结束 marked 与落点插入放入同一批次，一次发布和一个独立 undo 项，沿原模型发送编辑及语义通知。接收后才请求普通焦点，业务关闭／换绑后不聚焦新内容。
+- TextEditSource.DragDrop 复用 Paste 清洗、一般 transform／acceptsInsertedText／grapheme 长度限制。拒绝不发布候选，完整保留 composition；接受将结束 marked 与落点插入放入同一批次，一次发布和一个独立 undo 项，沿原模型发送编辑及语义通知。接收后才请求普通焦点，业务关闭／换绑后不聚焦新内容。
 - TextDropEditTest 的五项模型测试通过，覆盖清洗顺序、反向选区、Unicode／grapheme 裁剪、策略拒绝／异常、组合结束、修订与分离撤销。TextDropHostTest 使用真实 Accepted 窗口、平移后的实际命中、AppKit destination 方法与原生 setMarkedText，最终版本完整通过 Text／Url、开关／只读／禁用、同正文同修订的模型换绑、遮罩、composition 接受／拒绝、自动滚动／Leave 停止、空段落落点、一次接收和回调内关闭根。
 - InputOtpTest 的五项测试及 ComponentReceiverDslTests 的六项测试通过，覆盖 DragDrop 的 OTP 分隔符清洗、字符拒绝、长度裁剪与 undo，以及 Input／Textarea／OTP 的默认开关、不可变 Props 快照和宿主选项透传。两组复用同一测试产物。
 - UI／Component 含测试检查通过，更新 UI、Style 和四套主题的开发产物；双窗口示例增加实际多行编辑器与同一宿主的文本语义，区域快捷键限制到自己的来源区域，release 检查与链接通过。UI／Component 的 10 项 API 查询核对类型、DragDrop 分支、默认值、访问器、Textarea 继承与导入。29 个 Scoop 文件的格式检查及 native 严格编译通过，179 个本地 Markdown 目标检查通过；两个临时 API 站点已清理。

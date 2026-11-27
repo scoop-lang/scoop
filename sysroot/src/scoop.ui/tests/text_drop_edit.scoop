@@ -30,7 +30,7 @@ private class TextDropEditTest {
                     assertEquals("aXb", candidate.after.text)
                     TextEditDecision.Accept
                 }
-                accepts {
+                acceptsInsertedText {
                     text ->
                     calls.add(3);
                     text == "X"

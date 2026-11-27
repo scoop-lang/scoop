@@ -20,7 +20,7 @@ internal fun otpPolicy(pattern: InputOtpPattern, length: Long): TextEditPolicy {
             this.singleLine = true
             this.maxLength = Some(length)
             paste { candidate -> otpPaste(candidate) }
-            accepts { text -> otpAccepts(text, pattern) }
+            acceptsInsertedText { text -> otpAccepts(text, pattern) }
         }
     }
 }

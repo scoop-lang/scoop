@@ -34,7 +34,7 @@ public class TextEditPolicy internal constructor(
     public val maxLength: Long?,
     internal val paste: ((TextEditCandidate) -> TextEditDecision)?,
     internal val transform: ((TextEditCandidate) -> TextEditDecision)?,
-    internal val accepts: ((String) -> Boolean)?
+    internal val acceptsInsertedText: ((String) -> Boolean)?
 ) {
     public fun copy(configure: TextEditPolicyBuilder.() -> Unit = {}): TextEditPolicy {
         val builder = TextEditPolicyBuilder(this)
@@ -48,22 +48,29 @@ public class TextEditPolicyBuilder internal constructor(initial: TextEditPolicy)
     public var maxLength: Long? = initial.maxLength
     private var pasteTransform: ((TextEditCandidate) -> TextEditDecision)? = initial.paste
     private var editTransform: ((TextEditCandidate) -> TextEditDecision)? = initial.transform
-    private var acceptance: ((String) -> Boolean)? = initial.accepts
+    private var insertedTextPredicate: ((String) -> Boolean)? = initial.acceptsInsertedText
     public fun paste(value: (TextEditCandidate) -> TextEditDecision) {
         pasteTransform = Some(value)
     }
     public fun transform(value: (TextEditCandidate) -> TextEditDecision) {
         editTransform = Some(value)
     }
-    public fun accepts(value: (String) -> Boolean) {
-        acceptance = Some(value)
+    /** Checks each contiguous inserted fragment after transforms and before length limiting. */
+    public fun acceptsInsertedText(value: (String) -> Boolean) {
+        insertedTextPredicate = Some(value)
     }
     internal fun snapshot(): TextEditPolicy {
         when (maxLength) {
             case Some(val value) -> requireUi(value >= 0L, "negative text length limit")
             case None -> {}
         }
-        return TextEditPolicy(singleLine, maxLength, pasteTransform, editTransform, acceptance)
+        return TextEditPolicy(
+            singleLine,
+            maxLength,
+            pasteTransform,
+            editTransform,
+            insertedTextPredicate
+        )
     }
 }
 

@@ -65,7 +65,7 @@ internal fun inputExamples(model: TextExamplesModel): View = makeColumn {
             this.policy = textEditPolicy {
                 this.maxLength = Some(6L)
                 this
-                    .accepts { value ->
+                    .acceptsInsertedText { value ->
                         var valid = true
                         for (character in value)
                             if (character.code < 48 || character.code > 57) valid = false

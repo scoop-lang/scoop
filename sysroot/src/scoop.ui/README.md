@@ -311,7 +311,9 @@ UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；t
 
 `ScrollViewport.layout(viewport, content, adjustment=None, padding=ScrollPadding())` 接收不含留白的正文尺寸。ScrollPadding 的 left／top／right／bottom 同时扩展范围并排除显露边缘，供 Overlay 滚动条使用；snapshot.content 含留白，bodySize 不含留白，visibleSize 用于显露和翻页。`reveal` 的 Rect 仍是正文坐标，present 自动施加留白和平移，调用方不另加视觉 offset。无新定位请求时，左／上留白变化在 Accepted 后以 LayoutCorrection 保持正文位置；显式位置意图优先。TextEditHost.measure 的 scrollPadding 回调在一次排版后接收 viewport 与原始正文尺寸，默认返回零，可用于组合控件的遮挡计算。
 
-输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。策略在编辑事务发布之前处理已提交文字，可组合单行归一化、粘贴变换、字符接受与 grapheme 长度限制；未提交 preedit 原样保留。策略回调返回带 UTF-8 区间的变换或拒绝，`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。
+输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。在单行模式中，输入及 `paste`、`transform` 各自输出的硬换行都会转成空格。CRLF 产生一个空格。`acceptsInsertedText { text -> … }` 逐段检查变换后的连续新增文字，任一段返回 false 即拒绝整次编辑。随后按 grapheme 限长。未提交的 preedit 原样保留。
+
+`paste` 和 `transform` 可以接受、拒绝或返回基于 UTF-8 区间的替换。`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。
 
 TextEditHost 默认接收纯文本／URL 的 Copy 和完整 Move；`TextEditOptions(acceptDrops = false)` 单独关闭接收。`drag = TextDragOptions(enabled = false)` 单独关闭选区拖出；该选项也配置阈值、Copy／Move、copyPolicy、preview 和 onCompleted。默认导出遵守复制及 protectedText／遮罩限制，只读和 SelectableTextHost 仅导出 Copy。选区内按下延迟定位，阈值后才准备数据；普通拖选、多击和键盘路径继续可用。
 

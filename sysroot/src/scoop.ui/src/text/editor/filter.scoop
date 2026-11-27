@@ -1,6 +1,7 @@
 package scoop.ui.text
 
 import scoop.charset.graphemeBoundaries
+import scoop.collections.any
 import scoop.ui.*
 import scoop.window.*
 
@@ -18,6 +19,9 @@ internal class EditorPolicyResult(
         spans = mapEditorSpans(spans, result.edits)
         mapping = EditorComposedMap(mapping, result.mapping)
         transformed = true
+    }
+    fun normalizeLineBreaks() {
+        replace(editorNewlineEdits(value.input.surroundingText))
     }
     fun candidate(before: EditorValue, source: TextEditSource): TextEditCandidate =
         TextEditCandidate(
@@ -40,8 +44,9 @@ internal fun filterEditorCandidate(
     evaluateUi(None) {
         val result = EditorPolicyResult(proposed, spans)
         result.replace(replacements)
-        if (singleLine || policy.singleLine)
-            result.replace(editorNewlineEdits(result.value.input.surroundingText))
+        val enforceSingleLine = singleLine || policy.singleLine
+        if (enforceSingleLine)
+            result.normalizeLineBreaks()
         if (
             source ==
                 TextEditSource.Paste ||
@@ -52,7 +57,7 @@ internal fun filterEditorCandidate(
         ) {
             when (policy.paste) {
                 case Some(val callback) -> if (
-                    !applyEditorDecision(result, callback(result.candidate(before, source)))
+                    !result.applyDecision(callback(result.candidate(before, source)), enforceSingleLine)
                 )
                     return@evaluateUi None
                 case None -> {}
@@ -60,12 +65,12 @@ internal fun filterEditorCandidate(
         }
         when (policy.transform) {
             case Some(val callback) -> if (
-                !applyEditorDecision(result, callback(result.candidate(before, source)))
+                !result.applyDecision(callback(result.candidate(before, source)), enforceSingleLine)
             )
                 return@evaluateUi None
             case None -> {}
         }
-        when (policy.accepts) {
+        when (policy.acceptsInsertedText) {
             case Some(val callback) -> {
                 val bytes = result.value.input.surroundingText.toByteArray()
                 for (range in editorInsertedRanges(result.spans))
@@ -93,15 +98,20 @@ internal fun filterEditorCandidate(
         Some(result)
     }
 
-private fun applyEditorDecision(result: EditorPolicyResult, decision: TextEditDecision): Boolean =
-    when (decision) {
-        case Accept -> true
-        case Reject -> false
-        case Transform(val edits) -> {
-            result.replace(edits);
-            true
-        }
+private fun EditorPolicyResult.applyDecision(
+    decision: TextEditDecision,
+    singleLine: Boolean
+): Boolean = when (decision) {
+    case Accept -> true
+    case Reject -> false
+
+    case Transform(val edits) -> {
+        replace(edits)
+        // Adjacent replacements can contribute the two halves of a single CRLF.
+        if (singleLine && edits.any { edit -> editorHasLineBreak(edit.text) }) normalizeLineBreaks()
+        true
     }
+}
 
 /** Segmentation uses the shared Unicode library; its scalar indices are converted once. */
 internal fun editorGraphemeBytes(text: String): Array<Long> {

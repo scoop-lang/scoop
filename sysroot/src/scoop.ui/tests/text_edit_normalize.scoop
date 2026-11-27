@@ -6,6 +6,61 @@ import scoop.window.*
 @Test
 private class TextEditorSingleLineTest {
     @Test
+    fun `single line paste and transform normalize their output before the next callback`() {
+        val editor = TextEditorState("LR", Some(Utf8Selection(1L, 1L)))
+        val policy = textEditPolicy {
+            singleLine = true
+            paste { candidate ->
+                assertEquals("Lx yR", candidate.after.text)
+                TextEditDecision
+                    .Transform(
+                        [
+                            TextEditReplacement(Utf8Range(1L, 2L), "A\r"),
+                            TextEditReplacement(Utf8Range(2L, 4L), "\nB")
+                        ]
+                    )
+            }
+            transform { candidate ->
+                assertEquals("LA BR", candidate.after.text)
+                assertEquals(4L, candidate.after.cursor.byteOffset)
+                assertEquals(Utf8Range(1L, 4L), candidate.insertedRanges[0L])
+                TextEditDecision.Transform([TextEditReplacement(Utf8Range(3L, 4L), "😀\u2028Z")])
+            }
+            acceptsInsertedText { text -> text == "A 😀 Z" }
+        }
+        assertTrue(editor.applyEdit(Utf8Range(1L, 1L), "x\r\ny", policy, TextEditSource.Paste))
+        assertEquals("LA 😀 ZR", editor.text)
+        assertEquals(Utf8Selection(9L, 9L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("LR", editor.text)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `host single line mode normalizes a transformed commit before attaching raw preedit`() {
+        val policy = textEditPolicy {
+            transform { candidate ->
+                TextEditDecision
+                    .Transform([TextEditReplacement(candidate.insertedRanges[0L], "a\r\nb")])
+            }
+        }
+        val batch = TextInputBatch(
+            None,
+            [
+                TextInputOperation.Commit("x", TextReplacement.CurrentSelection),
+                TextInputOperation.Preedit("候\n", None, TextReplacement.CurrentSelection)
+            ]
+        )
+        val single = TextEditorState()
+        assertTrue(applyEditorInput(single, batch, singleLine = true, policy = policy))
+        assertEquals("a b候\n", single.text)
+        assertEquals(Some(Utf8Range(3L, 7L)), single.markedRange)
+        val multiline = TextEditorState()
+        assertTrue(multiline.applyInput(batch, policy))
+        assertEquals("a\r\nb候\n", multiline.text)
+    }
+
+    @Test
     fun `single line conversion preserves raw ordered native replacement coordinates`() {
         val state = TextEditorState("A")
         assertTrue(
