@@ -51,4 +51,10 @@ Bookworm 上的 GNU 动态 PIE 和默认静态 musl 程序均通过配套 LLDB �
 
 两种目标均复验了文档目标索引、局部值优化、native 初始化、缺少锁文件的目标诊断、SSA 根和命令版本。musl 还复验了 native C 的目标宏。GNU 的 Lucide 图标裁剪用例在 o6 的 Ubuntu 发行环境用干净安装的候选工具链通过，包括不引用图标、单个图标、全部图标及增加未引用资源后的产物检查。[局部值优化](https://github.com/scoop-lang/scoop/pull/261) · [锁文件诊断](https://github.com/scoop-lang/scoop/pull/262) · [SSA 根与异常边](https://github.com/scoop-lang/scoop/pull/263) · [Lucide 裁剪用例](../../tests/fixtures/compiler-correctness/lucide-pruning/fixture.toml)
 
-全量首轮沿用了移植期间的优化版命令，其中 `scoopc` 与其他四个命令的构建提交不同。五个配套命令在 Bookworm 上报告同一提交 `8c42202b2`，Ubuntu 候选包的五个命令均报告 `ce2c02c0f`。最终配套 LLD 的 GNU 与 musl 链接路径另以独立重链接、64 KiB 页执行和发行包运行复验。[命令版本用例](../../tests/fixtures/driver/tool-versions/fixture.toml)
+全量首轮沿用了移植期间的优化版命令，其中 `scoopc` 与其他四个命令的构建提交不同。第一批定向复验使用的五个配套命令在 Bookworm 上均报告 `8c42202b2`，Ubuntu 候选包的五个命令均报告 `ce2c02c0f`。最终配套 LLD 的 GNU 与 musl 链接路径另以独立重链接、64 KiB 页执行和发行包运行复验。[命令版本用例](../../tests/fixtures/driver/tool-versions/fixture.toml)
+
+## Linux x86_64 回归
+
+nuc12（Ubuntu 26.04.1 x86_64）的 GNU ld 2.46 在依赖文件中原样写出含空格的安装路径，首次回归发现解析时遗漏了 `libunwind.a`。修复后，x86_64 的 GNU ld 和 ARM64 的 LLD 22.1.8 都能从实际链接中识别完整归档路径，包括带空格、`#` 和美元符号的目录。两台机器都用合入修复后的 `9190c87a0` 重建了开发命令。Bookworm 上再次通过 GNU 动态和 musl 显式动态的 CLI 构建、独立重链接、运行和版本检查。[Linux 链接器路径修复](https://github.com/scoop-lang/scoop/pull/264)
+
+x86_64 定向验证通过 4 项链接工具链与输入选择测试、10 项 ELF 常量池测试、8 项 runtime image、网关与 GC 标记测试。GNU 和 musl 各选 10 个正式 CLI fixture。每种目标首轮通过 9 项，需要从源码构建 runtime 的 `floating-ffi` 补齐开发 sysroot 的 vendor 源码和 unwind 头文件后通过。覆盖了 musl 默认静态与显式动态、带 TLS 的共享库、C 浮点与小值、SSA 根、独立重链接和跨 libc 产物诊断。[ELF 常量池](../../compiler/slib/src/link_object/literal_pools.rs) · [native DSO](../../tests/fixtures/driver/linux/native-dso/fixture.toml) · [浮点 FFI](../../tests/fixtures/language/floating/arithmetic/ffi/fixture.toml)
