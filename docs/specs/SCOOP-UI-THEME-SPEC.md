@@ -16,9 +16,9 @@
 2. Button／Checkbox 不再直接用自己的一套背景、圆角、焦点和标记绘图。它们消费主题的公开几何与绘图；ButtonStyle／CheckboxStyle 只表达明确的局部覆盖和控件特有输入。
 3. 控件不在构造时永久保存当时的 Theme 或解析后的外观。保存稳定 ThemeSource，在 render 中读取其当前 Theme，并把本轮主题及视觉输入通过 Props 交给持久 Element。
 
-四组实现为普通独立 Cone：`scoop.ui.style.macos`、`scoop.ui.style.material`、`scoop.ui.style.fluent`、`scoop.ui.style.shadcn`。它们依赖 style 和实际使用的 graphics／graphics.text／surface，不依赖 component；style 不反向引用主题库。应用选择并依赖所需主题。`scoop.ui` 仍不依赖 style 或 component。
+五组实现为普通独立 Cone：`scoop.ui.style.macos`、`scoop.ui.style.material`、`scoop.ui.style.fluent`、`scoop.ui.style.shadcn`、`scoop.ui.style.liquidglass`。它们依赖 style 和实际使用的 graphics／graphics.text／surface，不依赖 component；style 不反向引用主题库。应用选择并依赖所需主题。`scoop.ui` 仍不依赖 style 或 component。
 
-四套主题的生产源码不使用 OS 条件。macos／fluent／material／shadcn 是自绘风格名称；字体可有偏好列表，但以 graphics.text 的通用 family fallback 收尾，缺少某个系统专有字体不要求上层选择平台。
+五套主题的生产源码不使用 OS 条件。macos／fluent／material／shadcn／liquidglass 是自绘风格名称；字体可有偏好列表，但以 graphics.text 的通用 family fallback 收尾，缺少某个系统专有字体不要求上层选择平台。
 
 实现库可复用公共的几何、StylePainter 和普通绘图辅助代码。共同算法按实际调用复用，差异由各自的主题参数或绘图实现表达；控件中不得按主题类型或名称分支。自绘主题不替换 window 的原生装饰配置，也不声称与操作系统某个版本逐像素一致。
 
@@ -30,7 +30,7 @@ Theme 是不可变的主题描述／协议实现，提供语义参数和各部�
 
 首批采用 `Theme.tokens`、`surfaceMetrics／checkboxMetrics／radioMetrics／scrollbarMetrics` 与对应 geometry 方法；各部件的 Options 表达显式尺寸和局部覆盖。几何结果同时保存本次解析的普通 Style／颜色快照，绘图使用这份结果，不重新解析另一套尺寸。InteractionVisual 的可选 hover／press 采样值和选择进度以 0～1 表达，省略时使用对应布尔视觉状态；有限输入收敛到该范围。改变采样值时重新计算普通几何描述，原生轮廓缓存仍只按真实轮廓变化替换。
 
-四套预设共同使用 `ShapeTheme` 的圆角表面、勾选线段、圆环／圆点和滚动条几何算法，各库显式构造自己的参数。Theme 协议仍允许普通第三方实现独立的几何与 ThemePainter；控件不依赖 ShapeTheme。复用只覆盖这四类已有部件，不引入主题插件、节点注册或自动控件生成。
+五套预设共同使用 `ShapeTheme` 的圆角表面、勾选线段、圆环／圆点和滚动条几何算法，各库显式构造自己的参数。Theme 协议仍允许普通第三方实现独立的几何与 ThemePainter；控件不依赖 ShapeTheme。复用只覆盖这四类已有部件，不引入主题插件、节点注册或自动控件生成。
 
 原生缓存由 `ThemePainter : Closeable` 持有，通过 `Theme.createPainter()` 创建；其 drawSurface／drawCheckbox／drawRadio／drawScrollbar 只接收普通 Canvas、对应几何和视觉数据。这样离屏程序可以长期复用同一 painter，自绘 Element 则通过 ComponentScope 登记拥有可替换 painter 的 `ThemePainterCache`。cache 在主题实际变化时先构建新 painter，再替换并关闭旧值；创建失败保留旧值用于清理或下一次绘制。应用不为每个部件／每帧使用 use。
 
@@ -48,7 +48,7 @@ Theme 提供以下公共语义参数，使没有标准绘图部件的第三方�
 - 效果：表面外框阴影和必要的 Style 内容效果参数。
 - 动画：进入／离开状态和选择变化的 Surface AnimationSpec。主题只提供参数，绘图方法只消费本帧已采样的数值。
 
-`ThemeMode.Light` 与 `ThemeMode.Dark` 只表达明暗；风格由所选实现独立决定。四套主题同时提供两种模式，不把 Dark 当成另一套风格，也不因切换模式改变组件类型。需要跟随系统的应用在现有 Window ThemeChanged 通知中更新 ThemeSource，主题库不轮询系统、不自行建立窗口监听或时钟。
+`ThemeMode.Light` 与 `ThemeMode.Dark` 只表达明暗；风格由所选实现独立决定。五套主题同时提供两种模式，不把 Dark 当成另一套风格，也不因切换模式改变组件类型。需要跟随系统的应用在现有 Window ThemeChanged 通知中更新 ThemeSource，主题库不轮询系统、不自行建立窗口监听或时钟。
 
 Style 是完整的已确定描述；新增 `StyleOverride` 表达局部覆盖。未指定属性继续使用本轮主题，背景／边框等可空属性须区分“继承”和“显式清除”，采用类型化 `StyleValue<T>` 的 Inherit／Set，而不是用一个 None 混淆两者。数组效果显式覆盖时整体替换，顺序不变；需要组合时由调用者明确给出顺序。
 
@@ -71,7 +71,7 @@ SurfaceOptionsBuilder／CheckboxOptionsBuilder 提供真实成员 `style(configu
 
 ### 3.2 完整主题与部件外观的接收者配置
 
-四套预设的入口为 `macosTheme(mode: ThemeMode = ThemeMode.Light, palette: ThemePalette? = None, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme`，materialTheme／fluentTheme／shadcnTheme 使用相同签名。palette 为 None 时使用风格预设配色；提供 palette 时，文字、表面、标记、滚动条、焦点／验证与效果颜色从其语义角色生成，保留该风格的字体、尺寸、轮廓、阴影几何与动效。Fluent 的预设状态使用官方 token；外部配色的 hover／pressed 从所给语义色派生，不遗留固定品牌蓝。先产生完整数据，再同步执行 configure 一次。返回的 ShapeTheme 继续实现 Theme；第三方 Theme 实现不需要采用这些 builder。
+五套预设的入口为 `macosTheme(mode: ThemeMode = ThemeMode.Light, palette: ThemePalette? = None, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme`，materialTheme／fluentTheme／shadcnTheme／liquidGlassTheme 使用相同签名。palette 为 None 时使用风格预设配色；提供 palette 时，文字、表面、标记、滚动条、焦点／验证与效果颜色从其语义角色生成，保留该风格的字体、尺寸、轮廓、阴影几何与动效。Fluent 的预设状态使用官方 token；外部配色的 hover／pressed 从所给语义色派生，不遗留固定品牌蓝。先产生完整数据，再同步执行 configure 一次。返回的 ShapeTheme 继续实现 Theme；第三方 Theme 实现不需要采用这些 builder。
 
 独立主题使用 `shapeTheme(tokens: ThemeTokens, surfaces: SurfaceParts, checkbox: CheckboxPart, radio: RadioPart, scrollbar: ScrollbarPart, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme`。五个必需参数都是完整描述，不使用未初始化字段、None 或虚构部件补足必需数据。
 
@@ -135,7 +135,7 @@ MarkerAppearance.stateLayer 使用 `MarkerStateLayer(size: Double, empty: StateC
 
 `contrastThemeColors(pair: ColorPair, canvas: Color, minimum: Double = 7.0): ColorPair` 复用主题偏好的颜色配对算法，供实际底色不同于根背景的菜单、弹出层等默认装饰使用。颜色通道须有限，canvas 必须不透明，minimum 为有限的 1～21，非法参数抛出 IllegalArgumentException。计算按标准 sRGB 将颜色通道与源 alpha 截取到 0～1，先把 pair.background 合成到 canvas，再将前景向黑或白调整到指定相对亮度对比度；只有背景本身无法容纳该对比度时才调整背景。返回完整、不透明且满足 minimum 的配对；已经满足要求的颜色保留。它不读取系统偏好或改写主题，应用显式覆盖继续由调用方决定。
 
-`OutlineStyle(color, width, outset, borderColor: Color? = None)` 描述一个环及可选的外框颜色替换；None 表示保留部件自身边框，width=0 可省略环。它替代仅限焦点命名的旧描述，普通焦点仍通过部件及 Options 的 focus 配置。ThemeTokens.validation 是完整必需的 OutlineStyle，Surface／Checkbox／Radio Options 的 validation 可局部覆盖。四套主题显式提供验证外观；不根据具体主题名称分支。
+`OutlineStyle(color, width, outset, borderColor: Color? = None)` 描述一个环及可选的外框颜色替换；None 表示保留部件自身边框，width=0 可省略环。它替代仅限焦点命名的旧描述，普通焦点仍通过部件及 Options 的 focus 配置。ThemeTokens.validation 是完整必需的 OutlineStyle，Surface／Checkbox／Radio Options 的 validation 可局部覆盖。五套主题显式提供验证外观；不根据具体主题名称分支。
 
 invalid 与 focusVisible 独立，前者是应用传入的展示状态，不改变焦点、输入资格或业务值。invalid 时选择 validation；否则只有 enabled 且 focusVisible 才选择 focus。禁用不显示普通焦点环；invalid 边框与环和控件一起合成，不单独再次降低 alpha。状态边框只替换颜色，保留同一份边宽，随后应用显式局部 Style 覆盖。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 ring: OutlineRing? 保存最终唯一的环，painter 直接绘制这个结果，不再自行重判焦点；invalid 与焦点不叠画两层环。metrics.focusOutset 取配置中最终焦点轮廓、验证环及标记状态层所需外扩的最大值，状态切换不改变内容布局。
 
@@ -149,7 +149,7 @@ shadcn Action 表面的 normal 使用 primary 背景，hover／pressed 分别使
 
 ### 4.1 外框／表面
 
-SurfaceMetrics 给出建议／最小尺寸、内容 padding、边框内缩及焦点外扩。SurfaceKind 的 Plain／Action／OutlinedAction／Elevated 分别表达普通输入表面、填充操作面、描边操作面和提升表面，不引用具体控件类型。描边操作必须有独立部件，避免与输入框共享胶囊圆角、强调文字或状态底色；四套预设均显式提供这四种表面。SurfaceGeometry 至少返回外边界、圆角外轮廓、边框内区域、内容区域和可选焦点轮廓；轮廓为 Rect／圆角等普通描述，原生 Path 留在 painter。
+SurfaceMetrics 给出建议／最小尺寸、内容 padding、边框内缩及焦点外扩。SurfaceKind 的 Plain／Action／OutlinedAction／Elevated 分别表达普通输入表面、填充操作面、描边操作面和提升表面，不引用具体控件类型。描边操作必须有独立部件，避免与输入框共享胶囊圆角、强调文字或状态底色；五套预设均显式提供这四种表面。SurfaceGeometry 至少返回外边界、圆角外轮廓、边框内区域、内容区域和可选焦点轮廓；轮廓为 Rect／圆角等普通描述，原生 Path 留在 painter。
 
 Surface 的绘制支持 Background／Foreground／All 阶段。Background 绘制外框阴影和背景；Foreground 绘制边框及焦点外框；All 依次完成两者，供独立展示使用。控件在两阶段间绘制内容，完整子树的 Style 效果仍由通用装饰适配负责。这样背景、内容、边框的顺序与既有 Style 合同一致，不要求主题方法理解挂载树。
 
@@ -191,12 +191,13 @@ ScrollbarMetrics 包含建议厚度、最小滑块长度、轨道／滑块内缩
 
 滑块位置使用最终行程和 position。主题厚度、最小长度或端部按钮改变后，绘制及调用者的拖动换算都使用这份结果。横／纵两种方向适用相同规则。主题不处理滚轮、拖动、键盘、自动重复或内容滚动，也不启动自动隐藏 timer；透明度等动画值由调用方采样后传入。
 
-## 5. 四套风格与明暗
+## 5. 风格与明暗
 
-四套主题完整覆盖上述四类部件，差异必须同时包含颜色之外的可验证内容：
+五套主题完整覆盖上述四类部件，差异必须同时包含颜色之外的可验证内容：
 
-| 风格 | 首批方向 |
+| 风格 | 方向 |
 | --- | --- |
+| Liquid Glass | 系统 UI 字体、14／20 文字、36 高胶囊操作面、22 浮动圆角，清晰前景与下层光学分离；用途策略见 §5.1 |
 | shadcn | Base Nova／Neutral，14／20 文字、32 高操作表面、10 基准圆角、3 宽焦点环；完整 Light／Dark、图表与侧栏语义配色 |
 | macOS | macOS Sequoia（15）的 Aqua／Dark Aqua；13／16 系统风格文字、22 高常规操作面、5 圆角与细边框、14 大小标记、贴边的 3 宽焦点外框及无端部按钮的中性滚动条 |
 | Material | Material Design 3／Material Web；Roboto 14／20 文字、40 高胶囊操作面与 24 水平留白、18 复选框／20 单选框、40 圆形交互状态层，按状态提升的阴影和中性滚动条 |
@@ -221,6 +222,14 @@ Material 的输入控件同时遵循 [Text fields 规格](https://m3.material.io
 Material Checkbox 使用 18 大小、2 圆角／边宽和 2 宽勾／横线；Radio 使用 20 大小、2 宽圆环和 10 直径圆点。未选中内部透明，普通边框取 on-surface-variant，hover／pressed 取 on-surface；选择后保持 primary 标记，Checkbox 的勾／半选线使用 on-primary。禁用标记使用 38% on-surface，选中 Checkbox 的标记使用 surface，边框不与半透明填充重复合成。两种标记共享 40 大小圆形状态层：未选中 hover 为 8% on-surface、pressed 为 12% primary，选中 hover 为 8% primary、pressed 为 12% on-surface；焦点轮廓跟随该圆形区域。hover／press 使用 100ms，选择变化使用 200ms，均采用 M3 standard easing（0.2, 0, 0, 1）。滚动条保留桌面的 14 宽条带和 32 最小滑块，以 on-surface-variant 中性色表达状态；不冒充 Material Web 未提供的滚动条组件。所有颜色仍从所给 palette 派生，外部配色不改变以上几何与动画。
 
 `scoop.ui.component/examples/shadcn` 的右上角 Style 下拉框只选择 shadcn、macOS、Material、Fluent。配色来源是独立的 Preset／System 设置，提供系统取色适配时默认 System，否则固定 Preset。System 适用于全部四种风格，通过相同的 palette 参数传入当前风格工厂；只在 System 被选中时读取系统颜色。切换风格保留配色来源，切换配色保留风格；二者通过同一个 ThemeSource 发布完整主题，并保留明暗、减少动态、布局方向、页面、编辑内容与业务状态。
+
+### 5.1 Liquid Glass
+
+`scoop.ui.style.liquidglass.liquidGlassTheme(mode: ThemeMode = Light, palette: ThemePalette? = None, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme` 是独立完整预设，复用公共 ShapeTheme、StylePainter 和玻璃绘制能力。主题描述不持有图形资源、不读取业务状态，不通过其他预设构造不完整的外观再补齐。显式 palette 决定所有语义颜色；configure 最后执行一次。基础主题、外部配色与根交互偏好分别沿第 3.2、6.1 节解析。
+
+默认字体使用系统 UI 字体偏好并回退 Inter／sans-serif，正文和操作字号为 14、相对行高 20／14，caption 为 12／16。普通操作建议高 36、最小交互尺寸 28、水平内缩 14，圆角为 18；输入继续沿控件的尺寸与布局规则。主题提供完整的普通／强调／描边／浮动表面、勾选、单选和滚动条，所有状态色从当前语义配色派生；焦点轮廓与错误边界持续清晰。
+
+明暗配色分别提供中性内容底色、足够对比的正文和次要文字、强调与破坏性操作、图表和侧栏颜色。玻璃策略通过既有 GlassSurfaces 表达，默认操作、导航、工具栏、弹层、对话框和通知可使用材质，正文 Content 和输入 Input 保留稳定底色。局部 StyleOverride 的明确背景或 glass 清除仍优先；高对比度和减少透明度恢复实体表面，减少动态停止过渡而不改变内容与语义。独立主题的材质参数不要求应用逐帧构造、关闭资源或读取背景像素。
 
 ## 6. 整体切换与局部主题
 

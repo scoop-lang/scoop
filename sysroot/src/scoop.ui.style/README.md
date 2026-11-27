@@ -79,7 +79,7 @@ val theme = materialTheme {
 
 没有独立效果时钟，也没有子树像素缓存。真实帧每次绘制当帧内容，仅复用当前滤镜与几何。参数动画在 Element 的 update／输入中设置 Surface Animatable，在 paint 中读取采样值；完成、暂停、取消或隐藏后按 Surface 规则停帧。
 
-Theme 提供普通 tokens 与各部件的 metrics／geometry，ThemePainter 消费同一份几何和视觉数据。基础能力包括表面、Checkbox 三态标记、Radio 标记，以及带轨道／滑块／可选端部按钮的 Scrollbar；这些入口只需要 Canvas，不依赖窗口、输入区域或挂载。四套风格是独立普通 Cone：
+Theme 提供普通 tokens 与各部件的 metrics／geometry，ThemePainter 消费同一份几何和视觉数据。基础能力包括表面、Checkbox 三态标记、Radio 标记，以及带轨道／滑块／可选端部按钮的 Scrollbar；这些入口只需要 Canvas，不依赖窗口、输入区域或挂载。五套风格是独立普通 Cone：
 
 | Cone | 工厂 | 参数 |
 | --- | --- | --- |
@@ -87,6 +87,7 @@ Theme 提供普通 tokens 与各部件的 metrics／geometry，ThemePainter 消�
 | scoop.ui.style.material | materialTheme | mode，ShapeThemeBuilder 配置块 |
 | scoop.ui.style.fluent | fluentTheme | mode，ShapeThemeBuilder 配置块 |
 | scoop.ui.style.shadcn | shadcnTheme | mode，ShapeThemeBuilder 配置块 |
+| scoop.ui.style.liquidglass | liquidGlassTheme | mode，palette，ShapeThemeBuilder 配置块 |
 
 预设返回实现 Theme 的 ShapeTheme，支持接收者配置与 copy。配置块在完整数据上同步执行一次，嵌套块保留当前字段，完整赋值替换：
 
