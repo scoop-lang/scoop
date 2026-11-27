@@ -79,13 +79,23 @@ pub(super) fn linker_libraries(
     let first_rule = dependencies
         .split_once("\n\n")
         .map_or(dependencies.as_str(), |(rule, _)| rule);
-    let paths = scoop_process::parse_make_dependencies(first_rule, &output.to_string_lossy())
-        .ok_or_else(|| {
+    let output = output.to_string_lossy();
+    // GNU ld writes one literal prerequisite per line with two spaces of indentation.
+    // LLD writes make-escaped prerequisites, including escaped spaces and dollars.
+    let inputs = if let Some(raw) = first_rule
+        .strip_prefix(output.as_ref())
+        .and_then(|rule| rule.strip_prefix(": \\\n  "))
+    {
+        raw.split(" \\\n  ").map(PathBuf::from).collect()
+    } else {
+        scoop_process::parse_make_dependencies(first_rule, &output).ok_or_else(|| {
             error(
                 scoop_source::DiagnosticCode::E2303,
                 "invalid Linux linker dependency file",
             )
         })?
+    };
+    let paths = inputs
         .into_iter()
         .filter(|path| {
             path.is_absolute()

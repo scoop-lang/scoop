@@ -1440,7 +1440,7 @@ Cone native 源码对象使用 `org.scoop-lang.link-object/native/1` LinkObject 
 
 Linux 默认目录来自已选 native toolchain/sysroot 及其 target/link-mode 配置；Darwin 来自已选 SDK 的系统库与 framework 目录（包括 `.tbd` provider）。系统 provider 按对应平台的库选择规则解析动态/静态格式；静态模式不得以动态库满足需求。交叉编译不补入宿主的 `/usr/lib`、framework 或其他宿主工具链目录。无合法候选时报告所请求的库和 target；选定 provider 的实际内容、加载合同与工具链/SDK 配置进入既有 ResolvedLinkPlan 和链接缓存。只查已声明的逻辑库，不自动发现相邻 native source/object/archive，也不扩大空 lib 的默认 namespace。
 
-Linux 系统库选择由所选 C driver/linker 按目标配置完成。发行版提供的标准 linker script（例如 GNU 的 `libm.so`）可解析为多个实际 archive/ELF 输入；其脚本内容摘要、实际输入及顺序进入同一解析结果和 link plan。最终链接消费已选文件快照，不重新解释系统脚本或按宿主目录重新选库。该规则不开放显式用户脚本输入。
+Linux 系统库选择由所选 C driver/linker 按目标配置完成。链接器报告的每个库路径作为一个输入保留，包括工具链安装目录中的空格。发行版提供的标准 linker script（例如 GNU 的 `libm.so`）可解析为多个实际 archive/ELF 输入；其脚本内容摘要、实际输入及顺序进入同一解析结果和 link plan。最终链接消费已选文件快照，不重新解释系统脚本或按宿主目录重新选库。该规则不开放显式用户脚本输入。
 
 重复声明已经包含在 target 固定系统输入中的同一 provider 时复用既有定义，不产生第二个符号候选；相同加载名但不同内容仍是冲突。Darwin SDK 的 `$ld$previous$` 指令按 platform 和 deployment 的半开版本区间选择符号的实际加载库及 compatibility version，区间端点可为零（例如 iOS SDK 的 `0.0` 下界），起止版本相等时区间为空，对所有部署版本均不生效。未命中的指令不改变当前接口。符号重定向给出的绝对 install name 可以只出现在公开 SDK 的指令里。引用该符号时按指令记录其加载名和版本，未引用的旧符号不产生加载项。指令省略符号的版本时沿用声明库的 current 和 compatibility version。
 
