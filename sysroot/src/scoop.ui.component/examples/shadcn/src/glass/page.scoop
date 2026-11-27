@@ -1,0 +1,199 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.wrap as makeWrap
+import scoop.ui.style.*
+import scoop.window.InteractionPreferences
+
+internal class LiquidGlassPage(private val gallery: GalleryModel, scope: ComponentScope) :
+    Component(scope) {
+    public override fun render(): View {
+        val gallery = this.gallery
+        val model = gallery.glass
+        val theme = gallery.source.read(scope)
+        val preferences = scope.interactionPreferences
+        return makeColumn {
+            spacing = 14.0
+            alignment = CrossAlignment.Stretch
+            add(panelHeading("Liquid Glass"))
+            typography(
+                "Scroll the colors behind the glass. Move the two surfaces together, change their shape, and keep using their actions.",
+                TypographyRole.Muted
+            )
+            wrap {
+                spacing = 8.0;
+                lineSpacing = 8.0
+                for (
+                    preset in [
+                        GalleryGlassMaterial.Frosted,
+                        GalleryGlassMaterial.Clear,
+                        GalleryGlassMaterial.Liquid
+                    ]
+                ) {
+                    button(
+                        glassMaterialTitle(preset),
+                        {
+                            model.preset.value = preset
+                            gallery.refreshTheme()
+                        }
+                    ) {
+                        variant = if (model.preset.value == preset)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                        semantics = glassExampleSemantics(
+                            "glass-material-" + glassMaterialTitle(preset)
+                        )
+                    }
+                }
+                button("Scroll colors", { model.scroll.scrollBy(Point(0.0, 120.0)) }) {
+                    variant = ButtonVariant.Outline
+                    semantics = glassExampleSemantics("glass-scroll")
+                }
+                button("Reset colors", { model.scroll.scrollTo(Point(0.0, 0.0)) }) {
+                    variant = ButtonVariant.Ghost
+                }
+            }
+            add(glassExamplePreview(model, theme))
+            add(glassShapeControls(model))
+            typography("Use glass on", TypographyRole.H3)
+            typography(
+                "Choose the surfaces that use this material throughout the gallery. Text keeps a readable background as the colors change.",
+                TypographyRole.Muted
+            )
+            wrap {
+                spacing = 8.0;
+                lineSpacing = 8.0
+                for (role in galleryGlassRoles) {
+                    button(
+                        glassRoleTitle(role) + if (model.uses(role)) " · On" else " · Off",
+                        {
+                            model.toggleRole(role)
+                            gallery.refreshTheme()
+                        }
+                    ) {
+                        variant = if (model.uses(role))
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                        semantics = glassExampleSemantics("glass-role-" + glassRoleTitle(role))
+                    }
+                }
+            }
+            add(glassSurfaceExamples(model))
+            typography("Comfort & accessibility", TypographyRole.H3)
+            typography(
+                "Compare solid surfaces, larger text, and reduced motion. System preferences restores this window's inherited settings.",
+                TypographyRole.Muted
+            )
+            add(glassPreferenceControls(gallery, preferences))
+        }
+    }
+}
+
+internal fun glassExampleSemantics(id: String): ComponentSemantics = ComponentSemantics(
+    automationId = Some(id)
+)
+
+private fun glassShapeControls(model: GlassExamplesModel): View = makeWrap {
+    spacing = 8.0;
+    lineSpacing = 8.0
+    button(
+        if (model.connected.value) "Separate" else "Connect",
+        { model.connected.value = !model.connected.value }
+    ) {
+        variant = ButtonVariant.Outline
+        semantics = glassExampleSemantics("glass-connect")
+    }
+    button(
+        if (model.stretched.value) "Round shapes" else "Stretch shapes",
+        { model.stretched.value = !model.stretched.value }
+    ) {
+        variant = ButtonVariant.Outline
+        semantics = glassExampleSemantics("glass-shape")
+    }
+    button("Reverse order", { model.reversed.value = !model.reversed.value }) {
+        variant = ButtonVariant.Outline
+        semantics = glassExampleSemantics("glass-order")
+    }
+    button(
+        if (model.opacity.value == 1.0) "Opacity: 100%" else "Opacity: 50%",
+        { model.opacity.value = if (model.opacity.value == 1.0) 0.5 else 1.0 }
+    ) {
+        variant = ButtonVariant.Outline
+        semantics = glassExampleSemantics("glass-opacity")
+    }
+    button(
+        if (model.enabled.value) "Disable actions" else "Enable actions",
+        { model.enabled.value = !model.enabled.value }
+    ) {
+        variant = ButtonVariant.Outline
+        semantics = glassExampleSemantics("glass-enabled")
+    }
+    button(
+        if (model.invalid.value) "Clear errors" else "Show errors",
+        { model.invalid.value = !model.invalid.value }
+    ) {
+        variant = ButtonVariant.Outline
+        semantics = glassExampleSemantics("glass-invalid")
+    }
+}
+
+private fun glassPreferenceControls(
+    gallery: GalleryModel,
+    effective: InteractionPreferences
+): View {
+    val model = gallery.glass
+    val options = model.preferences.value
+    val contrast = effective.highContrast ?: false
+    val opaque = effective.reduceTransparency ?: false
+    val large = (effective.textScaleFactor ?: 1.0) > 1.0
+    return makeWrap {
+        spacing = 8.0;
+        lineSpacing = 8.0
+        button(
+            if (contrast) "Contrast: High" else "Contrast: Standard",
+            { model.updatePreferences(options.copy { highContrast = Some(!contrast) }) }
+        ) {
+            enabled = model.attached.value
+            variant = ButtonVariant.Outline
+            semantics = glassExampleSemantics("glass-contrast")
+        }
+        button(
+            if (opaque) "Transparency: Reduced" else "Transparency: Full",
+            { model.updatePreferences(options.copy { reduceTransparency = Some(!opaque) }) }
+        ) {
+            enabled = model.attached.value
+            variant = ButtonVariant.Outline
+            semantics = glassExampleSemantics("glass-transparency")
+        }
+        button(
+            if (large) "Text: 150%" else "Text: 100%",
+            {
+                model
+                    .updatePreferences(
+                        options.copy { textScaleFactor = Some(if (large) 1.0 else 1.5) }
+                    )
+            }
+        ) {
+            enabled = model.attached.value
+            variant = ButtonVariant.Outline
+            semantics = glassExampleSemantics("glass-text-scale")
+        }
+        button(
+            if (gallery.reduced.value) "Motion: Reduced" else "Motion: Full",
+            { gallery.toggleMotion() }
+        ) {
+            variant = ButtonVariant.Outline
+            semantics = glassExampleSemantics("glass-motion")
+        }
+        button("System preferences", { model.updatePreferences(uiPreferences()) }) {
+            enabled = model.attached.value
+            variant = ButtonVariant.Ghost
+            semantics = glassExampleSemantics("glass-system-preferences")
+        }
+    }
+}

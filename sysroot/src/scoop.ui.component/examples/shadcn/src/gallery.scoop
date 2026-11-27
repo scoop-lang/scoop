@@ -19,6 +19,10 @@ public class GalleryScene public constructor() {
     private val model = GalleryModel()
     public val theme: ThemeSource get() = model.source
     public fun root(scope: ComponentScope): Component = Gallery(model, scope)
+    /** Bind the borrowed root so the page can compare this window's accessibility preferences. */
+    public fun bind(window: UiWindow?) {
+        model.glass.bind(window)
+    }
 }
 
 private enum GalleryDestination {

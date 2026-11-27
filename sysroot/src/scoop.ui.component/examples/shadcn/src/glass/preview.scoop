@@ -1,0 +1,240 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.math.max
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.frame as makeFrame
+import scoop.ui.component.stack as makeStack
+import scoop.ui.component.scrollArea as makeScrollArea
+import scoop.ui.style.*
+
+internal fun glassExamplePreview(model: GlassExamplesModel, theme: Theme): View {
+    val left = glassEffect(
+        ViewKey.Text("like"), glassExampleBounds(model, true),
+        glassExampleAction(model, theme, true)
+    ) { corners = CornerRadii.all(if (model.stretched.value) 18.0 else 40.0) }
+    val right = glassEffect(
+        ViewKey.Text("save"), glassExampleBounds(model, false),
+        glassExampleAction(model, theme, false)
+    ) { corners = CornerRadii.all(if (model.stretched.value) 26.0 else 40.0) }
+    val glass = glassEffectContainer(model.material(theme.tokens.mode)) {
+        key = ViewKey.Text("gallery-glass-fusion")
+        width = Some(280.0)
+        height = Some(216.0)
+        blendRadius = 64.0
+        opacity = model.opacity.value
+        if (model.reversed.value) {
+            add(right);
+            add(left)
+        } else {
+            add(left);
+            add(right)
+        }
+    }
+    return makeFrame(
+        makeStack {
+            add(
+                makeScrollArea(element({ mount -> GlassColorField(mount) })) {
+                    state = Some(model.scroll)
+                    height = Some(260.0)
+                    semantics = ComponentSemantics(
+                        name = Some("Colors behind the glass"),
+                        automationId = Some("glass-backdrop")
+                    )
+                }
+            )
+            add(glass)
+        }
+    ) {
+        height = Some(260.0)
+        style {
+            corners(Corners.all(18.0));
+            clipContent(true)
+        }
+    }
+}
+
+private fun glassExampleBounds(model: GlassExamplesModel, left: Boolean): Rect = if (model
+    .connected
+    .value
+) {
+    if (model.stretched.value) {
+        if (left) Rect(10.0, 62.0, 118.0, 62.0) else Rect(140.0, 44.0, 126.0, 96.0)
+    } else {
+        if (left) Rect(24.0, 54.0, 106.0, 76.0) else Rect(140.0, 54.0, 106.0, 76.0)
+    }
+} else {
+    if (model.stretched.value) {
+        if (left) Rect(10.0, 22.0, 124.0, 60.0) else Rect(144.0, 118.0, 126.0, 86.0)
+    } else {
+        if (left) Rect(16.0, 22.0, 96.0, 80.0) else Rect(168.0, 116.0, 96.0, 80.0)
+    }
+}
+
+private fun glassExampleAction(model: GlassExamplesModel, theme: Theme, left: Boolean): View {
+    val pair = theme.tokens.palette.card
+    val canvas = theme.tokens.palette.background.background.withAlpha(1.0)
+    val fill = if (theme.preferences.highContrast || theme.preferences.reduceTransparency)
+        pair.background.withAlpha(1.0)
+    else
+        glassSurfaceFill(pair, canvas)
+    return makeFrame(
+        button(
+            if (left) f"Like ${model.likes.value}" else f"Save ${model.saves.value}",
+            { if (left) model.likes.value += 1 else model.saves.value += 1 }
+        ) {
+            variant = ButtonVariant.Ghost
+            size = ButtonSize.Sm
+            enabled = model.enabled.value
+            invalid = model.invalid.value
+            if (left) focus = FocusOptions(Some(model.likeFocus))
+            semantics = glassExampleSemantics(if (left) "glass-like" else "glass-save")
+            style {
+                surface {
+                    style {
+                        glass(None)
+                        background(Some(Paint(fill)))
+                        corners(Corners.all(14.0))
+                    }
+                }
+                text { color = Some(pair.foreground) }
+            }
+        }
+    ) { padding = Some(Insets.all(8.0)) }
+}
+
+internal fun glassSurfaceExamples(model: GlassExamplesModel): View = makeFrame(
+    element(
+        { mount -> GlassSurfaceBackdrop(mount) },
+        [
+            makeFrame(
+                makeColumn {
+                    spacing = 12.0
+                    alignment = CrossAlignment.Stretch
+                    card(
+                        makeColumn {
+                            spacing = 8.0
+                            alignment = CrossAlignment.Stretch
+                            typography("A place for your ideas", TypographyRole.Large)
+                            input(model.draft) {
+                                placeholder = "Write an idea"
+                                enabled = model.enabled.value
+                                invalid = model.invalid.value
+                                focus = FocusOptions(Some(model.draftFocus))
+                                semantics = ComponentSemantics(
+                                    name = Some("Glass draft"),
+                                    automationId = Some("glass-draft")
+                                )
+                            }
+                        }
+                    ) {
+                        size = CardSize.Sm
+                        style { corners(Corners.all(16.0)) }
+                    }
+                    frame(
+                        makeColumn {
+                            spacing = 8.0
+                            popover(
+                                model.popup.binding(),
+                                makeColumn {
+                                    spacing = 10.0
+                                    typography("Ready when you are", TypographyRole.Large)
+                                    typography(
+                                        "Your draft stays in place as the material and theme change.",
+                                        TypographyRole.Muted
+                                    )
+                                    button("Done", { model.popup.value = false }) {
+                                        semantics = glassExampleSemantics("glass-popup-done")
+                                    }
+                                }
+                            ) {
+                                trigger("Open popover") {
+                                    semantics = glassExampleSemantics("glass-popup-trigger")
+                                }
+                                width = 260.0
+                                semantics = glassExampleSemantics("glass-popup")
+                            }
+                        }
+                    ) {
+                        surface = Some(SurfaceKind.Plain)
+                        surfaceRole = SurfaceRole.Toolbar
+                        padding = Some(Insets.all(12.0))
+                        style { corners(Corners.all(16.0)) }
+                    }
+                }
+            ) { padding = Some(Insets.all(16.0)) }
+        ]
+    )
+) {
+    style {
+        corners(Corners.all(18.0));
+        clipContent(true)
+    }
+}
+
+private class GlassSurfaceBackdrop(scope: ComponentScope) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        paintGlassColors(context)
+        context.children()
+    }
+}
+
+/** Decorative colors use the ordinary scene and scroll lifetime, without a separate clock. */
+private class GlassColorField(scope: ComponentScope) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(
+        LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 640.0, 960.0))),
+        Unit
+    )
+
+    public override fun scene(context: SceneContext, measured: Unit) {
+        paintGlassColors(context)
+    }
+}
+
+private fun paintGlassColors(context: SceneContext) {
+    val size = context.size
+    context
+        .draw { paint ->
+            val colors = [
+                Color(0.08, 0.3, 0.58),
+                Color(0.12, 0.76, 0.8),
+                Color(0.95, 0.6, 0.26),
+                Color(0.64, 0.3, 0.69),
+                Color(0.93, 0.44, 0.54),
+                Color(0.14, 0.52, 0.36),
+                Color(0.65, 0.76, 0.24),
+                Color(0.22, 0.38, 0.8)
+            ]
+            for (index in 0..7) {
+                val top = index.toDouble() * 120.0
+                paint
+                    .canvas
+                    .drawRect(Rect(0.0, top, size.width, 120.0), Paint(colors[index.toLong()]))
+                for (line in 0..11) {
+                    paint
+                        .canvas
+                        .drawRect(
+                            Rect(0.0, top + line.toDouble() * 10.0, size.width, 2.0),
+                            Paint(Color.White.withAlpha(0.22))
+                        )
+                }
+                paint
+                    .canvas
+                    .drawOval(
+                        Rect(max(0.0, size.width * 0.55 - 30.0), top + 12.0, 150.0, 150.0),
+                        Paint(Color.White.withAlpha(0.4))
+                    )
+            }
+        }
+}

@@ -481,6 +481,8 @@ GridProps 保存 columns／rows: Array<GridTrack>、items: Array<GridItem>、col
 
 每帧先用一个 GlassEffectPainter 合成全部轮廓，再按声明顺序呈现各自圆角裁剪内的清晰内容。融合的连接区域不创建 InputArea、焦点或语义节点。容器自身不把子内容合并成一个控件；按钮、编辑器和读屏操作保持各自语义。高对比度与减少透明度以主题 card 底色绘制同一形状，减少动画立即收束形变；材质参数仍是可共享描述，不持有 UI 状态。
 
+Gallery 的 Liquid Glass 页面使用上述公开接口，提供毛玻璃／清透折射／液态材质、八类表面用途、共享容器的连接／分离与轮廓形变、整组透明度，以及滚动中的真实下层。示例的高对比度、减少透明度和文字缩放通过已附着 UiWindow.preferences 应用，重置为 None 恢复系统偏好；减少动画沿 Gallery 的基础主题策略。切换风格、明暗、用途或偏好保留同一输入、按钮状态和稳定 key，不增加库内示例专用入口。
+
 ## 7. 样式与资源归属
 
 ButtonStyle／CheckboxStyle 是本库的局部输入对象，使用公共 StyleOverride、SpanStyle 和明确的尺寸／动画覆盖。公共默认外观、视觉状态数据、表面／Checkbox／Radio／Scrollbar 的绘图和几何合同均属于 scoop.ui.style，四套风格实现不依赖具体控件。本库把当前状态转换为主题视觉输入，消费同一几何和绘图，不按 macOS／Material／Fluent／shadcn 分支。段落内 SpanStyle 的局部继承属于 graphics.text 的内容模型，复用其公共合同。

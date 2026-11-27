@@ -67,3 +67,7 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/gallery_style.scoop"
 when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/glass_model.scoop"
+when = { os = "linux", env = "gnu" }

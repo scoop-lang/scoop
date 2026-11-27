@@ -19,16 +19,20 @@ internal fun runGallery(model: GalleryModel) {
                                         this.size = LogicalSize(1120.0, 780.0)
                                     }
                                 )
-                            host
+                            val root = host
                                 .attach(
                                     window,
                                     { mount -> Gallery(model, scope = mount) },
                                     fonts = Some(fonts)
                                 )
+                            model.glass.bind(root)
                             window.requestFocus()
                         }
 
-                        case Window(_, WindowEvent.CloseRequested) -> active.requestExit()
+                        case Window(_, WindowEvent.CloseRequested) -> {
+                            model.glass.bind(None)
+                            active.requestExit()
+                        }
 
                         case Window(_, WindowEvent.Focused(true)) -> {
                             if (model.usesSystemColors) model.refreshTheme()

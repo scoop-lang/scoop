@@ -1,0 +1,425 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class GlassGalleryWindowTest {
+    @Test(useProcess = true)
+    fun `gallery glass combines native actions scrolling material policy preferences and responsive lifecycle`() {
+        GalleryGlassProbe()
+            .use { probe ->
+                context(probe.model.source) {
+                    UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                        probe.event(host, active, event)
+                    }
+                        .use { host -> Application().run(host) }
+                }
+                assertTrue(probe.finished)
+                assertEquals(1, probe.model.glass.likes.value)
+                assertEquals(1, probe.model.glass.saves.value)
+                assertEquals("玻璃里的草稿", probe.model.glass.draft.text)
+                assertFalse(probe.model.glass.scroll.isAttached)
+                assertFalse(probe.frames!!.snapshot().attached)
+            }
+    }
+}
+
+internal class GalleryGlassProbe : Closeable {
+    val model = GalleryModel()
+    val serial = state(0)
+    var submitted = -1
+    var frames: FrameProbe? = None
+    var finished = false
+    private var phase = 0
+    private var active: ActiveApplication? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var tree: NativeNode? = None
+    private var like: NativeNode? = None
+    private var draft: NativeNode? = None
+    private var calls: NativeCalls? = None
+    private var timer: WindowDeadline? = None
+    private var waiting = false
+    private var pendingId = ""
+    private var pendingAction = 0
+    private var pendingValue = ""
+    private var expected = 1
+    private var ready = MonotonicTimeSource.now()
+    private var idle: FrameSnapshot? = None
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                model.query.replaceAll("Liquid")
+                val native = application
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop Liquid Glass Gallery validation"
+                            size = LogicalSize(1100.0, 860.0)
+                            level = WindowLevel.AlwaysOnTop
+                            requestActivation = false
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                native
+                    .createDeadline {
+                        fail(
+                            Some(f"glass Gallery timed out at phase ${phase}, action ${pendingId}")
+                        )
+                    }
+                    .schedule(MonotonicTimeSource.now() + Duration.seconds(55L))
+                timer = Some(native.createDeadline { advance() })
+                ui = host.attach(native, { mount -> GlassGalleryObserved(this, mount) })
+                model.glass.bind(ui)
+                model
+                    .glass
+                    .updatePreferences(
+                        uiPreferences {
+                            reduceMotion = Some(false)
+                            highContrast = Some(false)
+                            reduceTransparency = Some(false)
+                            textScaleFactor = Some(1.0)
+                            caretBlinkInterval = Some(Duration.milliseconds(0L))
+                        }
+                    )
+                @Unsafe {
+                    native
+                        .acquireNativeWindow()
+                        .use { lease ->
+                            @Unsafe {
+                                when (lease.handle) {
+                                    case AppKit(_, val view) ->
+                                        tree = Some(NativeNode(nativeRoot(view)!!))
+                                }
+                            }
+                        }
+                }
+                calls = Some(
+                    NativeCalls(application.proxy()) { tag, result -> completed(tag, result) }
+                )
+            }
+
+            case AboutToWait -> advance()
+            else -> {}
+        }
+    }
+
+    private fun advance() {
+        if (waiting || submitted != serial.value || MonotonicTimeSource.now() < ready || finished)
+            return
+        val glass = model.glass
+        when (phase) {
+            case 0 -> act("gallery-entry-Liquid Glass")
+
+            case 1 -> {
+                like = Some(find("glass-like"))
+                draft = Some(find("glass-draft"))
+                act("glass-material-Frosted")
+            }
+
+            case 2 -> {
+                assertEquals(GalleryGlassMaterial.Frosted, glass.preset.value);
+                act("glass-material-Clear")
+            }
+
+            case 3 -> {
+                assertEquals(GalleryGlassMaterial.Clear, glass.preset.value);
+                act("glass-material-Liquid")
+            }
+
+            case 4 -> {
+                assertEquals(GalleryGlassMaterial.Liquid, glass.preset.value);
+                act("glass-role-Controls")
+            }
+
+            case 5 -> {
+                assertTrue(glass.uses(SurfaceRole.Control));
+                act("glass-role-Inputs")
+            }
+
+            case 6 -> {
+                assertTrue(glass.uses(SurfaceRole.Input));
+                act("glass-role-Popovers")
+            }
+
+            case 7 -> {
+                assertTrue(glass.uses(SurfaceRole.Popover));
+                act("glass-scroll")
+            }
+
+            case 8 -> {
+                assertEquals(120.0, glass.scroll.offset.y);
+                sameIdentity();
+                act("glass-connect")
+            }
+
+            case 9 -> {
+                assertFalse(glass.connected.value);
+                act("glass-shape")
+            }
+
+            case 10 -> {
+                assertTrue(glass.stretched.value);
+                act("glass-order")
+            }
+
+            case 11 -> {
+                assertTrue(glass.reversed.value);
+                sameIdentity();
+                act("glass-like")
+            }
+
+            case 12 -> {
+                assertEquals(1, glass.likes.value);
+                act("glass-opacity")
+            }
+
+            case 13 -> {
+                assertEquals(0.5, glass.opacity.value);
+                act("glass-enabled")
+            }
+
+            case 14 -> {
+                assertFalse(like!!.flag(1));
+                act("glass-like", result = 0)
+            }
+
+            case 15 -> {
+                assertEquals(1, glass.likes.value);
+                act("glass-enabled")
+            }
+
+            case 16 -> {
+                assertTrue(like!!.flag(1));
+                act("glass-draft", action = 1, value = "玻璃里的草稿")
+            }
+
+            case 17 -> {
+                assertEquals("玻璃里的草稿", glass.draft.text);
+                act("glass-text-scale")
+            }
+
+            case 18 -> {
+                assertEquals(Some(1.5), ui!!.preferences.textScaleFactor);
+                sameIdentity();
+                act("glass-contrast")
+            }
+
+            case 19 -> {
+                assertEquals(Some(true), ui!!.preferences.highContrast);
+                act("glass-contrast")
+            }
+
+            case 20 -> {
+                assertEquals(Some(false), ui!!.preferences.highContrast);
+                act("glass-transparency")
+            }
+
+            case 21 -> {
+                assertEquals(Some(true), ui!!.preferences.reduceTransparency);
+                act("glass-motion")
+            }
+
+            case 22 -> {
+                assertTrue(model.reduced.value);
+                glass.connected.value = true;
+                next()
+            }
+
+            case 23 -> {
+                sameIdentity();
+                act("glass-system-preferences")
+            }
+
+            case 24 -> {
+                assertEquals(None, ui!!.preferences.highContrast)
+                assertEquals(None, ui!!.preferences.reduceTransparency)
+                assertEquals(None, ui!!.preferences.textScaleFactor)
+                model.selectStyle(GalleryStyle.Material)
+                model.toggleTheme()
+                model.toggleDirection()
+                next()
+            }
+
+            case 25 -> {
+                assertEquals(ThemeMode.Dark, model.source.current.value.tokens.mode)
+                sameIdentity()
+                act("glass-save")
+            }
+
+            case 26 -> {
+                assertEquals(1, glass.saves.value);
+                act("glass-popup-trigger")
+            }
+
+            case 27 -> {
+                assertTrue(glass.popup.value);
+                act("glass-popup-done")
+            }
+
+            case 28 -> {
+                assertFalse(glass.popup.value);
+                window!!.requestSize(LogicalSize(390.0, 820.0));
+                next()
+            }
+
+            case 29 -> {
+                assertEquals(390.0, window!!.metrics!!.logicalSize.width)
+                sameIdentity()
+                assertEquals("玻璃里的草稿", glass.draft.text)
+                act("glass-like", action = 12)
+            }
+
+            case 30 -> {
+                idle = None;
+                next()
+            }
+
+            case 31 -> checkIdle(false)
+
+            case 32 -> {
+                model.query.replaceAll("")
+                model.selected.value = Demo.Button
+                next()
+            }
+
+            case 33 -> {
+                assertFalse(glass.scroll.isAttached)
+                assertFalse(glass.likeFocus.isAttached)
+                idle = None
+                next()
+            }
+
+            case 34 -> checkIdle(true)
+            else -> fail(Some("unexpected glass Gallery phase"))
+        }
+    }
+
+    private fun find(id: String): NativeNode = tree!!.find(id) ?: fail(Some("missing " + id))
+
+    private fun sameIdentity() {
+        find("glass-like").use { node -> assertTrue(node.same(like!!)) }
+        find("glass-draft").use { node -> assertTrue(node.same(draft!!)) }
+    }
+
+    private fun act(id: String, action: Int = 0, value: String = "", result: Int = 1) {
+        pendingId = id
+        pendingAction = action
+        pendingValue = value
+        expected = result
+        waiting = true
+        if (result == 0) {
+            // Disabled controls reject both reveal and press; test the requested action directly.
+            find(id).use { node -> calls!!.post(node, phase, action = action, value = value) }
+            return
+        }
+        // Reveal uses the real outer and inner scroll geometry before dispatching the action.
+        find(id).use { node -> calls!!.post(node, -1, action = 12) }
+    }
+
+    private fun completed(tag: Int, result: Int) {
+        if (tag == -1) {
+            if (result == 0) {
+                waiting = false
+                ready = MonotonicTimeSource.now() + Duration.milliseconds(80L)
+                timer!!.schedule(ready)
+            } else {
+                assertEquals(1, result, Some("reveal " + pendingId))
+                find(pendingId)
+                    .use { node ->
+                        calls!!.post(node, phase, action = pendingAction, value = pendingValue)
+                    }
+            }
+            return
+        }
+        assertEquals(phase, tag)
+        assertEquals(expected, result, Some("native action " + pendingId))
+        waiting = false
+        next()
+    }
+
+    private fun next() {
+        phase += 1
+        serial.value += 1
+        ready = MonotonicTimeSource.now() + Duration.milliseconds(360L)
+        timer!!.schedule(ready)
+    }
+
+    private fun checkIdle(last: Boolean) {
+        val current = frames!!.snapshot()
+        assertFalse(current.required, Some("settled Gallery kept native frame demand"))
+        assertTrue(current.paused)
+        when (idle) {
+            case None -> {
+                idle = Some(current)
+                ready = MonotonicTimeSource.now() + Duration.milliseconds(200L)
+                timer!!.schedule(ready)
+            }
+
+            case Some(val previous) -> {
+                assertEquals(previous, current, Some("idle Gallery kept submitting native frames"))
+                if (last) {
+                    finished = true;
+                    active!!.requestExit()
+                } else
+                    next()
+            }
+        }
+    }
+
+    public override fun close() {
+        model.glass.bind(None)
+        calls?.close()
+        like?.close()
+        draft?.close()
+        tree?.close()
+        frames?.close()
+    }
+}
+
+private class GlassGalleryObserved(private val probe: GalleryGlassProbe, scope: ComponentScope) :
+    Component(scope) {
+    public override fun render(): View {
+        val probe = this.probe
+        return element(
+            probe.serial.value,
+            { props, mount -> GlassGalleryFrame(props, probe, mount) },
+            [component({ mount -> Gallery(probe.model, mount) })]
+        )
+    }
+}
+
+private class GlassGalleryFrame(
+    private val serial: Props<Int>,
+    private val probe: GalleryGlassProbe,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun update(): UiInvalidation = UiInvalidation.Scene
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val version = serial.value
+        context.children()
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) probe.submitted = version
+            }
+    }
+}

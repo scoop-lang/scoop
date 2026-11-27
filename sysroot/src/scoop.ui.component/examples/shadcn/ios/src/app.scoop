@@ -32,19 +32,23 @@ private class GalleryApplication {
                     }
                 ) { host, _, event ->
                     when (event) {
-                        case SceneConnected(val window) ->
-                            host
+                        case SceneConnected(val window) -> {
+                            val root = host
                                 .attach(
                                     window,
                                     { mount -> gallery.root(mount) },
                                     fonts = Some(fonts)
                                 )
+                            gallery.bind(root)
+                        }
+
                         else -> {}
                     }
                 }
                 scene = Some(
                     attachUIKitScene(pointer, ui) { failure ->
                         try {
+                            gallery.bind(None)
                             ui.close()
                         } finally {
                             fonts.close()

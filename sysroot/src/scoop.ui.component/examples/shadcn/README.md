@@ -1,8 +1,10 @@
 # Scoop UI Gallery
 
-真实原生窗口，使用同一套 `scoop.ui.component`，右上角 Style 下拉框可选择 shadcn、macOS、Material、Fluent 的完整主题。示例目录保留 `shadcn` 名称。导航分为 Applications 和 Components，包含 65 项组件的独立页面，以及四个可操作的应用组合。
+真实原生窗口，使用同一套 `scoop.ui.component`，右上角 Style 下拉框可选择 shadcn、macOS、Material、Fluent 的完整主题。示例目录保留 `shadcn` 名称。导航分为 Applications 和 Components，包含 66 项组件与材质的独立页面，以及四个可操作的应用组合。
 
 目录和详情共用一棵挂载树。页面通过 Flex 的 layoutFor／itemFor 读取父容器逻辑宽度，达到 720 时并排显示，较窄时按当前导航位置显示目录或详情。目录的每组按钮用最小列宽 152 的 FlexGrid 自动分列，详情的 Frame 将正文宽度限制在 960。窗口拖动、旋转和分屏只改变子项的测量与放置，显式返回目录结束当前详情页面。实现见 [Gallery 布局](src/gallery.scoop)。
+
+**Liquid Glass** 页提供 Frosted／Clear／Liquid 三种共享材质。滚动彩色底图或点击 Scroll colors，可观察固定表面处理当帧下层；Separate／Connect 与 Stretch／Round 更新稳定 key 的实际位置、尺寸和圆角，Reverse order 保留两项独立计数。Opacity、禁用和错误状态可组合操作。八个用途开关通过 ThemeTokens.glassSurfaces 应用于整个 Gallery，输入草稿和弹层使用真实控件。页面中的高对比度、减少透明度和文字缩放修改当前 UiWindow.preferences，System preferences 恢复跟随系统；Motion 与顶部设置共用主题策略。实体回退保留内容和操作。实现见 [材质与策略模型](src/glass/model.scoop)、[页面](src/glass/page.scoop)和[背景与融合](src/glass/preview.scoop)。桌面入口与 UIKit 的 GalleryScene.bind 绑定借用的 UI 根，不修改系统设置。
 
 - **Settings app**：资料与偏好表单，组合中文输入、邮件与验证码校验、生日选择、勾选／开关／单选和存储滑块；固定操作区提交时会显露并聚焦错误字段。
 - **Workspace app**：侧栏、文档／预览页签和可调面板，配合 File 菜单、命令搜索、重命名 Dialog、嵌套 Sheet 和活动 Drawer；窗口变窄后使用移动侧栏，草稿随应用模型保留。
@@ -60,6 +62,8 @@ Gallery 的 macOS 入口在附着窗口前调用 `configureFpsReportingFromEnvir
 Style 始终提供 `shadcn`、`macOS`、`Material` 和 `Fluent`。其左侧的 `Colors: Preset／System` 独立选择配色来源：Preset 使用当前风格的预设配色，System 把系统强调色、背景、文字及分隔线应用于任意风格，同时保留该风格的字体、尺寸、轮廓及动效。切换 Style 保留配色来源，切换 Colors 保留 Style。macOS 默认 shadcn + System；只有启用 System 时，切换明暗或重新聚焦窗口才读取系统颜色。其他平台固定 Preset，系统取色适配只在 macOS 提供。
 
 窗口测试遵守每进程一个 Application 的合同，须串行、按单个用例启动；`--list` 可列出名称，再以 `scoop test sysroot/src/scoop.ui.component/examples/shadcn --release --filter 'real gallery retains'` 等命令分别运行。普通模型测试可按容器筛选，例如 `--filter GalleryStyleTest` 验证样式切换和状态保持。
+
+Liquid Glass 的定向验证可使用同一命令加 `--filter Glass`，覆盖两项模型测试和一个 35 阶段 macOS 原生窗口测试，包括滚动、材质与用途、形变与状态、AX 编辑和弹层、偏好、窄窗及停帧。本轮结果和平台限制见[玻璃材质验收记录](../../../../../docs/ui/liquid-glass/DESIGN.md#5-gallery-与组合验证)。
 
 Badge 页面可以切换禁用、撤销动作和替换回调。Spinner 页面中的滚动面板用于观察离屏停帧与滚回恢复；切页、隐藏窗口、停止和减少动态均不会留下持续渲染。自定义 Button／Badge 内容通过 ActionContentStyle 消费解析后的文字、图标尺寸、颜色与间距。
 

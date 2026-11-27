@@ -8,6 +8,7 @@ import scoop.ui.component.frame as makeFrame
 import scoop.ui.style.*
 
 internal fun galleryDemo(model: GalleryModel, value: Demo): View = when (value) {
+    case LiquidGlass -> component({ mount -> LiquidGlassPage(model, mount) })
     case AppSettings -> settingsApplication(model.appSettings, model.source.current.value)
     case AppWorkspace -> workspaceApplication(model.appWorkspace, model.source.current.value)
     case AppData -> dataApplication(model.appData)
