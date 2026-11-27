@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2301",
+    "message": "framework libraries require a Mach-O target; requirement 4997d897b8931d6eca1e8142ad1798d394da7f69b3d4ceaa1eb4b342c840cbcc; origins: dev.m33:library-negative:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

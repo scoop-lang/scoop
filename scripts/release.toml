@@ -53,6 +53,18 @@ minimum_gtk = "4.18"
 minimum_libadwaita = "1.4"
 build_system = "Ubuntu 26.04.1"
 
+[targets.aarch64-unknown-linux-gnu]
+cpu = "generic"
+minimum_libc = "2.43"
+minimum_gtk = "4.18"
+minimum_libadwaita = "1.4"
+build_system = "Ubuntu 26.04.1"
+
+[targets.aarch64-unknown-linux-musl]
+cpu = "generic"
+minimum_libc = "1.2.5"
+build_system = "Ubuntu 26.04.1"
+
 [targets.x86_64-unknown-linux-musl]
 cpu = "x86-64"
 minimum_libc = "1.2.5"

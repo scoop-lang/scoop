@@ -7,10 +7,7 @@ use super::*;
 #[test]
 fn elf_exception_personality_pointer_belongs_to_its_callable() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         for odr in [false, true] {
             let mut module = for_target(exceptions_module(), target);
             if odr {

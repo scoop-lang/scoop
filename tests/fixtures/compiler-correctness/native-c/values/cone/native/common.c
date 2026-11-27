@@ -3,6 +3,11 @@
 #include <config.h>
 #include <errno.h>
 
+#if defined(SCOOP_TARGET_ARCH_AARCH64) != defined(__aarch64__) || \
+    defined(SCOOP_TARGET_ARCH_X86_64) != defined(__x86_64__)
+#error incorrect target architecture macros
+#endif
+
 typedef struct Pair {
   int32_t number;
   bool flag;

@@ -18,6 +18,9 @@ impl ValidatedLirTargetSelection {
                 crate::ObjectTargetProfileV1::MachOX86_64,
                 crate::ObjectTargetProfileV1::MachOX86_64
             ) | (
+                crate::ObjectTargetProfileV1::ElfAarch64,
+                crate::ObjectTargetProfileV1::ElfAarch64
+            ) | (
                 crate::ObjectTargetProfileV1::ElfX86_64,
                 crate::ObjectTargetProfileV1::ElfX86_64
             ) | (

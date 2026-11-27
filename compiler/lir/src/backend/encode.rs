@@ -65,10 +65,12 @@ impl WireEncode for BackendProfileContract {
                 crate::ObjectTargetProfileV1::MachOX86_64 => 2,
                 crate::ObjectTargetProfileV1::ElfX86_64 => 3,
                 crate::ObjectTargetProfileV1::CoffAmd64 => 4,
+                crate::ObjectTargetProfileV1::ElfAarch64 => 5,
             },
         )?;
         let (tag, record) = match self.machine_frame_recovery {
             MachineFrameRecoveryV1::DarwinAarch64Fixed => (3, Some(16)),
+            MachineFrameRecoveryV1::LinuxAarch64Fixed => (4, Some(16)),
             MachineFrameRecoveryV1::SysvAmd64Fixed => (1, Some(16)),
             MachineFrameRecoveryV1::WindowsAmd64VirtualUnwind => (2, None),
         };

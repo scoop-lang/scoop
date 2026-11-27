@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2306",
+    "message": "ambiguous native library \"m23_math\": [\"${work}/alternate/m23_math.o\", \"${work}/native/m23_math.o\"]; requirement bbae28adc51c89fff32a8d2b6491a3a31947a9c7212d9beca01fd538da0852a6; origins: dev.programlink:direct:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

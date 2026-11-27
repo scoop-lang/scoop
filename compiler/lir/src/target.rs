@@ -158,7 +158,7 @@ pub enum ObjectMachineV1 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ObjectHeaderAbiV1 {
     MachO64,
-    ElfX86_64FlagsZero,
+    ElfFlagsZero,
     CoffAmd64,
 }
 
@@ -167,6 +167,7 @@ pub enum ObjectRelocationProfileV1 {
     MachOAarch64,
     MachOX86_64,
     ElfX86_64Rela,
+    ElfAarch64Rela,
     CoffAmd64,
 }
 
@@ -205,6 +206,7 @@ pub enum ObjectTargetProfileV1 {
     MachOAarch64,
     MachOX86_64,
     ElfX86_64,
+    ElfAarch64,
     CoffAmd64,
 }
 
@@ -212,14 +214,14 @@ impl ObjectTargetProfileV1 {
     pub const fn format(self) -> NativeObjectFormat {
         match self {
             Self::MachOAarch64 | Self::MachOX86_64 => NativeObjectFormat::MachO64,
-            Self::ElfX86_64 => NativeObjectFormat::Elf64,
+            Self::ElfX86_64 | Self::ElfAarch64 => NativeObjectFormat::Elf64,
             Self::CoffAmd64 => NativeObjectFormat::Coff64,
         }
     }
 
     pub const fn machine(self) -> ObjectMachineV1 {
         match self {
-            Self::MachOAarch64 => ObjectMachineV1::Aarch64,
+            Self::MachOAarch64 | Self::ElfAarch64 => ObjectMachineV1::Aarch64,
             Self::MachOX86_64 | Self::ElfX86_64 | Self::CoffAmd64 => ObjectMachineV1::X86_64,
         }
     }
@@ -227,7 +229,7 @@ impl ObjectTargetProfileV1 {
     pub const fn header_abi(self) -> ObjectHeaderAbiV1 {
         match self {
             Self::MachOAarch64 | Self::MachOX86_64 => ObjectHeaderAbiV1::MachO64,
-            Self::ElfX86_64 => ObjectHeaderAbiV1::ElfX86_64FlagsZero,
+            Self::ElfX86_64 | Self::ElfAarch64 => ObjectHeaderAbiV1::ElfFlagsZero,
             Self::CoffAmd64 => ObjectHeaderAbiV1::CoffAmd64,
         }
     }
@@ -237,6 +239,7 @@ impl ObjectTargetProfileV1 {
             Self::MachOAarch64 => ObjectRelocationProfileV1::MachOAarch64,
             Self::MachOX86_64 => ObjectRelocationProfileV1::MachOX86_64,
             Self::ElfX86_64 => ObjectRelocationProfileV1::ElfX86_64Rela,
+            Self::ElfAarch64 => ObjectRelocationProfileV1::ElfAarch64Rela,
             Self::CoffAmd64 => ObjectRelocationProfileV1::CoffAmd64,
         }
     }
@@ -245,14 +248,14 @@ impl ObjectTargetProfileV1 {
         match self {
             Self::MachOAarch64 => ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame,
             Self::MachOX86_64 => ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame,
-            Self::ElfX86_64 => ObjectUnwindImageV1::ElfEhFrame,
+            Self::ElfX86_64 | Self::ElfAarch64 => ObjectUnwindImageV1::ElfEhFrame,
             Self::CoffAmd64 => ObjectUnwindImageV1::CoffAmd64PdataXdata,
         }
     }
 
     /// LLVM emits a separate `DW.ref` constant for the callable's personality.
     pub const fn uses_indirect_elf_personality(self) -> bool {
-        matches!(self, Self::ElfX86_64)
+        matches!(self, Self::ElfX86_64 | Self::ElfAarch64)
     }
 
     pub const fn symbol_normalization(self) -> NativeSymbolNormalization {
@@ -260,7 +263,7 @@ impl ObjectTargetProfileV1 {
             Self::MachOAarch64 | Self::MachOX86_64 => {
                 NativeSymbolNormalization::MachOExternalUnderscore
             }
-            Self::ElfX86_64 => NativeSymbolNormalization::ElfIdentity,
+            Self::ElfX86_64 | Self::ElfAarch64 => NativeSymbolNormalization::ElfIdentity,
             Self::CoffAmd64 => NativeSymbolNormalization::CoffIdentity,
         }
     }
@@ -275,6 +278,7 @@ pub enum TargetArchitecture {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ProcedureAbi {
     DarwinAarch64,
+    Aapcs64,
     SysvAmd64,
     Win64,
 }

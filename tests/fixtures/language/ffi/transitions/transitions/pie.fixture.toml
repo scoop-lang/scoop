@@ -3,7 +3,7 @@ name = "native-safe-transitions-pie"
 root = "program.scoop"
 inputs = ["program.scoop", "native.c", "../../../callback/native.c", "../../../callback/threading.h"]
 tools = ["scoop", "scoopc", "scoop-link", "cc", "ar"]
-targets = ["x86_64-unknown-linux-musl"]
+when = { os = "linux", env = "musl" }
 tags = ["ffi", "callback", "artifact-link", "language"]
 variants = [{"name" = "release", "vars" = {"profile" = "release"}}]
 [[steps]]

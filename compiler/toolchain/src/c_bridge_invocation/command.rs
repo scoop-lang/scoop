@@ -147,6 +147,9 @@ fn canonical_object_compilation_command(
             CanonicalCBridgeFlagV1::PositionIndependent => {
                 command.arg("-fPIC");
             }
+            CanonicalCBridgeFlagV1::Armv8ABaseline => {
+                command.arg("-march=armv8-a");
+            }
             CanonicalCBridgeFlagV1::X86_64Baseline => {
                 command.arg("-march=x86-64");
             }

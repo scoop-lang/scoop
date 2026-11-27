@@ -27,10 +27,7 @@ fn elf_image_parser_consumes_an_explicit_loaded_image_view() {
 #[test]
 fn elf_images_use_loaded_segments_and_code_bounds() {
     let workspace = workspace();
-    let profile = scoop_toolchain::ValidatedRuntimeBuildProfile::for_target(
-        scoop_target_data::LINUX_X86_64_GNU,
-    )
-    .unwrap();
+    let profile = super::native_runtime_profile();
     let root = workspace.join("target/linux-runtime-tests");
     std::fs::create_dir_all(&root).unwrap();
     let directory = tempfile::tempdir_in(root).unwrap();
@@ -63,9 +60,15 @@ fn elf_images_use_loaded_segments_and_code_bounds() {
             "runtime/src/platform/common.c",
             "runtime/src/platform/bundle.c",
             "runtime/src/platform/os/linux.c",
-            "runtime/src/platform/frame/sysv_amd64.c",
             "runtime/src/image/ranges.c",
         ] {
+            command.arg(workspace.join(source));
+        }
+        for source in profile
+            .runtime_sources()
+            .into_iter()
+            .filter(|path| path.starts_with("runtime/src/platform/frame/") && path.ends_with(".c"))
+        {
             command.arg(workspace.join(source));
         }
         checked(command.arg("-o").arg(&binary));

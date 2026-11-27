@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2302",
+    "message": "missing native library \"additional\" for aarch64-unknown-linux-musl; no candidate in explicit roots or the selected target's system libraries; requirement 78d7c52edb496bcec59d11831bb971e1ffb06e907b7acb95017ba4804d89504d; origins: dev.programlink:native-library-required:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

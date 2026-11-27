@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2302",
+    "message": "missing native library \"m33_missing_native_library\" for aarch64-unknown-linux-musl; no candidate in explicit roots or the selected target's system libraries; requirement 647c26ae6bdf911f2dd21799d5ded5580debd6356d31502815c2e4ff1c29b521; origins: dev.m33:library-negative:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

@@ -1,8 +1,9 @@
 use super::*;
 
 #[test]
-fn gcc_and_clang_interoperate_for_sysv_signatures_in_both_directions() {
-    let target = scoop_target_data::LINUX_X86_64_GNU;
+fn gcc_and_clang_interoperate_for_native_c_signatures_in_both_directions() {
+    let [gnu, _] = crate::linux_target::native_test_targets();
+    let target = gnu.selection.target();
     let gcc = resolve_linux_c_toolchain(target, Some(Path::new("gcc")), None).unwrap();
     let clang = resolve_linux_c_toolchain(target, Some(Path::new("clang")), None).unwrap();
     for optimization in [

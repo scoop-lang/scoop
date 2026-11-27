@@ -134,8 +134,9 @@ fn production_runner_accepts_only_matching_response_and_exit_pairs() {
 #[cfg(target_os = "linux")]
 #[test]
 fn production_runner_preserves_linux_tools_and_reuses_scratch_root() {
-    for triple in ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"] {
-        let target = scoop_toolchain::ResolvedTargetProfile::resolve(triple).unwrap();
+    for libc in ["gnu", "musl"] {
+        let triple = format!("{}-unknown-linux-{libc}", std::env::consts::ARCH);
+        let target = scoop_toolchain::ResolvedTargetProfile::resolve(&triple).unwrap();
         let selection = target.child_request().unwrap();
         assert!(selection.resolved_toolchain().is_some());
         assert_eq!(
@@ -147,7 +148,11 @@ fn production_runner_preserves_linux_tools_and_reuses_scratch_root() {
         let scratch = directory.path().join("scratch");
         std::fs::create_dir(&scratch).unwrap();
         let response = shell_bytes(&encode_response_frame(&success([8; 16])).unwrap());
-        let gcc_check = if triple.ends_with("-musl") {
+        let expects_real_gcc = target
+            .c_bridge_toolchain()
+            .driver_environment()
+            .any(|(name, _)| name == "REALGCC");
+        let gcc_check = if expects_real_gcc {
             "test -x \"$REALGCC\" || exit 9\n\"$REALGCC\" -dumpmachine >/dev/null || exit 9"
         } else {
             "test -z \"${REALGCC+x}\" || exit 9"

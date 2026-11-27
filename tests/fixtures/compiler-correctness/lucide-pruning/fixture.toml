@@ -2,7 +2,7 @@ schema = 1
 name = "lucide-pruning"
 inputs = ["zero", "one", "all", "expanded.Cone.toml", "inspect.py"]
 tools = ["scoop", "scoopc", "python"]
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc-ucrt", "x86_64-w64-windows-llvm-mingw-ucrt", "x86_64-w64-windows-llvm-mingw-msvcrt"]
+when = { os = ["darwin", "linux", "windows"], env = ["gnu", "llvm-mingw-msvcrt", "llvm-mingw-ucrt", "msvc-ucrt", "none"] }
 tags = ["link", "artifacts", "compiler-correctness"]
 
 [vars]

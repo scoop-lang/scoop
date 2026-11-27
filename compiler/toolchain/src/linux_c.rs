@@ -265,5 +265,5 @@ fn error(code: scoop_source::DiagnosticCode, value: impl std::fmt::Display) -> T
     ToolchainError::new(code, format!("Linux C toolchain: {value}"))
 }
 
-#[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
+#[cfg(all(test, target_os = "linux"))]
 mod tests;

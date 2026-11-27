@@ -1,3 +1,4 @@
+mod abi;
 mod dependencies;
 mod packages;
 
@@ -29,6 +30,7 @@ pub fn build(
     tools: &mut Tools<'_>,
 ) -> Result<PathBuf> {
     let settings = &input.settings;
+    let abi = abi::LinuxAbi::for_target(&input.target)?;
     ensure!(
         settings
             .name
@@ -51,7 +53,7 @@ pub fn build(
     }
     let mut plan = deploy::payload(settings, &input.target, &input.executable, inputs)?;
     let appimage = format == "appimage";
-    let code = dependencies::collect(input, &mut plan, appimage, inputs, tools)?;
+    let code = dependencies::collect(input, &abi, &mut plan, appimage, inputs, tools)?;
     let icon = icon(settings, inputs)?;
     ensure!(
         !appimage || icon.is_some(),
@@ -87,7 +89,7 @@ pub fn build(
     if format == "deb" {
         plan.generated(
             "DEBIAN/control",
-            packages::deb_control(settings)?.into_bytes(),
+            packages::deb_control(settings, abi.deb_arch)?.into_bytes(),
         )?;
     }
     let root = scratch.join(if appimage { "AppDir" } else { "payload" });
@@ -95,8 +97,8 @@ pub fn build(
     plan.write(&root)?;
     dependencies::relocate(input, &code, &root, inputs, tools)?;
     match format {
-        "deb" => packages::deb(settings, &root, publish, inputs, tools),
-        "rpm" => packages::rpm(settings, &root, publish),
+        "deb" => packages::deb(settings, abi.deb_arch, &root, publish, inputs, tools),
+        "rpm" => packages::rpm(settings, &input.target.arch, &root, publish),
         "appimage" => {
             tools::executable(&root.join("AppRun"))?;
             let artifact = PathBuf::from(format!(
@@ -106,9 +108,12 @@ pub fn build(
             let tool = tools.find("appimagetool", inputs)?;
             let mut command = std::process::Command::new(tool);
             command.env("ARCH", &input.target.arch);
-            command
-                .arg("--runtime-file")
-                .arg(tools.find("appimage-runtime", inputs)?);
+            let runtime = tools.appimage_runtime(&input.target.arch, inputs)?;
+            let bytes = fs::read(&runtime)?;
+            let elf = goblin::elf::Elf::parse(&bytes)
+                .with_context(|| format!("read AppImage runtime {}", runtime.display()))?;
+            abi.check_machine(&elf, &runtime)?;
+            command.arg("--runtime-file").arg(runtime);
             command.arg(&root).arg(publish.join(&artifact));
             tools::run(&mut command, "appimagetool")?;
             tools::executable(&publish.join(&artifact))?;

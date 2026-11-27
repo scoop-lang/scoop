@@ -14,32 +14,34 @@ use crate::tests::c_layout::{c_opaque_pointer, c_value};
 #[test]
 fn linux_generated_c_requirements_cover_native_tls_and_callback_contracts() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         let (module, _) = fixture(target);
         let fixture = super::slib_support::SlibObjects::new(module, directory.path());
         let builtins = fixture.builtins(&fixture.objects);
         let requirements = fixture.requirements(builtins);
         assert_eq!(requirements.selection().target().id(), target);
         assert!(requirements.requirements().iter().any(|requirement| {
+            requirement.use_site().symbol() == b"native_tls"
+                && matches!(
+                    requirement.requirement(),
+                    scoop_slib::FinalUndefinedSymbolRequirementV1::SourceExtern { .. }
+                )
+        }));
+        let external_resolver = requirements.requirements().iter().any(|requirement| {
             requirement.use_site().symbol() == b"__tls_get_addr"
                 && matches!(
                     requirement.requirement(),
                     scoop_slib::FinalUndefinedSymbolRequirementV1::Native { .. }
                 )
-        }));
+        });
+        assert_eq!(external_resolver, cfg!(target_arch = "x86_64"));
     }
 }
 
 #[test]
 fn linux_generated_c_functions_tls_and_callback_link_and_run() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         let (module, harness) = fixture(target);
         let invocation =
             scoop_toolchain::resolve_linux_c_toolchain(module.meta.target_profile, None, None)
@@ -95,7 +97,7 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
         for member in emitted.members() {
             let bytes = &member.bytes;
             let envelope = scoop_slib::read_generated_c_object_sections_v1(
-                &bytes,
+                bytes,
                 invocation.profile().contract().target().id(),
             )
             .unwrap();
@@ -103,7 +105,7 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
                 .member_for_generated_bridge_unit(member.units[0].unit())
                 .unwrap();
             let definitions = scoop_slib::read_member_object_definitions_v1(
-                &bytes,
+                bytes,
                 envelope,
                 symbols.member(member_id).unwrap(),
             )
@@ -154,11 +156,17 @@ fn linux_generated_c_functions_tls_and_callback_link_and_run() {
         let program = directory.path().join("bridge-test");
         std::fs::write(&source, harness).unwrap();
         let mut link = invocation.driver_command();
-        link.arg(if target == scoop_target_data::LINUX_X86_64_MUSL_ID {
-            "-static"
-        } else {
-            "-pie"
-        });
+        link.arg(
+            if scoop_target_data::definition(target)
+                .unwrap()
+                .native_environment
+                == scoop_target_data::NativeEnvironment::LinuxMusl
+            {
+                "-static"
+            } else {
+                "-pie"
+            },
+        );
         let object = directory.path().join("bridges.o");
         std::fs::write(&object, &emitted.members()[0].bytes).unwrap();
         let result = link

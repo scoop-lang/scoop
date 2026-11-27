@@ -1,9 +1,9 @@
 schema = 1
 name = "cli-program-musl-pie"
 root = "program"
-inputs = ["program"]
+inputs = ["program", "machine"]
 tools = ["scoop", "scoopc", "scoop-link", "cc"]
-targets = ["x86_64-unknown-linux-musl"]
+when = { os = "linux", env = "musl" }
 tags = ["cli", "eh", "artifact-link", "driver"]
 variants = [{"name" = "release", "vars" = {"profile" = "release"}}]
 [[steps]]
@@ -21,7 +21,7 @@ checks = [{ actual = "${build.result.kind}", equals = "executable" }]
 name = "run"
 argv = ["${build.result.output}"]
 exit = 0
-stdout = "Linux amd64\nGC and EH passed\n"
+stdout = "Linux ${target_facts.arch}\nGC and EH passed\n"
 stderr = ""
 
 [[steps]]
@@ -36,5 +36,13 @@ stderr = ""
 name = "run-relinked"
 argv = ["${work}/relinked"]
 exit = 0
-stdout = "Linux amd64\nGC and EH passed\n"
+stdout = "Linux ${target_facts.arch}\nGC and EH passed\n"
 stderr = ""
+
+[[steps]]
+name = "reject-mixed-libc"
+argv = ["${scoop-link}", "--target", "${target_facts.arch}-unknown-linux-gnu", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "--root-slib", "${build.result.root.path}", { each = "${build.result.dependencies}", field = "path", prefix = "--dep-slib" }, "-o", "${work}/mixed"]
+exit = 1
+stdout = ""
+stderr = { regex = 'error\[E2404\]: program Link input .+\.slib: target profile identity mismatch: expected org\.scoop-lang\.target-profile/linux-(aarch64|x86-64)-gnu/1, found org\.scoop-lang\.target-profile/linux-\1-musl/1\n' }
+checks = [{file = "${work}/mixed", exists = false}]

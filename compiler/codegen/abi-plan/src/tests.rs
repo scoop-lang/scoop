@@ -30,6 +30,7 @@ fn aggregate(input: &mut AbiPlanningInput, fields: Vec<LirType>) -> AbiPlanningV
             });
             AbiAggregateField {
                 offset: i as u64 * 8,
+                access_alignment: 8,
                 value,
             }
         })
@@ -168,6 +169,22 @@ fn win64_interface_result_is_scanned_sret_and_arguments_remain_two_pointers() {
         signature.argument_location(2),
         Some(AbiArgumentLocation::Parts { first: 5, count: 2 })
     );
+}
+
+#[test]
+fn aapcs64_narrow_scalars_have_no_llvm_extension_attribute() {
+    for ty in [
+        CType::Boolean,
+        CType::Integer(IntegerKind::SIGNED_8),
+        CType::Integer(IntegerKind::UNSIGNED_8),
+        CType::Integer(IntegerKind::SIGNED_16),
+        CType::Integer(IntegerKind::UNSIGNED_16),
+    ] {
+        assert_eq!(
+            c_integer_extension(ProcedureAbi::Aapcs64, &ty),
+            CIntegerExtension::None
+        );
+    }
 }
 
 #[test]

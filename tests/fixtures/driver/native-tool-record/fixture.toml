@@ -2,7 +2,7 @@ schema = 1
 name = "native-tool-record"
 inputs = ["../build-record/library/cone"]
 tools = ["scoop", "scoopc", "cc"]
-targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+when = { os = "linux" }
 tags = ["cache", "native-tool", "driver"]
 
 [vars]

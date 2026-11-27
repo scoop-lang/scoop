@@ -8,10 +8,9 @@ from pathlib import Path
 from build_rust_text import NOTICE_DIRECTORY
 from build_skia import DISTRIBUTION_TARGETS as SKIA_TARGETS
 from prepare_gtk import NOTICE_DIRECTORY as GTK_NOTICE_DIRECTORY
-from prepare_gtk import TARGET as GTK_TARGET
 from prepare_tray import NOTICE_DIRECTORY as TRAY_NOTICE_DIRECTORY
-from prepare_tray import TARGET as TRAY_TARGET
 from target_catalog import (
+    LINUX_GNU_TARGETS,
     TARGETS,
     host_definition,
     linux_compiler_builtins,
@@ -235,12 +234,11 @@ def collect_gui_libraries(root, sysroot, target, *, ios_skia=False):
             "ISC and included MIT notices",
             license_files(sysroot / "src/scoop.icons.lucide"),
         )
-    if target == GTK_TARGET:
+    if target in LINUX_GNU_TARGETS:
         for directory in sorted((sysroot / "lib" / target / GTK_NOTICE_DIRECTORY).iterdir()):
             collector.add(
                 "GTK-" + directory.name, "See included documents", license_files(directory)
             )
-    if target == TRAY_TARGET:
         for directory in sorted((sysroot / "lib" / target / TRAY_NOTICE_DIRECTORY).iterdir()):
             collector.add(
                 "Tray-" + directory.name, "See included documents", license_files(directory)

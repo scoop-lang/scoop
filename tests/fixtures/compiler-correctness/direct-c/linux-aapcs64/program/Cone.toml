@@ -1,0 +1,9 @@
+schema = 1
+[cone]
+group = "test"
+name = "aapcs64-arguments"
+version = "1.0.0"
+kind = "executable"
+
+[[native.sources]]
+path = "arguments.c"

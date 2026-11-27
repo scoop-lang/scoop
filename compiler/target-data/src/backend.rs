@@ -55,6 +55,28 @@ pub const LLVM_22_1_DARWIN_X86_64: BackendProfile = BackendProfile::new(
     },
 );
 
+pub const LLVM_22_1_LINUX_AARCH64: BackendProfile = BackendProfile::new(
+    &id("llvm-22-1-linux-aarch64"),
+    &BackendProfileContract {
+        llvm_api_version: [22, 1],
+        inkwell_binding: [0, 10, 1],
+        cpu: "generic",
+        features: "",
+        llvm_architecture: scoop_lir::LlvmArchitecture::Aarch64,
+        unwind_provider: UnwindProviderV1::LlvmLibunwindDwarf,
+        artifact_inspection: ObjectTargetProfileV1::ElfAarch64,
+        lsda: BackendLsdaEncodingsV1 {
+            lp_start: 0xff,
+            type_table: 0x9c,
+            call_site: 0x01,
+            omitted_type_table: Some(0xff),
+        },
+        machine_frame_recovery: MachineFrameRecoveryV1::LinuxAarch64Fixed,
+        red_zone: scoop_lir::BackendRedZoneV1::Disabled,
+        debug_information: BackendDebugInformationFormatV1::Dwarf5,
+    },
+);
+
 pub const LLVM_22_1_LINUX_X86_64: BackendProfile = BackendProfile::new(
     &id("llvm-22-1-linux-x86-64"),
     &BackendProfileContract {

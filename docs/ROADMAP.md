@@ -10,7 +10,7 @@ Scoop 尚未发布首个版本。语言、库和工具随主线一起演进。�
 | 运行时 | 分代 Immix、精确栈根、线程协作、异常与原生栈，以及 runtime image 注册。[运行时规范](specs/SCOOP-RUNTIME-SPEC.md) · [实现入口](../runtime/README.md) |
 | 系统库 | core 与 std 提供类型、容器和编码协议。平台、异步 I/O、网络及图形系统以独立 Cone 交付。各库规范列出公开合同与平台条件。[系统库源码](../sysroot/src/) · [领域规范](specs/) |
 | 开发工具 | 构建、包管理、测试、格式化、文档生成、LSP、编辑器和原生调试工具可从安装包使用。[包管理规范](specs/SCOOP-PACKAGE-SPEC.md) · [编辑器工具](../tooling/README.md) · [调试交付范围](debugging/IMPLEMENTATION.md) |
-| 目标与发行 | 编译器登记了 macOS、iOS、Linux 和 Windows 目标。具体 CPU、ABI、native 后端和发行资源按目标配置。[目标合同](specs/SCOOP-IMPL-SPEC.md) · [发行配置](../scripts/release.toml) · [构建与验证](../scripts/README.md) |
+| 目标与发行 | 编译器登记了 macOS、iOS、Linux 和 Windows 目标。Linux 支持 x86_64 和 ARM64。ARM64 的 GNU 宿主可构建 GNU 与 musl 程序，GNU 目标另有桌面库。[Linux ARM64 验收](linux-arm64/VALIDATION.md) · [目标合同](specs/SCOOP-IMPL-SPEC.md) · [发行配置](../scripts/release.toml) · [构建与验证](../scripts/README.md) |
 
 ## 后续工作
 

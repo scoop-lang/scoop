@@ -3,13 +3,11 @@ use object::ObjectSymbol;
 
 #[test]
 fn linux_c_drivers_compile_pic_and_tls_with_the_selected_libc() {
+    let [gnu, musl] = crate::linux_target::native_test_targets();
     for (target, compiler) in [
-        (scoop_target_data::LINUX_X86_64_GNU, None),
-        (scoop_target_data::LINUX_X86_64_MUSL, None),
-        (
-            scoop_target_data::LINUX_X86_64_GNU,
-            Some(Path::new("clang")),
-        ),
+        (gnu.selection.target(), None),
+        (musl.selection.target(), None),
+        (gnu.selection.target(), Some(Path::new("clang"))),
     ] {
         let invocation = resolve_linux_c_toolchain(target, compiler, None).unwrap();
         assert_eq!(invocation.profile().contract().target(), &target.wire_id());
@@ -38,23 +36,18 @@ mod abi;
 
 #[test]
 fn explicit_c_drivers_cannot_silently_select_the_other_libc() {
-    let musl = resolve_linux_c_toolchain(
-        scoop_target_data::LINUX_X86_64_MUSL,
-        Some(Path::new("gcc")),
-        None,
-    )
-    .unwrap_err();
+    let [gnu, musl] = crate::linux_target::native_test_targets();
+    let musl_error =
+        resolve_linux_c_toolchain(musl.selection.target(), Some(Path::new("gcc")), None)
+            .unwrap_err();
     assert!(
-        musl.to_string()
+        musl_error
+            .to_string()
             .contains("musl target cannot use glibc headers"),
-        "{musl}"
+        "{musl_error}"
     );
-    let gnu = resolve_linux_c_toolchain(
-        scoop_target_data::LINUX_X86_64_GNU,
-        Some(Path::new("musl-gcc")),
-        None,
-    )
-    .unwrap_err();
+    let gnu = resolve_linux_c_toolchain(gnu.selection.target(), Some(Path::new("musl-gcc")), None)
+        .unwrap_err();
     assert!(
         gnu.to_string()
             .contains("glibc target requires glibc headers"),
@@ -64,7 +57,8 @@ fn explicit_c_drivers_cannot_silently_select_the_other_libc() {
 
 #[test]
 fn missing_compiler_and_native_sysroot_are_diagnosed_before_compilation() {
-    let target = scoop_target_data::LINUX_X86_64_MUSL;
+    let [_, musl] = crate::linux_target::native_test_targets();
+    let target = musl.selection.target();
     let directory = tempfile::tempdir().unwrap();
     assert!(
         resolve_linux_c_toolchain(target, Some(&directory.path().join("missing-cc")), None)

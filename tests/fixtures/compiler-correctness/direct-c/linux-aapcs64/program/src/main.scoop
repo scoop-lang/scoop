@@ -1,0 +1,100 @@
+package test
+
+@CLayout struct Doubles(val first: Double, val second: Double)
+
+@CLayout struct Five(val a: Byte, val b: Byte, val c: Byte, val d: Byte, val e: Byte)
+
+@CLayout(aligned = 16)
+struct Fifteen(val first: Five, val middle: Five, val last: Five)
+
+typealias HfaCall = GCLeafFunPtr<
+    (
+        Double,
+        Double,
+        Double,
+        Double,
+        Double,
+        Double,
+        Double,
+        Double,
+        Long,
+        Long,
+        Long,
+        Long,
+        Long,
+        Long,
+        Long,
+        Long,
+        Long,
+        Doubles,
+        Long
+    ) -> Doubles
+>
+
+@GCLeaf
+@Extern(name = "round_trip_hfa")
+private fun hfa(
+    a: Double,
+    b: Double,
+    c: Double,
+    d: Double,
+    e: Double,
+    f: Double,
+    g: Double,
+    h: Double,
+    i: Long,
+    j: Long,
+    k: Long,
+    l: Long,
+    m: Long,
+    n: Long,
+    o: Long,
+    p: Long,
+    prefix: Long,
+    value: Doubles,
+    suffix: Long
+): Doubles
+
+@GCLeaf
+@Extern(name = "get_hfa_call")
+private fun indirect(): HfaCall
+
+@GCLeaf
+@Extern(name = "round_trip_aligned")
+private fun aligned(prefix: Long, value: Fifteen, suffix: Long): Fifteen
+
+private fun five(first: Int): Five = Five(
+    first.toByte(),
+    (first + 1).toByte(),
+    (first + 2).toByte(),
+    (first + 3).toByte(),
+    (first + 4).toByte()
+)
+
+private fun check(ok: Boolean) {
+    if (!ok) {
+        throw IllegalStateException()
+    }
+}
+
+fun main() {
+    @Unsafe {
+        val input = Doubles(9.5, 10.5)
+        val direct = hfa(
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 91L, input, 117L
+        )
+        val call = indirect()
+        val result = call(
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+            1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 91L, input, 117L
+        )
+        check(direct.first == 10.5 && direct.second == 10.0)
+        check(result.first == direct.first && result.second == direct.second)
+        val bytes = Fifteen(five(1), five(6), five(11))
+        val returned = aligned(31L, bytes, 43L)
+        check(sizeOf<Fifteen>() == 16UL && returned.first.a == 17.toByte())
+        check(returned.middle.a == 22.toByte() && returned.last.e == 31.toByte())
+    }
+    println("Linux AAPCS64 arguments passed")
+}

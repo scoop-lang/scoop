@@ -64,20 +64,14 @@ fn shared_libraries_load_with_hidden_callbacks_and_existing_thread_tls() {
         ("x86_64-apple-darwin", None, true),
     ];
     #[cfg(target_os = "linux")]
+    let [gnu, musl] = crate::linux_target::native_test_targets().map(|t| t.canonical());
+    #[cfg(target_os = "linux")]
     let cases = [
-        ("x86_64-unknown-linux-gnu", None, false),
-        (
-            "x86_64-unknown-linux-gnu",
-            Some(PathBuf::from("clang")),
-            false,
-        ),
-        ("x86_64-unknown-linux-musl", None, false),
-        ("x86_64-unknown-linux-gnu", None, true),
-        (
-            "x86_64-unknown-linux-gnu",
-            Some(PathBuf::from("clang")),
-            true,
-        ),
+        (gnu, None, false),
+        (gnu, Some(PathBuf::from("clang")), false),
+        (musl, None, false),
+        (gnu, None, true),
+        (gnu, Some(PathBuf::from("clang")), true),
     ];
     for (triple, compiler, cxx) in cases {
         let target = ResolvedTargetProfile::resolve_with(

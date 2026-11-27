@@ -15,7 +15,7 @@ pub(super) fn coercion(
     };
     // AArch64 may use up to four doubles for an HFA. SysV admits two eightbytes.
     let maximum = match abi {
-        ProcedureAbi::DarwinAarch64 => 32,
+        ProcedureAbi::DarwinAarch64 | ProcedureAbi::Aapcs64 => 32,
         ProcedureAbi::SysvAmd64 => 16,
         ProcedureAbi::Win64 => 8,
     };
@@ -25,12 +25,24 @@ pub(super) fn coercion(
     let mut layout = lir::AbiAggregateLayout {
         size: value.layout().size().get(),
         alignment: value.layout().alignment().get(),
+        field_alignment: match &input.values[id] {
+            lir::AbiPlanningValue::Aggregate { fields, .. } => field_alignment(fields),
+            _ => value.layout().alignment().get(),
+        },
         leaves: Vec::new(),
     };
     if !matches!(abi, ProcedureAbi::Win64) {
         collect(input, id, 0, &mut layout.leaves);
     }
     aggregate::coercion(&layout, abi, position)
+}
+
+pub(super) fn field_alignment(fields: &[lir::AbiAggregateField]) -> u64 {
+    fields
+        .iter()
+        .map(|field| field.access_alignment)
+        .max()
+        .unwrap_or(1)
 }
 
 fn collect(

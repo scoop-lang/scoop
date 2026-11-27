@@ -28,7 +28,8 @@ checks = [
   {file = "${cold.result.cones.0.output}", contains = "Source files"},
   {file = "${cold.result.cones.0.output}", not_contains = "file://"},
   {file = "${work}/site/assets/index.js", contains = "doubler"},
-  {file = "${work}/site/assets/index.js", contains = "${target}"},
+  {file = "${work}/site/assets/index.js", contains = "Selected platform is ${target_facts.os}/${target_facts.env}."},
+  {file = "${work}/site/api/index.json", contains = "${target}"},
   {file = "${work}/site/assets/index.js", not_contains = "secret"},
   {file = "${work}/site/assets/index.js", not_contains = "concealed"},
 ]

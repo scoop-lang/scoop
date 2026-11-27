@@ -60,7 +60,7 @@ pub(crate) fn native_trace_symbols(
     }
 }
 
-fn native_runtime_profile() -> scoop_toolchain::ValidatedRuntimeBuildProfile {
+pub(super) fn native_runtime_profile() -> scoop_toolchain::ValidatedRuntimeBuildProfile {
     let host = scoop_target_data::host(std::env::consts::OS, std::env::consts::ARCH, "")
         .expect("supported runtime test host");
     let target = scoop_target_data::named_target(host.default_target)

@@ -25,7 +25,7 @@ impl Aggregate<'_> {
     /// None is the target's MEMORY/indirect convention, not a missing plan.
     fn coercion(&self, abi: ProcedureAbi, position: AbiValuePosition) -> Option<AbiCoercion> {
         match abi {
-            ProcedureAbi::DarwinAarch64 => self.aarch64(position),
+            ProcedureAbi::DarwinAarch64 | ProcedureAbi::Aapcs64 => self.aarch64(abi, position),
             ProcedureAbi::SysvAmd64 => self.sysv(),
             ProcedureAbi::Win64 => self.win64(),
         }
@@ -41,14 +41,20 @@ impl Aggregate<'_> {
             .expect("laid-out scalar leaves produce bounded ABI carriers")
     }
 
-    fn aarch64(&self, position: AbiValuePosition) -> Option<AbiCoercion> {
-        if let Some(carrier) = self.hfa() {
+    fn aarch64(&self, abi: ProcedureAbi, position: AbiValuePosition) -> Option<AbiCoercion> {
+        let aapcs_argument = abi == ProcedureAbi::Aapcs64 && position == AbiValuePosition::Argument;
+        if let Some(carrier) = self.hfa(aapcs_argument) {
             return Some(AbiCoercion::One(self.part(carrier, 0, self.size)));
         }
         if self.size == 0 || self.size > 16 {
             return None;
         }
-        let carrier = if self.alignment == 16 {
+        let alignment = if aapcs_argument {
+            self.field_alignment
+        } else {
+            self.alignment
+        };
+        let carrier = if alignment == 16 {
             AbiCarrier::Integer(128)
         } else if self.size > 8 {
             AbiCarrier::Array {
@@ -70,7 +76,7 @@ impl Aggregate<'_> {
         })
     }
 
-    fn hfa(&self) -> Option<AbiCarrier> {
+    fn hfa(&self, array_parameter: bool) -> Option<AbiCarrier> {
         if !(1..=4).contains(&self.leaves.len()) {
             return None;
         }
@@ -85,7 +91,7 @@ impl Aggregate<'_> {
         {
             return None;
         }
-        Some(if self.leaves.len() == 1 {
+        Some(if self.leaves.len() == 1 && !array_parameter {
             AbiCarrier::Float(kind)
         } else {
             AbiCarrier::Array {

@@ -75,7 +75,10 @@ mod gc_leaf;
 mod image;
 mod initialization;
 mod linux_codegen;
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "aarch64", target_arch = "x86_64")
+))]
 mod linux_runtime;
 mod moving_gc;
 mod object_partition;

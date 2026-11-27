@@ -67,20 +67,23 @@ python3 scripts/prepare_sysroot.py \
   --work-dir "$PWD/tmp/sysroot/aarch64-apple-darwin"
 ```
 
+ARM64 Linux 宿主默认编译 `aarch64-unknown-linux-gnu`，显式传入 `--target aarch64-unknown-linux-musl` 可构建 musl 程序。两种目标分别准备 LLVM libunwind、OpenSSL（`linux-aarch64`）、nghttp2、文本与其他非图形库，再用同一 triple 运行 `prepare_sysroot.py`。GNU 使用配套的 C 或 C++ driver。musl 使用 C driver，默认静态链接，`--link-mode dynamic` 使用 musl loader。为 ARM64 GNU 和 musl 链接时，C／C++ driver 调用配套 LLVM 22.1.8 的 `ld.lld`。从其他宿主准备目标资源时，用 `--cc` 与 `--native-sysroot` 选择目标编译器、头文件和启动对象。开发命令与依赖解析所用的 `scoop-pm` 须来自同一次构建。[Linux ARM64 移植设计](../docs/linux-arm64/DESIGN.md)
+
 Windows graphics／GUI 使用相同的 `build_skia.py` 入口。对 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 分别指定完整 `--target`、独立 `--build-dir`、`--gn` 与对应 `--cc`；Microsoft 使用 clang-cl 及当前 x64 SDK／MSVC 开发环境，toolset 与 SDK 版本取自该环境的 `VCToolsVersion`／`WindowsSDKVersion`，不在发行配置中固定，MinGW 使用所选 CRT prefix 的 clang。输出为 Ganesh D3D12、DirectWrite、段落和内嵌 ICU 数据的静态资源，不需要应用分发旁置 ICU 数据文件。完整 Windows 打包会按同一配置准备并收集这三套 Skia 资源。
 
 Linux GNU 的 GUI 使用 GTK 4／libadwaita，支持 Wayland 和 X11；窗口标题栏、圆角和阴影由 GTK／libadwaita 绘制，内容仍使用 Skia Ganesh GLES，字体使用 Fontconfig／FreeType。需要 GTK 4.18 以上、libadwaita 1.4 以上，以及 EGL、GLES、Fontconfig、FreeType、zlib、X11 和 xkbcommon 开发包。Skia 构建还需要已有的 GN、Ninja、Clang／Clang++、llvm-ar 和 pkg-config。先准备 GTK 开发资源，再使用固定 vendor 源码构建 Skia：
 
 ```sh
-python3 scripts/prepare_gtk.py --build-dir ../scoop-work/gtk/x86_64-unknown-linux-gnu
-python3 scripts/build_skia.py --target x86_64-unknown-linux-gnu \
-  --build-dir ../scoop-work/skia/x86_64-unknown-linux-gnu --gn /path/to/gn \
+target="$(uname -m)-unknown-linux-gnu"
+python3 scripts/prepare_gtk.py --target "$target" --build-dir "../scoop-work/gtk/$target"
+python3 scripts/build_skia.py --target "$target" \
+  --build-dir "../scoop-work/skia/$target" --gn /path/to/gn \
   --cc /path/to/llvm/bin/clang --cxx /path/to/llvm/bin/clang++
 ```
 
 `prepare_gtk.py --development-prefix /path/to/usr` 可选择单独解压的开发包目录；其 pkg-config 路径优先于系统目录，缺少的系统头文件和运行库仍从本机开发环境取得。脚本将头文件和七个链接输入（包括原生输入区域使用的 Cairo）放入目标 sysroot，输入未变化时直接复用。完整打包使用相同入口，`package_toolchain.py --gtk-prefix /path/to/usr` 传递该选择；GNU GUI 组件包含链接输入及许可，程序运行时使用系统安装的 GTK/libadwaita。musl 目标不包含 GUI。
 
-独立的 `scoop.tray` 通过 StatusNotifierItem／DBusMenu 提供 Linux 托盘，额外使用发行版维护的 libdbusmenu-glib 0.4 开发包（Debian／Ubuntu：`libdbusmenu-glib-dev`），不依赖 GTK3。单独执行 `python3 scripts/prepare_tray.py --build-dir ../scoop-work/tray/x86_64-unknown-linux-gnu`；`--development-prefix /path/to/usr` 同样支持解压的开发包。它只准备 `include/tray`、libdbusmenu 链接输入和许可，不改变 `scoop.window` 的依赖。完整打包由 `package_toolchain.py --tray-prefix /path/to/usr` 选择来源。消费托盘的程序运行时需要系统 `libdbusmenu-glib.so.4` 和支持该协议的桌面宿主；未使用托盘的 window／UI 应用无需此额外运行库。注册成功不保证宿主显示了图标，Linux 不提供原生托盘矩形查询。
+独立的 `scoop.tray` 通过 StatusNotifierItem／DBusMenu 提供 Linux 托盘，额外使用发行版维护的 libdbusmenu-glib 0.4 开发包（Debian／Ubuntu：`libdbusmenu-glib-dev`），不依赖 GTK3。单独执行 `python3 scripts/prepare_tray.py --target "$target" --build-dir "../scoop-work/tray/$target"`；`--development-prefix /path/to/usr` 同样支持解压的开发包。它只准备 `include/tray`、libdbusmenu 链接输入和许可，不改变 `scoop.window` 的依赖。完整打包由 `package_toolchain.py --tray-prefix /path/to/usr` 选择来源。消费托盘的程序运行时需要系统 `libdbusmenu-glib.so.4` 和支持该协议的桌面宿主；未使用托盘的 window／UI 应用无需此额外运行库。注册成功不保证宿主显示了图标，Linux 不提供原生托盘矩形查询。
 
 随后按普通 `prepare_sysroot.py` 流程构建 GUI Cones。Linux 完整打包使用 `--llvm-prefix` 的 Clang 准备 GNU Skia，发行只收集静态库，头文件留在维护 sysroot；运行时动态使用以上系统图形库，musl 目标不包含 GUI。显示后端由 `SCOOP_WINDOW_BACKEND=wayland`／`x11` 选择，默认优先环境中的 Wayland。测试和运行限制见 [Linux GUI 记录](../docs/linux-gui/PROGRESS.md)。
 
@@ -154,7 +157,7 @@ MinGW OpenSSL 构建将所选 compiler 和 MSYS shell 的目录加入子进程 P
 python3 scripts/package_toolchain.py --jobs 6
 ```
 
-上例用于 Darwin。Linux 还要提供 `--musl-include /usr/include/x86_64-linux-musl`，并安装 `musl-gcc`、`patchelf` 和适用于 LLVM libunwind 的 Clang／Clang++；Rust 工具链需要同时具有 `x86_64-unknown-linux-musl` 目标。可通过 `--gnu-cc`、`--musl-cc`、`--unwind-cc`、`--unwind-cxx` 明确选择工具。Linux 宿主发行同时包含 GNU 与 musl 目标资源。
+上例用于 Darwin。Linux 还需安装 `musl-gcc`、`patchelf` 与构建 LLVM libunwind 用的 Clang／Clang++。在 Debian 或 Ubuntu 上，ARM64 使用 `--musl-include /usr/include/aarch64-linux-musl` 和 Rust 目标 `aarch64-unknown-linux-musl`，amd64 对应 `/usr/include/x86_64-linux-musl` 和 `x86_64-unknown-linux-musl`。可通过 `--gnu-cc`、`--musl-cc`、`--unwind-cc`、`--unwind-cxx` 明确选择工具。Linux 宿主发行同时包含 GNU 与 musl 目标资源。
 
 ARM64 musl 从相同的 LLVM 源码准备 libunwind 和 compiler-rt builtins。运行 `build_llvm_unwind.py` 时用 `--musl-include` 指向该目标的 musl 头文件。静态、动态程序均从目标的 unwind prefix 使用 `lib/libclang_rt.builtins-aarch64.a`，发行时该归档随 musl 基础库包交付。
 
@@ -238,9 +241,9 @@ python3 scripts/install_toolchain.py --install-dir "$HOME/.scoop-dev" --jobs 6
 
 ## GitHub Release
 
-[Release workflow](../.github/workflows/release.yml) 在推送 `vMAJOR.MINOR.PATCH`（可带预发布和 build metadata）tag 时执行，也可通过 `workflow_dispatch` 指定已有 tag 重跑。三个构建任务使用 `xcode-27`（macOS 27.0.1 AArch64）、`windows-2025`（x64）和 `ubuntu-26.04`（x64），按 `release.toml` 的固定版本准备 LLVM、Windows Rust 与 LLVM-MinGW，并复用匹配的 LLVM／LLDB SDK 缓存。
+推送 `vMAJOR.MINOR.PATCH` tag（可带预发布和 build metadata）时启动发行工作流，也可通过 `workflow_dispatch` 指定已有 tag 重跑。四个宿主任务使用 `xcode-27`（macOS AArch64）、`windows-2025`（Windows x64）、`ubuntu-26.04`（Linux x86_64）和 `ubuntu-26.04-arm`（Linux AArch64）。依赖版本由 `release.toml` 指定，各任务可复用匹配的 LLVM／LLDB SDK 缓存。[发行工作流](../.github/workflows/release.yml)
 
-每个任务调用同一个 `package_toolchain.py`，产出本宿主的 `bin-<host>` 组件包及该宿主发行目标的 `lib-base-<target>.tar.xz`／`lib-gui-<target>.tar.xz`；全局一份的 `sources` 与 `llvm-sources` 由其中一个任务产出。随后在带空格的独立安装目录中合并解压组件包、执行 post-install 并编译运行程序；这些验证产物不进入归档。三平台全部成功后才向对应 GitHub Release 上传全部组件包，同一 release 的附件列表即以版本命名的完整集合，发布前使用 draft；带预发布标识的 tag 发布为 prerelease，普通版本更新 latest。重跑同一 tag 会更新同名附件。
+每个宿主用 `package_toolchain.py` 生成 `bin-<host>` 及各目标的 `lib-base-<target>` 和适用的 `lib-gui-<target>` 归档。macOS AArch64 任务负责上传共用的 `sources` 和 `vendor`。各任务在带空格的独立目录中解压组件、执行 post-install 并编译运行程序。Linux 两个宿主都验证 GNU、默认静态 musl 和显式动态 musl，动态程序还核对 ELF 解释器及 libc 依赖。四个任务成功后，工作流把组件上传到同一 GitHub Release 草稿。带预发布标识的 tag 发布为 prerelease，普通版本更新 latest。在草稿阶段重跑同一 tag 时会更新同名附件。已发布版本的后续构建使用新 tag。
 
 官网安装脚本 `install.sh` 位于独立仓库 `scoop-lang.org`；它读取 `https://release.scoop-lang.org/latest.txt` 的组件索引，并从同一发布站点下载本平台归档。`--release <日期目录>`（别名 `--version`）选择指定 release。`curl -fsSL https://scoop-lang.org/install.sh | sh` 将组件包解压到 `~/.scoop` 并执行 post-install（生成文档），成功后更新 shell rc。额外准备参数放在 `--` 后，例如 `sh install.sh --release 2026-11-09 -- --jobs 2`。Windows 按索引下载所选组件后运行随包 PowerShell 入口；MinGW 目标还需要对应的 `native` 包。
 

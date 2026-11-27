@@ -49,7 +49,7 @@ fn deb_version(settings: &Loaded) -> Result<String> {
     Ok(format!("{value}-{revision}"))
 }
 
-pub fn deb_control(settings: &Loaded) -> Result<String> {
+pub fn deb_control(settings: &Loaded, arch: &str) -> Result<String> {
     let deb = &settings.config.linux.deb;
     let maintainer = line(
         deb.maintainer
@@ -69,7 +69,7 @@ pub fn deb_control(settings: &Loaded) -> Result<String> {
         .context("Debian packages require bundle.description")?;
     let mut lines = description.lines();
     let mut result = format!(
-        "Package: {}\nVersion: {}\nArchitecture: amd64\nMaintainer: {maintainer}\nSection: {section}\nPriority: optional\nDescription: {}\n",
+        "Package: {}\nVersion: {}\nArchitecture: {arch}\nMaintainer: {maintainer}\nSection: {section}\nPriority: optional\nDescription: {}\n",
         settings.name,
         deb_version(settings)?,
         lines.next().context("missing description")?
@@ -94,13 +94,14 @@ pub fn deb_control(settings: &Loaded) -> Result<String> {
 
 pub fn deb(
     settings: &Loaded,
+    arch: &str,
     root: &Path,
     publish: &Path,
     inputs: &mut Inputs,
     tools: &mut Tools<'_>,
 ) -> Result<PathBuf> {
     let artifact = PathBuf::from(format!(
-        "{}_{}_amd64.deb",
+        "{}_{}_{arch}.deb",
         settings.name,
         deb_version(settings)?
     ));
@@ -131,7 +132,7 @@ fn dependency(text: &str) -> Result<rpm::Dependency> {
     })
 }
 
-pub fn rpm(settings: &Loaded, root: &Path, publish: &Path) -> Result<PathBuf> {
+pub fn rpm(settings: &Loaded, arch: &str, root: &Path, publish: &Path) -> Result<PathBuf> {
     let metadata = &settings.config.linux.rpm;
     let version = version(
         settings,
@@ -165,7 +166,7 @@ pub fn rpm(settings: &Loaded, root: &Path, publish: &Path) -> Result<PathBuf> {
         &settings.name,
         &version,
         license,
-        "x86_64",
+        arch,
         description.lines().next().context("missing description")?,
     );
     builder
@@ -244,7 +245,7 @@ pub fn rpm(settings: &Loaded, root: &Path, publish: &Path) -> Result<PathBuf> {
             )?;
         }
     }
-    let artifact = PathBuf::from(format!("{}-{version}-{release}.x86_64.rpm", settings.name));
+    let artifact = PathBuf::from(format!("{}-{version}-{release}.{arch}.rpm", settings.name));
     builder.build()?.write_file(publish.join(&artifact))?;
     Ok(artifact)
 }

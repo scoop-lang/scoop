@@ -89,6 +89,8 @@ scoop run . --release -- Ada
 
 上例最后的 `Ada` 是程序参数，按实际程序修改。单文件用 `scoop fmt main.scoop`、`scoop check main.scoop --release`、`scoop run main.scoop --release`；library 用 `scoop build . --release` 和所属 Cone 测试验证。`scoop check` 完成前端检查，不证明后端、native 链接或运行成功；`--tests` 也不验证生产 main。
 
+ARM64 Linux 上的 `scoop build . --release` 默认生成 glibc 程序。准备 musl 目标的基础库后，用 `scoop build . --release --target aarch64-unknown-linux-musl` 构建静态可执行文件，追加 `--link-mode dynamic` 可生成使用 musl loader 的动态程序。带 C++ 原生依赖的应用选择 GNU 目标。
+
 普通行为测试使用 `scoop.test`，从 `test/assertions` 取得准确的容器、注解和断言写法。根据需求准备输入和期望，覆盖本次实际涉及的零值/空值/缺失/失败差别，以及资源收尾或副作用；不要只把实现当前的输出抄成期望。精确比较使用 assertEquals 等能保留期望与实际值的断言。性能测量使用 release 构建，普通功能验证保持 GC stress 关闭。
 
 需要机器诊断时使用 `scoop check . --message-format json` 等命令并读取 stderr。诊断与预期不符时按[定位错误](references/diagnostics.md)检查内层表达式、实际参数和完整重载，再判断是否存在编译器问题；不要仅凭候选失败消息弃用有效 API。验证 CLI 标准流时先 build，再直接运行程序，避免把编译进度当成程序 stderr。

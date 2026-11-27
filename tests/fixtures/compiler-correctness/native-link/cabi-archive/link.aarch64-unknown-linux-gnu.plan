@@ -1,0 +1,4 @@
+link inputs: startup, cone/member order, runtime/object order, native CRT/libc/LLVM unwind
+native library m23_cabi requirement=85a8902217a9f88c05f3b202313d3732c59eef47ebcd741f40caa3bc99e49546 input=$NATIVE_INPUT_0 origins=dev.programlink:cabi-provider:0.1.0
+native archive $NATIVE_INPUT_0 members=1
+  member 0 name="payload.o" digest=$NATIVE_MEMBER_0 selected=true

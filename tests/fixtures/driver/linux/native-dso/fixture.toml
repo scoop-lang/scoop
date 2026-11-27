@@ -3,7 +3,7 @@ name = "native-dso"
 root = "program"
 inputs = ["program", "leaf.c", "leaf.map", "versions.c", "versions.map", "plain.c", "host.c", "marker.c"]
 tools = ["scoop", "scoopc", "scoop-link", "cc", "ar"]
-targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+when = { os = "linux" }
 tags = ["ffi", "tls", "elf", "driver"]
 
 [[steps]]

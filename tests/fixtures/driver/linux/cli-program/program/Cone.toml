@@ -4,3 +4,6 @@ group = "test"
 name = "linux-program"
 version = "1.0.0"
 kind = "executable"
+
+[dependencies]
+"test:linux-machine" = { version = "1.0.0", path = "../machine" }

@@ -1,0 +1,12 @@
+[
+  {
+    "code": "E2001",
+    "message": "ELF shared library requires --link-mode dynamic; requirement 1baf274f25f5529d39f4f02b91a25edbaaa544675a4289b64f2eabb71df78ad5; origins: dev.m33:library-negative:0.1.0",
+    "notes": [],
+    "origin": {
+      "kind": "none"
+    },
+    "phase": "FinalLink",
+    "severity": "error"
+  }
+]

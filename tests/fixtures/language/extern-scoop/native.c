@@ -113,15 +113,6 @@ void native_aggregate_round_trip_storage(ManagedAggregate *result, ManagedAggreg
     assert(valid && "native aggregate result must survive collection");
 }
 
-#if defined(__APPLE__) && defined(__aarch64__)
-__asm__(".text\n"
-        ".globl _native_aggregate_round_trip\n"
-        ".p2align 2\n"
-        "_native_aggregate_round_trip:\n"
-        "mov x1, sp\n"
-        "mov x0, x8\n"
-        "b _native_aggregate_round_trip_storage\n");
-#elif defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__))
 #if defined(__APPLE__)
 #define SCOOP_TEST_ASM_SYMBOL(name) "_" name
 #define SCOOP_TEST_ASM_ELF(directive) ""
@@ -129,6 +120,18 @@ __asm__(".text\n"
 #define SCOOP_TEST_ASM_SYMBOL(name) name
 #define SCOOP_TEST_ASM_ELF(directive) directive
 #endif
+
+#if defined(__aarch64__) && (defined(__linux__) || defined(__APPLE__))
+__asm__(".text\n"
+        ".globl " SCOOP_TEST_ASM_SYMBOL("native_aggregate_round_trip") "\n"
+        SCOOP_TEST_ASM_ELF(".type native_aggregate_round_trip,%function\n")
+        ".p2align 2\n"
+        SCOOP_TEST_ASM_SYMBOL("native_aggregate_round_trip") ":\n"
+        "mov x1, sp\n"
+        "mov x0, x8\n"
+        "b " SCOOP_TEST_ASM_SYMBOL("native_aggregate_round_trip_storage") "\n"
+        SCOOP_TEST_ASM_ELF(".size native_aggregate_round_trip,.-native_aggregate_round_trip\n"));
+#elif defined(__x86_64__) && (defined(__linux__) || defined(__APPLE__))
 __asm__(".text\n"
         ".globl " SCOOP_TEST_ASM_SYMBOL("native_aggregate_round_trip") "\n"
         SCOOP_TEST_ASM_ELF(".type native_aggregate_round_trip,@function\n")

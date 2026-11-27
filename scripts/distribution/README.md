@@ -51,7 +51,7 @@ post-install 使用 POSIX shell／PowerShell 直接调用随包编译器，只�
 
 安装根的 `VERSION` 随 bin 包提供，第一行为发行版本，随后记录源码 revision 与宿主平台。`scoop --version`、`scoopc --version`、`scoop-link --version`、`scoop-lsp --version`、`scoop-pm --version` 显示同一份发行版本和源码 revision。`share/scoop/toolchain.toml` 列出宿主、默认目标、各目标的有序内置 Cone 清单、native 版本、VSIX 和编程 skill 路径；`share/scoop/install/targets.list` 列出本 release 为该 host 提供的目标（默认目标在首行），`<target>.list` 与 `<target>.gui.list` 分别保存该目标非 GUI 与 GUI Cone 的顺序，供 post-install 读取。普通命令不把它作为启动验证清单。
 
-Darwin/AArch64 包要求声明版本的 macOS、Xcode 或 Command Line Tools、Apple Clang、macOS SDK 和系统 linker。Linux/GNU amd64 包默认使用 bin 组件中的 Clang／clang++，支持显式 `--cc`／`--cxx` 覆盖；仍要求声明版本的 glibc、GNU ld、GCC runtime、GNU C++ 标准库与系统开发文件。Linux GUI（`lib-gui-x86_64-unknown-linux-gnu` 包）另需 GTK 4.18 或更新版本、libadwaita 1.4 或更新版本及其运行库；只安装 lib-base 包时无需 GTK。musl 目标没有 GUI Cone，只发行 lib-base 包。生成 musl 程序还需要 musl-gcc 与匹配的 musl 开发文件。GNU 宿主工具不承诺在纯 musl 系统运行；musl C++ 不在当前范围。
+Darwin/AArch64 包要求声明版本的 macOS、Xcode 或 Command Line Tools、Apple Clang、macOS SDK 和系统 linker。Linux/GNU 的 amd64 和 ARM64 宿主包默认使用 bin 组件中的 Clang／clang++，可用 `--cc`／`--cxx` 覆盖。GNU 目标需要声明版本的 glibc、GCC runtime、GNU C++ 标准库与系统开发文件。amd64 通过 driver 调用系统 GNU ld，ARM64 的 GNU 和 musl 目标调用 bin 组件内的配套 LLD。Linux GUI（按机器安装 `lib-gui-x86_64-unknown-linux-gnu` 或 `lib-gui-aarch64-unknown-linux-gnu`）另需 GTK 4.18 或更新版本、libadwaita 1.4 或更新版本及其运行库；只安装 lib-base 包时无需 GTK。musl 目标没有 GUI Cone，只发行 lib-base 包。生成 musl 程序还需要 musl-gcc 与匹配的 musl 开发文件。GNU 宿主工具不承诺在纯 musl 系统运行；musl C++ 不在当前范围。
 
 Windows x64 发行的最低版本以 `toolchain.toml` 为准：bin 组件包包含宿主 Clang／LLD／RC 工具，三个 Windows target 各自的 lib-base／lib-gui 组件包包含该目标的预编译系统库、native 库与 runtime，两个 MinGW 目标分别另有 native-<target> 包，保存该 CRT 的配置头与机器库；公共 MinGW／libc++ 头随 bin 提供一次。默认 MSVC UCRT 目标需要本机 C++ Build Tools 和 Windows SDK，或显式 `--native-sysroot` 所指的 `msvc.toml`；不要求完整 Visual Studio IDE。两个 MinGW 目标同时解压对应的 lib-base 和 native 组件包后使用随包资源，例如 `sco run --target x86_64-w64-windows-llvm-mingw-ucrt main.scoop`。应用开发不需要维护构建使用的 Rust、CMake、Perl 或 MSYS。native MSVC C++ 应用按实际依赖部署 VCRuntime／MSVC STL DLL。
 
@@ -103,10 +103,19 @@ scoop fmt my-cone
 scoop fmt my-cone --check
 scoop check my-cone
 scoop check my-cone --tests
-scoop build my-cone --target x86_64-unknown-linux-musl
 ```
 
-最后一条命令用于 GNU 宿主包，并要求 musl 开发环境。非 core 库仍须在 `Cone.toml` 声明普通依赖；包中存在某个库不会自动导入它。默认 `sources` 组件保留内置 Cone、胶水、头与资源，支持 LSP 导航；按需的 `vendor` 组件保存上游源码和构建补丁，普通应用无需下载。显式 source／artifact 依赖和 `--sysroot` 可选用另一组兼容资源；`--runtime-root` 明确请求从另行提供的 runtime 源码构建。
+在 x86_64 或 ARM64 的 Linux GNU 宿主上，安装同架构的 musl 目标资源并准备 musl C 开发环境后，可以选择链接模式。
+
+```sh
+musl_target="$(uname -m)-unknown-linux-musl"
+scoop build my-cone --release --target "$musl_target"
+scoop build my-cone --release --target "$musl_target" --link-mode dynamic
+```
+
+第一条构建命令生成静态可执行文件。第二条生成动态 PIE，运行机器需要同架构的 musl 加载器及程序依赖的动态库。ARM64 的加载器路径为 `/lib/ld-musl-aarch64.so.1`。
+
+非 core 库仍须在 `Cone.toml` 声明普通依赖；包中存在某个库不会自动导入它。默认 `sources` 组件保留内置 Cone、胶水、头与资源，支持 LSP 导航；按需的 `vendor` 组件保存上游源码和构建补丁，普通应用无需下载。显式 source／artifact 依赖和 `--sysroot` 可选用另一组兼容资源；`--runtime-root` 明确请求从另行提供的 runtime 源码构建。
 
 `scoop fmt` 默认格式化当前 Cone 的生产、测试及各平台声明的源码，也接受多个 Cone 或显式 `.scoop` 文件。默认写回变化文件；`--check` 只检查格式，有差异时退出 1，可用于 CI。语法错误文件保留原文，其他已选文件继续处理。
 

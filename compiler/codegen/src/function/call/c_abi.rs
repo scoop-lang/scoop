@@ -99,7 +99,21 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                     );
                     1
                 }
-                DirectCArgument::DirectParts(parts) => parts.parts().len() as u32,
+                DirectCArgument::DirectParts {
+                    parts,
+                    stack_alignment,
+                } => {
+                    if let Some(alignment) = stack_alignment {
+                        apply(
+                            AttributeLoc::Param(index),
+                            self.context.create_enum_attribute(
+                                Attribute::get_named_enum_kind_id("alignstack"),
+                                alignment.get(),
+                            ),
+                        );
+                    }
+                    parts.parts().len() as u32
+                }
                 DirectCArgument::Indirect { value, passing } => {
                     let (kind, alignment) = match passing {
                         CIndirectPassing::ByValue { alignment } => (Some("byval"), alignment.get()),

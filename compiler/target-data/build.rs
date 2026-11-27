@@ -80,7 +80,7 @@ fn target_architecture(value: &str) -> &'static str {
 
 fn object_target_architecture(value: &str) -> &'static str {
     match value {
-        "MachOAarch64" => "aarch64",
+        "MachOAarch64" | "ElfAarch64" => "aarch64",
         "MachOX86_64" | "ElfX86_64" | "CoffAmd64" => "x86_64",
         _ => panic!("unsupported object target {value:?}"),
     }

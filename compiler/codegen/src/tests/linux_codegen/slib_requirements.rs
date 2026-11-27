@@ -7,10 +7,7 @@ use scoop_slib::*;
 #[test]
 fn elf_allocation_tls_is_a_runtime_requirement_with_a_platform_resolver() {
     let directory = tempfile::tempdir().unwrap();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU,
-        scoop_target_data::LINUX_X86_64_MUSL,
-    ] {
+    for target in native_linux_targets() {
         let module = super::super::objects::heap_module_for(target);
         let semantics = scoop_lir::StrongSafepointSemanticPlanSetV1::from_module(&module).unwrap();
         let fixture = SlibObjects::new(module, directory.path());
@@ -33,7 +30,8 @@ fn elf_allocation_tls_is_a_runtime_requirement_with_a_platform_resolver() {
                 .iter()
                 .filter(|requirement| requirement.use_site().symbol() == symbol)
                 .collect::<Vec<_>>();
-            assert!(!uses.is_empty());
+            // AArch64 TLSDESC calls the resolver in the descriptor itself.
+            assert_eq!(!uses.is_empty(), runtime || cfg!(target_arch = "x86_64"));
             for usage in uses {
                 assert!(match usage.requirement() {
                     FinalUndefinedSymbolRequirementV1::RuntimeAbi { .. } => runtime,
@@ -49,10 +47,7 @@ fn elf_allocation_tls_is_a_runtime_requirement_with_a_platform_resolver() {
 fn elf_strong_closure_rejects_mixed_libc_members_and_requirement_targets() {
     let directory = tempfile::tempdir().unwrap();
     let mut closures = Vec::new();
-    for target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
+    for target in native_linux_targets().map(|target| target.id()) {
         let fixture = SlibObjects::new(
             for_target(
                 moving_gc::qualification::stackmap_qualification_module(),

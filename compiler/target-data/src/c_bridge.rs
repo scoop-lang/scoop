@@ -57,10 +57,11 @@ pub fn linux_c_bridge_profile(
         (TargetArchitecture::X86_64, LinuxCCompilerIdentityV1::Clang(_)) => {
             CanonicalCBridgeFlagContractV1::LinuxClangX86_64
         }
-        (TargetArchitecture::Aarch64, _) => {
-            return Err(CBridgeToolchainBuildError::Platform(
-                CBridgePlatformError::UnsupportedLinuxMachine,
-            ));
+        (TargetArchitecture::Aarch64, LinuxCCompilerIdentityV1::Gcc(_)) => {
+            CanonicalCBridgeFlagContractV1::LinuxGccAarch64
+        }
+        (TargetArchitecture::Aarch64, LinuxCCompilerIdentityV1::Clang(_)) => {
+            CanonicalCBridgeFlagContractV1::LinuxClangAarch64
         }
     };
     let contract = CBridgeToolchainContractV1::new(

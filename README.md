@@ -51,6 +51,8 @@ Windows 安装包的主命令为 `sco`，上述命令中的 `scoop` 替换为 `s
 
 更新 Scoop 发行版后，在已有项目中执行一次 `scoop clean`，再重新构建。构建缓存根据源码、清单配置和依赖产物判断更新，不持续检查编译器文件、版本或 SDK 状态；使用 `--cache-dir` 放在项目 `target` 之外的缓存，需要同时清理该目录。
 
+在 ARM64 Linux 上，默认目标是 `aarch64-unknown-linux-gnu`。安装对应的 musl 基础库和 musl-gcc 后，`scoop build hello.scoop --target aarch64-unknown-linux-musl --release` 生成静态可执行文件。加上 `--link-mode dynamic` 可生成动态 PIE，部署时需要 `/lib/ld-musl-aarch64.so.1`。桌面应用使用 GNU 目标的 GUI 组件。
+
 更多完整程序见[示例目录](sysroot/share/scoop/examples)。安装包还提供 `scoop example --list` 和 `scoop example start/hello`，可离线查看示例、运行条件和预期结果。
 
 ## 从源码构建
@@ -85,7 +87,7 @@ export SCOOP_SYSROOT="$PWD/sysroot"
 
 普通构建和测试消费已准备的系统库与 runtime；首次运行或内置库变更后需重新执行对应准备步骤。开发构建通过 `SCOOP_SYSROOT` 选择仓库资源，安装包则默认使用安装目录中的资源。
 
-目标包括 macOS AArch64／x86_64、iOS arm64 真机与模拟器、Linux x86_64（glibc／musl），以及 Windows x86_64 的 MSVC UCRT、LLVM-MinGW MSVCRT／UCRT。目标与 ABI 规则见[编译器与产物规范](docs/specs/SCOOP-IMPL-SPEC.md)，构建环境基线见[发行配置](scripts/release.toml)；各目标需要匹配的 SDK 和 native 资源。
+目标包括 macOS AArch64／x86_64、iOS arm64 真机与模拟器、Linux AArch64／x86_64（均支持 glibc 和 musl），以及 Windows x86_64 的 MSVC UCRT、LLVM-MinGW MSVCRT／UCRT。目标与 ABI 规则见[编译器与产物规范](docs/specs/SCOOP-IMPL-SPEC.md)，构建环境基线见[发行配置](scripts/release.toml)；各目标需要匹配的 SDK 和 native 资源。
 
 ## 开发与验证
 

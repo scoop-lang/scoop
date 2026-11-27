@@ -4,6 +4,7 @@ use object::{Object, ObjectKind, SectionIndex, SymbolIndex};
 use scoop_identity::TargetProfileId;
 use scoop_lir::{ObjectMachineV1, ObjectTargetProfileV1};
 
+mod aarch64;
 mod architecture;
 pub use architecture::ElfArchitecture;
 mod envelope;
@@ -25,7 +26,7 @@ impl ElfRelocationKind {
     pub(super) fn classify(machine: ObjectMachineV1, kind: u32, width: u8) -> Option<Self> {
         let kind = match machine {
             ObjectMachineV1::X86_64 => x86_64::relocation_kind(kind)?,
-            ObjectMachineV1::Aarch64 => return None,
+            ObjectMachineV1::Aarch64 => aarch64::relocation_kind(kind)?,
         };
         (kind.width() == width).then_some(kind)
     }

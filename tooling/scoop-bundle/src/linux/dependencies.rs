@@ -9,6 +9,7 @@ use std::{
 
 use anyhow::{Context, Result, ensure};
 
+use super::abi::LinuxAbi;
 use crate::{
     cache::Inputs,
     deploy::{self, Plan},
@@ -38,7 +39,7 @@ impl Code {
     }
 }
 
-fn inspect(source: &Path, destination: &Path) -> Result<Option<Code>> {
+fn inspect(abi: &LinuxAbi, source: &Path, destination: &Path) -> Result<Option<Code>> {
     let mut file = fs::File::open(source)?;
     let mut magic = [0; 4];
     if file.read(&mut magic)? != 4 || &magic != b"\x7fELF" {
@@ -47,11 +48,15 @@ fn inspect(source: &Path, destination: &Path) -> Result<Option<Code>> {
     let bytes = fs::read(source)?;
     let elf = goblin::elf::Elf::parse(&bytes)
         .with_context(|| format!("read ELF {}", source.display()))?;
-    ensure!(
-        elf.is_64 && elf.header.e_machine == goblin::elf::header::EM_X86_64,
-        "{} is not an x86_64 ELF image",
-        source.display()
-    );
+    abi.check_machine(&elf, source)?;
+    if let Some(interpreter) = elf.interpreter {
+        ensure!(
+            interpreter == abi.interpreter,
+            "{}: ELF interpreter {interpreter} does not match target interpreter {}",
+            source.display(),
+            abi.interpreter
+        );
+    }
     ensure!(
         matches!(
             elf.header.e_type,
@@ -78,21 +83,6 @@ fn inspect(source: &Path, destination: &Path) -> Result<Option<Code>> {
     }))
 }
 
-fn baseline(name: &str) -> bool {
-    matches!(
-        name,
-        "libc.so.6"
-            | "libm.so.6"
-            | "libpthread.so.0"
-            | "libdl.so.2"
-            | "librt.so.1"
-            | "libresolv.so.2"
-            | "libutil.so.1"
-            | "ld-linux-x86-64.so.2"
-            | "libc.musl-x86_64.so.1"
-    )
-}
-
 fn system(path: &Path) -> bool {
     ["/usr/lib", "/usr/lib64", "/lib", "/lib64"]
         .iter()
@@ -115,6 +105,7 @@ fn expand_origin(directory: &str, origin: &Path) -> Option<PathBuf> {
 }
 
 fn system_libraries(
+    abi: &LinuxAbi,
     inputs: &mut Inputs,
     tools: &mut Tools<'_>,
 ) -> Result<BTreeMap<String, PathBuf>> {
@@ -134,7 +125,11 @@ fn system_libraries(
     let mut result = BTreeMap::new();
     for line in text.lines() {
         if let Some((left, right)) = line.split_once(" => ")
-            && left.contains("x86-64")
+            && let Some((_, flags)) = left.trim_end().rsplit_once('(')
+            && flags
+                .trim_end_matches(')')
+                .split(',')
+                .any(|flag| flag.trim() == abi.ldconfig_arch)
             && let Some(name) = left.split_whitespace().next()
         {
             result
@@ -147,6 +142,7 @@ fn system_libraries(
 
 pub fn collect(
     input: &Input,
+    abi: &LinuxAbi,
     plan: &mut Plan,
     appimage: bool,
     inputs: &mut Inputs,
@@ -169,7 +165,7 @@ pub fn collect(
     loop {
         for (source, destination) in plan.source_files() {
             if scanned.insert(destination.clone())
-                && let Some(code) = inspect(&source, &destination)?
+                && let Some(code) = inspect(abi, &source, &destination)?
             {
                 files.push(code);
             }
@@ -180,14 +176,15 @@ pub fn collect(
         let source = files[position].source.clone();
         let origin = source.parent().context("ELF input has no parent")?;
         for name in files[position].libraries.clone() {
-            if appimage
-                && (baseline(&name)
-                    || settings
-                        .config
-                        .linux
-                        .appimage
-                        .system_libraries
-                        .contains(&name))
+            if abi.musl_libc(&name)
+                || appimage
+                    && (abi.system_baseline(&name)
+                        || settings
+                            .config
+                            .linux
+                            .appimage
+                            .system_libraries
+                            .contains(&name))
             {
                 continue;
             }
@@ -237,7 +234,7 @@ pub fn collect(
                 }
                 if resolved.is_none() {
                     if system_cache.is_none() {
-                        system_cache = Some(system_libraries(inputs, tools)?);
+                        system_cache = Some(system_libraries(abi, inputs, tools)?);
                     }
                     if let Some(path) = system_cache
                         .as_ref()
@@ -279,7 +276,8 @@ pub fn collect(
         files
             .iter()
             .any(|file| file.destination == primary && file.entry != 0),
-        "main input is not an x86_64 ELF executable"
+        "main input is not an executable ELF image for {}",
+        input.target.triple
     );
     for file in &files {
         let alias = file.destination.with_file_name(file.library_name()?);

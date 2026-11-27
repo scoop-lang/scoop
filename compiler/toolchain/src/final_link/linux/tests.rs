@@ -2,21 +2,12 @@ use super::*;
 
 #[test]
 fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() {
+    let [gnu, musl] = crate::linux_target::native_test_targets().map(|t| t.canonical());
     for (triple, compiler, mode, expected_mode) in [
-        ("x86_64-unknown-linux-gnu", None, None, LinkMode::Dynamic),
-        (
-            "x86_64-unknown-linux-gnu",
-            Some(PathBuf::from("clang")),
-            None,
-            LinkMode::Dynamic,
-        ),
-        ("x86_64-unknown-linux-musl", None, None, LinkMode::Static),
-        (
-            "x86_64-unknown-linux-musl",
-            None,
-            Some(LinkMode::Dynamic),
-            LinkMode::Dynamic,
-        ),
+        (gnu, None, None, LinkMode::Dynamic),
+        (gnu, Some(PathBuf::from("clang")), None, LinkMode::Dynamic),
+        (musl, None, None, LinkMode::Static),
+        (musl, None, Some(LinkMode::Dynamic), LinkMode::Dynamic),
     ] {
         let target = ResolvedTargetProfile::resolve_with(
             triple,
@@ -105,7 +96,8 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
 
 #[test]
 fn linux_final_profiles_reject_missing_unwind_and_unsupported_link_modes() {
-    let target = ResolvedTargetProfile::resolve("x86_64-linux-gnu").unwrap();
+    let [gnu, musl] = crate::linux_target::native_test_targets().map(|t| t.canonical());
+    let target = ResolvedTargetProfile::resolve(gnu).unwrap();
     let directory = tempfile::tempdir().unwrap();
     let error = target
         .final_link_with(&FinalLinkOptions {
@@ -124,7 +116,7 @@ fn linux_final_profiles_reject_missing_unwind_and_unsupported_link_modes() {
         })
         .unwrap_err();
     assert!(error.to_string().contains("glibc static"), "{error}");
-    for triple in ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"] {
+    for triple in [gnu, musl] {
         let target = ResolvedTargetProfile::resolve(triple).unwrap();
         let error = target
             .final_link_with(&FinalLinkOptions {

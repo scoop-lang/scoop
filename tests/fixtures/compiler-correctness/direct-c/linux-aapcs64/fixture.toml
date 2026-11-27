@@ -1,0 +1,24 @@
+schema = 1
+name = "linux-aapcs64-arguments"
+root = "program"
+inputs = ["program"]
+tools = ["scoop", "scoopc", "cc"]
+when = { os = "linux", arch = "aarch64" }
+tags = ["abi", "ffi", "compiler-correctness"]
+variants = [{ name = "debug", vars = { profile = "debug" } }, { name = "release", vars = { profile = "release" } }]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "${root}", "--profile", "${profile}", {each = "${link_args}"}, "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 0
+stdout = "Linux AAPCS64 arguments passed\n"
+stderr = ""

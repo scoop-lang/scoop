@@ -1,0 +1,4 @@
+link inputs: startup, cone/member order, runtime/object order, native CRT/libc/LLVM unwind
+native library m23_storage requirement=42555bd8de4e26af2a0ab8103efa80497e81dd27a272ffb42b094b6fa9a8da15 input=$NATIVE_INPUT_0 origins=dev.programlink:storage-provider:0.1.0, dev.programlink:storage-root:0.1.0
+native archive $NATIVE_INPUT_0 members=1
+  member 0 name="storage-payload.o" digest=$NATIVE_MEMBER_0 selected=true

@@ -15,6 +15,16 @@ ScoopPlatformStackBounds scoop_platform_stack_bounds(void) {
 static unsigned refreshed;
 static volatile unsigned touched;
 
+static inline __attribute__((always_inline)) uintptr_t current_sp(void) {
+    uintptr_t pointer;
+#ifdef __aarch64__
+    __asm__ volatile("mov %0, sp" : "=r"(pointer));
+#else
+    __asm__ volatile("mov %%rsp, %0" : "=r"(pointer));
+#endif
+    return pointer;
+}
+
 static void check_refresh(uintptr_t previous_low, uintptr_t address) {
     ScoopThreadState *state = scoop_thread_current_required();
     assert((uintptr_t)state->stack_low <= address);
@@ -64,7 +74,7 @@ static void native_entry(void) {
     scoop_rt_push_caller_roots(&roots, NULL, 0);
     ScoopThreadTransition transition = {0};
     scoop_rt_enter_native_safe_impl(&transition, (uintptr_t)&marker, 1,
-                                    (uintptr_t)&marker,
+                                    current_sp(),
                                     (uintptr_t)__builtin_frame_address(0));
     check_refresh(previous_low, (uintptr_t)&marker);
     descend(128, callback_entry);
@@ -77,7 +87,7 @@ static void managed_anchor(void) {
     ScoopThreadState *state = scoop_thread_current_required();
     uintptr_t previous_low = (uintptr_t)state->stack_low;
     ScoopManagedAnchor anchor;
-    scoop_thread_push_managed_anchor(&anchor, 1, (uintptr_t)&marker,
+    scoop_thread_push_managed_anchor(&anchor, 1, current_sp(),
                                      (uintptr_t)__builtin_frame_address(0));
     check_refresh(previous_low, (uintptr_t)&marker);
     scoop_thread_pop_managed_anchor(&anchor);

@@ -26,10 +26,7 @@ mod darwin;
 mod elf;
 mod linux;
 mod output;
-#[cfg(all(
-    test,
-    any(target_os = "macos", all(target_os = "linux", target_arch = "x86_64"))
-))]
+#[cfg(all(test, any(target_os = "macos", target_os = "linux")))]
 mod shared_tests;
 mod windows;
 pub use darwin::DarwinFinalLinkProfile;

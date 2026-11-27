@@ -41,6 +41,7 @@ fn runtime_compact_gc_pc_index_and_frame_roots() {
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror"])
         .arg(workspace.join("runtime/src/gc_binding/stackmap.c"))
         .arg(workspace.join("runtime/src/platform/frame/darwin_aarch64.c"))
+        .arg(workspace.join("runtime/src/platform/frame/linux_aarch64.c"))
         .arg(workspace.join("runtime/tests/stackmap_test.c"))
         .arg("-o")
         .arg(&binary)

@@ -8,6 +8,7 @@ fn backend_machine_policies_are_explicit_catalog_contracts() {
     );
     for backend in [
         crate::LLVM_22_1_DARWIN_X86_64,
+        crate::LLVM_22_1_LINUX_AARCH64,
         crate::LLVM_22_1_LINUX_X86_64,
         crate::LLVM_22_1_WINDOWS_X86_64,
     ] {
@@ -124,7 +125,18 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
             .default_target,
         crate::LINUX_X86_64_MUSL.contract().canonical_triple()
     );
-    assert!(crate::host("linux", "aarch64", "").is_none());
+    let arm_linux = crate::host("linux", "aarch64", "").unwrap();
+    let gnu = crate::LINUX_AARCH64_GNU.contract().canonical_triple();
+    let musl = crate::LINUX_AARCH64_MUSL.contract().canonical_triple();
+    assert_eq!(arm_linux.default_target, gnu);
+    assert_eq!(arm_linux.distribution_targets, &[gnu, musl]);
+    assert_eq!(
+        crate::named_target("aarch64-linux-musl")
+            .unwrap()
+            .selection
+            .target(),
+        crate::LINUX_AARCH64_MUSL,
+    );
     for alias in ["x86_64-apple-darwin27.0.1", "x86_64-apple-macosx27.0.1"] {
         assert_eq!(
             crate::named_target(alias).unwrap().selection,
@@ -205,46 +217,49 @@ fn windows_environments_keep_distinct_identity_and_seh_frame_recovery() {
 }
 
 #[test]
-fn linux_libcs_have_distinct_targets_and_share_the_x86_backend() {
-    let gnu = crate::selection(crate::LINUX_X86_64_GNU_ID)
-        .expect("implemented target selected by this consumer");
-    let musl = crate::selection(crate::LINUX_X86_64_MUSL_ID)
-        .expect("implemented target selected by this consumer");
-    assert_eq!(gnu.backend(), musl.backend());
-    assert_ne!(
-        gnu.backend().wire_id(),
-        crate::LLVM_22_1_DARWIN_AARCH64.wire_id()
-    );
-    assert_ne!(
-        gnu.backend().fingerprint().unwrap(),
-        crate::LLVM_22_1_DARWIN_AARCH64.fingerprint().unwrap()
-    );
-    assert_ne!(gnu.target().wire_id(), musl.target().wire_id());
-    assert_ne!(
-        gnu.target().fingerprint().unwrap(),
-        musl.target().fingerprint().unwrap()
-    );
-    for profile in [gnu.target(), musl.target()] {
-        assert_eq!(
-            profile.object_target().unwind_image(),
-            scoop_lir::ObjectUnwindImageV1::ElfEhFrame
+fn linux_libcs_have_distinct_targets_and_share_each_machines_backend() {
+    for (gnu, musl) in [
+        (crate::LINUX_X86_64_GNU_ID, crate::LINUX_X86_64_MUSL_ID),
+        (crate::LINUX_AARCH64_GNU_ID, crate::LINUX_AARCH64_MUSL_ID),
+    ] {
+        let gnu = crate::selection(gnu).unwrap();
+        let musl = crate::selection(musl).unwrap();
+        assert_eq!(gnu.backend(), musl.backend());
+        assert_ne!(
+            gnu.backend().wire_id(),
+            crate::LLVM_22_1_DARWIN_AARCH64.wire_id()
         );
-        assert_eq!(
-            profile.contract().native_symbol_normalization(),
-            NativeSymbolNormalization::ElfIdentity
+        assert_ne!(
+            gnu.backend().fingerprint().unwrap(),
+            crate::LLVM_22_1_DARWIN_AARCH64.fingerprint().unwrap()
         );
-        assert_eq!(profile.contract().stack_alignment_bytes(), 16);
-        assert_eq!(profile.managed_pointer_layout().size_bytes(), 8);
-        assert_eq!(
-            profile.native_object_format().wire_id(),
-            scoop_identity::ObjectFormatId::elf_relocatable()
+        assert_ne!(gnu.target().wire_id(), musl.target().wire_id());
+        assert_ne!(
+            gnu.target().fingerprint().unwrap(),
+            musl.target().fingerprint().unwrap()
         );
-        assert_eq!(
-            profile
-                .contract()
-                .native_symbol_normalization()
-                .compiler_generated_object_symbol("_entry"),
-            "_entry"
-        );
+        for profile in [gnu.target(), musl.target()] {
+            assert_eq!(
+                profile.object_target().unwind_image(),
+                scoop_lir::ObjectUnwindImageV1::ElfEhFrame
+            );
+            assert_eq!(
+                profile.contract().native_symbol_normalization(),
+                NativeSymbolNormalization::ElfIdentity
+            );
+            assert_eq!(profile.contract().stack_alignment_bytes(), 16);
+            assert_eq!(profile.managed_pointer_layout().size_bytes(), 8);
+            assert_eq!(
+                profile.native_object_format().wire_id(),
+                scoop_identity::ObjectFormatId::elf_relocatable()
+            );
+            assert_eq!(
+                profile
+                    .contract()
+                    .native_symbol_normalization()
+                    .compiler_generated_object_symbol("_entry"),
+                "_entry"
+            );
+        }
     }
 }

@@ -99,6 +99,8 @@ pub(super) const OUT_OF_LINE_GC_FORWARDING: &str = "-DSCOOP_PLATFORM_INLINE_GC_F
 pub(super) const INLINE_GC_FORWARDING: &str = "-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=1";
 pub(super) const DARWIN_AARCH64_FRAME_OPS: &str =
     "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops";
+pub(super) const LINUX_AARCH64_FRAME_OPS: &str =
+    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_linux_aarch64_managed_frame_ops";
 pub(super) const SYSV_AMD64_FRAME_OPS: &str =
     "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops";
 pub(super) const WINDOWS_AMD64_FRAME_OPS: &str =
@@ -163,12 +165,14 @@ pub(super) const WINDOWS_OS: &[&str] = &[
 pub(super) const AARCH64: &[&str] = &["runtime/src/platform/arch/aarch64_float_environment.c"];
 pub(super) const X86_64: &[&str] = &["runtime/src/platform/arch/x86_64_float_environment.c"];
 pub(super) const DARWIN_AARCH64_FRAME: &[&str] = &["runtime/src/platform/frame/darwin_aarch64.c"];
+pub(super) const LINUX_AARCH64_FRAME: &[&str] = &["runtime/src/platform/frame/linux_aarch64.c"];
 pub(super) const SYSV_AMD64_FRAME: &[&str] = &["runtime/src/platform/frame/sysv_amd64.c"];
 pub(super) const WINDOWS_AMD64_VIRTUAL_UNWIND: &[&str] =
     &["runtime/src/platform/frame/windows_amd64_virtual_unwind.c"];
 
 pub(super) const DARWIN_AARCH64_MACHO_MANAGED_ENTRY: &[&str] =
     &["runtime/src/platform/frame/darwin_aarch64_macho.S"];
+pub(super) const AAPCS64_ELF_MANAGED_ENTRY: &[&str] = &["runtime/src/platform/frame/aapcs64_elf.S"];
 pub(super) const SYSV_AMD64_ELF_MANAGED_ENTRY: &[&str] =
     &["runtime/src/platform/frame/sysv_amd64_elf.S"];
 pub(super) const SYSV_AMD64_MACHO_MANAGED_ENTRY: &[&str] =
@@ -178,5 +182,7 @@ pub(super) const WIN64_COFF_MANAGED_ENTRY: &[&str] =
 
 pub(super) const DARWIN_AARCH64_MACHO_ABI_SHIM: &[&str] =
     &["runtime/src/platform/abi/darwin_aarch64_macho_floating.S"];
+pub(super) const AAPCS64_ELF_ABI_SHIM: &[&str] =
+    &["runtime/src/platform/abi/aapcs64_elf_floating.S"];
 pub(super) const X86_64_TAGGED_FLOATING_ABI_SHIM: &[&str] =
     &["runtime/src/platform/abi/x86_64_tagged_floating.c"];

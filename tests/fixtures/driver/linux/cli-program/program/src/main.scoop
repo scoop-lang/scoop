@@ -1,11 +1,15 @@
 package test
+
+import test.machine.machineName
+
 class Box(val text: String)
 
 fun message(): String {
     val first = Box("Linux ")
-    val second = Box("amd64")
+    val second = Box(machineName())
+    gcCollect()
     val joined = first.text + second.text
-    if (first.text.charLength != 6L || second.text.charLength != 5L) {
+    if (first.text.charLength != 6L || joined.charLength != 6L + second.text.charLength) {
         throw IllegalStateException()
     }
     return joined

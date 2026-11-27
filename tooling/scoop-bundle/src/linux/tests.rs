@@ -22,18 +22,22 @@ fn deb_metadata_keeps_declared_dependencies_and_rejects_header_injection() {
         temporary.path(),
         "[bundle.linux.deb]\nmaintainer='Example <dev@example.com>'\ndepends=['libgtk-4-1 (>= 4.18)', 'libadwaita-1-0 (>= 1.4)']\n",
     );
-    let text = packages::deb_control(&value).unwrap();
+    for arch in ["arm64", "amd64"] {
+        let control = packages::deb_control(&value, arch).unwrap();
+        assert!(control.contains(&format!("Architecture: {arch}\n")));
+    }
+    let text = packages::deb_control(&value, "arm64").unwrap();
     assert!(text.contains("Version: 1.2.3-1\n"));
     assert!(text.contains("Depends: libgtk-4-1 (>= 4.18), libadwaita-1-0 (>= 1.4)\n"));
     let mut invalid = value;
     invalid.config.linux.deb.maintainer = Some("Name\nDepends: another-package".into());
-    assert!(packages::deb_control(&invalid).is_err());
+    assert!(packages::deb_control(&invalid, "arm64").is_err());
     invalid.config.linux.deb.maintainer = Some("Name <dev@example.com>".into());
     invalid.version = "1.2.3-beta.1".parse().unwrap();
-    assert!(packages::deb_control(&invalid).is_err());
+    assert!(packages::deb_control(&invalid, "arm64").is_err());
     invalid.config.linux.deb.version = Some("1.2.3~beta.1".into());
     assert!(
-        packages::deb_control(&invalid)
+        packages::deb_control(&invalid, "arm64")
             .unwrap()
             .contains("1.2.3~beta.1-1")
     );
@@ -97,8 +101,10 @@ fn rpm_payload_contains_relative_symlinks_empty_directories_and_native_metadata(
         payload.join("usr/bin/example-app"),
     )
     .unwrap();
-    let artifact = packages::rpm(&value, &payload, root).unwrap();
+    let artifact = packages::rpm(&value, "aarch64", &payload, root).unwrap();
+    assert!(artifact.ends_with("example-app-1.2.3-1.aarch64.rpm"));
     let package = rpm::Package::open(root.join(artifact)).unwrap();
+    assert_eq!(package.metadata.get_arch().unwrap(), "aarch64");
     assert_eq!(package.metadata.get_name().unwrap(), "example-app");
     assert_eq!(package.metadata.get_version().unwrap(), "1.2.3");
     assert!(

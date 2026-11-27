@@ -12,8 +12,8 @@ import tomllib
 from pathlib import Path
 
 from build_support import RELEASE_CONFIG, ROOT, build_lock, metadata, reusable
+from target_catalog import LINUX_GNU_TARGETS, TARGETS, current_host
 
-TARGET = "x86_64-unknown-linux-gnu"
 LIBRARIES = {
     "libadwaita-1": "adwaita-1",
     "gtk4": "gtk-4",
@@ -56,6 +56,34 @@ def development_path(path, prefix):
     return path
 
 
+def add_target_argument(parser):
+    host = current_host()
+    native = host["default_target"] if host and host["os"] == "linux" else None
+    parser.add_argument(
+        "--target", choices=LINUX_GNU_TARGETS, default=native, required=native is None
+    )
+
+
+def pkg_config_paths(target, prefix):
+    multiarch = TARGETS[target]["arch"] + "-linux-gnu"
+    directories = [
+        prefix / "lib" / multiarch / "pkgconfig",
+        prefix / "lib/pkgconfig",
+        prefix / "share/pkgconfig",
+    ]
+    environment = dict(os.environ)
+    environment["PKG_CONFIG_PATH"] = os.pathsep.join(
+        [*(str(path) for path in directories), environment.get("PKG_CONFIG_PATH", "")]
+    )
+    host = current_host()
+    if not host or host["default_target"] != target:
+        environment.setdefault(
+            "PKG_CONFIG_LIBDIR",
+            os.pathsep.join(str(Path("/usr") / path.relative_to(prefix)) for path in directories),
+        )
+    return directories, environment
+
+
 def prepare(args):
     inputs = {
         "scripts": [
@@ -63,6 +91,7 @@ def prepare(args):
             metadata(RELEASE_CONFIG),
             metadata(ROOT / "scripts/build_support.py"),
         ],
+        "target": args.target,
         "development_prefix": str(args.development_prefix),
         "prefix": str(args.prefix),
         "environment": {
@@ -81,17 +110,12 @@ def prepare(args):
     if tool is None:
         raise ValueError("GTK preparation requires pkg-config")
     prefix = args.development_prefix
-    directories = [prefix / "lib/pkgconfig", prefix / "share/pkgconfig"]
-    directories += sorted((prefix / "lib").glob("*/pkgconfig"))
-    environment = dict(os.environ)
-    environment["PKG_CONFIG_PATH"] = os.pathsep.join(
-        [*(str(path) for path in directories), environment.get("PKG_CONFIG_PATH", "")]
-    )
+    directories, environment = pkg_config_paths(args.target, prefix)
 
     def query(*arguments):
         return subprocess.check_output([tool, *arguments], env=environment, text=True).strip()
 
-    release = tomllib.loads(RELEASE_CONFIG.read_text())["targets"][TARGET]
+    release = tomllib.loads(RELEASE_CONFIG.read_text())["targets"][args.target]
     query("--atleast-version=" + release["minimum_gtk"], "gtk4")
     query("--atleast-version=" + release["minimum_libadwaita"], "libadwaita-1")
     include_flags = shlex.split(query("--cflags-only-I", "gtk4", "libadwaita-1"))
@@ -169,12 +193,13 @@ def prepare(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    add_target_argument(parser)
     parser.add_argument("--development-prefix", type=Path, default=Path("/usr"))
-    parser.add_argument("--prefix", type=Path, default=ROOT / "sysroot/lib" / TARGET)
+    parser.add_argument("--prefix", type=Path)
     parser.add_argument("--build-dir", type=Path, required=True)
     args = parser.parse_args()
     args.development_prefix = args.development_prefix.resolve()
-    args.prefix = args.prefix.resolve()
+    args.prefix = (args.prefix or ROOT / "sysroot/lib" / args.target).resolve()
     args.build_dir = args.build_dir.resolve()
     args.build_dir.mkdir(parents=True, exist_ok=True)
     with build_lock(args.build_dir / "build.lock"):

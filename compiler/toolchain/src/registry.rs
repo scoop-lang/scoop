@@ -237,7 +237,7 @@ mod tests {
         for triple in [
             "arm64e-apple-darwin",
             "x86_64h-apple-darwin",
-            "aarch64-unknown-linux-gnu",
+            "aarch64_be-unknown-linux-gnu",
             "aarch64-apple-ios-macabi",
             "x86_64-pc-windows-msvc",
             "x86_64-w64-windows-gnu",

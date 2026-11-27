@@ -1,6 +1,20 @@
 use super::*;
 use std::process::Command;
 
+// The macOS probe cross-compiles an x86-64 ELF. Linux uses its native GCC.
+const AARCH64_ELF: bool = cfg!(all(target_os = "linux", target_arch = "aarch64"));
+const TARGETS: [scoop_lir::TargetProfileId; 2] = if AARCH64_ELF {
+    [
+        scoop_target_data::LINUX_AARCH64_GNU_ID,
+        scoop_target_data::LINUX_AARCH64_MUSL_ID,
+    ]
+} else {
+    [
+        scoop_target_data::LINUX_X86_64_GNU_ID,
+        scoop_target_data::LINUX_X86_64_MUSL_ID,
+    ]
+};
+
 fn compile(source: &str, extension: &str, extra: &[&str]) -> Vec<u8> {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join(format!("input.{extension}"));
@@ -41,11 +55,8 @@ fn elf_native_objects_keep_tls_visibility_weakness_and_debug_relocations() {
         "c",
         &[],
     );
-    for _target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
-        let info = read(&bytes, scoop_target_data::LINUX_X86_64_GNU_ID).unwrap();
+    for target in TARGETS {
+        let info = read(&bytes, target).unwrap();
         assert_eq!(
             info.definitions["local_tls"].kind,
             NativeSymbolKind::ThreadLocal
@@ -62,7 +73,9 @@ fn elf_native_objects_keep_tls_visibility_weakness_and_debug_relocations() {
         );
         assert!(info.requirements.contains("foreign"));
         assert!(info.requirements.contains("foreign_tls"));
-        assert!(info.requirements.contains("__tls_get_addr"));
+        if !AARCH64_ELF {
+            assert!(info.requirements.contains("__tls_get_addr"));
+        }
     }
 }
 
@@ -73,7 +86,7 @@ fn elf_native_inputs_index_common_and_cpp_requirements() {
         "c",
         &["-fcommon"],
     );
-    let info = read(&bytes, scoop_target_data::LINUX_X86_64_GNU_ID).unwrap();
+    let info = read(&bytes, TARGETS[0]).unwrap();
     assert_eq!(
         info.definitions["tentative"].binding,
         NativeSymbolBinding::Common
@@ -84,8 +97,13 @@ fn elf_native_inputs_index_common_and_cpp_requirements() {
 #[test]
 fn elf_reader_rejects_a_different_machine() {
     let mut bytes = compile("int value;", "c", &[]);
-    bytes[18..20].copy_from_slice(&elf::EM_AARCH64.to_le_bytes());
-    assert!(read(&bytes, scoop_target_data::LINUX_X86_64_GNU_ID).is_err());
+    let other_machine = if AARCH64_ELF {
+        elf::EM_X86_64
+    } else {
+        elf::EM_AARCH64
+    };
+    bytes[18..20].copy_from_slice(&other_machine.to_le_bytes());
+    assert!(read(&bytes, TARGETS[0]).is_err());
 }
 
 #[test]
@@ -99,11 +117,8 @@ fn elf_native_inputs_index_libc_exit_cleanup() {
         "c",
         &[],
     );
-    for _target in [
-        scoop_target_data::LINUX_X86_64_GNU_ID,
-        scoop_target_data::LINUX_X86_64_MUSL_ID,
-    ] {
-        let info = read(&bytes, scoop_target_data::LINUX_X86_64_GNU_ID).unwrap();
+    for target in TARGETS {
+        let info = read(&bytes, target).unwrap();
         assert!(info.requirements.contains("__cxa_atexit"));
         assert!(info.requirements.contains("__cxa_finalize"));
     }
@@ -120,7 +135,7 @@ fn elf_weak_imports_do_not_require_optional_hooks_or_data() {
         "c",
         &[],
     );
-    let info = read(&bytes, scoop_target_data::LINUX_X86_64_GNU_ID).unwrap();
+    let info = read(&bytes, TARGETS[0]).unwrap();
     assert!(info.requirements.contains("required"));
     assert!(!info.requirements.contains("optional_hook"));
     assert!(!info.requirements.contains("optional_data"));

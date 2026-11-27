@@ -66,7 +66,7 @@ impl AbiCarrier {
                 element: AbiArrayElement::I64,
                 count,
             } => count == 2,
-            Self::Array { count, .. } => (2..=4).contains(&count),
+            Self::Array { count, .. } => (1..=4).contains(&count),
             Self::Float(_) | Self::Pointer(_) | Self::FloatPair => true,
         }
     }

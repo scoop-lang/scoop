@@ -13,6 +13,8 @@ pub struct AbiScalarLeaf {
 pub struct AbiAggregateLayout {
     pub size: u64,
     pub alignment: u64,
+    /// Largest field placement alignment before a record-level alignment override.
+    pub field_alignment: u64,
     pub leaves: Vec<AbiScalarLeaf>,
 }
 
