@@ -80,7 +80,8 @@ public struct InteractionVisual(
 
 public struct SurfaceVisual(
     val kind: SurfaceKind = SurfaceKind.Plain,
-    val interaction: InteractionVisual = InteractionVisual()
+    val interaction: InteractionVisual = InteractionVisual(),
+    val role: SurfaceRole = SurfaceRole.Content
 )
 
 public struct CheckboxVisual(
@@ -222,7 +223,8 @@ public class ThemeTokens internal constructor(
     public val validation: OutlineStyle,
     public val effects: ThemeEffects = themeEffects(),
     public val disabledOpacity: Double = 1.0,
-    public val textField: TextFieldTreatment = TextFieldTreatment.Standard
+    public val textField: TextFieldTreatment = TextFieldTreatment.Standard,
+    public val glassSurfaces: GlassSurfaces = glassSurfaces()
 ) {
     public fun copy(configure: ThemeTokensBuilder.() -> Unit = {}): ThemeTokens =
         configureThemeTokens(this, configure)

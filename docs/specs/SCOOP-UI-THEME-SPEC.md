@@ -157,6 +157,14 @@ SurfaceGeometry.contentStyle 保留同次解析的内容效果、圆角和 clip�
 
 Button 根据主题建议尺寸、自己的标签 metrics 和内容内缩决定布局，然后用最终 bounds 计算几何；Frame 可组合相同外框能力。基线从实际子项加放置偏移得到，不由主题猜测字体基线。控件可把标签或留白纳入命中范围，焦点光晕不会自动扩大输入。
 
+#### 4.1.1 玻璃表面用途
+
+`SurfaceRole` 与外观种类 SurfaceKind 独立，取值为 Content／Control／Input／Navigation／Toolbar／Popover／Dialog／Notification。`SurfaceVisual(kind=Plain, interaction=InteractionVisual(), role=Content)` 传递实际用途；同一种圆角或颜色不意味着相同用途。
+
+`ThemeTokens.glassSurfaces: GlassSurfaces` 默认为全部关闭。`glassSurfaces(configure: GlassSurfacesBuilder.() -> Unit = {})`、copy 和 `ThemeTokensBuilder.glassSurfaces { ... }` 遵守不可变描述与嵌套快照规则。GlassSurfaces 的 content、control、input、navigation、toolbar、popover、dialog、notification 均为 `GlassMaterial? = None`，`get(role)` 返回对应材质；None 明确表示该用途不采用玻璃，不自动扩散到其他用途。
+
+主题按用途选择材质，然后应用 SurfaceOptions.style.glass 的继承、替换或显式清除。有效材质存在时，默认填充作为透光的语义染色；显式 background 覆盖仍由调用方决定。显式清除材质会恢复原默认填充。几何、内容排版及输入范围不因选择材质改变。减少透明度或高对比度偏好将主题策略解析为全部关闭；恢复偏好从基础主题恢复选择。应用显式 Style.glass 仍属于局部自定义。
+
 ### 4.2 Checkbox 标记
 
 CheckboxVisual 包含 `CheckMark.Off／On／Mixed` 与交互视觉状态；可选采样参数控制标记显现等外观，主题不决定何时切换。CheckboxMetrics 给出建议／最小标记尺寸、内缩与焦点外扩。CheckboxGeometry 明确标记外框、内部区域、勾选／混合标记使用区域和焦点轮廓。

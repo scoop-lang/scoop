@@ -27,7 +27,7 @@ public class CardProps public constructor(
 public class Card public constructor(
     private val props: Props<CardProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val themes = ThemeAccess(scope)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
@@ -39,85 +39,72 @@ public class Card public constructor(
         val theme = themes.read(input.theme)
         val palette = theme.tokens.palette
         val density = theme.tokens.typography.body.fontSize / 14.0
-        val spacing =
-            (
-                if (input.size == CardSize.Sm)
-                    12.0
-                else
-                    16.0
-            ) *
-                density
-        val titleStyle =
-            titles.resolve(
+        val spacing = (if (input.size == CardSize.Sm) 12.0 else 16.0) * density
+        val titleStyle = titles
+            .resolve(
                 theme.tokens.typography.action,
                 palette.card.foreground,
                 None,
-                if (input.size == CardSize.Sm)
-                    1.0
-                else
-                    16.0 / 14.0,
+                if (input.size == CardSize.Sm) 1.0 else 16.0 / 14.0,
                 Some(1.375)
             )
-        val descriptionStyle =
-            descriptions.resolve(
+        val descriptionStyle = descriptions
+            .resolve(
                 theme.tokens.typography.body,
                 componentForeground(theme, palette.muted.foreground, palette.card.background),
                 None
             )
-        val hasHeader =
-            panelPresent(input.header) ||
-                panelPresent(input.title) ||
-                panelPresent(input.description) ||
-                panelPresent(input.action)
-        val headerText =
-            panelColumn {
-                when (input.header) {
-                    case Some(val value) -> this.add(panelSlot(value, 0L));
-                    case None -> {}
-                }
-                when (input.title) {
-                    case Some(val value) -> this.add(
-                        panelSlot(panelCaption(value, titleStyle, input.fonts), 1L)
-                    );
-                    case None -> {}
-                }
-                when (input.description) {
-                    case Some(val value) -> this.add(
-                        panelSlot(panelCaption(value, descriptionStyle, input.fonts), 2L)
-                    );
-                    case None -> {}
-                }
-                this.spacing = 4.0 * density
-                this.alignment = CrossAlignment.Stretch
+        val hasHeader = panelPresent(input.header) ||
+            panelPresent(input.title) ||
+            panelPresent(input.description) ||
+            panelPresent(input.action)
+        val headerText = panelColumn {
+            when (input.header) {
+                case Some(val value) -> this.add(panelSlot(value, 0L));
+                case None -> {}
             }
-        val header =
-            panelAside(
-                if (
-                    panelPresent(input.header) ||
-                        panelPresent(input.title) ||
-                        panelPresent(input.description)
-                )
-                    Some(headerText)
-                else
-                    None,
-                input.action,
-                spacing,
-                theme.tokens.typography.body.fontSize * 8.0
+            when (input.title) {
+                case Some(val value) ->
+                    this
+                        .add(
+                            panelSlot(panelCaption(value, titleStyle, input.fonts), 1L)
+                        );
+                case None -> {}
+            }
+            when (input.description) {
+                case Some(val value) ->
+                    this
+                        .add(
+                            panelSlot(panelCaption(value, descriptionStyle, input.fonts), 2L)
+                        );
+                case None -> {}
+            }
+            this.spacing = 4.0 * density
+            this.alignment = CrossAlignment.Stretch
+        }
+        val header = panelAside(
+            if (panelPresent(input.header) ||
+                panelPresent(input.title) ||
+                panelPresent(input.description)
             )
-        val content =
-            panelColumn {
-                if (hasHeader)
-                    this.add(
+                Some(headerText)
+            else
+                None,
+            input.action,
+            spacing,
+            theme.tokens.typography.body.fontSize * 8.0
+        )
+        val content = panelColumn {
+            if (hasHeader)
+                this
+                    .add(
                         panelFrame(
                             header,
                             Insets(
                                 spacing,
                                 spacing,
                                 spacing,
-                                if (input.headerSeparator)
-                                    spacing
-                                else
-                                    0.0
+                                if (input.headerSeparator) spacing else 0.0
                             ),
                             styleOverride {
                                 if (input.headerSeparator)
@@ -126,81 +113,85 @@ public class Card public constructor(
                             key = ViewKey.Number(0L)
                         )
                     )
-                this.add(
+            this
+                .add(
                     panelFrame(
                         input.content,
                         Insets(
                             spacing,
-                            if (hasHeader)
-                                0.0
-                            else
-                                spacing,
+                            if (hasHeader) 0.0 else spacing,
                             spacing,
-                            if (!panelPresent(input.footer))
-                                spacing
-                            else
-                                0.0
+                            if (!panelPresent(input.footer)) spacing else 0.0
                         ),
                         key = ViewKey.Number(1L)
                     )
                 )
-                when (input.footer) {
-                    case Some(val value) -> this.add(
-                        panelFrame(
-                            value,
-                            Insets.all(spacing),
-                            styleOverride {
-                                this.background(
-                                    Some(Paint(componentPanelSection(theme, palette.card)))
-                                );
-                                this.border(
-                                    Some(
-                                        topBorder(
-                                            componentForeground(
-                                                theme,
-                                                palette.border,
-                                                palette.card.background,
-                                                3.0
+            when (input.footer) {
+                case Some(val value) ->
+                    this
+                        .add(
+                            panelFrame(
+                                value,
+                                Insets.all(spacing),
+                                styleOverride {
+                                    this
+                                        .background(
+                                            Some(Paint(componentPanelSection(theme, palette.card)))
+                                        );
+                                    this
+                                        .border(
+                                            Some(
+                                                topBorder(
+                                                    componentForeground(
+                                                        theme,
+                                                        palette.border,
+                                                        palette.card.background,
+                                                        3.0
+                                                    )
+                                                )
                                             )
                                         )
-                                    )
-                                )
-                            },
-                            key = ViewKey.Number(2L)
-                        )
-                    )
-                    case None -> {}
-                }
-                this.spacing = spacing
-                this.alignment = CrossAlignment.Stretch
-            }
-        return panelFrame(
-            content,
-            visual =
-                styleOverride {
-                    this.background(Some(Paint(palette.card.background)))
-                    this.border(
-                        Some(
-                            Border.all(
-                                1.0,
-                                componentPanelBorder(
-                                    theme,
-                                    palette.card,
-                                    palette.background.foreground.withAlpha(
-                                        palette.background.foreground.alpha * 0.1
-                                    )
-                                )
+                                },
+                                key = ViewKey.Number(2L)
                             )
                         )
+                case None -> {}
+            }
+            this.spacing = spacing
+            this.alignment = CrossAlignment.Stretch
+        }
+        return panelFrame(
+            content,
+            visual = styleOverride {
+                glassSurface(theme, SurfaceRole.Content, palette.card.background, input.style)
+                this
+                    .border(
+                        Some(
+                            Border
+                                .all(
+                                    1.0,
+                                    componentPanelBorder(
+                                        theme,
+                                        palette.card,
+                                        palette
+                                            .background
+                                            .foreground
+                                            .withAlpha(
+                                                palette.background.foreground.alpha * 0.1
+                                            )
+                                    )
+                                )
+                        )
                     )
-                    this.corners(Corners.all(theme.tokens.corners.large))
-                    this.clipContent(true)
-                }.then(input.style)
+                this.corners(Corners.all(theme.tokens.corners.large))
+                this.clipContent(true)
+            }
+                .then(input.style)
         )
     }
 }
 
-public class CardBuilder internal constructor(): PanelBuilder() {
+public class CardBuilder internal constructor() : PanelBuilder() {
     public var header: View? = None
     public var action: View? = None
     public var footer: View? = None
@@ -217,8 +208,10 @@ public class CardBuilder internal constructor(): PanelBuilder() {
     }
 }
 
-public fun card(content: View, configure: CardBuilder.() -> Unit = {}): View =
-    makeCard(content, configure)
+public fun card(content: View, configure: CardBuilder.() -> Unit = {}): View = makeCard(
+    content,
+    configure
+)
 
 internal fun makeCard(content: View, configure: CardBuilder.() -> Unit): View {
     val builder = CardBuilder()

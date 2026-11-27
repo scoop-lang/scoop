@@ -39,7 +39,10 @@ internal fun actionTextColor(
     val colors = theme.tokens.palette
     if (variant == ButtonVariant.Default) return theme.surfaceTextColor(visual)
     if (outlinedButton(shape, variant))
-        return theme.surfaceTextColor(SurfaceVisual(SurfaceKind.OutlinedAction, visual.interaction))
+        return theme
+            .surfaceTextColor(
+                SurfaceVisual(SurfaceKind.OutlinedAction, visual.interaction, visual.role)
+            )
     if (theme.preferences.highContrast)
         return actionContrastPair(theme, shape, variant, visual.interaction).foreground
     if (!visual.interaction.enabled && theme.tokens.disabledOpacity >= 1.0)
@@ -196,7 +199,12 @@ internal fun actionOptions(
     val resolvedBorder = border
     val variantStyle = styleOverride {
         if (variant != ButtonVariant.Default && !outlinedButton(shape, variant)) {
-            this.background(Some(Paint(fill)))
+            glassSurface(
+                theme,
+                SurfaceRole.Control,
+                fill,
+                style.states.apply(style.surface.style, visual)
+            )
             this
                 .border(
                     Some(

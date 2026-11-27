@@ -48,7 +48,8 @@ internal class TextFieldRenderer(private val scope: ComponentScope) {
                 interaction.hovered,
                 focusVisible = interaction.focusVisible,
                 invalid = input.invalid
-            )
+            ),
+            SurfaceRole.Input
         )
         val theme = themes.read(input.theme)
         val palette = theme.tokens.palette

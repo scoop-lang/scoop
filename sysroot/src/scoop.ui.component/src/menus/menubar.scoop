@@ -19,12 +19,12 @@ public class MenubarProps public constructor(
     public val onOpenChange: (ViewKey?) -> Unit = {}
 ) {
     init {
-        for (index in 0L ..< entries.size) {
+        for (index in 0L..<entries.size) {
             requireComponent(
                 entries[index].key != ViewKey.Position,
                 "menubar requires an explicit key"
             )
-            for (previous in 0L ..< index)
+            for (previous in 0L..<index)
                 requireComponent(
                     entries[previous].key != entries[index].key,
                     "duplicate menubar key"
@@ -36,7 +36,7 @@ public class MenubarProps public constructor(
 public class Menubar public constructor(
     private val props: Props<MenubarProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val themes = ThemeAccess(scope)
     private val storage = ChoiceHandles()
     private var handles: Array<FocusHandle> = []
@@ -46,29 +46,24 @@ public class Menubar public constructor(
     private fun setOpen(key: ViewKey?) {
         val binding = props.value.open
         val previous = binding.value
-        if (previous == key)
-            return
+        if (previous == key) return
         binding.value = key
         val accepted = binding.value
-        if (accepted != previous)
-            props.value.onOpenChange(accepted)
+        if (accepted != previous) props.value.onOpenChange(accepted)
     }
     private fun select(key: ViewKey, origin: FocusOrigin) {
         val input = props.value
-        if (!input.options.enabled)
-            return
-        for (index in 0L ..< input.entries.size)
+        if (!input.options.enabled) return
+        for (index in 0L..<input.entries.size)
             if (input.entries[index].key == key && input.entries[index].trigger.enabled) {
                 setOpen(Some(key))
-                if (input.open.value == Some(key))
-                    handles[index].requestFocus(origin)
+                if (input.open.value == Some(key)) handles[index].requestFocus(origin)
                 return
             }
     }
     private fun navigate(handle: FocusHandle) {
-        if (props.value.open.value == None)
-            return
-        for (index in 0L ..< handles.size)
+        if (props.value.open.value == None) return
+        for (index in 0L..<handles.size)
             if (handles[index] === handle) {
                 setOpen(Some(props.value.entries[index].key));
                 return
@@ -77,24 +72,16 @@ public class Menubar public constructor(
     private fun horizontal(key: ViewKey, reverse: Boolean) {
         val input = props.value
         var current = -1L
-        for (index in 0L ..< input.entries.size)
-            if (input.entries[index].key == key)
-                current = index
-        if (current < 0L)
-            return
+        for (index in 0L..<input.entries.size)
+            if (input.entries[index].key == key) current = index
+        if (current < 0L) return
         var index = current
         var visited = 0L
         while (visited < input.entries.size) {
-            index += if (reverse)
-                -1L
-            else
-                1L
-            if ((index < 0L || index >= input.entries.size) && !input.options.loop)
-                return
-            if (index < 0L)
-                index = input.entries.size - 1L
-            if (index >= input.entries.size)
-                index = 0L
+            index += if (reverse) -1L else 1L
+            if ((index < 0L || index >= input.entries.size) && !input.options.loop) return
+            if (index < 0L) index = input.entries.size - 1L
+            if (index >= input.entries.size) index = 0L
             if (input.entries[index].trigger.enabled) {
                 select(input.entries[index].key, FocusOrigin.Keyboard);
                 return
@@ -107,68 +94,66 @@ public class Menubar public constructor(
         val theme = themes.read(input.options.theme)
         val density = theme.tokens.typography.body.fontSize / 14.0
         val keys = Array<ViewKey>(input.entries.size) { index -> input.entries[index].key }
-        handles =
-            storage.resolve(
+        handles = storage
+            .resolve(
                 keys,
                 Array<FocusOptions>(keys.size) { index -> input.entries[index].trigger.focus }
             )
-        val children =
-            Array<View>(keys.size) {
-                index ->
-                val entry = input.entries[index]
-                val key = entry.key
-                val trigger = entry.trigger
-                val opened = input.open.value == Some(key) && trigger.enabled
-                val button =
-                    PopupTriggerSpec(
-                        trigger.content,
-                        trigger.enabled,
-                        ButtonVariant.Ghost,
-                        ButtonSize.Sm,
-                        menubarTriggerStyle(trigger.style, theme, opened),
-                        choiceFocus(trigger.focus, handles[index]),
-                        trigger.fonts,
-                        trigger.semantics
-                    )
-                component(
-                    MenuRootInput(
-                        Some(
-                            binding(
-                                {
-                                    props.value.open.value ==
-                                        Some(key) &&
-                                        menubarEnabled(props.value, key)
-                                },
-                                {
-                                    value -> if (value)
-                                        setOpen(Some(key))
-                                    else
-                                        if (props.value.open.value == Some(key))
-                                            setOpen(None)
-                                }
-                            )
-                        ),
-                        entry.content,
-                        input.options,
-                        MenuRootTrigger.Button(button, None),
-                        focus = OverlayFocusOptions(restoreTarget = Some(handles[index])),
-                        onOpenChange = {},
-                        horizontal = Some({ reverse -> horizontal(key, reverse) }),
-                        hovered =
+        val children = Array<View>(keys.size) { index ->
+            val entry = input.entries[index]
+            val key = entry.key
+            val trigger = entry.trigger
+            val opened = input.open.value == Some(key) && trigger.enabled
+            val button = PopupTriggerSpec(
+                trigger.content,
+                trigger.enabled,
+                ButtonVariant.Ghost,
+                ButtonSize.Sm,
+                menubarTriggerStyle(trigger.style, theme, opened),
+                choiceFocus(trigger.focus, handles[index]),
+                trigger.fonts,
+                trigger.semantics
+            )
+            component(
+                MenuRootInput(
+                    Some(
+                        binding(
                             {
-                                if (props.value.open.value != None)
-                                    select(key, FocusOrigin.Pointer)
+                                props.value.open.value ==
+                                    Some(key) &&
+                                    menubarEnabled(props.value, key)
+                            },
+                            { value ->
+                                if (value)
+                                    setOpen(Some(key))
+                                else if (props.value.open.value == Some(key)) setOpen(None)
                             }
+                        )
                     ),
-                    { current, mount -> MenubarMenu(current, scope = mount) }
-                )
-            }
-        val visual =
-            styleOverride {
-                background(Some(Paint(theme.tokens.palette.background.background)))
-                border(Some(Border.all(1.0, theme.tokens.palette.border)))
-                corners(Corners.all(8.0 * density))
-            }.then(input.style)
+                    entry.content,
+                    input.options,
+                    MenuRootTrigger.Button(button, None),
+                    focus = OverlayFocusOptions(restoreTarget = Some(handles[index])),
+                    onOpenChange = {},
+                    horizontal = Some({ reverse -> horizontal(key, reverse) }),
+                    hovered = {
+                        if (props.value.open.value != None) select(key, FocusOrigin.Pointer)
+                    }
+                ),
+                { current, mount -> MenubarMenu(current, scope = mount) }
+            )
+        }
+        val visual = styleOverride {
+            glassSurface(
+                theme,
+                SurfaceRole.Toolbar,
+                theme.tokens.palette.background.background,
+                input.style
+            )
+            border(Some(Border.all(1.0, theme.tokens.palette.border)))
+            corners(Corners.all(8.0 * density))
+        }
+            .then(input.style)
         return panelFrame(
             choiceLayout(
                 children,
@@ -191,43 +176,41 @@ public class Menubar public constructor(
 internal fun menubarTriggerStyle(local: ButtonStyle, theme: Theme, opened: Boolean): ButtonStyle {
     val density = theme.tokens.typography.body.fontSize / 14.0
     val active = styleOverride { background(Some(Paint(theme.tokens.palette.muted.background))) }
-    return local.copy {
-        surface {
-            if (suggestedSize == None)
-                suggestedSize = Some(Size(0.0, 24.0 * density))
-            if (minimumSize == None)
-                minimumSize = Some(Size(0.0, 0.0))
-            if (padding == None)
-                padding = Some(Insets(6.0 * density, 2.0 * density, 6.0 * density, 2.0 * density))
-            if (focus == None)
-                focus = Some(OutlineStyle(Color.Transparent, 0.0, 0.0))
-            style =
-                styleOverride {
-                    if (opened)
-                        background(Some(Paint(theme.tokens.palette.muted.background)))
+    return local
+        .copy {
+            surface {
+                if (suggestedSize == None) suggestedSize = Some(Size(0.0, 24.0 * density))
+                if (minimumSize == None) minimumSize = Some(Size(0.0, 0.0))
+                if (padding == None)
+                    padding = Some(
+                        Insets(6.0 * density, 2.0 * density, 6.0 * density, 2.0 * density)
+                    )
+                if (focus == None) focus = Some(OutlineStyle(Color.Transparent, 0.0, 0.0))
+                style = styleOverride {
+                    if (opened) background(Some(Paint(theme.tokens.palette.muted.background)))
                     border(None)
                     corners(Corners.all(4.0 * density))
                     boxShadows([])
-                }.then(local.surface.style)
+                }
+                    .then(local.surface.style)
+            }
+            states {
+                hovered = active.then(local.surface.style).then(local.states.hovered)
+                pressed = active.then(local.surface.style).then(local.states.pressed)
+            }
         }
-        states {
-            hovered = active.then(local.surface.style).then(local.states.hovered)
-            pressed = active.then(local.surface.style).then(local.states.pressed)
-        }
-    }
 }
 
 private fun menubarEnabled(input: MenubarProps, key: ViewKey): Boolean {
     for (entry in input.entries)
-        if (entry.key == key)
-            return entry.trigger.enabled && input.options.enabled
+        if (entry.key == key) return entry.trigger.enabled && input.options.enabled
     return false
 }
 
 private class MenubarMenu(
     private val props: Props<MenuRootInput>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val root = MenuRoot(scope, { props.value })
     public override fun onMount() {
         root.mount()
@@ -235,7 +218,7 @@ private class MenubarMenu(
     public override fun render(): View = root.render()
 }
 
-public class MenubarBuilder internal constructor(): MenuOptionsBuilder() {
+public class MenubarBuilder internal constructor() : MenuOptionsBuilder() {
     private val entries = ArrayList<MenubarEntry>()
     public var barStyle: StyleOverride = styleOverride()
     public var onOpenChange: (ViewKey?) -> Unit = {}
@@ -268,8 +251,13 @@ public class MenubarBuilder internal constructor(): MenuOptionsBuilder() {
         builder.configure()
         add(MenubarEntry(key, builder.snapshot(ButtonContent.Custom(trigger)), content))
     }
-    internal fun snapshot(open: Binding<ViewKey?>): MenubarProps =
-        MenubarProps(open, entries.toArray(), options(), barStyle, onOpenChange)
+    internal fun snapshot(open: Binding<ViewKey?>): MenubarProps = MenubarProps(
+        open,
+        entries.toArray(),
+        options(),
+        barStyle,
+        onOpenChange
+    )
 }
 
 public fun menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {}): View =

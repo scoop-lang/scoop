@@ -31,7 +31,7 @@ internal fun measureOtp(
     val invalid = ArrayList<Boolean>()
     val separators = ArrayList<Size>()
     var height = cellSize.height
-    for (index in 0L ..< context.childCount) {
+    for (index in 0L..<context.childCount) {
         val child = context.measureChild(index, Constraints()).size
         separators.add(child)
         height = lowerBound(height, child.height)
@@ -42,112 +42,111 @@ internal fun measureOtp(
     for (part in input.groups()) {
         when (part) {
             case Group(val group) -> {
-                if (next > 0L)
-                    gaps[next - 1L] = pendingGap + gap
-                for (index in 0L ..< group.slots.size) {
-                    positions.add(
-                        GroupPosition(
-                            FlexAxis.Horizontal,
-                            index == 0L,
-                            index == group.slots.size - 1L
+                if (next > 0L) gaps[next - 1L] = pendingGap + gap
+                for (index in 0L..<group.slots.size) {
+                    positions
+                        .add(
+                            GroupPosition(
+                                FlexAxis.Horizontal,
+                                index == 0L,
+                                index == group.slots.size - 1L
+                            )
                         )
-                    )
                     invalid.add(input.invalid || group.slots[index].invalid)
                     next += 1L
                 }
                 pendingGap = 0.0
             }
+
             case Separator(_) -> {
                 pendingGap = separators[child].width + gap
                 child += 1L
             }
         }
     }
-    val plan =
-        TextEditCells(
-            input.length,
-            cellSize,
-            Array<Double>(gaps.size) { index -> gaps[index] },
-            context.layoutDirection
-        )
-    val baseVisual = SurfaceVisual(SurfaceKind.Plain)
+    val plan = TextEditCells(
+        input.length,
+        cellSize,
+        Array<Double>(gaps.size) { index -> gaps[index] },
+        context.layoutDirection
+    )
+    val baseVisual = SurfaceVisual(SurfaceKind.Plain, role = SurfaceRole.Input)
     val baseOptions = otpOptions(theme, input.style, baseVisual.interaction)
     val margin = theme.surfaceMetrics(baseVisual, baseOptions, context.layoutDirection).focusOutset
     var naturalWidth = cellSize.width * input.length.toDouble()
     for (distance in plan.gaps)
         naturalWidth += distance
     val size = constraints.constrain(Size(naturalWidth + 2.0 * margin, height + 2.0 * margin))
-    val contentSize =
-        Size(
-            lowerBound(size.width - 2.0 * margin, 0.0),
-            lowerBound(size.height - 2.0 * margin, 0.0)
-        )
+    val contentSize = Size(
+        lowerBound(size.width - 2.0 * margin, 0.0),
+        lowerBound(size.height - 2.0 * margin, 0.0)
+    )
     val viewport = Size(contentSize.width, upperBound(contentSize.height, cellSize.height))
-    val origin =
-        Point(
-            upperBound(margin, size.width / 2.0),
-            upperBound(margin, size.height / 2.0) + (contentSize.height - viewport.height) / 2.0
-        )
+    val origin = Point(
+        upperBound(margin, size.width / 2.0),
+        upperBound(margin, size.height / 2.0) + (contentSize.height - viewport.height) / 2.0
+    )
     val text = ink.host.measure(Constraints.tight(viewport), Some(plan))
     try {
         val layout = text.layout
         val rects = layout.cellRects
         val active = layout.cellIndex(input.state.cursor) ?: 0L
         val slots = ArrayList<OtpSlotDrawing>()
-        for (index in 0L ..< rects.size) {
-            val position =
-                if (index < input.length - 1L)
-                    positions[index]
-                else
-                    GroupPosition(
-                        FlexAxis.Horizontal,
-                        index < input.length && positions[index].first,
-                        index == rects.size - 1L
-                    )
-            val visual =
-                SurfaceVisual(
-                    SurfaceKind.Plain,
-                    InteractionVisual(
-                        focusVisible =
-                            input.enabled && value.interaction.focusVisible && active == index,
-                        invalid = input.invalid || (index < invalid.size && invalid[index])
-                    )
+        for (index in 0L..<rects.size) {
+            val position = if (index < input.length - 1L)
+                positions[index]
+            else
+                GroupPosition(
+                    FlexAxis.Horizontal,
+                    index < input.length && positions[index].first,
+                    index == rects.size - 1L
                 )
-            val options = otpOptions(theme, input.style, visual.interaction)
-            val metrics =
-                groupSurfaceMetrics(
-                    theme.surfaceMetrics(visual, options, context.layoutDirection),
-                    Some(position),
-                    None,
-                    context.layoutDirection
-                )
-            val original =
-                theme.surfaceGeometry(rects[index], visual, options, context.layoutDirection)
-            slots.add(
-                OtpSlotDrawing(
-                    groupSurfaceGeometry(
-                        original,
-                        metrics,
-                        Some(position),
-                        context.layoutDirection
-                    ),
-                    visual
-                )
+            val visual = SurfaceVisual(
+                SurfaceKind.Plain,
+                InteractionVisual(
+                    focusVisible = input.enabled &&
+                        value.interaction.focusVisible &&
+                        active ==
+                        index,
+                    invalid = input.invalid || (index < invalid.size && invalid[index])
+                ),
+                SurfaceRole.Input
             )
+            val options = otpOptions(theme, input.style, visual.interaction)
+            val metrics = groupSurfaceMetrics(
+                theme.surfaceMetrics(visual, options, context.layoutDirection),
+                Some(position),
+                None,
+                context.layoutDirection
+            )
+            val original = theme
+                .surfaceGeometry(rects[index], visual, options, context.layoutDirection)
+            slots
+                .add(
+                    OtpSlotDrawing(
+                        groupSurfaceGeometry(
+                            original,
+                            metrics,
+                            Some(position),
+                            context.layoutDirection
+                        ),
+                        visual
+                    )
+                )
         }
         child = 0L
         next = 0L
         for (part in input.groups()) {
             when (part) {
                 case Group(val group) -> next += group.slots.size
+
                 case Separator(_) -> {
                     val previous = rects[next - 1L]
                     val extent = separators[child]
-                    val x =
-                        if (context.layoutDirection == LayoutDirection.Ltr)
-                            previous.x + previous.width + gap
-                        else
-                            previous.x - gap - extent.width
+                    val x = if (context.layoutDirection == LayoutDirection.Ltr)
+                        previous.x + previous.width + gap
+                    else
+                        previous.x - gap - extent.width
                     context.placeChild(child, Point(x, (cellSize.height - extent.height) / 2.0))
                     child += 1L
                 }

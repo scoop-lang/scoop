@@ -27,3 +27,9 @@
 新增 GlassMaterial／glassMaterial、Style.glass 及覆盖与显式清除；StylePainter 持有当前光学滤镜，独立示例已移除内嵌折射程序。主题的完整表面绘制在整体淡化玻璃时继承下层。
 
 macOS arm64 release：格式化与 check 通过；style 的 27 个测试全部通过，覆盖 Raster／Metal、2 倍 DPI、实时背景、预乘 alpha、模糊、折射、圆角、清晰前景、缓存替换与录制资源寿命。迁移后的示例通过 10 阶段真实窗口测试，包含滚动、开关、0／50／100% 整组透明度和静止停帧。受影响的预编译 UI 库已更新；API 文档无警告生成，并通过 scoop api 检索材质及 copy 签名。本阶段未运行 Linux／Windows native 目标。
+
+### 2. 表面选择
+
+新增 SurfaceRole 与 ThemeTokens.glassSurfaces，组件传递实际用途；Frame 公开 surfaceRole。局部清除恢复普通填充，主题偏好关闭／恢复策略；Popover／Modal／Toast 的呈现组继承下层。
+
+macOS arm64 release：格式与生产／测试 check 通过；四套主题 52 个测试、组件 282 个测试通过。原窗口测量用例在被遮挡时无提交帧而超时，改为与其余绘图窗口测试一致的置顶后通过，未放宽测量或帧数断言。公开 API 文档无警告生成，GlassSurfaces.get 与 FrameBuilder.surfaceRole 可检索。额外的 Popover 焦点会话测试启用了玻璃；本轮在初始窗口等待键盘焦点（phase 0）时超时，尚未进入弹层操作，后续 Gallery／交互验收继续闭合此项。

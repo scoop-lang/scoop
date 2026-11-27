@@ -11,7 +11,7 @@ import scoop.window.accessibility.*
 import scoop.ui.component.column as menuColumn
 
 /** Handles are presentation references, never a second selection or focus model. */
-internal class MenuFocus: NavigationSource {
+internal class MenuFocus : NavigationSource {
     private val storage = ChoiceHandles()
     private var items: Array<MenuItemSpec> = []
     var handles: Array<FocusHandle> = []
@@ -23,8 +23,8 @@ internal class MenuFocus: NavigationSource {
                 case None -> {}
             }
         items = next.toArray()
-        handles =
-            storage.resolve(
+        handles = storage
+            .resolve(
                 Array<ViewKey>(items.size) { index -> items[index].key },
                 Array<FocusOptions>(items.size) { index -> items[index].focus }
             )
@@ -32,33 +32,23 @@ internal class MenuFocus: NavigationSource {
     public override val count: Long get() = items.size
     public override fun keyAt(index: Long): ViewKey = items[index].key
     public override fun indexOfKey(key: ViewKey): Long? {
-        for (index in 0L ..< items.size)
-            if (items[index].key == key)
-                return Some(index)
+        for (index in 0L..<items.size)
+            if (items[index].key == key) return Some(index)
         return None
     }
     public override fun enabledAt(index: Long): Boolean = items[index].enabled
     public override fun searchTextAt(index: Long): String = items[index].label
     fun handle(key: ViewKey): FocusHandle = handles[indexOfKey(key)!!]
     fun current(): ViewKey? {
-        for (index in 0L ..< handles.size)
-            if (handles[index].hasFocus)
-                return Some(items[index].key)
+        for (index in 0L..<handles.size)
+            if (handles[index].hasFocus) return Some(items[index].key)
         return None
     }
     fun edge(last: Boolean): FocusHandle? {
-        var index =
-            if (last)
-                items.size - 1L
-            else
-                0L
+        var index = if (last) items.size - 1L else 0L
         while (index >= 0L && index < items.size) {
-            if (items[index].enabled)
-                return Some(handles[index])
-            index += if (last)
-                -1L
-            else
-                1L
+            if (items[index].enabled) return Some(handles[index])
+            index += if (last) -1L else 1L
         }
         return None
     }
@@ -94,15 +84,14 @@ internal class MenuPopupProps(
 internal class MenuPopup(
     private val props: Props<MenuPopupProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.options.theme)
     }
     private fun dismissSemantically(): SemanticActionResult {
         val input = props.value
-        if (!input.open.value)
-            return SemanticActionResult.Unavailable
+        if (!input.open.value) return SemanticActionResult.Unavailable
         input.handle.requestClose()
         return if (!props.value.open.value)
             SemanticActionResult.Completed
@@ -115,54 +104,58 @@ internal class MenuPopup(
         val theme = themes.read(options.theme)
         val density = theme.tokens.typography.body.fontSize / 14.0
         input.focus.resolve(input.content)
-        val panel =
-            panelFrame(
-                element(
-                    MenuViewportProps(options, theme),
-                    { current, mount -> MenuViewport(current, scope = mount) },
-                    [
-                        component(
-                            MenuLevelProps(input, theme),
-                            { current, mount -> MenuLevel(current, scope = mount) }
-                        )
-                    ]
-                ),
-                Insets.all(4.0 * density),
-                styleOverride {
-                    background(Some(Paint(theme.tokens.palette.popover.background)))
-                    border(
-                        Some(
-                            Border.all(
+        val panel = panelFrame(
+            element(
+                MenuViewportProps(options, theme),
+                { current, mount -> MenuViewport(current, scope = mount) },
+                [
+                    component(
+                        MenuLevelProps(input, theme),
+                        { current, mount -> MenuLevel(current, scope = mount) }
+                    )
+                ]
+            ),
+            Insets.all(4.0 * density),
+            styleOverride {
+                glassSurface(
+                    theme,
+                    SurfaceRole.Popover,
+                    theme.tokens.palette.popover.background,
+                    options.style
+                )
+                border(
+                    Some(
+                        Border
+                            .all(
                                 1.0,
                                 componentPanelBorder(theme, theme.tokens.palette.popover)
                             )
-                        )
                     )
-                    corners(Corners.all(8.0 * density))
-                    boxShadows(theme.tokens.effects.floating)
-                }.then(options.style),
-                Some(options.width * density)
-            )
-        val motion =
-            theme.tokens.motion.resolve(
+                )
+                corners(Corners.all(8.0 * density))
+                boxShadows(theme.tokens.effects.floating)
+            }
+                .then(options.style),
+            Some(options.width * density)
+        )
+        val motion = theme
+            .tokens
+            .motion
+            .resolve(
                 options.transition.resolve(Some(AnimationSpec.Tween(Duration.milliseconds(100L))))
             )
-        val content =
-            when (input.link) {
-                case Some(val link) -> element(
+        val content = when (input.link) {
+            case Some(val link) ->
+                element(
                     HoverPopupContentProps(link, false, None),
                     { current, mount -> HoverPopupContent(current, scope = mount) },
                     [panel]
                 )
-                case None -> panel
-            }
+            case None -> panel
+        }
         val inputs = props
-        val semantics =
-            input.semantics ?:
-                if (input.root)
-                    options.semantics
-                else
-                    ComponentSemantics()
+        val semantics = input.semantics ?:
+            if (input.root) options.semantics else ComponentSemantics()
         return portal(
             input.open,
             element(
@@ -172,10 +165,11 @@ internal class MenuPopup(
                     semanticContent(
                         content,
                         SemanticRole.Menu,
-                        semantics.properties(
-                            enabled = options.enabled,
-                            modal = input.root && options.mode == OverlayMode.Modal
-                        ),
+                        semantics
+                            .properties(
+                                enabled = options.enabled,
+                                modal = input.root && options.mode == OverlayMode.Modal
+                            ),
                         actions = SemanticActions(dismiss = Some { dismissSemantically() }),
                         relations = semantics.relations,
                         mergeLabels = false,
@@ -186,23 +180,18 @@ internal class MenuPopup(
         ) {
             placement = input.placement
             handle = Some(input.handle)
-            mode =
-                if (input.root)
-                    options.mode
-                else
-                    OverlayMode.NonModal
-            focus =
-                Some(
-                    OverlayFocusOptions(
-                        when (input.initial.initialFocus) {
-                            case Some(_) -> input.initial.initialFocus;
-                            case None -> input.focus.edge(input.last)
-                        },
-                        input.initial.restoreFocus,
-                        input.takeFocus && input.initial.autoFocus,
-                        input.initial.restoreTarget
-                    )
+            mode = if (input.root) options.mode else OverlayMode.NonModal
+            focus = Some(
+                OverlayFocusOptions(
+                    when (input.initial.initialFocus) {
+                        case Some(_) -> input.initial.initialFocus;
+                        case None -> input.focus.edge(input.last)
+                    },
+                    input.initial.restoreFocus,
+                    input.takeFocus && input.initial.autoFocus,
+                    input.initial.restoreTarget
                 )
+            )
             dismiss = input.dismiss
             anchorVisibility = input.anchorVisibility
             transition = PresenceOptions(motion, motion)
@@ -218,42 +207,38 @@ internal class MenuLevelProps(val popup: MenuPopupProps, val theme: Theme)
 internal class MenuLevel(
     private val props: Props<MenuLevelProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val expanded = state<ViewKey?>(None)
     public override fun render(): View {
         val input = props.value
         val popup = input.popup
         val expanded = this.expanded
-        val rows =
-            Array<View>(popup.content.entries.size) {
-                index ->
-                val entry = popup.content.entries[index]
-                val key = menuKey(entry)
-                component(
-                    MenuRowProps(
-                        entry,
-                        popup.options,
-                        input.theme,
-                        when (menuItem(entry)) {
-                            case Some(_) -> Some(popup.focus.handle(key))
-                            case None -> None
-                        },
-                        binding(
-                            { expanded.value == Some(key) },
-                            {
-                                open -> if (open)
-                                    expanded.value = Some(key)
-                                else
-                                    if (expanded.value == Some(key))
-                                        expanded.value = None
-                            }
-                        ),
-                        popup.chain
+        val rows = Array<View>(popup.content.entries.size) { index ->
+            val entry = popup.content.entries[index]
+            val key = menuKey(entry)
+            component(
+                MenuRowProps(
+                    entry,
+                    popup.options,
+                    input.theme,
+                    when (menuItem(entry)) {
+                        case Some(_) -> Some(popup.focus.handle(key))
+                        case None -> None
+                    },
+                    binding(
+                        { expanded.value == Some(key) },
+                        { open ->
+                            if (open)
+                                expanded.value = Some(key)
+                            else if (expanded.value == Some(key)) expanded.value = None
+                        }
                     ),
-                    { current, mount -> MenuRow(current, scope = mount) },
-                    key
-                )
-            }
+                    popup.chain
+                ),
+                { current, mount -> MenuRow(current, scope = mount) },
+                key
+            )
+        }
         return element(
             MenuNavigationProps(
                 popup.focus,
@@ -286,14 +271,14 @@ internal class MenuNavigationProps(
 internal class MenuNavigation(
     private val props: Props<MenuNavigationProps>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private var navigation: KeyNavigation? = None
     private var search: Typeahead? = None
     private fun options(): NavigationOptions {
         val input = props.value
         return NavigationOptions(
-            Array<NavigationItem>(input.focus.handles.size) {
-                index -> NavigationItem(input.focus.handles[index])
+            Array<NavigationItem>(input.focus.handles.size) { index ->
+                NavigationItem(input.focus.handles[index])
             },
             loop = input.options.loop,
             onNavigate = { _ -> props.value.navigated() }
@@ -302,48 +287,47 @@ internal class MenuNavigation(
     public override fun onMount() {
         navigation = Some(scope.keyNavigation(options()))
         val input = props.value
-        search =
-            Some(
-                scope.typeahead(
+        search = Some(
+            scope
+                .typeahead(
                     input.focus,
                     { props.value.focus.current() },
                     { key -> focusMatch(key) },
                     input.options.typeahead
                 )
-            )
-        scope.input.addDefaultAction {
-            context, event ->
-            val key =
-                when (event) {
+        )
+        scope
+            .input
+            .addDefaultAction { context, event ->
+                val key = when (event) {
                     case Keyboard(val value) -> value;
                     else -> return@addDefaultAction
                 }
-            if (!menuKeyAllowed(key, true))
-                return@addDefaultAction
-            val input = props.value
-            if (key.logicalKey == LogicalKey.Named(NamedKey.Tab)) {
-                context.consume()
-                input.chain.tab(key.modifiers.shift)
-            } else
-                if (!key.modifiers.shift) {
+                if (!menuKeyAllowed(key, true)) return@addDefaultAction
+                val input = props.value
+                if (key.logicalKey == LogicalKey.Named(NamedKey.Tab)) {
+                    context.consume()
+                    input.chain.tab(key.modifiers.shift)
+                } else if (!key.modifiers.shift) {
                     val backwards = menuBackward(key, scope.layoutDirection)
                     when (backwards) {
-                        case Some(val reverse) -> if (!input.root && reverse) {
-                            context.consume();
-                            input.handle!!.requestClose()
-                        } else
-                            if (input.root)
+                        case Some(val reverse) ->
+                            if (!input.root && reverse) {
+                                context.consume();
+                                input.handle!!.requestClose()
+                            } else if (input.root)
                                 when (input.chain.horizontal) {
                                     case Some(val move) -> {
                                         context.consume();
                                         move(reverse)
                                     }
+
                                     case None -> {}
                                 }
                         case None -> {}
                     }
                 }
-        }
+            }
     }
     private fun focusMatch(key: ViewKey) {
         props.value.navigated()
@@ -352,12 +336,13 @@ internal class MenuNavigation(
     public override fun update(): UiInvalidation {
         navigation!!.options = options()
         val input = props.value
-        search!!.update(
-            input.focus,
-            { props.value.focus.current() },
-            { key -> focusMatch(key) },
-            Some(input.options.typeahead)
-        )
+        search!!
+            .update(
+                input.focus,
+                { props.value.focus.current() },
+                { key -> focusMatch(key) },
+                Some(input.options.typeahead)
+            )
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -372,22 +357,22 @@ internal class MenuNavigation(
     }
 }
 
-internal fun menuKeyAllowed(key: KeyEvent, shift: Boolean = false): Boolean =
-    key.state ==
-        ElementState.Pressed &&
-        !key.synthetic &&
-        !key.modifiers.control &&
-        !key.modifiers.alt &&
-        !key.modifiers.superKey &&
-        !key.modifiers.function &&
-        (shift || !key.modifiers.shift)
+internal fun menuKeyAllowed(key: KeyEvent, shift: Boolean = false): Boolean = key.state ==
+    ElementState.Pressed &&
+    !key.synthetic &&
+    !key.modifiers.control &&
+    !key.modifiers.alt &&
+    !key.modifiers.superKey &&
+    !key.modifiers.function &&
+    (shift || !key.modifiers.shift)
 
-internal fun menuBackward(key: KeyEvent, direction: LayoutDirection): Boolean? =
-    when (key.logicalKey) {
-        case Named(NamedKey.ArrowLeft) -> Some(direction != LayoutDirection.Rtl)
-        case Named(NamedKey.ArrowRight) -> Some(direction == LayoutDirection.Rtl)
-        else -> None
-    }
+internal fun menuBackward(key: KeyEvent, direction: LayoutDirection): Boolean? = when (key
+    .logicalKey
+) {
+    case Named(NamedKey.ArrowLeft) -> Some(direction != LayoutDirection.Rtl)
+    case Named(NamedKey.ArrowRight) -> Some(direction == LayoutDirection.Rtl)
+    else -> None
+}
 
 private class MenuViewportProps(val options: MenuOptions, val theme: Theme)
 
@@ -395,27 +380,26 @@ private class MenuViewportProps(val options: MenuOptions, val theme: Theme)
 private class MenuViewport(
     private val props: Props<MenuViewportProps>,
     scope: ComponentScope
-): Element<ScrollLayout>(scope) {
+) : Element<ScrollLayout>(scope) {
     private val scroll = ScrollState()
     private var control: ScrollControl? = None
     public override fun onMount() {
-        control =
-            Some(
-                ScrollControl(scope) {
-                    ScrollControlProps(
-                        scroll,
-                        ScrollAxes.Vertical,
-                        28.0,
-                        ScrollChain.Contain,
-                        ScrollbarVisibility.Auto,
-                        scrollbarOptions(),
-                        props.value.options.enabled,
-                        FocusOptions(tabStop = false),
-                        PaintCachePolicy.None,
-                        props.value.theme
-                    )
-                }
-            )
+        control = Some(
+            ScrollControl(scope) {
+                ScrollControlProps(
+                    scroll,
+                    ScrollAxes.Vertical,
+                    28.0,
+                    ScrollChain.Contain,
+                    ScrollbarVisibility.Auto,
+                    scrollbarOptions(),
+                    props.value.options.enabled,
+                    FocusOptions(tabStop = false),
+                    PaintCachePolicy.None,
+                    props.value.theme
+                )
+            }
+        )
     }
     public override fun update(): UiInvalidation {
         control!!.update()
@@ -424,8 +408,8 @@ private class MenuViewport(
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ScrollLayout
     > {
-        val child =
-            context.measureChild(0L, Constraints(constraints.minWidth, constraints.maxWidth))
+        val child = context
+            .measureChild(0L, Constraints(constraints.minWidth, constraints.maxWidth))
         val size = constraints.constrain(child.size)
         val layout = control!!.layout(size, child.size)
         context.placeChild(0L, Point(0.0, 0.0))

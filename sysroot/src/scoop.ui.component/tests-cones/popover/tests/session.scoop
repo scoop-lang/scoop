@@ -48,7 +48,9 @@ private class PopoverWindowTest {
 }
 
 internal class PopoverProbe {
-    val theme = ThemeSource(shadcnTheme())
+    val theme = ThemeSource(
+        shadcnTheme { tokens { glassSurfaces { popover = Some(glassMaterial()) } } }
+    )
     val fonts = FontCollection(false)
     val generation = state(0)
     val open = state(false)
@@ -113,8 +115,8 @@ internal class PopoverProbe {
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
-                val window =
-                    active.createWindow(
+                val window = active
+                    .createWindow(
                         windowAttributes {
                             title = "Scoop popover test"
                             position = Some(DesktopPosition(160.0, 100.0))
@@ -129,34 +131,34 @@ internal class PopoverProbe {
                 window.requestFocus()
                 wait(active)
             }
+
             case NewEvents(StartCause.Deadline) -> {
                 assertTrue(MonotonicTimeSource.now() < deadline, Some("popover timeout"))
-                if (
-                    native!!.isFocused &&
-                        rendered >=
-                        generation.value &&
-                        MonotonicTimeSource.now() >=
-                        ready
+                if (native!!.isFocused &&
+                    rendered >=
+                    generation.value &&
+                    MonotonicTimeSource.now() >=
+                    ready
                 ) {
                     popoverStep(this)
                     phase += 1
                     ready = MonotonicTimeSource.now() + Duration.milliseconds(260L)
-                } else
-                    if (!native!!.isFocused)
-                        native!!.requestFocus()
-                if (phase < 32)
-                    wait(active)
+                } else if (!native!!.isFocused) native!!.requestFocus()
+                if (phase < 32) wait(active)
             }
+
             case Window(_, WindowEvent.Destroyed) -> {
                 finished = phase == 32
                 active.requestExit()
             }
+
             else -> {}
         }
     }
     private fun wait(active: ActiveApplication) {
-        active.setControlFlow(
-            ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(30L))
-        )
+        active
+            .setControlFlow(
+                ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(30L))
+            )
     }
 }

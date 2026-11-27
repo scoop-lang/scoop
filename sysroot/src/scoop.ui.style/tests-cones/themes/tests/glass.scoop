@@ -1,0 +1,94 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class GlassSurfaceThemeTest {
+    @Test
+    fun `semantic roles select independent materials and local clearing restores the ordinary fill`() {
+        val material = glassMaterial()
+        val other = material.copy { blurSigma = 2.0 }
+        val builders = ArrayList<GlassSurfacesBuilder>()
+        val policy = glassSurfaces {
+            toolbar = Some(material)
+            popover = Some(other)
+            builders.add(this)
+        }
+        builders[0L].toolbar = None
+        val bounds = Rect(0.0, 0.0, 96.0, 40.0)
+        for (base in [macosTheme(), materialTheme(), fluentTheme(), shadcnTheme()]) {
+            val theme = base.copy { tokens { glassSurfaces = policy } }
+            val toolbar = SurfaceVisual(SurfaceKind.Elevated, role = SurfaceRole.Toolbar)
+            val plain = base.surfaceGeometry(bounds, toolbar)
+            val glass = theme.surfaceGeometry(bounds, toolbar)
+            assertSame(material, glass.style.glass!!)
+            assertEquals(plain.content, glass.content)
+            assertTrue(glass.style.background!!.color.alpha < plain.style.background!!.color.alpha)
+            assertSame(other, theme.tokens.glassSurfaces.get(SurfaceRole.Popover)!!)
+            assertFalse(present(theme.surfaceGeometry(bounds).style.glass))
+            val clear = theme
+                .surfaceGeometry(bounds, toolbar, surfaceOptions { style { glass(None) } })
+            assertFalse(present(clear.style.glass))
+            assertEquals(plain.style.background!!.color, clear.style.background!!.color)
+            val replace = theme
+                .surfaceGeometry(
+                    bounds,
+                    toolbar,
+                    surfaceOptions {
+                        style {
+                            glass(Some(other));
+                            background(Some(Paint(Color.Black)))
+                        }
+                    }
+                )
+            assertSame(other, replace.style.glass!!)
+            assertEquals(Color.Black, replace.style.background!!.color)
+            assertSame(
+                material,
+                theme
+                    .copy { tokens { glassSurfaces { notification = Some(other) } } }
+                    .tokens
+                    .glassSurfaces
+                    .toolbar!!
+            )
+        }
+    }
+
+    @Test
+    fun `opaque preferences disable theme glass and restore the original policy without compounding`() {
+        val material = glassMaterial()
+        val theme = materialTheme { tokens { glassSurfaces { dialog = Some(material) } } }
+        for (
+            preference in [
+                ThemePreferences(highContrast = true),
+                ThemePreferences(reduceTransparency = true)
+            ]
+        ) {
+            val resolved = theme.withPreferences(preference)
+            assertFalse(present(resolved.tokens.glassSurfaces.dialog))
+            assertSame(
+                material,
+                resolved.withPreferences(ThemePreferences()).tokens.glassSurfaces.dialog!!
+            )
+        }
+        assertSame(
+            material,
+            theme
+                .withPreferences(ThemePreferences(reduceMotion = true))
+                .tokens
+                .glassSurfaces
+                .dialog!!
+        )
+    }
+}
+
+private fun <T> present(value: T?): Boolean = when (value) {
+    case Some(_) -> true
+    case None -> false
+}

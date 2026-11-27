@@ -228,6 +228,10 @@ Button／Badge、Toggle 和 Tabs 的默认状态配色在高对比度下保留�
 
 主题 painter、字体、段落和滤镜归 Element 的 ComponentScope 所有，应用无需为每个控件添加 use。主题和效果没有自己的时钟，控件动画只使用 Surface Animatable；静止时不安排更新或绘制。
 
+主题的 `tokens { glassSurfaces { ... } }` 按表面用途选择公共 GlassMaterial。操作按钮、Toggle 和 Badge 使用 control，文本输入与输入组使用 input，Tab／Sidebar 使用 navigation，Menubar 使用 toolbar，Card 使用 content，弹出菜单／Select／Popover／Tooltip／HoverCard／NavigationMenu 使用 popover，Dialog／Sheet／Drawer 使用 dialog，Toast 使用 notification。每项默认 None，局部 `style { glass(None) }` 显式关闭并恢复普通默认填充；其余显式颜色和效果覆盖仍生效。
+
+自定义工具栏可用 `frame(content) { surface = Some(SurfaceKind.Elevated); surfaceRole = SurfaceRole.Toolbar }`。surfaceRole 与 SurfaceKind 独立；未启用 surface 的 Frame 仍是普通布局包装。低层 `styled(content) { style { glass = Some(material) } }` 可直接使用材质；原生滤镜归 StylePainter 管理，不需要由应用逐项关闭。材质参数与完整示例见 [style README](../scoop.ui.style/README.md)。
+
 Row／Column 使用 Flex 的主轴分配和交叉轴对齐。Flex 可以在本次测量选择方向、间距和内缩。下面的工具栏随自己的父容器宽度切换方向。只在宽布局显示的子项保留挂载，窄布局会跳过它及相邻间距。
 
 ```kotlin

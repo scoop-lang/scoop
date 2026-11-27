@@ -71,7 +71,8 @@ internal class ButtonControl(
         val shape = ActionShape.Button(input.size)
         val visual = SurfaceVisual(
             actionSurfaceKind(shape, input.variant, input.style.kind),
-            interaction.asVisual(input.enabled, input.invalid)
+            interaction.asVisual(input.enabled, input.invalid),
+            SurfaceRole.Control
         )
         val base = text
             .resolve(

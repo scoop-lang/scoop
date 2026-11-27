@@ -99,7 +99,12 @@ internal fun tabOptions(
     val filled = selected && variant == TabsVariant.Default
     val fill = tabFill(theme, variant, selected, visual)
     val local = styleOverride {
-        this.background(Some(Paint(fill)))
+        glassSurface(
+            theme,
+            SurfaceRole.Navigation,
+            fill,
+            style.states.apply(style.surface.style, visual)
+        )
         this
             .border(
                 Some(

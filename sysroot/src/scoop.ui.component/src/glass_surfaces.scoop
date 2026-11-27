@@ -1,0 +1,25 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.style.*
+
+/** Resolve local clearing before deriving a component's default translucent fill. */
+internal fun StyleOverrideBuilder.glassSurface(
+    theme: Theme,
+    role: SurfaceRole,
+    fill: Color,
+    local: StyleOverride
+) {
+    val selected = local.glass.resolve(theme.tokens.glassSurfaces.get(role))
+    glass(selected)
+    background(
+        Some(
+            Paint(
+                when (selected) {
+                    case Some(_) -> fill.withAlpha(fill.alpha * 0.18)
+                    case None -> fill
+                }
+            )
+        )
+    )
+}

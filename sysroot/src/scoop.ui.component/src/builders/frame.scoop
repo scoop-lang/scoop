@@ -14,26 +14,27 @@ public class FrameBuilder internal constructor() {
     public var alignment: Alignment = Alignment()
     public var style: StyleOverride = styleOverride()
     public var surface: SurfaceKind? = None
+    public var surfaceRole: SurfaceRole = SurfaceRole.Content
     public var theme: ThemeSource? = None
     public var key: ViewKey = ViewKey.Position
 
     public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
         style = style.copy(configure)
     }
-    internal fun snapshot(content: View): FrameProps =
-        FrameProps(
-            content,
-            width,
-            height,
-            padding,
-            alignment,
-            style,
-            surface,
-            theme,
+    internal fun snapshot(content: View): FrameProps = FrameProps(
+        content,
+        width,
+        height,
+        padding,
+        alignment,
+        style,
+        surface,
+        theme,
         logicalPadding,
         maxWidth,
-        maxHeight
-        )
+        maxHeight,
+        surfaceRole
+    )
 }
 
 internal fun makeFrame(content: View, configure: FrameBuilder.() -> Unit): View {

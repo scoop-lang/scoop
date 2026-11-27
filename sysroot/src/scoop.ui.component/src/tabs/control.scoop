@@ -21,14 +21,13 @@ internal class TabControlProps(
 internal class TabControl(
     private val props: Props<TabControlProps>,
     scope: ComponentScope
-): Component(scope) {
-    private val control =
-        PressControl(
-            scope,
-            PressOptions(props.value.enabled),
-            props.value.focus,
-            { props.value.activate() }
-        )
+) : Component(scope) {
+    private val control = PressControl(
+        scope,
+        PressOptions(props.value.enabled),
+        props.value.focus,
+        { props.value.activate() }
+    )
     private val text = ActionTextStyle()
     private val semantics = createComponentSemantics(scope, SemanticRole.Tab)
     init {
@@ -38,6 +37,7 @@ internal class TabControl(
                 handle.mergeLabels = true
                 scope.routeSemanticsChildren(Some(handle))
             }
+
             case None -> {}
         }
     }
@@ -45,10 +45,14 @@ internal class TabControl(
     public override fun render(): View {
         val input = props.value
         val interaction = control.press.interaction
-        val visual = SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled, false))
+        val visual = SurfaceVisual(
+            input.style.kind,
+            interaction.asVisual(input.enabled, false),
+            SurfaceRole.Navigation
+        )
         val shape = ActionShape.Tab(input.variant, input.selected)
-        val base =
-            text.resolve(
+        val base = text
+            .resolve(
                 input.theme.tokens.typography.action,
                 actionTextColor(input.theme, shape, ButtonVariant.Ghost, visual),
                 input.style.text,
@@ -74,26 +78,22 @@ internal class TabControl(
                         ActionBehavior.Press(control, input.activate, input.focus),
                         semantics = semantics,
                         semanticOptions = input.semantics,
-                        semanticState =
-                            Some(
-                                input.semantics.properties(
+                        semanticState = Some(
+                            input
+                                .semantics
+                                .properties(
                                     enabled = input.enabled,
                                     selected = Some(input.selected)
                                 )
-                            ),
-                        semanticActions =
-                            Some(
-                                SemanticActions(
-                                    invoke = Some(input.select),
-                                    setSelected =
-                                        Some {
-                                            value -> if (value)
-                                                input.select()
-                                            else
-                                                SemanticActionResult.Rejected
-                                        }
-                                )
+                        ),
+                        semanticActions = Some(
+                            SemanticActions(
+                                invoke = Some(input.select),
+                                setSelected = Some { value ->
+                                    if (value) input.select() else SemanticActionResult.Rejected
+                                }
                             )
+                        )
                     ),
                     { current, mount -> ActionInk(current, scope = mount) },
                     [

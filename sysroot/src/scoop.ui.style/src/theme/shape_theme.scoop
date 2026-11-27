@@ -30,12 +30,22 @@ public class ShapeTheme internal constructor(
         direction: LayoutDirection
     ): Style {
         val part = surfaces.get(visual.kind)
+        val glass = options.style.glass.resolve(tokens.glassSurfaces.get(visual.role))
+        val fill = part.fill.resolve(visual.interaction)
         return physicalStyle(
             options
                 .style
                 .resolve(
                     Style(
-                        background = Some(Paint(part.fill.resolve(visual.interaction))),
+                        background = Some(
+                            Paint(
+                                when (glass) {
+                                    case Some(_) -> fill.withAlpha(fill.alpha * 0.18)
+                                    case None -> fill
+                                }
+                            )
+                        ),
+                        glass = glass,
                         border = Some(
                             themeBorder(
                                 part.metrics.borderInsets,

@@ -1,0 +1,83 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.material.materialTheme
+
+@Test
+private class ComponentGlassPolicyTest {
+    @Test
+    fun `component defaults preserve opt in clearing and explicit backgrounds across roles`() {
+        val material = glassMaterial()
+        val theme = materialTheme {
+            tokens {
+                glassSurfaces {
+                    content = Some(material);
+                    control = Some(material);
+                    input = Some(material)
+                    navigation = Some(material);
+                    toolbar = Some(material);
+                    popover = Some(material)
+                    dialog = Some(material);
+                    notification = Some(material)
+                }
+            }
+        }
+        for (
+            role in [
+                SurfaceRole.Content,
+                SurfaceRole.Control,
+                SurfaceRole.Input,
+                SurfaceRole.Navigation,
+                SurfaceRole.Toolbar,
+                SurfaceRole.Popover,
+                SurfaceRole.Dialog,
+                SurfaceRole.Notification
+            ]
+        ) {
+            val defaults = styleOverride { glassSurface(theme, role, Color.White, styleOverride()) }
+                .resolve(style())
+            assertSame(material, defaults.glass!!)
+            assertTrue(defaults.background!!.color.alpha < 1.0)
+            val clear = styleOverride { glass(None) }
+            val cleared = styleOverride { glassSurface(theme, role, Color.White, clear) }
+                .then(clear)
+                .resolve(style())
+            assertFalse(panelPresent(cleared.glass))
+            assertEquals(Color.White, cleared.background!!.color)
+            val local = styleOverride { background(Some(Paint(Color.Black))) }
+            val overridden = styleOverride { glassSurface(theme, role, Color.White, local) }
+                .then(local)
+                .resolve(style())
+            assertEquals(Color.Black, overridden.background!!.color)
+        }
+    }
+
+    @Test
+    fun `frame publishes its semantic purpose and action variants retain selected optics`() {
+        val frame = FrameBuilder()
+        frame.surface = Some(SurfaceKind.Elevated)
+        frame.surfaceRole = SurfaceRole.Toolbar
+        assertEquals(SurfaceRole.Toolbar, frame.snapshot(empty()).surfaceRole)
+        val material = glassMaterial()
+        val theme = materialTheme { tokens { glassSurfaces { control = Some(material) } } }
+        val visual = InteractionVisual(hovered = true)
+        val options = actionOptions(
+            theme,
+            ActionShape.Button(ButtonSize.Default),
+            ButtonVariant.Secondary,
+            buttonStyle(),
+            visual
+        )
+        val surface = theme
+            .surfaceGeometry(
+                Rect(0.0, 0.0, 100.0, 40.0),
+                SurfaceVisual(SurfaceKind.Action, visual, SurfaceRole.Control),
+                options
+            )
+        assertSame(material, surface.style.glass!!)
+        assertTrue(surface.style.background!!.color.alpha < 1.0)
+    }
+}

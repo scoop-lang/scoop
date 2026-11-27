@@ -509,6 +509,16 @@ transition／selectionTransition 还提供同名 Unit 设置方法，将同一�
 
 Element 构造、update、measure、paint 或回调失败沿框架与 Surface 的统一关闭路径传播。缓存创建及替换失败不得遗留新取得的资源；清理错误不能阻断其余对象收尾。控件库不另建窗口状态机、异常恢复树或动画时钟。
 
+### 7.1 玻璃表面选择
+
+公共用途与策略见主题规范 §4.1.1。FrameProps／FrameBuilder 提供 `surfaceRole: SurfaceRole = Content`，在启用 surface 时传给主题；纯布局 Frame 不隐式创建主题表面。工具栏可用 `frame(content) { surface = Some(SurfaceKind.Elevated); surfaceRole = SurfaceRole.Toolbar }`。
+
+Button／Toggle／Badge 等操作面传 Control，文本输入与输入组传 Input，Tab 和 Sidebar 的导航表面传 Navigation，Menubar 传 Toolbar，Card 传 Content。Popover／HoverCard／Tooltip／Menu／Select／NavigationMenu 的弹层传 Popover，Dialog／Sheet／Drawer 传 Dialog，Toast 传 Notification。明确用途只影响默认材质选择，不改变组件语义、焦点、层级或布局。
+
+局部 StyleOverride.glass 可继承、替换或用 `glass(None)` 清除；清除时恢复该组件默认填充。显式背景颜色、边框与效果覆盖继续生效。组件通过 ThemeSource.read(scope) 读取有效策略，不按控件类名建立全局注册。
+
+Popover 与 Modal 面板、Toast 的整体呈现透明度使用下层合成组，使材质在进入、退出与静止时都能读取下层；模态遮罩仍先单独绘制。视觉淡入淡出不改变原有焦点和输入生命周期。
+
 ## 8. 验收要求
 
 普通行为测试放在本 Cone 的 scoop.test，至少覆盖：
