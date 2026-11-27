@@ -19,14 +19,14 @@ private class OverlayPlacementTest {
         val end =
             planOverlay(
                 OverlayPlacement.Viewport(OverlayAlignment.End, OverlayAlignment.Start, 10.0),
-                Size(320.0, 200.0),
+                Rect(0.0, 0.0, 320.0, 200.0),
                 None
             )
         assertEquals(Rect(270.0, 10.0, 40.0, 20.0), end.layout(Size(40.0, 20.0)).bounds)
         val empty =
             planOverlay(
                 OverlayPlacement.Viewport(viewportPadding = 1000.0),
-                Size(100.0, 80.0),
+                Rect(0.0, 0.0, 100.0, 80.0),
                 None
             )
         assertEquals(Some(0.0), empty.constraints.maxWidth)
@@ -61,7 +61,7 @@ private class OverlayPlacementTest {
                     5.0,
                     10.0
                 ),
-                Size(320.0, 200.0),
+                Rect(0.0, 0.0, 320.0, 200.0),
                 Some(Rect(100.0, 50.0, 30.0, 20.0))
             )
         assertEquals(Some(175.0), plan.constraints.maxWidth)
@@ -71,7 +71,7 @@ private class OverlayPlacementTest {
         val wide =
             planOverlay(
                 OverlayPlacement.Anchored(LayoutAnchor(), matchAnchorWidth = true),
-                Size(320.0, 200.0),
+                Rect(0.0, 0.0, 320.0, 200.0),
                 Some(Rect(10.0, 50.0, 600.0, 20.0))
             )
         assertEquals(304.0, wide.constraints.minWidth)
@@ -84,14 +84,14 @@ private class OverlayPlacementTest {
         val plan =
             planOverlay(
                 OverlayPlacement.Anchored(LayoutAnchor()),
-                Size(320.0, 200.0),
+                Rect(0.0, 0.0, 320.0, 200.0),
                 Some(Rect(900.0, 1000.0, 50.0, 20.0))
             )
         assertEquals(Rect(232.0, 142.0, 80.0, 50.0), plan.layout(Size(80.0, 50.0)).bounds)
         val huge =
             planOverlay(
                 OverlayPlacement.Anchored(LayoutAnchor(), gap = 1.7e308),
-                Size(320.0, 200.0),
+                Rect(0.0, 0.0, 320.0, 200.0),
                 Some(Rect(100.0, 50.0, 30.0, 20.0))
             )
         assertEquals(Some(0.0), huge.constraints.maxHeight)
@@ -104,7 +104,7 @@ private class OverlayPlacementTest {
         val plan =
             planOverlay(
                 OverlayPlacement.ContentAligned(LayoutAnchor()),
-                Size(400.0, 400.0),
+                Rect(0.0, 0.0, 400.0, 400.0),
                 Some(anchor)
             )
         assertEquals(120.0, plan.constraints.minWidth)
@@ -123,7 +123,7 @@ private class OverlayPlacementTest {
         val rtl =
             planOverlay(
                 OverlayPlacement.ContentAligned(LayoutAnchor(), alignment = OverlayAlignment.Start),
-                Size(400.0, 400.0),
+                Rect(0.0, 0.0, 400.0, 400.0),
                 Some(anchor),
                 LayoutDirection.Rtl
             )
