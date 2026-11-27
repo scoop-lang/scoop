@@ -231,6 +231,8 @@ Material Checkbox 使用 18 大小、2 圆角／边宽和 2 宽勾／横线；Ra
 
 明暗配色分别提供中性内容底色、足够对比的正文和次要文字、强调与破坏性操作、图表和侧栏颜色。玻璃策略通过既有 GlassSurfaces 表达，默认操作、导航、工具栏、弹层、对话框和通知可使用材质，正文 Content 和输入 Input 保留稳定底色。局部 StyleOverride 的明确背景或 glass 清除仍优先；高对比度和减少透明度恢复实体表面，减少动态停止过渡而不改变内容与语义。独立主题的材质参数不要求应用逐帧构造、关闭资源或读取背景像素。
 
+默认材质按用途尺度共享三组不可变描述：Control 的 blurSigma／refraction／edgeWidth 为 4／2／5，Navigation 与 Toolbar 为 8／3／9，Popover／Dialog／Notification 为 12／5／16，单位均为局部逻辑像素。小操作的折射集中于窄边缘，较大浮动层平滑较宽的下层区域；正文与输入不隐式继承相邻用途的材质。应用可直接复用或 copy `theme.tokens.glassSurfaces.get(role)`，也可配置某个用途；不需要为取得预设光学参数引入第二套主题或 painter。明暗 tint 与高光相应调整，可读性染色仍由实际前景和语义配色决定，不能用强制不透明的染色掩盖外部低对比配色的问题。
+
 ## 6. 整体切换与局部主题
 
 `ThemeSource` 是应用持有的稳定普通 class，包含 `State<Theme>` 当前值。应用将来源通过语言 Context 绑定在真实 Application.run／runWithAsyncio 及挂载入口；控件挂载时取得来源，在每次 render 中读取当前值，使实际消费者订阅。一次来源更新合并逻辑工作和必要帧，不遍历未订阅的任意业务对象。

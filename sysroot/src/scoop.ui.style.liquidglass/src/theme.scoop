@@ -58,7 +58,7 @@ public fun liquidGlassTheme(
                     )
             )
         }
-        glassSurfaces = liquidSurfaces(dark)
+        glassSurfaces = liquidSurfaces(mode)
     }
     val normal = liquidStates(colors.secondary.background, colors.background.foreground, dark)
     val accent = liquidStates(colors.primary.background, colors.primary.foreground, dark)
@@ -127,22 +127,3 @@ private fun liquidStates(fill: Color, foreground: Color, dark: Boolean): StateCo
     mixThemeColor(fill, foreground, if (dark) 0.14 else 0.1),
     mixThemeColor(fill, foreground, 0.04)
 )
-
-private fun liquidSurfaces(dark: Boolean): GlassSurfaces {
-    val material = glassMaterial {
-        blurSigma = 8.0
-        refraction = 4.0
-        edgeWidth = 14.0
-        saturation = 1.08
-        tint = (if (dark) Color.Black else Color.White).withAlpha(if (dark) 0.1 else 0.08)
-        highlight = Color.White.withAlpha(if (dark) 0.28 else 0.4)
-    }
-    return glassSurfaces {
-        control = Some(material)
-        navigation = Some(material)
-        toolbar = Some(material)
-        popover = Some(material)
-        dialog = Some(material)
-        notification = Some(material)
-    }
-}

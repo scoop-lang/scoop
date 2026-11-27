@@ -1,0 +1,37 @@
+package scoop.ui.style.liquidglass
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+/** Share resource-free optics at the scale of the actual surface roles. */
+internal fun liquidSurfaces(mode: ThemeMode): GlassSurfaces {
+    val dark = mode == ThemeMode.Dark
+    val compact = glassMaterial {
+        blurSigma = 4.0
+        refraction = 2.0
+        edgeWidth = 5.0
+        saturation = 1.08
+        tint = (if (dark) Color.Black else Color.White).withAlpha(if (dark) 0.1 else 0.06)
+        highlight = Color.White.withAlpha(if (dark) 0.28 else 0.4)
+    }
+    val bar = compact
+        .copy {
+            blurSigma = 8.0
+            refraction = 3.0
+            edgeWidth = 9.0
+        }
+    val floating = compact
+        .copy {
+            blurSigma = 12.0
+            refraction = 5.0
+            edgeWidth = 16.0
+        }
+    return glassSurfaces {
+        control = Some(compact)
+        navigation = Some(bar)
+        toolbar = Some(bar)
+        popover = Some(floating)
+        dialog = Some(floating)
+        notification = Some(floating)
+    }
+}

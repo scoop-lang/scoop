@@ -20,3 +20,4 @@
 ## 验收记录
 
 1. 独立主题：新增 Cone、完整明暗语义配色、字体／尺寸／动效与四类绘图部件。macOS arm64 release 的格式化、含测试的语义检查、两项构造／绘图／偏好／配置快照测试通过；开发 sysroot 已准备，`scoop doc --deny-doc-warnings` 与 `scoop-api show liquidGlassTheme` 已验证公开声明和 import。统一组件验收在后续阶段进行。
+2. 材质与用途：按小操作、导航／工具栏、浮动层共享三组光学描述；Content／Input 保持实体。主题现有五项测试通过，新增覆盖用途独立配置、局部清除、偏好关闭与恢复，以及明暗主题 2× Raster 像素中的当前下层变化和清晰前景；开发 sysroot 已更新。Metal 与真实组件在后续统一验收。
