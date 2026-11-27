@@ -48,7 +48,8 @@ internal class GlassEffectCache : Closeable {
         nextMaterial: GlassMaterial?,
         nextFill: Color,
         blendRadius: Double,
-        pixelTransform: Transform
+        pixelTransform: Transform,
+        clip: Rect? = None
     ): GlassEffectDrawing? {
         themeLength(blendRadius)
         when (nextMaterial) {
@@ -84,6 +85,11 @@ internal class GlassEffectCache : Closeable {
             return None
         }
         val values = next.toArray()
+        val bounds = glassGroupBounds(values, blendRadius, nextInverse)
+        when (clip) {
+            case Some(val value) -> if (!glassIntersects(bounds, value)) return None
+            case None -> {}
+        }
         val sameMaterial = when ((material, nextMaterial)) {
             case(Some(val a), Some(val b)) -> sameGlass(a, b)
             case(None, None) -> true
@@ -102,7 +108,15 @@ internal class GlassEffectCache : Closeable {
         val reuse = programs?.count == Some(values.size)
         val compiled = if (reuse) programs!! else GlassEffectPrograms(values.size)
         val replacement = try {
-            createGlassDrawing(compiled, values, nextMaterial, nextFill, blendRadius, nextInverse)
+            createGlassDrawing(
+                compiled,
+                values,
+                nextMaterial,
+                nextFill,
+                blendRadius,
+                nextInverse,
+                bounds
+            )
         } catch (error: Throwable) {
             if (!reuse) compiled.close()
             throw error
@@ -183,9 +197,9 @@ private fun createGlassDrawing(
     material: GlassMaterial?,
     fill: Color,
     radius: Double,
-    inverse: Transform
+    inverse: Transform,
+    bounds: Rect
 ): GlassEffectDrawing {
-    val bounds = glassGroupBounds(outlines, radius, inverse)
     val mask = programs
         .mask
         .makeShader {
@@ -266,3 +280,25 @@ private fun glassGroupBounds(
         .normalized()
         .bounds
 }
+
+/** Conservative local clip bounds already include raster antialias coverage. */
+internal fun glassIntersects(bounds: Rect, clip: Rect): Boolean = bounds.width >
+    0.0 &&
+    bounds.height >
+    0.0 &&
+    clip.width >
+    0.0 &&
+    clip.height >
+    0.0 &&
+    bounds.x <
+    clip.x +
+    clip.width &&
+    clip.x <
+    bounds.x +
+    bounds.width &&
+    bounds.y <
+    clip.y +
+    clip.height &&
+    clip.y <
+    bounds.y +
+    bounds.height

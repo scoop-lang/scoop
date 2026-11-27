@@ -7,6 +7,8 @@ import scoop.ui.component.column as makeColumn
 import scoop.ui.component.frame as makeFrame
 import scoop.ui.component.label as makeLabel
 import scoop.ui.style.*
+import scoop.ui.style.style as makeStyle
+import scoop.ui.style.styled as makeStyled
 
 internal fun glassMeasuredExamples(model: GlassExamplesModel, theme: Theme): View {
     val pair = theme.tokens.palette.card
@@ -17,6 +19,7 @@ internal fun glassMeasuredExamples(model: GlassExamplesModel, theme: Theme): Vie
         glassSurfaceFill(pair, canvas)
     val items = if (model.reversed.value) [2, 1, 0] else [0, 1, 2]
     val flowing = glassEffectContainer(model.material(theme.tokens.mode)) {
+        width = if (model.flowNarrow.value) Some(280.0) else None
         layout = GlassEffectLayout
             .Wrap(
                 FlexLayout(spacing = 8.0, padding = Insets.all(12.0)), 8.0
@@ -82,13 +85,14 @@ internal fun glassMeasuredExamples(model: GlassExamplesModel, theme: Theme): Vie
             }
         }
         add(
-            makeFrame(element({ mount -> GlassSurfaceBackdrop(mount) }, [flowing])) {
-                width = if (model.flowNarrow.value) Some(280.0) else None
-                style {
-                    corners(Corners.all(18.0));
-                    clipContent(true)
+            makeFrame(
+                makeStyled(element({ mount -> GlassSurfaceBackdrop(mount) }, [flowing])) {
+                    style = makeStyle {
+                        corners = Corners.all(18.0);
+                        clipContent = true
+                    }
                 }
-            }
+            )
         )
         typography(f"${model.flowActions.value} actions", TypographyRole.Muted)
         typography("Button group & tabs", TypographyRole.H4)

@@ -9,7 +9,17 @@ internal class GlassFilterCache : Closeable {
     private var program: ShaderProgram? = None
     private var current: ImageFilter? = None
 
-    fun update(value: GlassMaterial?, shape: RoundedOutline): ImageFilter? {
+    fun reuse(value: GlassMaterial, shape: RoundedOutline): ImageFilter? {
+        val previous = material ?: return None
+        if (outline == Some(shape.normalized()) && sameGlass(previous, value)) return current
+        return None
+    }
+
+    fun update(
+        value: GlassMaterial?,
+        shape: RoundedOutline,
+        visible: Boolean = true
+    ): ImageFilter? {
         val next = when (value) {
             case Some(val selected) -> selected
 
@@ -21,6 +31,7 @@ internal class GlassFilterCache : Closeable {
         for (length in [next.blurSigma, next.refraction, next.edgeWidth, next.saturation])
             themeLength(length)
         val normalized = shape.normalized()
+        if (!visible) return None
         when (material) {
             case Some(val previous) ->
                 if (outline == Some(normalized) && sameGlass(previous, next)) return current

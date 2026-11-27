@@ -1,0 +1,262 @@
+package scoop.examples.ui.shadcn
+
+import scoop.collections.joinToString
+import scoop.graphics.*
+import scoop.platform.time.*
+import scoop.surface.FrameSubmission
+import scoop.surface.configureFpsReportingFromEnvironment
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.style.*
+import scoop.window.*
+
+/** Finite repeatable native workloads; timing is reported, correctness is asserted separately. */
+@Test
+private class GlassGalleryPerformanceTest {
+    @Test(useProcess = true)
+    fun `sustained glass scrolling morphing and multiple surfaces finish and stop requesting frames`() {
+        GlassGalleryPerformance()
+            .use { probe ->
+                context(probe.model.source) {
+                    UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                        probe.event(host, active, event)
+                    }
+                        .use { host -> Application().run(host) }
+                }
+                assertTrue(probe.finished)
+                assertFalse(probe.frames!!.snapshot().attached)
+            }
+    }
+}
+
+private class GlassGalleryPerformance : Closeable {
+    val model = GalleryModel()
+    val showPopup = state(false)
+    var frames: FrameProbe? = None
+    var finished = false
+    private var active: ActiveApplication? = None
+    private var root: UiWindow? = None
+    private var timer: WindowDeadline? = None
+    private var phase = 0
+    private var count = 0
+    private var nextFrame = false
+    private var last = MonotonicTimeSource.now()
+    private var drawing = 0.0
+    private var drawn = 0.0
+    private var total = 0.0
+    private var slow = 0
+    private var first = 0.0
+    private var peak = 0.0
+    private var firstDraw = 0.0
+    private var peakDraw = 0.0
+    private val intervals = ArrayList<Double>()
+    private var idle: FrameSnapshot? = None
+    private val names = [
+        "solid-scroll",
+        "glass-scroll",
+        "glass-morph",
+        "glass-many-surfaces",
+        "liquid-style",
+        "liquid-popup"
+    ]
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                configureFpsReportingFromEnvironment()
+                active = Some(application)
+                model.selected.value = Demo.LiquidGlass
+                val native = application
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop Liquid Glass performance"
+                            size = LogicalSize(1120.0, 860.0)
+                            level = WindowLevel.AlwaysOnTop
+                            requestActivation = false
+                        }
+                    )
+                frames = Some(observeFrames(native))
+                native
+                    .createDeadline {
+                        fail(Some(f"glass performance timeout at phase ${phase}, frame ${count}"))
+                    }
+                    .schedule(MonotonicTimeSource.now() + Duration.seconds(180L))
+                timer = Some(native.createDeadline { checkIdle() })
+                root = host.attach(native, { mount -> GlassPerformanceRoot(this, mount) })
+                model.glass.bind(root)
+                configurePhase()
+            }
+
+            case AboutToWait -> {
+                if (nextFrame && phase.toLong() < names.size) {
+                    nextFrame = false
+                    val offset = ((count % 120) * 5).toDouble()
+                    model.glass.scroll.scrollTo(Point(0.0, offset))
+                    if (phase == 5 && count % 18 == 0)
+                        model.glass.popup.value = !model.glass.popup.value
+                    if (phase >= 2 && count % 18 == 0) {
+                        model.glass.connected.value = !model.glass.connected.value
+                        model.glass.stretched.value = !model.glass.stretched.value
+                    }
+                }
+            }
+
+            else -> {}
+        }
+    }
+
+    private fun configurePhase() {
+        last = MonotonicTimeSource.now()
+        first = 0.0
+        peak = 0.0
+        firstDraw = 0.0
+        peakDraw = 0.0
+        val solid = phase == 0
+        model
+            .glass
+            .updatePreferences(
+                uiPreferences {
+                    reduceMotion = Some(false)
+                    highContrast = Some(false)
+                    reduceTransparency = Some(solid)
+                    textScaleFactor = Some(1.0)
+                    caretBlinkInterval = Some(Duration.milliseconds(0L))
+                }
+            )
+        if (phase == 3) {
+            for (role in galleryGlassRoles)
+                model.glass.toggleRole(role)
+            model.refreshTheme()
+        }
+        if (phase == 4) {
+            model.glass.useThemeDefaults.value = true
+            model.selectStyle(GalleryStyle.LiquidGlass)
+        }
+        if (phase == 5) {
+            showPopup.value = true
+            model.glass.popup.value = true
+        }
+        count = 0
+        intervals.clear()
+        drawn = 0.0
+        total = 0.0
+        slow = 0
+    }
+
+    fun draw(seconds: Double) {
+        drawing = seconds
+    }
+
+    fun frame(submission: FrameSubmission) {
+        if (submission != FrameSubmission.Accepted || finished || phase.toLong() >= names.size)
+            return
+        val now = MonotonicTimeSource.now()
+        val interval = glassPerformanceSeconds(now - last)
+        last = now
+        count += 1
+        if (count == 1) {
+            first = interval;
+            firstDraw = drawing
+        }
+        if (drawing > peakDraw) peakDraw = drawing
+        if (interval > peak) peak = interval
+        if (count > 24) {
+            intervals.add(interval)
+            total += interval
+            drawn += drawing
+            if (interval > 1.0 / 30.0) slow += 1
+        }
+        if (count == 144) {
+            println(
+                f"glass-performance workload=${names[phase.toLong()]} frames=${
+                    intervals.size
+                } seconds=${total} scene_ms=${
+                    drawn * 1000.0 / intervals.size.toDouble()
+                } first_ms=${first * 1000.0} peak_ms=${peak * 1000.0} first_scene_ms=${
+                    firstDraw * 1000.0
+                } peak_scene_ms=${peakDraw * 1000.0} over_33ms=${slow}"
+            )
+            println(f"glass-performance intervals=${intervals.toArray().joinToString(",")}")
+            assertTrue(frames!!.snapshot().presentations >= 144L)
+            phase += 1
+            if (phase.toLong() == names.size) {
+                timer!!.schedule(now + Duration.milliseconds(700L))
+                return
+            }
+            configurePhase()
+        }
+        nextFrame = true
+    }
+
+    private fun checkIdle() {
+        val current = frames!!.snapshot()
+        assertFalse(current.required)
+        assertTrue(current.paused)
+        when (idle) {
+            case None -> {
+                idle = Some(current)
+                timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(200L))
+            }
+
+            case Some(val previous) -> {
+                assertEquals(previous, current)
+                finished = true
+                active!!.requestExit()
+            }
+        }
+    }
+
+    public override fun close() {
+        model.glass.bind(None)
+        frames?.close()
+    }
+}
+
+private fun glassPerformanceSeconds(value: Duration): Double = value.floorSeconds.toDouble() +
+    value.nanosecondsOfSecond.toDouble() /
+    1000000000.0
+
+private class GlassPerformanceRoot(
+    private val probe: GlassGalleryPerformance,
+    scope: ComponentScope
+) : Component(scope) {
+    public override fun render(): View {
+        val probe = this.probe
+        val theme = probe.model.source.read(scope)
+        return element(
+            { mount -> GlassPerformanceFrame(probe, mount) },
+            [
+                if (probe.showPopup.value)
+                    makeColumn {
+                        spacing = 16.0
+                        add(glassExamplePreview(probe.model.glass, theme))
+                        add(glassSurfaceExamples(probe.model.glass))
+                    }
+                else
+                    component({ mount -> Gallery(probe.model, mount) })
+            ]
+        )
+    }
+}
+
+private class GlassPerformanceFrame(
+    private val probe: GlassGalleryPerformance,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val start = MonotonicTimeSource.now()
+        context.children()
+        probe.draw(glassPerformanceSeconds(MonotonicTimeSource.now() - start))
+        context.onFrameComplete { frame -> probe.frame(frame.submission) }
+    }
+}

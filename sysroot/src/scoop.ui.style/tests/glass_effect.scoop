@@ -36,6 +36,21 @@ private class GlassEffectTest {
                 }
                 assertFalse(first.mask.isClosed)
                 assertFalse(first.filter!!.isClosed)
+                when (cache
+                    .update(
+                        shapes,
+                        None,
+                        Color.Black,
+                        12.0,
+                        Transform(),
+                        Some(Rect(80.0, 0.0, 20.0, 20.0))
+                    )
+                ) {
+                    case Some(_) -> fail(Some("culled glass prepared a drawing"))
+                    case None -> {}
+                }
+                assertFalse(first.mask.isClosed)
+                assertFalse(first.filter!!.isClosed)
                 val solid = cache.update(shapes, None, Color.Black, 12.0, Transform())!!
                 assertTrue(first.mask.isClosed)
                 assertTrue(first.filter!!.isClosed)
@@ -146,5 +161,22 @@ internal fun verifyGlassEffectPixels(render: ((Canvas) -> Unit) -> Array<Byte>) 
             }
             assertEquals(0, channel(corners, 128, 58, 8, 3))
             assertEquals(255, channel(corners, 128, 70, 20, 3))
+            val clipped = render { canvas ->
+                canvas.clear(Color(0.0, 0.0, 1.0))
+                canvas
+                    .withState { local ->
+                        local.clipRect(Rect(56.0, 0.0, 8.0, 48.0))
+                        painter.paint(local, [left, right], clearGlass(), 0.0)
+                    }
+                canvas
+                    .withState { local ->
+                        local.clipRect(Rect(28.0, 16.0, 4.0, 12.0))
+                        painter.paint(local, [left, right], tint, 12.0)
+                    }
+            }
+            assertTrue(channel(clipped, 128, 60, 44, 1) in 126..130)
+            assertTrue(channel(clipped, 128, 60, 44, 2) in 126..130)
+            assertEquals(255, channel(clipped, 128, 48, 44, 2))
+            assertEquals(0, channel(clipped, 128, 48, 44, 1))
         }
 }

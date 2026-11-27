@@ -7,6 +7,7 @@ import scoop.ui.LayoutDirection
 
 private struct DecorationDrawing(
     val paths: DecorationPaths?,
+    val outline: RoundedOutline,
     val edges: BorderEdges,
     val shadows: Array<ImageFilter>,
     val filter: ImageFilter?,
@@ -150,13 +151,9 @@ public class StylePainter public constructor() : Closeable {
                 )
             case None -> {}
         }
-        val material = glassFilters
-            .update(
-                style.glass, RoundedOutline(bounds, style.corners.resolve(direction))
-            )
-        val effect = when (backdrop) {
-            case Some(val value) -> Some(value)
-            case None -> material
+        val hasBackdrop = when ((style.glass, backdrop)) {
+            case(None, None) -> false
+            else -> true
         }
         return DecorationDrawing(
             geometry
@@ -164,15 +161,13 @@ public class StylePainter public constructor() : Closeable {
                     bounds,
                     style,
                     direction,
-                    when (effect) {
-                        case Some(_) -> true;
-                        case None -> false
-                    }
+                    hasBackdrop
                 ),
+            RoundedOutline(bounds, style.corners.resolve(direction)),
             physicalEdges(style, direction),
             boxFilters.update(style.boxShadows),
             contentFilters.update(style.contentEffects),
-            effect
+            backdrop
         )
     }
     private fun background(
@@ -181,6 +176,25 @@ public class StylePainter public constructor() : Closeable {
         style: Style,
         drawing: DecorationDrawing
     ) {
+        val backdrop = when (style.glass) {
+            case Some(val material) ->
+                when (glassFilters.reuse(material, drawing.outline)) {
+                    case Some(val ready) -> Some(ready)
+
+                    case None -> {
+                        val visible = when (canvas.localClipBounds) {
+                            case Some(val clip) -> glassIntersects(bounds, clip)
+                            case None -> false
+                        }
+                        glassFilters.update(style.glass, drawing.outline, visible)
+                    }
+                }
+
+            case None -> {
+                glassFilters.clear()
+                drawing.backdrop
+            }
+        }
         if (bounds.width == 0.0 || bounds.height == 0.0) return
         for (shadow in drawing.shadows)
             canvas
@@ -189,7 +203,7 @@ public class StylePainter public constructor() : Closeable {
                     mask.drawPath(drawing.paths!!.outline, Paint(Color.White))
                     mask.restore()
                 }
-        when (drawing.backdrop) {
+        when (backdrop) {
             case Some(val filter) -> canvas.drawBackdrop(drawing.paths!!.outline, filter)
             case None -> {}
         }

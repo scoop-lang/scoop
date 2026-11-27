@@ -59,11 +59,13 @@ Gallery 的 macOS 入口在附着窗口前调用 `configureFpsReportingFromEnvir
 
 顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion，右上角 Style 下拉框选择整套视觉风格；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。Style 支持方向键、Enter 和文字搜索，切换后保留当前页面、文字、业务状态、方向、明暗及动态偏好；组件继续通过同一 ThemeSource 更新。iOS 的已验收操作见上节。
 
-Style 始终提供 `shadcn`、`macOS`、`Material` 和 `Fluent`。其左侧的 `Colors: Preset／System` 独立选择配色来源：Preset 使用当前风格的预设配色，System 把系统强调色、背景、文字及分隔线应用于任意风格，同时保留该风格的字体、尺寸、轮廓及动效。切换 Style 保留配色来源，切换 Colors 保留 Style。macOS 默认 shadcn + System；只有启用 System 时，切换明暗或重新聚焦窗口才读取系统颜色。其他平台固定 Preset，系统取色适配只在 macOS 提供。
+Style 始终提供 `shadcn`、`macOS`、`Material`、`Fluent` 和 `Liquid Glass`。其左侧的 `Colors: Preset／System` 独立选择配色来源：Preset 使用当前风格的预设配色，System 把系统强调色、背景、文字及分隔线应用于任意风格，同时保留该风格的字体、尺寸、轮廓及动效。切换 Style 保留配色来源，切换 Colors 保留 Style。macOS 默认 shadcn + System；只有启用 System 时，切换明暗或重新聚焦窗口才读取系统颜色。其他平台固定 Preset，系统取色适配只在 macOS 提供。
 
 窗口测试遵守每进程一个 Application 的合同，须串行、按单个用例启动；`--list` 可列出名称，再以 `scoop test sysroot/src/scoop.ui.component/examples/shadcn --release --filter 'real gallery retains'` 等命令分别运行。普通模型测试可按容器筛选，例如 `--filter GalleryStyleTest` 验证样式切换和状态保持。
 
-Liquid Glass 的定向验证可使用同一命令加 `--filter Glass`，覆盖两项模型测试和一个 35 阶段 macOS 原生窗口测试，包括滚动、材质与用途、形变与状态、AX 编辑和弹层、偏好、窄窗及停帧。本轮结果和平台限制见[玻璃材质验收记录](../../../../../docs/ui/liquid-glass/DESIGN.md#5-gallery-与组合验证)。
+Liquid Glass 的定向验证可分别筛选 `GalleryGlassModelTest`、`GlassGalleryWindowTest`、`LiquidGlassPagesTest` 和 `ApplicationWindowTest`，覆盖继承／覆盖模型、35 阶段材质与交互会话、全部 70 页的明亮宽窗／暗色窄窗 RTL，以及四个应用的实际编辑和弹层操作。原生会话还验证偏好、隐藏、卸载与静止停帧。结果和平台限制见[独立主题验收记录](../../../../../docs/ui/liquid-glass/STYLE.md)。
+
+性能复验使用 `--filter GlassGalleryPerformanceTest`。同一 release 原生窗口按顺序运行实体回退滚动、玻璃滚动、融合形变、多用途玻璃、全局 Liquid Glass 和反复打开的玻璃弹层；每项预热 24 帧后采集 120 帧，报告场景绘制 CPU 时间、实际提交间隔、首帧与超过 33.3 ms 的帧数，最后断言动画停止后不再请求帧。`scene_ms` 不包含 GPU 完成时间；首帧单独保留，不混入稳定段均值。做版本对照时保持窗口、显示器、负载和 release 编译选项相同，串行交替运行两个版本，避免同时编译或运行其他绘图测试；测试不把本机的绝对耗时设为跨机器的通过门槛。加 `SCOOP_SURFACE_FPS=1` 可同时记录呈现帧率。
 
 Badge 页面可以切换禁用、撤销动作和替换回调。Spinner 页面中的滚动面板用于观察离屏停帧与滚回恢复；切页、隐藏窗口、停止和减少动态均不会留下持续渲染。自定义 Button／Badge 内容通过 ActionContentStyle 消费解析后的文字、图标尺寸、颜色与间距。
 

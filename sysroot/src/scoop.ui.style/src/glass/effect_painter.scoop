@@ -53,7 +53,12 @@ public class GlassEffectPainter public constructor() : Closeable {
     ) {
         checkThread()
         if (closed) throw IllegalStateException(Some("glass effect painter is closed"))
-        when (cache.update(outlines, material, fill, blendRadius, canvas.pixelTransform)) {
+        when (cache
+            .update(
+                outlines, material, fill, blendRadius, canvas.pixelTransform,
+                Some(canvas.localClipBounds ?: Rect(0.0, 0.0, 0.0, 0.0))
+            )
+        ) {
             case Some(val value) ->
                 when (value.filter) {
                     case Some(val filter) -> canvas.drawBackdrop(value.bounds, filter, value.mask)
