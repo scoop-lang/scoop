@@ -5,6 +5,7 @@ import scoop.ui.LayoutDirection
 import scoop.ui.state
 import scoop.ui.style.*
 import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.liquidglass.liquidGlassTheme
 import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.shadcn.shadcnTheme
@@ -33,6 +34,7 @@ private class GalleryStyleTest {
                     case MacOS -> macosTheme(mode)
                     case Material -> materialTheme(mode)
                     case Fluent -> fluentTheme(mode)
+                    case LiquidGlass -> liquidGlassTheme(mode)
                 }
                 val actual = source.current.value
                 assertEquals(expected.tokens.palette.primary, actual.tokens.palette.primary)
@@ -49,6 +51,22 @@ private class GalleryStyleTest {
                     expected.checkboxMetrics().suggestedSize,
                     actual.checkboxMetrics().suggestedSize
                 )
+                for (role in galleryGlassRoles) {
+                    val expectedGlass = expected.tokens.glassSurfaces.get(role)
+                    val actualGlass = actual.tokens.glassSurfaces.get(role)
+                    when (expectedGlass) {
+                        case Some(val material) -> {
+                            assertEquals(material.blurSigma, actualGlass!!.blurSigma)
+                            assertEquals(material.refraction, actualGlass!!.refraction)
+                        }
+
+                        case None ->
+                            when (actualGlass) {
+                                case Some(_) -> fail(Some("style unexpectedly enabled glass"))
+                                case None -> {}
+                            }
+                    }
+                }
                 assertEquals(mode, actual.tokens.mode)
                 assertEquals(MotionPreference.Reduced, actual.tokens.motion.preference)
                 assertEquals(LayoutDirection.Rtl, model.direction.value)
@@ -69,7 +87,7 @@ private class GalleryStyleTest {
     @Test
     fun `palette source and style remain independent in both modes`() {
         val ordinary = GalleryModel()
-        assertEquals(4L, ordinary.styles().size)
+        assertEquals(5L, ordinary.styles().size)
         assertEquals(GalleryStyle.Shadcn, ordinary.style.value)
         ordinary.toggleColors()
         assertFalse(ordinary.usesSystemColors)
@@ -81,7 +99,7 @@ private class GalleryStyleTest {
                 macosTheme(mode).tokens.palette
             }
         )
-        assertEquals(4L, model.styles().size)
+        assertEquals(5L, model.styles().size)
         assertEquals(GalleryStyle.Shadcn, model.style.value)
         assertTrue(model.usesSystemColors)
         assertEquals(1, reads.value)

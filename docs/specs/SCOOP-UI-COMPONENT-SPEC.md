@@ -19,7 +19,7 @@ P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象
 
 控件定时行为直接监听已有窗口活动通知。Select 的悬停重复、滚动条的按住重复、Carousel 自动播放与附件滚轮的延迟吸附，在失活、隐藏或遮挡时立即取消旧预约；恢复后依据当前资格建立新的等待，不补做中断期间的操作。自动隐藏滚动条在窗口不可呈现时撤销 idle deadline 并收束隐藏过渡，常显条保持自己的显示策略；活动窗口中的可见淡出仍正常完成。Toast 继续保留未用完的展示时间，DatePicker 的一次逻辑失焦提交沿既有版本检查，不把这些业务截止点当作装饰动画取消。
 
-UIKit 使用相同的基础控件、布局、四套主题和树内菜单。原生桌面系统菜单、标题栏、对话框控制器按桌面目标选择。
+UIKit 使用相同的基础控件、布局、五套主题和树内菜单。原生桌面系统菜单、标题栏、对话框控制器按桌面目标选择。
 
 ## 1. 定位与依赖
 
@@ -489,7 +489,7 @@ Gallery 的 Liquid Glass 页面使用上述公开接口，提供毛玻璃／清�
 
 ## 7. 样式与资源归属
 
-ButtonStyle／CheckboxStyle 是本库的局部输入对象，使用公共 StyleOverride、SpanStyle 和明确的尺寸／动画覆盖。公共默认外观、视觉状态数据、表面／Checkbox／Radio／Scrollbar 的绘图和几何合同均属于 scoop.ui.style，四套风格实现不依赖具体控件。本库把当前状态转换为主题视觉输入，消费同一几何和绘图，不按 macOS／Material／Fluent／shadcn 分支。段落内 SpanStyle 的局部继承属于 graphics.text 的内容模型，复用其公共合同。
+ButtonStyle／CheckboxStyle 是本库的局部输入对象，使用公共 StyleOverride、SpanStyle 和明确的尺寸／动画覆盖。公共默认外观、视觉状态数据、表面／Checkbox／Radio／Scrollbar 的绘图和几何合同均属于 scoop.ui.style，五套风格实现不依赖具体控件。本库把当前状态转换为主题视觉输入，消费同一几何和绘图，不按 macOS／Material／Fluent／shadcn／Liquid Glass 分支。段落内 SpanStyle 的局部继承属于 graphics.text 的内容模型，复用其公共合同。
 
 局部样式通过以下接收者入口构造，configure 同步执行一次；每个结果提供 `copy(configure: 对应Builder.() -> Unit = {})`，以当前值初始化配置并发布独立描述。值和 builder 的构造器内部化，不保留公开长参数构造。
 

@@ -40,6 +40,13 @@ internal fun glassRoleTitle(value: SurfaceRole): String = when (value) {
 internal class GlassExamplesModel {
     val preset = state(GalleryGlassMaterial.Liquid)
     val roles = state<Array<SurfaceRole>>([])
+    val useThemeDefaults = state(true)
+    private val defaults = state(glassSurfaces())
+    val flowNarrow = state(false)
+    val flowExtra = state(true)
+    val flowLong = state(false)
+    val flowActions = state(0)
+    val flowTab = state<Int?>(Some(0))
     val connected = state(true)
     val stretched = state(false)
     val reversed = state(false)
@@ -92,12 +99,27 @@ internal class GlassExamplesModel {
     }
 
     fun uses(role: SurfaceRole): Boolean {
+        if (useThemeDefaults.value)
+            return when (defaults.value.get(role)) {
+                case Some(_) -> true
+                case None -> false
+            }
         for (selected in roles.value)
             if (selected == role) return true
         return false
     }
 
+    fun customize() {
+        if (!useThemeDefaults.value) return
+        val selected = ArrayList<SurfaceRole>()
+        for (role in galleryGlassRoles)
+            if (uses(role)) selected.add(role)
+        roles.value = selected.toArray()
+        useThemeDefaults.value = false
+    }
+
     fun toggleRole(role: SurfaceRole) {
+        customize()
         val selected = uses(role)
         val next = ArrayList<SurfaceRole>()
         for (value in roles.value)
@@ -106,7 +128,9 @@ internal class GlassExamplesModel {
         roles.value = next.toArray()
     }
 
-    fun surfaces(material: GlassMaterial): GlassSurfaces {
+    fun surfaces(inherited: GlassSurfaces, material: GlassMaterial): GlassSurfaces {
+        defaults.value = inherited
+        if (useThemeDefaults.value) return inherited
         val selected = roles.value
         return glassSurfaces {
             for (role in selected)

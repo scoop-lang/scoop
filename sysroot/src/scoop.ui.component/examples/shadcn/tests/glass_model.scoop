@@ -21,6 +21,58 @@ private class GalleryGlassModelTest {
     }
 
     @Test
+    fun `theme defaults remain inherited until a deliberate surface override and can be restored`() {
+        val gallery = GalleryModel()
+        val glass = gallery.glass
+        gallery.selectStyle(GalleryStyle.LiquidGlass)
+        assertTrue(glass.useThemeDefaults.value)
+        assertTrue(glass.uses(SurfaceRole.Control))
+        assertFalse(glass.uses(SurfaceRole.Input))
+        val defaults = gallery.source.current.value.tokens.glassSurfaces
+        assertTrue(defaults.popover!!.blurSigma > defaults.control!!.blurSigma)
+        glass.toggleRole(SurfaceRole.Input)
+        gallery.refreshTheme()
+        assertFalse(glass.useThemeDefaults.value)
+        assertTrue(glass.uses(SurfaceRole.Control))
+        assertTrue(glass.uses(SurfaceRole.Input))
+        assertTrue(glass.uses(SurfaceRole.Dialog))
+        assertFalse(glass.uses(SurfaceRole.Content))
+        gallery.selectStyle(GalleryStyle.Shadcn)
+        assertTrue(glass.uses(SurfaceRole.Input))
+        assertEquals(
+            glass.material(ThemeMode.Light).blurSigma,
+            gallery.source.current.value.tokens.glassSurfaces.input!!.blurSigma
+        )
+        glass.useThemeDefaults.value = true
+        gallery.refreshTheme()
+        for (role in galleryGlassRoles)
+            assertFalse(glass.uses(role))
+        gallery.selectStyle(GalleryStyle.LiquidGlass)
+        for (role in galleryGlassRoles) {
+            if (glass.uses(role)) glass.toggleRole(role)
+        }
+        gallery.refreshTheme()
+        for (role in galleryGlassRoles) {
+            assertFalse(glass.uses(role))
+            when (gallery.source.current.value.tokens.glassSurfaces.get(role)) {
+                case Some(_) -> fail(Some("an explicit empty policy must remain solid"))
+                case None -> {}
+            }
+        }
+        glass.useThemeDefaults.value = true
+        gallery.refreshTheme()
+        assertTrue(glass.uses(SurfaceRole.Control))
+        assertEquals(
+            defaults.control!!.blurSigma,
+            gallery.source.current.value.tokens.glassSurfaces.control!!.blurSigma
+        )
+        assertEquals(
+            defaults.popover!!.blurSigma,
+            gallery.source.current.value.tokens.glassSurfaces.popover!!.blurSigma
+        )
+    }
+
+    @Test
     fun `glass choices survive complete theme replacement and remain independent of accessibility resolution`() {
         val gallery = GalleryModel()
         val model = gallery.glass

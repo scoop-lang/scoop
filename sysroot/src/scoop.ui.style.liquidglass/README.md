@@ -23,4 +23,6 @@ val source = ThemeSource(liquidGlassTheme())
 
 玻璃策略只作用于实际存在的控件表面：Link 保持文字链接，Ghost、普通 Toggle 与未选中 Tab 的静止态保持无底色；悬停、按压和选中保留相应状态。状态填充保持正文对比，焦点与错误轮廓独立可见，禁用通过语义禁用文字表达。局部背景、材质和文字覆盖仍优先；默认样式及外部配色均沿相同的根无障碍偏好解析。
 
+在 [Gallery](../scoop.ui.component/examples/shadcn/README.md) 的 Style 选择 Liquid Glass，即可切换全部组件和四个应用组合。材质页默认继承主题策略，也可自定义用途并恢复默认。
+
 完整公共合同见[主题规范](../../../docs/specs/SCOOP-UI-THEME-SPEC.md#51-liquid-glass)；阶段和性能验收记录见[实施记录](../../../docs/ui/liquid-glass/STYLE.md)。

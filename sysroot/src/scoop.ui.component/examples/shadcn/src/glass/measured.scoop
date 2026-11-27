@@ -1,0 +1,121 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.frame as makeFrame
+import scoop.ui.component.label as makeLabel
+import scoop.ui.style.*
+
+internal fun glassMeasuredExamples(model: GlassExamplesModel, theme: Theme): View {
+    val pair = theme.tokens.palette.card
+    val canvas = theme.tokens.palette.background.background.withAlpha(1.0)
+    val fill = if (theme.preferences.highContrast || theme.preferences.reduceTransparency)
+        pair.background.withAlpha(1.0)
+    else
+        glassSurfaceFill(pair, canvas)
+    val items = if (model.reversed.value) [2, 1, 0] else [0, 1, 2]
+    val flowing = glassEffectContainer(model.material(theme.tokens.mode)) {
+        layout = GlassEffectLayout
+            .Wrap(
+                FlexLayout(spacing = 8.0, padding = Insets.all(12.0)), 8.0
+            )
+        blendRadius = 24.0
+        for (index in items) {
+            if (index != 1 || model.flowExtra.value) {
+                val title = when (index) {
+                    case 0 -> if (model.flowLong.value) "Pin this idea for later" else "Pin idea"
+                    case 1 -> "Share with friends"
+                    else -> "Save"
+                }
+                item(
+                    ViewKey.Number(index.toLong()),
+                    makeFrame(
+                        button(title, { model.flowActions.value += 1 }) {
+                            variant = ButtonVariant.Ghost
+                            enabled = model.enabled.value
+                            semantics = glassExampleSemantics(f"glass-flow-${index}")
+                            style {
+                                surface {
+                                    style {
+                                        glass(None)
+                                        background(Some(Paint(fill)))
+                                    }
+                                }
+                                text { color = Some(pair.foreground) }
+                            }
+                        }
+                    ) { padding = Some(Insets.all(6.0)) }
+                ) { corners = CornerRadii.all(24.0) }
+            }
+        }
+    }
+    return makeColumn {
+        spacing = 12.0
+        alignment = CrossAlignment.Stretch
+        typography("Measured layouts", TypographyRole.H3)
+        typography(
+            "Longer labels, larger text, and narrow widths reshape the glass. Add or remove an action while the other actions keep their place and identity.",
+            TypographyRole.Muted
+        )
+        wrap {
+            spacing = 8.0
+            lineSpacing = 8.0
+            button(
+                if (model.flowNarrow.value) "Widen layout" else "Narrow layout",
+                { model.flowNarrow.value = !model.flowNarrow.value }
+            ) {
+                variant = ButtonVariant.Outline
+                semantics = glassExampleSemantics("glass-flow-width")
+            }
+            button(
+                if (model.flowLong.value) "Short labels" else "Long labels",
+                { model.flowLong.value = !model.flowLong.value }
+            ) { variant = ButtonVariant.Outline }
+            button(
+                if (model.flowExtra.value) "Remove share" else "Add share",
+                { model.flowExtra.value = !model.flowExtra.value }
+            ) {
+                variant = ButtonVariant.Outline
+                semantics = glassExampleSemantics("glass-flow-extra")
+            }
+        }
+        add(
+            makeFrame(element({ mount -> GlassSurfaceBackdrop(mount) }, [flowing])) {
+                width = if (model.flowNarrow.value) Some(280.0) else None
+                style {
+                    corners(Corners.all(18.0));
+                    clipContent(true)
+                }
+            }
+        )
+        typography(f"${model.flowActions.value} actions", TypographyRole.Muted)
+        typography("Button group & tabs", TypographyRole.H4)
+        typography(
+            "The active style controls their surfaces. In Liquid Glass, neighboring buttons share a material and the selected tab moves between labels.",
+            TypographyRole.Muted
+        )
+        buttonGroup {
+            button("Pin", { model.flowActions.value += 1 }) {
+                key = ViewKey.Text("pin")
+                enabled = model.enabled.value
+            }
+            button("More actions", { model.flowActions.value += 1 }) {
+                key = ViewKey.Text("more")
+                enabled = model.enabled.value
+            }
+        }
+        tabs(model.flowTab.binding()) {
+            item(
+                Choice(ViewKey.Text("today"), 0, "Today"),
+                makeLabel("A clear space for today's ideas.")
+            )
+            item(
+                Choice(ViewKey.Text("upcoming"), 1, "Upcoming events"),
+                makeLabel("Room for what comes next.")
+            )
+            enabled = model.enabled.value
+        }
+    }
+}

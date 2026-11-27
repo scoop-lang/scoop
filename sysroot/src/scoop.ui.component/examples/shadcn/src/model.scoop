@@ -10,6 +10,7 @@ import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.liquidglass.liquidGlassTheme
 import scoop.ui.text.TextEditorState
 import scoop.window.*
 
@@ -228,7 +229,8 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
         GalleryStyle.Shadcn,
         GalleryStyle.MacOS,
         GalleryStyle.Material,
-        GalleryStyle.Fluent
+        GalleryStyle.Fluent,
+        GalleryStyle.LiquidGlass
     ]
 
     fun selectStyle(next: GalleryStyle) {
@@ -259,8 +261,9 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
             case MacOS -> macosTheme(mode.value, palette)
             case Material -> materialTheme(mode.value, palette)
             case Fluent -> fluentTheme(mode.value, palette)
+            case LiquidGlass -> liquidGlassTheme(mode.value, palette)
         }
-        val surfaces = glass.surfaces(glass.material(mode.value))
+        val surfaces = glass.surfaces(theme.tokens.glassSurfaces, glass.material(mode.value))
         source.current.value = theme
             .copy {
                 tokens {

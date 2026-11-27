@@ -174,7 +174,7 @@ internal fun glassSurfaceExamples(model: GlassExamplesModel): View = makeFrame(
     }
 }
 
-private class GlassSurfaceBackdrop(scope: ComponentScope) : Element<Unit>(scope) {
+internal class GlassSurfaceBackdrop(scope: ComponentScope) : Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

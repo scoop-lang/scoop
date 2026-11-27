@@ -61,9 +61,39 @@ internal class LiquidGlassPage(private val gallery: GalleryModel, scope: Compone
             add(glassShapeControls(model))
             typography("Use glass on", TypographyRole.H3)
             typography(
-                "Choose the surfaces that use this material throughout the gallery. Text keeps a readable background as the colors change.",
+                "Use the selected style's defaults, or customize the surfaces with the preview material. Text keeps a readable background as the colors change.",
                 TypographyRole.Muted
             )
+            wrap {
+                spacing = 8.0;
+                lineSpacing = 8.0
+                button(
+                    "Theme defaults",
+                    {
+                        model.useThemeDefaults.value = true
+                        gallery.refreshTheme()
+                    }
+                ) {
+                    variant = if (model.useThemeDefaults.value)
+                        ButtonVariant.Default
+                    else
+                        ButtonVariant.Outline
+                    semantics = glassExampleSemantics("glass-theme-defaults")
+                }
+                button(
+                    "Custom material",
+                    {
+                        model.customize()
+                        gallery.refreshTheme()
+                    }
+                ) {
+                    variant = if (model.useThemeDefaults.value)
+                        ButtonVariant.Outline
+                    else
+                        ButtonVariant.Default
+                    semantics = glassExampleSemantics("glass-custom-material")
+                }
+            }
             wrap {
                 spacing = 8.0;
                 lineSpacing = 8.0
@@ -90,6 +120,7 @@ internal class LiquidGlassPage(private val gallery: GalleryModel, scope: Compone
                 TypographyRole.Muted
             )
             add(glassPreferenceControls(gallery, preferences))
+            add(glassMeasuredExamples(model, theme))
         }
     }
 }
