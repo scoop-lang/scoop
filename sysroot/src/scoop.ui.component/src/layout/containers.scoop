@@ -7,14 +7,14 @@ public class Row public constructor(
     private val props: Props<LinearProps>,
     scope: ComponentScope
 ): Component(scope) {
-    public override fun render(): View = flexElement(props.value, false)
+    public override fun render(): View = flexElement(FlexProps(FlexAxis.Horizontal, props.value))
 }
 
 public class Column public constructor(
     private val props: Props<LinearProps>,
     scope: ComponentScope
 ): Component(scope) {
-    public override fun render(): View = flexElement(props.value, true)
+    public override fun render(): View = flexElement(FlexProps(FlexAxis.Vertical, props.value))
 }
 
 public fun row(configure: LinearBuilder.() -> Unit = {}): View = makeRow(configure)

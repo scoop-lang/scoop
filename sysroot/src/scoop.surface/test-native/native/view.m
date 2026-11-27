@@ -10,28 +10,29 @@
 @property(nonatomic, strong) NSView *superview;
 @property(nonatomic, strong) CALayer *layer;
 @property(nonatomic) BOOL wantsLayer;
-@property(nonatomic, strong) id dragMotionMonitor;
-- (void)beginSyntheticDrag;
-- (void)endSyntheticDrag;
+@property(nonatomic, strong) id motionMonitor;
+@property(nonatomic) BOOL scriptedPointer;
+- (void)suppressDesktopMotion;
+- (void)restoreDesktopMotion;
 @end
 @implementation SSUTestView
-- (void)beginSyntheticDrag {
-  if (self.dragMotionMonitor)
+- (void)suppressDesktopMotion {
+  if (self.motionMonitor)
     return;
   NSWindow *window = self.window;
   // Probe events are delivered directly to the view. AppKit can also route
-  // desktop mouse motion to the key window while the synthetic button is down.
-  self.dragMotionMonitor = [NSEvent
+  // desktop mouse motion to the key window during a scripted hover or drag.
+  self.motionMonitor = [NSEvent
       addLocalMonitorForEventsMatchingMask:NSEventMaskMouseMoved
                                    handler:^NSEvent *(NSEvent *event) {
                                      return event.window == window ? nil
                                                                    : event;
                                    }];
 }
-- (void)endSyntheticDrag {
-  if (self.dragMotionMonitor) {
-    [NSEvent removeMonitor:self.dragMotionMonitor];
-    self.dragMotionMonitor = nil;
+- (void)restoreDesktopMotion {
+  if (self.motionMonitor) {
+    [NSEvent removeMonitor:self.motionMonitor];
+    self.motionMonitor = nil;
   }
 }
 @end
@@ -98,7 +99,13 @@ bool scoop_surface_test_view_restored(void *pointer) {
 }
 void scoop_surface_test_view_drop(void *pointer) {
   SSUTestView *probe = (__bridge_transfer SSUTestView *)pointer;
-  [probe endSyntheticDrag];
+  [probe restoreDesktopMotion];
+}
+
+void scoop_surface_test_scripted_pointer(void *pointer) {
+  SSUTestView *probe = (__bridge SSUTestView *)pointer;
+  probe.scriptedPointer = YES;
+  [probe suppressDesktopMotion];
 }
 
 bool scoop_surface_test_view_button(void *pointer, double x, double y,
@@ -119,15 +126,16 @@ bool scoop_surface_test_view_button(void *pointer, double x, double y,
                   clickCount:1
                     pressure:pressed ? 1.0 : 0.0];
       if (pressed) {
-        [probe beginSyntheticDrag];
+        [probe suppressDesktopMotion];
         [view mouseDown:event];
       } else {
         [view mouseUp:event];
-        [probe endSyntheticDrag];
+        if (!probe.scriptedPointer)
+          [probe restoreDesktopMotion];
       }
       return true;
     } @catch (NSException *exception) {
-      [probe endSyntheticDrag];
+      [probe restoreDesktopMotion];
       (void)exception;
       return false;
     }

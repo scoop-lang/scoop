@@ -63,6 +63,7 @@ painter、订阅和原生输入连接由构造时取得的挂载作用域管理�
 | 入口 | 当前结构与收益 | 设计边界 |
 | --- | --- | --- |
 | Row／Column／Stack、Frame | Array<View> 或单一 child 加布局参数；最直接改善嵌套界面阅读 | 多子项保持源码顺序；单内容槽仍接收一个 View，多项用显式容器组合 |
+| Flex 与 FlexGrid | layoutFor 与 itemFor 根据父约束决定排列和参与项，flexGrid(minColumnWidth) 接收 ChildrenBuilder 追加的子项 | 选择函数只返回布局值，行列调整保持原有挂载顺序 |
 | Label／Button／Checkbox、Input／Textarea | Props 已集中定义配置；复杂控件参数较多 | 复用现有组件与行为；文本编辑模型、Binding 等仍由调用方传入 |
 | Absolute | 当前是 Array<AbsoluteChild>，每项组合 View、两轴位置和 zIndex | 将单项定位与其内容写在一起，最后生成同一 AbsoluteChild；不增加新的全局定位机制 |
 | Portal 与 modal 配置 | PortalOptions 中已有 placement、dismiss、modal、handle、onCloseRequest 和 onClosed | DSL 组织配置与内容，使用 open Binding，复用焦点屏障、退出呈现和 Accepted 后恢复 |

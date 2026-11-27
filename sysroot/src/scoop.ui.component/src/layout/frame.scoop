@@ -13,7 +13,9 @@ public class FrameProps public constructor(
     public val style: StyleOverride = styleOverride(),
     public val surface: SurfaceKind? = None,
     public val theme: ThemeSource? = None,
-    public val logicalPadding: LogicalInsets? = None
+    public val logicalPadding: LogicalInsets? = None,
+    public val maxWidth: Double? = None,
+    public val maxHeight: Double? = None
 ) {
     init {
         when (width) {
@@ -24,6 +26,8 @@ public class FrameProps public constructor(
             case Some(val value) -> nonnegative(value, "invalid frame height");
             case None -> {}
         }
+        nonnegative(maxWidth ?: 0.0, "invalid frame maximum width")
+        nonnegative(maxHeight ?: 0.0, "invalid frame maximum height")
         padding?.totals()
         logicalPadding?.resolve(LayoutDirection.Ltr)
     }
@@ -63,6 +67,8 @@ private class FrameInput(val value: FrameProps, val theme: Theme?)
 private struct FrameLayoutInputs(
     val width: Double?,
     val height: Double?,
+    val maxWidth: Double?,
+    val maxHeight: Double?,
     val insets: Insets,
     val minimum: Size,
     val suggested: Size,
@@ -95,6 +101,8 @@ private fun frameLayoutInputs(input: FrameInput, direction: LayoutDirection): Fr
     return FrameLayoutInputs(
         input.value.width,
         input.value.height,
+        input.value.maxWidth,
+        input.value.maxHeight,
         metrics?.contentInsets ?: options.padding ?: Insets(),
         metrics?.minimumSize ?: Size(0.0, 0.0),
         metrics?.suggestedSize ?: Size(0.0, 0.0),
@@ -143,23 +151,36 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
         val child =
             context.measureChild(
                 0L,
-                frameChildConstraints(constraints, value.width, value.height, total)
+                frameChildConstraints(
+                    constraints,
+                    value.width,
+                    value.height,
+                    total,
+                    value.maxWidth,
+                    value.maxHeight
+                )
             )
         val natural = Size(child.size.width + total.width, child.size.height + total.height)
         validSize(natural)
         val size =
             constraints.constrain(
                 Size(
-                    value.width ?:
-                        lowerBound(
-                            natural.width,
-                            lowerBound(metrics.minimum.width, metrics.suggested.width)
-                        ),
-                    value.height ?:
-                        lowerBound(
-                            natural.height,
-                            lowerBound(metrics.minimum.height, metrics.suggested.height)
-                        )
+                    frameExtent(
+                        value.width ?:
+                            lowerBound(
+                                natural.width,
+                                lowerBound(metrics.minimum.width, metrics.suggested.width)
+                            ),
+                        value.maxWidth
+                    ),
+                    frameExtent(
+                        value.height ?:
+                            lowerBound(
+                                natural.height,
+                                lowerBound(metrics.minimum.height, metrics.suggested.height)
+                            ),
+                        value.maxHeight
+                    )
                 )
             )
         val bounds = Rect(0.0, 0.0, size.width, size.height)

@@ -20,6 +20,21 @@ public fun flexItem(content: View, configure: FlexItemBuilder.() -> Unit = {}): 
 
 public class FlexBuilder internal constructor(): LinearBuilder() {
     public var axis: FlexAxis = FlexAxis.Horizontal
+    private var arrangement: ((Constraints) -> FlexLayout)? = None
+    private val rules = ArrayList<FlexItemRule>()
+
+    /** Resolves geometry from the incoming constraints before applying padding. */
+    public fun layoutFor(resolve: (Constraints) -> FlexLayout) {
+        arrangement = Some(resolve)
+    }
+
+    /** Appends one stable child with allocation chosen at measurement. */
+    public fun itemFor(content: View, resolve: (Constraints) -> FlexItemOptions?) {
+        rules.add(FlexItemRule(childCount, resolve))
+        add(content)
+    }
+
+    internal fun flexProps(): FlexProps = FlexProps(axis, snapshot(), arrangement, rules.toArray())
 }
 
 public fun flex(configure: FlexBuilder.() -> Unit = {}): View = makeFlex(configure)
@@ -28,7 +43,7 @@ internal fun makeFlex(configure: FlexBuilder.() -> Unit): View {
     val builder = FlexBuilder()
     builder.configure()
     return component(
-        FlexProps(builder.axis, builder.snapshot()),
+        builder.flexProps(),
         { props, mount -> Flex(props, scope = mount) },
         builder.key
     )

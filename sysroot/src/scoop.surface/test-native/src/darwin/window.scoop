@@ -4,14 +4,23 @@ import scoop.window.*
 import scoop.window.native.*
 import scoop.tests.window.scheduleNativeMode
 
-public fun observeWindow(window: Window, customContent: Boolean = false): ViewProbe {
+/** Use scriptedPointer when the probe supplies the entire pointer sequence. */
+public fun observeWindow(
+    window: Window,
+    customContent: Boolean = false,
+    scriptedPointer: Boolean = false
+): ViewProbe {
     @Unsafe
     {
         return window.acquireNativeWindow().use {
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, val view) -> ViewProbe(view, customContent)
+                    case AppKit(_, val view) -> {
+                        val probe = ViewProbe(view, customContent)
+                        if (scriptedPointer) enableScriptedPointer(probe.nativeHandle)
+                        probe
+                    }
                 }
             }
         }
@@ -114,3 +123,6 @@ public fun scheduleSurfaceNativeMode(window: Window, kind: Int) {
         }
     }
 }
+
+@Extern(name = "scoop_surface_test_scripted_pointer")
+private fun enableScriptedPointer(probe: Ptr<Unit>)

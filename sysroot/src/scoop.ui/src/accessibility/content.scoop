@@ -111,6 +111,7 @@ private fun semanticWithin(child: InputScope, parent: InputScope): Boolean {
 
 /** Keeps only ancestry needed to connect the currently admitted modal subtree. */
 internal fun semanticInputExposure(handle: SemanticsHandle): Int {
+    if (handle.owner.layoutConcealed) return 2
     val boundary = handle.owner.root.surface.inputBoundary ?: return 0
     val scope = handle.owner.scope.input
     if (semanticWithin(scope, boundary.input)) return 0

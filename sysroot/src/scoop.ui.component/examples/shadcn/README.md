@@ -1,6 +1,8 @@
 # Scoop UI Gallery
 
-真实原生窗口，使用同一套 `scoop.ui.component`，右上角 Style 下拉框可选择 shadcn、macOS、Material、Fluent 的完整主题。示例目录保留 `shadcn` 名称。导航分为 Applications 和 Components，包含 65 项组件的独立页面，以及四个可操作的应用组合：
+真实原生窗口，使用同一套 `scoop.ui.component`，右上角 Style 下拉框可选择 shadcn、macOS、Material、Fluent 的完整主题。示例目录保留 `shadcn` 名称。导航分为 Applications 和 Components，包含 65 项组件的独立页面，以及四个可操作的应用组合。
+
+目录和详情共用一棵挂载树。页面通过 Flex 的 layoutFor／itemFor 读取父容器逻辑宽度，达到 720 时并排显示，较窄时按当前导航位置显示目录或详情。目录的每组按钮用最小列宽 152 的 FlexGrid 自动分列，详情的 Frame 将正文宽度限制在 960。窗口拖动、旋转和分屏只改变子项的测量与放置，显式返回目录结束当前详情页面。实现见 [Gallery 布局](src/gallery.scoop)。
 
 - **Settings app**：资料与偏好表单，组合中文输入、邮件与验证码校验、生日选择、勾选／开关／单选和存储滑块；固定操作区提交时会显露并聚焦错误字段。
 - **Workspace app**：侧栏、文档／预览页签和可调面板，配合 File 菜单、命令搜索、重命名 Dialog、嵌套 Sheet 和活动 Drawer；窗口变窄后使用移动侧栏，草稿随应用模型保留。

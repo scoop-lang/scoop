@@ -15,7 +15,7 @@ internal fun dismissOverlayPress(
     while (index > 0L) {
         index -= 1L
         val portal = sessions[index]
-        if (!portal.isOpen || !sameModal(portal.domain, domain))
+        if (!portal.isOpen || portal.node.layoutConcealed || !sameModal(portal.domain, domain))
             continue
         val policy = portal.options.dismiss.outsidePress
         if (policy == OutsidePress.Ignore)

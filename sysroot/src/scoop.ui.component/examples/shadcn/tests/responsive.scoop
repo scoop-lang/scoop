@@ -1,0 +1,169 @@
+package scoop.examples.ui.shadcn
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.ui.accessibility.native.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+import scoop.window.native.*
+
+@Test
+private class GalleryResponsiveTest {
+    @Test(useProcess = true)
+    fun `gallery keeps a live composition across pane changes and returns to its filtered catalog`() {
+        val probe = ResponsiveGalleryProbe()
+        try {
+            context(probe.model.source) {
+                UiHost { host, active, event -> probe.event(host, active, event) }
+                    .use { host -> Application().run(host) }
+            }
+            assertEquals(8, probe.phase)
+        } catch (error: Throwable) {
+            println(f"responsive Gallery phase=${probe.phase}")
+            galleryFailure(error)
+            throw error
+        } finally {
+            probe.calls?.close()
+            probe.tree?.close()
+            probe.frames?.close()
+        }
+    }
+}
+
+private class ResponsiveGalleryProbe {
+    val model = GalleryModel()
+    var tree: NativeNode? = None
+    var calls: NativeCalls? = None
+    var frames: FrameProbe? = None
+    private var window: Window? = None
+    var phase = 0
+    private var selection = Utf8Selection(0L, 0L)
+    private val timeout = MonotonicTimeSource.now() + Duration.seconds(45L)
+    private var presented = 0L
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                model.query.replaceAll("Input")
+                model.name.replaceAll("")
+                val native = active
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop responsive Gallery"
+                            size = LogicalSize(840.0, 720.0)
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                host.attach(native, { scope -> Gallery(model, scope) })
+                @Unsafe {
+                    val lease = native.acquireNativeWindow()
+                    try {
+                        val view = when (lease.handle) {
+                            case AppKit(_, val pointer) -> pointer
+                        }
+                        tree = Some(NativeNode(nativeRoot(view)!!))
+                    } finally {
+                        lease.close()
+                    }
+                }
+                calls = Some(NativeCalls(active.proxy()) { _, result -> assertEquals(1, result) })
+                native.requestFocus()
+                schedule(active)
+            }
+
+            case AboutToWait ->
+                if ((window?.isFocused ?: false) && frames!!.snapshot().presentations > presented)
+                    step()
+
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.now() < timeout, Some("responsive Gallery timeout"))
+                schedule(active)
+            }
+
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> {}
+        }
+    }
+
+    private fun schedule(active: ActiveApplication) {
+        active
+            .setControlFlow(
+                ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.milliseconds(40L))
+            )
+    }
+
+    private fun exists(id: String): Boolean {
+        val node = tree!!.find(id) ?: return false
+        node.close()
+        return true
+    }
+
+    private fun step() {
+        val native = window!!
+        when (phase) {
+            case 0 -> {
+                val entry = tree!!.find("gallery-entry-Input") ?: return
+                entry.use { node -> calls!!.post(node, 0) }
+            }
+
+            case 1 -> {
+                if (model.selected.value != Demo.Input) return
+                assertTrue(model.inputFocus.requestFocus())
+            }
+
+            case 2 -> {
+                if (!model.inputFocus.isFocusActive) return
+                assertEquals(0, galleryText(native, "ni", true))
+            }
+
+            case 3 -> {
+                assertTrue(model.name.isComposing)
+                selection = model.name.selection
+                native.requestSize(LogicalSize(600.0, 720.0))
+            }
+
+            case 4 -> {
+                if (native.metrics!!.logicalSize.width != 600.0 || !exists("gallery-back")) return
+                assertFalse(exists("gallery-search"))
+                assertComposition()
+                native.requestSize(LogicalSize(820.0, 720.0))
+            }
+
+            case 5 -> {
+                if (native.metrics!!.logicalSize.width != 820.0 || !exists("gallery-search")) return
+                assertFalse(exists("gallery-back"))
+                assertComposition()
+                assertEquals(0, galleryText(native, "你好", false))
+                native.requestSize(LogicalSize(590.0, 720.0))
+            }
+
+            case 6 -> {
+                if (native.metrics!!.logicalSize.width != 590.0) return
+                val back = tree!!.find("gallery-back") ?: return
+                assertEquals("你好", model.name.committedText)
+                back.use { node -> calls!!.post(node, 1) }
+            }
+
+            case 7 -> {
+                if (!exists("gallery-search")) return
+                assertEquals("Input", model.query.committedText)
+                assertTrue(exists("gallery-entry-Input"))
+                assertFalse(model.inputFocus.isAttached)
+                native.requestDestroy()
+            }
+
+            else -> return
+        }
+        presented = frames!!.snapshot().presentations
+        phase += 1
+    }
+
+    private fun assertComposition() {
+        assertTrue(model.inputFocus.isFocusActive)
+        assertTrue(model.name.isComposing)
+        assertEquals(selection, model.name.selection)
+    }
+}

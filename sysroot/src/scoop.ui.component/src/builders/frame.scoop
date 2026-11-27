@@ -7,6 +7,8 @@ import scoop.ui.style.*
 public class FrameBuilder internal constructor() {
     public var width: Double? = None
     public var height: Double? = None
+    public var maxWidth: Double? = None
+    public var maxHeight: Double? = None
     public var padding: Insets? = None
     public var logicalPadding: LogicalInsets? = None
     public var alignment: Alignment = Alignment()
@@ -28,7 +30,9 @@ public class FrameBuilder internal constructor() {
             style,
             surface,
             theme,
-            logicalPadding
+        logicalPadding,
+        maxWidth,
+        maxHeight
         )
 }
 

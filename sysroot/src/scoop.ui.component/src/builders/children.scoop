@@ -825,6 +825,10 @@ public open class ChildrenBuilder internal constructor() {
         add(makeWrap(configure))
     }
 
+    public fun flexGrid(minColumnWidth: Double, configure: FlexGridBuilder.() -> Unit = {}) {
+        add(makeFlexGrid(minColumnWidth, configure))
+    }
+
     public fun grid(configure: GridBuilder.() -> Unit = {}): Unit {
         add(makeGrid(configure))
     }

@@ -30,7 +30,7 @@ public class ItemGroup public constructor(
             )
         return styled(
             element(
-                layout,
+                FlexProps(FlexAxis.Vertical, layout),
                 { current, mount -> ItemGroupLayout(current, scope = mount) },
                 input.children
             )
@@ -39,7 +39,7 @@ public class ItemGroup public constructor(
 }
 
 private class ItemGroupLayout(
-    private val props: Props<LinearProps>,
+    private val props: Props<FlexProps>,
     scope: ComponentScope
 ): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -54,8 +54,8 @@ private class ItemGroupLayout(
                     constraints.minHeight,
                     constraints.maxHeight
                 ),
-                props.value,
-                true
+                props.value.layout.items,
+                props.value.base
             ),
             Unit
         )

@@ -65,24 +65,34 @@ internal fun frameChildConstraints(
     parent: Constraints,
     width: Double?,
     height: Double?,
-    inset: Size
-): Constraints =
-    Constraints(
-        maxWidth = insetMaximum(frameMaximum(width, parent.minWidth, parent.maxWidth), inset.width),
-        maxHeight =
-            insetMaximum(frameMaximum(height, parent.minHeight, parent.maxHeight), inset.height)
+    inset: Size,
+    maxWidth: Double? = None,
+    maxHeight: Double? = None
+): Constraints = Constraints(
+    maxWidth = insetMaximum(
+        frameMaximum(width, parent.minWidth, parent.maxWidth, maxWidth),
+        inset.width
+    ),
+    maxHeight = insetMaximum(
+        frameMaximum(height, parent.minHeight, parent.maxHeight, maxHeight),
+        inset.height
     )
+)
 
-private fun frameMaximum(requested: Double?, minimum: Double, maximum: Double?): Double? =
-    when (requested) {
+internal fun frameExtent(value: Double, cap: Double?): Double = upperBound(value, cap ?: value)
+
+private fun frameMaximum(
+    requested: Double?,
+    minimum: Double,
+    maximum: Double?,
+    cap: Double?
+): Double? {
+    val available = when (requested) {
+        case Some(val value) -> Some(frameExtent(lowerBound(value, minimum), maximum))
         case None -> maximum
-        case Some(val value) -> {
-            val lower = lowerBound(value, minimum)
-            Some(
-                when (maximum) {
-                    case Some(val limit) -> upperBound(lower, limit);
-                    case None -> lower
-                }
-            )
-        }
     }
+    return when (available) {
+        case Some(val value) -> Some(frameExtent(value, cap))
+        case None -> cap
+    }
+}

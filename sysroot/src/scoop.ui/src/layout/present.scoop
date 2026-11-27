@@ -71,12 +71,14 @@ internal fun NodeLayout.presentChild(
 ) {
     val child = children[index]
     val placed = child.origin != None
-    if (child.node.participatesInFrame != placed)
+    if (child.node.participatesInFrame != placed || child.node.hiddenByLayout != child.hidden)
         node
             .root
             .addCompletion(child.node) { completion ->
-                if (completion.submission == FrameSubmission.Accepted)
+                if (completion.submission == FrameSubmission.Accepted) {
                     child.node.setFrameParticipation(placed)
+                    child.node.setLayoutHidden(child.hidden)
+                }
             }
     when (child.origin) {
         case Some(val origin) ->
