@@ -39,3 +39,16 @@ Bookworm 上的 GNU 动态 PIE 和默认静态 musl 程序均通过配套 LLDB �
 在 Bookworm 上运行 `cargo test --workspace --no-fail-fast --locked`，共 6,532 项。首轮通过 6,521 项，11 项失败。修复后整组复验 `scoop-codegen`（410/410）和 `scoop-toolchain`（72/72）。`scoopc` 首轮通过 97 项，余下 3 项跨 Cone 产物与类型依赖用例在同一轮定向复验中全部通过。[runtime 测试栈帧](https://github.com/scoop-lang/scoop/pull/255) · [启动网关](https://github.com/scoop-lang/scoop/pull/256) · [并行标记与移动](https://github.com/scoop-lang/scoop/pull/259) · [Swift 输入更新](https://github.com/scoop-lang/scoop/pull/257) · [泛型产物](https://github.com/scoop-lang/scoop/pull/258) · [类型依赖投影](https://github.com/scoop-lang/scoop/pull/260)
 
 `cargo fmt --all --check` 和 `cargo clippy --workspace --all-targets --locked` 完成。fixture runner 的 Python 测试共 86 项，跳过 4 项。发行维护脚本在 o6 的 Ubuntu ARM64 环境运行了 83 项，跳过 9 项。两组均无失败，94 个 Python 文件通过 Ruff 0.16.10 格式与 lint 检查。[fixture runner](../../tests/fixture_runner/README.md) · [发行脚本](../../scripts/README.md)
+
+## 正式 CLI fixture
+
+在 o6 的 Bookworm 上，对两个目标分别运行 `tests/run_fixtures.py --all`。每轮均选中全部 4,368 项，并实际执行适用的用例。下表为首轮报告，最后一列列出修复或更换配套环境后逐项复验的结果。
+
+| ARM64 目标 | 首轮通过 | 按平台条件不适用 | 首轮失败 | 首轮启动的进程 | 失败项复验 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| GNU | 4,310 | 51 | 7 | 13,420 | 7/7 通过 |
+| musl | 4,305 | 56 | 7 | 13,378 | 7/7 通过 |
+
+两种目标均复验了文档目标索引、局部值优化、native 初始化、缺少锁文件的目标诊断、SSA 根和命令版本。musl 还复验了 native C 的目标宏。GNU 的 Lucide 图标裁剪用例在 o6 的 Ubuntu 发行环境用干净安装的候选工具链通过，包括不引用图标、单个图标、全部图标及增加未引用资源后的产物检查。[局部值优化](https://github.com/scoop-lang/scoop/pull/261) · [锁文件诊断](https://github.com/scoop-lang/scoop/pull/262) · [SSA 根与异常边](https://github.com/scoop-lang/scoop/pull/263) · [Lucide 裁剪用例](../../tests/fixtures/compiler-correctness/lucide-pruning/fixture.toml)
+
+全量首轮沿用了移植期间的优化版命令，其中 `scoopc` 与其他四个命令的构建提交不同。五个配套命令在 Bookworm 上报告同一提交 `8c42202b2`，Ubuntu 候选包的五个命令均报告 `ce2c02c0f`。最终配套 LLD 的 GNU 与 musl 链接路径另以独立重链接、64 KiB 页执行和发行包运行复验。[命令版本用例](../../tests/fixtures/driver/tool-versions/fixture.toml)
