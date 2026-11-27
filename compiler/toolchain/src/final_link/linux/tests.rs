@@ -17,18 +17,21 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
             },
         )
         .unwrap();
-        let profile = target
-            .final_link_with(&FinalLinkOptions {
-                mode,
-                ..Default::default()
-            })
-            .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let unwind = directory.path().join("Scoop unwind #$$");
+        let installed = crate::selected_unwind_prefix(target.lir_target(), None, None).unwrap();
+        std::os::unix::fs::symlink(installed, &unwind).unwrap();
+        let options = FinalLinkOptions {
+            mode,
+            unwind_prefix: Some(unwind.clone()),
+            ..Default::default()
+        };
+        let profile = target.final_link_with(&options).unwrap();
         let ValidatedFinalLinkProfile::Linux(linux) = &profile else {
             panic!("expected Linux profile")
         };
         assert_eq!(linux.mode(), expected_mode);
         assert!(profile.system_provider().is_err());
-        let directory = tempfile::tempdir().unwrap();
         let source = directory.path().join("main.c");
         let object = directory.path().join("main.o");
         let source_text = format!(
@@ -65,10 +68,9 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
                 input.display()
             );
         }
-        assert!(
-            inputs.iter().any(|path| path.ends_with("libunwind.a")),
-            "{inputs:?}"
-        );
+        let archive = unwind.join("lib/libunwind.a");
+        assert!(linux.elf_inputs().system_paths.contains(&archive));
+        assert!(inputs.contains(&archive), "{inputs:?}");
         assert!(
             inputs.iter().all(|path| {
                 let name = path.file_name().unwrap().to_string_lossy();
@@ -84,10 +86,7 @@ fn linux_final_profiles_link_and_run_with_the_selected_libc_and_llvm_unwinder() 
         assert_eq!(
             profile.fingerprint().unwrap(),
             target
-                .final_link_with(&FinalLinkOptions {
-                    mode,
-                    ..Default::default()
-                })
+                .final_link_with(&options)
                 .unwrap()
                 .fingerprint()
                 .unwrap()
