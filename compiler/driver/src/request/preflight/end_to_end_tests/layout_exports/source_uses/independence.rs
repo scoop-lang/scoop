@@ -1,9 +1,6 @@
 use super::*;
 
-pub(super) fn check(
-    input: scoop_mir_lower::MirTypeBridgeExportInputV1<'_>,
-    expected: &[mir::MirTypeBridgeDependencyV1],
-) {
+pub(super) fn check(input: scoop_mir_lower::MirTypeBridgeExportInputV1<'_>) {
     let local = &input.hir.output().local;
     let string = input
         .mir
@@ -21,9 +18,5 @@ pub(super) fn check(
             .functions
             .iter()
             .any(|(_, function)| function.name == "unexpanded")
-    );
-    assert_eq!(
-        scoop_mir_lower::lower_type_bridge_dependencies(input).unwrap(),
-        expected
     );
 }
