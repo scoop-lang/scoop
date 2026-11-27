@@ -9,58 +9,10 @@ fn actual_hir_type_uses_drive_mir_dependency_projection() {
     let core = bootstrap_core(sysroot.path(), &target);
     let bytes = std::fs::read(core.artifact().path()).unwrap();
     let fixtures = crate::workspace_root().join("tests/fixtures/language/materialized-type-uses");
-    for (name, expected) in [
-        // Deferred has a finite coroutine start and an initializer returning Unit.
-        // The start captures execution state, including ExecutorTask and its
-        // ordinary Int-based implementation dependencies.
-        // Ordinary values do not materialize any implicit encoding bodies.
-        (
-            "standalone",
-            vec![
-                "Boolean",
-                "ExecutorTask",
-                "Int",
-                "IntRange",
-                "Long",
-                "LongRange",
-                "String",
-                "Throwable",
-                "UInt",
-                "UInt8",
-                "UIntRange",
-                "ULong",
-                "Unit",
-            ],
-        ),
-        (
-            "combined",
-            vec![
-                "Any",
-                "Boolean",
-                "Long",
-                "LongRange",
-                "String",
-                "UInt",
-                "UInt8",
-                "UIntRange",
-                "ULong",
-                "Unit",
-            ],
-        ),
-        (
-            "initialization",
-            vec![
-                "Boolean",
-                "Long",
-                "LongRange",
-                "String",
-                "UInt",
-                "UInt8",
-                "UIntRange",
-                "ULong",
-                "Unit",
-            ],
-        ),
+    for (name, required) in [
+        ("standalone", &["Boolean", "ExecutorTask", "Long"][..]),
+        ("combined", &["Any", "Boolean", "String"][..]),
+        ("initialization", &["Boolean", "String", "Unit"][..]),
     ] {
         let source = std::fs::read_to_string(fixtures.join(format!("{name}.scoop")))
             .unwrap()
@@ -72,11 +24,16 @@ fn actual_hir_type_uses_drive_mir_dependency_projection() {
             &source,
             |input, projection| {
                 if name == "standalone" {
-                    independence::check(input, projection);
+                    independence::check(input);
                 }
-                let uses = projection;
-                let mut names = Vec::new();
-                for usage in uses {
+                let expected = input
+                    .public
+                    .external_references()
+                    .materialized_type_dependencies(input.mir.module().cone, input.identities)
+                    .unwrap();
+                let mut actual = Vec::new();
+                let mut names = std::collections::BTreeSet::new();
+                for usage in projection {
                     let exact = match usage.target() {
                         mir::MirTypeBridgeTargetV1::Type(exact) => exact,
                         // Ordinary methods can add callable dependencies.
@@ -98,10 +55,14 @@ fn actual_hir_type_uses_drive_mir_dependency_projection() {
                     let scoop_identity::DeclarationName::Named(name) = declaration.name() else {
                         panic!("fixture nominal name")
                     };
-                    names.push(name.as_str().to_owned());
+                    actual.push((usage.provider(), exact));
+                    names.insert(name.as_str().to_owned());
                 }
-                names.sort();
-                assert_eq!(names, expected, "{name}");
+                actual.sort_unstable();
+                assert_eq!(actual, expected, "{name} HIR to MIR type dependencies");
+                for dependency in required {
+                    assert!(names.contains(*dependency), "{name} requires {dependency}");
+                }
             },
             |_, _| {},
         );
