@@ -82,9 +82,9 @@ private class InputOtpTest {
                     stages.add("transform");
                     TextEditDecision.Accept
                 }
-                accepts {
+                acceptsInsertedText {
                     text ->
-                    stages.add("accepts");
+                    stages.add("acceptsInsertedText");
                     text != "XX"
                 }
             }
@@ -95,7 +95,7 @@ private class InputOtpTest {
         assertEquals(3L, stages.size)
         assertEquals("paste", stages[0L])
         assertEquals("transform", stages[1L])
-        assertEquals("accepts", stages[2L])
+        assertEquals("acceptsInsertedText", stages[2L])
         assertFalse(model.applyEdit(Utf8Range(0L, model.text.byteLength), "XX", policy))
         assertEquals(Some(2L), policy.maxLength)
         assertEquals(Some(1L), otpPolicy(InputOtpPattern.Custom(custom), 1L).maxLength)

@@ -80,7 +80,7 @@ Scene 登记同时保存当次 ScrollViewport 路径，Rect 缓存重放重新�
 
 `scoop.ui.text` 的 `SemanticsHandle.updateTextEditor(host, properties = SemanticProperties(), relations = SemanticRelations(), setExpanded = None)` 用于本挂载的 TextField 节点，在正常 update 中发布现有 TextEditHost 的正文、方向选区、真实 focus 和编辑动作。它借用 host，不能绑定其他挂载或改变节点角色；应用继续按普通 State／Props 更新调用，不创建另一份可写文档、IME 连接或撤销栈。properties 的名称／说明／错误／标识／隐藏／忽略及 relations 保留；正文和选区取模型，enabled 与宿主共同约束，readOnly／protectedText 任一方声明即生效。受保护时 value／selection 都为 None，与显示 projection 和复制权限无关。
 
-动作捕获该次模型身份与 revision；模型替换、正文或选区发生尚未发布的修改时返回 Unavailable，不能修改新的焦点文档。同一模型实际获得新状态后沿正常更新发布，再返回结果。SetValue／ReplaceText 使用 TextEditSource.Accessibility，经过单行归一化、外来文本清洗、transform、accepts、长度与组合事务，并形成独立 undo 项；Reject 返回 Rejected，Transform 返回实际结果。选区修改通过同一 composition 结束与策略事务，普通只读选择允许，disabled 或输入边界不允许时拒绝。读取、选择与编辑不隐式抢焦点，Focus 仍走绑定的真实 FocusTarget。
+动作捕获该次模型身份与 revision；模型替换、正文或选区发生尚未发布的修改时返回 Unavailable，不能修改新的焦点文档。同一模型实际获得新状态后沿正常更新发布，再返回结果。SetValue／ReplaceText 使用 TextEditSource.Accessibility，经过单行归一化、外来文本清洗、transform、acceptsInsertedText、长度与组合事务，并形成独立 undo 项；Reject 返回 Rejected，Transform 返回实际结果。选区修改通过同一 composition 结束与策略事务，普通只读选择允许，disabled 或输入边界不允许时拒绝。读取、选择与编辑不隐式抢焦点，Focus 仍走绑定的真实 FocusTarget。
 
 菜单模式未禁用时提供 ShowContextMenu。该明确请求可先通过宿主的 FocusHandle 聚焦原目标，再以同一 showContextMenu 入口使用 Accepted caret／选区锚点；等待显露或实际焦点时返回 Busy，缺少有效锚点或当前资格时拒绝。已有菜单未结束返回 Busy，禁用模式不公布该动作；选区、复制策略、composition、模型换绑和关闭仍由原菜单会话管理。受保护编辑器可打开其实际允许的菜单，复制等项目遵守现有独立策略。
 

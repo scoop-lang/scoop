@@ -8,6 +8,35 @@ import scoop.window.*
 @Test
 private class TextEditPolicyTest {
     @Test
+    fun `each inserted range is checked before truncation and one rejection discards the batch`() {
+        val editor = TextEditorState("X")
+        val checked = ArrayList<String>()
+        val policy = textEditPolicy {
+            maxLength = Some(3L)
+            acceptsInsertedText { text ->
+                checked.add(text)
+                asciiDigits(text)
+            }
+        }
+        editor
+            .applyInput(
+                TextInputBatch(
+                    None,
+                    [
+                        TextInputOperation.Commit("1", TextReplacement.Range(Utf8Range(0L, 0L))),
+                        TextInputOperation.Commit("23x", TextReplacement.Range(Utf8Range(2L, 2L)))
+                    ]
+                ),
+                policy
+            )
+        assertEquals(2L, checked.size)
+        assertEquals("1", checked[0L])
+        assertEquals("23x", checked[1L])
+        assertEquals("X", editor.text)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
     fun `accessibility imports use paste cleanup and retain source and undo semantics`() {
         val editor = TextEditorState("A")
         val imported = ArrayList<TextEditSource>()
@@ -68,7 +97,7 @@ private class TextEditPolicyTest {
                     }
                     TextEditDecision.Transform(edits.toArray())
                 }
-                accepts { text -> asciiDigits(text) }
+                acceptsInsertedText { text -> asciiDigits(text) }
             }
         assertTrue(editor.applyEdit(Utf8Range(0L, 0L), "12-345", policy, TextEditSource.Paste))
         assertEquals("1234", editor.text)
@@ -141,7 +170,7 @@ private class TextEditPolicyTest {
             textEditPolicy {
                 this.singleLine = true
                 this.maxLength = Some(2L)
-                accepts { text -> asciiDigits(text) }
+                acceptsInsertedText { text -> asciiDigits(text) }
             }
         editor.applyInput(policyPreedit("候\n👩‍👩‍👧‍👦"), policy)
         assertEquals("A候\n👩‍👩‍👧‍👦", editor.text)

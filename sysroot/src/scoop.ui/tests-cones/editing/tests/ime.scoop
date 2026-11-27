@@ -174,7 +174,7 @@ internal fun advanceSystemIme(probe: EditProbe) {
             test.connection = probe.displayTest.connection
             test.starts = probe.displayTest.imeStarts
             probe.next {
-                probe.policy = textEditPolicy { accepts { _ -> false } }
+                probe.policy = textEditPolicy { acceptsInsertedText { _ -> false } }
                 probe.displayTest.projection = slotProjection()
                 test.direction.value = LayoutDirection.Ltr
                 probe.change()

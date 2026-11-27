@@ -798,7 +798,7 @@ ToggleVariant 为 Default／Outline，ToggleSize 为 Sm／Default／Lg。pressed
 
 InputOtpPart 为 Group(InputOtpGroup)／Separator(View)。InputOtpGroup 保存非空的 Array<InputOtpSlot>，slot 包含 index 和 invalid=false；全部 group 的索引必须按正文逻辑顺序恰好覆盖 0..<length。parts 为空时使用一个默认组。显式描述必须以组开始和结束，不能出现连续 separator；相邻组可直接相连。builder 的 `group { slot(index, invalid=false) }` 和 `separator(content: View)` 构建描述，`separator()` 使用 16 单位的减号图形。分隔内容是正常 View，保留其 key 与挂载；槽和组是同一编辑表面的几何，不各自挂载输入控件。方向改变按逻辑起止侧翻转布局，组和分隔符不进入正文、粘贴结果或复制文本。
 
-InputOtpPattern 为 Digits／Alphanumeric／Custom(TextEditPolicy)。前两者只接受 ASCII 数字／ASCII 数字与字母，粘贴先移除新增片段中的 ASCII 空白和连字符；新增片段中的其他非法字符使本次提交拒绝，不顺带清理外部写入的旧正文。Custom 保留调用方的 paste／transform／accepts，长度上限取其明确 maxLength 与 length 的较小值；未设上限时使用 length。统一通过 TextEditPolicy 处理过滤、grapheme 计数和截断，一次粘贴只产生一个撤销项。preedit 不提前过滤或截断，最终提交使用当前策略；外部模型更新不触发完成通知。
+InputOtpPattern 为 Digits／Alphanumeric／Custom(TextEditPolicy)。前两者只接受 ASCII 数字／ASCII 数字与字母，粘贴先移除新增片段中的 ASCII 空白和连字符；新增片段中的其他非法字符使本次提交拒绝，不顺带清理外部写入的旧正文。Custom 保留调用方的 paste／transform／acceptsInsertedText，长度上限取其明确 maxLength 与 length 的较小值；未设上限时使用 length。统一通过 TextEditPolicy 处理过滤、grapheme 计数和截断，一次粘贴只产生一个撤销项。preedit 不提前过滤或截断，最终提交使用当前策略；外部模型更新不触发完成通知。
 
 onEdited 沿 TextEditHost 的正文通知；onComplete 只在宿主接受的操作改变已提交正文、组合已经结束且新正文恰为 length 个 grapheme 时调用。满长度下真正替换内容可再次完成；纯选择、主题／方向／分组变化、重复 render、取消或拒绝后恢复原基线不重复通知。回调读取最新 Props，允许调用方替换正文或移除控件，不自动提交表单或移走焦点。
 
