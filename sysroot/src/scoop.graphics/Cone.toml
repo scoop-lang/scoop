@@ -88,6 +88,8 @@ path = "tests/opacity_layers.scoop"
 [[test.sources]]
 path = "tests/backdrop_layers.scoop"
 [[test.sources]]
+path = "tests/backdrop_masks.scoop"
+[[test.sources]]
 path = "tests/effects_metal.scoop"
 when = { os = ["darwin", "ios"] }
 [[test.sources]]

@@ -72,6 +72,8 @@ graphics 的 Cone 测试覆盖编译诊断、反射类型、参数快照、输�
 
 2026-11-28 的下层合成验证使用 macOS arm64、release：graphics 的 85 个测试全部通过，其中新增 5 组同时检查 Raster／Metal 的预乘插值、半透明与圆角空组、嵌套和异常恢复、邻域采样、清晰前景、2 倍 DPI 及关闭源资源后的记录重放。真实玻璃窗口通过 10 阶段滚动／透明度／停帧对照；UI scene-cache 测试同时通过，直接检查无入口滤镜的组复用场景计数、重放时的背景变化，以及借用滤镜时重新执行 scene。Scoop 格式与 check、C++ 告警检查、受影响 API 文档生成及 saveBackdropLayer 查询均通过。本次新增能力尚未在其他目标实跑。
 
+同日新增 `Canvas.drawBackdrop(bounds, filter, mask)`，以 shader alpha 表达连续变化的背景轮廓，遮罩仅影响这次绘制。macOS arm64 release 的 graphics 全部 88 个测试通过；新增 Raster／Metal 对照覆盖 0／50／100% 覆盖率、半透明颜色、祖先裁剪、2 倍变换、输出边界外采样、关闭资源后的录制重放，以及非法边界、已关闭遮罩和不相容 GPU 输入的错误收尾。C++ 格式／告警检查、Scoop 格式／check、无警告文档生成与两个 drawBackdrop 重载的 API 检索通过。其他目标未实跑。
+
 ## 7. 调研依据
 
 - Skia 官方：[SkSL 与 Runtime Effects](https://skia.org/docs/user/sksl/)，包括输入 shader、局部坐标、颜色 uniform 与预乘 alpha。

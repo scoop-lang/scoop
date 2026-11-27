@@ -74,4 +74,6 @@ drawRect／drawOval／drawRoundRect／drawCircle／drawLine／drawPath 可在 pa
 
 runtimeShader 的 sourceChild 是隐式源图像的名称。sampleRadius 是有限非负的局部逻辑长度，覆盖程序沿任一轴偏移该输入的最大距离。saveLayer(filter = …) 以当前组的绘制结果作源。`Canvas.drawBackdrop(outline: Path, filter: ImageFilter)` 取当前合成层在该绘制点之前的像素作源，按滤镜所需邻域采样，在现有 clip 内按抗锯齿轮廓覆盖率替换背景。半透明背景只计算一次。祖先隔离图层限定背景的可见范围。绘图记录在回放时读取目标背景，含 backdrop 的记录将 canRasterizeTiles 置为 false。
 
+`Canvas.drawBackdrop(bounds: Rect, filter: ImageFilter, mask: Shader)` 在有限非负大小的局部 bounds 中，以 mask 的 alpha 作为这次背景替换的覆盖率。mask 与滤镜使用同一局部坐标及当前变换；RGB 不参与遮罩。原背景为 D、过滤结果为 R、遮罩覆盖率为 m 时，结果为预乘 `D * (1-m) + R * m`，再受已有祖先 clip 限制。bounds 限定输出，滤镜可以按其声明的邻域读取 bounds 外的背景；透明遮罩不擦除 D。遮罩只属于这次绘制，不改变 Canvas 的后续裁剪、变换或捕获的输入几何。滤镜和遮罩均在调用时借用，绘图记录保留其实际原生依赖，并在每次重放时读取当时的下层。两者持有的 GPU 图像都必须与目标 context 相容；错误路径不改变 Canvas 状态。该入口用于连续生成的光学轮廓，不需要 CPU 读回或将着色轮廓转成 Path。
+
 UI 在 SceneContext.draw 中绘制需要读取实际背景的效果，随后呈现清晰的前景内容。程序与参数可以跨帧复用，背景在实际呈现帧中采样。动画使用 Surface 现有调度。定向验证包括错误诊断、参数和输入生命周期、记录回放、半透明合成、裁剪及滚动列表上固定工具栏的背景刷新。
