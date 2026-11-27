@@ -181,15 +181,15 @@ internal class FusionProbe : Closeable {
                 for (record in records)
                     assertTrue(record.area!!.isClosed)
                 phase = 10
-                waitIdle()
+                waitIdle(Duration.milliseconds(500L))
             }
 
             else -> {}
         }
     }
-    private fun waitIdle() {
+    private fun waitIdle(delay: Duration = Duration.milliseconds(120L)) {
         idleArmed = false
-        idle!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(120L))
+        idle!!.schedule(MonotonicTimeSource.now() + delay)
     }
     private fun finishIdle(active: ActiveApplication) {
         val native = nativeFrames!!.snapshot()

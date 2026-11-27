@@ -1,0 +1,96 @@
+package scoop.tests.ui.glass
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal class GlassFlowRoot(private val probe: GlassFlowProbe, scope: ComponentScope) :
+    Component(scope) {
+    private val material = glassMaterial {
+        blurSigma = 3.0;
+        refraction = 2.0
+    }
+    public override fun render(): View {
+        val probe = this.probe
+        val width = probe.width.value
+        val labels = ["One", "Long label", "Third"]
+        val order = if (probe.reverse.value) [2L, 1L, 0L] else [0L, 1L, 2L]
+        val third = probe.third.value
+        val content = glassEffectContainer(material) {
+            this.width = Some(width)
+            layout = GlassEffectLayout
+                .Wrap(
+                    FlexLayout(spacing = 8.0, padding = Insets.all(6.0)), 8.0
+                )
+            animation = Some(AnimationSpec.Tween(Duration.milliseconds(350L)))
+            for (index in order) {
+                if (index == 2L && !third) continue
+                val record = probe.records[index]
+                item(
+                    ViewKey.Number(index),
+                    element(
+                        { mount -> GlassFlowCell(record, scope = mount) },
+                        [frame(label(labels[index])) { padding = Some(Insets.all(8.0)) }]
+                    )
+                ) { corners = CornerRadii.all(12.0) }
+            }
+        }
+        return direction(
+            element(
+                probe.version.value,
+                { current, mount -> GlassFlowScene(current, probe, scope = mount) }, [content]
+            ),
+            if (probe.rtl.value) LayoutDirection.Rtl else LayoutDirection.Ltr
+        )
+    }
+}
+
+private class GlassFlowCell(private val record: GlassFlowRecord, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    public override fun onMount() {
+        record.mounts += 1
+        record.firstSize = None
+        record.area = Some(scope.createArea())
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(measured, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        if (record.firstSize == None) record.firstSize = Some(context.size)
+        context.place(record.area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+    }
+}
+
+private class GlassFlowScene(
+    private val version: Props<Int>,
+    private val probe: GlassFlowProbe,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints(maxWidth = Some(240.0), maxHeight = Some(340.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 340.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val serial = version.value
+        context.draw { paint -> paint.canvas.clear(Color(0.9, 0.95, 1.0)) }
+        context.children()
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) probe.submitted = serial
+            }
+    }
+}

@@ -1,0 +1,127 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.liquidglass.liquidGlassTheme
+
+@Test
+private class GlassGroupsTest {
+    @Test
+    fun `shared toolbar keeps keys and respects local materials shapes and transparent variants`() {
+        val theme = liquidGlassTheme()
+        val content = ButtonContent.Custom(empty())
+        val first = ButtonGroupEntry(
+            ButtonGroupContent.Button(ButtonProps(content, {})),
+            ViewKey.Text("a")
+        )
+        val second = ButtonGroupEntry(
+            ButtonGroupContent.Button(ButtonProps(content, {})),
+            ViewKey.Number(2L)
+        )
+        val cleared = ButtonGroupEntry(
+            ButtonGroupContent
+                .Button(
+                    ButtonProps(
+                        content, {},
+                        style = buttonStyle { surface { style { glass(None) } } }
+                    )
+                ),
+            ViewKey.Text("clear")
+        )
+        val ghost = ButtonGroupEntry(
+            ButtonGroupContent
+                .Button(
+                    ButtonProps(
+                        content, {},
+                        variant = ButtonVariant.Ghost
+                    )
+                ),
+            ViewKey.Text("ghost")
+        )
+        val group = buttonGroupGlass(ButtonGroupProps([first, second, cleared, ghost]), theme)!!
+        assertEquals(2L, group.entries.size)
+        assertSame(theme.tokens.glassSurfaces.toolbar!!, group.material)
+        assertTrue(group.contains(0L))
+        assertFalse(group.contains(2L))
+        val reordered = buttonGroupGlass(ButtonGroupProps([second, first]), theme)!!
+        assertEquals(group.keys[0L], reordered.keys[1L])
+        assertFalse(shareableGlass(buttonStyle { states { pressed { glass(None) } } }))
+        assertFalse(shareableGlass(buttonStyle { surface { style { corners(Corners.all(1.0)) } } }))
+        assertFalse(
+            panelPresent(
+                buttonGroupGlass(
+                    ButtonGroupProps(
+                        [first],
+                        style = styleOverride { glass(None) }
+                    ),
+                    theme
+                )
+            )
+        )
+        assertFalse(
+            panelPresent(
+                buttonGroupGlass(
+                    ButtonGroupProps([first]),
+                    theme.withPreferences(ThemePreferences(reduceTransparency = true))
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `tabs move one indicator identity and keep line tabs and local overrides independent`() {
+        val theme = liquidGlassTheme()
+        val selected = state<Int?>(Some(1))
+        val entries = [
+            TabEntry(Choice(ViewKey.Text("a"), 1, "Short"), empty()),
+            TabEntry(Choice(ViewKey.Text("b"), 2, "Long label"), empty())
+        ]
+        val props = TabsProps(entries, selected.binding())
+        val first = tabsGlass(props, theme, Some(0L))!!
+        val second = tabsGlass(props, theme, Some(1L))!!
+        assertEquals(1L, first.keys.size)
+        assertEquals(first.keys[0L], second.keys[0L])
+        assertEquals(1L, second.entries[0L].index)
+        assertFalse(second.movesContent)
+        assertTrue(panelPresent(second.entries[0L].fill))
+        assertFalse(
+            panelPresent(
+                tabsGlass(
+                    TabsProps(
+                        entries, selected.binding(),
+                        variant = TabsVariant.Line
+                    ),
+                    theme,
+                    Some(0L)
+                )
+            )
+        )
+        assertFalse(
+            panelPresent(
+                tabsGlass(
+                    TabsProps(
+                        entries, selected.binding(),
+                        listStyle = styleOverride { glass(None) }
+                    ),
+                    theme,
+                    Some(0L)
+                )
+            )
+        )
+        val geometry = theme
+            .surfaceGeometry(
+                Rect(0.0, 0.0, 60.0, 36.0),
+                SurfaceVisual(SurfaceKind.Action, InteractionVisual(focusVisible = true))
+            )
+        val shared = actionGlassGeometry(geometry, ActionGlass.Group)
+        assertFalse(panelPresent(shared.style.glass))
+        assertSame(geometry.style.background!!, shared.style.background!!)
+        assertEquals(geometry.ring, shared.ring)
+        assertEquals(geometry.content, shared.content)
+        val indicator = actionGlassGeometry(geometry, ActionGlass.Indicator)
+        assertFalse(panelPresent(indicator.style.background))
+        assertEquals(geometry.ring, indicator.ring)
+    }
+}

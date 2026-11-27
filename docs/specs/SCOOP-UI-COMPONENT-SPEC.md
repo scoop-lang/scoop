@@ -477,9 +477,13 @@ GridProps 保存 columns／rows: Array<GridTrack>、items: Array<GridItem>、col
 
 容器提供 width／height（默认 None）、blendRadius=24.0、opacity=1.0、animation=Some(Tween(300ms))、theme=None 和 key。宽高默认采用目标轮廓的右／下范围，再服从父约束；显式尺寸不重写子项的物理目标。opacity 有限且在 0～1 内，作用于材质和全部前景组成的下层合成组。GlassEffectContainerProps 保存对应完整描述，GlassEffectContainer 是可直接挂载的 Component。
 
-首次出现的 key 立即采用其目标轮廓；已有 key 的位置、尺寸和四角半径在同一 Surface Animatable 上从当前呈现值向新目标插值。重定向从当前形状接续，animation=None 或有效主题减少动画时立即收束。移除 key 立即退休其动画与内容；静止、隐藏和卸载沿正常 UI／Surface 生命周期停止帧需求，不设置独立 timer。容器布局读取相同的动画采样，子项测量、位置、裁剪、输入及语义几何与显示同步，不能仅在 shader 中移动像素。
+`layout: GlassEffectLayout = Absolute` 选择目标几何来源。`GlassEffectLayout.Flex(FlexLayout)` 使用普通 Flex 的主轴分配、padding、间距、对齐及 RTL；`Wrap(FlexLayout, lineSpacing)` 还使用普通 Wrap 的分行规则。自动布局时使用省略 bounds 的 `item(key, content) { ... }`／`glassEffect(key, content) { ... }`，item.layout 为普通 FlexItemOptions，corners 仍为轮廓输入。GlassEffectItem.bounds 为 None 表示按布局测量；Absolute 必须提供 bounds，Flex／Wrap 必须省略，不混合两类坐标。宽高覆盖先进入本次父约束，有限窗口与文字缩放触发真实重新测量；应用不计算标签宽度或物理 Rect。
+
+首帧已有的 key 立即采用目标；后续新增 key 从其中心的零尺寸展开。已有 key 的位置、尺寸和四角半径在同一 Surface Animatable 上从当前呈现值向新目标插值。重定向从当前形状接续，animation=None 或有效主题减少动画时立即收束。移除 key 立即退休内容、输入和语义，只保留向中心收拢的材质轮廓至过渡结束；同一 key 在退场中重现从当前轮廓接续。静止、隐藏和卸载沿正常 UI／Surface 生命周期停止帧需求，不设置独立 timer。容器布局读取相同的动画采样，子项测量、位置、裁剪、输入及语义几何与显示同步，不能仅在 shader 中移动像素。
 
 每帧先用一个 GlassEffectPainter 合成全部轮廓，再按声明顺序呈现各自圆角裁剪内的清晰内容。融合的连接区域不创建 InputArea、焦点或语义节点。容器自身不把子内容合并成一个控件；按钮、编辑器和读屏操作保持各自语义。高对比度与减少透明度以主题 card 底色绘制同一形状，减少动画立即收束形变；材质参数仍是可共享描述，不持有 UI 状态。
+
+内置 ButtonGroup 在 Toolbar 与 Control 用途采用玻璃时，按钮操作组使用实际测量轮廓合成一次材质，保留各按钮的状态染色、边界、焦点与语义；显式局部材质、清除或自定义背景不被共享策略覆盖。输入、文本及自定义内容继续消费自身表面，不强制并入按钮的透镜。默认 Tabs 在 Navigation 用途采用玻璃时，选中底板沿已测量的标签位置、尺寸和圆角移动；前景标签与键盘导航保持原有布局和身份，Line 变体继续使用线形指示器。主题恢复实体表面时保留同一组件挂载。
 
 Gallery 的 Liquid Glass 页面使用上述公开接口，提供毛玻璃／清透折射／液态材质、八类表面用途、共享容器的连接／分离与轮廓形变、整组透明度，以及滚动中的真实下层。示例的高对比度、减少透明度和文字缩放通过已附着 UiWindow.preferences 应用，重置为 None 恢复系统偏好；减少动画沿 Gallery 的基础主题策略。切换风格、明暗、用途或偏好保留同一输入、按钮状态和稳定 key，不增加库内示例专用入口。
 

@@ -1,0 +1,137 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.InputScope
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class GroupLayoutProps(
+    val layout: LinearProps,
+    val axis: FlexAxis,
+    val slots: Array<GroupSlot>,
+    val fitCross: Boolean = axis == FlexAxis.Vertical,
+    val glass: GroupGlass? = None
+) {
+    val arrangement = layout.arrangement(axis)
+}
+
+/** Layout, foreground and shared optics use the same sampled physical bounds. */
+internal class GroupLayout(
+    private val props: Props<GroupLayoutProps>,
+    scope: ComponentScope
+) : Element<Array<RoundedOutline>>(scope) {
+    private var input: InputScope? = None
+    private val motions = GlassEffectMotions()
+    private var painter: GlassEffectPainter? = None
+    private var fill: StylePainter? = None
+    public override fun onMount() {
+        val route = scope.input
+        input = Some(route)
+        scope.resource { motions }
+        painter = Some(scope.resource { GlassEffectPainter() })
+        fill = Some(scope.resource { StylePainter() })
+        scope
+            .resource {
+                route
+                    .observeActivity {
+                        if (scope.isMounted) {
+                            if (panelPresent(props.value.glass))
+                                scope.requestLayout()
+                            else
+                                scope.requestFrame()
+                        }
+                    }
+            }
+    }
+    public override fun update(): UiInvalidation {
+        when (props.value.glass) {
+            case Some(val glass) -> motions.synchronize(glass.keys, glass.animation)
+            case None -> motions.clear()
+        }
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Array<RoundedOutline>
+    > {
+        val value = props.value
+        val place: ((Long, LayoutMetrics, Point) -> Point)? = when (value.glass) {
+            case None -> None
+            case Some(val glass) ->
+                Some { index, measured, origin ->
+                    var location = origin
+                    for (entry in glass.entries) {
+                        if (entry.index != index) continue
+                        val pressed = glass.movesContent &&
+                            (value.slots[index].input?.activity?.hasPress ?: false)
+                        val inset = if (pressed) measured.size.height * 0.03 else 0.0
+                        val shape = motions
+                            .retarget(
+                                scope, entry.key,
+                                RoundedOutline(
+                                    Rect(
+                                        origin.x + inset, origin.y + inset,
+                                        lowerBound(measured.size.width - inset * 2.0, 0.0),
+                                        lowerBound(measured.size.height - inset * 2.0, 0.0)
+                                    ),
+                                    entry.corners
+                                ),
+                                glass.animation
+                            )
+                        if (glass.movesContent) {
+                            if (shape.bounds.size != measured.size)
+                                context.measureChild(index, Constraints.tight(shape.bounds.size))
+                            location = shape.bounds.origin
+                        }
+                    }
+                    location
+                }
+        }
+        val metrics = measureFlex(
+            context, constraints, value.layout.items, value.arrangement,
+            fitCross = value.fitCross, placement = place
+        )
+        val shapes = when (value.glass) {
+            case Some(val glass) -> motions.outlines(glass.keys)
+            case None -> []
+        }
+        return LayoutResult(metrics, shapes)
+    }
+    public override fun scene(context: SceneContext, measured: Array<RoundedOutline>) {
+        val value = props.value
+        when (value.glass) {
+            case Some(val glass) -> {
+                painter!!.scene(context, measured, glass.material, glass.blendRadius)
+                for (entry in glass.entries)
+                    when (entry.fill) {
+                        case Some(val style) -> {
+                            val shape = motions.sample(entry.key)
+                            fill!!
+                                .scene(
+                                    context,
+                                    shape.bounds,
+                                    style
+                                        .copy {
+                                            corners = Corners.Physical(shape.radii)
+                                            this.glass = None
+                                        }
+                                ) { _ -> }
+                        }
+
+                        case None -> {}
+                    }
+            }
+
+            case None -> {}
+        }
+        if (!input!!.activity.hasFocus) {
+            context.children()
+            return
+        }
+        val order = ArrayList<Long>()
+        for (index in 0L..<value.slots.size)
+            if (!(value.slots[index].input?.activity?.hasFocus ?: false)) order.add(index)
+        for (index in 0L..<value.slots.size)
+            if (value.slots[index].input?.activity?.hasFocus ?: false) order.add(index)
+        context.children(order.toArray())
+    }
+}

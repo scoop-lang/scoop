@@ -10,14 +10,20 @@ import scoop.ui.style.*
 /** A keyed, independently interactive foreground on one physical glass outline. */
 public class GlassEffectItem public constructor(
     public val key: ViewKey,
-    public val bounds: Rect,
+    public val bounds: Rect?,
     public val content: View,
-    public val corners: CornerRadii = CornerRadii.all(20.0)
+    public val corners: CornerRadii = CornerRadii.all(20.0),
+    public val layout: FlexItemOptions = FlexItemOptions()
 ) {
     init {
         requireComponent(key != ViewKey.Position, "glass effect requires an explicit key")
-        RoundedOutline(bounds, corners).normalized()
+        RoundedOutline(bounds ?: Rect(0.0, 0.0, 1.0, 1.0), corners).normalized()
     }
+}
+
+/** Explicit physical bounds or the same measured arrangements used by ordinary UI content. */
+public enum GlassEffectLayout {
+    Absolute, Flex(FlexLayout), Wrap(FlexLayout, Double)
 }
 
 public class GlassEffectContainerProps public constructor(
@@ -28,8 +34,10 @@ public class GlassEffectContainerProps public constructor(
     public val blendRadius: Double = 24.0,
     public val opacity: Double = 1.0,
     public val animation: AnimationSpec? = Some(AnimationSpec.Tween(Duration.milliseconds(300L))),
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val layout: GlassEffectLayout = GlassEffectLayout.Absolute
 ) {
+    internal val keys = Array<ViewKey>(items.size) { index -> items[index].key }
     init {
         when (width) {
             case Some(val value) -> nonnegative(value, "invalid glass container width")
@@ -45,8 +53,21 @@ public class GlassEffectContainerProps public constructor(
             "glass opacity must be between zero and one"
         )
         val keys = HashMap<ViewKey, Boolean>()
+        val absolute = when (layout) {
+            case Absolute -> true
+            case Flex(_) -> false
+
+            case Wrap(_, val spacing) -> {
+                nonnegative(spacing, "invalid glass line spacing")
+                false
+            }
+        }
         for (item in items) {
             requireComponent(!keys.containsKey(item.key), "duplicate glass effect key")
+            requireComponent(
+                (item.bounds != None) == absolute,
+                "glass item bounds must match the container layout"
+            )
             keys[item.key] = true
         }
     }
@@ -54,6 +75,12 @@ public class GlassEffectContainerProps public constructor(
 
 public class GlassEffectBuilder internal constructor() {
     public var corners: CornerRadii = CornerRadii.all(20.0)
+    public var layout: FlexItemOptions = FlexItemOptions()
+    public fun layout(configure: FlexItemBuilder.() -> Unit) {
+        val builder = FlexItemBuilder()
+        builder.configure()
+        layout = builder.snapshot()
+    }
 }
 
 /** Geometry is in container coordinates and does not depend on declaration order or RTL. */
@@ -65,7 +92,18 @@ public fun glassEffect(
 ): GlassEffectItem {
     val builder = GlassEffectBuilder()
     builder.configure()
-    return GlassEffectItem(key, bounds, content, builder.corners)
+    return GlassEffectItem(key, Some(bounds), content, builder.corners, builder.layout)
+}
+
+/** Let the container measure and arrange this keyed foreground; no estimated text bounds. */
+public fun glassEffect(
+    key: ViewKey,
+    content: View,
+    configure: GlassEffectBuilder.() -> Unit = {}
+): GlassEffectItem {
+    val builder = GlassEffectBuilder()
+    builder.configure()
+    return GlassEffectItem(key, None, content, builder.corners, builder.layout)
 }
 
 public class GlassEffectContainerBuilder internal constructor() {
@@ -76,6 +114,7 @@ public class GlassEffectContainerBuilder internal constructor() {
     public var opacity: Double = 1.0
     public var animation: AnimationSpec? = Some(AnimationSpec.Tween(Duration.milliseconds(300L)))
     public var theme: ThemeSource? = None
+    public var layout: GlassEffectLayout = GlassEffectLayout.Absolute
     public var key: ViewKey = ViewKey.Position
     public fun item(
         key: ViewKey,
@@ -88,10 +127,17 @@ public class GlassEffectContainerBuilder internal constructor() {
     public fun add(item: GlassEffectItem) {
         items.add(item)
     }
+    public fun item(
+        key: ViewKey,
+        content: View,
+        configure: GlassEffectBuilder.() -> Unit = {}
+    ) {
+        add(glassEffect(key, content, configure))
+    }
     internal fun snapshot(material: GlassMaterial): GlassEffectContainerProps =
         GlassEffectContainerProps(
             material, items.toArray(), width, height, blendRadius,
-            opacity, animation, theme
+            opacity, animation, theme, layout
         )
 }
 

@@ -25,7 +25,8 @@ internal class ActionInkProps(
     val semanticState: SemanticProperties? = None,
     val semanticActions: SemanticActions? = None,
     val prepareSemantics: (() -> SemanticsHandle?)? = None,
-    val semanticFallbackName: String? = None
+    val semanticFallbackName: String? = None,
+    val glass: ActionGlass = ActionGlass.Independent
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
@@ -245,7 +246,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
             value.style,
             visual.interaction
         )
-        val geometry = groupSurfaceGeometry(
+        val grouped = groupSurfaceGeometry(
             value
                 .theme
                 .surfaceGeometry(
@@ -258,6 +259,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
             value.group,
             context.layoutDirection
         )
+        val geometry = actionGlassGeometry(grouped, value.glass)
         val painter = painters!!.get(value.theme)
         when (val handle = currentSemantics) {
             case Some(val semantic) -> context.semantics(semantic, geometry.bounds)

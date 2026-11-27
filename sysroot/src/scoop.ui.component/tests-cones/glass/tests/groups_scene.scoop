@@ -1,0 +1,120 @@
+package scoop.tests.ui.glass
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal class GlassGroupsRoot(private val probe: GlassGroupsProbe, scope: ComponentScope) :
+    Component(scope) {
+    public override fun render(): View {
+        val clear = probe.clearFirst.value
+        val actions = buttonGroup {
+            for (index in 0L..<2L)
+                button("", {}) {
+                    key = ViewKey.Number(index)
+                    style {
+                        surface {
+                            suggestedSize = Some(Size(60.0, 40.0))
+                            minimumSize = Some(Size(60.0, 40.0))
+                            padding = Some(Insets())
+                            style {
+                                background(None)
+                                border(None)
+                                boxShadows([])
+                                if (index == 0L && clear) glass(None)
+                            }
+                        }
+                    }
+                }
+        }
+        val tabs = tabs(probe.selected.binding()) {
+            listStyle { background(None) }
+            for (index in 0..<2)
+                item(Choice(ViewKey.Number(index.toLong()), index, f"Tab ${index}"), empty()) {
+                    trigger("")
+                    triggerStyle {
+                        surface {
+                            suggestedSize = Some(Size(if (index == 0) 70.0 else 110.0, 40.0))
+                            minimumSize = suggestedSize
+                            style {
+                                background(None);
+                                border(None);
+                                boxShadows([])
+                            }
+                        }
+                    }
+                }
+        }
+        return element(
+            probe.serial.value,
+            { current, mount -> GlassGroupsScene(current, probe, scope = mount) }, [actions, tabs]
+        )
+    }
+}
+
+private class GlassGroupsScene(
+    private val serial: Props<Int>,
+    private val probe: GlassGroupsProbe,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints(maxWidth = Some(280.0), maxHeight = Some(60.0)))
+        context.placeChild(0L, Point(10.0, 10.0))
+        context.measureChild(1L, Constraints(maxWidth = Some(280.0), maxHeight = Some(80.0)))
+        context.placeChild(1L, Point(10.0, 90.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(300.0, 180.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val version = serial.value
+        // A four-point stride avoids one synchronous GPU readback per logical pixel.
+        val samples = MutableArray<Long>(78L) { _ -> -1L }
+        context.draw { paint -> paint.canvas.clear(Color(0.0, 0.0, 1.0)) }
+        context.children()
+        context
+            .draw { paint ->
+                @Unsafe {
+                    paint
+                        .canvas
+                        .withSkiaCanvas { native ->
+                            @Unsafe {
+                                samples[0L] = readNativePixel(native, 40.0, 30.0)
+                                samples[1L] = readNativePixel(native, 74.0, 30.0)
+                                samples[2L] = readNativePixel(native, 108.0, 30.0)
+                                for (index in 0L..<75L)
+                                    samples[index + 3L] = readNativePixel(
+                                        native,
+                                        (index * 4L).toDouble(),
+                                        113.0
+                                    )
+                            }
+                        }
+                }
+            }
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) {
+                    probe.submitted = version
+                    probe.center = samples[0L]
+                    probe.bridge = samples[1L]
+                    probe.right = samples[2L]
+                    var left = -1L
+                    var right = -1L
+                    for (index in 0L..<75L) {
+                        val value = samples[index + 3L]
+                        if (value % 256L < 20L && value / 256L % 256L > 80L) {
+                            if (left == -1L) left = index * 4L
+                            right = index * 4L
+                        }
+                    }
+                    probe.left = left
+                    probe.span = if (left < 0L) 0L else right - left + 1L
+                }
+            }
+    }
+}

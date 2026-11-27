@@ -11,6 +11,40 @@ import scoop.ui.style.*
 @Test
 private class GlassEffectContainerTest {
     @Test
+    fun `automatic glass validates its layout without requiring estimated rectangles`() {
+        val material = glassMaterial()
+        val measured = glassEffect(ViewKey.Text("measured"), empty()) { layout { grow = 1.0 } }
+        assertEquals(None, measured.bounds)
+        assertEquals(1.0, measured.layout.grow)
+        for (
+            layout in [
+                GlassEffectLayout.Flex(FlexLayout()),
+                GlassEffectLayout.Wrap(FlexLayout(spacing = 8.0), 12.0)
+            ]
+        ) {
+            val value = GlassEffectContainerProps(material, [measured], layout = layout)
+            assertEquals(1L, value.keys.size)
+            assertEquals(ViewKey.Text("measured"), value.keys[0L])
+            assertFailsWith<IllegalArgumentException> {
+                GlassEffectContainerProps(
+                    material,
+                    [glassEffect(ViewKey.Text("fixed"), Rect(0.0, 0.0, 20.0, 20.0), empty())],
+                    layout = layout
+                )
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GlassEffectContainerProps(material, [measured])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GlassEffectContainerProps(
+                material, [measured],
+                layout = GlassEffectLayout.Wrap(FlexLayout(), -1.0)
+            )
+        }
+    }
+
+    @Test
     fun `glass items publish snapshots and require distinct stable keys and valid geometry`() {
         val builders = ArrayList<GlassEffectBuilder>()
         val item = glassEffect(ViewKey.Text("action"), Rect(-4.0, 8.0, 40.0, 20.0), empty()) {
@@ -24,7 +58,7 @@ private class GlassEffectContainerTest {
         assertSame(material, input.material)
         assertEquals(24.0, input.blendRadius)
         assertFailsWith<IllegalArgumentException> {
-            glassEffect(ViewKey.Position, item.bounds, empty())
+            glassEffect(ViewKey.Position, item.bounds!!, empty())
         }
         assertFailsWith<IllegalArgumentException> {
             GlassEffectContainerProps(material, [item, item])

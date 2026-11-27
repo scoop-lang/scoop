@@ -10,6 +10,7 @@ internal class GlassShapeMotion(private val progress: Animatable<Double>, initia
     Closeable {
     private var origin = initial.normalized()
     private var target = origin
+    val settled: Boolean get() = progress.value == 1.0
     fun retarget(outline: RoundedOutline, animation: AnimationSpec?) {
         val next = outline.normalized()
         if (next != target) {
@@ -53,29 +54,101 @@ private fun glassLerp(from: Size, to: Size, amount: Double): Size = Size(
 )
 
 internal class GlassEffectMotions : Closeable {
-    private var values = HashMap<ViewKey, GlassShapeMotion>()
-    fun sample(key: ViewKey): RoundedOutline = values[key]!!.sample()
+    private val values = HashMap<ViewKey, GlassMotionEntry>()
+    private var presented = false
+    fun sample(key: ViewKey): RoundedOutline = values[key]!!.motion.sample()
     fun update(scope: ComponentScope, items: Array<GlassEffectItem>, animation: AnimationSpec?) {
-        val next = HashMap<ViewKey, GlassShapeMotion>()
-        for (item in items) {
-            val outline = RoundedOutline(item.bounds, item.corners)
-            val motion = when (values[item.key]) {
-                case Some(val existing) -> {
-                    existing.retarget(outline, animation)
-                    existing
-                }
-
-                case None -> GlassShapeMotion(scope.animation(1.0), outline)
+        synchronize(Array<ViewKey>(items.size) { index -> items[index].key }, animation)
+        for (item in items)
+            when (item.bounds) {
+                case Some(val bounds) ->
+                    retarget(scope, item.key, RoundedOutline(bounds, item.corners), animation)
+                case None -> {}
             }
-            next[item.key] = motion
+    }
+    fun synchronize(keys: Array<ViewKey>, animation: AnimationSpec?) {
+        val next = HashMap<ViewKey, Boolean>()
+        for (key in keys) {
+            next[key] = true
+            when (values[key]) {
+                case Some(val existing) -> existing.leaving = false
+                case None -> {}
+            }
         }
+        for (entry in values.entries) {
+            val value = entry.value
+            if (!next.containsKey(entry.key) && !value.leaving) {
+                value.leaving = true
+                value.motion.retarget(collapsedGlass(value.motion.sample()), animation)
+            } else if (value.leaving && !panelPresent(animation))
+                value.motion.retarget(collapsedGlass(value.motion.sample()), None)
+        }
+    }
+    fun retarget(
+        scope: ComponentScope,
+        key: ViewKey,
+        outline: RoundedOutline,
+        animation: AnimationSpec?
+    ): RoundedOutline {
+        val entry = when (values[key]) {
+            case Some(val existing) -> existing
+
+            case None -> {
+                val created = GlassMotionEntry(
+                    GlassShapeMotion(
+                        scope.animation(1.0),
+                        if (presented && panelPresent(animation))
+                            collapsedGlass(outline)
+                        else
+                            outline
+                    )
+                )
+                values[key] = created
+                created
+            }
+        }
+        entry.motion.retarget(outline, animation)
+        return entry.motion.sample()
+    }
+    fun outlines(keys: Array<ViewKey>): Array<RoundedOutline> {
+        val result = ArrayList<RoundedOutline>()
+        for (key in keys)
+            result.add(sample(key))
+        val retired = ArrayList<ViewKey>()
         for (entry in values.entries)
-            if (!next.containsKey(entry.key)) entry.value.close()
-        values = next
+            if (entry.value.leaving) {
+                if (entry.value.motion.settled)
+                    retired.add(entry.key)
+                else
+                    result.add(entry.value.motion.sample())
+            }
+        for (key in retired) {
+            values[key]!!.motion.close()
+            values.remove(key)
+        }
+        presented = true
+        return result.toArray()
+    }
+    fun clear() {
+        for (entry in values.entries)
+            entry.value.motion.close()
+        values.clear()
+        presented = false
     }
     public override fun close() {
-        for (entry in values.entries)
-            entry.value.close()
-        values.clear()
+        clear()
     }
 }
+
+private class GlassMotionEntry(val motion: GlassShapeMotion) {
+    var leaving = false
+}
+
+internal fun collapsedGlass(outline: RoundedOutline): RoundedOutline = RoundedOutline(
+    Rect(
+        outline.bounds.x + outline.bounds.width * 0.5,
+        outline.bounds.y + outline.bounds.height * 0.5,
+        0.0,
+        0.0
+    )
+)

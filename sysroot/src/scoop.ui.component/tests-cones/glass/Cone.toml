@@ -20,6 +20,7 @@ when = { os = "darwin" }
 "scoop:scoop.ui" = "0.1.0"
 "scoop:scoop.ui.style" = "0.1.0"
 "scoop:scoop.ui.style.shadcn" = "0.1.0"
+"scoop:scoop.ui.style.liquidglass" = "0.1.0"
 "scoop:scoop.ui.component" = { version = "0.1.0", path = "../.." }
 "scoop:scoop.test" = "0.1.0"
 "scoop.tests:graphics-native" = { version = "0.1.0", path = "../../../scoop.graphics/test-native" }

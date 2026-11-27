@@ -43,7 +43,8 @@ internal class ButtonControl(
     role: SemanticRole = SemanticRole.Button,
     private val semanticState: () -> SemanticProperties? = { None },
     private val semanticActions: () -> SemanticActions? = { None },
-    private val semanticFallbackName: () -> String? = { None }
+    private val semanticFallbackName: () -> String? = { None },
+    private val sharedGlass: () -> ActionGlass = { ActionGlass.Independent }
 ) {
     private val themes = ThemeAccess(scope)
     private val text = ActionTextStyle()
@@ -96,7 +97,8 @@ internal class ButtonControl(
                 semanticOptions = input.semantics,
                 semanticState = semanticState(),
                 semanticActions = semanticActions(),
-                semanticFallbackName = semanticFallbackName()
+                semanticFallbackName = semanticFallbackName(),
+                glass = sharedGlass()
             ),
             { current, mount -> ActionInk(current, scope = mount) },
             [

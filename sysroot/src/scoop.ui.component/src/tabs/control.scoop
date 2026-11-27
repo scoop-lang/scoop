@@ -15,7 +15,8 @@ internal class TabControlProps(
     val theme: Theme,
     val activate: () -> Unit,
     val select: () -> SemanticActionResult,
-    val semantics: ComponentSemantics
+    val semantics: ComponentSemantics,
+    val glass: ActionGlass = ActionGlass.Independent
 )
 
 internal class TabControl(
@@ -76,6 +77,7 @@ internal class TabControl(
                         input.style,
                         visual,
                         ActionBehavior.Press(control, input.activate, input.focus),
+                        glass = input.glass,
                         semantics = semantics,
                         semanticOptions = input.semantics,
                         semanticState = Some(

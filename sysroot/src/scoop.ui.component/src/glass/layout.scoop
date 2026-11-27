@@ -1,0 +1,65 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** Ordinary layout chooses targets; one shared sample then places and remeasures the foreground. */
+internal fun measureGlassFlow(
+    context: MeasureContext,
+    constraints: Constraints,
+    input: GlassEffectInput,
+    scope: ComponentScope
+): LayoutResult<Array<RoundedOutline>> {
+    val props = input.props
+    val fixed = constraints
+        .constrain(Size(props.width ?: constraints.minWidth, props.height ?: constraints.minHeight))
+    val limits = Constraints(
+        minWidth = if (props.width == None) constraints.minWidth else fixed.width,
+        maxWidth = if (props.width == None) constraints.maxWidth else Some(fixed.width),
+        minHeight = if (props.height == None) constraints.minHeight else fixed.height,
+        maxHeight = if (props.height == None) constraints.maxHeight else Some(fixed.height)
+    )
+    val items = Array<FlexItem>(props.items.size) { index ->
+        FlexItem(props.items[index].content, props.items[index].layout)
+    }
+    val animation = if (input.theme.preferences.reduceMotion)
+        None
+    else
+        input.theme.tokens.motion.resolve(props.animation)
+    val place: (Long, LayoutMetrics, Point) -> Point = { index, measured, origin ->
+        val item = props.items[index]
+        val target = RoundedOutline(
+            Rect(origin.x, origin.y, measured.size.width, measured.size.height),
+            item.corners
+        )
+        val shape = input.motions.retarget(scope, item.key, target, animation)
+        if (shape.bounds.size != measured.size)
+            context.measureChild(index, Constraints.tight(shape.bounds.size))
+        shape.bounds.origin
+    }
+    val measured = when (props.layout) {
+        case Flex(val layout) ->
+            measureFlex(context, limits, items, layout, placement = Some(place))
+        case Wrap(val layout, val spacing) ->
+            measureWrap(
+                context, limits,
+                WrapProps(
+                    layout.axis,
+                    LinearProps(
+                        items,
+                        layout.spacing,
+                        layout.alignment,
+                        layout.justify,
+                        layout.padding,
+                        logicalPadding = layout.logicalPadding
+                    ),
+                    spacing
+                ),
+                Some(place)
+            )
+        case Absolute ->
+            throw IllegalStateException(Some("absolute glass does not use flow measurement"))
+    }
+    return LayoutResult(measured, input.motions.outlines(props.keys))
+}

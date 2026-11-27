@@ -33,12 +33,12 @@ public class GlassEffectContainer public constructor(
         }
         return element(
             GlassEffectInput(input, theme, motions),
-            { current, mount -> GlassEffectLayout(current, scope = mount) }, children
+            { current, mount -> GlassEffectLayer(current, scope = mount) }, children
         )
     }
 }
 
-private class GlassEffectLayout(private val props: Props<GlassEffectInput>, scope: ComponentScope) :
+private class GlassEffectLayer(private val props: Props<GlassEffectInput>, scope: ComponentScope) :
     Element<Array<RoundedOutline>>(scope) {
     private var painter: GlassEffectPainter? = None
     public override fun onMount() {
@@ -67,21 +67,23 @@ private class GlassEffectLayout(private val props: Props<GlassEffectInput>, scop
     > {
         val input = props.value
         val items = input.props.items
-        val outlines = Array<RoundedOutline>(items.size) { index ->
-            input.motions.sample(items[index].key)
+        when (input.props.layout) {
+            case Absolute -> {}
+            else -> return measureGlassFlow(context, constraints, input, scope)
         }
         var width = 0.0
         var height = 0.0
         for (index in 0L..<items.size) {
-            val bounds = outlines[index].bounds
+            val bounds = input.motions.sample(items[index].key).bounds
             context.measureChild(index, Constraints.tight(bounds.size))
             context.placeChild(index, bounds.origin)
-            width = lowerBound(width, items[index].bounds.x + items[index].bounds.width)
-            height = lowerBound(height, items[index].bounds.y + items[index].bounds.height)
+            val target = items[index].bounds!!
+            width = lowerBound(width, target.x + target.width)
+            height = lowerBound(height, target.y + target.height)
         }
         val size = constraints
             .constrain(Size(input.props.width ?: width, input.props.height ?: height))
-        return LayoutResult(LayoutMetrics(size), outlines)
+        return LayoutResult(LayoutMetrics(size), input.motions.outlines(input.props.keys))
     }
     public override fun scene(context: SceneContext, measured: Array<RoundedOutline>) {
         val input = props.value
@@ -113,27 +115,26 @@ private class GlassEffectContentInput(val key: ViewKey, val motions: GlassEffect
 private class GlassEffectContent(
     private val props: Props<GlassEffectContentInput>,
     scope: ComponentScope
-) : Element<CornerRadii>(scope) {
+) : Element<Unit>(scope) {
     private var painter: StylePainter? = None
     public override fun onMount() {
         painter = Some(scope.resource { StylePainter() })
     }
     public override fun update(): UiInvalidation = UiInvalidation.Layout
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        CornerRadii
+        Unit
     > {
-        val input = props.value
-        val shape = input.motions.sample(input.key)
         val child = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutResult(child, shape.radii)
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext, measured: CornerRadii) {
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val radii = props.value.motions.sample(props.value.key).radii
         painter!!
             .scene(
                 context,
                 style {
-                    corners = Corners.Physical(measured);
+                    corners = Corners.Physical(radii);
                     clipContent = true
                 }
             ) { content -> content.children() }

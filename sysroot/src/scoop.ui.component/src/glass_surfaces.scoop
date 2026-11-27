@@ -51,7 +51,7 @@ internal fun glassSurfaceForegrounds(theme: Theme, role: SurfaceRole): Array<Col
     return [main, palette.muted.foreground]
 }
 
-private fun readableGlassFill(theme: Theme, background: Color, foregrounds: Array<Color>): Color {
+internal fun readableGlassFill(theme: Theme, background: Color, foregrounds: Array<Color>): Color {
     val source = theme.tokens.palette.background.background
     val canvas = mixThemeColor(
         if (theme.tokens.mode == ThemeMode.Dark) Color.Black else Color.White,
