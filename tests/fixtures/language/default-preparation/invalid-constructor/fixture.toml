@@ -1,0 +1,15 @@
+schema = 1
+name = "default-preparation-invalid-constructor"
+root = "program.scoop"
+inputs = ["program.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["default-preparation", "negative", "language"]
+
+[[steps]]
+name = "check"
+argv = ["${scoop}", "check", "--release", "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "diagnostics.json"}

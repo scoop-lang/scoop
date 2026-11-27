@@ -10,6 +10,15 @@ impl Lowerer {
         match source {
             DefaultArgumentSource::Ready(template) => Some(template),
             DefaultArgumentSource::Parameter(key) => {
+                // An invalid constructor signature can retain its resolved
+                // parameters, but has no complete default-parameter interface.
+                if !self.default_preparation.recipes.contains_key(&key.owner) {
+                    assert!(
+                        !self.diagnostics.is_empty(),
+                        "successful source signatures register their default parameters"
+                    );
+                    return None;
+                }
                 let diagnostics = self.diagnostics.len();
                 let template = self.prepare_default(key, span);
                 if template.is_none() && self.diagnostics.len() == diagnostics {
