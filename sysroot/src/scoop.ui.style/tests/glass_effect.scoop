@@ -1,0 +1,150 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class GlassEffectTest {
+    @Test
+    fun `Raster glass joins and separates continuous outlines without accumulating overlap`() {
+        RasterSurface(128, 96)
+            .use { surface ->
+                verifyGlassEffectPixels { scene ->
+                    surface
+                        .draw { canvas ->
+                            canvas.scale(2.0, 2.0);
+                            scene(canvas)
+                        }
+                    surface.readPixels()
+                }
+            }
+    }
+
+    @Test
+    fun `group cache preserves valid resources on failure and releases replaced geometry`() {
+        GlassEffectCache()
+            .use { cache ->
+                val shapes = [RoundedOutline(Rect(0.0, 0.0, 20.0, 20.0), CornerRadii.all(10.0))]
+                val first = cache
+                    .update(shapes, Some(clearGlass()), Color.White, 12.0, Transform())!!
+                assertSame(
+                    first,
+                    cache.update(shapes, Some(clearGlass()), Color.White, 12.0, Transform())!!
+                )
+                assertFailsWith<IllegalArgumentException> {
+                    cache.update(shapes, Some(clearGlass()), Color.White, -1.0, Transform())
+                }
+                assertFalse(first.mask.isClosed)
+                assertFalse(first.filter!!.isClosed)
+                val solid = cache.update(shapes, None, Color.Black, 12.0, Transform())!!
+                assertTrue(first.mask.isClosed)
+                assertTrue(first.filter!!.isClosed)
+                when (solid.filter) {
+                    case Some(_) -> fail(Some("solid fallback allocated a backdrop filter"))
+                    case None -> {}
+                }
+                cache.update([], None, Color.Black, 12.0, Transform())
+                assertTrue(solid.mask.isClosed)
+            }
+    }
+
+    @Test
+    fun `recorded glass group retains shaders while sampling the current backdrop`() {
+        RasterSurface(64, 32)
+            .use { surface ->
+                val painter = GlassEffectPainter()
+                val shapes = [
+                    RoundedOutline(Rect(4.0, 4.0, 24.0, 24.0), CornerRadii.all(8.0)),
+                    RoundedOutline(Rect(30.0, 4.0, 24.0, 24.0), CornerRadii.all(8.0))
+                ]
+                val drawing = surface
+                    .draw { canvas ->
+                        canvas
+                            .recordDrawing(Rect(0.0, 0.0, 64.0, 32.0)) { record ->
+                                painter.paint(record, shapes, clearGlass(), 12.0)
+                            }
+                    }
+                painter.close()
+                painter.close()
+                drawing
+                    .use { value ->
+                        assertFalse(value.canRasterizeTiles)
+                        surface
+                            .draw { canvas ->
+                                canvas.clear(Color(0.0, 1.0, 0.0, 0.5))
+                                canvas.drawDrawing(value)
+                                assertFailsWith<IllegalStateException> {
+                                    painter.paint(canvas, shapes, clearGlass())
+                                }
+                            }
+                        val pixels = surface.readPixels()
+                        assertEquals(255, channel(pixels, 64, 28, 16, 1))
+                        assertEquals(128, channel(pixels, 64, 28, 16, 3))
+                    }
+            }
+    }
+}
+
+/** Raster and the native GPU run identical fusion, alpha and corner coverage assertions. */
+internal fun verifyGlassEffectPixels(render: ((Canvas) -> Unit) -> Array<Byte>) {
+    GlassEffectPainter()
+        .use { painter ->
+            val left = RoundedOutline(Rect(8.0, 12.0, 20.0, 20.0), CornerRadii.all(10.0))
+            val right = RoundedOutline(Rect(32.0, 12.0, 20.0, 20.0), CornerRadii.all(10.0))
+            val green = Color(0.0, 1.0, 0.0)
+            val merged = render { canvas ->
+                canvas.clear(Color.Black)
+                painter.paint(canvas, [left, right], green, 12.0)
+            }
+            assertEquals(255, channel(merged, 128, 60, 44, 1))
+            assertEquals(0, channel(merged, 128, 60, 28, 1))
+            val separate = render { canvas ->
+                canvas.clear(Color.Black)
+                painter.paint(canvas, [left, right], green, 0.0)
+            }
+            assertEquals(0, channel(separate, 128, 60, 44, 1))
+            val moved = render { canvas ->
+                canvas.clear(Color.Black)
+                painter
+                    .paint(
+                        canvas,
+                        [left, RoundedOutline(Rect(44.0, 12.0, 20.0, 20.0), CornerRadii.all(10.0))],
+                        green,
+                        12.0
+                    )
+            }
+            assertEquals(0, channel(moved, 128, 60, 44, 1))
+            val tint = clearGlass().copy { this.tint = green.withAlpha(0.5) }
+            val overlap = render { canvas ->
+                canvas.clear(Color(1.0, 0.0, 0.0, 0.5))
+                painter
+                    .paint(
+                        canvas,
+                        [left, RoundedOutline(Rect(20.0, 12.0, 24.0, 20.0), CornerRadii.all(10.0))],
+                        tint,
+                        12.0
+                    )
+                canvas.drawRect(Rect(18.0, 22.0, 1.0, 1.0), Paint(Color(0.0, 0.0, 1.0)))
+            }
+            assertTrue(channel(overlap, 128, 48, 44, 3) in 190..193)
+            assertTrue(channel(overlap, 128, 48, 44, 1) in 168..172)
+            assertTrue(channel(overlap, 128, 48, 44, 0) in 83..87)
+            assertEquals(255, channel(overlap, 128, 36, 44, 2))
+            assertEquals(128, channel(overlap, 128, 2, 2, 3))
+            val corners = render { canvas ->
+                canvas.clear(Color.Transparent)
+                painter
+                    .paint(
+                        canvas,
+                        [
+                            RoundedOutline(
+                                Rect(8.0, 4.0, 40.0, 40.0),
+                                CornerRadii(topLeft = Size(30.0, 30.0))
+                            )
+                        ], green, 0.0
+                    )
+            }
+            assertEquals(0, channel(corners, 128, 58, 8, 3))
+            assertEquals(255, channel(corners, 128, 70, 20, 3))
+        }
+}

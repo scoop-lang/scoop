@@ -5,6 +5,10 @@ import scoop.graphics.native.RenderTarget
 import scoop.test.*
 
 internal fun verifyStyleGpu(target: RenderTarget) {
+    verifyGlassEffectPixels { scene ->
+        target.draw(scene)
+        target.readPixels()
+    }
     verifyGlassPixels { scene ->
         target.draw(scene)
         target.readPixels()

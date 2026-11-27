@@ -1,0 +1,245 @@
+package scoop.tests.ui.glass
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.InputArea
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class GlassContainerWindowTest {
+    @Test(useProcess = true)
+    fun `fusion moves real content preserves keys and stops frames when settled hidden or removed`() {
+        val probe = FusionProbe()
+        probe
+            .use { _ ->
+                context(ThemeSource(shadcnTheme())) {
+                    UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                        probe.event(host, active, event)
+                    }
+                        .use { host -> Application().run(host) }
+                }
+            }
+        assertTrue(probe.finished)
+        for (record in probe.records) {
+            assertEquals(1, record.mounts)
+            assertEquals(1, record.unmounts)
+            assertTrue(record.area!!.isClosed)
+        }
+    }
+}
+
+internal class FusionRecord {
+    var area: InputArea? = None
+    var mounts = 0
+    var unmounts = 0
+}
+
+internal class FusionProbe : Closeable {
+    val pose = state(0)
+    val reversed = state(false)
+    val shown = state(true)
+    val populated = state(true)
+    val opacity = state(1.0)
+    val serial = state(0)
+    val records = [FusionRecord(), FusionRecord()]
+    var submitted = -1
+    var frames = 0
+    var measures = 0
+    var renders = 0
+    var bridge = -1L
+    var face = -1L
+    var finished = false
+    private var phase = 0
+    private var observedMotion = false
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var idle: WindowDeadline? = None
+    private var idleFrames = 0
+    private var idleMeasures = 0
+    private var idleRenders = 0
+    private var nativeFrames: FrameProbe? = None
+    private var idleNative: FrameSnapshot? = None
+    private var idleArmed = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native = active
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop liquid glass geometry"
+                            size = LogicalSize(260.0, 180.0)
+                            level = WindowLevel.AlwaysOnTop
+                        }
+                    )
+                window = Some(native)
+                nativeFrames = Some(observeFrames(native))
+                native
+                    .createDeadline { fail(Some(f"glass container timeout in phase ${phase}")) }
+                    .schedule(MonotonicTimeSource.now() + Duration.seconds(25L))
+                idle = Some(native.createDeadline { finishIdle(active) })
+                ui = host.attach(native, { mount -> FusionRoot(this, scope = mount) })
+                ui!!.preferences = uiPreferences {
+                    reduceMotion = Some(false);
+                    highContrast = Some(false);
+                    reduceTransparency = Some(false)
+                }
+            }
+
+            case AboutToWait -> advance()
+            else -> {}
+        }
+    }
+    private fun changed() {
+        serial.value += 1
+    }
+    private fun advance() {
+        if (submitted != serial.value || phase == 6 || phase == 8 || phase == 10) return
+        val first = records[0L].area!!
+        when (phase) {
+            case 0 -> {
+                assertEquals(Rect(20.0, 40.0, 60.0, 60.0), first.visibleBounds!!)
+                assertFalse(first.hitTest(Point(20.5, 40.5)))
+                assertFalse(first.hitTest(Point(85.0, 70.0)))
+                assertFalse(records[1L].area!!.hitTest(Point(85.0, 70.0)))
+                assertEquals(65280L, bridge)
+                opacity.value = 0.5;
+                changed();
+                phase = 11
+            }
+
+            case 11 -> {
+                assertTrue(bridge % 256L in 126L..129L)
+                assertTrue(bridge / 256L % 256L in 126L..129L)
+                assertEquals(0L, bridge / 65536L)
+                assertEquals(Rect(20.0, 40.0, 60.0, 60.0), first.visibleBounds!!)
+                opacity.value = 1.0
+                pose.value = 1;
+                changed();
+                phase = 1
+            }
+
+            case 1 -> {
+                val bounds = first.visibleBounds!!
+                if (bounds.x > 20.0 && bounds.x < 60.0) observedMotion = true
+                if (bounds.x == 60.0) {
+                    assertTrue(observedMotion)
+                    assertEquals(Rect(60.0, 50.0, 80.0, 40.0), bounds)
+                    reversed.value = true;
+                    changed();
+                    phase = 2
+                }
+            }
+
+            case 2 -> {
+                for (record in records)
+                    assertEquals(1, record.mounts)
+                assertEquals(Rect(60.0, 50.0, 80.0, 40.0), first.visibleBounds!!)
+                pose.value = 2;
+                changed();
+                phase = 3
+            }
+
+            case 3 ->
+                if (first.visibleBounds!!.x > 65.0 && first.visibleBounds!!.x < 145.0) {
+                    ui!!.preferences = uiPreferences {
+                        reduceMotion = Some(true);
+                        reduceTransparency = Some(true)
+                    }
+                    pose.value = 0;
+                    changed();
+                    phase = 4
+                }
+
+            case 4 -> {
+                assertEquals(Rect(20.0, 40.0, 60.0, 60.0), first.visibleBounds!!)
+                assertEquals(16777215L, face)
+                phase = 6
+                waitIdle()
+            }
+
+            case 7 ->
+                if (!shown.value || first.visibleBounds!!.x > 25.0) {
+                    if (shown.value) {
+                        shown.value = false;
+                        changed()
+                    } else {
+                        assertEquals(None, first.visibleBounds)
+                        assertFalse(first.isClosed)
+                        phase = 8
+                        waitIdle()
+                    }
+                }
+
+            case 9 -> {
+                for (record in records)
+                    assertTrue(record.area!!.isClosed)
+                phase = 10
+                waitIdle()
+            }
+
+            else -> {}
+        }
+    }
+    private fun waitIdle() {
+        idleArmed = false
+        idle!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(120L))
+    }
+    private fun finishIdle(active: ActiveApplication) {
+        val native = nativeFrames!!.snapshot()
+        assertFalse(native.required, Some(f"phase ${phase}: glass retained native frame demand"))
+        assertTrue(native.paused)
+        if (!idleArmed) {
+            // Let the accepted geometry commit retire any already queued update before observing idle.
+            idleArmed = true
+            idleFrames = frames;
+            idleMeasures = measures;
+            idleRenders = renders
+            idleNative = Some(native)
+            idle!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(180L))
+            return
+        }
+        assertEquals(idleNative, Some(native))
+        assertEquals(
+            idleFrames,
+            frames,
+            Some(f"phase ${phase}: inactive glass submitted another frame")
+        )
+        assertEquals(idleMeasures, measures, Some("inactive glass kept measuring"))
+        assertEquals(idleRenders, renders, Some("inactive glass kept updating"))
+        when (phase) {
+            case 6 -> {
+                ui!!.preferences = uiPreferences {
+                    reduceMotion = Some(false);
+                    reduceTransparency = Some(false)
+                }
+                pose.value = 2;
+                changed();
+                phase = 7
+            }
+
+            case 8 -> {
+                populated.value = false;
+                shown.value = true;
+                changed();
+                phase = 9
+            }
+
+            case 10 -> {
+                finished = true;
+                active.requestExit()
+            }
+
+            else -> fail()
+        }
+    }
+    public override fun close() {
+        nativeFrames?.close()
+    }
+}

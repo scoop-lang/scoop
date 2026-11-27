@@ -1,0 +1,268 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.math.*
+
+internal class GlassEffectDrawing(
+    val bounds: Rect,
+    val mask: Shader,
+    val filter: ImageFilter?
+) : Closeable {
+    public override fun close() {
+        val failure = cleanupStyle(None) { mask.close() }
+        throwStyle(cleanupStyle(failure) { filter?.close() })
+    }
+}
+
+private class GlassEffectPrograms(val count: Long) : Closeable {
+    private val source = glassGroupSource(count)
+    val mask = ShaderProgram.compile(source + glassMaskSource)
+    private var optics: ShaderProgram? = None
+    fun lens(): ShaderProgram = when (optics) {
+        case Some(val value) -> value
+
+        case None -> {
+            val value = ShaderProgram.compile(source + glassOpticsSource)
+            optics = Some(value)
+            value
+        }
+    }
+    public override fun close() {
+        val failure = cleanupStyle(None) { mask.close() }
+        throwStyle(cleanupStyle(failure) { optics?.close() })
+    }
+}
+
+/** Keeps current geometry and resources, without retaining a backdrop image. */
+internal class GlassEffectCache : Closeable {
+    private var programs: GlassEffectPrograms? = None
+    private var drawing: GlassEffectDrawing? = None
+    private var outlines: Array<RoundedOutline> = []
+    private var material: GlassMaterial? = None
+    private var fill = Color.Transparent
+    private var radius = 0.0
+    private var inverse = Transform()
+
+    fun update(
+        shapes: Array<RoundedOutline>,
+        nextMaterial: GlassMaterial?,
+        nextFill: Color,
+        blendRadius: Double,
+        pixelTransform: Transform
+    ): GlassEffectDrawing? {
+        themeLength(blendRadius)
+        when (nextMaterial) {
+            case Some(val value) ->
+                for (
+                    length in [value.blurSigma, value.refraction, value.edgeWidth, value.saturation]
+                )
+                    themeLength(length)
+            case None -> {}
+        }
+        val next = ArrayList<RoundedOutline>()
+        for (shape in shapes) {
+            val normalized = shape.normalized()
+            if (normalized.bounds.width > 0.0 && normalized.bounds.height > 0.0)
+                next.add(normalized)
+        }
+        val transform = Transform(
+            pixelTransform.a,
+            pixelTransform.b,
+            pixelTransform.c,
+            pixelTransform.d
+        )
+        val nextInverse = when (transform.inverse()) {
+            case Some(val value) -> value
+
+            case None -> {
+                clear()
+                return None
+            }
+        }
+        if (next.size == 0L) {
+            clear()
+            return None
+        }
+        val values = next.toArray()
+        val sameMaterial = when ((material, nextMaterial)) {
+            case(Some(val a), Some(val b)) -> sameGlass(a, b)
+            case(None, None) -> true
+            else -> false
+        }
+        if (sameOutlines(outlines, values) &&
+            sameMaterial &&
+            fill ==
+            nextFill &&
+            radius ==
+            blendRadius &&
+            inverse ==
+            nextInverse
+        )
+            return drawing
+        val reuse = programs?.count == Some(values.size)
+        val compiled = if (reuse) programs!! else GlassEffectPrograms(values.size)
+        val replacement = try {
+            createGlassDrawing(compiled, values, nextMaterial, nextFill, blendRadius, nextInverse)
+        } catch (error: Throwable) {
+            if (!reuse) compiled.close()
+            throw error
+        }
+        val previous = drawing
+        val oldPrograms = programs
+        drawing = Some(replacement)
+        programs = Some(compiled)
+        outlines = values
+        material = nextMaterial
+        fill = nextFill
+        radius = blendRadius
+        inverse = nextInverse
+        val failure = cleanupStyle(None) { previous?.close() }
+        throwStyle(cleanupStyle(failure) { if (!reuse) oldPrograms?.close() })
+        return drawing
+    }
+
+    private fun clear() {
+        val previous = drawing
+        drawing = None
+        outlines = []
+        material = None
+        previous?.close()
+    }
+    public override fun close() {
+        val previous = programs
+        programs = None
+        val failure = cleanupStyle(None) { clear() }
+        throwStyle(cleanupStyle(failure) { previous?.close() })
+    }
+}
+
+private fun sameOutlines(a: Array<RoundedOutline>, b: Array<RoundedOutline>): Boolean {
+    if (a.size != b.size) return false
+    for (index in 0L..<a.size)
+        if (a[index] != b[index]) return false
+    return true
+}
+
+private fun ShaderBindings.glassOutlines(outlines: Array<RoundedOutline>, radius: Double) {
+    val boxes = ArrayList<Float>()
+    val top = ArrayList<Float>()
+    val bottom = ArrayList<Float>()
+    for (outline in outlines) {
+        val box = outline.bounds
+        val corners = outline.radii
+        for (value in [box.x, box.y, box.width, box.height])
+            boxes.add(value.toFloat())
+        for (
+            value in [
+                corners.topLeft.width,
+                corners.topLeft.height,
+                corners.topRight.width,
+                corners.topRight.height
+            ]
+        )
+            top.add(value.toFloat())
+        for (
+            value in [
+                corners.bottomLeft.width,
+                corners.bottomLeft.height,
+                corners.bottomRight.width,
+                corners.bottomRight.height
+            ]
+        )
+            bottom.add(value.toFloat())
+    }
+    setFloats("bounds", boxes.toArray())
+    setFloats("topRadii", top.toArray())
+    setFloats("bottomRadii", bottom.toArray())
+    setFloat("blendRadius", radius.toFloat())
+}
+
+private fun createGlassDrawing(
+    programs: GlassEffectPrograms,
+    outlines: Array<RoundedOutline>,
+    material: GlassMaterial?,
+    fill: Color,
+    radius: Double,
+    inverse: Transform
+): GlassEffectDrawing {
+    val bounds = glassGroupBounds(outlines, radius, inverse)
+    val mask = programs
+        .mask
+        .makeShader {
+            glassOutlines(outlines, radius)
+            setFloats(
+                "pixelInverse",
+                [inverse.a.toFloat(), inverse.b.toFloat(), inverse.c.toFloat(), inverse.d.toFloat()]
+            )
+            setColor("fill", fill)
+        }
+    try {
+        val filter = when (material) {
+            case None -> None
+
+            case Some(val value) -> {
+                val lens = ImageFilter
+                    .runtimeShader(programs.lens(), "background", value.refraction) {
+                        glassOutlines(outlines, radius)
+                        setFloat("refraction", value.refraction.toFloat())
+                        setFloat("edgeWidth", value.edgeWidth.toFloat())
+                        setFloat("saturation", value.saturation.toFloat())
+                        setColor("tint", value.tint)
+                        setColor("highlight", value.highlight)
+                    }
+                Some(
+                    if (value.blurSigma == 0.0)
+                        lens
+                    else
+                        try {
+                            ImageFilter
+                                .blur(value.blurSigma, value.blurSigma)
+                                .use { blur -> blur.then(lens) }
+                        } finally {
+                            lens.close()
+                        }
+                )
+            }
+        }
+        return GlassEffectDrawing(bounds, mask, filter)
+    } catch (error: Throwable) {
+        mask.close()
+        throw error
+    }
+}
+
+private fun glassGroupBounds(
+    outlines: Array<RoundedOutline>,
+    radius: Double,
+    inverse: Transform
+): Rect {
+    var left = outlines[0L].bounds.x
+    var top = outlines[0L].bounds.y
+    var right = left + outlines[0L].bounds.width
+    var bottom = top + outlines[0L].bounds.height
+    for (outline in outlines) {
+        left = min(left, outline.bounds.x)
+        top = min(top, outline.bounds.y)
+        right = max(right, outline.bounds.x + outline.bounds.width)
+        bottom = max(bottom, outline.bounds.y + outline.bounds.height)
+    }
+    val feather = sqrt(
+        inverse.a *
+            inverse.a +
+            inverse.b *
+            inverse.b +
+            inverse.c *
+            inverse.c +
+            inverse.d *
+            inverse.d
+    )
+    val margin = radius + feather
+    return RoundedOutline(
+        Rect(
+            left - margin, top - margin,
+            right - left + margin * 2.0, bottom - top + margin * 2.0
+        )
+    )
+        .normalized()
+        .bounds
+}

@@ -471,6 +471,16 @@ GridProps 保存 columns／rows: Array<GridTrack>、items: Array<GridItem>、col
 每列以同一紧宽测量子项，每行高度取该行最大的实际高度，子项顶边对齐，相邻两行之间留出 rowGap。末行沿用完整列宽并从逻辑起点排列。RTL 只翻转列位置，声明、Tab 及绘制顺序保持。最终尺寸服从父约束，clip 显式控制溢出裁剪。改变宽度只重新分配原有直接子项，不生成行节点。
 
 
+### 6.8 GlassEffectContainer
+
+`glassEffectContainer(material: GlassMaterial, configure: GlassEffectContainerBuilder.() -> Unit = {}): View` 创建显式的融合组。Builder 的 `item(key: ViewKey, bounds: Rect, content: View, configure: GlassEffectBuilder.() -> Unit = {})` 追加一个表面；也可 add 由同签名的 glassEffect 工厂产生的 GlassEffectItem。item 的 corners 默认为 CornerRadii.all(20.0)。bounds 使用容器物理局部坐标，位置可负、尺寸有限非负，轮廓沿已有圆角归一化；key 必须为唯一的 Text 或 Number。改变声明顺序保留同一 key 的子组件状态，声明顺序也是绘制及平滑并集顺序。
+
+容器提供 width／height（默认 None）、blendRadius=24.0、opacity=1.0、animation=Some(Tween(300ms))、theme=None 和 key。宽高默认采用目标轮廓的右／下范围，再服从父约束；显式尺寸不重写子项的物理目标。opacity 有限且在 0～1 内，作用于材质和全部前景组成的下层合成组。GlassEffectContainerProps 保存对应完整描述，GlassEffectContainer 是可直接挂载的 Component。
+
+首次出现的 key 立即采用其目标轮廓；已有 key 的位置、尺寸和四角半径在同一 Surface Animatable 上从当前呈现值向新目标插值。重定向从当前形状接续，animation=None 或有效主题减少动画时立即收束。移除 key 立即退休其动画与内容；静止、隐藏和卸载沿正常 UI／Surface 生命周期停止帧需求，不设置独立 timer。容器布局读取相同的动画采样，子项测量、位置、裁剪、输入及语义几何与显示同步，不能仅在 shader 中移动像素。
+
+每帧先用一个 GlassEffectPainter 合成全部轮廓，再按声明顺序呈现各自圆角裁剪内的清晰内容。融合的连接区域不创建 InputArea、焦点或语义节点。容器自身不把子内容合并成一个控件；按钮、编辑器和读屏操作保持各自语义。高对比度与减少透明度以主题 card 底色绘制同一形状，减少动画立即收束形变；材质参数仍是可共享描述，不持有 UI 状态。
+
 ## 7. 样式与资源归属
 
 ButtonStyle／CheckboxStyle 是本库的局部输入对象，使用公共 StyleOverride、SpanStyle 和明确的尺寸／动画覆盖。公共默认外观、视觉状态数据、表面／Checkbox／Radio／Scrollbar 的绘图和几何合同均属于 scoop.ui.style，四套风格实现不依赖具体控件。本库把当前状态转换为主题视觉输入，消费同一几何和绘图，不按 macOS／Material／Fluent／shadcn 分支。段落内 SpanStyle 的局部继承属于 graphics.text 的内容模型，复用其公共合同。

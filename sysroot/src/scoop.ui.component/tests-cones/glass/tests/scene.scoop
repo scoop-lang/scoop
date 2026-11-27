@@ -1,0 +1,133 @@
+package scoop.tests.ui.glass
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.tests.graphics.readNativePixel
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+
+internal class FusionRoot(private val probe: FusionProbe, scope: ComponentScope) :
+    Component(scope) {
+    private val material = glassMaterial {
+        blurSigma = 2.0
+        refraction = 6.0
+        tint = Color(0.0, 1.0, 0.0)
+        highlight = Color.Transparent
+    }
+    public override fun render(): View {
+        val probe = this.probe
+        probe.renders += 1
+        val bounds = when (probe.pose.value) {
+            case 0 -> Rect(20.0, 40.0, 60.0, 60.0)
+            case 1 -> Rect(60.0, 50.0, 80.0, 40.0)
+            else -> Rect(150.0, 90.0, 50.0, 50.0)
+        }
+        val items = [
+            glassEffect(
+                ViewKey.Text("first"), bounds,
+                element({ mount -> FusionCell(probe.records[0L], scope = mount) })
+            ) { corners = CornerRadii.all(if (probe.pose.value == 0) 30.0 else 12.0) },
+            glassEffect(
+                ViewKey.Text("second"), Rect(90.0, 40.0, 60.0, 60.0),
+                element({ mount -> FusionCell(probe.records[1L], scope = mount) })
+            ) { corners = CornerRadii.all(30.0) }
+        ]
+        val reverse = probe.reversed.value
+        val populated = probe.populated.value
+        val opacity = probe.opacity.value
+        val content = glassEffectContainer(material) {
+            this.opacity = opacity
+            width = Some(260.0);
+            height = Some(180.0)
+            blendRadius = 48.0
+            animation = Some(AnimationSpec.Tween(Duration.milliseconds(400L)))
+            if (populated) {
+                add(items[if (reverse) 1L else 0L])
+                add(items[if (reverse) 0L else 1L])
+            }
+        }
+        return element(
+            FusionSceneInput(probe.serial.value, probe.shown.value),
+            { current, mount -> FusionScene(current, probe, scope = mount) }, [content]
+        )
+    }
+}
+
+private struct FusionSceneInput(val serial: Int, val shown: Boolean)
+
+private class FusionScene(
+    private val props: Props<FusionSceneInput>,
+    private val probe: FusionProbe,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun update(): UiInvalidation = UiInvalidation.Layout
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.measures += 1
+        if (props.value.shown) {
+            context.measureChild(0L, constraints)
+            context.placeChild(0L, Point(0.0, 0.0))
+        } else
+            context.skipChild(0L, hidden = true)
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(260.0, 180.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val serial = props.value.serial
+        context.draw { paint -> paint.canvas.clear(Color(1.0, 0.0, 0.0)) }
+        context.children()
+        val pixels = MutableArray<Long>(2L) { _ -> -1L }
+        context
+            .draw { paint ->
+                @Unsafe {
+                    paint
+                        .canvas
+                        .withSkiaCanvas { native ->
+                            @Unsafe {
+                                pixels[0L] = readNativePixel(native, 85.0, 70.0)
+                                pixels[1L] = readNativePixel(native, 35.0, 70.0)
+                            }
+                        }
+                }
+            }
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) {
+                    probe.submitted = serial
+                    probe.frames += 1
+                    probe.bridge = pixels[0L]
+                    probe.face = pixels[1L]
+                }
+            }
+    }
+}
+
+private class FusionCell(private val record: FusionRecord, scope: ComponentScope) :
+    Element<Unit>(scope) {
+    public override fun onMount() {
+        record.mounts += 1
+        record.area = Some(scope.createArea())
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val size = context.size
+        context.place(record.area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context
+            .draw { paint ->
+                paint
+                    .canvas
+                    .drawRect(
+                        Rect(size.width * 0.5, size.height * 0.5, 3.0, 3.0),
+                        Paint(Color(0.0, 0.0, 1.0))
+                    )
+            }
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+    }
+}

@@ -33,3 +33,13 @@ macOS arm64 release：格式化与 check 通过；style 的 27 个测试全部�
 新增 SurfaceRole 与 ThemeTokens.glassSurfaces，组件传递实际用途；Frame 公开 surfaceRole。局部清除恢复普通填充，主题偏好关闭／恢复策略；Popover／Modal／Toast 的呈现组继承下层。
 
 macOS arm64 release：格式与生产／测试 check 通过；四套主题 52 个测试、组件 282 个测试通过。原窗口测量用例在被遮挡时无提交帧而超时，改为与其余绘图窗口测试一致的置顶后通过，未放宽测量或帧数断言。公开 API 文档无警告生成，GlassSurfaces.get 与 FrameBuilder.surfaceRole 可检索。额外的 Popover 焦点会话测试启用了玻璃；本轮在初始窗口等待键盘焦点（phase 0）时超时，尚未进入弹层操作，后续 Gallery／交互验收继续闭合此项。
+
+### 液态融合的底层前置
+
+按独立分支流程补齐 shader alpha 背景遮罩，见已合并的 [PR #269](https://github.com/scoop-lang/scoop/pull/269)。Canvas.drawBackdrop(bounds, filter, mask) 只影响单次背景绘制；输入几何不随任意 shader 改写。graphics 的 88 个 Raster／Metal 等测试通过。本地 main 已更新至 d18a01f3e，合回工作分支后已重建 graphics 原生代码及全部受影响的开发 sysroot 预编译库。本次没有编译器源码变更，继续使用同一套配套编译命令。
+
+### 3. 液态融合与形变
+
+新增 GlassEffectPainter 与 glassEffectContainer／glassEffect。多个圆角轮廓沿共享距离场平滑融合，一次处理背景，并用相同轮廓产生折射和高光。稳定 key 保留独立内容；Surface Animatable 的同一进度插值位置、尺寸和四角，测量、绘制及命中同步。连接区域不创建输入节点；实体回退与透明材质共用几何。单表面与融合表面共用光学程序片段，并修正超过半边长度的不对称圆角判断。
+
+macOS arm64 release：格式、生产／测试 check 与 API 文档生成通过；style 30 个测试、组件 284 个测试全部通过。新公开消费者真实窗口测试通过融合像素、整组 50% 透明度、动画中布局／圆角命中、稳定 key 重排、减少透明度与动画、隐藏／移除和资源关闭；稳定区间的 UI 更新、测量、提交帧、原生显示回调及 GPU 呈现计数不再增长，原生帧需求关闭。Raster／Metal 的 2 倍 DPI 检查覆盖平滑连接／分离、重叠 alpha、清晰前景、缓存失败及录制寿命。开发 sysroot 已更新，painter 的两个 paint 重载与容器 item API 可检索。

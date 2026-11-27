@@ -1,0 +1,75 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.ui.SceneContext
+
+/** Draws one continuous glass surface below independently laid out foreground content. */
+public class GlassEffectPainter public constructor() : Closeable {
+    private val owner = currentThreadId()
+    private var closed = false
+    private val cache = GlassEffectCache()
+    public val isClosed: Boolean get() = closed
+
+    public fun paint(
+        canvas: Canvas,
+        outlines: Array<RoundedOutline>,
+        material: GlassMaterial,
+        blendRadius: Double = 24.0
+    ) {
+        draw(canvas, outlines, Some(material), Color.White, blendRadius)
+    }
+    /** Uses the same contour without sampling a backdrop. */
+    public fun paint(
+        canvas: Canvas,
+        outlines: Array<RoundedOutline>,
+        fill: Color,
+        blendRadius: Double = 24.0
+    ) {
+        draw(canvas, outlines, None, fill, blendRadius)
+    }
+    public fun scene(
+        context: SceneContext,
+        outlines: Array<RoundedOutline>,
+        material: GlassMaterial,
+        blendRadius: Double = 24.0
+    ) {
+        context.draw { paint -> this.paint(paint.canvas, outlines, material, blendRadius) }
+    }
+    public fun scene(
+        context: SceneContext,
+        outlines: Array<RoundedOutline>,
+        fill: Color,
+        blendRadius: Double = 24.0
+    ) {
+        context.draw { paint -> this.paint(paint.canvas, outlines, fill, blendRadius) }
+    }
+    private fun draw(
+        canvas: Canvas,
+        outlines: Array<RoundedOutline>,
+        material: GlassMaterial?,
+        fill: Color,
+        blendRadius: Double
+    ) {
+        checkThread()
+        if (closed) throw IllegalStateException(Some("glass effect painter is closed"))
+        when (cache.update(outlines, material, fill, blendRadius, canvas.pixelTransform)) {
+            case Some(val value) ->
+                when (value.filter) {
+                    case Some(val filter) -> canvas.drawBackdrop(value.bounds, filter, value.mask)
+                    case None -> canvas.drawRect(value.bounds, shader = Some(value.mask))
+                }
+            case None -> {}
+        }
+    }
+    private fun checkThread() {
+        if (owner != currentThreadId())
+            throw IllegalStateException(Some("glass effect painter requires its owner thread"))
+    }
+    public override fun close() {
+        checkThread()
+        if (closed) return
+        closed = true
+        cache.close()
+    }
+}

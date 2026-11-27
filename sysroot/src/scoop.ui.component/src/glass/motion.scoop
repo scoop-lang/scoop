@@ -1,0 +1,81 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+
+/** One progress value keeps all geometry and foreground layout on the same frame sample. */
+internal class GlassShapeMotion(private val progress: Animatable<Double>, initial: RoundedOutline) :
+    Closeable {
+    private var origin = initial.normalized()
+    private var target = origin
+    fun retarget(outline: RoundedOutline, animation: AnimationSpec?) {
+        val next = outline.normalized()
+        if (next != target) {
+            origin = sample()
+            target = next
+            progress.snapTo(0.0)
+        }
+        changeProgress(progress, 1.0, animation)
+    }
+    fun sample(): RoundedOutline {
+        val amount = upperBound(lowerBound(progress.value, 0.0), 1.0)
+        val from = origin.bounds
+        val to = target.bounds
+        return RoundedOutline(
+            Rect(
+                glassLerp(from.x, to.x, amount), glassLerp(from.y, to.y, amount),
+                glassLerp(from.width, to.width, amount), glassLerp(from.height, to.height, amount)
+            ),
+            CornerRadii(
+                glassLerp(origin.radii.topLeft, target.radii.topLeft, amount),
+                glassLerp(origin.radii.topRight, target.radii.topRight, amount),
+                glassLerp(origin.radii.bottomRight, target.radii.bottomRight, amount),
+                glassLerp(origin.radii.bottomLeft, target.radii.bottomLeft, amount)
+            )
+        )
+            .normalized()
+    }
+    public override fun close() {
+        progress.close()
+    }
+}
+
+private fun glassLerp(from: Double, to: Double, amount: Double): Double = from *
+    (1.0 - amount) +
+    to *
+    amount
+
+private fun glassLerp(from: Size, to: Size, amount: Double): Size = Size(
+    glassLerp(from.width, to.width, amount),
+    glassLerp(from.height, to.height, amount)
+)
+
+internal class GlassEffectMotions : Closeable {
+    private var values = HashMap<ViewKey, GlassShapeMotion>()
+    fun sample(key: ViewKey): RoundedOutline = values[key]!!.sample()
+    fun update(scope: ComponentScope, items: Array<GlassEffectItem>, animation: AnimationSpec?) {
+        val next = HashMap<ViewKey, GlassShapeMotion>()
+        for (item in items) {
+            val outline = RoundedOutline(item.bounds, item.corners)
+            val motion = when (values[item.key]) {
+                case Some(val existing) -> {
+                    existing.retarget(outline, animation)
+                    existing
+                }
+
+                case None -> GlassShapeMotion(scope.animation(1.0), outline)
+            }
+            next[item.key] = motion
+        }
+        for (entry in values.entries)
+            if (!next.containsKey(entry.key)) entry.value.close()
+        values = next
+    }
+    public override fun close() {
+        for (entry in values.entries)
+            entry.value.close()
+        values.clear()
+    }
+}

@@ -119,3 +119,11 @@ StylePainter 的一个 scene／paint 回调结束前，不能重入同一 painte
 StylePainter 使用同一归一化 RoundedOutline 处理四个物理椭圆角，先对下层作 Gaussian blur，再按边缘法线偏移采样，调整饱和度、合成 tint，并绘制定向边缘反光。refraction 或 edgeWidth 为零时不位移；blurSigma 为零时不建立 blur 节点。反光保持采样 alpha，染色按普通预乘 SrcOver 合成；随后绘制的 background、前景、子项与边框不经过背景滤镜。材质本身不建立内容裁剪，clipContent 保持原合同。
 
 `style.glass` 与显式借用的 StylePainter backdrop 参数不能同时提供，冲突在绘制前报告参数错误。None 清除材质及其当前滤镜缓存。材质由 StylePainter 内部的一个当前参数缓存管理：参数与轮廓不变时复用程序和滤镜；变化时先完整构造新结果，再替换并关闭旧滤镜。程序、滤镜与轮廓随 painter 关闭，不缓存背景像素。错误参数、空尺寸、重入、跨线程和关闭后使用沿既有样式与 graphics 边界处理。静态材质不请求后续帧。
+
+## 7. 连续融合的玻璃轮廓
+
+`GlassEffectPainter` 为 owner 线程的 Closeable 资源，提供 `paint(canvas, outlines: Array<RoundedOutline>, material: GlassMaterial, blendRadius: Double = 24.0)` 及对应 `scene(context, outlines, material, blendRadius)`，只绘制背景。调用者随后绘制清晰前景。另有相同参数位置的 `fill: Color` 重载，以实体色绘制同一融合轮廓，不读取下层，供减少透明度等实际适配使用。
+
+每个轮廓按已有圆角规则归一化。blendRadius 为有限非负的局部逻辑长度，0 表示普通并集；大于 0 时，按声明顺序对轮廓的带符号距离使用局部平滑并集，邻近轮廓形成连续的连接、法向和折射边缘。统一遮罩内只处理一次下层，重叠区域不重复增加染色或 alpha。距离场由当前几何和 SkSL 计算，经 Canvas.drawBackdrop 的 shader 遮罩入口合成；不读回背景、不在 CPU 上把轮廓采样为像素或 Path。边缘覆盖率按实际像素变换换算，DPI 仅应用一次。
+
+空集合或空轮廓不绘制。painter 只保留当前轮廓数量的程序及当前参数的滤镜／遮罩，参数不变时复用，替换和关闭时释放旧资源。光学和实体填充共用几何，实体模式不创建背景滤镜。静态 painter 没有帧需求，调用返回后不留下 clip 或图层状态，也不改写 UI 输入几何。

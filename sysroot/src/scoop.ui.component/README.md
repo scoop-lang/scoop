@@ -232,6 +232,24 @@ Button／Badge、Toggle 和 Tabs 的默认状态配色在高对比度下保留�
 
 自定义工具栏可用 `frame(content) { surface = Some(SurfaceKind.Elevated); surfaceRole = SurfaceRole.Toolbar }`。surfaceRole 与 SurfaceKind 独立；未启用 surface 的 Frame 仍是普通布局包装。低层 `styled(content) { style { glass = Some(material) } }` 可直接使用材质；原生滤镜归 StylePainter 管理，不需要由应用逐项关闭。材质参数与完整示例见 [style README](../scoop.ui.style/README.md)。
 
+`glassEffectContainer(material) { ... }` 显式建立融合组。每个 item 提供稳定 key、物理局部 Rect 和普通 View；邻近轮廓形成连续的液态连接，内容、输入和语义仍属于各自子项。宽高默认包住目标表面的右／下范围，也可显式设置；blendRadius 默认 24，0 关闭平滑连接。声明顺序是绘制顺序，重排保留相同 key 的实例。
+
+```scoop
+glassEffectContainer(material) {
+    width = Some(240.0)
+    height = Some(64.0)
+    blendRadius = 28.0
+    item(ViewKey.Text("back"), Rect(0.0, 0.0, 64.0, 56.0), backAction) {
+        corners = CornerRadii.all(28.0)
+    }
+    item(ViewKey.Text("search"), Rect(searchX, 0.0, 156.0, 56.0), searchAction) {
+        corners = CornerRadii.all(28.0)
+    }
+}
+```
+
+更新同一 key 的位置、尺寸或四角会从当前显示形状开始过渡，默认 Tween 300ms，可设置 animation 或用 None 立即更新。布局与材质使用同一帧采样，连接区域本身不可点击。前景按各自圆角裁剪；给带外部焦点环的内容预留内边距，例如 `frame(action) { padding = Insets.all(4.0) }`。opacity 统一作用于背景处理和前景，保持实时下层。高对比度／减少透明度使用主题 card 的实体底色；减少动画立即收束形变。静止、隐藏及卸载不保留帧需求。独立描述可用 glassEffect 工厂加 add，或直接构造 GlassEffectContainerProps 挂载 GlassEffectContainer。
+
 Row／Column 使用 Flex 的主轴分配和交叉轴对齐。Flex 可以在本次测量选择方向、间距和内缩。下面的工具栏随自己的父容器宽度切换方向。只在宽布局显示的子项保留挂载，窄布局会跳过它及相邻间距。
 
 ```kotlin

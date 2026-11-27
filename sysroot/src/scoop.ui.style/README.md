@@ -71,6 +71,8 @@ val theme = materialTheme {
 
 `SurfaceRole` 的 Content／Control／Input／Navigation／Toolbar／Popover／Dialog／Notification 与 SurfaceKind 的颜色和形状分类独立。`SurfaceVisual(..., role = SurfaceRole.Toolbar)` 把用途传给主题，第三方组件可用 `theme.tokens.glassSurfaces.get(role)` 读取相同策略。GlassSurfaces 支持 glassSurfaces 工厂、copy 与嵌套配置；不同用途之间不自动继承。主题先解析局部 glass 覆盖再生成默认填充，`glass(None)` 同时恢复原默认底色；显式 background 覆盖仍最后生效。高对比度与减少透明度偏好关闭主题材质，恢复偏好后从基础主题恢复原策略。
 
+`GlassEffectPainter.scene(context, outlines, material, blendRadius)` 把多个物理 RoundedOutline 绘成连续的共享材质；paint 提供相同 Canvas 入口。blendRadius 默认为 24，0 保留普通并集；表面靠近时形成平滑连接，重叠部分只处理一次下层。遮罩、折射和高光沿同一融合轮廓计算，子内容随后清晰绘制。传入 Color 替代 material 的重载以相同形状绘制实体底色，适用于减少透明度。painter 是需注册到 scope 的 Closeable，只保留当前形状和光学资源，不改变输入几何。组件层的 [GlassEffectContainer](../scoop.ui.component/README.md) 同时处理 keyed 内容、形变动画、布局、裁剪与主题偏好。
+
 `styleOverride { ... }` 只替换明确指定的属性：StyleValue.Inherit 继承本轮输入，StyleValue.Set(None) 可以清除可空背景或边框；`border(None)` 等同名设置方法把同一槽写为 Set(value)。赋入 StyleValue.Inherit 恢复继承。`existing.copy { ... }` 保留未改的配置，发布后修改 builder 不改变结果。字体、段落和混排仍使用 graphics.text 的 TextStyle／SpanStyle／ParagraphStyle。
 
 没有独立效果时钟，也没有子树像素缓存。真实帧每次绘制当帧内容，仅复用当前滤镜与几何。参数动画在 Element 的 update／输入中设置 Surface Animatable，在 paint 中读取采样值；完成、暂停、取消或隐藏后按 Surface 规则停帧。

@@ -65,3 +65,7 @@ when = { os = "windows" }
 [[test.sources]]
 path = "tests/carousel_clock.scoop"
 when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/glass_effect.scoop"
+when = { os = "windows" }

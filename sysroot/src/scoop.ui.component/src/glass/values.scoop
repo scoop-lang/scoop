@@ -1,0 +1,109 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** A keyed, independently interactive foreground on one physical glass outline. */
+public class GlassEffectItem public constructor(
+    public val key: ViewKey,
+    public val bounds: Rect,
+    public val content: View,
+    public val corners: CornerRadii = CornerRadii.all(20.0)
+) {
+    init {
+        requireComponent(key != ViewKey.Position, "glass effect requires an explicit key")
+        RoundedOutline(bounds, corners).normalized()
+    }
+}
+
+public class GlassEffectContainerProps public constructor(
+    public val material: GlassMaterial,
+    public val items: Array<GlassEffectItem> = [],
+    public val width: Double? = None,
+    public val height: Double? = None,
+    public val blendRadius: Double = 24.0,
+    public val opacity: Double = 1.0,
+    public val animation: AnimationSpec? = Some(AnimationSpec.Tween(Duration.milliseconds(300L))),
+    public val theme: ThemeSource? = None
+) {
+    init {
+        when (width) {
+            case Some(val value) -> nonnegative(value, "invalid glass container width")
+            case None -> {}
+        }
+        when (height) {
+            case Some(val value) -> nonnegative(value, "invalid glass container height")
+            case None -> {}
+        }
+        nonnegative(blendRadius, "invalid glass blend radius")
+        requireComponent(
+            opacity.isFinite() && opacity >= 0.0 && opacity <= 1.0,
+            "glass opacity must be between zero and one"
+        )
+        val keys = HashMap<ViewKey, Boolean>()
+        for (item in items) {
+            requireComponent(!keys.containsKey(item.key), "duplicate glass effect key")
+            keys[item.key] = true
+        }
+    }
+}
+
+public class GlassEffectBuilder internal constructor() {
+    public var corners: CornerRadii = CornerRadii.all(20.0)
+}
+
+/** Geometry is in container coordinates and does not depend on declaration order or RTL. */
+public fun glassEffect(
+    key: ViewKey,
+    bounds: Rect,
+    content: View,
+    configure: GlassEffectBuilder.() -> Unit = {}
+): GlassEffectItem {
+    val builder = GlassEffectBuilder()
+    builder.configure()
+    return GlassEffectItem(key, bounds, content, builder.corners)
+}
+
+public class GlassEffectContainerBuilder internal constructor() {
+    private val items = ArrayList<GlassEffectItem>()
+    public var width: Double? = None
+    public var height: Double? = None
+    public var blendRadius: Double = 24.0
+    public var opacity: Double = 1.0
+    public var animation: AnimationSpec? = Some(AnimationSpec.Tween(Duration.milliseconds(300L)))
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+    public fun item(
+        key: ViewKey,
+        bounds: Rect,
+        content: View,
+        configure: GlassEffectBuilder.() -> Unit = {}
+    ) {
+        add(glassEffect(key, bounds, content, configure))
+    }
+    public fun add(item: GlassEffectItem) {
+        items.add(item)
+    }
+    internal fun snapshot(material: GlassMaterial): GlassEffectContainerProps =
+        GlassEffectContainerProps(
+            material, items.toArray(), width, height, blendRadius,
+            opacity, animation, theme
+        )
+}
+
+/** Fuses neighboring surfaces once, then draws each keyed foreground at its animated bounds. */
+public fun glassEffectContainer(
+    material: GlassMaterial,
+    configure: GlassEffectContainerBuilder.() -> Unit = {}
+): View {
+    val builder = GlassEffectContainerBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(material),
+        { current, mount -> GlassEffectContainer(current, scope = mount) }, key = builder.key
+    )
+}
