@@ -1,0 +1,109 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+
+/** Retains only the current optics, never the pixels below the material. */
+internal class GlassFilterCache : Closeable {
+    private var material: GlassMaterial? = None
+    private var outline: RoundedOutline? = None
+    private var program: ShaderProgram? = None
+    private var current: ImageFilter? = None
+
+    fun update(value: GlassMaterial?, shape: RoundedOutline): ImageFilter? {
+        val next = when (value) {
+            case Some(val selected) -> selected
+
+            case None -> {
+                clear()
+                return None
+            }
+        }
+        for (length in [next.blurSigma, next.refraction, next.edgeWidth, next.saturation])
+            themeLength(length)
+        val normalized = shape.normalized()
+        when (material) {
+            case Some(val previous) ->
+                if (outline == Some(normalized) && sameGlass(previous, next)) return current
+            case None -> {}
+        }
+        if (normalized.bounds.width == 0.0 || normalized.bounds.height == 0.0) {
+            clear()
+            return None
+        }
+        val shader = when (program) {
+            case Some(val existing) -> existing
+
+            case None -> {
+                val created = ShaderProgram.compile(glassShaderSource)
+                program = Some(created)
+                created
+            }
+        }
+        val rect = normalized.bounds
+        val radii = normalized.radii
+        val lens = ImageFilter
+            .runtimeShader(shader, "background", next.refraction) {
+                setFloats(
+                    "bounds",
+                    [
+                        rect.x.toFloat(),
+                        rect.y.toFloat(),
+                        rect.width.toFloat(),
+                        rect.height.toFloat()
+                    ]
+                )
+                setFloats(
+                    "topRadii",
+                    [
+                        radii.topLeft.width.toFloat(),
+                        radii.topLeft.height.toFloat(),
+                        radii.topRight.width.toFloat(),
+                        radii.topRight.height.toFloat()
+                    ]
+                )
+                setFloats(
+                    "bottomRadii",
+                    [
+                        radii.bottomLeft.width.toFloat(),
+                        radii.bottomLeft.height.toFloat(),
+                        radii.bottomRight.width.toFloat(),
+                        radii.bottomRight.height.toFloat()
+                    ]
+                )
+                setFloat("refraction", next.refraction.toFloat())
+                setFloat("edgeWidth", next.edgeWidth.toFloat())
+                setFloat("saturation", next.saturation.toFloat())
+                setColor("tint", next.tint)
+                setColor("highlight", next.highlight)
+            }
+        val filter = if (next.blurSigma == 0.0)
+            lens
+        else
+            try {
+                ImageFilter.blur(next.blurSigma, next.blurSigma).use { blur -> blur.then(lens) }
+            } finally {
+                lens.close()
+            }
+        val previous = current
+        current = Some(filter)
+        material = Some(next)
+        outline = Some(normalized)
+        previous?.close()
+        return current
+    }
+
+    fun clear() {
+        val previous = current
+        current = None
+        material = None
+        outline = None
+        previous?.close()
+    }
+
+    public override fun close() {
+        val previous = program
+        program = None
+        val failure = cleanupStyle(None) { clear() }
+        throwStyle(cleanupStyle(failure) { previous?.close() })
+    }
+}

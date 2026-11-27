@@ -91,3 +91,7 @@ when = { os = "linux", env = "gnu" }
 [[test.sources]]
 path = "tests/backdrop.scoop"
 when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/glass.scoop"
+when = { os = ["linux", "windows"] }

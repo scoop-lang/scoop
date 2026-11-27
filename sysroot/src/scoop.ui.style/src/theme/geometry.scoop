@@ -23,52 +23,44 @@ internal fun themeBounds(bounds: Rect) {
     )
 }
 
-internal fun themeMin(a: Double, b: Double): Double =
-    if (a < b)
-        a
-    else
-        b
+internal fun themeMin(a: Double, b: Double): Double = if (a < b) a else b
 
-internal fun themeMax(a: Double, b: Double): Double =
-    if (a > b)
-        a
-    else
-        b
+internal fun themeMax(a: Double, b: Double): Double = if (a > b) a else b
 
 internal fun themeUnit(value: Double): Double {
     requireStyle(value.isFinite(), "theme progress must be finite")
     return themeMin(1.0, themeMax(0.0, value))
 }
 
-internal fun themeProgress(value: Double?, selected: Boolean): Double =
-    themeUnit(
-        value ?:
-            if (selected)
-                1.0
-            else
-                0.0
-    )
+internal fun themeProgress(value: Double?, selected: Boolean): Double = themeUnit(
+    value ?: if (selected) 1.0 else 0.0
+)
 
-internal fun insetTheme(bounds: Rect, insets: Insets): Rect =
-    insetOutline(RoundedOutline(bounds), insets).bounds
+internal fun insetTheme(bounds: Rect, insets: Insets): Rect = insetOutline(
+    RoundedOutline(bounds),
+    insets
+)
+    .bounds
 
-internal fun insetOutline(outline: RoundedOutline, insets: Insets): RoundedOutline =
-    outline.inset(insets.left, insets.top, insets.right, insets.bottom)
+internal fun insetOutline(outline: RoundedOutline, insets: Insets): RoundedOutline = outline
+    .inset(insets.left, insets.top, insets.right, insets.bottom)
 
-internal fun roundTheme(bounds: Rect, radius: Double): RoundedOutline =
-    RoundedOutline(bounds, CornerRadii.all(radius)).normalized()
+internal fun roundTheme(bounds: Rect, radius: Double): RoundedOutline = RoundedOutline(
+    bounds,
+    CornerRadii.all(radius)
+)
+    .normalized()
 
 internal fun physicalEdges(
     style: Style,
     direction: LayoutDirection = LayoutDirection.Ltr
-): BorderEdges =
-    when (style.border) {
-        case Some(val value) -> value.resolve(direction)
-        case None -> BorderEdges()
-    }
+): BorderEdges = when (style.border) {
+    case Some(val value) -> value.resolve(direction)
+    case None -> BorderEdges()
+}
 
-internal fun themeBorder(insets: Insets, color: Color): Border =
-    Border.Physical(
+internal fun themeBorder(insets: Insets, color: Color): Border = Border
+    .Physical(
         BorderEdges(
             BorderEdge(insets.left, color),
             BorderEdge(insets.top, color),
@@ -77,18 +69,18 @@ internal fun themeBorder(insets: Insets, color: Color): Border =
         )
     )
 
-internal fun physicalStyle(style: Style, direction: LayoutDirection): Style =
-    Style(
-        style.background,
-        when (style.border) {
-            case Some(val value) -> Some(Border.Physical(value.resolve(direction)))
-            case None -> None
-        },
-        Corners.Physical(style.corners.resolve(direction)),
-        style.boxShadows,
-        style.contentEffects,
-        style.clipContent
-    )
+internal fun physicalStyle(style: Style, direction: LayoutDirection): Style = Style(
+    style.background,
+    when (style.border) {
+        case Some(val value) -> Some(Border.Physical(value.resolve(direction)))
+        case None -> None
+    },
+    Corners.Physical(style.corners.resolve(direction)),
+    style.boxShadows,
+    style.contentEffects,
+    style.clipContent,
+    style.glass
+)
 
 internal fun squareTheme(bounds: Rect): Rect {
     themeBounds(bounds)
@@ -105,14 +97,9 @@ private fun stateOutline(
     visual: InteractionVisual,
     focus: OutlineStyle,
     validation: OutlineStyle
-): OutlineStyle? =
-    if (visual.invalid)
-        Some(validation)
-    else
-        if (visual.enabled && visual.focusVisible)
-            Some(focus)
-        else
-            None
+): OutlineStyle? = if (visual.invalid)
+    Some(validation)
+else if (visual.enabled && visual.focusVisible) Some(focus) else None
 
 internal fun outlineBorder(
     base: Color,
@@ -140,7 +127,6 @@ internal fun outlineTheme(
     val style = stateOutline(visual, focus, validation) ?: return None
     themeLength(style.outset);
     themeLength(style.width)
-    if (style.width == 0.0)
-        return None
+    if (style.width == 0.0) return None
     return Some(OutlineRing(outline.expanded(style.outset), BorderEdge(style.width, style.color)))
 }

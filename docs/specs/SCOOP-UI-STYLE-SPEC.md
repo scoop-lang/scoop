@@ -31,9 +31,9 @@ StyleOverride.copy(configure: StyleOverrideBuilder.() -> Unit = {}): StyleOverri
 
 Style／StyleOverride 及两个 builder 的构造器仅供库内部使用；Style.withBackground／withBorder 由 copy 配置替换。copy 以原值初始化全部字段，空块保留原配置。内部几何计算仍可直接生成同一种完整值，不另设结果或执行通路。
 
-StyleBuilder 公开六个可写属性：`background: Paint? = None`、`border: Border? = None`、`corners: Corners = Corners.all(0.0)`、`boxShadows: Array<BoxShadow> = []`、`contentEffects: Array<ContentEffect> = []`、`clipContent: Boolean = false`。Style 公开对应只读值。StyleOverrideBuilder 的同名属性分别包装为 `StyleValue<对应类型>`，全部默认 Inherit；StyleOverride 保存对应只读覆盖值。
+StyleBuilder 公开七个可写属性：`background: Paint? = None`、`border: Border? = None`、`corners: Corners = Corners.all(0.0)`、`boxShadows: Array<BoxShadow> = []`、`contentEffects: Array<ContentEffect> = []`、`clipContent: Boolean = false`、`glass: GlassMaterial? = None`。Style 公开对应只读值。StyleOverrideBuilder 的同名属性分别包装为 `StyleValue<对应类型>`，全部默认 Inherit；StyleOverride 保存对应只读覆盖值。
 
-StyleOverrideBuilder 另有与六个属性同名的设置方法，例如 `background(value: Paint?): Unit`、`border(value: Border?): Unit`、`contentEffects(value: Array<ContentEffect>): Unit`，都只把同一个槽写为 Set(value)。显式把该属性赋为 StyleValue.Inherit 恢复继承；`border(None)` 表示清除边框。效果数组整体替换并保持顺序，不把读取未指定覆盖伪装成某个完整默认值。
+StyleOverrideBuilder 另有与七个属性同名的设置方法，例如 `background(value: Paint?): Unit`、`border(value: Border?): Unit`、`contentEffects(value: Array<ContentEffect>): Unit`、`glass(value: GlassMaterial?): Unit`，都只把同一个槽写为 Set(value)。显式把该属性赋为 StyleValue.Inherit 恢复继承；`border(None)` 表示清除边框，`glass(None)` 表示清除材质。效果数组整体替换并保持顺序，不把读取未指定覆盖伪装成某个完整默认值。
 
 发布后修改被捕获的 builder 不改变结果；Array 元素槽及效果描述不可变，可以共享。回调失败直接抛错，不发布部分结果，不创建 painter、滤镜、窗口或资源作用域。数值和 Paint 合法性继续在本规范已有的几何／绘图边界检查，配置入口不重复这些检查。
 
@@ -49,6 +49,7 @@ StyleOverrideBuilder 另有与六个属性同名的设置方法，例如 `backgr
 | boxShadows | 有顺序的 `Array<BoxShadow>`，每项含 offset、sigmaX／sigmaY、color |
 | contentEffects | 有顺序的 `Array<ContentEffect>`，首批为 Blur、DropShadow、Glow |
 | clipContent | 默认 false；开启后把最终内容效果输出裁到外框轮廓，同时限制该作用域内的子输入几何 |
+| glass | 可选、资源无关的玻璃材质，在阴影之后、背景填充之前处理当前下层；轮廓使用同一 corners |
 
 BorderEdge 的 width 缺省为零、color 缺省为透明。Border.Physical 接收 BorderEdges(left, top, right, bottom)；Border.Logical 明确接收 start／top／end／bottom。Border.all(width, color) 是四边相同的便利构造。resolve(LayoutDirection) 返回物理 BorderEdges，其 insets 提供实际四边宽度。Corners.Physical 接收 graphics.CornerRadii；Corners.Logical 使用 topStart／topEnd／bottomEnd／bottomStart 的 Size，all(radius) 构造四角相同的圆形半径。物理与逻辑字段不混用，Style／StyleOverride 只有一份 border 和 corners 配置。
 
@@ -110,3 +111,11 @@ StylePainter 的一个 scene／paint 回调结束前，不能重入同一 painte
 背景毛玻璃与自定义折射使用 [Canvas.drawBackdrop](SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样)。StylePainter.scene／paint 可通过可选 backdrop 参数借用 ImageFilter，在外框阴影之后、背景填充之前按同一圆角轮廓合成。Style 保存可复用的描述，资源由调用方管理。
 
 带整体透明度的玻璃组件可在 SceneContext.withState 中先调用 saveBackdropLayer(opacity)，再使用同一个 StylePainter.scene 绘制背景效果与前景子项。该组继承下层并在退出时插值完整结果，不把下层再次 SrcOver；StylePainter 自己不创建隐式跨层采样或动画。只需在组进入时处理一次下层时，也可使用 saveBackdropLayer 的 backdrop 参数，并在随后呈现清晰内容。两种写法复用 [graphics §2.1](SCOOP-GRAPHICS-EFFECTS-SPEC.md#21-与下层共同合成) 的采样边界。
+
+## 6. 可复用玻璃材质
+
+`glassMaterial(configure: GlassMaterialBuilder.() -> Unit = {}): GlassMaterial` 产生不可变、资源无关的光学描述。GlassMaterial 构造器内部化，提供 `copy(configure)`；builder 发布快照后不再影响已有材质。字段为 `blurSigma: Double = 8.0`、`refraction: Double = 8.0`、`edgeWidth: Double = 16.0`、`saturation: Double = 1.1`、`tint: Color = Color(1.0, 1.0, 1.0, 0.16)`、`highlight: Color = Color(1.0, 1.0, 1.0, 0.36)`。前三个量为局部逻辑长度，有限非负；refraction 表示每轴采样位移的保守上界，edgeWidth 是从外轮廓向内衰减的反光与折射范围。saturation 为有限非负倍率，1 保持原饱和度。颜色遵守 graphics 的 sRGB 合同。
+
+StylePainter 使用同一归一化 RoundedOutline 处理四个物理椭圆角，先对下层作 Gaussian blur，再按边缘法线偏移采样，调整饱和度、合成 tint，并绘制定向边缘反光。refraction 或 edgeWidth 为零时不位移；blurSigma 为零时不建立 blur 节点。反光保持采样 alpha，染色按普通预乘 SrcOver 合成；随后绘制的 background、前景、子项与边框不经过背景滤镜。材质本身不建立内容裁剪，clipContent 保持原合同。
+
+`style.glass` 与显式借用的 StylePainter backdrop 参数不能同时提供，冲突在绘制前报告参数错误。None 清除材质及其当前滤镜缓存。材质由 StylePainter 内部的一个当前参数缓存管理：参数与轮廓不变时复用程序和滤镜；变化时先完整构造新结果，再替换并关闭旧滤镜。程序、滤镜与轮廓随 painter 关闭，不缓存背景像素。错误参数、空尺寸、重入、跨线程和关闭后使用沿既有样式与 graphics 边界处理。静态材质不请求后续帧。

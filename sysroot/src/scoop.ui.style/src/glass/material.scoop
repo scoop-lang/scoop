@@ -1,0 +1,60 @@
+package scoop.ui.style
+
+import scoop.graphics.Color
+
+/** Resource-free optics in local logical units; foreground drawing is not filtered. */
+public class GlassMaterial internal constructor(
+    public val blurSigma: Double = 8.0,
+    public val refraction: Double = 8.0,
+    public val edgeWidth: Double = 16.0,
+    public val saturation: Double = 1.1,
+    public val tint: Color = Color(1.0, 1.0, 1.0, 0.16),
+    public val highlight: Color = Color(1.0, 1.0, 1.0, 0.36)
+) {
+    public fun copy(configure: GlassMaterialBuilder.() -> Unit = {}): GlassMaterial =
+        configureGlassMaterial(this, configure)
+}
+
+/** Publishes immutable optical parameters without allocating a shader or reading a backdrop. */
+public fun glassMaterial(configure: GlassMaterialBuilder.() -> Unit = {}): GlassMaterial =
+    configureGlassMaterial(GlassMaterial(), configure)
+
+internal fun configureGlassMaterial(
+    initial: GlassMaterial,
+    configure: GlassMaterialBuilder.() -> Unit
+): GlassMaterial {
+    val builder = GlassMaterialBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class GlassMaterialBuilder internal constructor(initial: GlassMaterial) {
+    public var blurSigma: Double = initial.blurSigma
+    public var refraction: Double = initial.refraction
+    public var edgeWidth: Double = initial.edgeWidth
+    public var saturation: Double = initial.saturation
+    public var tint: Color = initial.tint
+    public var highlight: Color = initial.highlight
+
+    internal fun snapshot(): GlassMaterial = GlassMaterial(
+        blurSigma,
+        refraction,
+        edgeWidth,
+        saturation,
+        tint,
+        highlight
+    )
+}
+
+internal fun sameGlass(a: GlassMaterial, b: GlassMaterial): Boolean = a.blurSigma ==
+    b.blurSigma &&
+    a.refraction ==
+    b.refraction &&
+    a.edgeWidth ==
+    b.edgeWidth &&
+    a.saturation ==
+    b.saturation &&
+    a.tint ==
+    b.tint &&
+    a.highlight ==
+    b.highlight

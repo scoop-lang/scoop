@@ -35,6 +35,26 @@ sigma 是 Gaussian 标准差，sigma 和 offset 使用局部逻辑单位。根 D
 
 完全自绘 Element 在 onMount 中保存 `scope.resource { StylePainter() }`，在 scene 中调用 `painter.scene(context, style) { content -> ... }`；回调使用 SceneContext，可调用 children 或提交 draw 块。也提供显式 Rect，以及独立的 paint(Canvas, Rect, Style, direction = LayoutDirection.Ltr, content) 入口，供离屏使用。原生滤镜／轮廓由 painter 缓存并及时替换关闭，组件卸载或窗口关闭由 scope 清理。回调内不能重入或提前关闭同一 painter，另一个 painter 可以正常嵌套。
 
+玻璃可直接用资源无关的材质描述，多个组件共享同一个值，由各自的 StylePainter 缓存当前滤镜：
+
+```scoop
+val glass = glassMaterial {
+    blurSigma = 8.0
+    refraction = 8.0
+    edgeWidth = 16.0
+    saturation = 1.1
+    tint = Color.White.withAlpha(0.16)
+    highlight = Color.White.withAlpha(0.36)
+}
+val panel = style {
+    this.glass = Some(glass)
+    corners = Corners.all(20.0)
+}
+val frost = glass.copy { refraction = 0.0 }
+```
+
+材质先模糊当前下层，再沿圆角边缘折射、调整饱和度、染色并加反光，内容保持清晰。长度使用局部逻辑单位；`refraction` 也是声明的每轴最大采样位移，`edgeWidth` 控制向内的光学边缘宽度。颜色遵守预乘 alpha 合成，反光保留背景 alpha。`styleOverride { glass(None) }` 显式清除继承材质；空 override 继续继承。Style.glass 与显式 backdrop 滤镜不能同时提供。描述本身不需要 close，不持有背景像素；静止材质不会请求后续帧。[玻璃示例](../scoop.ui.component/examples/glass/README.md)展示独立模糊、折射与整组透明度。
+
 `styleOverride { ... }` 只替换明确指定的属性：StyleValue.Inherit 继承本轮输入，StyleValue.Set(None) 可以清除可空背景或边框；`border(None)` 等同名设置方法把同一槽写为 Set(value)。赋入 StyleValue.Inherit 恢复继承。`existing.copy { ... }` 保留未改的配置，发布后修改 builder 不改变结果。字体、段落和混排仍使用 graphics.text 的 TextStyle／SpanStyle／ParagraphStyle。
 
 没有独立效果时钟，也没有子树像素缓存。真实帧每次绘制当帧内容，仅复用当前滤镜与几何。参数动画在 Element 的 update／输入中设置 Surface Animatable，在 paint 中读取采样值；完成、暂停、取消或隐藏后按 Surface 规则停帧。

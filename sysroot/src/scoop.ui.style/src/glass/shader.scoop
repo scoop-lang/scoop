@@ -1,0 +1,45 @@
+package scoop.ui.style
+
+internal val glassShaderSource = """
+uniform shader background;
+uniform float4 bounds;
+uniform float4 topRadii;
+uniform float4 bottomRadii;
+uniform float refraction;
+uniform float edgeWidth;
+uniform float saturation;
+layout(color) uniform half4 tint;
+layout(color) uniform half4 highlight;
+
+float distanceToGlass(float2 p) {
+    float2 center = bounds.xy + bounds.zw * 0.5;
+    float2 offset = p - center;
+    float2 radius = offset.y < 0
+        ? (offset.x < 0 ? topRadii.xy : topRadii.zw)
+        : (offset.x < 0 ? bottomRadii.xy : bottomRadii.zw);
+    float2 box = abs(offset) - bounds.zw * 0.5;
+    float2 corner = box + radius;
+    if (radius.x > 0 && radius.y > 0 && corner.x > 0 && corner.y > 0) {
+        float k0 = length(corner / radius);
+        float k1 = length(corner / (radius * radius));
+        return k0 * (k0 - 1) / max(k1, 0.0001);
+    }
+    return length(max(box, 0)) + min(max(box.x, box.y), 0);
+}
+
+half4 main(float2 p) {
+    float d = distanceToGlass(p);
+    float rim = edgeWidth > 0 ? clamp(1 + d / edgeWidth, 0, 1) : 0;
+    float2 gradient = float2(
+        distanceToGlass(p + float2(0.25, 0)) - distanceToGlass(p - float2(0.25, 0)),
+        distanceToGlass(p + float2(0, 0.25)) - distanceToGlass(p - float2(0, 0.25)));
+    float2 normal = gradient / max(length(gradient), 0.0001);
+    half4 sampleColor = background.eval(p - normal * (refraction * rim * rim));
+    half luminance = dot(sampleColor.rgb, half3(0.2126, 0.7152, 0.0722));
+    sampleColor.rgb = clamp(mix(half3(luminance), sampleColor.rgb, saturation), 0, sampleColor.a);
+    sampleColor = sampleColor * (1 - tint.a) + half4(tint.rgb * tint.a, tint.a);
+    float glint = rim * rim * max(0, dot(normal, float2(-0.6, -0.8))) * highlight.a;
+    sampleColor.rgb = mix(sampleColor.rgb, highlight.rgb * sampleColor.a, glint);
+    return sampleColor;
+}
+"""

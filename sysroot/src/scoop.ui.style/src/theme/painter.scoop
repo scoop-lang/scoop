@@ -38,9 +38,13 @@ internal class ShapeThemePainter(
         layer: SurfaceLayer
     ) {
         draw(canvas) { local ->
-            if (layer == SurfaceLayer.All && geometry.opacity < 1.0)
-                local.saveLayer(geometry.opacity)
             val style = geometry.style
+            if (layer == SurfaceLayer.All && geometry.opacity < 1.0) {
+                when (style.glass) {
+                    case Some(_) -> local.saveBackdropLayer(geometry.opacity)
+                    case None -> local.saveLayer(geometry.opacity)
+                }
+            }
             if (layer != SurfaceLayer.Foreground)
                 background
                     .paint(
@@ -49,7 +53,8 @@ internal class ShapeThemePainter(
                         Style(
                             background = style.background,
                             corners = Corners.Physical(geometry.outline.radii),
-                            boxShadows = style.boxShadows
+                            boxShadows = style.boxShadows,
+                            glass = style.glass
                         )
                     ) { _ -> }
             if (layer != SurfaceLayer.Background) {

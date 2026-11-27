@@ -9,7 +9,8 @@ private struct DecorationDrawing(
     val paths: DecorationPaths?,
     val edges: BorderEdges,
     val shadows: Array<ImageFilter>,
-    val filter: ImageFilter?
+    val filter: ImageFilter?,
+    val backdrop: ImageFilter?
 )
 
 /** Owns just the current filters and outlines; register once in the using element's scope. */
@@ -20,6 +21,7 @@ public class StylePainter public constructor() : Closeable {
     private val contentFilters = ContentFilterCache()
     private val boxFilters = BoxFilterCache()
     private val geometry = DecorationGeometry()
+    private val glassFilters = GlassFilterCache()
     public val isClosed: Boolean get() = closed
 
     private fun checkOpen() {
@@ -64,7 +66,7 @@ public class StylePainter public constructor() : Closeable {
         painting = true
         try {
             val drawing = prepare(bounds, style, context.layoutDirection, backdrop)
-            context.draw { paint -> background(paint.canvas, bounds, style, drawing, backdrop) }
+            context.draw { paint -> background(paint.canvas, bounds, style, drawing) }
             context
                 .withState { local ->
                     if (style.clipContent) local.clipPath(drawing.paths!!.outline)
@@ -106,7 +108,7 @@ public class StylePainter public constructor() : Closeable {
             val drawing = prepare(bounds, style, direction, backdrop)
             canvas
                 .withState { local ->
-                    background(local, bounds, style, drawing, backdrop)
+                    background(local, bounds, style, drawing)
                     local.save()
                     if (style.clipContent) local.clipPath(drawing.paths!!.outline)
                     when (drawing.filter) {
@@ -132,6 +134,14 @@ public class StylePainter public constructor() : Closeable {
         direction: LayoutDirection,
         backdrop: ImageFilter?
     ): DecorationDrawing {
+        val conflict = when ((style.glass, backdrop)) {
+            case(Some(_), Some(_)) -> true
+            else -> false
+        }
+        requireStyle(
+            !conflict,
+            "glass and an explicit backdrop cannot be combined"
+        )
         when (style.background) {
             case Some(val value) ->
                 requireStyle(
@@ -140,28 +150,36 @@ public class StylePainter public constructor() : Closeable {
                 )
             case None -> {}
         }
+        val material = glassFilters
+            .update(
+                style.glass, RoundedOutline(bounds, style.corners.resolve(direction))
+            )
+        val effect = when (backdrop) {
+            case Some(val value) -> Some(value)
+            case None -> material
+        }
         return DecorationDrawing(
             geometry
                 .update(
                     bounds,
                     style,
                     direction,
-                    when (backdrop) {
+                    when (effect) {
                         case Some(_) -> true;
                         case None -> false
                     }
                 ),
             physicalEdges(style, direction),
             boxFilters.update(style.boxShadows),
-            contentFilters.update(style.contentEffects)
+            contentFilters.update(style.contentEffects),
+            effect
         )
     }
     private fun background(
         canvas: Canvas,
         bounds: Rect,
         style: Style,
-        drawing: DecorationDrawing,
-        backdrop: ImageFilter?
+        drawing: DecorationDrawing
     ) {
         if (bounds.width == 0.0 || bounds.height == 0.0) return
         for (shadow in drawing.shadows)
@@ -171,7 +189,7 @@ public class StylePainter public constructor() : Closeable {
                     mask.drawPath(drawing.paths!!.outline, Paint(Color.White))
                     mask.restore()
                 }
-        when (backdrop) {
+        when (drawing.backdrop) {
             case Some(val filter) -> canvas.drawBackdrop(drawing.paths!!.outline, filter)
             case None -> {}
         }
@@ -215,6 +233,7 @@ public class StylePainter public constructor() : Closeable {
         var failure = cleanupStyle(None) { contentFilters.close() }
         failure = cleanupStyle(failure) { boxFilters.close() }
         failure = cleanupStyle(failure) { geometry.close() }
+        failure = cleanupStyle(failure) { glassFilters.close() }
         throwStyle(failure)
     }
 }
