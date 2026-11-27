@@ -1,0 +1,191 @@
+package scoop.graphics
+
+import scoop.test.*
+
+private val maskedSwap = """
+uniform shader source;
+half4 main(float2 p) {
+    half4 color = source.eval(p);
+    return half4(color.b, color.g, color.r, color.a);
+}
+"""
+
+@Test
+private class BackdropMaskTest {
+    @Test
+    fun `mask coverage interpolates premultiplied pixels once under transforms and ancestor clips`() {
+        ShaderProgram
+            .compile(maskedSwap)
+            .use { effect ->
+                ImageFilter
+                    .runtimeShader(effect, "source", 0.0)
+                    .use { filter ->
+                        ShaderProgram
+                            .compile(
+                                "half4 main(float2 p) { return half4(p.x < 8 ? 0 : (p.x < 16 ? 0.5 : 1)); }"
+                            )
+                            .use { program ->
+                                program
+                                    .makeShader()
+                                    .use { mask ->
+                                        withBackdropTargets { render ->
+                                            val pixels = render { canvas ->
+                                                canvas.clear(Color(1.0, 0.0, 0.0, 0.5))
+                                                canvas
+                                                    .withState { local ->
+                                                        local
+                                                            .clipRect(
+                                                                Rect(4.0, 2.0, 44.0, 24.0),
+                                                                false
+                                                            )
+                                                        local.translate(4.0, 2.0)
+                                                        local.scale(2.0, 2.0)
+                                                        local
+                                                            .drawBackdrop(
+                                                                Rect(0.0, 0.0, 24.0, 12.0),
+                                                                filter,
+                                                                mask
+                                                            )
+                                                        local
+                                                            .drawRect(
+                                                                Rect(0.0, 0.0, 1.0, 1.0),
+                                                                Paint(Color(0.0, 1.0, 0.0))
+                                                            )
+                                                    }
+                                            }
+                                            assertBackdropPixel(pixels, 8, 12, 255, 0, 0, 128)
+                                            assertBackdropPixel(pixels, 24, 12, 128, 0, 128, 128)
+                                            assertBackdropPixel(pixels, 42, 12, 0, 0, 255, 128)
+                                            assertBackdropPixel(pixels, 50, 12, 255, 0, 0, 128)
+                                            assertBackdropPixel(pixels, 4, 2, 0, 255, 0, 255)
+                                            assertBackdropPixel(pixels, 24, 28, 255, 0, 0, 128)
+                                        }
+                                    }
+                            }
+                    }
+            }
+    }
+
+    @Test
+    fun `recorded masks retain their native inputs and sample current pixels beyond output bounds`() {
+        val program = ShaderProgram
+            .compile(
+                "uniform shader source; half4 main(float2 p) { return source.eval(p + float2(8, 0)); }"
+            )
+        val filter = ImageFilter.runtimeShader(program, "source", 8.0)
+        val maskProgram = ShaderProgram
+            .compile("half4 main(float2 p) { return half4(p.x < 8 ? 0 : 1); }")
+        val mask = maskProgram.makeShader()
+        val drawing = RasterSurface(64, 32)
+            .use { surface ->
+                surface
+                    .draw { canvas ->
+                        canvas
+                            .recordDrawing(Rect(0.0, 0.0, 64.0, 32.0)) { record ->
+                                record.drawBackdrop(Rect(0.0, 0.0, 32.0, 32.0), filter, mask)
+                            }
+                    }
+            }
+        mask.close();
+        maskProgram.close();
+        filter.close();
+        program.close()
+        drawing
+            .use { replay ->
+                assertFalse(replay.canRasterizeTiles)
+                withBackdropTargets { render ->
+                    for (source in [Color(0.0, 1.0, 0.0, 0.5), Color(0.0, 0.0, 1.0, 0.5)]) {
+                        val pixels = render { canvas ->
+                            canvas.clear(Color(1.0, 0.0, 0.0, 0.5))
+                            canvas
+                                .withState { stripe ->
+                                    stripe.clipRect(Rect(32.0, 0.0, 32.0, 32.0), false);
+                                    stripe.clear(source)
+                                }
+                            canvas.drawDrawing(replay)
+                        }
+                        assertBackdropPixel(pixels, 4, 16, 255, 0, 0, 128)
+                        assertBackdropPixel(
+                            pixels,
+                            30,
+                            16,
+                            0,
+                            (source.green * 255.0).toInt(),
+                            (source.blue * 255.0).toInt(),
+                            128
+                        )
+                        assertBackdropPixel(
+                            pixels,
+                            45,
+                            16,
+                            0,
+                            (source.green * 255.0).toInt(),
+                            (source.blue * 255.0).toInt(),
+                            128
+                        )
+                    }
+                }
+            }
+    }
+
+    @Test
+    fun `invalid bounds closed masks and incompatible GPU inputs leave the canvas usable`() {
+        ShaderProgram
+            .compile("half4 main(float2 p) { return half4(1); }")
+            .use { program ->
+                ImageFilter
+                    .blur(2.0, 2.0)
+                    .use { filter ->
+                        val mask = program.makeShader()
+                        RasterSurface(64, 32)
+                            .use { surface ->
+                                surface
+                                    .draw { canvas ->
+                                        assertFailsWith<IllegalArgumentException> {
+                                            canvas
+                                                .drawBackdrop(
+                                                    Rect(0.0, 0.0, -1.0, 4.0),
+                                                    filter,
+                                                    mask
+                                                )
+                                        }
+                                        mask.close()
+                                        assertFailsWith<IllegalStateException> {
+                                            canvas
+                                                .drawBackdrop(
+                                                    Rect(0.0, 0.0, 4.0, 4.0),
+                                                    filter,
+                                                    mask
+                                                )
+                                        }
+                                        withGpuTestTarget { target ->
+                                            solidGpuShader(target, Color.White)
+                                                .use { gpuMask ->
+                                                    assertFailsWith<IllegalArgumentException> {
+                                                        canvas
+                                                            .drawBackdrop(
+                                                                Rect(0.0, 0.0, 4.0, 4.0),
+                                                                filter,
+                                                                gpuMask
+                                                            )
+                                                    }
+                                                    target
+                                                        .draw { gpu ->
+                                                            gpu.clear(Color.White)
+                                                            gpu
+                                                                .drawBackdrop(
+                                                                    Rect(0.0, 0.0, 4.0, 4.0),
+                                                                    filter,
+                                                                    gpuMask
+                                                                )
+                                                        }
+                                                }
+                                        }
+                                        canvas.clear(Color(0.0, 1.0, 0.0))
+                                    }
+                                assertBackdropPixel(surface.readPixels(), 2, 2, 0, 255, 0, 255)
+                            }
+                    }
+            }
+    }
+}

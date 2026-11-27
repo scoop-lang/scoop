@@ -92,6 +92,7 @@
 | 延迟排版的固定字体来源 | `scoop.graphics.text.FontCollection.copy()` 独立保留当前字面、别名与 fallback；源集合的后续登记或关闭不影响副本。副本可变、revision 从 0 开始，不共享观察者；需要固定输入时保持副本不变，并在 owner 线程关闭。见 text README 与 `examples/font_copy.scoop` |
 | 相邻图像块的裁剪 | `Canvas.clipRect(rect, antiAlias = false)` 按设备像素硬裁剪，避免分数边界重复覆盖率混合；默认仍抗锯齿。线性采样的相邻源像素另由图像块保留，见 graphics README 和 `tests/clipping.scoop` |
 | SkSL、毛玻璃与折射 | 普通玻璃用 `scoop.ui.style.glassMaterial { ... }` 描述 blurSigma、refraction、edgeWidth、saturation、tint 与 highlight，并赋给 Style.glass；可共享、copy，`styleOverride { glass(None) }` 显式清除。StylePainter 持有当前滤镜并按圆角处理当帧下层，前景保持清晰，不保存旧背景。自定义光学仍可使用 scoop.graphics 的 ShaderProgram 与 ImageFilter.runtimeShader，不能同时提供 Style.glass 和显式 backdrop。整体淡化用 Canvas／SceneContext.withState 中的 saveBackdropLayer(opacity)；普通 saveLayer 是透明隔离组。可运行示例位于 `src/scoop.ui.component/examples/glass`。 |
+| 程序生成的背景轮廓 | `Canvas.drawBackdrop(bounds, filter, mask)` 使用 Shader 的 alpha 遮罩单次背景处理，bounds 限定输出，滤镜可从声明的外部邻域采样。坐标随当前局部变换；结果在原背景和过滤结果之间按预乘 alpha 插值，后续绘图与输入几何不受遮罩改变。与 Path 重载相同，绘图记录保留实际资源并在重放时读取当前背景，不能缓存为独立像素瓦片。 |
 | 原生宿主的几何与文本查询 | `scoop.graphics.native` 的 `@Unsafe CanvasGeometry.withNativeGeometry` 借出 NativeGeometry，提供精确 contains、toLocal 和完整／可见 mapRect；`scoop.graphics.text.native` 的 `@Unsafe TextLayout.withNativeLayout` 借出同一排版的 hit／caret／boxes／单位与行查询。仿射点查询以 Double 保留远端间距，完整范围在大平移导致原生尺寸归零时仍保留实际局部尺寸；离屏范围不因此具有可见交集或命中。原生消费者以配套 retain／release 管理跨借用和跨线程寿命，不回调 Scoop；普通 struct 复制不拥有额外引用。文本偏移仍为布局正文 UTF-8，投影、层叠、内容版本及 Accepted 发布由宿主负责；完整合同见 graphics／text README 和对应规范 |
 
 ## JSON 与 DTO

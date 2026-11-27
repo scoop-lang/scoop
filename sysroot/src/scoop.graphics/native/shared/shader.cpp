@@ -195,4 +195,26 @@ int32_t scoop_graphics_paint_shader(SGCanvas *canvas, SGPaint *paint,
   paint->paint.setShader(shader->shader);
   return 1;
 }
+int32_t scoop_graphics_canvas_backdrop_mask(SGCanvas *canvas, SGRect bounds,
+                                            SGFilter *filter, Shader *mask) {
+  if (!sg_compatible(canvas, filter->context) ||
+      !sg_compatible(canvas, mask->context))
+    return -1;
+  try {
+    if (canvas->recording)
+      canvas->recording->independentTiles = false;
+    if (filter->filter) {
+      SkAutoCanvasRestore state(canvas->canvas, true);
+      canvas->canvas->clipRect(sg_rect(bounds));
+      canvas->canvas->clipShader(mask->shader);
+      SkPaint restore;
+      restore.setBlendMode(SkBlendMode::kSrc);
+      canvas->canvas->saveLayer(
+          SkCanvas::SaveLayerRec(nullptr, &restore, filter->filter.get(), 0));
+    }
+    return 1;
+  } catch (...) {
+    return 0;
+  }
+}
 }

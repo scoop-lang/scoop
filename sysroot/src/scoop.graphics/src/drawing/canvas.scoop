@@ -221,6 +221,20 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
             )
         }
     }
+    /** Replaces prior pixels by mask alpha inside local bounds; subsequent drawing is unaffected. */
+    public fun drawBackdrop(bounds: Rect, filter: ImageFilter, mask: Shader) {
+        checkRect(bounds)
+        @Unsafe {
+            graphicsResult(
+                canvasBackdropMask(
+                    resource.get(), bounds, filter.resource.getForClose(), mask
+                        .resource
+                        .getForClose()
+                ),
+                "draw incompatible masked backdrop"
+            )
+        }
+    }
     public fun drawRect(rect: Rect, paint: Paint = Paint(), shader: Shader? = None) {
         shape(0, rect, paint, shader)
     }
@@ -475,3 +489,11 @@ private fun canvasImage(
 
 @Extern(name = "scoop_graphics_canvas_backdrop")
 private fun canvasBackdrop(canvas: Ptr<Unit>, path: Ptr<Unit>, filter: Ptr<Unit>): Int
+
+@Extern(name = "scoop_graphics_canvas_backdrop_mask")
+private fun canvasBackdropMask(
+    canvas: Ptr<Unit>,
+    bounds: Rect,
+    filter: Ptr<Unit>,
+    mask: Ptr<Unit>
+): Int

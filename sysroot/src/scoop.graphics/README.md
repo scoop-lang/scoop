@@ -41,6 +41,8 @@ Canvas 支持 save／restore、仿射变换、矩形／Path 裁剪、基本形�
 
 `ShaderProgram.compile(source)` 编译 SkSL。`program.makeShader { … }` 绑定数值、颜色和图像输入，再以 `canvas.drawRect(rect, shader = Some(shader))` 绘制。用 `ImageFilter.runtimeShader(program, sourceChild, sampleRadius) { … }` 创建图像滤镜。`saveLayer` 可将子树送入该滤镜，`drawBackdrop(outline, filter)` 则采样当前层此前的内容。Gaussian 背景模糊可直接使用 ImageFilter.blur。参数快照可复用，静止时效果没有帧需求。[SkSL 合同](../../../docs/specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样) · [滚动工具栏示例](../scoop.ui.component/examples/glass/README.md)
 
+连续生成的光学轮廓可用 `canvas.drawBackdrop(bounds, filter, mask)`。mask 是普通 Shader，以局部坐标的 alpha 控制原背景与过滤结果的预乘插值；RGB 不参与遮罩。bounds 限定输出，滤镜仍可采样所需的外部邻域。这个重载只遮罩本次背景绘制，不改变之后的绘图或输入几何，前景可继续清晰绘制。滤镜与遮罩按调用借用；记录保留原生依赖并在重放时读取当前背景。GPU 图像输入需与绘图目标 context 相容，普通实现不读回像素。
+
 ShaderProgram、Shader、ImageFilter、Path、PathMeasure、Image、RasterSurface 与底层目标由使用者 close／use；显式创建的 PathBuilder 也由使用者关闭，`path { ... }` 的临时 builder 由入口关闭。原生资源限创建线程使用，Canvas 只在一次 draw 回调内有效，异常退出也会结束借用并恢复状态。Geometry 快照保留原生 Path 数据，可以在原 Path 或绘制作用域结束后继续使用；关闭快照后不可再查询。
 
 颜色采用 sRGB，绘制内部为预乘 alpha；RGBA8 输入和 `readPixels()` 返回值采用紧密排列的直通 alpha 字节。PNG／JPEG decode 会复制输入并实际解码；surface snapshot 保留独立图像内容，后续绘制不会修改旧快照。
