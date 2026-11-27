@@ -4,8 +4,28 @@ root = "program.scoop"
 inputs = ["program.scoop"]
 tools = ["scoop", "scoop-link"]
 when = { os = ["darwin", "linux"] }
-tags = ["optimization", "exceptions", "closure", "context", "generic", "stage-golden", "compiler-correctness"]
-variants = [{"name" = "debug", "vars" = {"profile" = "debug", "symbol_args" = ["--keep-symbols", "--emit-debug-file"], "stack_trace" = "true"}}, {"name" = "release", "vars" = {"profile" = "release", "symbol_args" = [], "stack_trace" = "false"}}]
+tags = ["optimization", "exceptions", "closure", "context", "generic", "compiler-correctness"]
+[[variants]]
+name = "debug"
+[variants.vars]
+profile = "debug"
+symbol_args = ["--keep-symbols", "--emit-debug-file"]
+stack_trace = "true"
+shared_roots = "local4:struct0@0+8, local5:ptr<managed>@0"
+invoke_roots = "local4:refs[0, 8]:normal+unwind, local12:normal"
+catch_roots = "roots=[local4:refs[0, 8]:normal, local7:argument, local11:normal]"
+finally_pair = "local4:struct0@0+8"
+
+[[variants]]
+name = "release"
+[variants.vars]
+profile = "release"
+symbol_args = []
+stack_trace = "false"
+shared_roots = "local15:struct0@0+8"
+invoke_roots = "local12:normal, local16:refs[0, 8]:normal+unwind"
+catch_roots = "live=[local6:ptr<managed>@0, local11:ptr<managed>@0, local16:struct0@0+8] sig=void7 () runtime @scoop_rt_gc_collect()"
+finally_pair = "local16:struct0@0+8"
 
 [[steps]]
 name = "prepare"
@@ -20,7 +40,12 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
-  {"file" = "${work}/dump/${build.result.root.identity}/lir.txt", "snapshot" = "program.${profile}.${target_facts.arch}.lir.txt"},
+  {file = "${work}/dump/${build.result.root.identity}/lir.txt", contains = "live=[local0:ptr<managed>@0] sig=void1 () runtime @scoop_rt_gc_collect()\n    t6 = aggregate () : {}\n    t7 = heap_load local0 +16 : i64"},
+  {file = "${work}/dump/${build.result.root.identity}/lir.txt", contains = "live=[param0:ptr<managed>@0] sig=void0 () runtime @scoop_rt_gc_collect()\n    t0 = aggregate () : {}\n    ret param0"},
+  {file = "${work}/dump/${build.result.root.identity}/lir.txt", contains = "live=[${shared_roots}] sig=void0 () runtime @scoop_rt_gc_collect()"},
+  {file = "${work}/dump/${build.result.root.identity}/lir.txt", contains = "sp<managed-invoke:0> roots=[${invoke_roots}]"},
+  {file = "${work}/dump/${build.result.root.identity}/lir.txt", contains = "${catch_roots}"},
+  {file = "${work}/dump/${build.result.root.identity}/lir.txt", contains = "live=[${finally_pair}] sig=void6 () runtime @scoop_rt_gc_collect()"},
 ]
 
 [[steps]]
