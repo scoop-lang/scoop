@@ -4,11 +4,26 @@ root = "program.scoop"
 inputs = ["program.scoop"]
 tools = ["scoop"]
 when = { os = ["darwin", "linux"] }
-tags = ["optimization", "constant-branches", "enum", "option", "stage-golden", "compiler-correctness"]
-variants = [
-  {name = "debug", vars = {profile = "debug"}},
-  {name = "release", vars = {profile = "release"}},
-]
+tags = ["optimization", "constant-branches", "enum", "option", "compiler-correctness"]
+[[variants]]
+name = "debug"
+[variants.vars]
+profile = "debug"
+wrapped = "IntegerBinary add kind=Int8"
+restored = "IntegerUnary bit-not kind=Int8"
+widened = "IntegerConversion Int -> ULong"
+shift_operand = "Local $dependency.receiver"
+payload_operand = "Local $pattern.subject."
+
+[[variants]]
+name = "release"
+[variants.vars]
+profile = "release"
+wrapped = "IntegerLiteral Int8 value=-128 bits=0x80"
+restored = "IntegerLiteral Int8 value=127 bits=0x7f"
+widened = "IntegerLiteral ULong value=18446744073709551615 bits=0xffffffffffffffff"
+shift_operand = "IntegerLiteral UInt value=255 bits=0x000000ff"
+payload_operand = "Local value"
 
 [[steps]]
 name = "build"
@@ -19,7 +34,12 @@ stderr = ""
 json = "stderr"
 diagnostics = []
 checks = [
-  {"file" = "${work}/dump/${build.result.root.identity}/mir.txt", "snapshot" = "program.${profile}.mir.txt"},
+  {file = "${work}/dump/${build.result.root.identity}/mir.txt", contains = "val wrapped: Int8\n        Type Int8\n        ${wrapped}"},
+  {file = "${work}/dump/${build.result.root.identity}/mir.txt", contains = "val restored: Int8\n        Type Int8\n        ${restored}"},
+  {file = "${work}/dump/${build.result.root.identity}/mir.txt", contains = "val widened: ULong\n        Type ULong\n        ${widened}"},
+  {file = "${work}/dump/${build.result.root.identity}/mir.txt", contains = "IntegerShift right value=UInt count=UInt\n          Type UInt\n          ${shift_operand}"},
+  {file = "${work}/dump/${build.result.root.identity}/mir.txt", contains = "VariantPayloadProject Choice v0 f0\n          Type Choice\n          ${payload_operand}"},
+  {file = "${work}/dump/${build.result.root.identity}/mir.txt", contains = "VariantPayloadProject Option<Int> v0 f0\n          Type Option<Int>\n          ${payload_operand}"},
 ]
 
 [[steps]]
