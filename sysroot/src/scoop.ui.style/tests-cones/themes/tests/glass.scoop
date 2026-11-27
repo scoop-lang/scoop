@@ -9,6 +9,7 @@ import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.fluent.fluentTheme
 import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.style.liquidglass.liquidGlassTheme
 
 @Test
 private class GlassSurfaceThemeTest {
@@ -24,7 +25,15 @@ private class GlassSurfaceThemeTest {
         }
         builders[0L].toolbar = None
         val bounds = Rect(0.0, 0.0, 96.0, 40.0)
-        for (base in [macosTheme(), materialTheme(), fluentTheme(), shadcnTheme()]) {
+        for (
+            base in [
+                macosTheme(),
+                materialTheme(),
+                fluentTheme(),
+                shadcnTheme(),
+                liquidGlassTheme()
+            ]
+        ) {
             val theme = base.copy { tokens { glassSurfaces = policy } }
             val toolbar = SurfaceVisual(SurfaceKind.Elevated, role = SurfaceRole.Toolbar)
             val plain = base.surfaceGeometry(bounds, toolbar)
@@ -38,7 +47,7 @@ private class GlassSurfaceThemeTest {
             val clear = theme
                 .surfaceGeometry(bounds, toolbar, surfaceOptions { style { glass(None) } })
             assertFalse(present(clear.style.glass))
-            assertEquals(plain.style.background!!.color, clear.style.background!!.color)
+            assertEquals(base.surfaces.elevated.fill.normal, clear.style.background!!.color)
             val replace = theme
                 .surfaceGeometry(
                     bounds,
@@ -99,7 +108,8 @@ private class GlassSurfaceThemeTest {
                     macosTheme(mode),
                     materialTheme(mode),
                     fluentTheme(mode),
-                    shadcnTheme(mode)
+                    shadcnTheme(mode),
+                    liquidGlassTheme(mode)
                 ]
             ) {
                 val theme = base

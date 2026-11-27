@@ -10,6 +10,7 @@ import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.liquidglass.liquidGlassTheme
 
 @Test
 private class ActionVariantTest {
@@ -23,7 +24,9 @@ private class ActionVariantTest {
                 shadcnTheme(ThemeMode.Dark),
                 macosTheme(),
                 materialTheme(),
-                fluentTheme()
+                fluentTheme(),
+                liquidGlassTheme(),
+                liquidGlassTheme(ThemeMode.Dark)
             ]
         ) {
             for (

@@ -51,7 +51,8 @@ internal fun toggleOptions(
             SurfaceRole.Control,
             fill,
             style.states.apply(style.surface.style, visual),
-            [foreground]
+            [foreground],
+            hasSurface = selected || variant == ToggleVariant.Outline || activeSurface(visual)
         )
         this
             .border(

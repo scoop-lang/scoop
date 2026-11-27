@@ -11,6 +11,7 @@ import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.fluent.fluentTheme
 import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.style.liquidglass.liquidGlassTheme
 
 @Test
 private class ThemePreferencesTest {
@@ -78,14 +79,15 @@ private class ThemePreferencesTest {
     }
 
     @Test
-    fun `all four theme families meet high contrast in actual enabled disabled and focused parts`() {
+    fun `all five theme families meet high contrast in actual enabled disabled and focused parts`() {
         for (mode in [ThemeMode.Light, ThemeMode.Dark])
             for (
                 base in [
                     macosTheme(mode),
                     materialTheme(mode),
                     fluentTheme(mode),
-                    shadcnTheme(mode)
+                    shadcnTheme(mode),
+                    liquidGlassTheme(mode)
                 ]
             ) {
                 val theme = base.withPreferences(ThemePreferences(highContrast = true))
@@ -221,7 +223,8 @@ private class ThemePreferencesTest {
                     macosTheme(mode),
                     materialTheme(mode),
                     fluentTheme(mode),
-                    shadcnTheme(mode)
+                    shadcnTheme(mode),
+                    liquidGlassTheme(mode)
                 ]
             ) {
                 val theme = base.withPreferences(ThemePreferences(reduceTransparency = true))

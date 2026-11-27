@@ -9,9 +9,12 @@ internal fun StyleOverrideBuilder.glassSurface(
     role: SurfaceRole,
     fill: Color,
     local: StyleOverride,
-    foregrounds: Array<Color> = glassSurfaceForegrounds(theme, role)
+    foregrounds: Array<Color> = glassSurfaceForegrounds(theme, role),
+    hasSurface: Boolean = true
 ) {
-    val selected = local.glass.resolve(theme.tokens.glassSurfaces.get(role))
+    val selected = local
+        .glass
+        .resolve(if (hasSurface) theme.tokens.glassSurfaces.get(role) else None)
     glass(selected)
     background(
         Some(
@@ -24,6 +27,17 @@ internal fun StyleOverrideBuilder.glassSurface(
         )
     )
 }
+
+/** Keep a fading interaction surface until its caller-owned state animation settles. */
+internal fun activeSurface(visual: InteractionVisual): Boolean = visual.enabled &&
+    (
+        visual.hovered ||
+            visual.pressed ||
+            (visual.hoverProgress ?: 0.0) >
+            0.0 ||
+            (visual.pressProgress ?: 0.0) >
+            0.0
+    )
 
 internal fun glassSurfaceForegrounds(theme: Theme, role: SurfaceRole): Array<Color> {
     val palette = theme.tokens.palette

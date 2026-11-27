@@ -165,7 +165,13 @@ internal fun actionOptions(
             case Some(val value) -> value.borderColor ?: border
             case None -> colors.ring
         }
-    val disabled = if (theme.tokens.disabledOpacity >= 1.0)
+    val disabled = if (theme.tokens.disabledOpacity >=
+        1.0 &&
+        variant !=
+        ButtonVariant.Link &&
+        variant !=
+        ButtonVariant.Ghost
+    )
         mixThemeColor(normal, colors.muted.background, 0.5)
     else
         normal
@@ -202,13 +208,21 @@ internal fun actionOptions(
         SurfaceVisual(actionSurfaceKind(shape, variant, style.kind), visual, SurfaceRole.Control)
     )
     val variantStyle = styleOverride {
+        if (variant ==
+            ButtonVariant.Link ||
+            (variant == ButtonVariant.Ghost && !activeSurface(visual))
+        )
+            boxShadows([])
         if (variant != ButtonVariant.Default && !outlinedButton(shape, variant)) {
             glassSurface(
                 theme,
                 SurfaceRole.Control,
                 fill,
                 style.states.apply(style.surface.style, visual),
-                [foreground]
+                [foreground],
+                hasSurface = variant !=
+                    ButtonVariant.Link &&
+                    (variant != ButtonVariant.Ghost || activeSurface(visual))
             )
             this
                 .border(

@@ -264,7 +264,7 @@ private fun colorPreferenceAction(
         actionOptions(theme, shape, variant, style, visual)
     )
 
-private fun colorPreferenceVariants(): Array<ButtonVariant> = [
+internal fun colorPreferenceVariants(): Array<ButtonVariant> = [
     ButtonVariant.Default,
     ButtonVariant.Outline,
     ButtonVariant.Secondary,
@@ -273,7 +273,7 @@ private fun colorPreferenceVariants(): Array<ButtonVariant> = [
     ButtonVariant.Link
 ]
 
-private fun colorPreferenceStates(): Array<InteractionVisual> = [
+internal fun colorPreferenceStates(): Array<InteractionVisual> = [
     InteractionVisual(),
     InteractionVisual(hovered = true),
     InteractionVisual(hovered = true, pressed = true),

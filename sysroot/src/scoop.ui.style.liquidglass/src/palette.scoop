@@ -18,7 +18,7 @@ internal fun liquidPalette(mode: ThemeMode): ThemePalette {
     val secondary = ColorPair(liquidColor(if (dark) 0x273746 else 0xe6eef8), text)
     val accent = ColorPair(liquidColor(if (dark) 0x284567 else 0xd9eaff), text)
     val error = ColorPair(
-        liquidColor(if (dark) 0xffa6a0 else 0xc22b3a),
+        liquidColor(if (dark) 0xfff5f3 else 0x870c1f),
         liquidColor(if (dark) 0x480711 else 0xffffff)
     )
     val edge = (if (dark) Color.White else liquidColor(0x365273)).withAlpha(if (dark) 0.22 else 0.2)

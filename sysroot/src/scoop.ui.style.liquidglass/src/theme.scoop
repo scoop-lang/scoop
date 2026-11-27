@@ -121,9 +121,19 @@ public fun liquidGlassTheme(
     )
 }
 
-private fun liquidStates(fill: Color, foreground: Color, dark: Boolean): StateColors = StateColors(
-    fill,
-    mixThemeColor(fill, if (dark) Color.White else foreground, if (dark) 0.08 else 0.04),
-    mixThemeColor(fill, foreground, if (dark) 0.14 else 0.1),
-    mixThemeColor(fill, foreground, 0.04)
-)
+private fun liquidStates(fill: Color, foreground: Color, dark: Boolean): StateColors {
+    val lightText = foreground.red *
+        0.2126 +
+        foreground.green *
+        0.7152 +
+        foreground.blue *
+        0.0722 >
+        0.5
+    val emphasis = if (lightText) Color.Black else Color.White
+    return StateColors(
+        fill,
+        mixThemeColor(fill, emphasis, if (dark) 0.08 else 0.04),
+        mixThemeColor(fill, emphasis, if (dark) 0.14 else 0.1),
+        mixThemeColor(fill, foreground, 0.04)
+    )
+}

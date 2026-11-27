@@ -21,4 +21,6 @@ val source = ThemeSource(liquidGlassTheme())
 
 以上为局部逻辑像素。小控件保留窄折射边，大浮动面使用更宽的磨砂区域。可从 `theme.tokens.glassSurfaces.get(role)` 直接取得不可变材质供 `GlassEffectContainer` 复用，或 copy 后赋给单个用途；正文和输入用途返回 None。内容染色随实际前景求出最低可读透明度，不缓存下层像素。
 
+玻璃策略只作用于实际存在的控件表面：Link 保持文字链接，Ghost、普通 Toggle 与未选中 Tab 的静止态保持无底色；悬停、按压和选中保留相应状态。状态填充保持正文对比，焦点与错误轮廓独立可见，禁用通过语义禁用文字表达。局部背景、材质和文字覆盖仍优先；默认样式及外部配色均沿相同的根无障碍偏好解析。
+
 完整公共合同见[主题规范](../../../docs/specs/SCOOP-UI-THEME-SPEC.md#51-liquid-glass)；阶段和性能验收记录见[实施记录](../../../docs/ui/liquid-glass/STYLE.md)。

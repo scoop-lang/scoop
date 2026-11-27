@@ -14,6 +14,7 @@ path = "test-darwin"
 when = { os = "darwin" }
 
 [test-dependencies]
+"scoop:scoop.ui.style.liquidglass" = { version = "0.1.0", path = "../../../scoop.ui.style.liquidglass" }
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
 "scoop:scoop.math" = "0.1.0"
