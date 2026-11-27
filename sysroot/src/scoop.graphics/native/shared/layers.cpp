@@ -1,5 +1,38 @@
 #include "graphics.h"
 #include "include/core/SkBBHFactory.h"
+#include "include/effects/SkBlenders.h"
+
+extern "C" int32_t scoop_graphics_canvas_save_backdrop(SGCanvas *value,
+                                                       double opacity,
+                                                       SGFilter *backdrop,
+                                                       bool hasBounds,
+                                                       SGRect bounds) {
+  if (backdrop && !sg_compatible(value, backdrop->context))
+    return -1;
+  const size_t previousDepth = value->clips.size();
+  const int previousSaveCount = value->canvas->getSaveCount();
+  try {
+    SkPaint restore;
+    // The source already includes the backdrop. Interpolate it with the
+    // destination instead of applying source-over a second time.
+    restore.setBlender(SkBlenders::Arithmetic(0, (float)opacity,
+                                              (float)(1 - opacity), 0, true));
+    const SkRect sourceBounds = sg_rect(bounds);
+    SkCanvas::SaveLayerRec layer(hasBounds ? &sourceBounds : nullptr, &restore,
+                                 backdrop ? backdrop->filter.get() : nullptr,
+                                 SkCanvas::kInitWithPrevious_SaveLayerFlag);
+    layer.fBackdropTileMode = SkTileMode::kDecal;
+    value->clips.push_back(value->clips.back());
+    value->canvas->saveLayer(layer);
+    if (value->recording)
+      value->recording->independentTiles = false;
+    return 1;
+  } catch (...) {
+    value->canvas->restoreToCount(previousSaveCount);
+    value->clips.resize(previousDepth);
+    return 0;
+  }
+}
 
 bool SGCanvas::saveOpacityLayer(const SkPaint &paint) {
   if (!context || recording || canvas->isClipEmpty())

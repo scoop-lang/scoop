@@ -138,6 +138,40 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
             )
         }
     }
+    /**
+     * Starts with the current layer's prior pixels, optionally filtering that backdrop first.
+     * Restore interpolates premultiplied RGBA between the prior pixels and the completed group.
+     * Bounds guide allocation without clipping; include all drawing and backdrop sample ranges.
+     * Use saveLayer for a transparent, isolated group instead.
+     */
+    public fun saveBackdropLayer(
+        opacity: Double = 1.0,
+        backdrop: ImageFilter? = None,
+        bounds: Rect? = None
+    ) {
+        checkOpacity(opacity)
+        when (bounds) {
+            case Some(val value) -> checkRect(value)
+            case None -> {}
+        }
+        @Unsafe
+        {
+            val pointer = when (backdrop) {
+                case Some(val value) -> Some(value.resource.get())
+                case None -> None
+            }
+            graphicsResult(
+                canvasSaveBackdrop(
+                    resource.get(),
+                    opacity,
+                    pointer,
+                    bounds != None,
+                    bounds ?: Rect(0.0, 0.0, 0.0, 0.0)
+                ),
+                "save incompatible backdrop layer"
+            )
+        }
+    }
     public fun restore() {
         @Unsafe
         {
@@ -391,6 +425,15 @@ private fun canvasSave(
 
 @Extern(name = "scoop_graphics_canvas_restore")
 private fun canvasRestore(canvas: Ptr<Unit>): Int
+
+@Extern(name = "scoop_graphics_canvas_save_backdrop")
+private fun canvasSaveBackdrop(
+    canvas: Ptr<Unit>,
+    opacity: Double,
+    backdrop: Ptr<Unit>?,
+    hasBounds: Boolean,
+    bounds: Rect
+): Int
 
 @Extern(name = "scoop_graphics_canvas_concat")
 private fun canvasConcat(canvas: Ptr<Unit>, transform: Transform): Int

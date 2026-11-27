@@ -1,0 +1,325 @@
+package scoop.graphics
+
+import scoop.math.abs
+import scoop.test.*
+
+private val shiftedBackdrop = """
+uniform shader source;
+half4 main(float2 p) { return source.eval(p + float2(8, 0)); }
+"""
+
+@Test
+private class BackdropLayerTest {
+    @Test
+    fun `inherited groups interpolate premultiplied pixels without duplicating the backdrop`() {
+        withBackdropTargets { render ->
+            for (opacity in [0.0, 0.5, 1.0]) {
+                val pixels = render { canvas ->
+                    canvas.clear(Color(0.0, 0.0, 1.0, 0.5))
+                    for (index in 0 until 4) {
+                        canvas
+                            .withState { group ->
+                                val bounds = Rect(index.toDouble() * 8.0, 0.0, 8.0, 32.0)
+                                group.clipRect(bounds, false)
+                                group.saveBackdropLayer(opacity, bounds = Some(bounds))
+                                when (index) {
+                                    case 0 ->
+                                        group.drawRect(bounds, Paint(Color(1.0, 0.0, 0.0, 0.5)))
+                                    case 1 -> {}
+                                    case 2 -> group.clear(Color.Transparent)
+
+                                    else -> {
+                                        group.saveBackdropLayer(0.5)
+                                        group.drawRect(bounds, Paint(Color(1.0, 0.0, 0.0, 0.5)))
+                                        group.restore()
+                                    }
+                                }
+                                group.restore()
+                            }
+                    }
+                    path { addRoundRect(Rect(40.25, 4.25, 16.0, 24.0), 6.5, 6.5) }
+                        .use { outline ->
+                            canvas
+                                .withState { group ->
+                                    group.clipPath(outline)
+                                    group.saveBackdropLayer(opacity)
+                                }
+                        }
+                }
+                assertBackdropMix(pixels, 4, opacity)
+                assertBackdropPixel(pixels, 12, 16, 0, 0, 255, 128)
+                assertBackdropPixel(
+                    pixels, 20, 16, 0, 0, if (opacity == 1.0) 0 else 255,
+                    (127.5 * (1.0 - opacity)).toInt()
+                )
+                assertBackdropMix(pixels, 28, opacity * 0.5)
+                // Empty inherited groups also preserve fractional antialiased edges.
+                for (x in 40 until 60)
+                    for (y in 0 until 32)
+                        assertBackdropPixel(pixels, x, y, 0, 0, 255, 128)
+            }
+        }
+    }
+
+    @Test
+    fun `entry filters sample beyond the output clip and preserve sharp foreground`() {
+        withBackdropTargets { render ->
+            val shifted = render { canvas ->
+                canvas.clear(Color(1.0, 0.0, 0.0))
+                canvas.drawRect(Rect(32.0, 0.0, 32.0, 32.0), Paint(Color(0.0, 0.0, 1.0)))
+                canvas
+                    .withState { group ->
+                        group.translate(8.0, 0.0)
+                        val bounds = Rect(16.0, 4.0, 8.0, 24.0)
+                        path { addRoundRect(bounds, 2.0, 2.0) }
+                            .use { outline -> group.clipPath(outline) }
+                        ShaderProgram
+                            .compile(shiftedBackdrop)
+                            .use { program ->
+                                ImageFilter
+                                    .runtimeShader(program, "source", 8.0)
+                                    .use { filter ->
+                                        group
+                                            .saveBackdropLayer(
+                                                backdrop = Some(filter),
+                                                bounds = Some(bounds)
+                                            )
+                                    }
+                            }
+                        // Both wrappers are closed before the layer is restored.
+                        group.drawRect(Rect(20.0, 12.0, 2.0, 8.0), Paint(Color(0.0, 1.0, 0.0)))
+                    }
+            }
+            assertBackdropPixel(shifted, 26, 16, 0, 0, 255, 255)
+            assertBackdropPixel(shifted, 27, 16, 0, 0, 255, 255)
+            assertBackdropPixel(shifted, 28, 16, 0, 255, 0, 255)
+            assertBackdropPixel(shifted, 23, 16, 255, 0, 0, 255)
+            assertBackdropPixel(shifted, 26, 3, 255, 0, 0, 255)
+
+            val blurred = render { canvas ->
+                canvas.clear(Color(1.0, 0.0, 0.0))
+                canvas.drawRect(Rect(32.0, 0.0, 32.0, 32.0), Paint(Color(0.0, 0.0, 1.0)))
+                canvas.clipRect(Rect(8.0, 4.0, 48.0, 24.0), false)
+                ImageFilter
+                    .blur(3.0, 3.0)
+                    .use { filter -> canvas.saveBackdropLayer(backdrop = Some(filter)) }
+                canvas.drawRect(Rect(31.0, 12.0, 2.0, 8.0), Paint(Color.White))
+                canvas.restore()
+            }
+            assertTrue(channel(blurred, 64, 30, 16, 0) in 100..240)
+            assertTrue(channel(blurred, 64, 30, 16, 2) in 15..155)
+            assertEquals(0, channel(blurred, 64, 30, 16, 1))
+            assertBackdropPixel(blurred, 31, 16, 255, 255, 255, 255)
+            assertBackdropPixel(blurred, 32, 16, 255, 255, 255, 255)
+
+            val scaled = render { canvas ->
+                canvas
+                    .createSurface(64, 32, 2.0)
+                    .use { surface ->
+                        surface
+                            .draw { logical ->
+                                logical.clear(Color(1.0, 0.0, 0.0))
+                                logical
+                                    .drawRect(
+                                        Rect(16.0, 0.0, 8.0, 16.0),
+                                        Paint(Color(0.0, 0.0, 1.0))
+                                    )
+                                logical.drawRect(Rect(24.0, 0.0, 8.0, 16.0), Paint(Color.White))
+                                logical.clipRect(Rect(8.0, 2.0, 8.0, 12.0), false)
+                                ShaderProgram
+                                    .compile(shiftedBackdrop)
+                                    .use { program ->
+                                        ImageFilter
+                                            .runtimeShader(program, "source", 8.0)
+                                            .use { filter ->
+                                                logical.saveBackdropLayer(backdrop = Some(filter))
+                                            }
+                                    }
+                                logical
+                                    .drawRect(
+                                        Rect(12.0, 6.0, 1.0, 4.0),
+                                        Paint(Color(0.0, 1.0, 0.0))
+                                    )
+                            }
+                        surface
+                            .snapshot()
+                            .use { image -> canvas.drawImage(image, Rect(0.0, 0.0, 64.0, 32.0)) }
+                    }
+            }
+            // Eight logical units sample sixteen physical pixels, exactly once.
+            assertBackdropPixel(scaled, 20, 16, 0, 0, 255, 255)
+            assertBackdropPixel(scaled, 24, 16, 0, 255, 0, 255)
+            assertBackdropPixel(scaled, 15, 16, 255, 0, 0, 255)
+        }
+    }
+
+    @Test
+    fun `child backdrop drawing sees inherited pixels but cannot cross an isolated ancestor`() {
+        withBackdropTargets { render ->
+            ShaderProgram
+                .compile(shiftedBackdrop)
+                .use { program ->
+                    ImageFilter
+                        .runtimeShader(program, "source", 8.0)
+                        .use { filter ->
+                            path { addRect(Rect(24.0, 4.0, 8.0, 24.0)) }
+                                .use { outline ->
+                                    for (isolated in [false, true]) {
+                                        val pixels = render { canvas ->
+                                            canvas.clear(Color(1.0, 0.0, 0.0))
+                                            canvas
+                                                .drawRect(
+                                                    Rect(32.0, 0.0, 32.0, 32.0), Paint(
+                                                        Color(0.0, 0.0, 1.0)
+                                                    )
+                                                )
+                                            if (isolated) canvas.saveLayer(0.5)
+                                            canvas.saveBackdropLayer(0.5)
+                                            canvas
+                                                .withState { child ->
+                                                    child.drawBackdrop(outline, filter)
+                                                }
+                                            canvas.restore()
+                                            if (isolated) canvas.restore()
+                                        }
+                                        if (isolated)
+                                            assertBackdropPixel(pixels, 28, 16, 255, 0, 0, 255)
+                                        else
+                                            assertBackdropPixel(pixels, 28, 16, 128, 0, 128, 255)
+                                    }
+                                }
+                        }
+                }
+        }
+    }
+
+    @Test
+    fun `recorded backdrop groups read each replay target after source resources close`() {
+        withBackdropTargets { render ->
+            val drawing = RasterSurface(64, 32)
+                .use { source ->
+                    source
+                        .draw { canvas ->
+                            canvas
+                                .recordDrawing(Rect(0.0, 0.0, 64.0, 32.0)) { record ->
+                                    ShaderProgram
+                                        .compile(
+                                            """
+                        uniform shader source;
+                        half4 main(float2 p) { return source.eval(p).bgra; }
+                    """
+                                        )
+                                        .use { program ->
+                                            ImageFilter
+                                                .runtimeShader(program, "source", 0.0)
+                                                .use { filter ->
+                                                    record.saveBackdropLayer(0.5, Some(filter))
+                                                }
+                                        }
+                                    record.restore()
+                                }
+                        }
+                }
+            drawing
+                .use { replay ->
+                    assertFalse(replay.canRasterizeTiles)
+                    for (color in [Color(1.0, 0.0, 0.0, 0.5), Color(0.0, 1.0, 0.0, 0.5)]) {
+                        val pixels = render { canvas ->
+                            canvas.clear(color)
+                            canvas.drawDrawing(replay)
+                        }
+                        if (color.red == 1.0)
+                            assertBackdropPixel(pixels, 24, 16, 128, 0, 128, 128)
+                        else
+                            assertBackdropPixel(pixels, 24, 16, 0, 255, 0, 128)
+                    }
+                }
+        }
+    }
+
+    @Test
+    fun `scope failures restore backdrop groups once and invalid saves leave the stack usable`() {
+        withBackdropTargets { render ->
+            val pixels = render { canvas ->
+                canvas.clear(Color(0.0, 0.0, 1.0))
+                assertFailsWith<IllegalArgumentException> { canvas.saveBackdropLayer(-0.1) }
+                assertFailsWith<IllegalArgumentException> { canvas.saveBackdropLayer(1.1) }
+                assertFailsWith<IllegalArgumentException> {
+                    canvas.saveBackdropLayer(bounds = Some(Rect(0.0, 0.0, -1.0, 8.0)))
+                }
+                val closed = ImageFilter.blur(1.0, 1.0)
+                closed.close()
+                assertFailsWith<IllegalStateException> {
+                    canvas.saveBackdropLayer(backdrop = Some(closed))
+                }
+                assertFailsWith<IllegalArgumentException> { canvas.restore() }
+                assertFailsWith<IllegalStateException> {
+                    canvas
+                        .withState { group ->
+                            group.scale(2.0, 2.0)
+                            group.translate(4.0, 2.0)
+                            group.clipRect(Rect(0.0, 0.0, 8.0, 8.0), false)
+                            group.saveBackdropLayer(0.5)
+                            group
+                                .withState { child ->
+                                    child.saveBackdropLayer(0.5)
+                                    child.clear(Color(1.0, 0.0, 0.0))
+                                    throw IllegalStateException()
+                                }
+                        }
+                }
+                canvas.drawRect(Rect(0.0, 0.0, 4.0, 4.0), Paint(Color(0.0, 1.0, 0.0)))
+            }
+            assertBackdropPixel(pixels, 12, 10, 64, 0, 191, 255)
+            assertBackdropPixel(pixels, 25, 10, 0, 0, 255, 255)
+            assertBackdropPixel(pixels, 2, 2, 0, 255, 0, 255)
+        }
+    }
+}
+
+private fun withBackdropTargets(verify: (((Canvas) -> Unit) -> Array<Byte>) -> Unit) {
+    RasterSurface(64, 32)
+        .use { surface ->
+            verify { scene ->
+                surface.draw(scene)
+                surface.readPixels()
+            }
+        }
+    withGpuTestTarget { target ->
+        verify { scene ->
+            target.draw(scene)
+            target.readPixels()
+        }
+    }
+}
+
+private fun assertBackdropMix(pixels: Array<Byte>, x: Int, opacity: Double) {
+    val alpha = 0.5 + opacity * 0.25
+    assertBackdropPixel(
+        pixels, x, 16, (opacity * 0.5 / alpha * 255.0).toInt(), 0,
+        ((0.5 - opacity * 0.25) / alpha * 255.0).toInt(), (alpha * 255.0).toInt()
+    )
+}
+
+private fun assertBackdropPixel(
+    pixels: Array<Byte>,
+    x: Int,
+    y: Int,
+    red: Int,
+    green: Int,
+    blue: Int,
+    alpha: Int
+) {
+    val expected = [red, green, blue, alpha]
+    for (index in 0 until 4) {
+        val actual = channel(pixels, 64, x, y, index)
+        assertTrue(
+            abs(actual - expected[index.toLong()]) <= 2,
+            Some(
+                f"pixel (${x}, ${y}) channel ${index}: expected ${expected[index.toLong()]}, got ${
+                    actual
+                }"
+            )
+        )
+    }
+}

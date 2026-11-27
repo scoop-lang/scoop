@@ -108,3 +108,5 @@ StylePainter 的一个 scene／paint 回调结束前，不能重入同一 painte
 - 缓存复用、替换、构造／绘制异常、卸载和原生窗口关闭，确认资源及时释放。
 
 背景毛玻璃与自定义折射使用 [Canvas.drawBackdrop](SCOOP-GRAPHICS-EFFECTS-SPEC.md#5-sksl-着色与背景采样)。StylePainter.scene／paint 可通过可选 backdrop 参数借用 ImageFilter，在外框阴影之后、背景填充之前按同一圆角轮廓合成。Style 保存可复用的描述，资源由调用方管理。
+
+带整体透明度的玻璃组件可在 SceneContext.withState 中先调用 saveBackdropLayer(opacity)，再使用同一个 StylePainter.scene 绘制背景效果与前景子项。该组继承下层并在退出时插值完整结果，不把下层再次 SrcOver；StylePainter 自己不创建隐式跨层采样或动画。只需在组进入时处理一次下层时，也可使用 saveBackdropLayer 的 backdrop 参数，并在随后呈现清晰内容。两种写法复用 [graphics §2.1](SCOOP-GRAPHICS-EFFECTS-SPEC.md#21-与下层共同合成) 的采样边界。

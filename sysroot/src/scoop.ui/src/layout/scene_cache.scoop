@@ -10,7 +10,8 @@ internal class SceneEpoch
 
 /** Only value geometry and owned drawing records may outlive a scene callback. */
 internal enum SceneCommand {
-    Concat(Transform), Clip(Rect), Save, SaveLayer(Double, BlendMode), Restore,
+    Concat(Transform), Clip(Rect), Save, SaveLayer(Double, BlendMode),
+    SaveBackdropLayer(Double, Rect?), Restore,
     Place(InputArea, Rect), Anchor(LayoutAnchor, Rect), Semantics(SemanticsHandle, Rect),
     Children(Array<Long>?, Array<SceneEpoch>), Drawing(CachedPaintLayer), Scope(Array<SceneCommand>)
 }
@@ -79,6 +80,8 @@ private fun replayCommands(
             case Clip(val value) -> canvas.clipRect(value)
             case Save -> canvas.save()
             case SaveLayer(val opacity, val blend) -> canvas.saveLayer(opacity, blendMode = blend)
+            case SaveBackdropLayer(val opacity, val bounds) ->
+                canvas.saveBackdropLayer(opacity, bounds = bounds)
             case Restore -> canvas.restore()
 
             case Place(val area, val rect) -> {

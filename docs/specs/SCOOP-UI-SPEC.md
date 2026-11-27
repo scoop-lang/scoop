@@ -397,6 +397,10 @@ Element<L>.scene 接收 SceneContext 与最终选中的布局数据 L；context 
 
 `SceneContext.draw(block: (PaintContext) -> Unit)` 提交并同步执行一个直接绘图块；块只负责像素和自身绘制缓存，不登记 InputArea、呈现子项或修改 State。PaintContext 提供 size、time 和隔离借用的 Canvas；块中增加的 transform／clip 仅影响该块的画面，退出后不影响场景中后续区域或子项。场景几何与绘制块的调用分开，省略一个绘图块不会省略已声明的区域。可缓存的有限图层使用第 7.2.1 节的独立入口。
 
+`SceneContext.saveBackdropLayer(opacity: Double = 1.0, backdrop: ImageFilter? = None, bounds: Rect? = None)` 将当前已绘制下层带入一个可继续呈现子项的合成组，复用 [graphics 下层合成合同](SCOOP-GRAPHICS-EFFECTS-SPEC.md#21-与下层共同合成)。进入时可过滤下层，随后绘制前景；restore 在原下层与完整组结果之间插值，避免透明背景被重复叠加。与 saveLayer 一样，它保存变换和裁剪，输入区域仍取实际放置时的状态；opacity 不隐式停用输入。调用方可在 withState 内开启此组，由作用域在正常或异常退出时恢复。保存普通透明隔离组的祖先仍限定可读下层；需要保留下层的动画组显式选择此入口。
+
+没有借用 backdrop 滤镜时，场景缓存可以记录 opacity／bounds 并在每帧目标上重放 saveBackdropLayer；不能保存当时的背景图像。传入滤镜时沿既有借用资源规则执行当前 scene。drawLayer 仍是独立隔离绘制，背景效果使用直接 draw 或场景下层合成组，不能靠禁止瓦片缓存改变 drawLayer 的隔离合同。
+
 场景操作在同一个实际帧内提交和消费。它们不持有跨帧借用，Path／滤镜在同步调用时按 graphics 合同使用；不要求元素为装配另外复制原生资源。跨帧绘制记录／图像缓存另按其拥有关系持有资源；显式场景缓存边界按第 7.2.2 节复用稳定的局部操作。
 
 `SceneContext.children()` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。使用整体呈现时，有已放置子项必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪，输入父关系由挂载作用域确定。
