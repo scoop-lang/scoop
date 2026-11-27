@@ -22,5 +22,5 @@ diagnostics = []
 name = "run"
 argv = ["${build.result.output}"]
 exit = 0
-stdout = {file = "expected.${target}.txt"}
+stdout = {file = "expected.${target_facts.os}.txt"}
 stderr = ""
