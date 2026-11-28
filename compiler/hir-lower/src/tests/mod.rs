@@ -131,6 +131,7 @@ mod mir_dependencies;
 mod receiver_boundaries;
 mod semantic_queries;
 mod source_location_references;
+mod unused_writes;
 
 use super::*;
 use ast::{

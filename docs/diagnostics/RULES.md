@@ -474,7 +474,13 @@
 | <a id="e2511"></a>`E2511` | 外部生成器结果违反协议 | 位置/provider、batch/method、result/id/输出顺序不合法。 | [F0836](FRONTEND.md#f0836)；[F0837](FRONTEND.md#f0837)；[D0026](BUILD.md#d0026)；[hir-lower/src/generation.rs:67](../../compiler/hir-lower/src/generation.rs#L67) |
 | <a id="e2512"></a>`E2512` | 生成器查询引用不合法 | export path 或 identity reference 不符合查询接口输入规则。 | [D0110](BUILD.md#d0110)；[D0111](BUILD.md#d0111)；[D0112](BUILD.md#d0112)；[generator-protocol/src/queries/exports.rs:15](../../compiler/generator-protocol/src/queries/exports.rs#L15) |
 
-## 警告（15 项）
+## 警告（16 项）
+
+### 08 · 控制流与异常
+
+| 编号 | 规则 | 触发条件 | 实现 |
+| --- | --- | --- | --- |
+| <a id="w0801"></a>`W0801` | 局部变量写入后未读取 | 初值或写回值在任何后续可达路径上都未被读取。以 `_` 开头的绑定豁免。 | [局部写入分析](../../compiler/hir-lower/src/stmt/smart_flow/unused_writes.rs) |
 
 ### 09 · 模式与穷尽性
 

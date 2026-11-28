@@ -1,11 +1,11 @@
 use super::*;
 
-impl SmartFlow<'_> {
+impl<A: LocalAnalysis> BodyFlow<'_, A> {
     pub(super) fn statement(
         &mut self,
-        facts: SmartCastFacts,
+        facts: A::Facts,
         statement: &hir::Statement,
-    ) -> SmartCastExits {
+    ) -> Exits<A::Facts> {
         match &statement.kind {
             hir::StatementKind::MemberRequirementCall(call) => {
                 let mut exits = Self::normal(facts);
@@ -27,7 +27,7 @@ impl SmartFlow<'_> {
             hir::StatementKind::ValDecl { pattern, init } => {
                 let mut exits = self.expression(facts, init);
                 if let Some(facts) = exits.get_mut(&Outcome::Fallthrough) {
-                    self.record_pattern(facts, pattern, init);
+                    self.record_pattern(facts, pattern, Some(init));
                 }
                 exits
             }
@@ -44,12 +44,23 @@ impl SmartFlow<'_> {
                         self.merge(&mut exits, next);
                     }
                 }
+                if matches!(target, hir::AssignTarget::Index { .. })
+                    && let Some(facts) = exits.get(&Outcome::Fallthrough).cloned()
+                {
+                    self.insert(&mut exits, Outcome::Throw, facts);
+                }
                 if let hir::AssignTarget::Local(local) = target
                     && let Some(facts) = exits.get_mut(&Outcome::Fallthrough)
                 {
                     // Source assignments discard the old value's facts. A
                     // compiler result local may retain a Boolean implication.
-                    self.state.record_flow_value(facts, *local, value);
+                    self.analysis.write(
+                        self.state,
+                        facts,
+                        *local,
+                        Some(value),
+                        Some(statement.span),
+                    );
                 }
                 exits
             }
@@ -79,8 +90,8 @@ impl SmartFlow<'_> {
                         (false, else_body.as_deref().unwrap_or_default()),
                     ] {
                         if let Some(branch) =
-                            self.state
-                                .refine_flow_condition(facts.clone(), cond, outcome)
+                            self.analysis
+                                .branch(self.state, facts.clone(), cond, outcome)
                         {
                             let next = self.statements(branch, body);
                             self.merge(&mut exits, next);
@@ -115,14 +126,27 @@ impl SmartFlow<'_> {
         }
     }
 
-    fn record_pattern(
+    pub(super) fn record_pattern(
         &mut self,
-        facts: &mut SmartCastFacts,
+        facts: &mut A::Facts,
         pattern: &hir::Pattern,
-        value: &hir::Expr,
+        value: Option<&hir::Expr>,
     ) {
-        if let hir::Pattern::Binding { local } = pattern {
-            self.state.record_flow_value(facts, *local, value);
+        match pattern {
+            hir::Pattern::Binding { local } => {
+                self.analysis.write(self.state, facts, *local, value, None)
+            }
+            hir::Pattern::Tuple(items) => {
+                for item in items {
+                    self.record_pattern(facts, item, None);
+                }
+            }
+            hir::Pattern::Variant { fields, .. } | hir::Pattern::Struct { fields, .. } => {
+                for (_, item) in fields {
+                    self.record_pattern(facts, item, None);
+                }
+            }
+            hir::Pattern::Literal { .. } | hir::Pattern::Wildcard => {}
         }
     }
 }

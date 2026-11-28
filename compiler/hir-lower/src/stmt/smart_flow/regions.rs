@@ -1,15 +1,16 @@
 use super::*;
 
-impl SmartFlow<'_> {
-    pub(super) fn try_region(
-        &mut self,
-        incoming: SmartCastFacts,
-        region: &hir::Try,
-    ) -> SmartCastExits {
+type PredicateExits<F> = (Option<F>, Option<F>, Exits<F>);
+
+impl<A: LocalAnalysis> BodyFlow<'_, A> {
+    pub(super) fn try_region(&mut self, incoming: A::Facts, region: &hir::Try) -> Exits<A::Facts> {
         let mut exits = self.statements(incoming.clone(), &region.body);
         if let Some(thrown) = exits.get(&Outcome::Throw).cloned() {
             for catch in &region.catches {
-                let next = self.statements(thrown.clone(), &catch.body);
+                let mut caught = thrown.clone();
+                self.analysis
+                    .write(self.state, &mut caught, catch.local, None, None);
+                let next = self.statements(caught, &catch.body);
                 self.merge(&mut exits, next);
             }
         }
@@ -26,7 +27,7 @@ impl SmartFlow<'_> {
         }
     }
 
-    pub(super) fn when(&mut self, incoming: SmartCastFacts, when: &hir::When) -> SmartCastExits {
+    pub(super) fn when(&mut self, incoming: A::Facts, when: &hir::When) -> Exits<A::Facts> {
         let mut exits = match when.subject() {
             Some(subject) => self.expression(incoming, subject),
             None => Self::normal(incoming),
@@ -45,6 +46,8 @@ impl SmartFlow<'_> {
                     if !crate::patterns::is_irrefutable(pattern) {
                         next = Some(facts.clone());
                     }
+                    let mut facts = facts;
+                    self.record_pattern(&mut facts, pattern, None);
                     Some(facts)
                 }
                 hir::WhenConditionRef::Always => Some(facts),
@@ -55,7 +58,7 @@ impl SmartFlow<'_> {
                 let (yes, no, abrupt) = self.predicate(facts, guard);
                 self.merge(&mut exits, abrupt);
                 next = match (next, no) {
-                    (Some(left), Some(right)) => Some(self.state.common_smart_casts(left, right)),
+                    (Some(left), Some(right)) => Some(self.analysis.join(self.state, left, right)),
                     (left, right) => left.or(right),
                 };
                 matched = yes;
@@ -82,13 +85,9 @@ impl SmartFlow<'_> {
 
     fn predicate(
         &mut self,
-        incoming: SmartCastFacts,
+        incoming: A::Facts,
         predicate: &hir::WhenGuard,
-    ) -> (
-        Option<SmartCastFacts>,
-        Option<SmartCastFacts>,
-        SmartCastExits,
-    ) {
+    ) -> PredicateExits<A::Facts> {
         let mut exits = self.statements(incoming, &predicate.setup);
         if let Some(facts) = exits.remove(&Outcome::Fallthrough) {
             let expression = self.expression(facts, &predicate.condition);
@@ -96,12 +95,12 @@ impl SmartFlow<'_> {
         }
         let normal = exits.remove(&Outcome::Fallthrough);
         let yes = normal.clone().and_then(|facts| {
-            self.state
-                .refine_flow_condition(facts, &predicate.condition, true)
+            self.analysis
+                .branch(self.state, facts, &predicate.condition, true)
         });
         let no = normal.and_then(|facts| {
-            self.state
-                .refine_flow_condition(facts, &predicate.condition, false)
+            self.analysis
+                .branch(self.state, facts, &predicate.condition, false)
         });
         (yes, no, exits)
     }

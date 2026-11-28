@@ -1,4 +1,4 @@
-//! Flow-sensitive type facts for the structured HIR being constructed.
+//! Shared control flow for smart casts during lowering and unused writes in completed bodies.
 use super::*;
 use crate::expr::SmartCastFacts;
 use std::collections::BTreeMap;
@@ -8,11 +8,44 @@ mod loops;
 mod operands;
 mod regions;
 mod statements;
+mod type_facts;
+mod unused_writes;
 
 type Outcome = flow::ControlOutcome<hir::LoopId>;
-pub(crate) type SmartCastExits = BTreeMap<Outcome, SmartCastFacts>;
+type Exits<F> = BTreeMap<Outcome, F>;
+pub(crate) type SmartCastExits = Exits<SmartCastFacts>;
 
-struct SmartFlow<'a> {
+trait LocalAnalysis {
+    type Facts: Clone + Eq;
+    fn join(&mut self, state: &mut Lowerer, left: Self::Facts, right: Self::Facts) -> Self::Facts;
+    fn branch(
+        &mut self,
+        state: &mut Lowerer,
+        facts: Self::Facts,
+        value: &hir::Expr,
+        outcome: bool,
+    ) -> Option<Self::Facts>;
+    fn read(
+        &mut self,
+        state: &mut Lowerer,
+        facts: &mut Self::Facts,
+        value: &hir::Expr,
+        check_reads: bool,
+    );
+    fn write(
+        &mut self,
+        state: &mut Lowerer,
+        facts: &mut Self::Facts,
+        local: hir::LocalId,
+        value: Option<&hir::Expr>,
+        assignment: Option<Span>,
+    );
+}
+
+struct TypeFacts;
+
+struct BodyFlow<'a, A> {
+    analysis: A,
     state: &'a mut Lowerer,
     check_reads: bool,
 }
@@ -23,7 +56,8 @@ impl Lowerer {
         incoming: SmartCastFacts,
         statements: &[hir::Statement],
     ) -> SmartCastExits {
-        SmartFlow {
+        BodyFlow {
+            analysis: TypeFacts,
             state: self,
             check_reads: false,
         }
@@ -36,7 +70,8 @@ impl Lowerer {
         statements: &[hir::Statement],
         value: Option<&hir::Expr>,
     ) {
-        let mut flow = SmartFlow {
+        let mut flow = BodyFlow {
+            analysis: TypeFacts,
             state: self,
             check_reads: true,
         };
@@ -65,7 +100,8 @@ impl Lowerer {
         body: &[hir::Statement],
         value: Option<&hir::Expr>,
     ) -> SmartCastFacts {
-        let mut flow = SmartFlow {
+        let mut flow = BodyFlow {
+            analysis: TypeFacts,
             state: self,
             check_reads: false,
         };
@@ -89,7 +125,8 @@ impl Lowerer {
         if let Some(thrown) = exits.get(&Outcome::Throw).cloned() {
             for body in catches {
                 let next = self.smart_cast_exits(thrown.clone(), body);
-                SmartFlow {
+                BodyFlow {
+                    analysis: TypeFacts,
                     state: self,
                     check_reads: false,
                 }
@@ -100,31 +137,27 @@ impl Lowerer {
     }
 }
 
-impl SmartFlow<'_> {
-    fn normal(facts: SmartCastFacts) -> SmartCastExits {
+impl<A: LocalAnalysis> BodyFlow<'_, A> {
+    fn normal(facts: A::Facts) -> Exits<A::Facts> {
         BTreeMap::from([(Outcome::Fallthrough, facts)])
     }
 
-    fn merge(&mut self, target: &mut SmartCastExits, source: SmartCastExits) {
+    fn merge(&mut self, target: &mut Exits<A::Facts>, source: Exits<A::Facts>) {
         for (outcome, facts) in source {
             self.insert(target, outcome, facts);
         }
     }
 
-    fn insert(&mut self, exits: &mut SmartCastExits, outcome: Outcome, facts: SmartCastFacts) {
+    fn insert(&mut self, exits: &mut Exits<A::Facts>, outcome: Outcome, facts: A::Facts) {
         let facts = if let Some(previous) = exits.remove(&outcome) {
-            self.state.common_smart_casts(previous, facts)
+            self.analysis.join(self.state, previous, facts)
         } else {
             facts
         };
         exits.insert(outcome, facts);
     }
 
-    fn statements(
-        &mut self,
-        incoming: SmartCastFacts,
-        statements: &[hir::Statement],
-    ) -> SmartCastExits {
+    fn statements(&mut self, incoming: A::Facts, statements: &[hir::Statement]) -> Exits<A::Facts> {
         let mut exits = Self::normal(incoming);
         for statement in statements {
             let Some(facts) = exits.remove(&Outcome::Fallthrough) else {
@@ -136,7 +169,7 @@ impl SmartFlow<'_> {
         exits
     }
 
-    fn retarget(&mut self, mut exits: SmartCastExits, target: Outcome) -> SmartCastExits {
+    fn retarget(&mut self, mut exits: Exits<A::Facts>, target: Outcome) -> Exits<A::Facts> {
         if let Some(facts) = exits.remove(&Outcome::Fallthrough) {
             self.insert(&mut exits, target, facts);
         }

@@ -1,15 +1,15 @@
 use super::*;
 
-impl SmartFlow<'_> {
+impl<A: LocalAnalysis> BodyFlow<'_, A> {
     pub(super) fn loop_region(
         &mut self,
-        incoming: SmartCastFacts,
+        incoming: A::Facts,
         kind: hir::LoopKind,
         target: hir::LoopId,
         setup: &[hir::Statement],
         cond: &hir::Expr,
         body: &[hir::Statement],
-    ) -> SmartCastExits {
+    ) -> Exits<A::Facts> {
         let check_reads = self.check_reads;
         self.check_reads = false;
         let mut header = incoming.clone();
@@ -18,7 +18,7 @@ impl SmartFlow<'_> {
                 self.loop_iteration(header.clone(), kind, target, setup, cond, body);
             let next = backedge.map_or_else(
                 || incoming.clone(),
-                |backedge| self.state.common_smart_casts(incoming.clone(), backedge),
+                |backedge| self.analysis.join(self.state, incoming.clone(), backedge),
             );
             if next == header {
                 break;
@@ -32,13 +32,13 @@ impl SmartFlow<'_> {
 
     fn loop_iteration(
         &mut self,
-        header: SmartCastFacts,
+        header: A::Facts,
         kind: hir::LoopKind,
         target: hir::LoopId,
         setup: &[hir::Statement],
         cond: &hir::Expr,
         body: &[hir::Statement],
-    ) -> (SmartCastExits, Option<SmartCastFacts>) {
+    ) -> (Exits<A::Facts>, Option<A::Facts>) {
         let mut exits = BTreeMap::new();
         let mut condition_entry = Some(header.clone());
         if kind == hir::LoopKind::DoWhile {
@@ -52,10 +52,10 @@ impl SmartFlow<'_> {
             let normal = condition.remove(&Outcome::Fallthrough);
             self.merge(&mut exits, condition);
             if let Some(facts) = normal {
-                if let Some(no) = self.state.refine_flow_condition(facts.clone(), cond, false) {
+                if let Some(no) = self.analysis.branch(self.state, facts.clone(), cond, false) {
                     self.insert(&mut exits, Outcome::Fallthrough, no);
                 }
-                if let Some(yes) = self.state.refine_flow_condition(facts, cond, true) {
+                if let Some(yes) = self.analysis.branch(self.state, facts, cond, true) {
                     if kind == hir::LoopKind::While {
                         let mut body_exits = self.statements(yes, body);
                         backedge = self.take_backedge(&mut body_exits, target);
@@ -74,11 +74,11 @@ impl SmartFlow<'_> {
 
     fn condition_region(
         &mut self,
-        incoming: SmartCastFacts,
+        incoming: A::Facts,
         target: hir::LoopId,
         setup: &[hir::Statement],
         cond: &hir::Expr,
-    ) -> SmartCastExits {
+    ) -> Exits<A::Facts> {
         let check_reads = self.check_reads;
         self.check_reads = false;
         let mut header = incoming.clone();
@@ -86,7 +86,7 @@ impl SmartFlow<'_> {
             let mut exits = self.condition_iteration(header.clone(), setup, cond);
             let next = exits.remove(&Outcome::Continue(target)).map_or_else(
                 || incoming.clone(),
-                |facts| self.state.common_smart_casts(incoming.clone(), facts),
+                |facts| self.analysis.join(self.state, incoming.clone(), facts),
             );
             if next == header {
                 break;
@@ -101,10 +101,10 @@ impl SmartFlow<'_> {
 
     fn condition_iteration(
         &mut self,
-        incoming: SmartCastFacts,
+        incoming: A::Facts,
         setup: &[hir::Statement],
         cond: &hir::Expr,
-    ) -> SmartCastExits {
+    ) -> Exits<A::Facts> {
         let mut exits = self.statements(incoming, setup);
         if let Some(facts) = exits.remove(&Outcome::Fallthrough) {
             let next = self.expression(facts, cond);
@@ -115,9 +115,9 @@ impl SmartFlow<'_> {
 
     fn take_backedge(
         &mut self,
-        exits: &mut SmartCastExits,
+        exits: &mut Exits<A::Facts>,
         target: hir::LoopId,
-    ) -> Option<SmartCastFacts> {
+    ) -> Option<A::Facts> {
         let normal = exits.remove(&Outcome::Fallthrough);
         let continues = exits.remove(&Outcome::Continue(target));
         self.merge_optional(normal, continues)
@@ -125,11 +125,11 @@ impl SmartFlow<'_> {
 
     fn merge_optional(
         &mut self,
-        left: Option<SmartCastFacts>,
-        right: Option<SmartCastFacts>,
-    ) -> Option<SmartCastFacts> {
+        left: Option<A::Facts>,
+        right: Option<A::Facts>,
+    ) -> Option<A::Facts> {
         match (left, right) {
-            (Some(left), Some(right)) => Some(self.state.common_smart_casts(left, right)),
+            (Some(left), Some(right)) => Some(self.analysis.join(self.state, left, right)),
             (left, right) => left.or(right),
         }
     }

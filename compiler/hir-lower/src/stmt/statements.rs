@@ -129,6 +129,7 @@ impl Lowerer {
                 let Some(kind) = self.lower_assign(assign, out) else {
                     return;
                 };
+                self.record_assignment_site(&assign.target, &kind, statement.span);
                 kind
             }
             ast::StatementKind::If(if_) => {

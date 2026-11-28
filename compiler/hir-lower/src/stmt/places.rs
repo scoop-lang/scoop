@@ -101,6 +101,7 @@ impl Lowerer {
         let value = self.adapt_to(value, plan.ty);
         let new = self.materialize_place_expr(value, "new", span, sink);
         let write = self.lower_place_write(plan.write, new.clone(), span, sink)?;
+        self.record_assignment_site(place, &write, span);
         sink.push(hir::Statement { kind: write, span });
         Some(match notation {
             ast::UpdateNotation::Prefix => new,

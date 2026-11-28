@@ -10,7 +10,10 @@ impl Lowerer {
         lower: impl FnOnce(&mut Self) -> Vec<hir::Statement>,
     ) -> hir::Body {
         let mut scope = self.with_function_scope(id, name, implicit_parameter_span, |state| {
-            state.with_inherited_method_condition(id, lower)
+            let before = state.diagnostics.len();
+            let statements = state.with_inherited_method_condition(id, lower);
+            state.warn_unused_local_writes(&statements, [], before);
+            statements
         });
         scope.entry.extend(scope.value);
         hir::Body {

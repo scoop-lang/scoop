@@ -3,7 +3,7 @@
 use super::*;
 
 impl Lowerer {
-    pub(crate) fn with_constructor_source_body<T>(
+    pub(crate) fn with_constructor_source_body<T: ConstructorTail>(
         &mut self,
         source: impl Into<ConstructorSource>,
         body: hir::EditingConstructionBody,
@@ -16,7 +16,19 @@ impl Lowerer {
             hir::EditingSourceBodyId::Construction(body),
             source.definition_root(),
             self.current_file,
-            |this| this.with_constructor_expression_context(source, context, safety, lower),
+            |this| {
+                this.with_constructor_expression_context(
+                    source,
+                    context,
+                    safety,
+                    |state, statements| {
+                        let before = state.diagnostics.len();
+                        let value = lower(state, statements)?;
+                        state.warn_unused_local_writes(statements, value.expressions(), before);
+                        Some(value)
+                    },
+                )
+            },
         )
     }
 
@@ -30,13 +42,13 @@ impl Lowerer {
         self.with_constructor_context(source.into(), context, safety, None, lower)
     }
 
-    pub(crate) fn with_property_initializer_context<T>(
+    pub(crate) fn with_property_initializer_context(
         &mut self,
         constructor: hir::ClassConstructorId,
         property: hir::PropertyId,
         context: &str,
-        lower: impl FnOnce(&mut Self, &mut Vec<hir::Statement>) -> Option<T>,
-    ) -> Option<LoweredConstructorExpression<T>> {
+        lower: impl FnOnce(&mut Self, &mut Vec<hir::Statement>) -> Option<hir::Expr>,
+    ) -> Option<LoweredConstructorExpression<hir::Expr>> {
         let owner = self.class_constructors[constructor].owner;
         let ordinal = self.classes[owner]
             .properties
@@ -60,7 +72,12 @@ impl Lowerer {
                     context,
                     hir::Safety::Safe,
                     Some(paths),
-                    lower,
+                    |state, statements| {
+                        let before = state.diagnostics.len();
+                        let value = lower(state, statements)?;
+                        state.warn_unused_local_writes(statements, [&value], before);
+                        Some(value)
+                    },
                 )
             },
         )
@@ -298,4 +315,27 @@ pub(crate) struct LoweredConstructorExpression<T> {
     pub(crate) locals: la_arena::Arena<hir::Local>,
     pub(crate) statements: Vec<hir::Statement>,
     pub(crate) value: T,
+}
+
+/// Operands evaluated after a source constructor region's setup statements.
+pub(crate) trait ConstructorTail {
+    fn expressions(&self) -> &[hir::Expr];
+}
+
+impl ConstructorTail for () {
+    fn expressions(&self) -> &[hir::Expr] {
+        &[]
+    }
+}
+
+impl ConstructorTail for hir::Expr {
+    fn expressions(&self) -> &[hir::Expr] {
+        std::slice::from_ref(self)
+    }
+}
+
+impl ConstructorTail for crate::constructor_resolution::ResolvedNominalConstructor {
+    fn expressions(&self) -> &[hir::Expr] {
+        &self.args
+    }
 }

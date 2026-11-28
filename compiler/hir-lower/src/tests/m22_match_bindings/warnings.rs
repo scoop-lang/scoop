@@ -5,6 +5,7 @@ fn warning_names(source: &str) -> Vec<String> {
     output
         .warnings
         .iter()
+        .filter(|warning| warning.code == scoop_source::DiagnosticCode::W0901)
         .map(|warning| {
             assert_eq!(warning.severity, ast::DiagnosticSeverity::Warning);
             assert!(warning.message.contains("shadows an enum variant"));

@@ -1033,6 +1033,8 @@ pub(crate) struct Lowerer {
     /// length as their error baseline; warnings must remain separate.
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) warnings: Vec<Diagnostic>,
+    /// Exact source names of declarations and reassignments, shared by candidate snapshots.
+    local_write_sites: imbl::HashMap<(hir::BindingId, ast::Span), ast::Span>,
 }
 
 #[derive(Clone)]

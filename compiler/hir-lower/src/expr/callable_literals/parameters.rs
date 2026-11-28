@@ -130,6 +130,9 @@ impl Lowerer {
                 }
                 let local =
                     self.alloc_parameter_local(name.text.clone(), parameter_ty, index, name.span);
+                if parameter.is_some() {
+                    self.record_local_write_site(local, name.span, name.span);
+                }
                 self.scopes.declare(name.text.clone(), local);
                 abi_params.push(hir::Param {
                     name: name.text,
