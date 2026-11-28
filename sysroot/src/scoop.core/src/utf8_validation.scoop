@@ -4,19 +4,18 @@
 internal fun coreUtf8Step(bytes: Ptr<UInt8>, remaining: Long): Long {
     val first = bytes.load().toInt()
     if (first <= 127) { return 1L }
-    var width = 0L
     var minimum = 128
     var maximum = 191
-    if (first >= 194 && first <= 223) {
-        width = 2L
+    val width = if (first >= 194 && first <= 223) {
+        2L
     } else if (first >= 224 && first <= 239) {
-        width = 3L
         if (first == 224) { minimum = 160 }
         if (first == 237) { maximum = 159 }
+        3L
     } else if (first >= 240 && first <= 244) {
-        width = 4L
         if (first == 240) { minimum = 144 }
         if (first == 244) { maximum = 143 }
+        4L
     } else { return -1L }
     var index = 1L
     while (index < width) {

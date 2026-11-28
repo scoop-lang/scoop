@@ -76,5 +76,44 @@
       "start": 836
     },
     "severity": "error"
+  },
+  {
+    "code": "W0801",
+    "message": "value assigned to `pointer` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 137,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 130
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "W0801",
+    "message": "value assigned to `classHost` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 786,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 777
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "W0801",
+    "message": "value assigned to `structHost` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 833,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 823
+    },
+    "severity": "warning"
   }
 ]

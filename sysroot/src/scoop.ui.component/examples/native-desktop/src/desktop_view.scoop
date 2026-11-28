@@ -120,7 +120,7 @@ internal fun desktopSection(root: DocumentView): View {
             row {
                 spacing = 8.0
                 button("Refresh notification settings", { app.queryNotifications() })
-                when (val settings = demo.notificationSettings.value) {
+                when (demo.notificationSettings.value) {
                     case Some(val value) -> {
                         if (value.availability == NotificationAvailability.PermissionRequired)
                             button("Allow notifications", { app.queryNotifications(true) })

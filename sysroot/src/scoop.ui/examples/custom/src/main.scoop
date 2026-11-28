@@ -87,7 +87,7 @@ private class CounterDrawing(
                                 }
                                 case Pointer(
                                     InputPointerEvent.Button(
-                                        val pointer,
+                                        _,
                                         MouseButton.Left,
                                         ElementState.Released,
                                         _

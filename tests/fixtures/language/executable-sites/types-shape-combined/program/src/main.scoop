@@ -4,7 +4,7 @@ private fun noResult() {}
 
 fun main() {
     val pair: Any = boxPair((1u, 2u))
-    val empty: Any = boxUnit(noResult())
-    val local: Any = boxLocal(LocalValue())
+    val _empty: Any = boxUnit(noResult())
+    val _local: Any = boxLocal(LocalValue())
     if (!testPair(pair) || smartInteger(42) != 42 || castString("ok") != "ok") { throw IllegalStateException() }
 }

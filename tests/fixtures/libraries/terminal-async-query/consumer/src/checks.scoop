@@ -18,7 +18,7 @@ fun key(character: Char): Event = Event.Key(KeyEvent(KeyCode.Char(character)))
 suspend fun expect(session: AsyncTerminalSession, event: Event) { check(session.read() == event, "query lost or reordered user input") }
 suspend fun timeout(block: suspend () -> Unit) {
     var timedOut = false
-    try { block() } catch (error: TerminalQueryTimeoutException) { timedOut = true }
+    try { block() } catch (_: TerminalQueryTimeoutException) { timedOut = true }
     check(timedOut, "query timeout not reported")
 }
 suspend fun restored(session: AsyncTerminalSession) { check(!session.isRawMode(), "query raw mode was not restored") }

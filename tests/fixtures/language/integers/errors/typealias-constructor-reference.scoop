@@ -3,5 +3,5 @@ class Mapper
 typealias Alias = Mapper
 
 fun main() {
-    val constructor = ::Alias
+    val _ = ::Alias
 }

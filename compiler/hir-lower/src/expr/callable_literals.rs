@@ -72,6 +72,7 @@ impl Lowerer {
             is_suspend,
             span,
             |state, literal_origin, definition_path| {
+                let errors_before = state.diagnostics.len();
                 let receiver_ty = expected_signature
                     .as_ref()
                     .and_then(|signature| signature.receiver);
@@ -153,6 +154,7 @@ impl Lowerer {
                     .flatten()
                     .any(|p| !p.annotations.is_empty())
                     .then(|| state.locals.clone());
+                state.warn_unused_local_writes(&prefix, [], errors_before);
                 let function = state.functions.alloc(
                     hir::Function {
                         signature: hir::CallableSignature {

@@ -33,7 +33,7 @@ private fun exercise() {
     verify(iterator.next() == Some(Some(7)), "nested some")
     verify(iterator.next() == None && iterator.next() == None, "exhaustion")
     var bounds = false
-    try { empty[0L] } catch (error: IndexOutOfBoundsException) { bounds = true }
+    try { empty[0L] } catch (_: IndexOutOfBoundsException) { bounds = true }
     verify(bounds, "bounds")
 
 }

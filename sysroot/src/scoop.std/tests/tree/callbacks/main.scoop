@@ -21,15 +21,15 @@ private fun exercise() {
     check(map.keys.iterator().next()!! === original, "original key")
     hook.action = { throw Exception(Some("comparison failed")) }
     var caught = false
-    try { map.put(Key(2, "failure"), Some(3)) } catch (error: Exception) { caught = true }
+    try { map.put(Key(2, "failure"), Some(3)) } catch (_: Exception) { caught = true }
     check(caught && map.size == 1L, "comparison exception")
     hook.action = { hook.action = {}; map[original] = Some(7) }
     caught = false
-    try { map.put(Key(2, "outer"), Some(3)) } catch (error: ConcurrentModificationException) { caught = true }
+    try { map.put(Key(2, "outer"), Some(3)) } catch (_: ConcurrentModificationException) { caught = true }
     check(caught && map.size == 1L && map[original] == Some(Some(7)), "reentrant replacement")
     hook.action = { hook.action = {}; map.clear() }
     caught = false
-    try { map.remove(original) } catch (error: ConcurrentModificationException) { caught = true }
+    try { map.remove(original) } catch (_: ConcurrentModificationException) { caught = true }
     check(caught && map.isEmpty(), "reentrant clear")
     val set: MutableSet<Key> = TreeSet<Key>(comparator)
     set.add(original)
@@ -47,7 +47,7 @@ private fun exercise() {
     val iterator = full.iterator()
     hook.action = { throw Exception(Some("full node comparison")) }
     caught = false
-    try { full[15] = 15 } catch (error: Exception) { caught = true }
+    try { full[15] = 15 } catch (_: Exception) { caught = true }
     hook.action = {}
     check(caught && full.size == 15L && iterator.next()!!.key == 0, "split waits for comparison")
     check(!full.containsKey(15), "failed insert absent")

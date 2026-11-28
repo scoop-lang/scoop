@@ -52,9 +52,9 @@ fun readSnapshot(values: Array<Long>, good: Boolean): Long {
     var i = 0L
     var result = 0L
     while (i < values.size) {
-        var at = i
-        if (good) at = i else at = values.size
-        result += values[at]
+        var _at = i
+        if (good) _at = i else _at = values.size
+        result += values[_at]
         i += 1L
     }
     return result
@@ -81,7 +81,7 @@ fun main() {
     check(readSnapshot(snapshots, true) == 129L && earlyUpdate(snapshots) == 194L)
     var caught = false
     try { readSnapshot(snapshots, false) }
-    catch (error: IndexOutOfBoundsException) { caught = true }
+    catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught)
     println("conditional arrays preserve branches, snapshots and prefixes")
 }

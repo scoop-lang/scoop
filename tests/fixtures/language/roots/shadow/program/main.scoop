@@ -18,5 +18,5 @@ fun main() {
     println(second is Nothing)
     println(second is RootNothing)
     try { fail() }
-    catch (error: IllegalStateException) { println("root") }
+    catch (_: IllegalStateException) { println("root") }
 }

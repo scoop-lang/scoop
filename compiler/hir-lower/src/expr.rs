@@ -310,10 +310,11 @@ impl Lowerer {
         if self.body_cancelled() {
             return None;
         }
+        let discarded = matches!(expectation, Some(ExpressionExpectation::Discarded));
         let (expected, callable_expectation) = match expectation {
             Some(ExpressionExpectation::Type(ty)) => (Some(ty), None),
             Some(ExpressionExpectation::Callable(signature)) => (None, Some(signature)),
-            None => (None, None),
+            Some(ExpressionExpectation::Discarded) | None => (None, None),
         };
         let partial_expectation = callable_expectation.is_some();
         self.observe_callable_syntax(expr);
@@ -565,7 +566,7 @@ impl Lowerer {
                 notation,
                 span,
                 ..
-            } => self.lower_update(place, *op, *notation, *span, sink),
+            } => self.lower_update(place, *op, *notation, *span, discarded, sink),
             ast::Expr::NullAssert { operand, span } => self.lower_null_assert(operand, *span, sink),
             ast::Expr::Elvis { lhs, rhs, span } => {
                 self.lower_elvis(lhs, rhs, *span, sink, expected)

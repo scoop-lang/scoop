@@ -24,6 +24,6 @@ public fun <T> exercise(value: T, read: (T) -> Int): Int {
 
 public fun result(): Int {
     if (exercise<Local>(Local(42, Unit), { item -> item.value }) != 42) { return 1 }
-    if (exercise<Unit>(Unit, { item -> 42 }) != 42) { return 2 }
+    if (exercise<Unit>(Unit, { _ -> 42 }) != 42) { return 2 }
     return exercise<Int>(42, { item -> item })
 }

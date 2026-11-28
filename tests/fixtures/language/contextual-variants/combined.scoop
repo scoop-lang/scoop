@@ -32,7 +32,7 @@ fun localValue(value: LocalOption): Int = when (value) {
 }
 
 fun localNonCallableDoesNotShadowCall(): Token {
-    val Number = 99
+    val _ = 99
     return Number(8)
 }
 

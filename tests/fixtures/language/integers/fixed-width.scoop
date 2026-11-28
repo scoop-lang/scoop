@@ -51,7 +51,7 @@ fun main() {
     println(minimum64 % -1L)
     try {
         println(signed8 / 0)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("division-by-zero")
     }
 

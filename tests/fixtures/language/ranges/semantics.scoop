@@ -62,36 +62,36 @@ fun showULongNext(iterator: Iterator<ULong>) {
 
 fun rejectIntStep(label: String, range: IntRange, amount: Int) {
     try {
-        val invalid = range step amount
+        val _ = range step amount
         println("unexpected-" + label)
-    } catch (error: IllegalArgumentException) {
+    } catch (_: IllegalArgumentException) {
         println("invalid-" + label)
     }
 }
 
 fun rejectLongStep(label: String, range: LongRange, amount: Long) {
     try {
-        val invalid = range step amount
+        val _ = range step amount
         println("unexpected-" + label)
-    } catch (error: IllegalArgumentException) {
+    } catch (_: IllegalArgumentException) {
         println("invalid-" + label)
     }
 }
 
 fun rejectUIntStep(label: String, range: UIntRange, amount: UInt) {
     try {
-        val invalid = range step amount
+        val _ = range step amount
         println("unexpected-" + label)
-    } catch (error: IllegalArgumentException) {
+    } catch (_: IllegalArgumentException) {
         println("invalid-" + label)
     }
 }
 
 fun rejectULongStep(label: String, range: ULongRange, amount: ULong) {
     try {
-        val invalid = range step amount
+        val _ = range step amount
         println("unexpected-" + label)
-    } catch (error: IllegalArgumentException) {
+    } catch (_: IllegalArgumentException) {
         println("invalid-" + label)
     }
 }

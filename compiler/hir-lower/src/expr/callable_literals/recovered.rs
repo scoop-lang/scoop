@@ -14,7 +14,7 @@ impl Lowerer {
         let signature = match expected {
             Some(ExpressionExpectation::Type(ty)) => self.callable_expectation(ty),
             Some(ExpressionExpectation::Callable(signature)) => Some(signature),
-            None => None,
+            Some(ExpressionExpectation::Discarded) | None => None,
         };
         match &literal.header {
             RecoveredCallableHeader::Lambda { parameters } => {

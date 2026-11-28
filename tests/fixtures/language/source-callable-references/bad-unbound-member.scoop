@@ -2,6 +2,6 @@ package dev.example
 import dev.example.templates.references.*
 
 public fun rejected(): Int {
-    val reference = Plain::read
+    val _ = Plain::read
     return 0
 }

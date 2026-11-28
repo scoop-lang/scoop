@@ -62,7 +62,7 @@ public class JsonValue internal constructor(internal val node: JsonNode) {
 
     /** Looks up a field by name. A present JSON null is returned as Some(JsonValue). */
     public operator fun get(name: String): JsonValue? =
-        when (val node = objectMembers()[name]) {
+        when (objectMembers()[name]) {
             case Some(val value) -> Some(JsonValue(value))
             case None -> None
         }

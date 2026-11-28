@@ -43,7 +43,7 @@ private fun exerciseConsumer() {
     check(when (tags[0L].arguments[0L].value) { case AnnotationValue.String(val value) -> value == "first"; else -> false })
     check(findAnnotations(typeInfo<Record>().describe().annotations, key).size == 0L)
     var current = key
-    for (index in 0L until 10L) {
+    for (_ in 0L until 10L) {
         current = current.describe().key
         gcCollect()
         check(current == key)

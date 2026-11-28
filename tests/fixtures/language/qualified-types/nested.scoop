@@ -15,7 +15,7 @@ public typealias DeepAlias = dev.example.dependency.paths.Outer.Middle.Deep
 public fun <T> exercise(value: T): Int {
     val first: dev.example.dependency.paths.Outer.Nested = Nested(40)
     val box: dev.example.dependency.paths.Outer.Generic<T> = Generic<T>(value)
-    val kept: T = box.value
+    val _: T = box.value
     val second: dev.example.dependency.paths.GenericOuter.Nested = Other(2)
     val fixed: dev.example.dependency.paths.IntOuter.Nested = second
     val copy: NestedAlias = first

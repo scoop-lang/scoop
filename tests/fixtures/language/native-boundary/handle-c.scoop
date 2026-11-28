@@ -4,6 +4,6 @@ fun handleRoundTrip(value: GcHandle<Any>): GcHandle<Any>
 
 fun main() {
     @Unsafe {
-        val result = handleRoundTrip(GcHandle<Any>(42uL))
+        val _ = handleRoundTrip(GcHandle<Any>(42uL))
     }
 }

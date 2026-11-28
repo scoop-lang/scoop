@@ -190,7 +190,7 @@ internal fun toastExamples(model: ToastExamplesModel): View =
             button(
                 "Queue five",
                 {
-                    for (at in 0 ..< 5)
+                    for (_ in 0 ..< 5)
                         model.show(ToastKind.Info)
                 }
             ) { variant = ButtonVariant.Outline }

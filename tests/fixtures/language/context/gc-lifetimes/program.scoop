@@ -176,7 +176,7 @@ private fun tasks() {
     try {
         failed.fail()
         expect(false)
-    } catch (exception: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         collect(1023)
     }
     expect(failedDone.value == 0)

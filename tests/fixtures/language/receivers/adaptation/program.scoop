@@ -1,6 +1,6 @@
 class Box(val value: Int)
 fun main() {
-    val flat: (Any, Int) -> String = { value, step -> "value" }
+    val flat: (Any, Int) -> String = { _, _ -> "value" }
     val receiver: Box.(Int) -> Any = flat
     println(receiver(Box(1), 2) as String)
     val value: Any = receiver

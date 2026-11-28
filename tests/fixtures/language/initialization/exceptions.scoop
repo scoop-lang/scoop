@@ -23,7 +23,7 @@ fun main() {
     try {
         val failed = Failing(1, "outer")
         println(failed.before)
-    } catch (exception: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("caught")
     }
 }

@@ -23,7 +23,7 @@ fun evaluationOrder() {
     check(shared.load((Order.Acquire)) == 6)
     try {
         shared.store(fail(), MemoryOrder.Release)
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         check(shared.load() == 6)
     }
 }

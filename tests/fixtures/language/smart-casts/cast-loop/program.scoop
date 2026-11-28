@@ -8,5 +8,5 @@ fun main() {
             value = 42
             count++
         }
-    } catch (error: ClassCastException) { println("cast") }
+    } catch (_: ClassCastException) { println("cast") }
 }

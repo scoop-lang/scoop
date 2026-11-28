@@ -9,7 +9,7 @@ fun main() {
     val operation: (Int) -> Int = ::fail
     try {
         println(operation(0))
-    } catch (exception: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("caught")
     }
 }

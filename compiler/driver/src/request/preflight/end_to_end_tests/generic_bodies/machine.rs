@@ -143,11 +143,11 @@ fn actual_generic_library_emits_shared_odr_objects() {
                 })
                 .collect::<std::collections::HashSet<_>>();
             assert!(
-                names.contains("marker"),
+                names.contains("_marker"),
                 "the imported finally local retains its source name: {names:?}"
             );
             assert!(
-                names.contains("caught"),
+                names.contains("_caught"),
                 "the imported catch local retains its source name: {names:?}"
             );
             assert!(

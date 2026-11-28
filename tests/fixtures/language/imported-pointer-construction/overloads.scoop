@@ -7,12 +7,12 @@ import dev.example.dependency.construction.shifted as Fixed
 
 public fun <T> exercise(value: T): Int {
     var number = 1
-    var raw = 1uL
-    @Unsafe { raw = addressOf(number).toULong() }
-    val ordinary: Ptr<Int> = Make(raw)
+    var _raw = 1uL
+    @Unsafe { _raw = addressOf(number).toULong() }
+    val ordinary: Ptr<Int> = Make(_raw)
     @Unsafe {
-        val fixed: Ptr<Int> = Fixed(raw)
-        if (fixed.toULong() != raw || ordinary.toULong() != raw) { return 1 }
+        val fixed: Ptr<Int> = Fixed(_raw)
+        if (fixed.toULong() != _raw || ordinary.toULong() != _raw) { return 1 }
         return fixed.load()
     }
 }

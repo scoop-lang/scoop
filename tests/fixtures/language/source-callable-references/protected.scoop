@@ -10,7 +10,7 @@ public class LocalChild<T> public constructor(value: T): Protected<T>(value) {
 public fun <T> exercise(value: T): Int {
     val child = LocalChild<T>(value)
     val read = child.reference()
-    val values = (read(), child.chosen())
+    val _ = (read(), child.chosen())
     return 42
 }
 

@@ -10,7 +10,7 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
                 bytes,
                 length -> @Unsafe
                 {
-                    return@withUtf8Bytes when (val found = nativeFind(pointer, bytes, length)) {
+            return@withUtf8Bytes when (nativeFind(pointer, bytes, length)) {
                         case Some(val value) -> Some(NativeNode(value))
                         case None -> None
                     }
@@ -52,7 +52,7 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
     public fun columnHeader(index: Long): NativeNode? {
         @Unsafe
         {
-            return when (val found = nativeColumnHeader(pointer, index)) {
+        return when (nativeColumnHeader(pointer, index)) {
                 case Some(val value) -> Some(NativeNode(value))
                 case None -> None
             }
@@ -139,7 +139,7 @@ public class NativeNode public constructor(internal val pointer: Ptr<Unit>): Clo
     public fun scrollBar(vertical: Boolean): NativeNode? {
         @Unsafe
         {
-            return when (val value = nativeScrollBar(pointer, vertical)) {
+        return when (nativeScrollBar(pointer, vertical)) {
                 case Some(val found) -> Some(NativeNode(found))
                 case None -> None
             }

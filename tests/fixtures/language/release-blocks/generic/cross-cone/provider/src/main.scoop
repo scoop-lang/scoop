@@ -16,7 +16,7 @@ public class Owner<T> public constructor(private val value: T, private val handl
     public fun second(): Int = 2
 
     release {
-        val copied = keep(value)
+        val _ = keep(value)
         @Unsafe { record(adjusted(handle)) }
     }
 }

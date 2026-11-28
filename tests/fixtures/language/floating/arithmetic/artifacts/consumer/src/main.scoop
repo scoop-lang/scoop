@@ -48,7 +48,7 @@ fun check(value: Boolean) {
     check(Json.encodeToString(value, Record.Companion) == "{\"small\":0.1,\"wide\":-0.0}")
     val retained = Record(fromFloatBits(0xff800123U), fromDoubleBits(0x7ff0000000000123UL))
     try { gcCollect(); throw Exception(Some("float unwind")) }
-    catch (error: Exception) { gcCollect() }
+    catch (_: Exception) { gcCollect() }
     check(floatBits(retained.small) == 0xff800123U && doubleBits(retained.wide) == 0x7ff0000000000123UL)
     println("floating-artifacts-ok")
 }

@@ -414,6 +414,7 @@ diagnostic_codes! {
     E2510 => Error,
     E2511 => Error,
     E2512 => Error,
+    W0801 => Warning,
     W0901 => Warning,
     W1801 => Warning,
     W1802 => Warning,
@@ -514,7 +515,7 @@ mod tests {
             assert_eq!(number.len(), 4);
             assert!(number.bytes().all(|c| c.is_ascii_digit()));
         }
-        assert_eq!(counts, [348, 15, 14, 30, 13]);
+        assert_eq!(counts, [348, 16, 14, 30, 13]);
         for retired in ["SCOOPC_HIR_ERROR", "SLIB_WIRE_WRONG_TYPE", "E0000", "e0501"] {
             assert_eq!(DiagnosticCode::parse(retired), None);
         }

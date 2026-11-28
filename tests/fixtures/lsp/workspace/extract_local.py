@@ -32,6 +32,7 @@ def check(peer, root):
         "}\n"
         "fun writeBack(flag: Boolean): Boolean {\n"
         "    var current = flag\n"
+        "    if (current) { return true }\n"
         "    current = evaluate(false)\n"
         "    return current\n"
         "}\n"

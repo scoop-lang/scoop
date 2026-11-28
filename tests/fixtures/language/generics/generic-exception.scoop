@@ -11,15 +11,15 @@ fun failString() {
 fun main() {
     try {
         failInt()
-    } catch (error: GenericError<Int>) {
+    } catch (_: GenericError<Int>) {
         println("int")
     }
 
     try {
         failString()
-    } catch (error: GenericError<Int>) {
+    } catch (_: GenericError<Int>) {
         println("wrong")
-    } catch (error: Exception) {
+    } catch (_: Exception) {
         println("base")
     }
 }

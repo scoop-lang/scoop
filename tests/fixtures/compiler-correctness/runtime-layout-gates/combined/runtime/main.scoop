@@ -8,6 +8,6 @@ fun main() {
     verifyType(dormant<Int>(23) == 23)
     verifyType(upcast("text") as String == "text")
     var failed = false
-    try { combined(1, "bad") } catch (error: ClassCastException) { failed = true }
+    try { combined(1, "bad") } catch (_: ClassCastException) { failed = true }
     verifyType(failed)
 }

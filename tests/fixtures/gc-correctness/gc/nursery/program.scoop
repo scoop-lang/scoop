@@ -29,9 +29,9 @@ class Resource(private val value: Long, fail: Boolean) {
 }
 
 fun releaseCandidates() {
-    val ready = Resource(9L, false)
-    try { val unready = Resource(20L, true) }
-    catch (failure: ArithmeticException) {}
+    val _ready = Resource(9L, false)
+    try { val _unready = Resource(20L, true) }
+    catch (_: ArithmeticException) {}
 }
 
 context(request: Node)

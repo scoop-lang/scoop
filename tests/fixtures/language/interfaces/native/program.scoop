@@ -15,7 +15,7 @@ fun main() {
     val second: Value = Item(22)
     check(native(first, second, true).get() == 11)
     val result = try { native(first, second, false) }
-        catch (error: IllegalStateException) { first }
+        catch (_: IllegalStateException) { first }
     gcCollect()
     check(result.get() == 22)
     check(when (nativeOptional(None)) { case Some(_) -> false; case None -> true })

@@ -7,7 +7,7 @@ fun main() {
     println(reader<String>()(Box("generic")))
     val copy = preserve<String> { this }
     println(copy("flat"))
-    val read: Box<Int>.() -> Int = Box<Int>::read
+    val _: Box<Int>.() -> Int = Box<Int>::read
     println(Box(7).read())
     val add: Int.(Int) -> Int = Int::plus
     println(40.add(2))

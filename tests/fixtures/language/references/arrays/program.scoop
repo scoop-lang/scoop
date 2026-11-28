@@ -9,8 +9,8 @@ fun main() {
     println(values[0L])
     println(frozen(changed)[0L])
     println(values[2L])
-    val direct = Array<Int>(1L, { index -> 5 })
+    val direct = Array<Int>(1L, { _ -> 5 })
     println(direct[0L])
-    try { val invalid = make(-1L, { index -> 0 }) }
-    catch (error: IllegalArgumentException) { println("invalid size") }
+    try { val _ = make(-1L, { _ -> 0 }) }
+    catch (_: IllegalArgumentException) { println("invalid size") }
 }

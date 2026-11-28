@@ -31,11 +31,11 @@ private fun exercise() {
     check(listOf<Value>(Value("λ"), Value("雪")).joinToString<Value>(separator = "/") { value -> value.text } == "λ/雪", "explicit transform")
     val untouched = State()
     var caught = false
-    try { Source(untouched).joinToString(limit = -2L) } catch (error: IllegalArgumentException) { caught = true }
+    try { Source(untouched).joinToString(limit = -2L) } catch (_: IllegalArgumentException) { caught = true }
     check(caught && untouched.opened == 0L, "invalid limit before input")
     caught = false
     try { listOf<Int>(1).joinToString<Int> { _ -> throw Exception(Some("transform")) } }
-    catch (error: Exception) { caught = true }
+    catch (_: Exception) { caught = true }
     check(caught, "callback propagation")
 
 }

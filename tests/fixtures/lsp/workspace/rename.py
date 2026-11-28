@@ -44,7 +44,7 @@ def check(peer, root):
     case.change(
         use,
         case.texts[use]
-        + "fun capture(flag: Boolean): Boolean { val original = true; if (flag) { val taken = false; return original }; return original }\n",
+        + "fun capture(flag: Boolean): Boolean { val original = true; if (flag) { val taken = false; return original != taken }; return original }\n",
     )
     case.clean()
     failure = case.query(use, "val original", "original", "rename", error=-32803, newName="taken")

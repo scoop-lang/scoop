@@ -1,6 +1,7 @@
 use super::*;
 
 pub(crate) enum ExpressionExpectation {
+    Discarded,
     Type(TypeId),
     Callable(CallableExpectation),
 }

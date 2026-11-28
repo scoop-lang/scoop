@@ -1,0 +1,41 @@
+[
+  {
+    "code": "W0801",
+    "message": "value assigned to `unused` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 95,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 89
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "W0801",
+    "message": "value assigned to `value` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 118,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 113
+    },
+    "severity": "warning"
+  },
+  {
+    "code": "W0801",
+    "message": "value assigned to `value` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 175,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 170
+    },
+    "severity": "warning"
+  }
+]

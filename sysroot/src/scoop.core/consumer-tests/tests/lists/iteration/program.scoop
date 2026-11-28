@@ -43,7 +43,7 @@ private fun exercise() {
     observed.fail = true
     observed.getReads = 0L
     var caught = false
-    try { observed.toMutableArray() } catch (e: IllegalStateException) { caught = true }
+    try { observed.toMutableArray() } catch (_: IllegalStateException) { caught = true }
     if (!caught || observed.getReads != 12L) { fail(Some("snapshot-throw")) }
     val arrayIterator = data.iterator()
     if (arrayIterator.next()!! != 10) { fail(Some("array-first")) }

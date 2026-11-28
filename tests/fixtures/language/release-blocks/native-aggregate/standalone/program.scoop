@@ -20,7 +20,7 @@ class Owner(private val value: Wide) {
 private fun allocate() {
     @Unsafe {
         val value = rotate(Wide(11, 21, 10))
-        val owner = Owner(value)
+        val _owner = Owner(value)
     }
 }
 

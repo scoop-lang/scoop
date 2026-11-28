@@ -4,7 +4,7 @@ import test.releasecache.Owner
 @Extern(lib = "m24_release", name = "m24_release_count64")
 private fun count(): Long
 
-private fun allocate() { val owner = Owner(0, 1, 40) }
+private fun allocate() { val _owner = Owner(0, 1, 40) }
 
 fun main() {
     allocate()

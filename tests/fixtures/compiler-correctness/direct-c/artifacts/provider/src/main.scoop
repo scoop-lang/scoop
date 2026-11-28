@@ -21,6 +21,6 @@ public class Worker public constructor() : Transform {
 }
 public fun <T> retained(value: T): T {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return value }
+    catch (_: IllegalStateException) { return value }
 }
 public fun wrapped(value: Hfa4): Hfa4 { gcCollect(); @Unsafe { return safe(value) } }

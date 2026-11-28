@@ -14,7 +14,7 @@ fun main(args: Array<String>) {
     try {
         val absent: Int? = None
         println(absent!!)
-    } catch (failure: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("unwrap")
     }
     println(args.size)

@@ -3,7 +3,7 @@ context(configuration: Configuration)
 val active get() = configuration.text
 val stopped get() = throw IllegalStateException()
 val operation = out@ { return@out 7 }
-val recovered get() = try { stopped } catch (failure: Throwable) { 9 } finally { println("cleanup") }
+val recovered get() = try { stopped } catch (_: Throwable) { 9 } finally { println("cleanup") }
 fun main() {
     context(Configuration("context")) { println(active) }
     println(operation())

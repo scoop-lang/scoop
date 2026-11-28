@@ -30,7 +30,7 @@ private fun exerciseConsumer() {
     val codec = NodeDecoder(Offset(10))
     val root = Json.decodeFromString(text, codec)
     check(root.value == 11 && root.next!!.value == 12 && root.next!!.next!!.value == 13, 1)
-    check(when (root.next!!.next!!.next) { case None -> true; case Some(val value) -> false }, 2)
+    check(when (root.next!!.next!!.next) { case None -> true; case Some(_) -> false }, 2)
     val other = Json.decodeFromString(text, NodeDecoder(Offset(100)))
     check(other.value == 101 && other.next!!.value == 102, 3)
     val again = Json.decodeFromString(text, codec)

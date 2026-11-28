@@ -36,7 +36,7 @@ public class Easing private constructor(
             return 1.0
         var low = 0.0
         var high = 1.0
-        for (index in 0 ..< 48) {
+        for (_ in 0 ..< 48) {
             val middle = (low + high) * 0.5
             if (cubic(middle, x1, x2) < x)
                 low = middle

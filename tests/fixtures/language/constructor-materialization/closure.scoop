@@ -29,11 +29,11 @@ class DeferredPlain {
     constructor(flag: Boolean) {}
 }
 fun main() {
-    val choice: DeferredChoice<String> = DeferredChoice<String>(true)
-    val chain: DeferredChain<Int> = DeferredChain(1, true)
-    val box: DeferredBox<Int> = DeferredBox(1, true)
-    val recursive: DeferredRecursive<Int> = DeferredRecursive(1)
-    val derived: DeferredDerived<Int> = DeferredDerived(1)
-    val fixed: DeferredFixed = DeferredFixed(1)
-    val plain: DeferredPlain = DeferredPlain()
+    val _choice: DeferredChoice<String> = DeferredChoice<String>(true)
+    val _chain: DeferredChain<Int> = DeferredChain(1, true)
+    val _box: DeferredBox<Int> = DeferredBox(1, true)
+    val _recursive: DeferredRecursive<Int> = DeferredRecursive(1)
+    val _derived: DeferredDerived<Int> = DeferredDerived(1)
+    val _fixed: DeferredFixed = DeferredFixed(1)
+    val _plain: DeferredPlain = DeferredPlain()
 }

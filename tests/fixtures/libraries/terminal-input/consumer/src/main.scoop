@@ -29,7 +29,7 @@ fun inputs(session: TerminalSession) {
     check(start.elapsedNow() >= Duration.milliseconds(20L), "poll deadline")
     var rejected = false
     try { session.poll(Duration.milliseconds(-1L)) }
-    catch (error: IllegalArgumentException) { rejected = true }
+    catch (_: IllegalArgumentException) { rejected = true }
     check(rejected, "negative poll duration")
     stage("utf8-prefix")
     check(!session.poll(Duration.milliseconds(20L)), "UTF-8 prefix is not an event")
@@ -57,7 +57,7 @@ fun events(session: TerminalSession) {
         KeyModifiers().with(KeyModifier.Control), KeyEventKind.Release)), "Kitty release")
     stage("invalid")
     var rejected = false
-    try { session.read() } catch (error: TerminalInputException) { rejected = true }
+    try { session.read() } catch (_: TerminalInputException) { rejected = true }
     check(rejected, "invalid UTF-8")
     expect(session.read(), key('z'), "input after invalid byte")
     stage("resize-0")
@@ -74,10 +74,10 @@ fun eof() {
         stage("eof-next")
         expect(session.read(), Event.Key(KeyEvent(KeyCode.Esc)), "EOF preserves Escape")
         var disconnected = false
-        try { session.read() } catch (error: TerminalDisconnectedException) { disconnected = true }
+        try { session.read() } catch (_: TerminalDisconnectedException) { disconnected = true }
         check(disconnected, "read EOF")
         disconnected = false
-        try { session.poll(Duration.ZERO) } catch (error: TerminalDisconnectedException) { disconnected = true }
+        try { session.poll(Duration.ZERO) } catch (_: TerminalDisconnectedException) { disconnected = true }
         check(disconnected, "poll EOF")
     }
 }

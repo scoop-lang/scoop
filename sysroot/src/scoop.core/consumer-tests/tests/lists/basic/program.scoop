@@ -34,12 +34,12 @@ private fun exercise() {
     values.add(7)
     if (values.size != 1L || values[0L] != 7 || snapshot[3L] != 3) { fail(Some("clear")) }
     var caught = 0
-    try { val unused = values[-1L] } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { values[1L] = 2 } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { values.add(-1L, 2) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { values.add(2L, 2) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { values.removeAt(1L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { val unused = ArrayList<Int>(-1L) } catch (e: IllegalArgumentException) { caught = caught + 1 }
+    try { val _ = values[-1L] } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { values[1L] = 2 } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { values.add(-1L, 2) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { values.add(2L, 2) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { values.removeAt(1L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { val _ = ArrayList<Int>(-1L) } catch (_: IllegalArgumentException) { caught = caught + 1 }
     if (caught != 6 || values.size != 1L || values[0L] != 7) { fail(Some("bounds")) }
     val nested = ArrayList<Int?>()
     nested.add(None)

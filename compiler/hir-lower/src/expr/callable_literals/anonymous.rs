@@ -154,6 +154,7 @@ impl Lowerer {
                     .iter()
                     .any(|p| !p.annotations.is_empty())
                     .then(|| state.locals.clone());
+                state.warn_unused_local_writes(&statements, [], diagnostics_before);
                 let function = state.functions.alloc(hir::Function {
                     signature: hir::CallableSignature {
                         context_parameters: Vec::new(),

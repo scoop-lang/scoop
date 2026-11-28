@@ -5,13 +5,13 @@ import dev.example.templates.delegateCombinations.*
 private fun <T> leftFailure(): Int = try {
     Token<T>().cycleLeft
     0
-} catch (error: IllegalStateException) {
+} catch (_: IllegalStateException) {
     42
 }
 private fun <T> rightFailure(): Int = try {
     Token<T>().cycleRight
     0
-} catch (error: IllegalStateException) {
+} catch (_: IllegalStateException) {
     42
 }
 

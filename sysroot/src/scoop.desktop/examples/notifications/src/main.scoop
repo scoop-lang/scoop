@@ -102,8 +102,8 @@ private class NotificationDemo(
                             else
                                 show(active, f"Notification: ${payload}")
                         }
-                        case Closed(val identity, val reason) -> record("closed: " + identity.value)
-                        case Failed(val identity, val error) -> failed(error)
+                        case Closed(val identity, _) -> record("closed: " + identity.value)
+                        case Failed(_, val error) -> failed(error)
                     }
                 }
                 if (has(arguments, "--permission"))
@@ -111,7 +111,7 @@ private class NotificationDemo(
                 else
                     center!!.settings { result -> checked(active, result) }
             }
-            case Window(val identity, WindowEvent.CloseRequested) -> {
+            case Window(_, WindowEvent.CloseRequested) -> {
                 window?.requestDestroy()
                 active.requestExit()
             }

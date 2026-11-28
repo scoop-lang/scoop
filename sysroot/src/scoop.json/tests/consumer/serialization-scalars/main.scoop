@@ -9,7 +9,7 @@ fun check(value: Boolean, location: SourceLocation = currentSourceLocation()) {
 
 fun <T> reject(text: String, codec: ValueDecoder<T>) {
     var rejected: Boolean = false
-    try { val result = Json.decodeFromString(text, codec) }
+    try { val _ = Json.decodeFromString(text, codec) }
     catch (error: DecodingException) {
         check(error.path == "")
         rejected = true

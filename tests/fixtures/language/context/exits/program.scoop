@@ -17,7 +17,7 @@ context(_: Binding)
 fun ownTry() {
     try {
         println("entered without binding")
-    } catch (error: MissingContextException) {
+    } catch (_: MissingContextException) {
         println("caught by own body")
     }
 }
@@ -29,7 +29,7 @@ fun main() {
                 gcCollect()
                 throw TestFailure()
             }
-        } catch (error: TestFailure) {
+        } catch (_: TestFailure) {
             println(current())
         }
         println(returnFromScope())
@@ -45,7 +45,7 @@ fun main() {
         println(current())
         try {
             context(failingBinding()) { println("binding should fail") }
-        } catch (error: TestFailure) {
+        } catch (_: TestFailure) {
             println(current())
         }
         val result = context(Binding(3)) {
@@ -61,7 +61,7 @@ fun main() {
     }
     try {
         ownTry()
-    } catch (error: MissingContextException) {
+    } catch (_: MissingContextException) {
         println("caught by caller")
     }
 }

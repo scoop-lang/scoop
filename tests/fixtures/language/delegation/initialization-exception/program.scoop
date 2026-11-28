@@ -10,6 +10,6 @@ class Host(fail: Boolean) : Read by try { make(fail) } finally { println("finall
     init { println("init") }
 }
 fun main() {
-    try { val ignored = Host(true) } catch (error: IllegalStateException) { println("caught") }
+    try { val _ = Host(true) } catch (_: IllegalStateException) { println("caught") }
     println(Host(false).read())
 }

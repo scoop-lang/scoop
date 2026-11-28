@@ -9,7 +9,7 @@ public fun <T, U> choose(seed: T, marker: U): T {
     }
     fun recur(depth: Int): T {
         if (depth > 0) { return recur(depth - 1) }
-        val self: (Int) -> T = ::recur
+        val _: (Int) -> T = ::recur
         return pick<U>(marker, 0)
     }
     fun finish(value: T = recur(2)): T { return value }

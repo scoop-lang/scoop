@@ -16,6 +16,6 @@ public fun result(): Int {
     val named = whole(values = deferredEmpty(1), seed = mark(2))
     if (named.size != 0L || trace != 12) { return 3 }
     trace = 0
-    val callback = applyTo({ value -> mark(3) }, mark(2))
+    val callback = applyTo({ _ -> mark(3) }, mark(2))
     return if (callback == 42 && trace == 23) { 42 } else { 4 }
 }

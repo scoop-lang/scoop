@@ -5,9 +5,9 @@ fun main(): Int {
     println(count)
     while (true) if (count == 7) break else count += 1
     println(count)
-    if (true) val scoped = 1
+    if (true) val _ = 1
     while (false) val scoped = 2
-    for (value in 0..<1) val scoped = value
+    for (value in 0..<1) val _ = value
     val scoped = 42
     println(scoped)
     return 0

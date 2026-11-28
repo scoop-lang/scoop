@@ -58,6 +58,7 @@ impl Lowerer {
             };
             let local =
                 self.alloc_declared_local(catch.name.text.clone(), ty, false, catch.name.span);
+            self.record_local_write_site(local, catch.name.span, catch.name.span);
             let body = self.with_catch_scope(&catch.name, local, |this| {
                 this.with_smart_casts(catch_facts.clone(), |this| this.lower_block(&catch.body))
             });
@@ -107,6 +108,7 @@ impl Lowerer {
             covered.push(ty);
             let local =
                 self.alloc_declared_local(catch.name.text.clone(), ty, false, catch.name.span);
+            self.record_local_write_site(local, catch.name.span, catch.name.span);
             resolved.push((catch, ty, local));
         }
 

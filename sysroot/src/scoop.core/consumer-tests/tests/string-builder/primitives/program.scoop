@@ -69,8 +69,8 @@ private class ApiTests {
     fun capacityAndReuse() {
         var rejected = false
         try {
-            val unused = StringBuilder(-1L)
-        } catch (e: IllegalArgumentException) {
+            val _ = StringBuilder(-1L)
+        } catch (_: IllegalArgumentException) {
             rejected = true
         }
         if (!rejected) {
@@ -80,7 +80,7 @@ private class ApiTests {
         if (builder.toString() != "") {
             fail(Some("reserved empty"))
         }
-        for (index in 0L until 4096L) {
+        for (_ in 0L until 4096L) {
             builder.append('雪')
         }
         val snapshot = builder.toString()

@@ -19,7 +19,7 @@ fun main() {
 
     // An eager argument fails before the logger's recovery boundary.
     try { log.warn(details()) }
-    catch (failure: Exception) { log.info("caught eager argument failure in application code") }
+    catch (_: Exception) { log.info("caught eager argument failure in application code") }
 
     log.info("continued after logging failures")
     Log.flush()

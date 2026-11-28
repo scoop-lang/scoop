@@ -17,22 +17,22 @@ object SharedRecord : ValueEncoder<Unit> {
         Boolean.encode(true, third.field("third"))
         second.end()
         first.end()
-        val view = encoder.keyed()
+        val _ = encoder.keyed()
     }
 }
 
 private fun exercise() {
     check(Json.encodeToString(Unit, SharedRecord) == "{\"first\":1,\"second\":\"second\",\"third\":true}")
-    val empty = ValueEncoderFunction<Unit>({ value, encoder ->
+    val empty = ValueEncoderFunction<Unit>({ _, encoder ->
         encoder.keyed().end()
         encoder.keyed().end()
     })
     check(Json.encodeToString(Unit, empty) == "{}")
     val scalar = ValueEncoderFunction<Long>({ value, encoder ->
         val first = encoder.singleValue()
-        val second = encoder.singleValue()
+        val _ = encoder.singleValue()
         first.writeLong(value)
-        val third = encoder.singleValue()
+        val _ = encoder.singleValue()
     })
     check(Json.encodeToString(7L, scalar) == "7")
 

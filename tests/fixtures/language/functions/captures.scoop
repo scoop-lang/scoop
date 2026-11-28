@@ -18,10 +18,10 @@ fun makeNested(base: Int): () -> () -> Int = { ({ base }) }
 fun labelReader(label: Label): () -> String = { label.text }
 
 fun snapshot(): () -> Int {
-    var value = 41
-    val captured = value
+    var _value = 41
+    val captured = _value
     val result = { captured + 1 }
-    value = 0
+    _value = 0
     return result
 }
 

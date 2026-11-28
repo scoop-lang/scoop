@@ -20,12 +20,12 @@ def check(peer, root):
         "struct OtherLocalName<T>(val value: T)\n"
         "typealias LocalAlias<T> = LocalName<T>\n"
         "fun constructorNames() {\n"
-        "    val direct = LocalName(true)\n"
-        "    val alias = /* 🌟 */ LocalAlias(true)\n"
-        "    val remote = ImportedName(true)\n"
-        "    val imported = ImportedAlias(true)\n"
-        "    val localFactory: (Boolean) -> LocalAlias<Boolean> = ::LocalAlias\n"
-        "    val remoteFactory: (Boolean) -> ImportedAlias<Boolean> = ::ImportedAlias\n"
+        "    val _direct = LocalName(true)\n"
+        "    val _alias = /* 🌟 */ LocalAlias(true)\n"
+        "    val _remote = ImportedName(true)\n"
+        "    val _imported = ImportedAlias(true)\n"
+        "    val _localFactory: (Boolean) -> LocalAlias<Boolean> = ::LocalAlias\n"
+        "    val _remoteFactory: (Boolean) -> ImportedAlias<Boolean> = ::ImportedAlias\n"
         "}\n"
     )
     texts = {path: source, provider: library}

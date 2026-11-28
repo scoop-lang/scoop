@@ -24,8 +24,8 @@ fun functionKey(): Int = value()
 fun main() {
     val derived = Derived(17)
     context(derived) {
-        try { base() } catch (error: MissingContextException) { println("exact-class") }
-        try { named() } catch (error: MissingContextException) { println("exact-interface") }
+        try { base() } catch (_: MissingContextException) { println("exact-class") }
+        try { named() } catch (_: MissingContextException) { println("exact-interface") }
     }
     val upcast: Base = derived
     val interfaceValue: Named = derived
@@ -35,7 +35,7 @@ fun main() {
     if (optional is String) { context(optional) { println(text()) } }
     context("alias") { println(text()) }
     context(Array<Int>(1L) { _ -> 21 }) {
-        try { longArray() } catch (error: MissingContextException) { println("exact-array") }
+        try { longArray() } catch (_: MissingContextException) { println("exact-array") }
         context(Array<Long>(1L) { _ -> 22L }) {
             gcCollect()
             println(integerArray())

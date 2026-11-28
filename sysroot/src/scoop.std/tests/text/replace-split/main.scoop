@@ -23,9 +23,9 @@ private fun exercise() {
     check("😀雪😀".split('😀').joinToString("|") == "|雪|", "multibyte split")
     check(!("a,b".split(',') is MutableList<String>), "split readonly")
     var errors = 0
-    try { "x".split("") } catch (error: IllegalArgumentException) { errors += 1 }
-    try { "x".split("", 1L) } catch (error: IllegalArgumentException) { errors += 1 }
-    try { "x".split(',', -1L) } catch (error: IllegalArgumentException) { errors += 1 }
+    try { "x".split("") } catch (_: IllegalArgumentException) { errors += 1 }
+    try { "x".split("", 1L) } catch (_: IllegalArgumentException) { errors += 1 }
+    try { "x".split(',', -1L) } catch (_: IllegalArgumentException) { errors += 1 }
     check(errors == 3, "split argument errors")
     val repeated = "aa雪".repeat(1024L)
     check(repeated.replace("aa", "😀").charLength == 2048L && repeated.split("aa").size == 1025L, "many pieces")

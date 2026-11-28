@@ -5,7 +5,7 @@ class Node(val value: Int, val previous: Node?)
 fun check(value: Boolean) { if (!value) { throw IllegalStateException() } }
 
 fun churn(worker: Int): Int {
-    val values = MutableArray<Node?>(80L) { index -> None }
+    val values = MutableArray<Node?>(80L) { _ -> None }
     var index = 0L
     while (index < values.size) {
         val previous = if (index == 0L) None else values[index - 1L]

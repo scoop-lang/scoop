@@ -241,6 +241,7 @@ impl Lowerer {
             self.local_type_capture_scope.clone()
         };
         let outer_default_template = std::mem::replace(&mut self.lowering_default_template, true);
+        let errors_before = self.diagnostics.len();
         let value = self.lower_expr(expression, &mut statements, Some(parameter.ty));
         self.lowering_default_template = outer_default_template;
         let value = value.and_then(|value| {
@@ -263,6 +264,9 @@ impl Lowerer {
                 None
             }
         });
+        if let Some(value) = &value {
+            self.warn_unused_local_writes(&statements, [value], errors_before);
+        }
         let locals = std::mem::take(&mut self.locals).into_arena();
         let captures = if environment.is_some() {
             let captures = self.finish_current_captures(hir::ExpressionOrigin::Definition(origin));

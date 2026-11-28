@@ -83,9 +83,9 @@ public val <T> Receiver<T>.referenceLocalGeneric: Int by if (true) {
 
 public val <T> Receiver<T>.referenceMember: Int by if (true) {
     Trace.initializations += 1
-    var current = Payload(42)
-    val read: () -> Int = current::read
-    current = Payload(1)
+    var _current = Payload(42)
+    val read: () -> Int = _current::read
+    _current = Payload(1)
     ReaderSlot<T>(read)
 } else {
     ReaderSlot<T>(::answer)
@@ -100,9 +100,9 @@ public val <T> Receiver<T>.referenceComputed: Int by if (true) {
 
 public val <T> Receiver<T>.referenceValueMember: Int by if (true) {
     Trace.initializations += 1
-    var current = ValueReader(42)
-    val read: () -> Int = current::read
-    current = ValueReader(1)
+    var _current = ValueReader(42)
+    val read: () -> Int = _current::read
+    _current = ValueReader(1)
     ReaderSlot<T>(read)
 } else {
     ReaderSlot<T>(::answer)

@@ -52,9 +52,9 @@ private fun exercise() {
     check("雪😀雪".removePrefix("雪") == "😀雪" && "雪😀雪".removeSuffix("雪") == "雪😀", "remove")
     check("x".removePrefix("y") == "x" && "x".removeSuffix("") == "x", "unmatched remove")
     var errors = 0
-    try { "x".indexOf("", -1L) } catch (error: IndexOutOfBoundsException) { errors += 1 }
-    try { "x".lastIndexOf("", 2L) } catch (error: IndexOutOfBoundsException) { errors += 1 }
-    try { "x".substring(1L, 0L) } catch (error: IndexOutOfBoundsException) { errors += 1 }
+    try { "x".indexOf("", -1L) } catch (_: IndexOutOfBoundsException) { errors += 1 }
+    try { "x".lastIndexOf("", 2L) } catch (_: IndexOutOfBoundsException) { errors += 1 }
+    try { "x".substring(1L, 0L) } catch (_: IndexOutOfBoundsException) { errors += 1 }
     check(errors == 3, "invalid indexes")
     val long = "a".repeat(4096L) + "b"
     val repeated = "a".repeat(512L) + "b"

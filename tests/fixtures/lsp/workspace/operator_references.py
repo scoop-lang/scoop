@@ -32,15 +32,15 @@ def check(peer, root):
         "    operator fun contains(value: Boolean): Boolean = value\n"
         "}\n"
         "fun operatorUse(left: OperatorBox<Boolean>, right: OperatorBox<Boolean>, bag: OperatorBag, extension: OperatorReceiver): Boolean {\n"
-        "    val one = left + true\n"
-        "    val named = left.plus(true)\n"
-        "    val negated = -left\n"
-        "    val lower = left < right\n"
-        "    val greater = left >= right\n"
-        "    val inside = true in bag\n"
-        "    val outside = false !in bag\n"
-        "    val branched = when (true) { in bag -> true; !in bag -> false; else -> false }\n"
-        "    val combined = extension + true\n"
+        "    val _one = left + true\n"
+        "    val _named = left.plus(true)\n"
+        "    val _negated = -left\n"
+        "    val _lower = left < right\n"
+        "    val _greater = left >= right\n"
+        "    val _inside = true in bag\n"
+        "    val _outside = false !in bag\n"
+        "    val _branched = when (true) { in bag -> true; !in bag -> false; else -> false }\n"
+        "    val _combined = extension + true\n"
         "    return left != right\n"
         "}\n"
     )
@@ -159,7 +159,7 @@ def check(peer, root):
     hover("left + true", "+", "fun plus(other: T): T", "Returns the input.")
 
     original = source
-    source = source.replace("val one = left + true", "val one = true")
+    source = source.replace("val _one = left + true", "val _one = true")
     change(peer, path.as_uri(), 2, source)
     assert published(peer, path.as_uri(), 2) == []
     assert len(refs("left.plus(true)", "plus")) == 3

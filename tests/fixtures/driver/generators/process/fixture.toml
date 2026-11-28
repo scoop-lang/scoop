@@ -29,7 +29,7 @@ checks = [
   {file = "${work}/dumps/generated.scoop", contains = "// Source: generated/function/"},
   {file = "${work}/dumps/generated.scoop", contains = "{\n    val result = left + right\n    return result\n}"},
   {file = "${work}/dumps/generated.scoop", contains = "// 中文前缀\n{ return \"中文\\n\\\"quoted\\\"\" } /* suffix */"},
-  {file = "${work}/dumps/generated.scoop", contains = "val decoder: ValueDecoder<T> = T.Companion\n val result: () -> T = { value }\n return result() }"},
+  {file = "${work}/dumps/generated.scoop", contains = "val _: ValueDecoder<T> = T.Companion\n val result: () -> T = { value }\n return result() }"},
 ]
 
 [[steps]]

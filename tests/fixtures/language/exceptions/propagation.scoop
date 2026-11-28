@@ -14,7 +14,7 @@ fun outer(): Int {
 fun main() {
     try {
         outer()
-    } catch (e: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("caught in main")
     }
 }

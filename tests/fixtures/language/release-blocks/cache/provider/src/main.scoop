@@ -12,8 +12,8 @@ public class Owner<T> public constructor(
     private val handle: Long
 ) {
     release {
-        val copied = keep(value)
-        val copiedMarker = marker
+        val _ = keep(value)
+        val _ = marker
         @Unsafe { record(adjusted(handle) + 1) }
     }
 }

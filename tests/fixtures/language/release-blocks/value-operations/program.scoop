@@ -21,7 +21,7 @@ struct Parts(val first: Int, val second: Int) {
 struct Node(val next: Option<Ptr<Node>>, val value: Int)
 
 class RecursiveOwner(private val node: Node) {
-    release { val copied = node }
+    release { val _copied = node }
 }
 
 class Owner(private val parts: Parts) {
@@ -42,8 +42,8 @@ class Owner(private val parts: Parts) {
 }
 
 private fun allocate() {
-    val owner = Owner(Parts(10, 20))
-    val recursive = RecursiveOwner(Node(None, 1))
+    val _owner = Owner(Parts(10, 20))
+    val _ = RecursiveOwner(Node(None, 1))
 }
 
 fun main() {

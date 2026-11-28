@@ -31,7 +31,7 @@ class Gate(val fail: Boolean): SuspendRegistration<Int> {
                         try {
                             continuation.resume(99)
                         }
-                        catch (error: IllegalStateException) {
+                        catch (_: IllegalStateException) {
                             rejected = true
                         }
                         check(rejected)

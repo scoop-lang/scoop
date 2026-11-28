@@ -217,7 +217,7 @@ fun <T> delayedSource(gate: Gate, values: Array<T>): DelayedIterable<T> {
 fun makeGarbage() {
     var index = 0
     while (index < 128) {
-        val garbage = Node("garbage-" + "node")
+        val _garbage = Node("garbage-" + "node")
         index = index + 1
     }
 }

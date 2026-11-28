@@ -13,8 +13,8 @@ private fun count(): Int
 private fun allocate() {
     val left = makeLeft()
     val right = makeRight()
-    val other = makeLong()
-    val local = makeGeneric(recordBefore(2), 5)
+    val _other = makeLong()
+    val _local = makeGeneric(recordBefore(2), 5)
     println(observeLeft(left) + observeRight(right))
 }
 

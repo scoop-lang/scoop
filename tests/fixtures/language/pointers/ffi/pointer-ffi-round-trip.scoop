@@ -135,12 +135,12 @@ fun optionalCellMatches(
 }
 
 fun optionalOpaqueIsNone(actual: Ptr<Unit>?): Boolean = when (actual) {
-    case Some(val pointer) -> false
+    case Some(_) -> false
     case None -> true
 }
 
 fun optionalCellIsNone(actual: Ptr<NativeCell>?): Boolean = when (actual) {
-    case Some(val pointer) -> false
+    case Some(_) -> false
     case None -> true
 }
 
@@ -156,7 +156,7 @@ fun applyOptionalCallback(
 fun optionalCallbackIsNone(
     callback: FunPtr<(Int) -> Int>?
 ): Boolean = when (callback) {
-    case Some(val pointer) -> false
+    case Some(_) -> false
     case None -> true
 }
 

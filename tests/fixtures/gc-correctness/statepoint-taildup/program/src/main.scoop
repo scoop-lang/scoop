@@ -8,7 +8,7 @@ fun verify(expected: (Long, Int)?, operation: () -> Value) {
         case Some(val parts) -> check(operation().toComponents() == parts)
         case None -> {
             var failed = false
-            try { operation() } catch (error: ArithmeticException) { failed = true }
+            try { operation() } catch (_: ArithmeticException) { failed = true }
             check(failed)
         }
     }
@@ -17,7 +17,7 @@ fun main() {
     verify(Some((2L, 3))) { Value(2L, 3) }
     verify(None) { throw ArithmeticException() }
     var propagated = false
-    try { verify(None) { Value(0L, 0) } } catch (error: IllegalStateException) { propagated = true }
+    try { verify(None) { Value(0L, 0) } } catch (_: IllegalStateException) { propagated = true }
     check(propagated)
     println("statepoint taildup passed")
 }

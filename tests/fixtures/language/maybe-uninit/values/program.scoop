@@ -16,7 +16,7 @@ fun companionEffect(): MaybeUninit<Int>.Companion {
 
 fun <T> roundTrip(value: MaybeUninit<T>): MaybeUninit<T> {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return value }
+    catch (_: IllegalStateException) { return value }
 }
 
 @Unsafe fun paddingAndBits() {

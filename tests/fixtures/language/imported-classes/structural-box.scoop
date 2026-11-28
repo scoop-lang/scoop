@@ -4,6 +4,6 @@ import dev.example.dependency.classes.Counter
 public fun primary(): Counter {
     val number: Long = 21
     val boxed: Any = (number, "tuple")
-    val (value, text) = boxed as (Long, String)
+    val (value, _text) = boxed as (Long, String)
     return Counter(value)
 }

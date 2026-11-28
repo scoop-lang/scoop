@@ -15,6 +15,6 @@ public fun result(): Int {
     val fallback = Wide(0, Marker(), Number(0))
     val value = unpack(unpack(nested(Wide(20, Marker(), Number(21))), pack(fallback)), fallback)
     val number = localRelay(Number(1))
-    val empty = localRelay(Marker())
+    val _ = localRelay(Marker())
     return value.left + value.right.value + number.value
 }

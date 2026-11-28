@@ -59,7 +59,7 @@ public class WaitingTask<T> public constructor(
 public suspend fun <T> recover(gate: Gate<T>, fallback: T, counter: Counter): T {
     try {
         return await(gate)
-    } catch (exception: UnwrapException) {
+    } catch (_: UnwrapException) {
         return fallback
     } finally {
         counter.value += 1
@@ -138,7 +138,7 @@ public suspend fun <T> synchronousFailure(): T = suspendCoroutine() { continuati
     continuation.resumeWithException(UnwrapException())
 }
 
-public suspend fun <T> registrationFailure(): T = suspendCoroutine() { continuation: Continuation<T> ->
+public suspend fun <T> registrationFailure(): T = suspendCoroutine() { _: Continuation<T> ->
     throw UnwrapException()
 }
 
@@ -157,7 +157,7 @@ public fun <T> recoveringFunction(
 ): suspend () -> T = suspend {
     try {
         await(gate)
-    } catch (exception: UnwrapException) {
+    } catch (_: UnwrapException) {
         fallback
     } finally {
         await(cleanup)

@@ -8,21 +8,21 @@ fun main() {
     println(second.first)
     println(make("reference", 9).second)
     println(copy(11).first)
-    val plus = add()
-    println(40.plus(2))
+    val addTo = add()
+    println(40.addTo(2))
     val value: Pick<Int> = Pick.Value("imported", 40)
     when (value) {
         case Pick.Empty -> println("empty")
         case Pick.Value(val text, val n, val count) -> { println(text); println(n + count) }
-        case Pick.Many(val text, val values) -> println(values.size)
+        case Pick.Many(_, val values) -> println(values.size)
     }
     val empty: Pick<Int> = Pick.Empty
     println(empty is Pick<Int>)
     val many = Pick.Many("many", 1, *[2, 3])
     when (many) {
         case Pick.Empty -> println(0)
-        case Pick.Value(val text, val n, val count) -> println(n)
-        case Pick.Many(val text, val values) -> println(values.size)
+        case Pick.Value(_, val n, _) -> println(n)
+        case Pick.Many(_, val values) -> println(values.size)
     }
     println(Build("function", 41))
     println(Fixed("alias", 42).second)

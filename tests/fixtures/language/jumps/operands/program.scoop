@@ -10,17 +10,17 @@ fun tuple(): Int { val ignored = (mark(1), return 4, mark(3)); return 0 }
 fun array(): Int { val ignored: Array<Int> = [mark(1), return 5, mark(3)]; return 0 }
 fun nestedReturn(): Int { return (return 6) }
 fun shortCircuit(): Int {
-    val skip = false && (return 99)
-    val skipOther = true || (return 99)
+    val _ = false && (return 99)
+    val _ = true || (return 99)
     val taken = true && (return 7)
     return 0
 }
 fun numeric(): Int { val ignored = mark(1) + (return 8); return 0 }
 fun receiver(value: Int?): Int {
-    val result = (value ?: return 9).toString()
+    val _ = (value ?: return 9).toString()
     return 0
 }
-fun brackets(value: Int?) { val ignored: Array<Int> = [value ?: return] }
+fun brackets(value: Int?) { val _: Array<Int> = [value ?: return] }
 fun comma(value: Int?) { outer(value ?: return, mark(3)) }
 
 fun source(): Int? { mark(1); return Some(4) }

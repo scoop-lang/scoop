@@ -27,7 +27,7 @@ public fun <T> exercise(value: T): Int {
     if (!equalsDefault()) { return 6 }
     try {
         divide(0)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         return 42
     }
     return 7

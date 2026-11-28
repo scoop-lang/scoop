@@ -15,7 +15,7 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int {
 }
 
 public fun result(): Int {
-    if (exercise<String>("call", { value -> 42 }) != 42) { return 1 }
-    if (exercise<Unit>(Unit, { value -> 42 }) != 42) { return 2 }
+    if (exercise<String>("call", { _ -> 42 }) != 42) { return 1 }
+    if (exercise<Unit>(Unit, { _ -> 42 }) != 42) { return 2 }
     return exercise<Int>(42, { value -> value })
 }

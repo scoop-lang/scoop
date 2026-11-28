@@ -71,7 +71,7 @@ internal class DebugSession(private val writer: TextWriter, private val options:
 
     private fun newline(depth: Long) {
         writer.write("\n")
-        for (index in 0L until depth) { writer.write(options.indent) }
+        for (_ in 0L until depth) { writer.write(options.indent) }
     }
 
     private fun close(text: String, count: Long, depth: Long) {

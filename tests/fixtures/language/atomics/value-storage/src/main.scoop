@@ -36,7 +36,7 @@ fun main() {
         case State.Empty -> { throw IllegalStateException() }
         case State.Item(val serial, val node) -> { check(serial == 4 && node === second) }
     }
-    val values = MutableArray<Atomic<Snapshot>>(2L) { index -> snapshot }
+    val values = MutableArray<Atomic<Snapshot>>(2L) { _ -> snapshot }
     values[1L].store(Snapshot(8, second))
     gcCollect()
     check(values[0L].load().serial == 8)

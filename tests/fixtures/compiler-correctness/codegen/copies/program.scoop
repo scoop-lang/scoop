@@ -14,7 +14,7 @@ fun acrossGc(value: Snapshot, fail: Boolean): Snapshot {
         gcCollect()
         if (fail) { throw IllegalArgumentException() }
         return value
-    } catch (error: IllegalArgumentException) {
+    } catch (_: IllegalArgumentException) {
         gcCollect()
         return Snapshot(value.node, value.words)
     }

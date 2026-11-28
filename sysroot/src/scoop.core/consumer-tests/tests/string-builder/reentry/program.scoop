@@ -6,7 +6,7 @@ class Reentrant(val builder: StringBuilder): ToString {
     var calls: Int = 0
     public override fun toString(): String {
         calls = calls + 1
-        for (index in 0L until 12L) {
+        for (_ in 0L until 12L) {
             builder.append("i")
         }
         gcCollect()
@@ -27,7 +27,7 @@ class Clearing(val builder: StringBuilder): ToString {
     public override fun toString(): String {
         calls += 1
         builder.clear()
-        for (index in 0L until 1024L) {
+        for (_ in 0L until 1024L) {
             builder.append('雪')
         }
         gcCollect()
@@ -37,7 +37,7 @@ class Clearing(val builder: StringBuilder): ToString {
 
 private fun exercise() {
     val builder = StringBuilder()
-    for (index in 0L until 7L) {
+    for (_ in 0L until 7L) {
         builder.append("p")
     }
     val value = Reentrant(builder)
@@ -49,7 +49,7 @@ private fun exercise() {
     var failed = false
     try {
         builder.append(Failing(builder))
-    } catch (e: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         failed = true
     }
     if (!failed || builder.toString() != before + "kept") {

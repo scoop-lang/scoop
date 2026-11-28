@@ -38,12 +38,12 @@ fun main() {
     println(choose(true))
     inferred(true)
     try { val value: Int = forward(); println(value) }
-    catch (error: IllegalStateException) { println("caught") }
+    catch (_: IllegalStateException) { println("caught") }
     try { consume(mark(1), fail(), mark(2)) }
-    catch (error: IllegalStateException) { println("arguments") }
+    catch (_: IllegalStateException) { println("arguments") }
     try { defaultValue() }
-    catch (error: IllegalStateException) { println("default") }
+    catch (_: IllegalStateException) { println("default") }
     try { both(false) }
-    catch (error: IllegalStateException) { println("branches") }
+    catch (_: IllegalStateException) { println("branches") }
     println(cleanup())
 }

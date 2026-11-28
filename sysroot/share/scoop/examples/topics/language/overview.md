@@ -12,6 +12,7 @@ scoop run --release values.scoop
 
 ```text
 point=(3, 4)
+x=3
 point missing
 Ada
 guest
@@ -23,6 +24,8 @@ guest
 Point 是真正的值类型；Lookup 是带载荷的 enum。`when` 中的 `case` 解构载荷并覆盖每个变体。格式化字符串显式使用 `f"...${expression}..."`。
 
 `String?` 是 `Option<String>`，用 Some/None 表示有值或缺失。`?:` 给出缺失时的结果，`?.` 仅在有值时读取属性。索引和长度等 API 使用 Long，因此默认长度写 `0L`。这是一页语法概览，具体约束由相关主题解释。
+
+解构 `val (x, _) = point` 时只给第一个坐标起名。若希望给第二个坐标保留可引用的名字，可写 `val (x, _y) = point`。普通变量的值在被覆盖或离开作用域前始终没有被读取时，编译器会在写入处报告 `W0801`。
 
 ## 常见误用
 

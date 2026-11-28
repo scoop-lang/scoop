@@ -15,11 +15,11 @@ fun main() {
     val change: ((Int) -> Int) -> Int = integer::updateAndGet
     check(change({ current -> current + 3 }) == 10)
     try {
-        integer.getAndUpdate({ current ->
+        integer.getAndUpdate({ _ ->
             integer.store(19)
             throw IllegalStateException()
         })
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         check(integer.load() == 19)
     }
 

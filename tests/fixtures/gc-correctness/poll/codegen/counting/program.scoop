@@ -43,7 +43,7 @@ fun withException(n: Int): Long {
     var sum = 0L
     while (i < n) { sum += i.toLong() + 1L; i += 1 }
     try { throw IllegalStateException() }
-    catch (error: IllegalStateException) { return sum }
+    catch (_: IllegalStateException) { return sum }
 }
 
 fun retained(n: Int): Int {

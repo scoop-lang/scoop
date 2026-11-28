@@ -7,6 +7,6 @@ struct DeferredData<T>(val value: T) {
 class DeferredTypeOnly<T>()
 fun inspect(value: DeferredTypeOnly<Int>) {}
 fun main() {
-    val holder: DeferredHolder<Int> = DeferredHolder(1)
-    val data: DeferredData<Int> = DeferredData(1)
+    val _holder: DeferredHolder<Int> = DeferredHolder(1)
+    val _data: DeferredData<Int> = DeferredData(1)
 }

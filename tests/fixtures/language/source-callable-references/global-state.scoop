@@ -20,7 +20,7 @@ public fun <T> exercise(value: T): Int {
     val chooseBoth: (T, Int) -> Int = child::choose
     val cell = Cell<T>(value)
     val valueRead = cell::read
-    val values = (choose(value), read(), valueRead())
+    val _ = (choose(value), read(), valueRead())
     if (computed() != 42 || computed() != 42 || evaluations != 1) { return 1 }
     if (saved() != 42 || current.read() != 1) { return 2 }
     return chooseBoth(value, 42)

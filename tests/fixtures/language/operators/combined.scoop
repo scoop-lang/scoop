@@ -60,7 +60,7 @@ class OperatorTask(
             gcCollect()
             println(total.amount)
             render()
-        } catch (error: OperatorFailure) {
+        } catch (_: OperatorFailure) {
             "operator-caught"
         }
     }

@@ -5,7 +5,7 @@ fun main() {
     var rejected: Boolean = false
     try {
         useCast("wrong")
-    } catch (error: ClassCastException) {
+    } catch (_: ClassCastException) {
         rejected = true
     }
     if (!rejected) { throw IllegalStateException() }

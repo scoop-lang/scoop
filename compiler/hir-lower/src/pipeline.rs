@@ -478,6 +478,7 @@ impl Lowerer {
             place_index_inputs: None,
             diagnostics: Vec::new(),
             warnings: Vec::new(),
+            local_write_sites: Default::default(),
         }
     }
 

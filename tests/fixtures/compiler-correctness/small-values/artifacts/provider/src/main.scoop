@@ -10,7 +10,7 @@ public fun identity(value: Mixed): Mixed { gcCollect(); return value }
 public fun floats(value: Floats): Floats = value
 public fun <T> generic(value: T): T {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return value }
+    catch (_: IllegalStateException) { return value }
 }
 public fun registers(a: Long, b: Long, c: Long, d: Long, e: Long, f: Long,
                      value: Mixed, tail: Double): Mixed {

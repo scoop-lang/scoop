@@ -17,8 +17,8 @@ def check(peer, root):
                 "typealias Alias<A> = Box<A>\n"
                 "fun exercise(): Boolean {\n"
                 "    val direct = Box(value = true)\n"
-                "    val alias = /* 🌟 */ Alias(value = false)\n"
-                "    val factory: (Boolean) -> Alias<Boolean> = ::Alias\n"
+                "    val _alias = /* 🌟 */ Alias(value = false)\n"
+                "    val _factory: (Boolean) -> Alias<Boolean> = ::Alias\n"
                 "    return direct.value\n"
                 "}\n"
             )

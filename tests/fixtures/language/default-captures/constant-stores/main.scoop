@@ -7,9 +7,9 @@ fun copied(): Int {
 }
 
 fun overwritten(): Int {
-    var flag = true
-    flag = false
-    return if (flag) { Item(3).value } else { Item(4).value }
+    var _flag = true
+    _flag = false
+    return if (_flag) { Item(3).value } else { Item(4).value }
 }
 
 fun changed(input: Boolean): Int {

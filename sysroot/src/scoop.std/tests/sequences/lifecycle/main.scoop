@@ -15,7 +15,7 @@ fun check(value: Boolean, label: String, location: SourceLocation = currentSourc
 }
 fun expectStopped(iterator: Iterator<Int>) {
     var caught = false
-    try { iterator.next() } catch (error: IllegalStateException) { caught = true }
+    try { iterator.next() } catch (_: IllegalStateException) { caught = true }
     check(caught, "failed iterator must not retry")
 }
 

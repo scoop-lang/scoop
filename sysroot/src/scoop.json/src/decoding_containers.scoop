@@ -8,7 +8,7 @@ internal class JsonKeyedDecoder(private val owner: JsonDecoder, private val memb
     public override val keys: List<String> get() = members.keys.toList()
 
     public override fun optional(name: String): Option<Decoder> =
-        when (val node = members[name]) {
+        when (members[name]) {
             case Some(val value) -> Some(JsonDecoder(value, childPath(owner.path, name)))
             case None -> None
         }

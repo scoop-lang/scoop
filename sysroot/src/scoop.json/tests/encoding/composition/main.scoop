@@ -42,7 +42,7 @@ private fun exercise() {
     check(text == "{\"type\":\"message\",\"id\":7,\"text\":\"payload\",\"done\":true}")
     val decoded = Json.decodeFromString(text, FlattenDecoder)
     check(decoded.identity == value.identity && decoded.details == value.details)
-    val collision = ValueEncoderFunction<Unit>({ value, encoder ->
+    val collision = ValueEncoderFunction<Unit>({ _, encoder ->
         Identity.Companion.encode(Identity(1L), encoder)
         Identity.Companion.encode(Identity(2L), encoder)
     })

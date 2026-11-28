@@ -7,17 +7,17 @@ import dev.example.dependency.options.ValuePacket.*
 import dev.example.dependency.options.restore
 
 public fun <T> exercise(value: T): Int {
-    val empty: T? = Option.None
-    val present = Option.Some<T>(value)
+    val _: T? = Option.None
+    val _ = Option.Some<T>(value)
     val inferred = Option.Some(40)
     val packet: Packet<T> = Packet.Item(value)
-    val picked = Pick(value)
+    val _ = Pick(value)
     val named = IntPacket.Named(value = restore(inferred, 0))
-    val absent: Packet<T> = Packet.Empty
+    val _: Packet<T> = Packet.Empty
     val bounded = Value(42)
     if (when (bounded) { case Value(val number) -> number != 42 }) { return 3 }
     return when (packet) {
-        case Item(val item) -> when (named) {
+        case Item(_) -> when (named) {
             case Named(val n, val amount) -> n + amount
             else -> 1
         }

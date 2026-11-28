@@ -107,7 +107,7 @@ fn explicit_bodies_keep_backing_fields_calls_and_source_accessor_identities() {
 fn querying_a_setter_first_resolves_its_real_inferred_property_type() {
     for text in [
         "var state = true\nget() = field\nset(next) { field = next }",
-        "var state get() = true\nset(next) { val saved = next }",
+        "var state get() = true\nset(next) { val _ = next }",
     ] {
         let mut analysis = analyze_accessors(text);
         let setter = region(&mut analysis, text, "set(next)");

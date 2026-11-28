@@ -7,7 +7,7 @@ fun <T> deferred(value: Double, rhs: () -> Nothing, tag: T): Boolean = value < r
 
 fun check(name: String, action: () -> Unit) {
     try { action(); println("unexpected return") }
-    catch (error: IllegalStateException) { println(name) }
+    catch (_: IllegalStateException) { println(name) }
     finally { println("finally") }
 }
 

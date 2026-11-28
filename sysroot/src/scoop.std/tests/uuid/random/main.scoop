@@ -46,7 +46,7 @@ private fun exercise() {
     check(first.nextLong() == second.nextLong())
     val failing = Failing()
     var propagated = false
-    try { Uuid.random(failing) } catch (error: IllegalStateException) { propagated = true }
+    try { Uuid.random(failing) } catch (_: IllegalStateException) { propagated = true }
     check(propagated && failing.calls == 4)
 
 }

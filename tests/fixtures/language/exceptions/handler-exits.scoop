@@ -1,7 +1,7 @@
 fun returnFromCatch(): Int {
     try {
         throw UnwrapException()
-    } catch (e: UnwrapException) {
+    } catch (_: UnwrapException) {
         return 7
     } finally {
         println("return-finally")
@@ -12,12 +12,12 @@ fun replaceInCatch() {
     try {
         try {
             throw UnwrapException()
-        } catch (e: UnwrapException) {
+        } catch (_: UnwrapException) {
             throw ArithmeticException()
         } finally {
             println("replace-finally")
         }
-    } catch (e: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("replacement")
     }
 }
@@ -26,12 +26,12 @@ fun noMatchRethrow() {
     try {
         try {
             throw ClassCastException()
-        } catch (e: ArithmeticException) {
+        } catch (_: ArithmeticException) {
             println("wrong")
         } finally {
             println("rethrow-finally")
         }
-    } catch (e: ClassCastException) {
+    } catch (_: ClassCastException) {
         println("rethrown")
     }
 }
@@ -39,10 +39,10 @@ fun noMatchRethrow() {
 fun nestedTryInHandler() {
     try {
         throw UnwrapException()
-    } catch (e: UnwrapException) {
+    } catch (_: UnwrapException) {
         try {
             throw ClassCastException()
-        } catch (e: ClassCastException) {
+        } catch (_: ClassCastException) {
             throw ArithmeticException()
         } finally {
             println("nested-finally")
@@ -58,7 +58,7 @@ fun main() {
     noMatchRethrow()
     try {
         nestedTryInHandler()
-    } catch (e: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("nested-out")
     }
 }

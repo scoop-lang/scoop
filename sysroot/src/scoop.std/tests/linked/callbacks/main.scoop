@@ -36,24 +36,24 @@ private fun exercise() {
     check(hooks.hashes == 40, "rehash reuses cached hash")
     hooks.onHash = { throw Exception(Some("hash")) }
     var caught = false
-    try { map.put(Key(99, hooks), "bad") } catch (error: Exception) { caught = true }
+    try { map.put(Key(99, hooks), "bad") } catch (_: Exception) { caught = true }
     check(caught && map.size == 40L, "hash exception")
     hooks.onHash = {}
     hooks.onEquals = { throw Exception(Some("equals")) }
     caught = false
-    try { map.remove(Key(1, hooks)) } catch (error: Exception) { caught = true }
+    try { map.remove(Key(1, hooks)) } catch (_: Exception) { caught = true }
     check(caught && map.size == 40L, "equals exception")
     hooks.onEquals = { hooks.onEquals = {}; map.clear() }
     caught = false
     try { map.put(Key(100, hooks), "outer") }
-    catch (error: ConcurrentModificationException) { caught = true }
+    catch (_: ConcurrentModificationException) { caught = true }
     check(caught && map.size == 0L, "reentrant structural mutation")
     val other = Hooks()
     map[Key(1, other)] = "one"
     other.onHash = { other.onHash = {}; map.put(Key(1, other), "inner") }
     caught = false
     try { map.put(Key(2, other), "outer") }
-    catch (error: ConcurrentModificationException) { caught = true }
+    catch (_: ConcurrentModificationException) { caught = true }
     check(caught && map.size == 1L && map[Key(1, other)] == Some("inner"), "reentrant value update")
     val optional = LinkedHashMap<String, Int?>()
     optional["none"] = None
@@ -63,7 +63,7 @@ private fun exercise() {
     check(optional.getOrPut("absent") { optional["absent"] = Some(5); Some(6) } == Some(6), "producer reentry")
     check(optional["absent"] == Some(Some(6)), "final put")
     caught = false
-    try { optional.getValue("missing") } catch (error: NoSuchElementException) { caught = true }
+    try { optional.getValue("missing") } catch (_: NoSuchElementException) { caught = true }
     check(caught, "getValue missing")
 
 }

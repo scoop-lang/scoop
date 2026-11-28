@@ -8,7 +8,7 @@ class Words(val words: Array<String>) : Collection<String> {
 
 fun <T> count(values: Collection<T>): Long {
     var total = 0L
-    for (value in values) total += 1L
+    for (_ in values) total += 1L
     if (total != values.size) throw Exception(Some("collection size"))
     return total
 }

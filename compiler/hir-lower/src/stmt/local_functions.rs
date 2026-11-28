@@ -43,6 +43,7 @@ impl Lowerer {
                     });
                 }
                 abi_params.extend(params);
+                state.warn_unused_local_writes(&statements, [], inference_errors_before);
                 let body_locals = std::mem::take(&mut state.locals).into_arena();
                 (statements, captures, abi_params, body_locals)
             });

@@ -39,7 +39,7 @@ internal class WorkshopReceiver(
             )
         )
         scope.dragSource(area) {
-            _ -> when (val content = props.value.content) {
+            _ -> when (props.value.content) {
                 case Some(val value) -> Some(DragSourceData(value))
                 case None -> None
             }

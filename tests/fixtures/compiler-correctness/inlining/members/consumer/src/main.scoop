@@ -28,7 +28,7 @@ public fun guardedKernel(value: Amount, divisor: Long, count: Int): Long {
             total += value.divide(divisor)
             index += 1
         }
-    } catch (failure: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         return -1L
     }
     return total

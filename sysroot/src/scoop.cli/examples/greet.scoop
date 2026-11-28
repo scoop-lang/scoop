@@ -29,7 +29,7 @@ fun main(args: Array<String>): Int {
                         "!"
                     else
                         "."
-                for (index in 1 .. options.count) {
+                for (_ in 1 .. options.count) {
                     println(f"Hello, ${options.name}${ending}")
                 }
             }

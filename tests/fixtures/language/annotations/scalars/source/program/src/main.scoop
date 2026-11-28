@@ -49,7 +49,7 @@ public class Record(@Note("primary") @WireName("identifier") val id: Int) {
 fun main() {
     val first = Box<Int>(7)
     val second = Box<String>("text")
-    val variant = Choice.Record(9)
+    val _ = Choice.Record(9)
     val row = Record(6)
     if (first.value != 7 || second.value != "text" || row.id != 6) { throw Throwable() }
     if (Box<Int>.state != 8 || Box<String>.state != 8) { throw Throwable() }

@@ -22,6 +22,6 @@ fun main() {
     println((present?.run { mark("b", 3) })!!)
     println(trace)
     try { println(Worker().run { nothing() }) }
-    catch (failure: UnwrapException) { println("caught") }
+    catch (_: UnwrapException) { println("caught") }
     finally { println("finally") }
 }

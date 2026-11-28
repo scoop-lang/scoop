@@ -6,7 +6,7 @@ public fun primary(): Counter {
     val value: Any = Other(0)
     try {
         return value as Counter
-    } catch (error: ClassCastException) {
+    } catch (_: ClassCastException) {
         return Counter(21)
     }
 }

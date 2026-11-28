@@ -45,8 +45,8 @@ fun main() {
     gcCollect()
     check(before >= gcStats() + 40uL)
     var invalid = 0
-    try { oldDeque.next() } catch (error: ConcurrentModificationException) { invalid += 1 }
-    try { oldHeap.next() } catch (error: ConcurrentModificationException) { invalid += 1 }
+    try { oldDeque.next() } catch (_: ConcurrentModificationException) { invalid += 1 }
+    try { oldHeap.next() } catch (_: ConcurrentModificationException) { invalid += 1 }
     check(invalid == 2)
     println("queue gc passed")
 }

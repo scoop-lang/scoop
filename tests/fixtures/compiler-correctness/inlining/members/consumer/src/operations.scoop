@@ -88,7 +88,7 @@ fun checkOperations() {
             replaceKernel(recorder, first)
             gcCollect()
         }
-    } catch (failure: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         failed = true
     }
     check(failed && constructSnapshotKernel(recorder).count == 2L)

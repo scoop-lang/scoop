@@ -10,7 +10,7 @@ public fun check(): Int {
     val value = Later(result())
     val answer = exercise<Later>(value)
     @Unsafe {
-        val empty = roundTrip<Unit>(Unit)
+        val _ = roundTrip<Unit>(Unit)
         if (roundTrip<LaterValue>(LaterValue(42)).number != 42) { return 1 }
         if (roundTrip<Int>(42) != 42) { return 2 }
     }

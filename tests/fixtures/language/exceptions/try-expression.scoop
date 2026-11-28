@@ -1,6 +1,6 @@
 fun recover(): String = try {
     throw UnwrapException()
-} catch (e: UnwrapException) {
+} catch (_: UnwrapException) {
     "caught"
 } finally {
     println("finally")

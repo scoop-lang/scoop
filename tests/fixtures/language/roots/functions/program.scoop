@@ -15,23 +15,23 @@ fun main() {
     val other: Any = ordinary
     println(other is () -> Nothing)
     try { scalar() }
-    catch (error: IllegalStateException) { println("static") }
+    catch (_: IllegalStateException) { println("static") }
     try { discarded() }
-    catch (error: IllegalStateException) { println("unit") }
+    catch (_: IllegalStateException) { println("unit") }
     try {
         val dynamic = erased as () -> Int
         dynamic()
-    } catch (error: IllegalStateException) { println("dynamic") }
+    } catch (_: IllegalStateException) { println("dynamic") }
     val acceptsAny: (Any) -> Int = ::ignore
     val acceptsBottom: (Nothing) -> Int = acceptsAny
     try { acceptsBottom(fail()) }
-    catch (error: IllegalStateException) { println("parameter") }
+    catch (_: IllegalStateException) { println("parameter") }
     try { render<Nothing>(fail()) }
-    catch (error: IllegalStateException) { println("bound") }
+    catch (_: IllegalStateException) { println("bound") }
     try { val value: Int = identity<Nothing>(fail()); println(value) }
-    catch (error: IllegalStateException) { println("generic") }
+    catch (_: IllegalStateException) { println("generic") }
     val empty: Nothing? = None
-    println(when (empty) { case None -> true; case Some(val value) -> false })
+    println(when (empty) { case None -> true; case Some(_) -> false })
     val values: Array<Nothing> = []
     println(values.size)
     val generated = Array<Nothing>(0L) { _ -> fail() }

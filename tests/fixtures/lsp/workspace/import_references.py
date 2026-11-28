@@ -14,7 +14,7 @@ def check(peer, root):
         "import AliasApi.choose as 别名\n"
         "fun aliasUse(): Boolean {\n"
         "    val first = 别名(true)\n"
-        '    val second = 别名("text")\n'
+        '    val _second = 别名("text")\n'
         "    return AliasApi.choose(first)\n"
         "}\n"
         "fun aliasShadowed(): Boolean {\n"

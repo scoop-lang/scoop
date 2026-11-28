@@ -174,7 +174,10 @@ impl Lowerer {
                 )),
                 "secondary constructor body",
                 self.class_constructors[constructor].safety,
-                |this, _| Some(this.lower_block(&source.body)),
+                |this, statements| {
+                    statements.extend(this.lower_block(&source.body));
+                    Some(())
+                },
             );
             if let Some(lowered) = lowered {
                 let hir::ClassConstructorKind::Secondary { body, .. } =
@@ -184,11 +187,7 @@ impl Lowerer {
                 };
                 *body = hir::Body {
                     locals: lowered.locals,
-                    statements: lowered
-                        .statements
-                        .into_iter()
-                        .chain(lowered.value)
-                        .collect(),
+                    statements: lowered.statements,
                 };
             }
         }
@@ -255,7 +254,10 @@ impl Lowerer {
                 )),
                 "struct secondary constructor body",
                 self.struct_constructors[constructor].safety,
-                |this, _| Some(this.lower_block(&source.body)),
+                |this, statements| {
+                    statements.extend(this.lower_block(&source.body));
+                    Some(())
+                },
             );
             if let Some(lowered) = lowered {
                 let hir::StructConstructorKind::Secondary { body, .. } =
@@ -265,11 +267,7 @@ impl Lowerer {
                 };
                 *body = hir::Body {
                     locals: lowered.locals,
-                    statements: lowered
-                        .statements
-                        .into_iter()
-                        .chain(lowered.value)
-                        .collect(),
+                    statements: lowered.statements,
                 };
             }
         }

@@ -10,7 +10,7 @@ class Reader(val bytes: Array<Byte>) {
 fun digits(reader: Reader, width: Int): Int {
     gcCollect()
     var result = 0
-    for (index in 0..<width) {
+    for (_ in 0..<width) {
         val digit = reader.peek() - 48
         if (digit < 0 || digit > 9) throw IllegalArgumentException()
         result = result * 10 + digit

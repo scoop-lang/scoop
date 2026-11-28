@@ -2,9 +2,9 @@ struct Value(val text: String, val number: Int)
 struct Empty()
 fun main() {
     val snapshot: Value.() -> () -> String = { val saved = { text }; saved }
-    var value = Value("copied", 1)
-    val closure = value.snapshot()
-    value = Value("changed", 2)
+    var _value = Value("copied", 1)
+    val closure = _value.snapshot()
+    _value = Value("changed", 2)
     gcCollect()
     println(closure())
     val zero: Empty.() -> Int = { 42 }

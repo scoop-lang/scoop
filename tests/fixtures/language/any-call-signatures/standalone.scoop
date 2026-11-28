@@ -4,6 +4,6 @@ import test.dependency.api.relayAny
 
 public val localValue: Int = runtimeValue
 public fun outside(value: Any): Any {
-    val initial = runtimeValue
+    val _ = runtimeValue
     return relayAny(value)
 }

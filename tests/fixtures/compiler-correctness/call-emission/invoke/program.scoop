@@ -26,7 +26,7 @@ fun main() {
         println(closure(30))
         println(leaf(40))
         println(base.read(-1))
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("caught")
     } finally {
         println("cleanup")

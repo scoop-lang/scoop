@@ -10,8 +10,8 @@ fun rejected(reader: ByteArrayReader, negativeCount: Boolean, action: () -> Unit
     val before = reader.position
     var failed = false
     try { action() }
-    catch (error: IllegalArgumentException) { check(negativeCount); failed = true }
-    catch (error: IndexOutOfBoundsException) { check(!negativeCount); failed = true }
+    catch (_: IllegalArgumentException) { check(negativeCount); failed = true }
+    catch (_: IndexOutOfBoundsException) { check(!negativeCount); failed = true }
     check(failed && reader.position == before)
 }
 private fun exercise() {

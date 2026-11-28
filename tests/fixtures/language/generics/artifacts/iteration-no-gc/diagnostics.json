@@ -167,5 +167,18 @@
       "start": 112
     },
     "severity": "error"
+  },
+  {
+    "code": "W0801",
+    "message": "value assigned to `value` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "7dd1a498f5cb0829548fd36c754b38c511c7385a4c4fac77498b2c7ec317ab34",
+      "end": 122,
+      "kind": "source",
+      "path": "src/main.scoop",
+      "start": 117
+    },
+    "severity": "warning"
   }
 ]

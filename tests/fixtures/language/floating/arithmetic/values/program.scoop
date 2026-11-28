@@ -19,7 +19,7 @@ fun unpack(value: Reading): Float = when (value) { case Value(val number) -> num
     val single = fromFloatBits(0xff800123U)
     val wide = fromDoubleBits(0x7ff0000000000123UL)
     val singles = MutableArray<Float>(130L) { i -> if (i % 2L == 0L) { single } else { -0f } }
-    val doubles = Array<Double>(130L) { i -> wide }
+    val doubles = Array<Double>(130L) { _ -> wide }
     val list = ArrayList<Float>()
     for (value in singles) { list.add(value) }
     val packet = identity(Packet(single, wide, "packet-" + "alive"))

@@ -19,7 +19,7 @@ public fun <T> exercise(value: T): Int {
             case None -> { return 3 }
         }
         when (absent) {
-            case Some(val pointer) -> { return 4 }
+            case Some(_) -> { return 4 }
             case None -> { return number }
         }
     }

@@ -41,7 +41,7 @@ fun nestedRoots() {
         try {
             fail(33)
         }
-        catch (other: OtherError) {
+        catch (_: OtherError) {
             verify(false)
         }
         finally {

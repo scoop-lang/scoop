@@ -32,10 +32,10 @@ private fun exercise() {
     check("雪\u0000".repeat(3L) == "雪\u0000雪\u0000雪\u0000" && "".repeat(Long.MAX_VALUE) == "" && "x".repeat(0L) == "", "repeat")
     check("aZé雪😀".lowercaseAscii() == "azé雪😀" && "aZé雪😀".uppercaseAscii() == "AZé雪😀", "ASCII only case")
     var errors = 0
-    try { "x".repeat(-1L) } catch (error: IllegalArgumentException) { errors += 1 }
-    try { "x".padEnd(-1L) } catch (error: IllegalArgumentException) { errors += 1 }
-    try { "雪".repeat(Long.MAX_VALUE) } catch (error: ArithmeticException) { errors += 1 }
-    try { "x".padStart(Long.MAX_VALUE, '😀') } catch (error: ArithmeticException) { errors += 1 }
+    try { "x".repeat(-1L) } catch (_: IllegalArgumentException) { errors += 1 }
+    try { "x".padEnd(-1L) } catch (_: IllegalArgumentException) { errors += 1 }
+    try { "雪".repeat(Long.MAX_VALUE) } catch (_: ArithmeticException) { errors += 1 }
+    try { "x".padStart(Long.MAX_VALUE, '😀') } catch (_: ArithmeticException) { errors += 1 }
     check(errors == 4, "count and byte overflow")
 
 }

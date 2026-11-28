@@ -8,7 +8,7 @@ public class Tape public constructor() {
 
 public fun <T> prepare(tape: Tape, seed: T): (Int, Int) -> T {
     tape.mark(1)
-    return { first, second -> tape.mark(4); seed }
+    return { _, _ -> tape.mark(4); seed }
 }
 
 public fun argument(tape: Tape, value: Int = tape.mark(3)): Int = value

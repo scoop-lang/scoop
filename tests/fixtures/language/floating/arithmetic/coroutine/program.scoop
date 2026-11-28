@@ -31,13 +31,12 @@ class Task(val first: Gate<Float>, val second: Gate<Double>, val seed: Packet): 
         gcCollect()
         val wide = awaitWide(second)
         gcCollect()
-        var valid = false
         @Unsafe {
-            valid = floatBits(retained.single) == 0xff800123U &&
+            val valid = floatBits(retained.single) == 0xff800123U &&
                 doubleBits(retained.wide) == 0x7ff0000000000123UL &&
                 floatBits(single) == 0x80000000U && doubleBits(wide) == 1UL
+            return Packet(single, wide, if (valid) { retained.label } else { "damaged" })
         }
-        return Packet(single, wide, if (valid) { retained.label } else { "damaged" })
     }
 }
 class Completion(var result: Packet?, var failed: Boolean): Continuation<Packet> {
@@ -46,7 +45,7 @@ class Completion(var result: Packet?, var failed: Boolean): Continuation<Packet>
 }
 fun collect() {
     var index = 0L
-    while (index < 256L) { val garbage = "garbage-" + index.toString(); index = index + 1L }
+    while (index < 256L) { val _garbage = "garbage-" + index.toString(); index = index + 1L }
     gcCollect()
 }
 

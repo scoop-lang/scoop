@@ -205,10 +205,7 @@ private class TouchInputPanel(private val items: WorkshopItems, scope: Component
                                     this.button(
                                         "Paste text into receiver",
                                         {
-                                            when (
-                                                val value =
-                                                    panel.scope.nativeWindow.clipboard.readText()
-                                            ) {
+                                            when (panel.scope.nativeWindow.clipboard.readText()) {
                                                 case Some(val text) -> panel.received.value =
                                                     Some(DragContent.Text(text))
                                                 case None -> {}
@@ -292,7 +289,7 @@ private class TouchInputPanel(private val items: WorkshopItems, scope: Component
                 }
                 this.add(
                     panelLabel(
-                        when (val selected = panel.selection.value) {
+                        when (panel.selection.value) {
                             case Some(val value) -> "Selected: " + value.datum.value
                             case None -> "Tap a value to show its details."
                         }
@@ -339,7 +336,7 @@ private class TouchInputPanel(private val items: WorkshopItems, scope: Component
         )
     }
     private fun receivedText(): String =
-        when (val value = received.value) {
+        when (received.value) {
             case Some(DragContent.Text(val text)) -> text
             case Some(DragContent.Url(val url)) -> url
             case Some(DragContent.Files(val paths)) -> {

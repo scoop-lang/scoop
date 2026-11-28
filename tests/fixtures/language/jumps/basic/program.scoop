@@ -53,8 +53,8 @@ fun main() {
     consume(None)
     consume(Some(8))
     println(throwing(Some(9)))
-    try { println(throwing(None)) } catch (failure: UnwrapException) { println("thrown") }
-    try { println(never(None)) } catch (failure: UnwrapException) { println("never") }
+    try { println(throwing(None)) } catch (_: UnwrapException) { println("thrown") }
+    try { println(never(None)) } catch (_: UnwrapException) { println("never") }
     println(widen(None, NumberBox(10)).number())
     println(widen(Some(NumberBox(11)), NumberBox(12)).number())
     println(inferred(None) is String)

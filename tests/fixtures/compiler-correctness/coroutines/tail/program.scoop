@@ -70,7 +70,7 @@ suspend fun guarded(gate: Gate): Int {
     try {
         return branch(gate, 0)
     }
-    catch (error: UnwrapException) {
+    catch (_: UnwrapException) {
         return 9
     }
     finally {
@@ -181,7 +181,7 @@ fun duplicate(gate: Gate) {
     try {
         gate.waiter!!.resume(99)
     }
-    catch (error: IllegalStateException) {
+    catch (_: IllegalStateException) {
         rejected = true
     }
     check(rejected)

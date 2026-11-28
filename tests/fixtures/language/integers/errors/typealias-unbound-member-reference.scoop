@@ -5,5 +5,5 @@ class Mapper {
 typealias Alias = Mapper
 
 fun main() {
-    val operation = Alias::map
+    val _ = Alias::map
 }

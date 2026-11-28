@@ -2,7 +2,7 @@ package dev.example.consumer.nominalConditions
 import dev.example.upstream.nominalConditions.*
 
 private fun <T> local(value: T): Int {
-    val scalar = Scalar(value)
+    val _value = Scalar(value)
     return 42
 }
 public fun wrong(): Int = local("managed")

@@ -1,5 +1,5 @@
 package dev.example
 fun main() {
-    val message = "program-link"
+    val _ = "program-link"
     val answer = stage3CoreAnswer()
 }

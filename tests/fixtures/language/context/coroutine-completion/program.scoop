@@ -61,7 +61,7 @@ fun main() {
         try {
             startCoroutine(suspend { 42 }, immediate)
             throw IllegalStateException()
-        } catch (expected: CompletionError) {
+        } catch (_: CompletionError) {
             expect(current() == 1)
         }
         expect(immediate.successes == 1 && immediate.failures == 0)
@@ -73,7 +73,7 @@ fun main() {
                 0
             }, immediateFailure)
             throw IllegalStateException()
-        } catch (expected: CompletionError) {
+        } catch (_: CompletionError) {
             expect(current() == 1)
         }
         expect(immediateFailure.successes == 0 && immediateFailure.failures == 1)
@@ -88,7 +88,7 @@ fun main() {
                 try {
                     gate.complete(index == 1)
                     throw IllegalStateException()
-                } catch (expected: CompletionError) {
+                } catch (_: CompletionError) {
                     expect(current() == 9)
                 }
             }

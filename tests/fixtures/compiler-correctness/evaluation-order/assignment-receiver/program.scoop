@@ -5,6 +5,7 @@ fun main() {
     val second = Box(2)
     var target = first
     target.value = if (true) { target = second; 9 } else { 0 }
+    if (target !== second) { throw IllegalStateException() }
     println(first.value)
     println(second.value)
 }

@@ -39,7 +39,7 @@ private fun exercise() {
     verify(chained.compare(values[0L], values[2L]) < 0L, "custom secondary")
     val throwing = comparatorOf<Int> { _, _ -> throw Exception(Some("callback")) }
     var caught = false
-    try { throwing.reversed().compare(1, 2) } catch (error: Exception) { caught = true }
+    try { throwing.reversed().compare(1, 2) } catch (_: Exception) { caught = true }
     verify(caught, "callback exception")
 
 }

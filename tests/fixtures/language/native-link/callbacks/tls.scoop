@@ -24,17 +24,15 @@ fun main() {
         val callback = foreignCallback<(Int, Ptr<Unit>) -> Int>(
             { value: Int ->
                 val live = marker.text + value.toString()
-                var checked = -1000
                 @Unsafe {
                     val independent = tlsInitial == 31 && tlsZero == 0 &&
                         addressOf(tlsInitial).toULong() != callerAddress
                     tlsInitial = value
                     tlsZero = value + 100
                     gcCollect()
-                    checked = if (independent && counter == 70 &&
+                    return@foreignCallback if (independent && counter == 70 &&
                         live == marker.text + value.toString()) { value } else { -1000 }
                 }
-                checked
             },
             1L,
             ForeignCallbackMode.Reusable

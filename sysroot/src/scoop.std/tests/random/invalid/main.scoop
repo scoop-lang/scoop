@@ -21,8 +21,8 @@ class Failing : Random {
 fun invalid(random: Counter, action: () -> Unit, bounds: Boolean = false) {
     var failed = false
     try { action() }
-    catch (error: IllegalArgumentException) { check(!bounds); failed = true }
-    catch (error: IndexOutOfBoundsException) { check(bounds); failed = true }
+    catch (_: IllegalArgumentException) { check(!bounds); failed = true }
+    catch (_: IndexOutOfBoundsException) { check(bounds); failed = true }
     check(failed && random.calls == 0L)
 }
 private fun exercise() {
@@ -43,7 +43,7 @@ private fun exercise() {
     check(random.calls == 0L)
     val failing = Failing()
     var failed = false
-    try { failing.nextBytes(array) } catch (error: IllegalStateException) { failed = true }
+    try { failing.nextBytes(array) } catch (_: IllegalStateException) { failed = true }
     check(failed && failing.calls == 2L && array[0L] == 1.toByte() && array[1L] == 2.toByte() && array[2L] == 9.toByte())
 
 }

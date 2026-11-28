@@ -13,6 +13,6 @@ fun main() {
     bare()
     explicit()
     expression()
-    try { println(never()) } catch (failure: UnwrapException) { println("caught") }
+    try { println(never()) } catch (_: UnwrapException) { println("caught") }
     println(replacement())
 }

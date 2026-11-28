@@ -21,7 +21,7 @@ fun scoped() {
         context(Configuration("inner")) {
             try {
                 val value: Int? = None
-                val ignored = value ?: break@outer
+                val _ = value ?: break@outer
             } finally { gcCollect(); println(active()) }
         }
     }

@@ -41,8 +41,8 @@ private class CharRangeTests {
         assertTrue('e' in stepped)
         assertFalse('d' in stepped)
         assertFalse('i' in stepped)
-        assertFailsWith<IllegalArgumentException> { val unused = range step 0 }
-        assertFailsWith<IllegalArgumentException> { val unused = range step -1 }
+        assertFailsWith<IllegalArgumentException> { val _ = range step 0 }
+        assertFailsWith<IllegalArgumentException> { val _ = range step -1 }
     }
 
     @Test

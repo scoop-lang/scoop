@@ -53,7 +53,7 @@ private fun exercise() {
             if (value == 3) throw Exception(Some("callback"))
             value
         }
-    } catch (error: Exception) { caught = true }
+    } catch (_: Exception) { caught = true }
     check(caught && state.calls == 3L && partial.joinToString() == "1, 2", "callback prefix")
 
 }

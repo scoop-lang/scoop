@@ -47,7 +47,7 @@ public fun <T> ordered(value: T, fail: Boolean): Int {
     reads = 0
     writes = 0
     order = 0
-    try { tracked += rhs(fail) } catch (error: IllegalStateException) {
+    try { tracked += rhs(fail) } catch (_: IllegalStateException) {
         if (reads != 1 || writes != 0 || order != 12) { return 1 }
         return if (tracked == 10) { 42 } else { 2 }
     }
@@ -81,7 +81,7 @@ public fun <T> values(value: T): Int {
     val saved = payload
     reference = saved.first
     payload = Triple(Cell(0), Cell(0), Cell(0))
-    val zero = empty
+    val _ = empty
     val before = emptyBuilds
     empty = makeEmpty()
     val allocated = Cell(0)
@@ -91,7 +91,7 @@ public fun <T> values(value: T): Int {
 }
 public fun <T> makeStep(value: T): () -> Int {
     fun read(): Int {
-        val retained = value
+        val _ = value
         counter += 1
         return counter
     }

@@ -14,7 +14,7 @@ public var declarationAlias: String
 private operator fun String.getValue(thisRef: Unit): String = this
 public val declarationDelegated: String by "delegate"
 public fun declarationRead(): String {
-    val unused: Any = DeclarationHolder("value")
+    val _: Any = DeclarationHolder("value")
     declarationStorage.declarationReceiver(1)
     return declarationStorage
 }

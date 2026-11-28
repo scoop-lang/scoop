@@ -20,7 +20,7 @@ fun main() {
     val reader: View<Int> = Implement()
     reader.reset(9)
     val owner: Owner<Int> = Owner(3)
-    val result: Int = owner.value
+    val _: Int = owner.value
 }
 public open class Owner<T>(private var current: T) {
     public open var value: T

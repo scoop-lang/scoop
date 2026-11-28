@@ -52,7 +52,7 @@ class Owner {
 
 fun expect(value: Boolean) { if (!value) { throw IllegalStateException() } }
 fun argument(): Int { val cell = Cell(42); gcCollect(); return cell.value }
-fun discard() { val owner = Owner() }
+fun discard() { val _owner = Owner() }
 
 @NoGC @Unsafe
 fun noGcCapture(): (Int, Int) = leaf(13, 17)

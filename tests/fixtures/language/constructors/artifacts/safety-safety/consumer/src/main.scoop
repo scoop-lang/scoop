@@ -1,11 +1,11 @@
 package dev.example
 fun main() {
     @Unsafe {
-        val base: Base = Base()
-        val child: Child = Child()
-        val secondary: Secondary = Secondary()
+        val _base: Base = Base()
+        val _child: Child = Child()
+        val _secondary: Secondary = Secondary()
         if (Value().value != 1) { throw IllegalStateException() }
     }
-    val safe: Secondary = Secondary(true)
+    val _safe: Secondary = Secondary(true)
     gcCollect()
 }

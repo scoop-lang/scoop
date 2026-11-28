@@ -15,20 +15,20 @@ private fun dormant(value: Boolean = run()): Boolean = value
 
 public fun combined(): Boolean {
     val first = withDefault()
-    val second = withDefault()
+    val _ = withDefault()
     fun nested(): Boolean = run()
     val lambda = { run() }
-    var keep = run()
+    var _keep = run()
     while (run()) {
         if (run()) break
-        keep = run()
+        _keep = run()
     }
     when ((run(), run())) {
         case (_, _) if (run()) -> { run() }
         else -> { run() }
     }
-    val holder = Holder()
-    val value = Value()
+    val _ = Holder()
+    val _ = Value()
     nested()
     lambda()
     return first

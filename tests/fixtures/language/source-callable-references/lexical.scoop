@@ -11,7 +11,7 @@ public fun <T> exercise(value: T): Int {
     val member: () -> Int = Plain(42)::read
     fun read(): Int = member()
     val call: () -> Int = ::read
-    val values = (value, copied)
+    val _ = (value, copied)
     return call()
 }
 

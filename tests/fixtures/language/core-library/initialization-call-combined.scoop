@@ -13,5 +13,5 @@ fun selectedValue(useCache: Boolean): Int {
 }
 
 fun main() {
-    val result = selectedValue(true)
+    val _result = selectedValue(true)
 }

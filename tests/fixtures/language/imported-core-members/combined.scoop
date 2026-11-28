@@ -6,6 +6,6 @@ fun main() {
     val compared = 7.compareTo(other = 3)
     val converted = compared.toInt()
     val shifted = converted shl 2L
-    val nested = combined(aliasLiteral())
-    val normal = userCoreOffset(shifted)
+    val _ = combined(aliasLiteral())
+    val _ = userCoreOffset(shifted)
 }

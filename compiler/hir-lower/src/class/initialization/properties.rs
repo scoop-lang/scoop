@@ -161,22 +161,19 @@ impl Lowerer {
                         },
                         "init block",
                         hir::Safety::Safe,
-                        |this, _| {
+                        |this, statements| {
                             if !primary_parameters_visible {
                                 this.constructor_params_in_scope.clear();
                             }
-                            Some(this.lower_block(&init.body))
+                            statements.extend(this.lower_block(&init.body));
+                            Some(())
                         },
                     );
                     if let Some(lowered) = lowered {
                         steps.push(hir::ClassInitializationStep::InitBlock {
                             body: hir::Body {
                                 locals: lowered.locals,
-                                statements: lowered
-                                    .statements
-                                    .into_iter()
-                                    .chain(lowered.value)
-                                    .collect(),
+                                statements: lowered.statements,
                             },
                             span: init.span,
                         });

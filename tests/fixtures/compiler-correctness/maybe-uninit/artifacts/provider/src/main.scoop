@@ -12,7 +12,7 @@ public fun <T> wrap(value: T, stored: MaybeUninit<T> = MaybeUninit<T>.initialize
 public fun identity(value: MaybeUninit<Pair>): MaybeUninit<Pair> { gcCollect(); return value }
 public fun <T> roundTrip(value: MaybeUninit<T>): MaybeUninit<T> {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return value }
+    catch (_: IllegalStateException) { return value }
 }
 public fun captured(value: Read): () -> MaybeUninit<Read> {
     val wrapped = MaybeUninit<Read>.initialized(value)

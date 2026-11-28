@@ -24,6 +24,6 @@ fun main() {
     when { false -> println("wrong") }
     println("condition-fallthrough")
     try { println(value()) }
-    catch (error: IllegalStateException) { println("caught") }
+    catch (_: IllegalStateException) { println("caught") }
     finally { println("finally") }
 }

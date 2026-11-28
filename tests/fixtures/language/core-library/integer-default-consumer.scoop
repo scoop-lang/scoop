@@ -1,6 +1,6 @@
 fun main() {
-    val simple = userCoreIntegerDefault()
-    val combined = userCoreIntegerCombination()
-    val converted = userCoreConvertedDefault()
-    val forwarded = userCoreIntegerOperands(seed = userCoreIntegerDefault(value = 40))
+    val _simple = userCoreIntegerDefault()
+    val _combined = userCoreIntegerCombination()
+    val _converted = userCoreConvertedDefault()
+    val _forwarded = userCoreIntegerOperands(seed = userCoreIntegerDefault(value = 40))
 }

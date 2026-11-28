@@ -1,11 +1,7 @@
 use super::*;
 
-impl SmartFlow<'_> {
-    pub(super) fn expression(
-        &mut self,
-        facts: SmartCastFacts,
-        value: &hir::Expr,
-    ) -> SmartCastExits {
+impl<A: LocalAnalysis> BodyFlow<'_, A> {
+    pub(super) fn expression(&mut self, facts: A::Facts, value: &hir::Expr) -> Exits<A::Facts> {
         if let hir::ExprKind::Binary {
             op: hir::BinOp::And | hir::BinOp::Or,
             lhs,
@@ -24,27 +20,31 @@ impl SmartFlow<'_> {
                 self.merge(&mut exits, next);
             }
         }
-        let captures = match value.kind {
-            hir::ExprKind::Lambda(id) => self.state.lambdas[id].captures.clone(),
+        let (receiver, captures): (_, &[hir::Capture]) = match value.kind {
+            hir::ExprKind::Lambda(id) => (None, &self.state.lambdas[id].captures),
             hir::ExprKind::AnonymousFunction(id) => {
-                self.state.anonymous_functions[id].captures.clone()
+                (None, &self.state.anonymous_functions[id].captures)
             }
             hir::ExprKind::CallableReference(id) => {
-                self.state.callable_references[id].captures.clone()
+                let reference = &self.state.callable_references[id];
+                (reference.target.receiver(), &reference.captures)
             }
-            _ => Vec::new(),
+            _ => (None, &[]),
         };
-        for capture in captures {
+        let inputs: Vec<_> = receiver
+            .into_iter()
+            .chain(captures.iter().map(|capture| &capture.source))
+            .cloned()
+            .collect();
+        for input in inputs {
             if let Some(facts) = exits.remove(&Outcome::Fallthrough) {
-                let next = self.expression(facts, &capture.source);
+                let next = self.expression(facts, &input);
                 self.merge(&mut exits, next);
             }
         }
         if let Some(mut facts) = exits.remove(&Outcome::Fallthrough) {
-            self.check_read(&facts, value);
-            if let hir::ExprKind::AddressOf(hir::Place::Local(local)) = value.kind {
-                facts.expose_address(self.state.locals[local].binding);
-            }
+            self.analysis
+                .read(self.state, &mut facts, value, self.check_reads);
             if self.state.is_nothing_ty(value.ty) {
                 self.insert(&mut exits, Outcome::Throw, facts);
             } else {
@@ -59,68 +59,21 @@ impl SmartFlow<'_> {
 
     fn short_circuit(
         &mut self,
-        facts: SmartCastFacts,
+        facts: A::Facts,
         enter: bool,
         lhs: &hir::Expr,
         rhs: &hir::Expr,
-    ) -> SmartCastExits {
+    ) -> Exits<A::Facts> {
         let mut exits = self.expression(facts, lhs);
         if let Some(facts) = exits.remove(&Outcome::Fallthrough) {
-            if let Some(short) = self.state.refine_flow_condition(facts.clone(), lhs, !enter) {
+            if let Some(short) = self.analysis.branch(self.state, facts.clone(), lhs, !enter) {
                 self.insert(&mut exits, Outcome::Fallthrough, short);
             }
-            if let Some(right) = self.state.refine_flow_condition(facts, lhs, enter) {
+            if let Some(right) = self.analysis.branch(self.state, facts, lhs, enter) {
                 let next = self.expression(right, rhs);
                 self.merge(&mut exits, next);
             }
         }
         exits
-    }
-
-    fn check_read(&mut self, facts: &SmartCastFacts, value: &hir::Expr) {
-        if !self.check_reads
-            || !matches!(
-                value.kind,
-                hir::ExprKind::Local(_) | hir::ExprKind::Unbox(_)
-            )
-        {
-            return;
-        }
-        let Some(local) = source_local(value) else {
-            return;
-        };
-        let local = &self.state.locals[local];
-        if !local.mutable {
-            return;
-        }
-        let (binding, declared) = (local.binding, local.ty);
-        let name = local.name.clone();
-        if self.state.is_subtype(declared, value.ty)
-            || facts
-                .get(&binding)
-                .is_some_and(|types| types.iter().any(|&ty| self.state.is_subtype(ty, value.ty)))
-        {
-            return;
-        }
-        let message = format!(
-            "smart cast of mutable local `{name}` to {} is not valid on every incoming path",
-            self.state.type_name(value.ty)
-        );
-        if !self.state.diagnostics.iter().any(|diagnostic| {
-            diagnostic.span() == Some(value.span) && diagnostic.message == message
-        }) {
-            self.state
-                .error(scoop_source::DiagnosticCode::E0812, value.span, message);
-        }
-    }
-}
-
-fn source_local(value: &hir::Expr) -> Option<hir::LocalId> {
-    match &value.kind {
-        hir::ExprKind::Local(local) => Some(*local),
-        hir::ExprKind::Unbox(source)
-        | hir::ExprKind::Upcast(source)
-        | hir::ExprKind::Box(source) => source_local(source),
-        _ => None,
     }
 }

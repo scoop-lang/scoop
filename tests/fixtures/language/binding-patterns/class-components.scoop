@@ -56,8 +56,8 @@ fun main() {
     println(kept)
 
     try {
-        val (first, second, never) = Explosive()
-    } catch (exception: UnwrapException) {
+        val (_first, _second, _never) = Explosive()
+    } catch (_: UnwrapException) {
         println("caught")
     }
 }

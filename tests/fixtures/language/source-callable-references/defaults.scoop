@@ -10,9 +10,9 @@ public fun answer(read: () -> Int = ::templatesAnswer): Int = read()
 
 public fun <T> exercise(value: T): Int {
     val copied = copy<T>(value)
-    val values = (copied, copyOwner<T>(Box<T>(value)))
+    val _ = (copied, copyOwner<T>(Box<T>(value)))
     if (first<Int, T>(42, value) != 42) { return 1 }
-    val reordered = first<T, Int>(value, 42)
+    val _ = first<T, Int>(value, 42)
     return answer()
 }
 

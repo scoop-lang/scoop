@@ -22,7 +22,7 @@
 
 | ID | 用户的问题与完整程序 | 应观察到的结果 | 必须说明 | 来源与编辑工作 |
 | --- | --- | --- | --- | --- |
-| language/overview | Scoop 的常用写法长什么样？值类型、匹配与 Option 的短概览 | point=(3, 4)、point missing、Ada、guest、3 | Kotlin 差异速查；只是概览，每个概念有单独主题 | 复用 [values.scoop](../../sysroot/src/scoop.core/examples/values.scoop) |
+| language/overview | 值类型、模式匹配、解构时忽略字段和 Option 的常用写法 | point=(3, 4)、x=3、point missing、Ada、guest、3 | Kotlin 差异速查及各概念的专题入口 | 复用 [values.scoop](../../sysroot/src/scoop.core/examples/values.scoop) |
 | language/option | 怎样表示和处理缺失值？Some/None、when 解构、Elvis 和安全读取 | 有值、缺失、属性读取三条路径 | 没有 null；T? 是 Option；没有判空智能转换；安全调用保留嵌套层数 | 从 values 的可选值部分另写聚焦程序；[样稿](SAMPLES.md#1-languageoption) |
 | language/struct | 怎样定义数据值并产生更新后的副本？Point 的构造、解构、字段更新 | 原 Point 保持不变，新 Point 只有指定字段不同 | val 字段；p.{ x: ... } 的实际语法；引用字段仍可引用同一对象；不自动得到 ToString/Hash | 新增完整程序，沿[语言 §4.1、§4.5、§4.6](../specs/SCOOP-SPEC.md#4-值类型) |
 | language/enum | 怎样给几种结果携带不同数据？查找结果的 Found/Missing 与 when | 两个变体走各自的分支 | enum 与 Kotlin enum class 的差异；case 语法；穷尽性；载荷解构 | 从 [values.scoop](../../sysroot/src/scoop.core/examples/values.scoop) 拆出单独程序，不同时讲 Option |

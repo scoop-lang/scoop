@@ -15,14 +15,14 @@ public fun <T> exercise(seed: T, inspect: (T) -> Int): Int {
     try {
         prepare(tape, seed).invoke(tape.mark(2), fail(tape))
         return 3
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         if (tape.log != 123) { return 4 }
     }
 
     tape.reset()
-    var selected: (Int, Int) -> Int = { left, right -> 42 }
+    var selected: (Int, Int) -> Int = { _, _ -> 42 }
     val preserved = selected(tape.mark(2), if (true) {
-        selected = { left, right -> 0 }
+        selected = { _, _ -> 0 }
         argument(tape)
     } else { 0 })
     if (preserved != 42 || tape.log != 23 || selected(0, 0) != 0) { return 5 }

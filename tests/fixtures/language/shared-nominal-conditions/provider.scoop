@@ -14,12 +14,12 @@ public interface PointerView<T: value> {
 public struct Wrapped<T>(val scalar: Scalar<T>)
 public class Carrier<T> public constructor(public val scalar: Scalar<T>)
 public fun <T> hidden(value: T): Int {
-    val scalar = Scalar(value)
+    val _value = Scalar(value)
     return 42
 }
 
 public fun <T> hiddenChoice(value: T): Int {
-    val choice: Choice<T> = Item(value)
+    val _value: Choice<T> = Item(value)
     return 42
 }
 public fun <T> pack(value: T, scalar: Scalar<T> = Scalar(value)): Scalar<T> = scalar

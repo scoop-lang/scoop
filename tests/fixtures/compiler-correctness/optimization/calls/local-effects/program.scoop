@@ -46,7 +46,7 @@ fun exceptional(divisor: Long): Long {
     try {
         val numerator = -9223372036854775808L
         return numerator / divisor
-    } catch (failure: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         effects = effects + 10
         return 99L
     } finally {

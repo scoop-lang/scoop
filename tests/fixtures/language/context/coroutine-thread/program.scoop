@@ -60,7 +60,7 @@ suspend fun direct(gate: Gate): Int {
     expect(entry.id == 2)
     try {
         return suspendCoroutine(gate) + current()
-    } catch (failure: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         gcCollect()
         expect(entry.id == 2 && current() == 2)
         return 42

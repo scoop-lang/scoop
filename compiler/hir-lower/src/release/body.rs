@@ -29,7 +29,9 @@ impl Lowerer {
             ForbiddenSuspendContext::Release,
         ));
         self.push_safety_context(hir::Safety::Safe);
+        let before = self.diagnostics.len();
         let statements = self.lower_block(&block.body);
+        self.warn_unused_local_writes(&statements, [], before);
         self.pop_safety_context();
         self.pop_suspension_context();
         let locals = std::mem::replace(&mut self.locals, outer_locals).into_arena();

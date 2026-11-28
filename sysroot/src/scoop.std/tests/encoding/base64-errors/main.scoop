@@ -14,7 +14,7 @@ fun accepted(codec: Base64, text: String): Boolean = when (codec.decodeOrNone(te
 fun rejected(codec: Base64, text: String) {
     check(!accepted(codec, text))
     var failed = false
-    try { codec.decode(text) } catch (error: IllegalArgumentException) { failed = true }
+    try { codec.decode(text) } catch (_: IllegalArgumentException) { failed = true }
     check(failed)
 }
 private fun exercise() {

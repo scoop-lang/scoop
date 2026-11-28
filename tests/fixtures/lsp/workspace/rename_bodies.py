@@ -21,7 +21,7 @@ def check(peer, root):
                 "fun capture(input: Boolean): Boolean {\n"
                 "    val captured = input\n"
                 "    fun nested(): Boolean = captured\n"
-                "    val lambda: () -> Boolean = { captured }\n"
+                "    val _lambda: () -> Boolean = { captured }\n"
                 "    return nested()\n"
                 "}\n"
             )

@@ -10,7 +10,7 @@ fun main() {
     try {
         val narrowed = action as (Int) -> Long
         println(narrowed(0))
-    } catch (error: ClassCastException) { println("cast") }
+    } catch (_: ClassCastException) { println("cast") }
     gcCollect()
     println(action(42) as Int)
 }

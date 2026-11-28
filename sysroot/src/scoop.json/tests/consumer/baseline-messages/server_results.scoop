@@ -29,8 +29,7 @@ enum SearchResults {
             }
         }
         public override fun decode(decoder: Decoder): SearchResults {
-            var sequence: UnkeyedDecodingContainer? = None
-            try { sequence = Some(decoder.unkeyed()) } catch (error: DecodingException) { sequence = None }
+            val sequence: UnkeyedDecodingContainer? = try { Some(decoder.unkeyed()) } catch (_: DecodingException) { None }
             if (when (sequence) { case None -> false; else -> true }) {
                 return SearchResults.Hits(Array<SearchHit>.decoder(SearchHit.Companion).decode(decoder))
             }

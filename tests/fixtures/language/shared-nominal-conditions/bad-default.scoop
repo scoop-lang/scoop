@@ -2,6 +2,6 @@ package dev.example.consumer.nominalConditions
 import dev.example.upstream.nominalConditions.*
 
 public fun wrong(): Int {
-    val value = pack("managed")
+    val _item = pack("managed")
     return 42
 }

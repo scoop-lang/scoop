@@ -21,5 +21,5 @@ fun main() {
     val read = capture(box.read())
     val sample: Measure = Sample(read().first + read().second)
     val result = sample.size()
-    val message = "combined"
+    val _message = "combined"
 }

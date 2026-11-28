@@ -135,9 +135,10 @@ class Checks:
         if human:
             return run
         events = [json.loads(line) for line in run.stderr.splitlines()]
-        errors = [item for item in events if item["kind"] == "diagnostic"]
-        assert run.returncode == (1 if errors else 0), (run.returncode, events)
-        return errors
+        diagnostics = [item for item in events if item["kind"] == "diagnostic"]
+        failed = any(item["severity"] == "error" for item in diagnostics)
+        assert run.returncode == int(failed), (run.returncode, events)
+        return diagnostics
 
     def agree(self, text, editor_extra=()):
         self.set_source(text)
@@ -391,6 +392,11 @@ def check_versions_and_cli(checks):
 def main():
     checks = Checks(*sys.argv[1:])
     try:
+        text = "package test.app\nfun check() { var 数 = 1; 数 = 2; println(数); 数 = 3 }\n"
+        cli, editor = checks.agree(text)
+        assert [item["code"] for item in cli] == ["W0801", "W0801"], cli
+        assert all(item["severity"] == 2 for item in editor), editor
+        assert checks.agree(text.replace("数", "_数")) == ([], [])
         check_roots(checks)
         check_imports(checks)
         check_versions_and_cli(checks)

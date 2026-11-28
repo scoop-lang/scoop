@@ -87,7 +87,7 @@ where K: Equals<K>, K: Hash {
      * Returns the value associated with the key, or None when absent.
      */
     public override operator fun get(key: K): V? {
-        return when (val probe = locate(key)) {
+        return when (locate(key)) {
             case HashProbe.Found(val index, _) -> Some(storage.read(index).value)
             case HashProbe.Absent(_, _) -> None
         }
@@ -129,7 +129,7 @@ where K: Equals<K>, K: Hash {
     internal fun putIfAbsent(key: K, value: V): V? = putEntry(key, value, false)
 
     private fun putEntry(key: K, value: V, replace: Boolean): V? {
-        return when (val probe = locate(key)) {
+        return when (locate(key)) {
             case HashProbe.Found(val index, _) -> {
                 val old = storage.read(index)
                 if (replace) {
@@ -160,7 +160,7 @@ where K: Equals<K>, K: Hash {
      * Removes the key and returns its former value, or None if absent.
      */
     public override fun remove(key: K): V? {
-        return when (val probe = locate(key)) {
+        return when (locate(key)) {
             case HashProbe.Found(val index, _) -> Some(removeAt(index))
             case HashProbe.Absent(_, _) -> None
         }

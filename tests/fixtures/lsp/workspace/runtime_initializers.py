@@ -37,7 +37,7 @@ def check(peer, root):
         "}\n"
         "val <T> InitializerBox<T>.initializerDelegated: T by if (true) {\n"
         "    fun retain(value: T): T = value\n"
-        "    val read: (T) -> T = ::retain\n"
+        "    val _read: (T) -> T = ::retain\n"
         "    InitializerSlot<T>()\n"
         "} else InitializerSlot<T>()\n"
         "val initializerCandidate: Boolean = initializerChoose(value = true)\n"
@@ -82,7 +82,7 @@ def check(peer, root):
     for needle, name, declaration, expected in [
         ("{ captured }", "captured", "captured =", "captured: Boolean"),
         ("return saved", "saved", "saved =", "saved: Boolean"),
-        ("T = value\n    val read", "value", "retain(value:", "value: T"),
+        ("T = value\n    val _read", "value", "retain(value:", "value: T"),
     ]:
         hover = query(needle, name, "hover")
         assert hover["contents"]["value"] == expected, hover

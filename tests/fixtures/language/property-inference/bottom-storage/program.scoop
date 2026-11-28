@@ -5,5 +5,5 @@ class Broken {
 fun consume(value: Unit) { println("unit") }
 fun main() {
     consume(nothingToStore)
-    try { val ignored = Broken() } catch (failure: Throwable) { println("caught") }
+    try { val _ = Broken() } catch (_: Throwable) { println("caught") }
 }

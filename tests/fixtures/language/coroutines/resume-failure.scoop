@@ -17,7 +17,7 @@ class CaughtTask(val gate: FailureGate) : SuspendTask<Int> {
         try {
             val registration: SuspendRegistration<Int> = FailureRegistration(gate)
             return suspendCoroutine(registration)
-        } catch (exception: UnwrapException) {
+        } catch (_: UnwrapException) {
             return 42
         }
     }

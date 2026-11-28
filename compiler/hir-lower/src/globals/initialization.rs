@@ -197,6 +197,7 @@ impl Lowerer {
                 span: pending.span,
             });
         }
+        self.warn_unused_local_writes(&statements, [], diagnostics_before);
         self.current_initialization_unit = None;
         self.pop_scope();
         self.current_source_context = outer_source_context;

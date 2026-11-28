@@ -9,11 +9,11 @@ def check(peer, root):
         "fun <Item> refSame(value: Item): Item = value\n"
         "fun refOwner(input: Boolean): Boolean {\n"
         "    val copy = input\n"
-        "    if (input) { val copy = false; val inner = copy }\n"
+        "    if (input) { val copy = false; val _ = copy }\n"
         "    val captured: () -> Boolean = { copy }\n"
         "    val result = refChoose(captured())\n"
-        '    val second = refChoose("text")\n'
-        '    val third = refSame("text")\n'
+        '    val _ = refChoose("text")\n'
+        '    val _ = refSame("text")\n'
         "    return refSame(result)\n"
         "}\n"
     )

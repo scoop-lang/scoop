@@ -9,9 +9,9 @@ public fun <T> exercise(value: T): Int {
     if (after < before || after > before + 1) { return 2 }
     val failedBefore = failureCount()
     var catches = 0
-    try { receiver.broken } catch (error: Failed) { catches += 1 }
+    try { receiver.broken } catch (_: Failed) { catches += 1 }
     val failedAfter = failureCount()
-    try { Receiver<T>(value).broken } catch (error: Failed) { catches += 1 }
+    try { Receiver<T>(value).broken } catch (_: Failed) { catches += 1 }
     if (failedAfter < failedBefore || failedAfter > failedBefore + 1) { return 3 }
     if (catches != 2 || failureCount() != failedAfter) { return 4 }
     return 42

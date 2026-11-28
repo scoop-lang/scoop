@@ -29,7 +29,7 @@ private fun exercise() {
     builder.append(Source(builder, false))
     check(builder.size == 6L && builder.toByteArray()[3L] == 1.toByte() && first.size == 3L)
     var failed = false
-    try { builder.append(Source(builder, true)) } catch (error: IllegalArgumentException) { failed = true }
+    try { builder.append(Source(builder, true)) } catch (_: IllegalArgumentException) { failed = true }
     check(failed && builder.size == 6L && builder.toByteArray()[5L] == 3.toByte())
     val reader = ByteArrayReader(mutable)
     mutable[0L] = 0.toByte()
@@ -42,10 +42,10 @@ private fun exercise() {
     builder.append(Array<Byte>(0L) { _ -> 0.toByte() })
     check(builder.size == 3L && reader.readInt8() == 99.toByte())
     var constructorFailed = false
-    try { val unused = ByteArrayReader(Source(builder, true)) } catch (error: IllegalArgumentException) { constructorFailed = true }
+    try { val _ = ByteArrayReader(Source(builder, true)) } catch (_: IllegalArgumentException) { constructorFailed = true }
     check(constructorFailed)
     var overflow = false
-    try { builder.append(Huge()) } catch (error: ArithmeticException) { overflow = true }
+    try { builder.append(Huge()) } catch (_: ArithmeticException) { overflow = true }
     check(overflow && builder.size == 3L)
 
 }

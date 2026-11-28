@@ -84,7 +84,7 @@ class GenericTask(
         println(pair.text)
         val selected = when (choice) {
             case Number(val value) -> value
-            case Text(val text) -> 0
+            case Text(_) -> 0
         }
         return if (accepted) { number + pair.number + selected } else { 0 }
     }

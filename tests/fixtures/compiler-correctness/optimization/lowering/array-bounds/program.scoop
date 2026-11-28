@@ -80,7 +80,7 @@ fun main() {
         prefix(longs, 0L)
         if (size > 0L) check(longs[0L] == -1L)
         var caught = false
-        try { prefix(longs, size + 2L) } catch (error: IndexOutOfBoundsException) { caught = true }
+        try { prefix(longs, size + 2L) } catch (_: IndexOutOfBoundsException) { caught = true }
         check(caught)
         i = 0L
         while (i < size) { check(longs[i] == i + 7L); i += 1L }
@@ -88,24 +88,24 @@ fun main() {
     val longSource = MutableArray<Int>(129L) { i -> i.toInt() }
     val shortTarget = MutableArray<Int>(65L) { _ -> -1 }
     var caught = false
-    try { copy(longSource, shortTarget, 129L) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { copy(longSource, shortTarget, 129L) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && shortTarget[0L] == 0 && shortTarget[64L] == 64)
     val longTarget = MutableArray<Int>(129L) { _ -> -1 }
     caught = false
-    try { copy(shortTarget, longTarget, 129L) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { copy(shortTarget, longTarget, 129L) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && longTarget[64L] == 64 && longTarget[65L] == -1)
     val values = MutableArray<Long>(65L) { _ -> -1L }
     val counter = Counter(0L)
     caught = false
-    try { sideEffect(values, 129L, counter) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { sideEffect(values, 129L, counter) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && counter.value == 66L && values[64L] == 65L)
     val first = MutableArray<Int>(129L) { _ -> -1 }
     val second = MutableArray<Int>(1L) { _ -> -1 }
     caught = false
-    try { rebound(first, second, 129L) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { rebound(first, second, 129L) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && first[0L] == 0 && first[1L] == -1 && second[0L] == -1)
     caught = false
-    try { negative(first) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { negative(first) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && first[0L] == 0)
     println("array bounds preserve ranges, aliases and exceptional prefixes")
 }

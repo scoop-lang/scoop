@@ -22,7 +22,7 @@ fun fail(): Nothing {
     val variant: Any = Item.Value(node)
     context(Node(7L)) {
         try { fail() }
-        catch (error: IllegalStateException) { println(current()) }
+        catch (_: IllegalStateException) { println(current()) }
         finally { println(current()) }
         gcCollect()
         println(reference === node)

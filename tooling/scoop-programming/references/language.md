@@ -18,6 +18,8 @@ fun greeting(name: String?): String =
 
 已处理但无需动作的语句分支可写 `case None -> Unit`；`Unit` 与 `()` 是等价的无操作语句。这不允许将任意普通值表达式当作独立语句。
 
+局部变量的初值或某次写回在覆盖或退出前从未被读取时，编译器在名字处报告 `W0801`。只需要右侧的效果时可写 `val _ = operation()`。需要保留可引用的名字时用 `_result`。解构可以逐项写 `_`。
+
 ## 值类型、引用与能力
 
 - `struct Point(val x: Int, val y: Int)` 是不可变值，存储字段只能用 `val`。更新写 `point.{x: 8}`，产生副本；不使用 Kotlin 的 `data class` 或 `.copy(x = 8)`。

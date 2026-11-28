@@ -10,8 +10,8 @@ public fun result(): Int {
     empty.read()
     val reader: Reader<Large> = InterfaceCell<Large>(Large(Reference(10), Reference(12), Reference(20)))
     val value = reader.read()
-    val first = Reference(1)
-    val second = Reference(2)
+    val _ = Reference(1)
+    val _ = Reference(2)
     return value.first.value + value.second.value + value.third.value
 }
 

@@ -9,8 +9,8 @@ public fun result(): Int {
     val cell = Cell<Large>(Large(Reference(10), Reference(12), Reference(20)))
     val token = cell.choose<Unit>(())
     val value = Box<Unit>(token).choose(cell.choose<Large>(cell.read()))
-    val first = Reference(1)
-    val second = Reference(2)
+    val _ = Reference(1)
+    val _ = Reference(2)
     return value.first.value + value.second.value + value.third.value
 }
 

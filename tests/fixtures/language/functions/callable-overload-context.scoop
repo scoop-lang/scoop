@@ -7,7 +7,7 @@ fun apply(operation: (String) -> String): String = operation("kept")
 fun intIdentity(value: Int): Int = value
 
 fun main() {
-    val selected = select({ value -> "lambda" })
+    val selected = select({ _ -> "lambda" })
     val anonymous = apply(fun(value: String): String { return value + "-anonymous" })
     val referenced = apply(::intIdentity)
     println(selected)

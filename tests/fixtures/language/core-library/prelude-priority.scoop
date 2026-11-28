@@ -1,5 +1,5 @@
 fun userCoreOffset(value: Int): Int = value
 
 fun main() {
-    val value = userCoreOffset(42)
+    if (userCoreOffset(42) != 42) { throw IllegalStateException() }
 }

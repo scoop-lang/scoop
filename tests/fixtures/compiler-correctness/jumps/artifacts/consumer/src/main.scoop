@@ -5,6 +5,6 @@ fun main() {
     println(pick<String>(None, "fallback"))
     println(withDefault())
     println(fromDefault(Some(18)))
-    try { println(fromDefault(None)) } catch (failure: UnwrapException) { println("caught") }
+    try { println(fromDefault(None)) } catch (_: UnwrapException) { println("caught") }
     println(branch(true, Payload(19)).value)
 }

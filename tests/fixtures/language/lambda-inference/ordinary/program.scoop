@@ -17,5 +17,5 @@ fun main() {
     println(resource.inspect { read() })
     val empty: Int? = resource.scope { None }
     println(empty == None)
-    println(collect(resource, { value -> None }, { value -> value.read() }))
+    println(collect(resource, { _ -> None }, { value -> value.read() }))
 }

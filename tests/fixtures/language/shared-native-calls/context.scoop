@@ -10,8 +10,8 @@ private fun localPack(vararg values: Int): Array<Int> = values
 private fun identity(value: Int): Int = value
 
 public fun <T> exercise(seed: T, read: (T) -> Int): Int {
-    val external = apply({ value: Int -> read(seed) }, 0)
-    val local = localApply({ value: Int -> read(seed) }, 0)
+    val external = apply({ _: Int -> read(seed) }, 0)
+    val local = localApply({ _: Int -> read(seed) }, 0)
     return if (external == local) { external } else { 1 }
 }
 
@@ -19,8 +19,8 @@ public fun result(): Int {
     val flag = true
     if (localNarrow(if (flag) { 42 } else { 0 }) != 42) { return 2 }
     if (narrow(if (flag) { 42 } else { 0 }) != 42) { return 3 }
-    if (localNarrowAction({ value: Int -> 42 }) != 42) { return 4 }
-    if (narrowAction({ value: Int -> 42 }) != 42) { return 5 }
+    if (localNarrowAction({ _: Int -> 42 }) != 42) { return 4 }
+    if (narrowAction({ _: Int -> 42 }) != 42) { return 5 }
     if (localNarrowAction(fun(value: Int) { return 42 }) != 42) { return 6 }
     if (narrowAction(fun(value: Int) { return 42 }) != 42) { return 7 }
     if (localArrayFirst([]) != 42 || arrayFirst([]) != 42) { return 8 }

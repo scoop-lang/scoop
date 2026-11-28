@@ -109,7 +109,7 @@ fun main() {
         println(normal.first)
         println(normal.nested._1)
         println(normal.nested._2)
-    } catch (exception: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("unexpected-normal-catch")
     }
 
@@ -118,7 +118,7 @@ fun main() {
         val ignored = managedMaybeThrow(managed, true)
         println(ignored.first)
         println("unexpected-throw-return")
-    } catch (exception: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("caught-managed-invoke")
     }
 

@@ -86,7 +86,7 @@ fun main() {
 
     try {
         neverEntered(failBeforeDefault())
-    } catch (exception: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("caught")
     }
 }

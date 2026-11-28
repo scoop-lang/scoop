@@ -1,0 +1,17 @@
+var calls = 0
+
+fun next(): Int {
+    calls += 1
+    return calls
+}
+
+fun main() {
+    val unused = next()
+    var value = next()
+    value = next()
+    println(value)
+    value = next()
+    val _ = next()
+    val _ignored = next()
+    println(calls)
+}

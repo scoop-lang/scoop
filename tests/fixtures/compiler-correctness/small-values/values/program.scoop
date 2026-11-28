@@ -12,65 +12,65 @@ fun check(value: Boolean) { if (!value) { throw IllegalStateException() } }
 // Local handlers keep these calls present in both MIR profiles.
 fun mixed(value: Mixed): Mixed {
     try { check(value.tag != 0L); return value }
-    catch (error: IllegalStateException) { return Mixed(0.0, 0L) }
+    catch (_: IllegalStateException) { return Mixed(0.0, 0L) }
 }
 fun floats(value: Floats): Floats {
     try { check(value.third > 0f); return value }
-    catch (error: IllegalStateException) { return Floats(0f, 0f, 0f) }
+    catch (_: IllegalStateException) { return Floats(0f, 0f, 0f) }
 }
 fun nested(value: Nested): Nested {
     try { check(value.tag > 0); return value }
-    catch (error: IllegalStateException) { return Nested(Floats(0f, 0f, 0f), 0) }
+    catch (_: IllegalStateException) { return Nested(Floats(0f, 0f, 0f), 0) }
 }
 fun tuple(value: (Long, Double)): (Long, Double) {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return (0L, 0.0) }
+    catch (_: IllegalStateException) { return (0L, 0.0) }
 }
 fun optional(value: Int?): Int? {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return None }
+    catch (_: IllegalStateException) { return None }
 }
 fun choice(value: Choice): Choice {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return Empty }
+    catch (_: IllegalStateException) { return Empty }
 }
 fun large(value: Large): Large {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return Large(0L, 0L, 0L) }
+    catch (_: IllegalStateException) { return Large(0L, 0L, 0L) }
 }
 fun rooted(value: Rooted): Rooted {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return Rooted("empty", 0L) }
+    catch (_: IllegalStateException) { return Rooted("empty", 0L) }
 }
 fun packed(value: Packed): Packed {
     try { check(value.tag > 0.toByte()); return value }
-    catch (error: IllegalStateException) { return Packed(0.toByte(), 0.0) }
+    catch (_: IllegalStateException) { return Packed(0.toByte(), 0.0) }
 }
 @Unsafe fun replace(value: Pair): Pair {
     try { addressOf(value).store(Pair(7L, 8L)); return value }
-    catch (error: IllegalStateException) { return Pair(0L, 0L) }
+    catch (_: IllegalStateException) { return Pair(0L, 0L) }
 }
 fun registers(a: Long, b: Long, c: Long, d: Long, e: Long, f: Long,
               value: Mixed, tail: Double): Mixed {
     try {
         check(a + b + c + d + e + f == 21L && tail == 2.5)
         return value
-    } catch (error: IllegalStateException) { return Mixed(0.0, 0L) }
+    } catch (_: IllegalStateException) { return Mixed(0.0, 0L) }
 }
 fun <T> generic(value: T): T {
     try { gcCollect(); return value }
-    catch (error: IllegalStateException) { return value }
+    catch (_: IllegalStateException) { return value }
 }
 interface Transform { fun apply(value: Pair): Pair }
 class Worker(val delta: Long) : Transform {
     public override fun apply(value: Pair): Pair {
         try { gcCollect(); return Pair(value.first + delta, value.second + delta) }
-        catch (error: IllegalStateException) { return value }
+        catch (_: IllegalStateException) { return value }
     }
 }
 fun worker(): Transform {
     try { return Worker(10L) }
-    catch (error: IllegalStateException) { return Worker(0L) }
+    catch (_: IllegalStateException) { return Worker(0L) }
 }
 fun fail(value: Pair): Pair { throw IllegalStateException(Some("small value")) }
 
@@ -88,7 +88,7 @@ fun fail(value: Pair): Pair { throw IllegalStateException(Some("small value")) }
     check(left == 55L && right == 2.75)
     check(optional(Some(31))!! == 31 && optional(None) == None)
     check(when (choice(Value(29L))) { case Value(val number) -> number == 29L; case Empty -> false })
-    check(when (choice(Empty)) { case Value(val number) -> false; case Empty -> true })
+    check(when (choice(Empty)) { case Value(_) -> false; case Empty -> true })
     val big = large(Large(1L, 2L, 3L))
     val root = rooted(Rooted("retained", 5L))
     check(big.first + big.second + big.third == 6L && root.label == "retained" && root.number == 5L)

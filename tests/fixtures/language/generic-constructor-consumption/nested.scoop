@@ -7,8 +7,8 @@ private class Payload(public val value: Int)
 public fun result(): Int {
     val box = Nested<Payload>(Payload(37))
     val pair = box.echoed
-    val extra = Payload(1)
-    val another = Payload(2)
+    val _ = Payload(1)
+    val _ = Payload(2)
     return pair.second.value + box.count
 }
 

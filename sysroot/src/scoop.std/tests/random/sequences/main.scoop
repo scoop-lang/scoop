@@ -33,12 +33,12 @@ private fun exercise() {
     check(emptySequence<Int>().randomOrNone<Int>(noCalls) == None)
     check(sequenceOf<Int?>(None).randomOrNone<Int?>(noCalls) == Some(None) && noCalls.calls == 0L)
     var failed = false
-    try { emptySequence<Int>().random<Int>(noCalls) } catch (error: NoSuchElementException) { failed = true }
+    try { emptySequence<Int>().random<Int>(noCalls) } catch (_: NoSuchElementException) { failed = true }
     check(failed)
     val once = sequenceOf<Int>(1, 2, 3).iterator().asSequence<Int>().shuffled<Int>(Choices())
     check(once.toList<Int>().size == 3L)
     var repeated = false
-    try { once.iterator().next() } catch (error: IllegalStateException) { repeated = true }
+    try { once.iterator().next() } catch (_: IllegalStateException) { repeated = true }
     check(repeated)
 
 }

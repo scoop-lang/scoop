@@ -54,9 +54,9 @@ private class ApiTests {
         assertEquals(false, flags[64L])
         val units = MutableArray<Unit>(65L) { _ -> Unit }
         assertEquals(65L, units.size)
-        var initializer: (Long) -> Long = { _ -> 0L }
-        initializer = { index -> index + 1L }
-        val changed = MutableArray<Long>(65L, initializer)
+        var _initializer: (Long) -> Long = { _ -> 0L }
+        _initializer = { index -> index + 1L }
+        val changed = MutableArray<Long>(65L, _initializer)
         assertEquals(65L, changed[64L])
         val calls = Counter(0L)
         val effects =
@@ -68,14 +68,14 @@ private class ApiTests {
         assertEquals(137L, calls.value)
         assertEquals(0L, effects[136L])
         try {
-            val unused =
+            val _ =
                 MutableArray<Long>(-1L) {
                     _ ->
                     calls.value += 1L;
                     0L
                 }
             fail(Some("negative size"))
-        } catch (e: IllegalArgumentException) {}
+        } catch (_: IllegalArgumentException) {}
         assertEquals(137L, calls.value)
         val padded = MutableArray<MaybeUninit<Padded>>(65L) { _ -> MaybeUninit<Padded>.uninit() }
         @Unsafe

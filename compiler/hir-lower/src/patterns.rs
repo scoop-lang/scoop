@@ -310,6 +310,7 @@ impl Lowerer {
         }
         self.warn_variant_shadowing(name, ty, ctx.in_when);
         let local = self.alloc_declared_local(name.text.clone(), ty, ctx.mutable, name.span);
+        self.record_local_write_site(local, name.span, name.span);
         self.scopes.declare(name.text.clone(), local);
         Some(local)
     }

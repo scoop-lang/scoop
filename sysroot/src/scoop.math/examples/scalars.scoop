@@ -12,7 +12,7 @@ fun main() {
     println(f"next Float after one: ${nextUp(1f)}")
     try {
         addExact(Long.MAX_VALUE, 1L)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("overflow detected")
     }
 }

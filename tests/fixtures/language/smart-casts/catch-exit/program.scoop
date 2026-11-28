@@ -1,6 +1,6 @@
 fun length(value: Any): Long {
     try { if (value !is String) throw UnwrapException() }
-    catch (error: UnwrapException) { return 0L }
+    catch (_: UnwrapException) { return 0L }
     return value.charLength
 }
 fun main() {
@@ -8,5 +8,5 @@ fun main() {
     var value: Any = "stable"
     if (value !is String) return
     try { throw UnwrapException() }
-    catch (error: UnwrapException) { println(value.charLength) }
+    catch (_: UnwrapException) { println(value.charLength) }
 }

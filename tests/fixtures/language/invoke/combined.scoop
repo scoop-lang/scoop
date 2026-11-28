@@ -51,7 +51,7 @@ class InvokeTask(
         val captured = "captured-"
         return try {
             holder.action({ value: InvokePayload -> captured + value.text })
-        } catch (error: InvokeFailure) {
+        } catch (_: InvokeFailure) {
             "invoke-caught"
         }
     }

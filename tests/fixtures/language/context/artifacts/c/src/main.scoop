@@ -78,7 +78,7 @@ fun main() {
     verify(done.value == 41 && secondDone.value == 41)
     callbacks()
     var missing = false
-    try { direct() } catch (error: MissingContextException) { missing = true }
+    try { direct() } catch (_: MissingContextException) { missing = true }
     verify(missing)
     println("artifacts-ok")
 }

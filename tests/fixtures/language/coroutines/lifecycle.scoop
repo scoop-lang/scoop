@@ -26,7 +26,7 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int {
     var rejected = false
     try {
         continuation.resume(seed)
-    } catch (exception: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         rejected = true
     }
     if (!rejected || deferred.calls != 1 || read(deferred.value!!) != 42) { return 8 }

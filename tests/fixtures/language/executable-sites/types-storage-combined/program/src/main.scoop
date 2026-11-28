@@ -1,5 +1,5 @@
 package dev.example
 fun main() {
-    val kept: Any = storageValue()
+    val _kept: Any = storageValue()
     if (!storageReady || StorageSingleton.text != "singleton") { throw IllegalStateException() }
 }

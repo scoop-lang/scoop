@@ -77,7 +77,7 @@ fun current(): Measure = value
     check(bound() == 42)
     check(widened(view) === view)
     check(dynamic(view) === view)
-    val returned = try { keep(boxed) } catch (error: IllegalStateException) { view }
+    val returned = try { keep(boxed) } catch (_: IllegalStateException) { view }
     gcCollect()
     check(returned.value() == 9)
     context(view) {

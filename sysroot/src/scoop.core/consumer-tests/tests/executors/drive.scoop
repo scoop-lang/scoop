@@ -60,7 +60,7 @@ private class CoroutineExecutorDriveTest {
             try {
                 gate.waiter!!.resume(99)
             }
-            catch (error: IllegalStateException) {
+            catch (_: IllegalStateException) {
                 duplicate = true
             }
             assertTrue(duplicate)

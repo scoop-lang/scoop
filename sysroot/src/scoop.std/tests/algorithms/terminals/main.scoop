@@ -42,22 +42,22 @@ private fun exercise() {
     check(Once(values, 2L).singleOrNone() == None && values.single<Int> { value -> value == 2 } == 2, "single")
     check(values.singleOrNone<Int> { value -> value == 8 } == None, "single no match")
     var caught = false
-    try { Once(values, 2L).single() } catch (error: IllegalArgumentException) { caught = true }
+    try { Once(values, 2L).single() } catch (_: IllegalArgumentException) { caught = true }
     check(caught, "single many")
     caught = false
-    try { emptyList<Int>().single() } catch (error: NoSuchElementException) { caught = true }
+    try { emptyList<Int>().single() } catch (_: NoSuchElementException) { caught = true }
     check(caught, "single empty")
     caught = false
-    try { emptyList<Int>().first() } catch (error: NoSuchElementException) { caught = true }
+    try { emptyList<Int>().first() } catch (_: NoSuchElementException) { caught = true }
     check(caught, "first empty")
     caught = false
-    try { emptyList<Int>().last() } catch (error: NoSuchElementException) { caught = true }
+    try { emptyList<Int>().last() } catch (_: NoSuchElementException) { caught = true }
     check(caught, "last empty")
     val negative = Once(values, 0L)
     check(negative.elementAtOrNone(-1L) == None && negative.opened == 0L, "negative index")
     check(Once(values, 2L).elementAt(1L) == 2 && values.elementAtOrNone(4L) == None, "elementAt")
     caught = false
-    try { values.elementAt(-1L) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { values.elementAt(-1L) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && values.indexOf(2) == 1L && values.indexOf(8) == -1L && values.contains(3), "indexed lookup")
     check(Once(values, 4L).count() == 3L && values.count<Int> { value -> value < 3 } == 2L, "count")
     check(Once(values, 4L).fold<Int, String>("x") { total, value -> total + value.toString() } == "x123", "fold")
@@ -65,7 +65,7 @@ private fun exercise() {
     check(listOf<Int?>(None).reduceOrNone<Int?> { a, _ -> a } == Some(None), "reduce nested option")
     check(emptyList<Int>().reduceOrNone<Int> { a, b -> a + b } == None, "reduce empty option")
     caught = false
-    try { emptyList<Int>().reduce<Int> { a, b -> a + b } } catch (error: NoSuchElementException) { caught = true }
+    try { emptyList<Int>().reduce<Int> { a, b -> a + b } } catch (_: NoSuchElementException) { caught = true }
     check(caught, "reduce empty")
     val state = State()
     values.forEach<Int> { value -> state.calls += value.toLong() }
