@@ -582,8 +582,8 @@ int64_t scoop_window_accessibility_commit(void *pointer, int64_t focused) {
       tree.children = children;
       tree.hitOrder = hits;
       tree.focused = focused;
-      BOOL rootChanged =
-          sw_accessibility_collections_commit(tree, previous, changes, removed);
+      BOOL rootChanged = sw_accessibility_collections_commit(
+          tree, previous, changes, removed, oldFocus);
       sw_accessibility_grid_commit(tree);
       tree.pending = nil;
       tree.removed = nil;

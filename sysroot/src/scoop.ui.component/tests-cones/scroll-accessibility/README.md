@@ -15,3 +15,11 @@ scoop test sysroot/src/scoop.ui.component/tests-cones/scroll-accessibility --fil
 VirtualCollectionActionsTest 使用真实按钮行及 Unicode 文本 key，直接调用原生自定义动作。Realize 返回前真实子树可访问，随后允许回收；Reveal 等待 Accepted，后来的定位取消旧请求。还覆盖禁用拒绝、请求尚未呈现时重排、删除后重插入的旧引用、在途关闭和实例释放。聚焦只验证真实请求已进入原控制器，并在同一 native block 内取消；不等待或获取系统前台焦点。完整前台焦点和读屏器验收仍按统一平台矩阵执行。
 
 本用例需要实际 drawable，不能把源码检查或可执行文件构建记作运行通过。底层范围、参数和原生动作在 Window 的 accessibility Cone 中验证；没有 drawable 的组件属性与挂载回归在相邻 accessibility Cone，纯滚动请求计算在 scoop.ui 的 ScrollSemanticsTest。
+
+## 跨进程整读和跳转
+
+在有桌面会话的 macOS 上，用具有辅助功能权限的终端运行以下命令。客户端直接通过 AXUIElement 整读三个行数组，检查一亿行列表的页长、行身份、首尾行号以及模型访问次数，并验证真实滚动、末尾不足整页和 4096 行的切换边界。
+
+```sh
+SCOOP_SYSROOT="$PWD/sysroot" sysroot/src/scoop.ui.component/tests-cones/scroll-accessibility/external/run.sh
+```

@@ -42,7 +42,7 @@
 - (int32_t)query:(int32_t)operation
            index:(int64_t)index
              key:(id)key
-           reply:(SWAccessibilityItemData *)reply {
+          result:(void *)result {
   SWAccessibilityTree *tree = self.tree;
   if (!self.state || !tree.collectionCallback)
     return 4;
@@ -51,7 +51,40 @@
   return tree.collectionCallback(tree.collectionContext, self.number, operation,
                                  index, text ? 1 : 0,
                                  text ? 0 : [key longLongValue], bytes.bytes,
-                                 (int64_t)bytes.length, (__bridge void *)reply);
+                                 (int64_t)bytes.length, result);
+}
+- (int32_t)query:(int32_t)operation
+           index:(int64_t)index
+             key:(id)key
+           reply:(SWAccessibilityItemData *)reply {
+  return [self query:operation
+               index:index
+                 key:key
+              result:(__bridge void *)reply];
+}
+- (NSInteger)publishedIndexForKey:(id)key {
+  // Membership queries can return the index without describing or realizing a
+  // row.
+  int64_t index = NSNotFound;
+  return key && [self query:2 index:0 key:key result:&index] == 1
+             ? (NSInteger)index
+             : NSNotFound;
+}
+- (NSRange)presentedRange {
+  if (self.pageGroup)
+    return self.pageGroup.range;
+  SWAccessibilityState *state = self.state;
+  return NSMakeRange(0, sw_accessibility_list_needs_pages(state)
+                            ? SWAccessibilityListPageSize
+                            : (NSUInteger)MAX(state.itemCount, 0));
+}
+- (NSArray *)presentedRowsFrom:(NSUInteger)index count:(NSUInteger)count {
+  NSRange range = self.presentedRange;
+  return index < range.length
+             ? [self rowsFrom:range.location + index
+                          count:MIN(count, range.length - index)
+                   selectedOnly:NO]
+             : @[];
 }
 - (id)itemForKey:(id)key {
   if (!key || !self.state)
@@ -69,7 +102,9 @@
   SWAccessibilityVirtualItem *item = [self.items objectForKey:key];
   return item.retired ? nil : item;
 }
-- (NSArray *)rowsFrom:(NSUInteger)index count:(NSUInteger)count {
+- (NSArray *)rowsFrom:(NSUInteger)index
+                count:(NSUInteger)count
+         selectedOnly:(BOOL)selectedOnly {
   SWAccessibilityState *state = self.state;
   if (!state || index >= (uint64_t)state.itemCount ||
       ![self.tree element:self.number].isAccessibilityElement)
@@ -82,6 +117,8 @@
                            index:(int64_t)(index + offset)
                              key:nil
                            reply:data];
+    if (selectedOnly && (status == 3 || (status == 1 && data.selected != 1)))
+      continue;
     if (status != 1 || !data.key)
       return nil;
     SWAccessibilityVirtualItem *item = [self itemForKey:data.key];
@@ -107,7 +144,9 @@
     SWAccessibilityState *state = self.tree.published[number];
     if (state.itemKey && state.data.geometry && state.data.visible &&
         !(state.data.flags & SWAXHidden) &&
-        ![self.tree.retiring containsObject:number]) {
+        ![self.tree.retiring containsObject:number] &&
+        (!self.pageGroup ||
+         [self.pageGroup containsVisibleKey:state.itemKey])) {
       id item = [self itemForKey:state.itemKey];
       if (item)
         [result addObject:item];
@@ -130,6 +169,8 @@
   }
 }
 - (void)retire {
+  [self.pageGroup retire];
+  self.pageGroup = nil;
   for (SWAccessibilityVirtualItem *item in self.items.objectEnumerator) {
     item.retired = YES;
     item.cached = nil;
@@ -170,12 +211,17 @@
   return self.isAccessibilityElement ? NSAccessibilityRowRole : nil;
 }
 - (id)accessibilityParent {
-  return self.isAccessibilityElement
-             ? [self.collection.tree element:self.collection.number]
-             : nil;
+  if (!self.isAccessibilityElement)
+    return nil;
+  SWAccessibilityNode *list =
+      [self.collection.tree element:self.collection.number];
+  if (self.collection.pageGroup &&
+      [list accessibilityIndexOfChild:self] == NSNotFound)
+    return nil;
+  return list;
 }
 - (id)accessibilityWindow {
-  return [self.accessibilityParent accessibilityWindow];
+  return self.isAccessibilityElement ? self.collection.tree.view.window : nil;
 }
 - (id)accessibilityTopLevelUIElement {
   return self.accessibilityWindow;
@@ -205,7 +251,8 @@
 }
 - (BOOL)isAccessibilityEnabled {
   return self.itemData.enabled &&
-         [self.accessibilityParent isAccessibilityEnabled];
+         [[self.collection.tree element:self.collection.number]
+             isAccessibilityEnabled];
 }
 - (BOOL)isAccessibilitySelected {
   return self.itemData.selected == 1;
@@ -397,7 +444,7 @@ BOOL sw_accessibility_collections_commit(
     SWAccessibilityTree *tree,
     NSDictionary<NSNumber *, SWAccessibilityState *> *previous,
     NSDictionary<NSNumber *, SWAccessibilityState *> *changes,
-    NSSet<NSNumber *> *removed) {
+    NSSet<NSNumber *> *removed, int64_t previousFocus) {
   BOOL rootChanged = NO;
   NSMutableSet<NSNumber *> *layout = [NSMutableSet new];
   NSMutableSet<NSNumber *> *visible = [NSMutableSet new];
@@ -448,6 +495,7 @@ BOOL sw_accessibility_collections_commit(
          old.data.geometry != value.data.geometry))
       [visible addObject:@(owner)];
     if (value.itemCount < 0) {
+      rootChanged |= tree.collections[number].pageGroup != nil;
       [tree.collections[number] retire];
       [tree.collections removeObjectForKey:number];
     } else if (!old || value.collectionRevision != old.collectionRevision) {
@@ -462,7 +510,33 @@ BOOL sw_accessibility_collections_commit(
   // AppKit exposes visibleRows changes through the collection's layout
   // notification.
   [layout unionSet:visible];
+  if (previousFocus != tree.focused) {
+    int64_t before = collectionOwner(previous, @(previousFocus));
+    int64_t after = collectionOwner(tree.published, @(tree.focused));
+    if (before && tree.collections[@(before)].pageGroup)
+      [layout addObject:@(before)];
+    if (after && sw_accessibility_list_needs_pages(tree.published[@(after)]))
+      [layout addObject:@(after)];
+  }
   for (NSNumber *number in layout) {
+    SWAccessibilityState *state = tree.published[number];
+    if (sw_accessibility_list_needs_pages(state)) {
+      SWAccessibilityCollection *collection =
+          [tree collection:number.longLongValue];
+      if (!collection.pageGroup) {
+        collection.pageGroup = [SWAccessibilityListPageGroup new];
+        collection.pageGroup.collection = collection;
+        rootChanged = YES;
+      }
+      [collection.pageGroup updateViewport];
+      if (previous[number] && previous[number].itemCount != state.itemCount)
+        NSAccessibilityPostNotification(
+            collection.pageGroup, NSAccessibilityTitleChangedNotification);
+    } else if (tree.collections[number].pageGroup) {
+      [tree.collections[number].pageGroup retire];
+      tree.collections[number].pageGroup = nil;
+      rootChanged = YES;
+    }
     id node = [tree element:number.longLongValue];
     if (node)
       NSAccessibilityPostNotification(node,

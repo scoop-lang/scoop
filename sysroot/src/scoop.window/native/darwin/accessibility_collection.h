@@ -29,9 +29,25 @@
 - (SWAccessibilityItemData *)itemData;
 @end
 
+enum { SWAccessibilityListPageSize = 100 };
+
+@interface SWAccessibilityListPageGroup : NSAccessibilityElement
+@property(nonatomic, weak) SWAccessibilityCollection *collection;
+@property(nonatomic, readonly) NSRange range;
+- (void)updateViewport;
+- (void)retire;
+- (BOOL)containsVisibleKey:(id)key;
+@end
+
+BOOL sw_accessibility_list_needs_pages(SWAccessibilityState *state);
+
 @interface SWAccessibilityCollection ()
 @property(nonatomic, strong)
     NSMapTable<id, SWAccessibilityVirtualItem *> *items;
+@property(nonatomic, strong) SWAccessibilityListPageGroup *pageGroup;
+- (NSRange)presentedRange;
+- (NSArray *)presentedRowsFrom:(NSUInteger)index count:(NSUInteger)count;
+- (NSInteger)publishedIndexForKey:(id)key;
 - (SWAccessibilityState *)state;
 - (SWAccessibilityNode *)mountedRow:(id)key;
 - (int32_t)query:(int32_t)operation

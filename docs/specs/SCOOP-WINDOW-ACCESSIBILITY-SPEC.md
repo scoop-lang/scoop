@@ -140,9 +140,13 @@ Tree 的数据顺序为当前可阅读展开行的先序，parentKey 必须指�
 
 `AccessibilityNode.collection` 暂存一个可选快照，用于 List 或 Table；publish 成功后才替换原生查询使用的快照。`AccessibilityNode.collectionItem` 将一个具体 Group 子节点绑定到其 List 父节点中的 key，用于已挂载行的几何与真实子控件；回收这个 Group 不删除逻辑条目；Group 更换父节点时清除原集合关联。原生集合对象按需产生并缓存轻量条目代理，不预建 count 个对象或完整子 ID 数组。发布数据变化时只复核已经产生的代理 key，重排保留对象，删除／过滤退休旧对象，后来重用相同 key 也不复活退休对象。
 
-AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项；行的元数据通过已发布快照的只读 owner 查询获得。普通原生查询在非 owner、重入更新或关闭时返回适用的暂不可用结果；内部发布对保留 key 的复核只读本次候选快照，不进入 UI 更新。描述失败交回现有 owner 错误处理。缺失具体实例时不报告估算坐标和虚假的子控件；已实例化行借用其 Accepted 几何和实际挂载语义子树。查询本身不 build、滚动或聚焦。
+AppKit 的 List 提供 rows、visibleRows、按 index 取 row 和逻辑子项。虚拟集合的 Children、ChildrenInNavigationOrder 与 Rows 按相同顺序计数和取段，只读取所请求范围。父节点反查行的位置使用该集合中稳定 key 的当前索引，其他集合的行和已退休行返回 NSNotFound。行的元数据通过已发布快照的只读 owner 查询获得。普通原生查询在非 owner、重入更新或关闭时返回适用的暂不可用结果；内部发布对保留 key 的复核只读本次候选快照，不进入 UI 更新。描述失败交回现有 owner 错误处理。缺失具体实例时不报告估算坐标和虚假的子控件；已实例化行借用其 Accepted 几何和实际挂载语义子树。查询本身不 build、滚动或聚焦。
 
 跨进程 AX 引用不会替应用保留提供方的 Objective-C 对象。AppKit 按需保留已经导出的行、单元格和列代理，直至对应逻辑实体退休或 provider 关闭，不能在返回属性数组后立即释放。代理对集合、行和树的反向引用不形成所有权环；退休时撤销缓存并发布适用的销毁通知。未查询项目仍不创建代理，显式枚举全部数据可以产生相应数量的轻量代理，但不能构造全部 View。
+
+macOS 上，逻辑条目超过 4096 的虚拟 List 通过一个 AXGroup 同时提供当前页 AXList 与“Go to row”数值导航控件。每页最多 100 行。组报告从 1 开始的行号范围与逻辑总数；页内 Children、ChildrenInNavigationOrder、Rows、RowCount 及同一数组的取段／计数均表示这一页，VisibleChildren、VisibleRows 和 SelectedChildren 只列本页相应子集。页内数组索引和父节点反查索引从零开始，行自身的 AXIndex 保留从零开始的全局数据索引。查询不会切页或更改滚动、焦点、选择。
+
+向导航控件写入从 1 到总数的整数可直接跳到该行所在的页，Increment／Decrement 翻到下一页／上一页，First Page／Last Page 可直达首尾。翻页只改变无障碍阅读范围，显露具体内容仍使用该行的 Reveal。首帧发布时保留客户端已选择的阅读页。此后实际视口移到当前页外或新的行取得焦点时，阅读范围跟随。集合缩短时范围收回到有效位置。翻页和重排沿用行的稳定身份。跨回普通列表时撤下分页控件并通知结构变化。静态 List、Table 和 Tree 沿用各自的原生投影。
 
 集合选择由同一发布快照的 `SemanticCollectionSelection(keys, multiple, required)` 描述。keys 只列属于该快照的已选稳定 key；原生查询不为取得选中项扫描整个集合。`SemanticItemProperties.selectable` 缺省 true，允许总计、说明等条目明确设为 false，同时保留其 enabled、focusable 和阅读能力。false 优先于 selected 和集合选择快照：该条目不发布 selected 状态，不出现在原生选中项列表中，选择／取消选择返回 Unsupported 且不调用业务回调。选择列表发布只检查已选 key 的描述，描述暂不可用的项也不发布；不会为检查可选性枚举整个集合或创建 View。`setSelected(key, value)` 经原业务选择入口确认采纳结果；没有选择模型时不声明 Selection 能力。AppKit 的选择 setter 只在该行可用、可选择且有选择模型和回调时公布。
 

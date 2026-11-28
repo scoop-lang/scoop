@@ -155,7 +155,7 @@ public class SemanticCollectionSnapshot public constructor(
     /** Revalidates identity without requiring a currently available description. */
     internal fun contains(key: SemanticItemKey): Boolean = indexOf(key) != None
 
-    private fun indexOf(key: SemanticItemKey): Long? {
+    internal fun indexOf(key: SemanticItemKey): Long? {
         val index = source.indexOfKey(key) ?: return None
         requireWindow(index >= 0L && index < count, "semantic item index is out of range")
         requireWindow(source.keyAt(index) == key, "semantic item key mapping is inconsistent")

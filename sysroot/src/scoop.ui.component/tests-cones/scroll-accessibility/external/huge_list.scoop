@@ -1,0 +1,94 @@
+//! dep: scoop:scoop.ui:0.1.0
+//! dep: scoop:scoop.ui.component:0.1.0
+//! dep: scoop:scoop.ui.style:0.1.0
+//! dep: scoop:scoop.ui.style.shadcn:0.1.0
+//! dep: scoop:scoop.window:0.1.0
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.accessibility.*
+
+private class Rows(public override val count: Long) : ItemSource {
+    var keys = 0L
+    var builds = 0L
+
+    public override fun keyAt(index: Long): ViewKey {
+        keys += 1L
+        return ViewKey.Number(index)
+    }
+
+    public override fun indexOfKey(key: ViewKey): Long? = when (key) {
+        case Number(val index) -> if (index >= 0L && index < count) Some(index) else None
+        else -> None
+    }
+
+    fun describe(index: Long): SemanticItemProperties? {
+        if (count == 4097L && index == 43L) return None
+        return Some(
+            SemanticItemProperties(
+                name = Some(f"Row ${index}"),
+                automationId = Some(f"row-${index}")
+            )
+        )
+    }
+
+    public override fun build(index: Long): View {
+        builds += 1L
+        return label(f"Row ${index}")
+    }
+}
+
+private class PagedList(scope: ComponentScope) : Component(scope) {
+    private val source = state(Rows(100000000L))
+    private val list = VirtualListHandle()
+
+    public override fun render(): View {
+        val source = this.source
+        val rows = source.value
+        val list = this.list
+        return column {
+            button(
+                "Read counters",
+                {
+                    println(f"counts ${rows.keys} ${rows.builds}");
+                    flushOutput()
+                }
+            )
+            button(
+                "Scroll to end",
+                {
+                    list.scrollToItem(ViewKey.Number(rows.count - 1L), ScrollAlignment.End)
+                    Unit
+                }
+            )
+            button("4097 rows", { source.value = Rows(4097L) })
+            button("4096 rows", { source.value = Rows(4096L) })
+            virtualList(rows, ItemExtent.Fixed(24.0)) {
+                handle = Some(list)
+                height = Some(160.0)
+                itemSemantics = Some(
+                    ItemSemantics(
+                        rows,
+                        { index -> rows.describe(index) },
+                        selection = Some(
+                            SemanticCollectionSelection(
+                                [
+                                    SemanticItemKey.Number(0L),
+                                    SemanticItemKey.Number(rows.count - 1L)
+                                ],
+                                multiple = true
+                            )
+                        )
+                    )
+                )
+            }
+        }
+    }
+}
+
+fun main() {
+    context(ThemeSource(shadcnTheme(ThemeMode.Light))) {
+        runUiApplication("AX paged list", { scope -> PagedList(scope) })
+    }
+}
