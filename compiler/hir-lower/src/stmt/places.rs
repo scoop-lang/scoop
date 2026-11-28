@@ -50,6 +50,7 @@ impl Lowerer {
         op: ast::UpdateOp,
         notation: ast::UpdateNotation,
         span: Span,
+        result_discarded: bool,
         sink: &mut Vec<hir::Statement>,
     ) -> Option<hir::Expr> {
         let plan = self.resolve_place_plan(place, sink)?;
@@ -101,7 +102,9 @@ impl Lowerer {
         let value = self.adapt_to(value, plan.ty);
         let new = self.materialize_place_expr(value, "new", span, sink);
         let write = self.lower_place_write(plan.write, new.clone(), span, sink)?;
-        self.record_assignment_site(place, &write, span);
+        if result_discarded || notation == ast::UpdateNotation::Postfix {
+            self.record_assignment_site(place, &write, span);
+        }
         sink.push(hir::Statement { kind: write, span });
         Some(match notation {
             ast::UpdateNotation::Prefix => new,

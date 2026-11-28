@@ -186,3 +186,19 @@ fun main() {
 "#,
     );
 }
+
+#[test]
+fn prefix_results_use_the_new_value_and_postfix_results_use_the_old_value() {
+    assert_writes(
+        r#"
+fun main() {
+    var prefix = 1
+    println(++prefix)
+    var postfix = 2
+    println(/*warn*/postfix--)
+    var discarded = 3;
+    --/*warn*/discarded
+}
+"#,
+    );
+}

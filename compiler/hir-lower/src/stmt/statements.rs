@@ -34,7 +34,11 @@ impl Lowerer {
             }
             ast::StatementKind::Expr(expr) => {
                 let mut sink = Vec::new();
-                let Some(lowered) = self.lower_expr(expr, &mut sink, None) else {
+                let Some(lowered) = self.lower_expr_with_expectation(
+                    expr,
+                    &mut sink,
+                    Some(crate::expr::ExpressionExpectation::Discarded),
+                ) else {
                     return; // diagnostic already recorded
                 };
                 if matches!(expr, ast::Expr::ContextScope { .. }) {
