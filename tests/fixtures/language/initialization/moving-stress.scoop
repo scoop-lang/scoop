@@ -64,8 +64,8 @@ fun main() {
     println(moving.target())
 
     try {
-        val failed = Failed("seed")
-    } catch (error: UnwrapException) {
+        val _ = Failed("seed")
+    } catch (_: UnwrapException) {
         gcCollect()
         println(retained!!.ready)
     }

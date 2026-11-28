@@ -24,16 +24,16 @@ private fun exercise() {
     if (count != 6L || iterator.next() != None || iterator.next() != None ||
         empty.iterator().next() != None) { fail(Some("exhaustion")) }
     var caught = 0
-    try { val value = text.getCharAt(-1L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { val value = text.getCharAt(6L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { val value = text.getCharAt(9223372036854775807L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { val value = text.getCharAt(-9223372036854775808L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { text.slice(-1L, 0L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { text.slice(2L, 1L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { text.slice(0L, 7L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { text.slice(7L, 7L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { text.slice(-9223372036854775808L, 9223372036854775807L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
-    try { val value = empty.getCharAt(0L) } catch (e: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { val _ = text.getCharAt(-1L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { val _ = text.getCharAt(6L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { val _ = text.getCharAt(9223372036854775807L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { val _ = text.getCharAt(-9223372036854775808L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { text.slice(-1L, 0L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { text.slice(2L, 1L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { text.slice(0L, 7L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { text.slice(7L, 7L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { text.slice(-9223372036854775808L, 9223372036854775807L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
+    try { val _ = empty.getCharAt(0L) } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
     if (caught != 10 || text == "A雪🚀\u0000é") { fail(Some("bounds-normalization")) }
 }
 

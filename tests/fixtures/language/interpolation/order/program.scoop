@@ -22,13 +22,13 @@ fun main() {
     check(text == "1|2" && journal.log == "E1T1E2T2")
     journal.log = ""
     var failed = false
-    try { val ignored = f"${make(journal, 3, false)}${make(journal, 4, true)}${make(journal, 5, false)}" }
-    catch (error: IllegalStateException) { failed = true }
+    try { val _ = f"${make(journal, 3, false)}${make(journal, 4, true)}${make(journal, 5, false)}" }
+    catch (_: IllegalStateException) { failed = true }
     check(failed && journal.log == "E3T3E4T4")
     journal.log = ""
     failed = false
-    try { val ignored = f"before${explode(journal)}${make(journal, 6, false)}" }
-    catch (error: IllegalArgumentException) { failed = true }
+    try { val _ = f"before${explode(journal)}${make(journal, 6, false)}" }
+    catch (_: IllegalArgumentException) { failed = true }
     check(failed && journal.log == "X")
     println(42)
 }

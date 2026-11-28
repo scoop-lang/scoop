@@ -39,10 +39,10 @@ private fun exercise() {
     val values = mutableListOf<Int>(3, 2, 1)
     var caught = false
     try { values.sortWith(comparatorOf<Int> { _, _ -> throw Exception(Some("compare")) }) }
-    catch (error: Exception) { caught = true }
+    catch (_: Exception) { caught = true }
     check(caught && values.joinToString() == "3, 2, 1", "comparison failure atomicity")
     caught = false
-    try { FailingList(values).sort() } catch (error: Exception) { caught = true }
+    try { FailingList(values).sort() } catch (_: Exception) { caught = true }
     check(caught && values.joinToString() == "1, 2, 1", "setter prefix")
     values.sort()
     check(values.joinToString() == "1, 1, 2", "in-place natural sort")
@@ -63,9 +63,9 @@ private fun exercise() {
     check(search.binarySearch(3, fromIndex = 3L, toIndex = 3L) == -4L, "empty subrange")
     check(listOf<Int>(7, 3, 1).binarySearch(3, reverseOrder<Int>()) == 1L, "explicit order")
     var rejected = 0
-    try { search.binarySearch(2, fromIndex = 3L, toIndex = 1L) } catch (error: IllegalArgumentException) { rejected += 1 }
-    try { search.binarySearch(2, fromIndex = -1L) } catch (error: IndexOutOfBoundsException) { rejected += 1 }
-    try { search.binarySearch(2, toIndex = 5L) } catch (error: IndexOutOfBoundsException) { rejected += 1 }
+    try { search.binarySearch(2, fromIndex = 3L, toIndex = 1L) } catch (_: IllegalArgumentException) { rejected += 1 }
+    try { search.binarySearch(2, fromIndex = -1L) } catch (_: IndexOutOfBoundsException) { rejected += 1 }
+    try { search.binarySearch(2, toIndex = 5L) } catch (_: IndexOutOfBoundsException) { rejected += 1 }
     check(rejected == 3, "range errors")
     val input = Array<Int>(511L) { index -> ((index * 137L) % 511L).toInt() }
     count.value = 0L

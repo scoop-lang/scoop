@@ -13,7 +13,7 @@ fun main() {
     try {
         val path = directory.resolve(Path.fromString("CA bundle 中.pem"))
         var bundle = intermediatePem()
-        for (index in 0L..<20L) bundle += rootPem()
+        for (_ in 0L..<20L) bundle += rootPem()
         check(bundle.toByteArray().size > 8192L)
         path.writeText(bundle)
         val worker = Thread.start {

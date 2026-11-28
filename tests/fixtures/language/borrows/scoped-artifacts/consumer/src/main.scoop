@@ -19,8 +19,8 @@ fun main() {
         val pairs = Array<Pair>(1L) { _ -> Pair(12, 15L) }
         expect(first(pairs).extra == 15L)
         try {
-            withValues<Unit>(values) { pointer: Ptr<Int>, count: Long -> throw IllegalStateException() }
-        } catch (error: IllegalStateException) {
+            withValues<Unit>(values) { _: Ptr<Int>, _: Long -> throw IllegalStateException() }
+        } catch (_: IllegalStateException) {
             gcCollect()
         }
     }

@@ -40,7 +40,7 @@ private fun exercise() {
             if (row.label == "c") throw Exception(Some("value transform"))
             row.label
         }
-    } catch (error: Exception) { caught = true }
+    } catch (_: Exception) { caught = true }
     check(caught && partial[2]!!.joinToString() == "a" && partial[1]!!.joinToString() == "b", "group prefix")
 
 }

@@ -78,7 +78,7 @@ class BindingTask(val gate: Gate, val label: String) : SuspendTask<Int> {
                 }
                 else -> return -1
             }
-        } catch (exception: UnwrapException) {
+        } catch (_: UnwrapException) {
             println("caught-" + label)
             return 0
         }
@@ -99,7 +99,7 @@ class RecordingCompletion(val label: String) : Continuation<Int> {
 fun makeGarbage() {
     var index = 0
     while (index < 1000) {
-        val garbage = Node("garbage-" + "node")
+        val _garbage = Node("garbage-" + "node")
         index = index + 1
     }
 }

@@ -11,15 +11,14 @@ internal fun decimalOrder(exponent: ULong, negative: Boolean, offset: Long): Lon
     val offsetNegative = offset < 0L
     val offsetMagnitude = if (offsetNegative) (0uL - offset.toULong()) else offset.toULong()
     var resultNegative = negative
-    var magnitude = exponent
-    if (negative == offsetNegative) {
-        magnitude = if (exponent > ULong.MAX_VALUE - offsetMagnitude) ULong.MAX_VALUE
+    val magnitude = if (negative == offsetNegative) {
+        if (exponent > ULong.MAX_VALUE - offsetMagnitude) ULong.MAX_VALUE
             else exponent + offsetMagnitude
     } else if (exponent >= offsetMagnitude) {
-        magnitude = exponent - offsetMagnitude
+        exponent - offsetMagnitude
     } else {
-        magnitude = offsetMagnitude - exponent
         resultNegative = offsetNegative
+        offsetMagnitude - exponent
     }
     val bounded = if (magnitude > Long.MAX_VALUE.toULong()) Long.MAX_VALUE else magnitude.toLong()
     return if (resultNegative) -bounded else bounded

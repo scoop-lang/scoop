@@ -13,7 +13,7 @@ class Source : TimeSource, Equals<Source> {
 }
 fun different(block: () -> Unit) {
     var failed = false
-    try { block() } catch (error: IllegalArgumentException) { failed = true }
+    try { block() } catch (_: IllegalArgumentException) { failed = true }
     check(failed)
 }
 private fun exercise() {
@@ -34,7 +34,7 @@ private fun exercise() {
     check(minimum - minimum == Duration.ZERO)
     check((minimum + 1.nanoseconds()).reading.nanosecondsOfSecond == 1)
     var overflowed = false
-    try { minimum - 1.nanoseconds() } catch (error: ArithmeticException) { overflowed = true }
+    try { minimum - 1.nanoseconds() } catch (_: ArithmeticException) { overflowed = true }
     check(overflowed && minimum.reading.floorSeconds == Long.MIN_VALUE)
     check(first.calls == 0L && second.calls == 0L)
 

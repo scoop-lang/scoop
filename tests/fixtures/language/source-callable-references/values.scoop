@@ -9,7 +9,7 @@ public fun <T> exercise(value: T): Int {
     val empty = Empty()::read
     val box = Cell<T>(value)
     val valueRead = box::read
-    val values = (valueRead(), value)
+    val _ = (valueRead(), value)
     if (triple.sum() != 0 || empty() != 42) { return 1 }
     return read()
 }

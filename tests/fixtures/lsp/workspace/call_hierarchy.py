@@ -16,8 +16,8 @@ def check(peer, root):
         "import call_graph.Reader\n"
         "fun invoke(reader: Reader): Boolean {\n"
         "    val first = route(true)\n"
-        "    val second = route(first)\n"
-        "    val number = route(1)\n"
+        "    val _second = route(first)\n"
+        "    val _number = route(1)\n"
         "    return reader.read()\n"
         "}\n"
         "fun recurse(flag: Boolean): Boolean { if (flag) { return true }; return recurse(true) }\n"
@@ -80,7 +80,7 @@ def check(peer, root):
     assert [edge["to"]["name"] for edge in expand(recurse, "outgoing")] == ["recurse"]
     assert [edge["from"]["name"] for edge in expand(recurse, "incoming")] == ["recurse"]
 
-    updated = source.replace("val second = route(first)", "val second = first")
+    updated = source.replace("val _second = route(first)", "val _second = first")
     peer.notify(
         "textDocument/didChange",
         {

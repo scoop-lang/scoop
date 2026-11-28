@@ -11,5 +11,18 @@
       "start": 210
     },
     "severity": "error"
+  },
+  {
+    "code": "W0801",
+    "message": "value assigned to `raw` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "8d46266e894cb7573d157588153bdbf7b852ce86e24bfdfdfe7beb7745f6a85e",
+      "end": 207,
+      "kind": "source",
+      "path": "src/main.scoop",
+      "start": 204
+    },
+    "severity": "warning"
   }
 ]

@@ -14,13 +14,11 @@ fun main() {
         val outer = foreignCallback<(Int, Ptr<Unit>) -> Int>(
             { value: Int ->
                 val live = marker + value.toString()
-                var checked = -1000
                 @Unsafe {
                     val result = invokeNative(inner.function, inner.context, value)
                     gcCollect()
-                    checked = if (live == marker + value.toString()) { result + 1 } else { -1000 }
+                    return@foreignCallback if (live == marker + value.toString()) { result + 1 } else { -1000 }
                 }
-                checked
             }, 1L, ForeignCallbackMode.Reusable
         )
         println(invokeNative(outer.function, outer.context, 40))

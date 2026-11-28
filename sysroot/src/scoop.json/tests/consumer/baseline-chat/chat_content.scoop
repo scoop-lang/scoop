@@ -54,9 +54,7 @@ enum ChatContent {
             }
         }
         public override fun decode(decoder: Decoder): ChatContent {
-            var text: String? = None
-            try { text = Some(String.decode(decoder)) }
-            catch (error: DecodingException) { text = None }
+            val text: String? = try { Some(String.decode(decoder)) } catch (_: DecodingException) { None }
             if (text != None) { return ChatContent.Text(text!!) }
             return ChatContent.Blocks(Array<ChatPart>.decoder(ChatPart.Companion).decode(decoder))
         }

@@ -10,7 +10,7 @@ fun sharedValues() {
     val wide = AtomicLong(0L)
     val lock = AtomicBoolean(false)
     val plain = Counter(0)
-    val array = MutableArray<Int>(1L) { index -> 0 }
+    val array = MutableArray<Int>(1L) { _ -> 0 }
     val snapshot = Atomic(Snapshot(0, 1, Payload(0)))
     val tuple = Atomic((0, 1L, Payload(0)))
     val state = Atomic<State>(State.Empty)

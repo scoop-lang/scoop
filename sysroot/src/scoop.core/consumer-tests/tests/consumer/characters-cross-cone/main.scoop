@@ -5,15 +5,15 @@ import test.core.tests.consumer.characters_cross_cone.p1.*
 
 const val localSnow: Char = snow
 fun matched(value: Char): Int = when (value) {
-    case val snow -> 42
-    case _ -> 0
+    snow -> 42
+    else -> 0
 }
 private fun exerciseConsumer() {
     val pair = mark("value")
     val symbols = ArrayList<Char>()
     symbols.add(localSnow)
     gcCollect()
-    if (pair._2 != '🚀' || !scalarOrder || matched(symbols[0L]) != 42 ||
+    if (pair._2 != '🚀' || !scalarOrder || matched(symbols[0L]) != 42 || matched('x') != 0 ||
         classify((Some(localSnow), "value")) != 42 || defaultPattern() != 42 ||
         characterText(pair._2) != "🚀") { fail(Some("cross-cone")) }
     assertEquals("42", (42).toString())

@@ -10,7 +10,7 @@ public fun <T> exercise(value: T): Int {
     val boundIncrement = 41::increment
     val incrementUnbound = ::increment
     val equals: (Int) -> Boolean = 42::equals
-    val values = (bound(), unbound(value))
+    val _ = (bound(), unbound(value))
     if (boundIncrement() != 42 || incrementUnbound(41) != 42) { return 1 }
     if (whole(value, 42) != 42 || !equals(42) || equals(1)) { return 2 }
     return saved(42)

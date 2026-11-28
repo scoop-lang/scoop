@@ -11,7 +11,7 @@ public fun <T> exercise(value: T): Int {
     val genericRead = generic::read
     val chooser: Chooser<T> = Choosing<T>()
     val interfaceChoose: (T) -> T = chooser::choose
-    val values = (genericRead(), interfaceChoose(value))
+    val _ = (genericRead(), interfaceChoose(value))
     if (virtual() != 42) { return 1 }
     return interfaceRead()
 }

@@ -22,24 +22,24 @@ fun main() {
     try {
         when (subject("boom")) { in store -> println("wrong") }
         println("wrong")
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("contains-caught")
     } finally {
         println("contains-finally")
     }
     try {
         println(allAbort())
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("condition-caught")
     } finally {
         println("condition-finally")
     }
     try {
-        when (val node = subject("live")) {
-            is Node if stop() -> println(node.text)
+        when (val _node = subject("live")) {
+            is Node if stop() -> println(_node.text)
             else -> println("wrong")
         }
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("guard-caught")
     } finally {
         println("guard-finally")

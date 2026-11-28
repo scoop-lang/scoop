@@ -43,8 +43,8 @@ private class ConcatTests {
         trace.value = ""
         var caught = false
         try {
-            val unused = trace.part("a", false) + trace.part("b", true) + trace.part("c", false)
-        } catch (error: IllegalArgumentException) { caught = true }
+            val _ = trace.part("a", false) + trace.part("b", true) + trace.part("c", false)
+        } catch (_: IllegalArgumentException) { caught = true }
         if (!caught || trace.value != "ab") { fail(Some("exception prefix")) }
     }
 }

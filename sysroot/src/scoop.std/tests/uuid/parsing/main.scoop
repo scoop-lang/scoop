@@ -9,7 +9,7 @@ fun check(ok: Boolean, location: SourceLocation = currentSourceLocation()) {
 fun invalid(text: String) {
     check(Uuid.parseOrNone(text) == None)
     var failed = false
-    try { Uuid.parse(text) } catch (error: IllegalArgumentException) { failed = true }
+    try { Uuid.parse(text) } catch (_: IllegalArgumentException) { failed = true }
     check(failed)
 }
 class BadBytes : List<Byte> {
@@ -40,12 +40,12 @@ private fun exercise() {
     for (size in Array<Long>(3L) { index -> if (index == 0L) 0L else index * 2L + 13L }) {
         var failed = false
         try { Uuid.fromByteArray(Array<Byte>(size) { _ -> 0 }) }
-        catch (error: IllegalArgumentException) { failed = true }
+        catch (_: IllegalArgumentException) { failed = true }
         check(failed)
     }
     val bad = BadBytes()
     var propagated = false
-    try { Uuid.fromByteArray(bad) } catch (error: IllegalStateException) { propagated = true }
+    try { Uuid.fromByteArray(bad) } catch (_: IllegalStateException) { propagated = true }
     check(propagated && bad.reads == 6L)
 
 }

@@ -4,7 +4,7 @@ fun after(): Int { println("unexpected after"); return 4 }
 
 fun check(name: String, action: () -> Unit) {
     try { action(); println("unexpected return") }
-    catch (error: IllegalStateException) { println(name) }
+    catch (_: IllegalStateException) { println(name) }
     finally { println("finally") }
 }
 

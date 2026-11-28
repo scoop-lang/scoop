@@ -24,6 +24,7 @@ fun snapshots() {
     source = Value(70)
     gcCollect()
     var first = alias as Value
+    check(first.number == 1)
     first = Value(90)
     check((boxed as Value).number == 1 && source.number == 70 && first.number == 90)
     check(evaluations == 1)

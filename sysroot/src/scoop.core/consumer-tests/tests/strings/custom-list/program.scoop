@@ -41,7 +41,7 @@ private fun exercise() {
     source.trace = ""
     source.fail = true
     var failed = false
-    try { String.fromChars(source) } catch (e: IllegalStateException) { failed = true }
+    try { String.fromChars(source) } catch (_: IllegalStateException) { failed = true }
     if (!failed || source.trace != "S01") { fail(Some("exception")) }
 }
 
@@ -60,7 +60,7 @@ private class ApiTests {
             source.fail = true
             var failed = false
             try { String.fromUtf8Unchecked(source) }
-            catch (error: IllegalStateException) { failed = true }
+            catch (_: IllegalStateException) { failed = true }
             if (!failed || source.trace != "S01") { fail(Some("byte-getter-exception")) }
         }
     }

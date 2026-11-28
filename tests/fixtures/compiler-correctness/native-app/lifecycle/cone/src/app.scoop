@@ -44,15 +44,13 @@ fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit {
                         -100
                     } else
                         if (value == 1 || value == 3) {
-                            var result = 0
-                            @Unsafe
-                            {
-                                result = host.service(value)
-                            }
-                            if (currentMarker() == marker) {
-                                result + 1
-                            } else {
-                                -200
+                            @Unsafe {
+                                val result = host.service(value)
+                                return@foreignCallback if (currentMarker() == marker) {
+                                    result + 1
+                                } else {
+                                    -200
+                                }
                             }
                         } else {
                             value + initialized

@@ -23,7 +23,7 @@ object Broken {
 }
 
 fun failed(): Throwable {
-    try { val value = Broken.value }
+    try { val _value = Broken.value }
     catch (error: Throwable) { return error }
     throw IllegalStateException()
 }
@@ -34,7 +34,7 @@ object Left { val value = right() }
 object Right { val value = left() }
 
 fun cyclic(): Throwable {
-    try { val value = Left.value }
+    try { val _value = Left.value }
     catch (error: IllegalStateException) { return error }
     throw IllegalStateException()
 }

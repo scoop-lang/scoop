@@ -9,7 +9,7 @@ fun check(ok: Boolean, location: SourceLocation = currentSourceLocation()) {
 }
 fun overflow(block: () -> Duration) {
     var failed = false
-    try { block() } catch (error: ArithmeticException) { failed = true }
+    try { block() } catch (_: ArithmeticException) { failed = true }
     check(failed)
 }
 private fun exercise() {

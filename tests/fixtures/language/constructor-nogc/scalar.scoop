@@ -18,9 +18,9 @@ public struct Empty() {
 @NoGC fun make(): Chain = Chain()
 @Unsafe @NoGC fun unsafeMake(): Scalar = Scalar(1, true)
 fun main() {
-    val scalar: Scalar = Scalar()
-    val zero: Empty = empty()
-    val chain: Chain = make()
-    val defaulted: Defaulted = Defaulted()
+    val _scalar: Scalar = Scalar()
+    val _zero: Empty = empty()
+    val _chain: Chain = make()
+    val _defaulted: Defaulted = Defaulted()
     @Unsafe { unsafeMake() }
 }

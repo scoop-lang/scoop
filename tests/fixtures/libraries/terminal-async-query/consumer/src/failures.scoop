@@ -8,7 +8,7 @@ import scoop.time.Duration
 suspend fun failures(session: AsyncTerminalSession) {
     var negative = false
     try { session.cursorPosition(Duration.seconds(-1L)) }
-    catch (error: IllegalArgumentException) { negative = true }
+    catch (_: IllegalArgumentException) { negative = true }
     check(negative, "negative query duration")
     restored(session)
     stage(session, "query-timeout")
@@ -24,7 +24,7 @@ suspend fun failures(session: AsyncTerminalSession) {
     restored(session)
     stage(session, "query-invalid")
     var invalid = false
-    try { session.cursorPosition() } catch (error: TerminalInputException) { invalid = true }
+    try { session.cursorPosition() } catch (_: TerminalInputException) { invalid = true }
     check(invalid, "malformed reply")
     restored(session)
     expect(session, key('q'))

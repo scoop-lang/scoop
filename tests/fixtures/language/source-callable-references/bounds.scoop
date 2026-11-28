@@ -24,7 +24,7 @@ public fun <T, R : Box<T>> readClass(owner: R): T {
 public fun <T> exercise(value: T): Int {
     val first = chooseBound<T, LocalChooser<T>>(LocalChooser<T>(), value)
     val second = readClass<T, Child<T>>(Child<T>(value))
-    val values = (first, second)
+    val _ = (first, second)
     if (readBound<Reader>(Reader()) != 42) { return 1 }
     return readBound<LocalReader>(LocalReader())
 }

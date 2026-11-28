@@ -52,13 +52,13 @@ fun launch(task: SuspendTask<Int>, completion: Continuation<Int>) {
 fun main() {
     try {
         launch(ImmediateTask(), ThrowingCompletion())
-    } catch (exception: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("immediate-success")
     }
 
     try {
         launch(ImmediateFailureTask(), ThrowingCompletion())
-    } catch (exception: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("immediate-failure")
     }
 
@@ -66,7 +66,7 @@ fun main() {
     launch(WaitingTask(success), ThrowingCompletion())
     try {
         success.complete(1)
-    } catch (exception: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("resumed-success")
     }
 
@@ -74,7 +74,7 @@ fun main() {
     launch(WaitingTask(failure), ThrowingCompletion())
     try {
         failure.fail()
-    } catch (exception: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("resumed-failure")
     }
 }

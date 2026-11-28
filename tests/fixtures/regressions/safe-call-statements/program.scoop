@@ -29,7 +29,7 @@ fun main() {
     val action: Action? = Some(Action { counter.next() })
     action?.call()
     try { some?.fail() }
-    catch (error: Throwable) { counter.total += 8 }
+    catch (_: Throwable) { counter.total += 8 }
     finally { some?.add(1) }
     cleanup(some)
     cleanup(none)

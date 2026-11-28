@@ -45,7 +45,7 @@ fun main() {
     check(coldSite(9L, false) == 9L)
     var caught = false
     try { coldSite(9L, true) }
-    catch (error: IllegalStateException) { caught = true }
+    catch (_: IllegalStateException) { caught = true }
     check(caught)
     println("call sites preserve results and exceptions")
 }

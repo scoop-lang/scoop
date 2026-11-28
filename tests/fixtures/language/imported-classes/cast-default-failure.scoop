@@ -6,7 +6,7 @@ import dev.example.dependency.classes.castDefault
 public fun primary(): Counter {
     try {
         return castDefault(Other(0))
-    } catch (error: ClassCastException) {
+    } catch (_: ClassCastException) {
         return Counter(21)
     }
 }

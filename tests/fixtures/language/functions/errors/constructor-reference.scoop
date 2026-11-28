@@ -1,5 +1,5 @@
 class Mapper
 
 fun main() {
-    val constructor = ::Mapper
+    val _ = ::Mapper
 }

@@ -15,7 +15,7 @@ suspend fun divideAfterResume(value: Int, gate: Gate): Int {
     val divisor = suspendCoroutine(gate)
     val divide = value::div
     try { return divide(divisor) }
-    catch (error: ArithmeticException) { return 42 }
+    catch (_: ArithmeticException) { return 42 }
 }
 
 fun main(): Int {

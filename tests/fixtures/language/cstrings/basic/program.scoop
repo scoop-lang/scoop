@@ -51,7 +51,7 @@ fun main() {
         var rejected = false
         try {
             "before\u0000after".withCString<Unit>(fun(pointer: Ptr<Int8>) { entered.value = true })
-        } catch (error: IllegalArgumentException) { rejected = true }
+        } catch (_: IllegalArgumentException) { rejected = true }
         expect(rejected && !entered.value)
 
         var cleaned = false
@@ -63,7 +63,7 @@ fun main() {
                     throw IllegalStateException()
                 }
             })
-        } catch (error: IllegalStateException) { cleaned = true }
+        } catch (_: IllegalStateException) { cleaned = true }
         gcCollect()
         expect(cleaned)
         text.withCString() { pointer: Ptr<Int8> ->

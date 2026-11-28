@@ -98,7 +98,7 @@ fun main() {
     println(ObjectHost.direct())
     println(ObjectHost.forwarded())
     println(ObjectHost.NestedCompanion.forwarded())
-    val independent: Independent = Independent()
+    val _: Independent = Independent()
     println("after-independent-construction")
     println(Independent.seed)
     println(InheritedHost.inheritedProperty)

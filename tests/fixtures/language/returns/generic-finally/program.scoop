@@ -10,7 +10,7 @@ fun main() {
     forward(discard)
     try {
         forward<Unit> { throw UnwrapException() }
-    } catch (failure: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("caught")
     } finally {
         println("outer-finally")

@@ -6,7 +6,7 @@ fun main() {
     if (Native<String>("managed").value != "managed") { throw IllegalStateException() }
     if (Phantom<String>().code != 1) { throw IllegalStateException() }
     if (WrapperValue(42, true).value != 42) { throw IllegalStateException() }
-    val wrapper: Wrapper<Int> = Wrapper(42)
-    val unrelated: Wrapper<String> = Wrapper<String>(true)
+    val _wrapper: Wrapper<Int> = Wrapper(42)
+    val _unrelated: Wrapper<String> = Wrapper<String>(true)
     gcCollect()
 }

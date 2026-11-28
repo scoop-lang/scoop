@@ -98,7 +98,7 @@ class RecordingCompletion(val label: String) : Continuation<Node> {
 fun makeGarbage() {
     var index = 0
     while (index < 1000) {
-        val garbage = Node("garbage-" + "node")
+        val _garbage = Node("garbage-" + "node")
         index = index + 1
     }
 }

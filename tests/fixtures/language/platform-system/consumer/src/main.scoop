@@ -56,7 +56,7 @@ private fun rawEnvironment() {
 
 private fun entropyFailures() {
     @Unsafe {
-        val callback = foreignCallback<(Int, Ptr<Unit>) -> Int>({ phase -> gcCollect(); 0 }, 1, ForeignCallbackMode.Reusable)
+        val callback = foreignCallback<(Int, Ptr<Unit>) -> Int>({ _ -> gcCollect(); 0 }, 1, ForeignCallbackMode.Reusable)
         setCallback(callback.function, callback.context)
         try {
             NativeByteBuffer.allocate(800L).use { buffer ->

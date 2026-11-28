@@ -8,8 +8,8 @@ fun main() {
     val row = Row<String>(7, "text")
     val second = Row<String>("next")
     val store = Store<String>(row)
-    val secondary = Secondary(1)
-    val empty = Empty()
+    val _ = Secondary(1)
+    val _ = Empty()
     if (row.value != "text" || row.count != 7 || row.inherited != 7 || row.size != 12L) { throw Throwable() }
     if (second.count != 3 || store.row !== row) { throw Throwable() }
     println("class-shapes-ok")

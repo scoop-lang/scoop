@@ -16,5 +16,5 @@ fun main() {
     println(concat("str", "ing"))
     println(increment(8))
     println(keep("extension"))
-    try { println(divide(1, 0)) } catch (error: ArithmeticException) { println("caught") }
+    try { println(divide(1, 0)) } catch (_: ArithmeticException) { println("caught") }
 }

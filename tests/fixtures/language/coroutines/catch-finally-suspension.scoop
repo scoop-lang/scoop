@@ -21,7 +21,7 @@ class CatchTask(val gate: Gate) : SuspendTask<Int> {
     public final override suspend fun run(): Int {
         try {
             throw UnwrapException()
-        } catch (exception: UnwrapException) {
+        } catch (_: UnwrapException) {
             return waitFor(gate) + 1
         }
     }
@@ -49,7 +49,7 @@ class ThrowFinallyTask(val gate: Gate) : SuspendTask<Int> {
     public final override suspend fun run(): Int {
         try {
             return failAfterCleanup(gate)
-        } catch (exception: UnwrapException) {
+        } catch (_: UnwrapException) {
             return 42
         }
     }
@@ -79,7 +79,7 @@ class OverrideThrowFinallyTask(val gate: Gate) : SuspendTask<Int> {
     public final override suspend fun run(): Int {
         try {
             return returnThenThrow(gate)
-        } catch (exception: UnwrapException) {
+        } catch (_: UnwrapException) {
             return 46
         }
     }

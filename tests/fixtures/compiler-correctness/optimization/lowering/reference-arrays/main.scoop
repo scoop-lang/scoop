@@ -76,7 +76,7 @@ fun main() {
     check(copyUntil(source, target, last) === last)
     check(target[63L] === first)
     var caught = false
-    try { copyNodes(source, target) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { copyNodes(source, target) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && target[0L] === first && target[63L] === first)
     val openValues = Array<OpenNode>(65L) { _ -> OpenNode(31L) }
     val views = fillInterfaces(65L, first, first)

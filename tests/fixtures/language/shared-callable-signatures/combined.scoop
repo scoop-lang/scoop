@@ -15,7 +15,7 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int {
     val local: Source<T> = Local<T>(source.get())
     val callback = nested<T>(local.get())
     val value = defaulted<T>(callback())
-    val selected = box.apply<Unit>(Unit, { item, unit -> read(identity<T>(item)) })
+    val selected = box.apply<Unit>(Unit, { item, _ -> read(identity<T>(item)) })
     @Unsafe {
         if (read(unchecked<T>(value)) != selected) { return 1 }
     }

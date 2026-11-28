@@ -6,7 +6,7 @@ public fun primary(): Counter {
     var code: Long = 0
     try {
         throwDefault()
-    } catch (error: Throwable) {
+    } catch (_: Throwable) {
         code = 20
     } finally {
         code = code + 1

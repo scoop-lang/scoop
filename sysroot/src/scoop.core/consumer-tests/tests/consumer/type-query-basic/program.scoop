@@ -55,7 +55,7 @@ private fun exerciseConsumer() {
     check(shape.fields[1L].constructorParameter!! == shape.constructors[0L].parameters[1L].id)
     check(shape.constructors[0L].parameters[1L].hasDefault)
     var recursive = reference
-    for (index in 0L until 10L) {
+    for (_ in 0L until 10L) {
         recursive = asStruct(recursive).fields[1L].type.arguments[0L].arguments[0L]
         gcCollect()
         check(recursive == reference)

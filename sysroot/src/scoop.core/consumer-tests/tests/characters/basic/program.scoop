@@ -38,10 +38,10 @@ private fun exercise() {
         if (number.toChar().code != number) { fail(Some("boundary")) }
     }
     var errors = 0
-    try { val unused = (-1).toChar() } catch (e: IllegalArgumentException) { errors = errors + 1 }
-    try { val unused = 55296.toChar() } catch (e: IllegalArgumentException) { errors = errors + 1 }
-    try { val unused = 57343.toChar() } catch (e: IllegalArgumentException) { errors = errors + 1 }
-    try { val unused = 1114112.toChar() } catch (e: IllegalArgumentException) { errors = errors + 1 }
+    try { val _ = (-1).toChar() } catch (_: IllegalArgumentException) { errors = errors + 1 }
+    try { val _ = 55296.toChar() } catch (_: IllegalArgumentException) { errors = errors + 1 }
+    try { val _ = 57343.toChar() } catch (_: IllegalArgumentException) { errors = errors + 1 }
+    try { val _ = 1114112.toChar() } catch (_: IllegalArgumentException) { errors = errors + 1 }
     if (errors != 4) { fail(Some("invalid-code")) }
 }
 

@@ -19,7 +19,7 @@ fun main() {
     writeError("E\u0000界")
     eprint(value)
     eprintln(true)
-    try { eprintln(Failing()) } catch (error: IllegalStateException) { println("caught") }
+    try { eprintln(Failing()) } catch (_: IllegalStateException) { println("caught") }
     if (value.calls != 2) { throw IllegalStateException() }
     write("")
     writeError("")

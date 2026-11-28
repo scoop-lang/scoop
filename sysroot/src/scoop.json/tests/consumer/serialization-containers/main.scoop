@@ -9,7 +9,7 @@ fun check(value: Boolean, location: SourceLocation = currentSourceLocation()) {
 
 fun <T> reject(text: String, codec: ValueDecoder<T>, path: String) {
     var rejected: Boolean = false
-    try { val result = Json.decodeFromString(text, codec) }
+    try { val _ = Json.decodeFromString(text, codec) }
     catch (error: DecodingException) {
         check(error.path == path)
         rejected = true
@@ -62,7 +62,7 @@ object Unread : ValueDecoder<Long> {
 }
 
 object Incomplete : ValueEncoder<Unit> {
-    public override fun encode(value: Unit, encoder: Encoder) { val fields = encoder.keyed() }
+    public override fun encode(value: Unit, encoder: Encoder) { val _ = encoder.keyed() }
 }
 
 object ExtraElement : ValueDecoder<Long> {
@@ -89,7 +89,7 @@ object ScalarView : ValueDecoder<Long> {
 
 fun <T> rejectEncoding(value: T, codec: ValueEncoder<T>) {
     var rejected: Boolean = false
-    try { val result = Json.encodeToString(value, codec) }
+    try { val _ = Json.encodeToString(value, codec) }
     catch (error: EncodingException) {
         check(error.path == "")
         rejected = true

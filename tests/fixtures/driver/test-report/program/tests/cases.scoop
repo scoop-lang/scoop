@@ -31,7 +31,7 @@ private class Cases {
         if (mode == 8) { throw BrokenDescription() }
         if (mode == 9) {
             @Unsafe {
-                val token = foreignCallback<(Ptr<Unit>) -> Unit>(
+                val _token = foreignCallback<(Ptr<Unit>) -> Unit>(
                     {}, 0, ForeignCallbackMode.Reusable
                 )
             }

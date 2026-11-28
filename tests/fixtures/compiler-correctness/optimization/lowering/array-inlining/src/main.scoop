@@ -49,14 +49,14 @@ fun main() {
     check(savedIndex(Array<Long>(0L) { _ -> 1L }) == 0L)
     val values = MutableArray<Long>(65L) { i -> i }
     var caught = false
-    try { updatedIndex(values) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { updatedIndex(values) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && values[0L] == 1L && values[63L] == 64L && values[64L] == 64L)
     val source = Array<Long>(129L) { i -> i + 1L }
     caught = false
-    try { shorterArray(source, values) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { shorterArray(source, values) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && values[0L] == 1L && values[64L] == 65L)
     caught = false
-    try { changedBound(values, 1L) } catch (error: IndexOutOfBoundsException) { caught = true }
+    try { changedBound(values, 1L) } catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && values[0L] == 9L && values[64L] == 73L)
     println("array inline ranges preserve snapshots and failing prefixes")
 }

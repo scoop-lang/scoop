@@ -9,15 +9,15 @@ private enum ReverseShape { Some, None(Int) }
 public fun <T> exercise(value: T): Int {
     val saved: T? = Some(value)
     val inferred = Some(value)
-    val local: Option<T> = Other(value)
+    val _: Option<T> = Other(value)
     val pair: LocalOption = Some(20, 22)
     val missing: LocalOption = None
     val unit: ReverseShape = Some
     val reversed: ReverseShape = None(42)
-    val restored = force(inferred)
-    if (when (saved) { case Some(val payload) -> false; case None -> true }) { return 1 }
-    if (when (missing) { case Some(val a, val b) -> true; case None -> false }) { return 2 }
-    if (when (unit) { case Some -> false; case None(val number) -> true }) { return 3 }
+    val _ = force(inferred)
+    if (when (saved) { case Some(_) -> false; case None -> true }) { return 1 }
+    if (when (missing) { case Some(_, _) -> true; case None -> false }) { return 2 }
+    if (when (unit) { case Some -> false; case None(_) -> true }) { return 3 }
     if (when (reversed) { case Some -> true; case None(val number) -> number != 42 }) { return 4 }
     return when (pair) { case Some(val a, val b) -> a + b; case None -> 5 }
 }

@@ -38,7 +38,7 @@ class Row(@Tags([WORD]) val value: Int) {
 fun main() {
     val item = Item<Int>(7)
     val row = Row(8)
-    val choice = Choice.Record(9)
+    val _ = Choice.Record(9)
     if (item.value != 7 || row.size != 8 || visits != 0) { throw Throwable() }
     println("annotations-arrays-ok")
 }

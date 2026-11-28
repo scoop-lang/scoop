@@ -13,7 +13,7 @@ fun <T> verify(source: Sequence<T>, state: State) {
     try { iterator.next() } catch (error: Exception) { caught = error.message == Some("callback") }
     if (!caught || state.calls != 1) throw Exception(Some("first failure"))
     caught = false
-    try { iterator.next() } catch (error: IllegalStateException) { caught = true }
+    try { iterator.next() } catch (_: IllegalStateException) { caught = true }
     if (!caught || state.calls != 1) throw Exception(Some("repeated failure"))
 }
 private fun exercise() {

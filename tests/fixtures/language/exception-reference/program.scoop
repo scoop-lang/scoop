@@ -26,7 +26,7 @@ fun main() {
     println(original.code)
     try {
         try { throw original }
-        catch (other: Other) { println("wrong handler") }
+        catch (_: Other) { println("wrong handler") }
         finally { gcCollect() }
     } catch (error: Mark) {
         println(error === original)

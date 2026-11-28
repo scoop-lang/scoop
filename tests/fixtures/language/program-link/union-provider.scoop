@@ -9,14 +9,14 @@ public class Marker<T> public constructor(public val value: T) : Readable {
     public override fun read(): Int = 42
 }
 
-public fun first(value: Payload): (Any) -> Payload = { ignored: Any -> value }
-public fun second(value: Other): (Any) -> Other = { ignored: Any -> value }
+public fun first(value: Payload): (Any) -> Payload = { _: Any -> value }
+public fun second(value: Other): (Any) -> Other = { _: Any -> value }
 
 public fun <T> guarded(value: T, fail: Boolean): T {
     try {
         if (fail) { throw IllegalStateException() }
         return value
-    } catch (failure: Throwable) {
+    } catch (_: Throwable) {
         return value
     } finally {
         val marker = Marker(value)

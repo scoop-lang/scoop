@@ -17,10 +17,10 @@ public val localImage: Int = imageValue
 public val localImageWrite: Int = if (true) { imageMutable = 6; imageMutable } else { imageMutable }
 
 public fun outside(): Int {
-    val initial = remote
+    val _ = remote
     val copiedDefault = receiverDefault()
     "write".receiverScore = copiedDefault
-    val read = "read".receiverScore
+    val _ = "read".receiverScore
     return "combined".receiverAnswer()
 }
 public fun unusedDefault(value: Int = remote): Int = value

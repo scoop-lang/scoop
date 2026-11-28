@@ -45,10 +45,10 @@ def check(peer, root):
         "import subscriptapi.set as writeSubscript\n"
         "class SubscriptInitial(seed: SubscriptCell<Boolean>) { val ready = seed[true] }\n"
         "fun subscriptUse(cell: SubscriptCell<SubscriptStep<Boolean>>, value: SubscriptStep<Boolean>, alias: SubscriptAliasCell, readonly: SubscriptReadCell, amount: SubscriptAmount) {\n"
-        "    val read = /* 🌟 */ cell[true]\n"
+        "    val _read = /* 🌟 */ cell[true]\n"
         "    cell[false] = value\n"
-        "    val prefix = ++cell[true]\n"
-        "    val postfix = cell[false]--\n"
+        "    val _prefix = ++cell[true]\n"
+        "    val _postfix = cell[false]--\n"
         "    cell[true] += value\n"
         "    alias[true]++\n"
         "    readonly[true] += amount\n"
@@ -187,7 +187,7 @@ def check(peer, root):
         "Writes a cell.",
     ]
     original = source
-    source = source.replace("cell[true] += value", "val fallbackRemoved = value")
+    source = source.replace("cell[true] += value", "val _fallbackRemoved = value")
     change(peer, path.as_uri(), 2, source)
     assert published(peer, path.as_uri(), 2) == []
     assert len(refs("++cell[true]", "[")) == len(all_subscripts) - 1

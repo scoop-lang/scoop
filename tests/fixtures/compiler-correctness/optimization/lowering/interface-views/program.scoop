@@ -72,7 +72,7 @@ fun exception(first: Child, second: Child, early: Boolean): Int {
         fail(early)
         current = second
         fail(old > 0)
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         return current.first() + current.second()
     }
     return -1
@@ -110,7 +110,7 @@ fun guardedTry(value: Any, early: Boolean): Int {
         try {
             fail(early)
             return value.first() + value.second()
-        } catch (error: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             return value.own()
         }
     }
@@ -158,7 +158,7 @@ fun repeatedCasts(value: Any, count: Int): Int {
         try {
             val view = value as Parent
             total += view.first()
-        } catch (error: ClassCastException) { total -= 1 }
+        } catch (_: ClassCastException) { total -= 1 }
         when (value as? Parent) {
             case Some(val view) -> total += view.second()
             case None -> total -= 2
@@ -200,7 +200,7 @@ fun main() {
     check(repeatedCasts(first, 4) == 28 && repeatedCasts(second, 4) == 96)
     check(repeatedCasts(Boxed(4), 4) == 36)
     var failed = false
-    try { castParent("absent") } catch (error: ClassCastException) { failed = true }
+    try { castParent("absent") } catch (_: ClassCastException) { failed = true }
     check(failed)
     println("interface views preserve receivers and control flow")
 }

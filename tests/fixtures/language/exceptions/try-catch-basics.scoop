@@ -7,9 +7,9 @@ fun main() {
     try {
         boom()
         println("unreachable")
-    } catch (e: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("caught unwrap")
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         println("caught other")
     } finally {
         println("finally")

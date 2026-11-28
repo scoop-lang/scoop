@@ -58,7 +58,7 @@ class SafeTask(
                 case Some(val value) -> value
                 case None -> "safe-none"
             }
-        } catch (error: SafeFailure) {
+        } catch (_: SafeFailure) {
             "safe-caught"
         }
     }

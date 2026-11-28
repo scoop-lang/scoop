@@ -21,7 +21,7 @@ class LocalOwner {
 }
 
 fun expect(value: Boolean) { if (!value) { throw IllegalStateException() } }
-fun discard() { val local = LocalOwner(); val imported = Owner(31); expect(imported.get() == 31) }
+fun discard() { val _ = LocalOwner(); val imported = Owner(31); expect(imported.get() == 31) }
 
 fun main() {
     val cell = Cell(42)

@@ -34,11 +34,10 @@ fun main() {
     verify(when (explicit.expected) { case AssertionValue.Unavailable -> true; else -> false })
     verify(when (explicit.actual) { case AssertionValue.Unavailable -> true; else -> false })
     verify(when (explicit.cause) { case None -> true; else -> false })
-    var caught: Boolean = false
-    try {
-        try { fail() } catch (error: Exception) { throw Exception(Some("wrong hierarchy")) }
+    val caught = try {
+        try { fail() } catch (_: Exception) { throw Exception(Some("wrong hierarchy")) }
     } catch (error: Throwable) {
-        caught = error is AssertionFailure
+        error is AssertionFailure
     }
     verify(caught)
     println("boolean assertions passed")

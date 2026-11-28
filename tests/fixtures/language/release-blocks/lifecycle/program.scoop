@@ -48,7 +48,7 @@ class GetterOwner(pointer: Ptr<Unit>) {
         get() = None
     private val empty: Unit = Unit
     release {
-        val empty = empty
+        val _ = empty
         when (handle) {
             case Some(val pointer) -> { @Unsafe { drop(pointer) } }
             case None -> {}
@@ -67,20 +67,20 @@ private fun closed() {
     owner.close()
 }
 
-private fun delegated() { val owner = Owner() }
+private fun delegated() { val _owner = Owner() }
 
 private fun lazyAcquisition() {
     val owner = Owner(None)
     owner.acquire(11)
 }
 
-private fun getter() { @Unsafe { val owner = GetterOwner(create(13)) } }
+private fun getter() { @Unsafe { val _owner = GetterOwner(create(13)) } }
 
 private fun failed() {
     @Unsafe {
         val resource = create(17)
-        try { val owner = Owner(Some(resource), true) }
-        catch (error: ArithmeticException) { drop(resource) }
+        try { val _owner = Owner(Some(resource), true) }
+        catch (_: ArithmeticException) { drop(resource) }
     }
 }
 
@@ -101,5 +101,5 @@ fun main() {
     collectAndPrint()
     failed()
     collectAndPrint()
-    val empty = EmptyOwner()
+    val _ = EmptyOwner()
 }

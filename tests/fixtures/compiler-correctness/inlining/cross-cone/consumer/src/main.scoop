@@ -16,5 +16,5 @@ public fun evaluation(): Int {
 }
 public fun exception(): Int {
     try { return checked(0) }
-    catch (error: ArithmeticException) { return 17 }
+    catch (_: ArithmeticException) { return 17 }
 }

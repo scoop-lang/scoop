@@ -68,5 +68,5 @@ fun main() {
         println(active)
         println(localRead())
     }
-    try { reader.read() } catch (error: MissingContextException) { println("restored") }
+    try { reader.read() } catch (_: MissingContextException) { println("restored") }
 }

@@ -9,7 +9,7 @@ fun throwing(value: Int?): Int {
     try {
         val number = value ?: throw UnwrapException()
         return number
-    } catch (failure: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("caught")
         return 2
     } finally { println("throw-finally") }
@@ -58,11 +58,11 @@ fun main() {
     println(overrideReturn(None))
     println(conditional(true))
     println(branching(true))
-    try { println(conditional(false)) } catch (failure: UnwrapException) { println("if-caught") }
-    try { println(branching(false)) } catch (failure: UnwrapException) { println("when-caught") }
+    try { println(conditional(false)) } catch (_: UnwrapException) { println("if-caught") }
+    try { println(branching(false)) } catch (_: UnwrapException) { println("when-caught") }
     println(guard(1))
     println(guard(2))
     println(condition())
     println(blockValue(Some(12)))
-    try { println(blockValue(None)) } catch (failure: UnwrapException) { println("arm-caught") }
+    try { println(blockValue(None)) } catch (_: UnwrapException) { println("arm-caught") }
 }

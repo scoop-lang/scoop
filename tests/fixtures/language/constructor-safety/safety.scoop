@@ -13,10 +13,10 @@ public struct Value(val value: Int) {
 }
 fun main() {
     @Unsafe {
-        val base: Base = Base()
-        val child: Child = Child()
-        val secondary: Secondary = Secondary()
-        val value: Value = Value()
+        val _base: Base = Base()
+        val _child: Child = Child()
+        val _secondary: Secondary = Secondary()
+        val _value: Value = Value()
     }
-    val safe: Secondary = Secondary(true)
+    val _safe: Secondary = Secondary(true)
 }

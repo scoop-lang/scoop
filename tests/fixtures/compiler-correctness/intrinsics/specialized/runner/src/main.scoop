@@ -26,24 +26,24 @@ fun main(): Int {
     try {
         quotient(42, 0)
         return 14
-    } catch (error: ArithmeticException) {}
+    } catch (_: ArithmeticException) {}
     try {
         remainder(42, 0)
         return 15
-    } catch (error: ArithmeticException) {}
+    } catch (_: ArithmeticException) {}
     if (divideReference(84, 2) != 42) return 16
     if (divideReference(-2147483648, -1) != -2147483648) return 17
     try {
         divideReference(42, 0)
         return 18
-    } catch (error: ArithmeticException) {}
+    } catch (_: ArithmeticException) {}
     if (boxedAdd(19, 23) != 42) return 19
     if (boxedDivide(84, 2) != 42) return 20
     if (boxedDivide(-2147483648, -1) != -2147483648) return 21
     try {
         boxedDivide(42, 0)
         return 22
-    } catch (error: ArithmeticException) {}
+    } catch (_: ArithmeticException) {}
     if (boxedFloat(19.0, 23.0) != 42.0) return 23
     if (boxedChar('a', 'b') != -1L) return 24
     if (interfaceString("a", "b") != -1L) return 25

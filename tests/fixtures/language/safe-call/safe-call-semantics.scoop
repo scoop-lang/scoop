@@ -71,7 +71,7 @@ fun main() {
 
     val unitResult: Unit? = some?.touch()
     when (unitResult) {
-        case Some(val value) -> println("unit-some")
+        case Some(_) -> println("unit-some")
         case None -> println("unit-none")
     }
 

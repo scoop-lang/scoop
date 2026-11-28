@@ -6,7 +6,7 @@ import dev.example.dependency.paths.make
 
 public fun <T> exercise(value: T): Int {
     val box: dev.example.dependency.paths.Box<T> = make<T>(value)
-    val kept: T = box.value
+    val _: T = box.value
     val point: dev.example.dependency.paths.Point = Point(42)
     val concrete: dev.example.dependency.paths.Box<Int> = Box<Int>(point.number)
     return concrete.value

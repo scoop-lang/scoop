@@ -23,7 +23,7 @@ fun stack() {
     }) == 128)
     check(!head.compareAndSet(sentinel, sentinel))
     gcCollect()
-    check(together({ worker ->
+    check(together({ _ ->
         @Unsafe { barrier() }
         var count = 0
         var empty = false

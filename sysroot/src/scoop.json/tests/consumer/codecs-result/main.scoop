@@ -25,9 +25,9 @@ private fun exerciseConsumer() {
     val nested = Result.Success<Int?, Int>(None)
     val roundtrip = Json.decodeFromString(Json.encodeToString(nested, nestedEncoder), nestedDecoder)
     check(roundtrip.getOrNone<Int?, Int>() == Some(None))
-    val rejectFailure = ValueDecoderFunction<String> { decoder -> throw IllegalStateException() }
+    val rejectFailure = ValueDecoderFunction<String> { _ -> throw IllegalStateException() }
     check(Json.decodeFromString("{\"success\":7}", Result<Int, String>.decoder(Int.Companion, rejectFailure)).getOrNone<Int, String>() == Some(7))
-    val rejectEncode = ValueEncoderFunction<String> { value, encoder -> throw IllegalStateException() }
+    val rejectEncode = ValueEncoderFunction<String> { _, _ -> throw IllegalStateException() }
     check(Json.encodeToString(Result.Success<Int, String>(7), Result<Int, String>.encoder(Int.Companion, rejectEncode)) == "{\"success\":7}")
     bad("{}", decoder, ""); bad("{\"unknown\":1}", decoder, "")
     bad("{\"success\":1,\"failure\":\"x\"}", decoder, "")

@@ -21,7 +21,7 @@ fun main() {
     try {
         val unexpected = roundTrip("\u0000")
         expect(unexpected.charLength < 0L)
-    } catch (error: IllegalArgumentException) { rejected = true }
+    } catch (_: IllegalArgumentException) { rejected = true }
     expect(rejected)
     println("cstrings-artifacts-ok")
 }

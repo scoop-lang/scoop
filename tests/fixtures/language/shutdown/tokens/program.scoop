@@ -8,8 +8,8 @@ fun main() {
         val first = foreignCallback<(Ptr<Unit>) -> Unit>(
             { write(message) }, 0, ForeignCallbackMode.Reusable
         )
-        val retained = retainForeignCallback(first)
-        val second = foreignCallback<(Ptr<Unit>) -> Unit>(
+        val _ = retainForeignCallback(first)
+        val _ = foreignCallback<(Ptr<Unit>) -> Unit>(
             { write(message) }, 0, ForeignCallbackMode.OneShot
         )
     }

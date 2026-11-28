@@ -9,10 +9,8 @@ public fun <T> exercise(value: T): Int {
     @Unsafe {
         val raw = addressOf(number).toULong()
         fun read(): Number { @Unsafe { return Ptr<Number>(raw).load() } }
-        val closure: () -> Number = {
-            var loaded = number
-            @Unsafe { loaded = Ptr<Number>(raw).load() }
-            loaded
+        val closure: () -> Number = load@ {
+            @Unsafe { return@load Ptr<Number>(raw).load() }
         }
         if (read().value != 42 || closure().value != 42) { return 1 }
         return lexicalCopy<Number>(number).value

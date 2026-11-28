@@ -16,7 +16,7 @@ fun verify(expected: (Long, Int)?, operation: () -> Duration) {
         }
         case None -> {
             var failed = false
-            try { operation() } catch (error: ArithmeticException) { failed = true }
+            try { operation() } catch (_: ArithmeticException) { failed = true }
             check(failed)
         }
     }

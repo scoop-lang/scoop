@@ -23,7 +23,7 @@ fun check(value: Boolean) { if (!value) { throw IllegalStateException() } }
         Edge(nodes[index], (Some(nodes[(index + 1L) % count]), duplicate))
     }
     val copied = edges.toArray()
-    val numbers = MutableArray<ULong>(count) { index -> 0xa5a5a5a5a5a5a5a5uL }
+    val numbers = MutableArray<ULong>(count) { _ -> 0xa5a5a5a5a5a5a5a5uL }
     val cell = AtomicRef<Value>(nodes[0L])
     val closure: () -> Long = { cell.load().get() }
     val pinToken = pin(nodes[0L])

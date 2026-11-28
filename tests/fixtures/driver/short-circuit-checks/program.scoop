@@ -16,8 +16,8 @@ fun main() {
     println(false && counter.empty()!!.accepted)
     println(true || (counter.wrong() as Entry).accepted)
     println(false && present(counter.wrong() as? Entry))
-    val bytes: Array<Int> = [42]
-    println(true || bytes[10L] == 42)
+    val _bytes: Array<Int> = [42]
+    println(true || _bytes[10L] == 42)
     println(counter.calls)
     holder.current = Some(Entry(true))
     println(present(holder.current) && holder.current!!.accepted)

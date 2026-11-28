@@ -4,10 +4,10 @@ import dev.example.upstream.boundProperties.*
 
 public fun <T> exercise(value: T): Int {
     val box = Remote(value, value)
-    val first: T = stored(box)
-    val previous: T = exchange(box, value)
-    val fallback: T = defaultRead(box)
-    val present: T? = optional(Some(box))
+    val _: T = stored(box)
+    val _: T = exchange(box, value)
+    val _: T = defaultRead(box)
+    val _: T? = optional(Some(box))
     val absent = when (optional<T, Remote<T>>(None)) {
         case None -> true
         case Some(_) -> false

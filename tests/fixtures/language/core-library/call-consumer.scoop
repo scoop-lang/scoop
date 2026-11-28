@@ -4,4 +4,7 @@ fun main() {
     val explicit = userCoreWithDefault(value = 9)
     val constant = USER_CORE_DEFAULT
     val chained = userCoreDefaultChain()
+    if (named != 42 || defaulted != 7 || explicit != 9 || constant != 7 || chained != 7) {
+        throw IllegalStateException()
+    }
 }

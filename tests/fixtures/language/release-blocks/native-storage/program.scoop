@@ -18,7 +18,7 @@ class Owner(private val handle: Int) {
     }
 }
 
-private fun allocate() { val owner = Owner(41) }
+private fun allocate() { val _owner = Owner(41) }
 
 fun main() {
     allocate()

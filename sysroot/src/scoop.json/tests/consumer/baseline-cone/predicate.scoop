@@ -11,9 +11,7 @@ enum Values {
             }
         }
         public override fun decode(decoder: Decoder): Values {
-            var text: String? = None
-            try { text = Some(String.decode(decoder)) }
-            catch (error: DecodingException) { text = None }
+            val text: String? = try { Some(String.decode(decoder)) } catch (_: DecodingException) { None }
             if (text != None) { return Values.Text(text!!) }
             return Values.Many(Array<String>.decoder(String.Companion).decode(decoder))
         }

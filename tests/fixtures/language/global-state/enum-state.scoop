@@ -11,7 +11,7 @@ public fun <T> exercise(value: T): Int {
     if (allocated.number != 0) { return 1 }
     val cleared = when (stored) {
         case Empty -> true
-        case Item(val cell) -> false
+        case Item(_) -> false
     }
     if (!cleared) { return 2 }
     return when (saved) {

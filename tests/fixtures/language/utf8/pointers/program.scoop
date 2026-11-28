@@ -35,7 +35,7 @@ fun main() {
         try {
             val unexpected = String.fromUtf8(Ptr<UInt8>(1UL), -1L)
             expect(unexpected.charLength < 0L)
-        } catch (error: IllegalArgumentException) { negativeLength = true }
+        } catch (_: IllegalArgumentException) { negativeLength = true }
         expect(negativeLength)
 
         var invalid = false

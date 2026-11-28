@@ -34,7 +34,7 @@ fun checked(values: Array<Value>, index: Long, limit: Long): Long {
             gcCollect()
             if (saved.index == 2L) { throw IllegalArgumentException() }
             return values[index].number + saved.node.number
-        } catch (error: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             gcCollect()
             return saved.node.number
         }
@@ -50,7 +50,7 @@ fun main() {
     try {
         changedField(fields)
         throw IllegalStateException()
-    } catch (error: IllegalArgumentException) {
+    } catch (_: IllegalArgumentException) {
         gcCollect()
         if (fields.value != -2L || fields.other != 9L) { throw IllegalStateException() }
     }

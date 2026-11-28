@@ -10,8 +10,8 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int =
     read(localDefault<T>(first<T>(second<T>(seed))))
 
 public fun result(): Int {
-    if (exercise<String>("source", { value -> 42 }) != 42) { return 1 }
-    if (exercise<Unit>(Unit, { value -> 42 }) != 42) { return 2 }
+    if (exercise<String>("source", { _ -> 42 }) != 42) { return 1 }
+    if (exercise<Unit>(Unit, { _ -> 42 }) != 42) { return 2 }
     reset()
     val value = step(checked(42))
     if (state() != 42) { return 3 }

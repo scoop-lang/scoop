@@ -55,7 +55,7 @@ fun main() {
     println(checked(change(state)) as Int)
     try {
         select(state).read(stop())
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         println("caught")
     } finally {
         println("cleanup")

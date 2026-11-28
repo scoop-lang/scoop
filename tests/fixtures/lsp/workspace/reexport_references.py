@@ -26,19 +26,19 @@ def check(peer, root):
             "import reexportrelay.VisibleBox as LocalBox\n"
             "fun reexportUse(value: LocalBox): Boolean {\n"
             "    val first = /* 🌟 */ localChoice(true)\n"
-            "    val factory: (Boolean) -> Boolean = ::localChoice\n"
-            "    val box = LocalBox()\n"
-            "    val boxFactory: () -> LocalBox = ::LocalBox\n"
+            "    val _factory: (Boolean) -> Boolean = ::localChoice\n"
+            "    val _box = LocalBox()\n"
+            "    val _boxFactory: () -> LocalBox = ::LocalBox\n"
             "    return alternate(first)\n"
             "}\n"
         ),
         "src/star.scoop": (
             "import reexportrelay.*\nfun reexportStar(): Boolean = visible(alternate(true))\n"
-            "fun reexportStarBox() { val box = VisibleBox() }\n"
+            "fun reexportStarBox() { val _box = VisibleBox() }\n"
         ),
         "src/package.scoop": (
             "package reexportrelay\nfun reexportPackage(): Boolean = visible(true)\n"
-            "fun reexportPackageBox() { val box = VisibleBox() }\n"
+            "fun reexportPackageBox() { val _box = VisibleBox() }\n"
         ),
         "src/types.scoop": "fun reexportType(value: reexportrelay.VisibleBox): Boolean = true\n",
     }

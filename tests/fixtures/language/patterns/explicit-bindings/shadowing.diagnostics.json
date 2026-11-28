@@ -46,6 +46,19 @@
     "severity": "warning"
   },
   {
+    "code": "W0801",
+    "message": "value assigned to `None` is never read",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 132,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 128
+    },
+    "severity": "warning"
+  },
+  {
     "code": "W0901",
     "message": "binding `Payload` shadows an enum variant available here",
     "notes": [

@@ -32,7 +32,7 @@ private fun describeThrowable(error: Throwable): String {
     }
     if (error is ToString) {
         return try { error.toString() }
-        catch (rendering: Throwable) { "Throwable (description rendering failed)" }
+        catch (_: Throwable) { "Throwable (description rendering failed)" }
     }
     return "Throwable"
 }

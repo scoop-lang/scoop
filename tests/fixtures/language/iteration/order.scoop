@@ -32,12 +32,12 @@ public fun result(): Int {
     var caught = 0
     try {
         for (value in Sequence<Int>([1])) {
-            try { val fail = [value][1L] } finally { cleaned = cleaned + 1 }
+            try { val _ = [value][1L] } finally { cleaned = cleaned + 1 }
         }
-    } catch (error: IndexOutOfBoundsException) { caught = caught + 1 }
+    } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
     try {
-        for (value in FailingSource()) { caught = -10 }
-    } catch (error: IndexOutOfBoundsException) { caught = caught + 1 }
+        for (_ in FailingSource()) { caught = -10 }
+    } catch (_: IndexOutOfBoundsException) { caught = caught + 1 }
     var nested = 0
     for (outer in [1, 2]) {
         for (inner in [0, 1, 2]) {

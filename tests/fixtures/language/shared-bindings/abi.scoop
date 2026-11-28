@@ -13,6 +13,6 @@ public fun <T> exercise(seed: T, read: (T) -> Int): Int {
 public fun result(): Int {
     val wide = Wide(1L, 2L, 3L, Node(42))
     if (exercise<Wide>(wide, { item -> item.node.value }) != 42) { return 1 }
-    if (exercise<Unit>(Unit, { item -> 42 }) != 42) { return 2 }
+    if (exercise<Unit>(Unit, { _ -> 42 }) != 42) { return 2 }
     return exercise<Node>(wide.node, { item -> item.value })
 }

@@ -34,7 +34,7 @@ object Children : ValueEncoder<Unit> {
 private fun exercise() {
     check(Json.encodeToString(Unit, Children) == "{\"child\":{\"a\":1},\"next\":[2,[]]}")
     val saved = Saved(None)
-    val codec = ValueEncoderFunction<Unit>({ value, encoder ->
+    val codec = ValueEncoderFunction<Unit>({ _, encoder ->
         saved.encoder = Some(encoder)
         Long.encode(7L, encoder.keyed().field("value"))
         encoder.keyed().end()

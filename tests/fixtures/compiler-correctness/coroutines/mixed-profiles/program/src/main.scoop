@@ -51,7 +51,7 @@ fun main() {
     try {
         invalid.waiter!!.resume(99)
     }
-    catch (error: IllegalStateException) {
+    catch (_: IllegalStateException) {
         rejected = true
     }
     check(rejected && failed.calls == 1)

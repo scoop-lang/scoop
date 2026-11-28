@@ -3,7 +3,7 @@ fun mark(value: Int): Int { trace = trace * 10 + value; return value }
 fun consume(a: Int, b: Int, c: Int = mark(9)): Int = mark(8)
 fun empty(): Array<Int>? = None
 fun main() {
-    outer@ for (index in [1, 2]) {
+    outer@ for (_ in [1, 2]) {
         consume(mark(1), continue@outer, mark(3))
     }
     println(trace); trace = 0

@@ -55,12 +55,12 @@ private fun exercise() {
     map.putAll(listOf<(Int, String)>((2, "changed"), (3, "three")))
     check(map.size == 3L && map[2] == Some("changed"), "tuple putAll")
     var caught = false
-    try { list.addAll(Broken()) } catch (error: Exception) { caught = true }
+    try { list.addAll(Broken()) } catch (_: Exception) { caught = true }
     check(caught && list.isEmpty(), "snapshot failure before writes")
     val failing = LinkedHashSet<Key>()
     caught = false
     try { failing.addAll(listOf<Key>(Key(1), Key(2), Key(3))) }
-    catch (error: Exception) { caught = true }
+    catch (_: Exception) { caught = true }
     check(caught && failing.size == 1L && failing.iterator().next()!!.number == 1, "successful prefix")
 
 }

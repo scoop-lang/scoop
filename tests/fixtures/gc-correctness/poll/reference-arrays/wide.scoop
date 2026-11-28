@@ -75,7 +75,7 @@ fun rewriteWideViews(target: MutableArray<WideEntry<Token<Long>?>>) {
     try {
         views[-1L] = WideEntry<Token<Long>?>(0L, None, 0L)
         throw IllegalStateException()
-    } catch (error: IndexOutOfBoundsException) {}
+    } catch (_: IndexOutOfBoundsException) {}
     gcCollect()
     val before = gcStats()
     i = 0L

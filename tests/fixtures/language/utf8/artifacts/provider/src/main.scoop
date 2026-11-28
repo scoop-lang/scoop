@@ -7,7 +7,7 @@ public fun recover(bytes: List<Byte>): String = String.fromUtf8Lossy(bytes)
 
 public fun failureOffset(bytes: List<Byte>): Long {
     try {
-        val value = String.fromUtf8(bytes)
+        val _ = String.fromUtf8(bytes)
         return -1L
     } catch (error: CharacterCodingException) {
         return error.byteOffset

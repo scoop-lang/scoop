@@ -10,6 +10,6 @@ public fun result(): Int = direct() + direct()
 
 public fun <T> exercise(value: T, read: (T) -> Int): Int {
     var visits = 0
-    for (index in 1..3) { visits = visits + 1 }
+    for (_ in 1..3) { visits = visits + 1 }
     return if (visits == 3 && result() == 42) { read(value) } else { 0 }
 }

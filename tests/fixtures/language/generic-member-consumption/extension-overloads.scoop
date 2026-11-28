@@ -11,6 +11,6 @@ public fun result(): Int {
 
 public fun <T> make(value: T): T {
     val box = Box<T>(value)
-    val selected = box.extensionSelect
+    val _ = box.extensionSelect
     return box.extensionValue
 }

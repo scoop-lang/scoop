@@ -275,12 +275,12 @@ fun checkInt8() {
     println(minimum.rem(minusOne) == 0)
     try {
         println(one / zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("Int8/div-zero")
     }
     try {
         println(one % zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("Int8/rem-zero")
     }
 }
@@ -340,12 +340,12 @@ fun checkInt16() {
     println(minimum.rem(minusOne) == 0)
     try {
         println(one / zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("Int16/div-zero")
     }
     try {
         println(one % zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("Int16/rem-zero")
     }
 }
@@ -401,12 +401,12 @@ fun checkInt32() {
     println(minimum.rem(minusOne) == 0)
     try {
         println(one / zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("Int/div-zero")
     }
     try {
         println(one % zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("Int/rem-zero")
     }
 }
@@ -462,12 +462,12 @@ fun checkInt64() {
     println(minimum.rem(minusOne) == 0L)
     try {
         println(one / zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("Long/div-zero")
     }
     try {
         println(one % zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("Long/rem-zero")
     }
 }
@@ -518,12 +518,12 @@ fun checkUInt8() {
     println(dividend.rem(divisor) == 5u)
     try {
         println(one / zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("UInt8/div-zero")
     }
     try {
         println(one % zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("UInt8/rem-zero")
     }
 }
@@ -574,12 +574,12 @@ fun checkUInt16() {
     println(dividend.rem(divisor) == 5u)
     try {
         println(one / zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("UInt16/div-zero")
     }
     try {
         println(one % zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("UInt16/rem-zero")
     }
 }
@@ -626,12 +626,12 @@ fun checkUInt32() {
     println(U32_DIVIDEND.rem(U32_DIVISOR) == 3u)
     try {
         println(one / zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("UInt/div-zero")
     }
     try {
         println(one % zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("UInt/rem-zero")
     }
 }
@@ -678,12 +678,12 @@ fun checkUInt64() {
     println(U64_DIVIDEND.rem(U64_DIVISOR) == 4uL)
     try {
         println(one / zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("ULong/div-zero")
     }
     try {
         println(one % zero)
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("ULong/rem-zero")
     }
 }

@@ -57,11 +57,11 @@ private fun exercise() {
     val zipped = Counting(3L, true, reads).zip<Long, Long>(Counting(1L, false, reads))
     check(zipped.size == 1L && zipped[0L] == (0L, 0L) && reads.left == 2L && reads.right == 2L)
     var rejected = 0
-    try { emptyList<Int>().windowed(0L) } catch (error: IllegalArgumentException) { rejected += 1 }
-    try { emptyList<Int>().windowed(1L, 0L) } catch (error: IllegalArgumentException) { rejected += 1 }
-    try { emptyList<Int>().chunked(-1L) } catch (error: IllegalArgumentException) { rejected += 1 }
-    try { emptyList<Int>().take(-1L) } catch (error: IllegalArgumentException) { rejected += 1 }
-    try { emptyList<Int>().drop(-1L) } catch (error: IllegalArgumentException) { rejected += 1 }
+    try { emptyList<Int>().windowed(0L) } catch (_: IllegalArgumentException) { rejected += 1 }
+    try { emptyList<Int>().windowed(1L, 0L) } catch (_: IllegalArgumentException) { rejected += 1 }
+    try { emptyList<Int>().chunked(-1L) } catch (_: IllegalArgumentException) { rejected += 1 }
+    try { emptyList<Int>().take(-1L) } catch (_: IllegalArgumentException) { rejected += 1 }
+    try { emptyList<Int>().drop(-1L) } catch (_: IllegalArgumentException) { rejected += 1 }
     check(rejected == 5)
 
 }

@@ -7,8 +7,8 @@ private class Payload(public val value: Int)
 public fun result(): Int {
     val trace = Trace(0)
     val value = Observed<Payload>(Payload(37), trace)
-    val first = Payload(1)
-    val second = Payload(2)
+    val _ = Payload(1)
+    val _ = Payload(2)
     return value.value.value + trace.count
 }
 

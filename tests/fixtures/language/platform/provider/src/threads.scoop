@@ -12,7 +12,7 @@ public fun spawn(action: () -> Int): Thread {
     @Unsafe {
         val callback = foreignCallback<(Ptr<Unit>) -> Int>(action, 0, ForeignCallbackMode.OneShot)
         val observer = retainForeignCallback(callback)
-        val (thread, error) = spawnNative(callback.function, callback.context)
+        val (thread, _error) = spawnNative(callback.function, callback.context)
         when (thread) {
             case None -> {
                 releaseForeignCallback(callback)

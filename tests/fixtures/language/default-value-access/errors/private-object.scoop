@@ -1,3 +1,3 @@
 private object Secret {}
-public fun accessValue(value: Int = if (true) { val secret = Secret; 1 } else { 0 }): Int = value
+public fun accessValue(value: Int = if (true) { val _value = Secret; 1 } else { 0 }): Int = value
 fun main() {}

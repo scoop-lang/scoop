@@ -92,7 +92,7 @@ fun main() {
     println(concreteWins(1))
     try {
         println(throwing(0))
-    } catch (exception: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("caught")
     }
 }

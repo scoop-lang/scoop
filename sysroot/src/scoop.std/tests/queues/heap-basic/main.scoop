@@ -23,17 +23,17 @@ private fun exercise() {
     values.clear()
     check(empty.next() == None && values.removeFirstOrNone() == None && values.peekOrNone() == None, "empty")
     var caught = false
-    try { values.peek() } catch (error: NoSuchElementException) { caught = true }
+    try { values.peek() } catch (_: NoSuchElementException) { caught = true }
     check(caught, "empty peek")
     caught = false
-    try { values.removeFirst() } catch (error: NoSuchElementException) { caught = true }
+    try { values.removeFirst() } catch (_: NoSuchElementException) { caught = true }
     check(caught, "empty remove")
     values.add(1)
     check(empty.next() == None, "permanent exhaustion")
     val iterator = values.iterator()
     values.add(2)
     caught = false
-    try { iterator.next() } catch (error: ConcurrentModificationException) { caught = true }
+    try { iterator.next() } catch (_: ConcurrentModificationException) { caught = true }
     check(caught, "iterator invalidation")
 
     val reverse = priorityQueueOf<Item>(comparatorOf<Item> { a, b -> b.rank.compareTo(a.rank) }, Item(1), Item(3), Item(2))
@@ -47,18 +47,18 @@ private fun exercise() {
     val before = guarded.iterator()
     hook.action = { throw Exception(Some("compare")) }
     caught = false
-    try { guarded.add(1) } catch (error: Exception) { caught = true }
+    try { guarded.add(1) } catch (_: Exception) { caught = true }
     check(caught && guarded.size == 8L && before.next() == Some(2), "failed add at capacity")
     caught = false
-    try { guarded.removeFirst() } catch (error: Exception) { caught = true }
+    try { guarded.removeFirst() } catch (_: Exception) { caught = true }
     check(caught && guarded.size == 8L && guarded.peek() == 2, "failed removal")
     hook.action = { hook.action = {}; guarded.add(0) }
     caught = false
-    try { guarded.add(1) } catch (error: ConcurrentModificationException) { caught = true }
+    try { guarded.add(1) } catch (_: ConcurrentModificationException) { caught = true }
     check(caught && guarded.size == 9L && guarded.peek() == 0, "reentrant add")
     hook.action = { hook.action = {}; guarded.clear() }
     caught = false
-    try { guarded.removeFirst() } catch (error: ConcurrentModificationException) { caught = true }
+    try { guarded.removeFirst() } catch (_: ConcurrentModificationException) { caught = true }
     check(caught && guarded.isEmpty(), "reentrant remove")
 
 }

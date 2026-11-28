@@ -3,7 +3,7 @@ fun <I, V, C : IndexSet<I, V>> write(container: C, index: I, value: V) { contain
 fun check(ok: Boolean) { if (!ok) { throw IllegalStateException() } }
 fun main() {
     val immutable = Array<Int>(2L) { index -> index.toInt() + 10 }
-    val mutable = MutableArray<String>(2L) { index -> "old" }
+    val mutable = MutableArray<String>(2L) { _ -> "old" }
     val list = ArrayList<Int>()
     list.add(40)
     check(read(immutable, 1L) == 11 && read("a中b".toCharArray(), 1L) == '中')

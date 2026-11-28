@@ -19,7 +19,7 @@ private fun exerciseConsumer() {
     check(getter["missing"] == None && values.keys.size == elements.size)
     for (key in elements) check(values.keys.contains(key))
 
-    val array = MutableArray<String>(2L) { index -> "old" }
+    val array = MutableArray<String>(2L) { _ -> "old" }
     write(array, 1L, "new")
     check(read(array, 1L) == "new")
     val text: IndexGet<Long, Char> = "a中b".toCharArray()

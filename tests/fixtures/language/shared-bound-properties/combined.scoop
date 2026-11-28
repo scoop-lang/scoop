@@ -25,12 +25,12 @@ private fun <B : Local<Unit, Int>> addLocal(box: B): Int {
 
 public fun <T> exercise(value: T): Int {
     val current = Child(value)
-    val fromCurrent: T = readLocal(current)
-    val previous: T = changeLocal(current, value)
+    val _: T = readLocal(current)
+    val _: T = changeLocal(current, value)
     val foreign = Foreign(value)
-    val fromProvider: T = stored(foreign)
-    val fromDefault: T = defaultRead(foreign)
-    val fromOptional: T? = optional(Some(foreign))
+    val _: T = stored(foreign)
+    val _: T = defaultRead(foreign)
+    val _: T? = optional(Some(foreign))
     if (advance(Foreign(40)) != 42) { return 1 }
     return addLocal(Child(40))
 }

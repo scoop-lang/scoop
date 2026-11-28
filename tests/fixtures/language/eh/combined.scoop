@@ -38,7 +38,7 @@ fun throwThroughFinally() {
 fun passThroughUnmatchedCatch() {
     try {
         throwThroughFinally()
-    } catch (error: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("wrong-handler")
     }
 }

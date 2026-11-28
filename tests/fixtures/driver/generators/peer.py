@@ -106,7 +106,7 @@ def generated_source(method):
         return (
             "{\n"
             + "\n" * 1024
-            + "val decoder: ValueDecoder<T> = T.Companion\n val result: () -> T = { value }\n return result() }"
+            + "val _: ValueDecoder<T> = T.Companion\n val result: () -> T = { value }\n return result() }"
         )
     assert name == "value"
     return "{ return 42 }"

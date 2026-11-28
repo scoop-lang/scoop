@@ -12,7 +12,7 @@ import scoop.time.Duration
 
 private fun verify(value: Boolean) { if (!value) throw IllegalStateException(Some("thread ownership assertion failed")) }
 private fun fails(body: () -> Unit) {
-    try { body() } catch (error: PlatformException) { return }
+    try { body() } catch (_: PlatformException) { return }
     throw IllegalStateException(Some("expected native failure"))
 }
 

@@ -34,7 +34,7 @@ fun worker(seed: Int, count: Long, captured: Value): Int {
     // Keep stress arrays above the marker's inline scan threshold.
     val count = if (stressMode()) { 128L } else { 16384L }
     val captured: Value = Node(71L, None)
-    val sentinels = MutableArray<Value>(count) { index -> captured }
+    val sentinels = MutableArray<Value>(count) { _ -> captured }
     val pinned = pin(captured)
     val action: (Int) -> Int = { seed -> worker(seed, count, captured) }
     val callback = foreignCallback<(Int, Ptr<Unit>) -> Int>(action, 1, ForeignCallbackMode.Reusable)

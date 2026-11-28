@@ -165,7 +165,7 @@ fun main() {
     var caught = false
     try {
         t.combine(1, failArgument())
-    } catch (error: IllegalArgumentException) {
+    } catch (_: IllegalArgumentException) {
         caught = true
     }
     expect(caught && t.calls() == calls)

@@ -12,22 +12,22 @@ class Child(value: Int) : Box(value) {
 fun main() {
     val first: Box = Child(1)
     val second: Box = Child(2)
-    var target = first
+    var _target = first
     fun receiver(value: Box): Box { println("receiver"); return value }
-    receiver(target).computed = if (true) {
+    receiver(_target).computed = if (true) {
         println("value")
-        target = second
+        _target = second
         gcCollect()
         9
     } else { 0 }
     println(first.value)
     println(second.value)
-    target = first
+    _target = first
     try {
-        receiver(target).value = try {
-            target = second
+        receiver(_target).value = try {
+            _target = second
             throw IllegalStateException()
-        } catch (e: IllegalStateException) { 7 }
+        } catch (_: IllegalStateException) { 7 }
     } finally { println("finally") }
     println(first.value)
     println(second.value)

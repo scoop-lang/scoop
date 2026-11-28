@@ -26,11 +26,11 @@ struct Slot(val value: Int) {
 }
 
 fun main() {
-    val intSize = sizeOf<Int>()
-    val intAlignment = alignOf<Int>()
-    val empty: FunPtr<(Int) -> Int>? = None
-    val callback: FunPtr<(Int) -> Int> = ::increment
-    val noCallback: FunPtr<(Int) -> Int>? = None
+    val _ = sizeOf<Int>()
+    val _ = alignOf<Int>()
+    val _: FunPtr<(Int) -> Int>? = None
+    val _: FunPtr<(Int) -> Int> = ::increment
+    val _: FunPtr<(Int) -> Int>? = None
     var value = 7
 
     @Unsafe {

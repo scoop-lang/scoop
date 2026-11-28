@@ -18,13 +18,13 @@ public val localImage: Int = imageValue
 public val localImageWrite: Int = if (true) { imageMutable = 6; imageMutable } else { imageMutable }
 
 public fun outside(): Any {
-    val initial = remote
+    val _ = remote
     val accepted = "receiver".acceptAny()
     "write".anyValue = relayAny(accepted)
     val selected = "read".anyValue
-    val copiedDefault = anyDefault()
-    val boxedUnit = relayAny(())
-    val boxedInt = relayAny(4)
+    val _ = anyDefault()
+    val _ = relayAny(())
+    val _ = relayAny(4)
     return relayAny(selected)
 }
 public fun unusedDefault(value: Int = remote): Int = value

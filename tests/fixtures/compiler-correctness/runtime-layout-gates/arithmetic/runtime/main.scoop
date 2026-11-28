@@ -5,6 +5,6 @@ fun verifyType(value: Boolean) { if (!value) { throw IllegalStateException() } }
 fun main() {
     verifyType(divide(42L, 2L) == 21L)
     var failed = false
-    try { divide(1L, 0L) } catch (error: ArithmeticException) { failed = true }
+    try { divide(1L, 0L) } catch (_: ArithmeticException) { failed = true }
     verifyType(failed)
 }

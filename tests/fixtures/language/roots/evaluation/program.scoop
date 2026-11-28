@@ -17,23 +17,23 @@ fun main() {
     println(false && fail())
     println(true || fail())
     try { println(true && fail()) }
-    catch (error: IllegalStateException) { println("short") }
+    catch (_: IllegalStateException) { println("short") }
     try { condition() }
-    catch (error: IllegalStateException) { println("condition") }
+    catch (_: IllegalStateException) { println("condition") }
     try { loopCondition() }
-    catch (error: IllegalStateException) { println("loop") }
+    catch (_: IllegalStateException) { println("loop") }
     try { receiver() }
-    catch (error: IllegalStateException) { println("receiver") }
+    catch (_: IllegalStateException) { println("receiver") }
     try { guarded(1) }
-    catch (error: IllegalStateException) { println("guard") }
+    catch (_: IllegalStateException) { println("guard") }
     println(guarded(2))
     println(guarded(3))
     try { val values: Array<Int> = [fail(), mark(8)] }
-    catch (error: IllegalStateException) { println("array") }
+    catch (_: IllegalStateException) { println("array") }
     try { val values = [fail(), 1] }
-    catch (error: IllegalStateException) { println("inferred first") }
+    catch (_: IllegalStateException) { println("inferred first") }
     try { val values = [mark(5), fail()] }
-    catch (error: IllegalStateException) { println("inferred last") }
+    catch (_: IllegalStateException) { println("inferred last") }
     try { val pair: (Int, Int) = (mark(4), fail()) }
-    catch (error: IllegalStateException) { println("tuple") }
+    catch (_: IllegalStateException) { println("tuple") }
 }

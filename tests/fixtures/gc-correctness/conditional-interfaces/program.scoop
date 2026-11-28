@@ -95,7 +95,7 @@ fun loopQueriesAcrossCatch(value: Any): Int {
                 gcCollect()
                 total += value.number()
             }
-        } catch (error: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             gcCollect()
             if (value is Detailed) total += value.number()
         }

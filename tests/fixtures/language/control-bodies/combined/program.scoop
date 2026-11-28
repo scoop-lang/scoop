@@ -4,7 +4,7 @@ fun result(present: Boolean): Int {
     try {
         if (present) return consume { 42 }
         else throw IllegalStateException(Some("missing"))
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         return -1
     } finally { println("finally") }
 }

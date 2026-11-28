@@ -3,5 +3,5 @@ class Mapper {
 }
 
 fun main() {
-    val operation = Mapper::map
+    val _ = Mapper::map
 }

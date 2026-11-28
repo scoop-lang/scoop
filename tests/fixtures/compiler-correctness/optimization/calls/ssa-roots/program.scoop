@@ -27,7 +27,7 @@ fun unreachableCalls(seed: Long): Long {
     try {
         gcCollect()
         throw IllegalStateException()
-    } catch (failure: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         gcCollect()
         return -1L
     }
@@ -38,7 +38,7 @@ fun exceptional(item: Item): Long {
     try {
         gcCollect()
         throw ArithmeticException()
-    } catch (failure: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         pair.first.value = keep<Item>(pair.second).value + 1L
     } finally {
         gcCollect()

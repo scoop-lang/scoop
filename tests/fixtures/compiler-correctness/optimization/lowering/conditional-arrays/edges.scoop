@@ -34,15 +34,15 @@ fun checkPrefixes() {
     val short = MutableArray<Int>(65L) { _ -> -99 }
     var caught = false
     try { retainPositive(positive, short) }
-    catch (error: IndexOutOfBoundsException) { caught = true }
+    catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && short[0L] == 2 && short[64L] == 66)
     caught = false
     try { transform(negative, short, 0) }
-    catch (error: IndexOutOfBoundsException) { caught = true }
+    catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && short[0L] == -2 && short[64L] == -2)
     val sparse = MutableArray<Int>(129L) { i -> if (i == 128L) 7 else -1 }
     caught = false
     try { retainPositive(sparse, short) }
-    catch (error: IndexOutOfBoundsException) { caught = true }
+    catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && short[0L] == -2 && short[64L] == -2)
 }

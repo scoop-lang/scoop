@@ -11,8 +11,8 @@ fun invalid(text: String) {
     check(text.toFloatOrNone() == None && text.toDoubleOrNone() == None, "accepted: " + text)
     var floatThrown = false
     var doubleThrown = false
-    try { text.toFloat() } catch (error: NumberFormatException) { floatThrown = true }
-    try { text.toDouble() } catch (error: NumberFormatException) { doubleThrown = true }
+    try { text.toFloat() } catch (_: NumberFormatException) { floatThrown = true }
+    try { text.toDouble() } catch (_: NumberFormatException) { doubleThrown = true }
     check(floatThrown && doubleThrown, "throwing conversion: " + text)
 }
 

@@ -44,7 +44,7 @@ fun main() {
         val calls = leafCalls()
         var caught = false
         try { leafObserve(1, failArgument()) }
-        catch (error: IllegalArgumentException) { caught = true }
+        catch (_: IllegalArgumentException) { caught = true }
         expect(caught && leafCalls() == calls)
         var index = 0
         while (index < 64) {

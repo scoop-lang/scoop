@@ -58,5 +58,5 @@ fun main() {
     context(Array<Int>(1L) { _ -> 29 }) { println(firstElement<Int>()) }
     val double: (Int) -> Int = { value -> value * 2 }
     context(double) { gcCollect(); println(apply<Int>(21)) }
-    try { choose<First, Second>() } catch (error: MissingContextException) { println("missing") }
+    try { choose<First, Second>() } catch (_: MissingContextException) { println("missing") }
 }

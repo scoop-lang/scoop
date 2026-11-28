@@ -19,7 +19,7 @@ private struct Native<T>(val value: T) {
 }
 
 public fun <T> ordinary(value: T, wide: Wide): T {
-    @Unsafe { val rotated = rotate(wide) }
+    @Unsafe { val _ = rotate(wide) }
     return value
 }
 
@@ -30,7 +30,7 @@ public class Owner<T> public constructor(
     private val third: Wide
 ) {
     release {
-        val copied = Native(value, true).copied()
+        val _ = Native(value, true).copied()
         val aggregate = Wide(first.sum(), second.sum(), third.sum())
         @Unsafe { record(rotate(aggregate)) }
     }

@@ -11,7 +11,7 @@ fun main(): Int {
     val counter = Counter(reader.read())
     val action: () -> Int = { counter.value += 1; counter.value }
     println(apply(action))
-    try { fail() } catch (error: IllegalStateException) { println("caught") }
+    try { fail() } catch (_: IllegalStateException) { println("caught") }
     finally { println("finally") }
     val impl = ReaderImpl<Int>(counter.value)
     println(impl.map<Int> { it + 1 })

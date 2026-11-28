@@ -26,9 +26,9 @@ public fun <T> exercise(value: T): Int {
     if (events != 13 || (defaulted ?: 0) != 43) { return 3 }
     val nested: Int?? = receiver(true)?.maybe()
     if ((receiver(true)?.number ?: 0) != 40) { return 4 }
-    val checked = force(Some(value))
+    val _ = force(Some(value))
     var caught: Int = 0
-    try { force(absent<Int>()) } catch (error: UnwrapException) { caught = 2 }
+    try { force(absent<Int>()) } catch (_: UnwrapException) { caught = 2 }
     return when (nested) {
         case Some(Some(val number)) -> number + caught
         else -> 5

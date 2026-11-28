@@ -47,13 +47,13 @@ private fun exercise() {
     val onceSequence = once.asSequence()
     val reserved = onceSequence.iterator()
     var caught = false
-    try { onceSequence.iterator() } catch (error: IllegalStateException) { caught = true }
+    try { onceSequence.iterator() } catch (_: IllegalStateException) { caught = true }
     check(caught && reserved.next() == Some(1), "iterator reservation before consuming")
     val poll = State()
     val polling = generateSequence<Int> { poll.reads += 1; if (poll.reads == 1) Some(9) else None }
     check(polling.toList().joinToString() == "9" && poll.reads == 2, "polling generator")
     caught = false
-    try { polling.iterator() } catch (error: IllegalStateException) { caught = true }
+    try { polling.iterator() } catch (_: IllegalStateException) { caught = true }
     check(caught && poll.reads == 2, "polling once only")
 
 }

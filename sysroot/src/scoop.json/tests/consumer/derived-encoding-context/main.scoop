@@ -34,7 +34,7 @@ private fun exerciseConsumer() {
         check(Json.encodeToString(value, codec) == "{\"pair\":[11,[12,13]]}")
     }
     try { Json.encodeToString(value, codec); check(false) }
-    catch (error: MissingContextException) {}
+    catch (_: MissingContextException) {}
     context(EncodeState(20)) {
         val failing = Item<Int>((1, Array<Int>(2L) { index -> if (index == 0L) { 2 } else { -1 } }))
         try { Json.encodeToString(failing, codec); check(false) }

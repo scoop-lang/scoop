@@ -7,7 +7,7 @@ class Cell<T>(var value: T) : IndexGet<Long, T>, IndexSet<Long, T>, Invoke0<T>, 
 fun <T, C> replace(cell: C, value: T): T where C : IndexGet<Long, T>, C : IndexSet<Long, T>, C : Invoke0<T> {
     val old = cell[0L]
     cell[0L] = value
-    val next = cell()
+    val _ = cell()
     return old
 }
 typealias TextCell = Cell<String>

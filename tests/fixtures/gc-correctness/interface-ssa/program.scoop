@@ -74,10 +74,10 @@ public fun loopCopies(first: Child, second: Child, iterations: Long): Long {
     return total
 }
 public fun throughException(first: Child, second: Child): Child {
-    var source = first
-    val snapshot = source
+    var _source = first
+    val snapshot = _source
     try {
-        source = second
+        _source = second
         gcCollect()
         throw IllegalStateException()
     } catch (_: IllegalStateException) {

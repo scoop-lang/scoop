@@ -4,7 +4,7 @@ import test.releasemiddle.makeOwner
 @Extern(lib = "m24_release", name = "m24_release_count")
 private fun count(): Int
 
-private fun allocate() { val owner = makeOwner(41) }
+private fun allocate() { val _owner = makeOwner(41) }
 
 fun main() {
     allocate()

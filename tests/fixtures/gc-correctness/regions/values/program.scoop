@@ -41,9 +41,9 @@ fun mutate(roots: MutableArray<Node?>, values: MutableArray<Value?>, cell: Atomi
     val stress = stressMode()
     val count = if (stress) { 64L } else { 600000L }
     val capacity = if (stress) { 8193L } else { 1100000L }
-    val roots = MutableArray<Node?>(count) { index -> None }
+    val roots = MutableArray<Node?>(count) { _ -> None }
     fill(roots)
-    val values = MutableArray<Value?>(capacity) { index -> None }
+    val values = MutableArray<Value?>(capacity) { _ -> None }
     val cell = AtomicRef<Value>(roots[0L]!!)
     gcCollect()
     if (!stress) { check(regionCount() >= 2uL) }

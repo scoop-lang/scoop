@@ -13,7 +13,7 @@ class Checked(code: Int) {
     val last = stage(5)
 }
 class Cell<T>(var value: T)
-class Finalized(val value: Int) { release { val copied = value } }
+class Finalized(val value: Int) { release { val _copied = value } }
 class Cursor(var current: Int, val limit: Int) {
     fun hasNext(): Boolean = current < limit
     fun next(): Int { val result = current; current += 1; return result }

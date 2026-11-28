@@ -75,7 +75,7 @@ fun main() {
 
     val recovered = try {
         throw UnwrapException()
-    } catch (e: UnwrapException) {
+    } catch (_: UnwrapException) {
         "caught"
     } finally {
         println("caught-finally")

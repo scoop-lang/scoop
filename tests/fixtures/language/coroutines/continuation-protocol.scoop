@@ -4,7 +4,7 @@ class Holder(var waiter: Continuation<Int>?) {
         continuation.resume(value)
         try {
             continuation.resume(value + 1)
-        } catch (exception: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             println("duplicate")
         }
     }
@@ -13,7 +13,7 @@ class Holder(var waiter: Continuation<Int>?) {
         val continuation = waiter!!
         try {
             continuation.resume(value)
-        } catch (exception: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             println("invalidated")
         }
     }
@@ -23,7 +23,7 @@ class Holder(var waiter: Continuation<Int>?) {
         continuation.resumeWithException(UnwrapException())
         try {
             continuation.resume(value)
-        } catch (exception: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             println("failure-duplicate")
         }
     }
@@ -67,7 +67,7 @@ class ResumeThenThrowTask() : SuspendTask<Int> {
         try {
             val registration: SuspendRegistration<Int> = ResumeThenThrowRegistration()
             return suspendCoroutine(registration)
-        } catch (exception: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             return 42
         }
     }
@@ -78,7 +78,7 @@ class SaveThenThrowTask(val holder: Holder) : SuspendTask<Int> {
         try {
             val registration: SuspendRegistration<Int> = SaveThenThrowRegistration(holder)
             return suspendCoroutine(registration)
-        } catch (exception: UnwrapException) {
+        } catch (_: UnwrapException) {
             return 43
         }
     }
@@ -89,7 +89,7 @@ class SynchronousFailureTask() : SuspendTask<Int> {
         try {
             val registration: SuspendRegistration<Int> = SynchronousFailureRegistration()
             return suspendCoroutine(registration)
-        } catch (exception: UnwrapException) {
+        } catch (_: UnwrapException) {
             return 44
         }
     }

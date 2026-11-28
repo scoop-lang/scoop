@@ -8,7 +8,7 @@ fun check(value: Boolean, label: String, location: SourceLocation = currentSourc
 }
 
 fun rejected(action: () -> Unit): Boolean {
-    try { action() } catch (error: ConcurrentModificationException) { return true }
+    try { action() } catch (_: ConcurrentModificationException) { return true }
     return false
 }
 

@@ -14,7 +14,7 @@ class Broken {
 fun main() {
     try {
         println(Broken.value)
-    } catch (exception: UnwrapException) {
+    } catch (_: UnwrapException) {
         println(attempts)
     }
 

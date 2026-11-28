@@ -1,11 +1,11 @@
 fun main() {
     try {
         throw ArithmeticException()
-    } catch (e: UnwrapException) {
+    } catch (_: UnwrapException) {
         println("unwrap")
-    } catch (e: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         println("arith")
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         println("generic")
     } finally {
         println("done")

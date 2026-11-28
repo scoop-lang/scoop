@@ -11,7 +11,7 @@ fun main() {
     val calls: MutableArray<Long> = [0L]
     var caught = false
     try { generate<Long>(-2L) { i -> calls[0L] = calls[0L] + 1L; i } }
-    catch (e: IllegalArgumentException) { caught = true }
+    catch (_: IllegalArgumentException) { caught = true }
     if (!caught || calls[0L] != 0L) { println("negative"); return }
     println(defaultCount())
 }

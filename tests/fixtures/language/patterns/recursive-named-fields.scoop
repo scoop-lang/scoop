@@ -33,7 +33,7 @@ fun classify(value: Event): Int = when (once(value)) {
         enabled: true
     } -> value + 100
     case Data {
-        val enabled,
+        enabled: _,
         envelope: { payload: { flag: true, val value }, marker: (_, _), .. }
     } -> value + 200
     case Empty -> -1

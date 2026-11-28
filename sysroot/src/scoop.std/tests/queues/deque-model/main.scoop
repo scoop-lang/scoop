@@ -37,7 +37,7 @@ private fun exercise() {
     val iterator = values.iterator()
     values.clear()
     var caught = false
-    try { iterator.next() } catch (error: ConcurrentModificationException) { caught = true }
+    try { iterator.next() } catch (_: ConcurrentModificationException) { caught = true }
     check(caught && values.size == 0L)
 
 }

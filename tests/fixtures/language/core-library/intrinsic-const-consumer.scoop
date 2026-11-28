@@ -7,5 +7,5 @@ public const val combined: Boolean = compared > 0L && wrapped < 0 && shifted == 
 public const val converted: Int = compared.toInt()
 
 fun main() {
-    val value = userCoreOffset(converted)
+    val _value = userCoreOffset(converted)
 }

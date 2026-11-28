@@ -6,16 +6,16 @@ fun main() {
     println(boxed as Int)
     println(blank().size)
     try { never() }
-    catch (error: IllegalStateException) { println("generic") }
+    catch (_: IllegalStateException) { println("generic") }
     try { defaulted() }
-    catch (error: IllegalStateException) { println("default") }
+    catch (_: IllegalStateException) { println("default") }
     val value = adapted()
     try { value() }
-    catch (error: IllegalStateException) { println("adapter") }
+    catch (_: IllegalStateException) { println("adapter") }
     val dynamic: Top = failure()
     println(dynamic is () -> Bottom)
     try { val converted = dynamic as () -> Int; converted() }
-    catch (error: IllegalStateException) { println("dynamic") }
+    catch (_: IllegalStateException) { println("dynamic") }
     gcCollect()
     println(boxed as Int)
 }

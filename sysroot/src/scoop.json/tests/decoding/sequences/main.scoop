@@ -36,8 +36,8 @@ private fun exercise() {
     check(Json.decodeFromString("[\"first\",7]", SequenceReader) == 7L)
     val ignoreElements = ValueDecoderFunction<Long>({ decoder ->
         val elements = decoder.unkeyed()
-        val first = elements.element()
-        val second = elements.element()
+        val _ = elements.element()
+        val _ = elements.element()
         elements.end()
         2L
     })

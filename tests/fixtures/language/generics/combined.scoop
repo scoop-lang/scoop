@@ -74,7 +74,7 @@ class CombinedTask(
             combine<Message, _>(box.source, box.label) { item: Message, suffix: String ->
                 prefix + item.name() + suffix
             } + box.rest.size.toString()
-        } catch (error: CombinedFailure) {
+        } catch (_: CombinedFailure) {
             "caught"
         }
     }
@@ -94,7 +94,7 @@ class RecordingCompletion(val label: String) : Continuation<String> {
 fun makeGarbage() {
     var index = 0
     while (index < 1000) {
-        val garbage = Message("garbage")
+        val _garbage = Message("garbage")
         index = index + 1
     }
 }

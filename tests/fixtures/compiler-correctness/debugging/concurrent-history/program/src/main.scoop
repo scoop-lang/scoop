@@ -42,7 +42,7 @@ fun raceOnce() {
 }
 
 fun main() {
-    for (index in 0..<4) {
+    for (_ in 0..<4) {
         raceOnce()
     }
 }

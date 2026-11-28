@@ -7,6 +7,6 @@ import dev.example.consumer.constructors.defaults
 import dev.example.consumer.constructors.republished
 
 @NoGC public fun check(): Long {
-    val marker = token()
+    val _ = token()
     return primary().sum() + secondary().sum() + defaults() + republished()
 }

@@ -26,10 +26,8 @@ public fun <T: value> lexicalCopy(value: T): T {
     }
     val first = read()
     val nextRaw = addressOf(first).toULong()
-    val closure: () -> T = {
-        var loaded = first
-        @Unsafe { loaded = Ptr<T>(nextRaw).load() }
-        loaded
+    val closure: () -> T = load@ {
+        @Unsafe { return@load Ptr<T>(nextRaw).load() }
     }
     return closure()
 }

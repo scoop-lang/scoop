@@ -1,5 +1,5 @@
 public fun useBranchDefault(): Int = userCoreBranchDefault(0)
 
 fun main() {
-    val value = useBranchDefault()
+    val _value = useBranchDefault()
 }

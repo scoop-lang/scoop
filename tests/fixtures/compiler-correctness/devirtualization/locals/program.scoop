@@ -60,7 +60,7 @@ fun exceptionMerge(early: Boolean): Int {
         fail(early)
         value = Second()
         fail(true)
-    } catch (error: IllegalStateException) {
+    } catch (_: IllegalStateException) {
         return value.get()
     }
     return 0

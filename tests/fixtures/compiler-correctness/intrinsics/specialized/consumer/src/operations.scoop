@@ -53,5 +53,5 @@ public fun interfaceString(a: String, b: String): Long {
 public fun caughtDivide(a: Int, b: Int): Int {
     val receiver: Div<Int, Int> = a
     try { return receiver / b }
-    catch (error: ArithmeticException) { return 17 }
+    catch (_: ArithmeticException) { return 17 }
 }

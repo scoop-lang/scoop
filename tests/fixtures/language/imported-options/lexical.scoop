@@ -18,8 +18,8 @@ public fun <T> exercise(value: T): Int {
     val boxed: Any = 2
     val number = boxed as? Int
     val missingNumber = text as? Int
-    val first = force(saved())
-    val second = force(invoke())
+    val _ = force(saved())
+    val _ = force(invoke())
     val allocated = Cell(0)
     if ((found?.number ?: 0) != 40 || (missing ?: "absent") != "absent") { return 1 }
     if ((present ?: "absent") != "present" || (number ?: 0) != 2 || (missingNumber ?: 3) != 3) { return 2 }

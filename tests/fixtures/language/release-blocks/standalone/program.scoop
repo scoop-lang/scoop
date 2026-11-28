@@ -8,7 +8,7 @@ class Owner(private val handle: Int) {
     release { @Unsafe { dropNative(handle) } }
 }
 
-fun allocate() { val owner = Owner(42) }
+fun allocate() { val _owner = Owner(42) }
 
 fun main() {
     allocate()

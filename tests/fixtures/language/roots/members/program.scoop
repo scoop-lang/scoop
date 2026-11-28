@@ -19,17 +19,17 @@ fun main() {
     val stop = Stop()
     val source: FailedSource = stop
     try { forward(source) }
-    catch (error: IllegalStateException) { println("interface") }
+    catch (_: IllegalStateException) { println("interface") }
     try { stop.read() }
-    catch (error: IllegalStateException) { println("method") }
+    catch (_: IllegalStateException) { println("method") }
     try { val value: Int = stop.missing }
-    catch (error: IllegalStateException) { println("getter") }
+    catch (_: IllegalStateException) { println("getter") }
     try { val value = Box(fail()) }
-    catch (error: IllegalStateException) { println("class") }
+    catch (_: IllegalStateException) { println("class") }
     try { val value = Cell(fail()) }
-    catch (error: IllegalStateException) { println("struct") }
+    catch (_: IllegalStateException) { println("struct") }
     try { val value = Envelope.Value(fail()) }
-    catch (error: IllegalStateException) { println("enum") }
+    catch (_: IllegalStateException) { println("enum") }
     val absent = empty<Nothing>()
-    println(when (absent) { case None -> true; case Some(val value) -> false })
+    println(when (absent) { case None -> true; case Some(_) -> false })
 }

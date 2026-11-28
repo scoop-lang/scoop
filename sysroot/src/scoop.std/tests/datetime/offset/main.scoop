@@ -9,7 +9,7 @@ fun check(ok: Boolean, location: SourceLocation = currentSourceLocation()) {
 }
 fun invalid(block: () -> Unit) {
     var failed = false
-    try { block() } catch (error: IllegalArgumentException) { failed = true }
+    try { block() } catch (_: IllegalArgumentException) { failed = true }
     check(failed)
 }
 private fun exercise() {

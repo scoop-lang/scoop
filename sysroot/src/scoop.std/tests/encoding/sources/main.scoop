@@ -25,12 +25,12 @@ private fun exercise() {
     check(source.reads == 512L)
     val huge = Source(Long.MAX_VALUE, false)
     var failures = 0
-    try { huge.toHexString() } catch (error: ArithmeticException) { failures += 1 }
-    try { Base64.Default.encode(huge) } catch (error: ArithmeticException) { failures += 1 }
+    try { huge.toHexString() } catch (_: ArithmeticException) { failures += 1 }
+    try { Base64.Default.encode(huge) } catch (_: ArithmeticException) { failures += 1 }
     check(failures == 2 && huge.reads == 0L)
     val broken = Source(1L, true)
-    try { broken.toHexString() } catch (error: IllegalStateException) { failures += 1 }
-    try { Base64.UrlSafe.encode(broken) } catch (error: IllegalStateException) { failures += 1 }
+    try { broken.toHexString() } catch (_: IllegalStateException) { failures += 1 }
+    try { Base64.UrlSafe.encode(broken) } catch (_: IllegalStateException) { failures += 1 }
     check(failures == 4 && broken.reads == 2L)
     val input = MutableArray<Byte>(1L) { _ -> 102.toByte() }
     val text = Base64.Default.encode(input)

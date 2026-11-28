@@ -27,7 +27,7 @@ fun main() {
     }
     try {
         throw Failure()
-    } catch (error: Failure) {
+    } catch (_: Failure) {
         println("scoop-caught")
     } finally {
         println("scoop-finally")

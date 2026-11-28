@@ -91,7 +91,7 @@ fun stringsAndCleanup() {
                     throw IllegalStateException(Some("borrow cleanup"))
                 }
             }
-        } catch (error: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             gcCollect()
         }
         data.withDataPointer() { pointer: Ptr<Int>, _: Long ->

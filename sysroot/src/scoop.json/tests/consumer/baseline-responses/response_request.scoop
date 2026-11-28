@@ -44,9 +44,7 @@ enum ResponseInput {
             }
         }
         public override fun decode(decoder: Decoder): ResponseInput {
-            var text: String? = None
-            try { text = Some(String.decode(decoder)) }
-            catch (error: DecodingException) { text = None }
+            val text: String? = try { Some(String.decode(decoder)) } catch (_: DecodingException) { None }
             if (text != None) { return ResponseInput.Text(text!!) }
             return ResponseInput.Items(Array<ResponseItem>.decoder(ResponseItem.Companion).decode(decoder))
         }
@@ -62,9 +60,7 @@ enum Conversation {
             }
         }
         public override fun decode(decoder: Decoder): Conversation {
-            var text: String? = None
-            try { text = Some(String.decode(decoder)) }
-            catch (error: DecodingException) { text = None }
+            val text: String? = try { Some(String.decode(decoder)) } catch (_: DecodingException) { None }
             if (text != None) { return Conversation.Text(text!!) }
             return Conversation.ID(ConversationID.Companion.decode(decoder))
         }

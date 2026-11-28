@@ -28,7 +28,7 @@ private fun exercise() {
         "PT9223372036854775808S", "-PT9223372036854775808.000000001S", "P999999999999999D", "PT18446744073709551616S")) {
         check(Duration.parseOrNone(text) == None)
         var failed = false
-        try { Duration.parse(text) } catch (error: IllegalArgumentException) { failed = true }
+        try { Duration.parse(text) } catch (_: IllegalArgumentException) { failed = true }
         check(failed)
     }
 

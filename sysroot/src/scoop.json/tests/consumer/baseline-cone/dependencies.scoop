@@ -14,9 +14,7 @@ enum Dependency {
             }
         }
         public override fun decode(decoder: Decoder): Dependency {
-            var short: String? = None
-            try { short = Some(String.decode(decoder)) }
-            catch (error: DecodingException) { short = None }
+            val short: String? = try { Some(String.decode(decoder)) } catch (_: DecodingException) { None }
             if (short != None) {
                 requireValid(version(short!!), decoder, "invalid version")
                 return Dependency.Short(short!!)

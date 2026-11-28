@@ -5,7 +5,7 @@ import dev.example.templates.delegateCombinations.*
 private fun <T> failure(): Int = try {
     Token<T>().cycleDirect
     0
-} catch (error: IllegalStateException) {
+} catch (_: IllegalStateException) {
     42
 }
 

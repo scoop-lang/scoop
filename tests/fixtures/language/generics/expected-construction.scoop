@@ -33,7 +33,7 @@ fun selected(switch: Switch): Choice<Animal> = when (switch) {
 
 fun recovered(): Option<Animal> = try {
     Some(Cat())
-} catch (e: UnwrapException) {
+} catch (_: UnwrapException) {
     None
 }
 

@@ -42,14 +42,8 @@ private fun exerciseConsumer() {
     check(resource.calls == 1)
     val primary = Exception(Some("body"))
     val cleanup = Exception(Some("close"))
-    var caught = false
-    try { FailingResource(cleanup).use { throw primary } }
-    catch (error: Exception) {
-        val combined = error as ResourceUseException
-        check(combined.primaryFailure === primary && combined.cleanupFailure === cleanup)
-        caught = true
-    }
-    check(caught)
+    val combined = assertFailsWith<ResourceUseException> { FailingResource(cleanup).use { throw primary } }
+    check(combined.primaryFailure === primary && combined.cleanupFailure === cleanup)
     val suspended = Resource()
     val gate = Gate()
     val completion = Completion()

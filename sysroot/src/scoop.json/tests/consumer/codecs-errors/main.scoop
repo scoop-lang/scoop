@@ -19,7 +19,7 @@ fun <T> bad(text: String, codec: ValueDecoder<T>, path: String) {
 }
 fun propagates(block: () -> Unit) {
     var failed = false
-    try { block() } catch (error: IllegalStateException) { failed = true }
+    try { block() } catch (_: IllegalStateException) { failed = true }
     check(failed)
 }
 class BadKey : Equals<BadKey>, Hash {
@@ -50,14 +50,14 @@ private fun exerciseConsumer() {
     bad("{\"years\":0,\"months\":0}", DatePeriod.Companion, "/days")
     bad("{\"years\":2147483648,\"months\":0,\"days\":0}", DatePeriod.Companion, "/years")
     bad("{\"date\":{\"years\":0,\"months\":0,\"days\":0},\"time\":\"bad\"}", DateTimePeriod.Companion, "/time")
-    val failure = ValueDecoderFunction<Int> { decoder -> throw IllegalStateException() }
+    val failure = ValueDecoderFunction<Int> { _ -> throw IllegalStateException() }
     propagates { Json.decodeFromString("[1]", listDecoder(failure)) }
     propagates { Json.decodeFromString("{\"success\":1}", Result<Int, Int>.decoder(failure, Int.Companion)) }
     val key = ValueDecoderFunction<BadKey> { decoder -> Int.decode(decoder); BadKey() }
     propagates { Json.decodeFromString("[[1,2]]", HashMap<BadKey, Int>.decoder(key, Int.Companion)) }
-    val brokenOrder = comparatorOf<Int> { a, b -> throw IllegalStateException() }
+    val brokenOrder = comparatorOf<Int> { _, _ -> throw IllegalStateException() }
     propagates { Json.decodeFromString("[1,2]", TreeSet<Int>.decoder(Int.Companion, brokenOrder)) }
-    val encoder = ValueEncoderFunction<Int> { value, target -> throw IllegalStateException() }
+    val encoder = ValueEncoderFunction<Int> { _, _ -> throw IllegalStateException() }
     propagates { Json.encodeToString(hashMapOf((1, 2)), HashMap<Int, Int>.encoder(Int.Companion, encoder)) }
 
 }

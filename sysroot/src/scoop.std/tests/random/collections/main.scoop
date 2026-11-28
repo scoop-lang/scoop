@@ -54,7 +54,7 @@ private fun exercise() {
     check(empty.randomOrNone<Int>(choices) == None && listOf<Int>(7).random<Int>(choices) == 7)
     check(listOf<Int?>(None).randomOrNone<Int?>(choices) == Some(None) && choices.calls == 2L)
     var failed = false
-    try { empty.random<Int>(choices) } catch (error: NoSuchElementException) { failed = true }
+    try { empty.random<Int>(choices) } catch (_: NoSuchElementException) { failed = true }
     check(failed)
     val input = mutableListOf<Int>(1, 2, 3)
     val copy = input.shuffled<Int>(Choices())

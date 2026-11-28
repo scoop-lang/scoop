@@ -39,7 +39,7 @@ private fun exercise() {
     check(iterator.next() == Some(Some(123)), "live value replacement")
     map.clear()
     var caught = false
-    try { iterator.next() } catch (error: ConcurrentModificationException) { caught = true }
+    try { iterator.next() } catch (_: ConcurrentModificationException) { caught = true }
     check(caught && keys.isEmpty() && values.isEmpty(), "clear")
     map[Key(7)] = None
     check(keys.iterator().next()!!.number == 7, "reuse after clear")

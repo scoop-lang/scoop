@@ -22,7 +22,7 @@ public fun result(): Int {
     left = left + right
     if (subjects != 1 || left != 42) { return 1 }
     val Nested { empty: _, payload: (value, _), .. } = Nested<Int>((42, 9), 7, Unit)
-    val (_, .., ignored) = Nested<Int>((0, 0), 0, Unit)
+    val (_, .., _ignored) = Nested<Int>((0, 0), 0, Unit)
     val { right: extra, left: first } = Pair<Int>(40, 2)
     if (first + extra != 42) { return 2 }
     return exercise<Int>(value, { item -> item })

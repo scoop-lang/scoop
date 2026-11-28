@@ -22,7 +22,7 @@ fun main() {
             println(impossible)
         } finally {
             writeError("finally-bad")
-            val resource = releaseGcHandle(handle)
+            val _ = releaseGcHandle(handle)
         }
     }
 }

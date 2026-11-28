@@ -26,7 +26,7 @@ suspend fun wait(gate: Gate): Nothing = suspendCoroutine(gate)
 class Task(val gate: Gate) : SuspendTask<Int> {
     public override suspend fun run(): Int {
         try { return wait(this.gate) }
-        catch (error: IllegalStateException) { return 42 }
+        catch (_: IllegalStateException) { return 42 }
         finally { println("cleanup") }
     }
 }
@@ -42,7 +42,7 @@ class Task(val gate: Gate) : SuspendTask<Int> {
     println(completion.value)
     val second = Gate()
     val never: suspend () -> Nothing = suspend { wait(second) }
-    val widened: suspend () -> Int = never
+    val _: suspend () -> Int = never
     val erased: Any = never
     println(erased is suspend () -> Int)
     println(erased is suspend () -> Nothing)

@@ -20,7 +20,7 @@ fun retained(value: Value, array: Array<Node>, pair: (Value, Node),
 fun main() {
     val node = Node(7)
     val value: Value = node
-    val array = Array<Node>(1L) { index -> node }
+    val array = Array<Node>(1L) { _ -> node }
     val closure: () -> Int = { node.value }
     check(retained(value, array, (value, node), Some(value), closure) == 2643)
     println("conditional poll roots")

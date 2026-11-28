@@ -6,7 +6,7 @@ class Node(val value: Long, var next: Node?)
 fun check(value: Boolean) { if (!value) { throw IllegalStateException() } }
 
 fun worker(seed: Int, count: Long): Int {
-    val roots = MutableArray<Node?>(count) { index -> None }
+    val roots = MutableArray<Node?>(count) { _ -> None }
     var index = 0L
     while (index < count) {
         roots[index] = Some(Node(index + seed.toLong(), None))

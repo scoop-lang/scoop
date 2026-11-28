@@ -93,7 +93,7 @@ fun failureTask(gate: Gate): suspend () -> Int = suspend {
         suspendCoroutine({ continuation: Continuation<Int> ->
             gate.waiter = Some(continuation)
         })
-    } catch (exception: ArithmeticException) {
+    } catch (_: ArithmeticException) {
         49
     } finally {
         println("failure-finally")
@@ -108,7 +108,7 @@ suspend fun synchronousFailure(): Int = suspendCoroutine() { continuation: Conti
     continuation.resumeWithException(ArithmeticException())
 }
 
-suspend fun registrationFailure(): Int = suspendCoroutine() { continuation: Continuation<Int> ->
+suspend fun registrationFailure(): Int = suspendCoroutine() { _: Continuation<Int> ->
     throw ArithmeticException()
 }
 

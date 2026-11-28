@@ -16,5 +16,5 @@ fun main() {
     unitAction { println("unit"); return@unitAction }
     unitAction { 99 }
     val never = out@ { throw UnwrapException() }
-    try { never() } catch (failure: UnwrapException) { println("caught") }
+    try { never() } catch (_: UnwrapException) { println("caught") }
 }

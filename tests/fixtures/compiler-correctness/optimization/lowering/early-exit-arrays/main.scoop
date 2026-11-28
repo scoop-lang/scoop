@@ -55,7 +55,7 @@ fun prefixes() {
     check(firstMismatch(long, long) == -1L)
     var caught = false
     try { firstMismatch(long, Array<Int>(65L) { i -> i.toInt() + 10 }) }
-    catch (error: IndexOutOfBoundsException) { caught = true }
+    catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught)
     val source = MutableArray<Int>(129L) { i -> i.toInt() + 10 }
     val empty = MutableArray<Int>(0L) { _ -> 0 }
@@ -65,7 +65,7 @@ fun prefixes() {
     check(target[0L] == 31 && target[63L] == 220)
     caught = false
     try { copyUntil(source, target, 75) }
-    catch (error: IndexOutOfBoundsException) { caught = true }
+    catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && target[0L] == 31 && target[63L] == 220)
     check(copyUntil(source, source, 74) == 64L)
     check(source[0L] == 31 && source[63L] == 220 && source[64L] == 74 && source[128L] == 138)

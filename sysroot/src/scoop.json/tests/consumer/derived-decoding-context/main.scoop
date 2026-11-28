@@ -37,7 +37,7 @@ private fun exerciseConsumer() {
         check(Json.decodeFromString(text, codec).pair._1 == 11, 3)
     }
     try { Json.decodeFromString(text, codec); check(false, 4) }
-    catch (error: MissingContextException) {}
+    catch (_: MissingContextException) {}
     context(DecodeState(20)) {
         try { Json.decodeFromString("{\"pair\":[1,[null]]}", codec); check(false, 5) }
         catch (error: DecodingException) { check(error.path == "/pair/1/0", 6) }

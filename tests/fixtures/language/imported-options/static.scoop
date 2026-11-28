@@ -14,7 +14,7 @@ private fun leaf(): Int {
 }
 
 public fun <T> exercise(value: T): Int {
-    val held = wrap(value)
+    val _ = wrap(value)
     stored = None
     referenced = None
     if ((qualified ?: 2) != 2 || (referenced?.number ?: 0) != 0) { return 1 }

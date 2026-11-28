@@ -13,7 +13,7 @@ public typealias Selected = Choice
 @NoGC public fun relay(value: Choice): Choice = value
 @NoGC public fun score(value: Choice): Long = when (value) {
     case Selected.Empty -> 0
-    case Selected.Pair { val left, val right, .. } if (left < 0) -> 0
+    case Selected.Pair { val left, .. } if (left < 0) -> 0
     case Selected.Pair { val left, val right, .. } -> left + right
 }
 @NoGC public fun packetScore(value: Packet): Long = when (value) {

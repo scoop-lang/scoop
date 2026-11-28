@@ -146,7 +146,7 @@ fun main(args: Array<String>) {
     try {
         current()
         throw IllegalStateException()
-    } catch (missing: MissingContextException) {
+    } catch (_: MissingContextException) {
         println("coroutines-ok")
     }
 }

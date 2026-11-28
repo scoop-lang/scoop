@@ -85,12 +85,12 @@ fn nested_local_accessors_obtain_their_complete_outer_source_contexts() {
 
 #[test]
 fn interface_default_accessors_query_the_original_declaring_receiver() {
-    let text = "interface Value { val item: Boolean\nvar projected: Boolean get() { val saved = item; return saved }\nset(next) { val saved = next } }\nclass Concrete(override val item: Boolean): Value";
+    let text = "interface Value { val item: Boolean\nvar projected: Boolean get() { val saved = item; return saved }\nset(next) { val _ = next } }\nclass Concrete(override val item: Boolean): Value";
     let mut analysis = analyze_accessors(text);
     let getter = region(&mut analysis, text, "return saved");
     let body = facts(&mut analysis, &getter);
     assert_eq!(body.properties.len(), 1);
-    let setter = region(&mut analysis, text, "saved = next");
+    let setter = region(&mut analysis, text, "val _ = next");
     let body = facts(&mut analysis, &setter);
     let next = body
         .locals

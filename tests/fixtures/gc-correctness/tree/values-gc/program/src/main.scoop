@@ -26,7 +26,7 @@ fun clearReleases(): Boolean {
     gcCollect()
     val released = before >= gcStats() + 80uL
     var invalidated = false
-    try { iterator.next() } catch (error: ConcurrentModificationException) { invalidated = true }
+    try { iterator.next() } catch (_: ConcurrentModificationException) { invalidated = true }
     return values.size == 0L && released && invalidated
 }
 
@@ -46,7 +46,7 @@ fun retainedLeafReleases(clear: Boolean): Boolean {
     gcCollect()
     val released = before > gcStats()
     var invalidated = false
-    try { iterator.next() } catch (error: ConcurrentModificationException) { invalidated = true }
+    try { iterator.next() } catch (_: ConcurrentModificationException) { invalidated = true }
     return released && invalidated && values.size == 0L
 }
 

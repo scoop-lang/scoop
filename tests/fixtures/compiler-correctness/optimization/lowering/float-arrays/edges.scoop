@@ -51,11 +51,11 @@ fun checkPrefix() {
     val target = MutableArray<Double>(65L) { _ -> -1.0 }
     var caught = false
     try { transformDouble(source, target, 2.0, 0.5) }
-    catch (error: IndexOutOfBoundsException) { caught = true }
+    catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && target[0L] == 2.5 && target[64L] == 34.5)
     val short = MutableArray<Float>(1L) { _ -> -1f }
     caught = false
     try { narrow(source, short) }
-    catch (error: IndexOutOfBoundsException) { caught = true }
+    catch (_: IndexOutOfBoundsException) { caught = true }
     check(caught && short[0L] == 1f)
 }

@@ -25,7 +25,7 @@ public fun result(): Int {
     val base: Base<Payload> = Derived<Payload>(Payload(40))
     val source: Source<Payload> = base
     val value = read<Payload>(source)
-    val first = Payload(1)
-    val second = Payload(2)
+    val _ = Payload(1)
+    val _ = Payload(2)
     return value.value + base.offset()
 }

@@ -24,8 +24,7 @@ fun branch(data: Ptr<Long>, count: Long, flag: Boolean) {
     var i = 0L
     while (i < count) {
         val x = data.load(i)
-        var y = x
-        if (flag) { y = x * 3L + 7L } else { y = x.xor(x.shr(7L)) }
+        var y = if (flag) x * 3L + 7L else x.xor(x.shr(7L))
         if (y < 0L) { y = -y }
         if (y >= 0L) { data.store(i, y) } else { data.store(i, 0L) }
         i += 1L
@@ -34,7 +33,7 @@ fun branch(data: Ptr<Long>, count: Long, flag: Boolean) {
 @Unsafe
 fun check(count: Long) {
     val values = MutableArray<Long>(count + 1L) { _ -> 7L }
-    values.withDataPointer<Long, Unit>() { data: Ptr<Long>, size: Long ->
+    values.withDataPointer<Long, Unit>() { data: Ptr<Long>, _: Long ->
         @Unsafe {
             fill(data, count)
             if (count > 0L) { data.store(0L, 5L) }

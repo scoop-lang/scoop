@@ -22,7 +22,7 @@ private fun exercise() {
     check(iterator.next() == Some("changed"), "live values")
     map.remove(3)
     var invalid = false
-    try { iterator.next() } catch (error: ConcurrentModificationException) { invalid = true }
+    try { iterator.next() } catch (_: ConcurrentModificationException) { invalid = true }
     check(invalid, "iterator invalidation")
     val empty = sortedMapOf<Int, String>()
     check(empty.firstEntryOrNone() == None && empty.ceilingEntry(1) == None, "empty")
@@ -44,7 +44,7 @@ private fun exercise() {
     check(slice.size == 3L && slice.comparator === reverse.comparator, "reverse range")
     check(reverse.copyOfRange(2, 2).isEmpty() && reverse.copyOfRange(2, 2, toInclusive = true).size == 1L, "equal bounds")
     invalid = false
-    try { reverse.copyOfRange(1, 3) } catch (error: IllegalArgumentException) { invalid = true }
+    try { reverse.copyOfRange(1, 3) } catch (_: IllegalArgumentException) { invalid = true }
     check(invalid, "invalid bounds")
     val snapshot = reverse.toSortedMap()
     reverse.clear()

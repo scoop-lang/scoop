@@ -41,9 +41,9 @@ def check(peer, root):
                 "import renamerelay.VisibleBox as LocalBox\n"
                 "fun use(value: LocalBox): Boolean {\n"
                 "    val first = /* 🌟 */ localChoice(true)\n"
-                "    val factory: (Boolean) -> Boolean = ::localChoice\n"
-                "    val box = LocalBox()\n"
-                "    val make: () -> LocalBox = ::LocalBox\n"
+                "    val _factory: (Boolean) -> Boolean = ::localChoice\n"
+                "    val _box = LocalBox()\n"
+                "    val _make: () -> LocalBox = ::LocalBox\n"
                 "    return alternate(pick(first))\n"
                 "}\n"
             ),

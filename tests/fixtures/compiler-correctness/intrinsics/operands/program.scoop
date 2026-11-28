@@ -29,13 +29,13 @@ fun operations() {
         case Some(val item) -> item
         case None -> 0
     } }) == 4)
-    try { divide(0) } catch (error: ArithmeticException) { println("zero") }
+    try { divide(0) } catch (_: ArithmeticException) { println("zero") }
 }
 
 fun main() {
     operations()
-    try { val value = left() + stop() } catch (error: IllegalStateException) { println("add-exit") }
-    try { val value = left() / stop() } catch (error: IllegalStateException) { println("div-exit") }
-    try { val value = left() % stop() } catch (error: IllegalStateException) { println("rem-exit") }
+    try { val value = left() + stop() } catch (_: IllegalStateException) { println("add-exit") }
+    try { val value = left() / stop() } catch (_: IllegalStateException) { println("div-exit") }
+    try { val value = left() % stop() } catch (_: IllegalStateException) { println("rem-exit") }
     println("operands-ok")
 }

@@ -28,7 +28,7 @@ fun main() {
 
     events = 0
     var caught = false
-    try { table[index()] += fail() } catch (failure: UpdateFailure) { caught = true }
+    try { table[index()] += fail() } catch (_: UpdateFailure) { caught = true }
     check(caught && events == 2345 && table.value() == 10)
 
     val grid = Grid()

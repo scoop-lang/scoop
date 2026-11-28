@@ -1,5 +1,5 @@
 class Matrix() : IndexGet2<Int, Int, Int>, IndexSet2<Int, Int, Int> {
-    private val values = MutableArray<Int>(4L) { index -> 0 }
+    private val values = MutableArray<Int>(4L) { _ -> 0 }
     var reads: Int = 0
     var writes: Int = 0
     var evaluations: Int = 0

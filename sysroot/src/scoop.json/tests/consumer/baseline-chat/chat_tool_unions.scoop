@@ -70,9 +70,7 @@ enum ChatChoice {
             }
         }
         public override fun decode(decoder: Decoder): ChatChoice {
-            var text: String? = None
-            try { text = Some(String.decode(decoder)) }
-            catch (error: DecodingException) { text = None }
+            val text: String? = try { Some(String.decode(decoder)) } catch (_: DecodingException) { None }
             if (text != None) { return ChatChoice.Text(text!!) }
             return ChatChoice.Named(NamedChatChoice.Companion.decode(decoder))
         }

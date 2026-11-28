@@ -30,14 +30,14 @@ def check(peer, root):
         "}\n"
         "fun constructorReferences(): Boolean {\n"
         "    val local = ConstructorLocalBox(value = true)\n"
-        "    val structure = ConstructorValue(value = true)\n"
-        "    val boolean = ConstructorOverloaded(value = true)\n"
-        '    val string = ConstructorOverloaded(value = "text")\n'
-        "    val localFactory: (Boolean) -> ConstructorOverloaded = ::ConstructorOverloaded\n"
-        "    val remote = Selected(value = true)\n"
-        "    val variant = Make(value = true)\n"
-        "    val waiting = Waiting\n"
-        "    val factory: (Boolean) -> Selected<Boolean> = ::Selected\n"
+        "    val _structure = ConstructorValue(value = true)\n"
+        "    val _boolean = ConstructorOverloaded(value = true)\n"
+        '    val _string = ConstructorOverloaded(value = "text")\n'
+        "    val _localFactory: (Boolean) -> ConstructorOverloaded = ::ConstructorOverloaded\n"
+        "    val _remote = Selected(value = true)\n"
+        "    val _variant = Make(value = true)\n"
+        "    val _waiting = Waiting\n"
+        "    val _factory: (Boolean) -> Selected<Boolean> = ::Selected\n"
         "    return local.value\n"
         "}\n"
     )
