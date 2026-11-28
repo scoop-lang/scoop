@@ -178,7 +178,7 @@ internal class SelectPanel(
             border(
                 Some(Border.all(1.0, componentPanelBorder(theme, theme.tokens.palette.popover)))
             )
-            corners(Corners.all(8.0 * density));
+            corners(Corners.all(theme.tokens.corners.medium * density));
             boxShadows(theme.tokens.effects.floating)
         }
             .then(popup.style)

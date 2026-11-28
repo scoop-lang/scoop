@@ -150,12 +150,19 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>, scope: Compon
             case None -> {}
         }
         val geometry = input.theme.surfaceGeometry(bounds, visual, options, context.layoutDirection)
-        val thumbSide = (if (input.input.size == SwitchSize.Sm) 12.0 else 16.0) * density
+        val metrics = input.theme.tokens.controlMetrics
+        val thumbSize = if (input.input.size == SwitchSize.Sm)
+            metrics.switchSmallThumbSize
+        else
+            metrics.switchThumbSize
         val drawing = SwitchDrawing(
             geometry,
             visual,
-            switchThumbBounds(geometry.content, thumbSide, progress, context.layoutDirection),
-            switchThumbStyle(input.input, input.theme, progress),
+            switchThumbBounds(
+                geometry.content, Size(thumbSize.width * density, thumbSize.height * density),
+                progress, context.layoutDirection
+            ),
+            switchThumbStyle(input.input, input.theme, progress, visual.interaction),
             switchHitBounds(
                 bounds,
                 input.input.style.hitInsets ?:

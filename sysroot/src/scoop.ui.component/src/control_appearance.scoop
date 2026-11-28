@@ -1,0 +1,79 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.style.*
+
+/** Theme decoration precedes the component's explicit local override. */
+internal fun controlThumbOverride(
+    theme: Theme,
+    fallback: Color,
+    visual: InteractionVisual
+): StyleOverride {
+    val base = theme.tokens.controlThumb
+    val accessible = if (!theme.preferences.highContrast && !theme.preferences.reduceTransparency)
+        base
+    else
+        base
+            .copy {
+                boxShadows([])
+                contentEffects([])
+                glass(None)
+                if (theme.preferences.highContrast) {
+                    background = StyleValue.Inherit
+                    border = StyleValue.Inherit
+                }
+            }
+    if (theme.preferences.highContrast || !visual.enabled) return accessible
+    val hover = visual.hoverProgress ?: if (visual.hovered) 1.0 else 0.0
+    val press = visual.pressProgress ?: if (visual.pressed) 1.0 else 0.0
+    val amount = lowerBound(hover * 0.03, press * 0.08)
+    if (amount == 0.0) return accessible
+    val paint = accessible.background.resolve(Some(Paint(fallback))) ?: return accessible
+    val solid = when (paint.gradient) {
+        case Some(_) -> false
+        case None -> true
+    }
+    if (!solid) return accessible
+    val light = paint.color.red *
+        0.2126 +
+        paint.color.green *
+        0.7152 +
+        paint.color.blue *
+        0.0722 >
+        0.5
+    return accessible
+        .copy {
+            background(
+                Some(
+                    Paint(
+                        mixThemeColor(paint.color, if (light) Color.Black else Color.White, amount),
+                        paint.style, paint.strokeWidth, paint.cap, paint.join, paint.miterLimit,
+                        paint.gradient, paint.antiAlias
+                    )
+                )
+            )
+        }
+}
+
+internal fun controlStateColor(theme: Theme, color: Color, enabled: Boolean): Color = if (enabled ||
+    theme.preferences.highContrast ||
+    theme.tokens.disabledOpacity <
+    1.0
+)
+    color
+else
+    mixThemeColor(color, theme.tokens.palette.muted.background, 0.65)
+
+/** Preserve the theme ring's alpha and geometry instead of tinting it a second time. */
+internal fun componentFocusOutline(
+    theme: Theme,
+    kind: SurfaceKind = SurfaceKind.Plain,
+    color: Color? = None,
+    background: Color = theme.tokens.palette.background.background
+): OutlineStyle {
+    val focus = theme.surfaceFocus(kind)
+    return OutlineStyle(
+        componentBackground(theme, color ?: focus.color, background),
+        focus.width, focus.outset, focus.borderColor
+    )
+}

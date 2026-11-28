@@ -224,7 +224,9 @@ public class ThemeTokens internal constructor(
     public val effects: ThemeEffects = themeEffects(),
     public val disabledOpacity: Double = 1.0,
     public val textField: TextFieldTreatment = TextFieldTreatment.Standard,
-    public val glassSurfaces: GlassSurfaces = glassSurfaces()
+    public val glassSurfaces: GlassSurfaces = glassSurfaces(),
+    public val controlMetrics: ThemeControlMetrics = ThemeControlMetrics(),
+    public val controlThumb: StyleOverride = styleOverride()
 ) {
     public fun copy(configure: ThemeTokensBuilder.() -> Unit = {}): ThemeTokens =
         configureThemeTokens(this, configure)

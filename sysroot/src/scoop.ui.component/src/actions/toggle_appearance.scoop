@@ -40,7 +40,7 @@ internal fun toggleOptions(
             Color.Transparent
     else
         componentBackground(theme, sampled)
-    val border = controlBorder(theme, style.surface, visual, colors.input)
+    val border = controlBorder(theme, style.surface, visual, colors.input, style.kind)
     val foreground = actionTextColor(
         theme, ActionShape.Toggle(variant, size, selected), ButtonVariant.Ghost,
         SurfaceVisual(style.kind, visual, SurfaceRole.Control)

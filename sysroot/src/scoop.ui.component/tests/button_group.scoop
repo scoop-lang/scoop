@@ -125,7 +125,7 @@ private class ButtonGroupTest {
             LayoutDirection.Ltr
         )
         assertEquals(
-            Size(theme.tokens.corners.medium, theme.tokens.corners.medium),
+            theme.surfaceMetrics(SurfaceVisual(SurfaceKind.OutlinedAction)).corners.topLeft,
             metrics.corners.topLeft
         )
         assertEquals(

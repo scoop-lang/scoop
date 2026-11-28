@@ -304,12 +304,12 @@ internal class ModalContent(private val read: () -> ModalInput, scope: Component
                         case Drawer(val props, _) ->
                             drawerCorners(
                                 props.side,
-                                12.0 * density
+                                theme.tokens.corners.large * density
                             )
                         else ->
                             Corners
                                 .all(
-                                    if (sheet) 0.0 else 12.0 * density
+                                    if (sheet) 0.0 else theme.tokens.corners.large * density
                                 )
                     }
                 )

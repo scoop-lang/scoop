@@ -183,6 +183,14 @@ internal class ControlsProbe : Closeable {
         when (tag) {
             case 0 -> {
                 assertEquals(1, result)
+                assertTrue(
+                    button!!.flag(1),
+                    Some("disabled Tooltip must preserve its enabled button")
+                )
+                assertTrue(
+                    checkbox!!.flag(1),
+                    Some("disabled HoverCard must preserve its enabled control")
+                )
                 assertEquals(7, clicked)
                 calls!!.post(checkbox!!, 1)
             }

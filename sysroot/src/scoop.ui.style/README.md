@@ -130,6 +130,10 @@ val geometry = theme.checkboxGeometry(bounds, options = changed)
 
 `theme.tokens` 提供 palette、typography、spacing、corners、effects 和 motion。文字覆盖用 SpanStyle.resolve；外框与内容效果继续使用本库 Style。Theme 不持有 native 资源；ThemePainterCache 保留当前 painter，换主题时先创建再替换，及时关闭旧资源。绘图中的临时 Canvas 不能保存，颜色和动画采样不会创建独立时钟。
 
+`theme.surfaceFocus(kind = SurfaceKind.Plain)` 返回已经解析根偏好的表面焦点描述。自绘复合控件使用它共享焦点宽度、外扩和半透明颜色；仅在 `borderColor` 明确指定时替换内边框。第三方 Theme 实现这一纯描述入口，包装主题直接转交 base。不要再次将 ring 乘以固定透明度或将悬停当作键盘焦点。
+
+Switch 与 Slider 的主题尺寸通过 `tokens { controlMetrics = ThemeControlMetrics(...) }` 配置。字段为 `switchSize`、`switchSmallSize`、`switchThumbSize`、`switchSmallThumbSize`、`sliderThumbSize`、`sliderThickness`；Size 和标量均使用逻辑单位，控件按正文缩放一次。滑块默认外观可用 `controlThumb = styleOverride { background(Some(Paint(Color.White))); boxShadows(...) }` 配置；组件的局部 style 最后覆盖。高对比度恢复语义填充与边线，减少透明度移除主题滑块投影，均保留显式局部设置。
+
 可编辑正文使用 `tokens.typography.input`，`themeTypography` 初始取 body，可通过 `typography { input { ... } }` 独立配置；文字缩放同时作用于该角色。`tokens.textField` 为 `TextFieldTreatment.Standard` 或 `Outlined`，前者使用外置标签，后者使用带缺口的浮动标签，由 Input／Textarea 消费普通描述并保留同一编辑宿主。Material 默认选用 Outlined。
 
 表面可用 `hoverShadows: Array<BoxShadow>?` 配置悬停投影，None 继承普通 shadows，Some([]) 清除悬停投影；按现有 hover／press 采样淡入淡出，按下或禁用时恢复普通投影。Checkbox／Radio 的 appearance 可提供 `stateLayer = Some(MarkerStateLayer(size, empty, selected))`，在标记背后绘制圆形交互状态层；size 表达直径，empty／selected 使用 StateColors。最终圆形与颜色通过 geometry.stateLayer 提供给 painter，普通焦点围绕该圆形；Checkbox Options 显式覆盖 corners 时，焦点跟随解析后的标记轮廓。仅覆盖焦点颜色、宽度或外扩保留主题轮廓，验证环始终围绕标记本身。这两种绘图配置不创建输入区域或动画时钟；标记控件按 metrics.focusOutset 为外围装饰预留空间，高对比度／减少透明度会隐藏这些默认装饰，并保留标记焦点的几何。

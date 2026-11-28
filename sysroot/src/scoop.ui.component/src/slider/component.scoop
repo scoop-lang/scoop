@@ -83,7 +83,7 @@ private class SliderLayout(
         val horizontal = input.props.orientation == Orientation.Horizontal
         val maximum = if (horizontal) constraints.maxWidth else constraints.maxHeight
         val length = maximum ?: style.length ?: 160.0 * density
-        val side = style.thumbSize ?: 12.0 * density
+        val side = style.thumbSize ?: input.theme.tokens.controlMetrics.sliderThumbSize * density
         val size = constraints
             .constrain(
                 if (horizontal) Size(length, side) else Size(side, length)
@@ -110,7 +110,11 @@ private class SliderLayout(
                 context,
                 shape.track,
                 sliderPartStyle(
-                    input.theme.tokens.palette.muted.background,
+                    controlStateColor(
+                        input.theme,
+                        input.theme.tokens.palette.muted.background,
+                        input.props.enabled
+                    ),
                     input.props.style.track
                 )
             ) { _ -> }
@@ -120,7 +124,11 @@ private class SliderLayout(
                     context,
                     shape.fill,
                     sliderPartStyle(
-                        input.theme.tokens.palette.primary.background,
+                        controlStateColor(
+                            input.theme,
+                            input.theme.tokens.palette.primary.background,
+                            input.props.enabled
+                        ),
                         input.props.style.range
                     )
                 ) { _ -> }

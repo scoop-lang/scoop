@@ -132,7 +132,7 @@ internal class MenuPopup(
                             )
                     )
                 )
-                corners(Corners.all(8.0 * density))
+                corners(Corners.all(theme.tokens.corners.medium * density))
                 boxShadows(theme.tokens.effects.floating)
             }
                 .then(options.style),

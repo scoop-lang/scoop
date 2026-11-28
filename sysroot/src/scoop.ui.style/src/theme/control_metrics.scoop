@@ -1,0 +1,22 @@
+package scoop.ui.style
+
+import scoop.graphics.Size
+
+/** Logical control dimensions, scaled once by the component's effective body typography. */
+public class ThemeControlMetrics public constructor(
+    public val switchSize: Size = Size(32.0, 18.4),
+    public val switchSmallSize: Size = Size(24.0, 14.0),
+    public val switchThumbSize: Size = Size(16.0, 16.0),
+    public val switchSmallThumbSize: Size = Size(12.0, 12.0),
+    public val sliderThumbSize: Double = 12.0,
+    public val sliderThickness: Double = 4.0
+) {
+    init {
+        themeSize(switchSize)
+        themeSize(switchSmallSize)
+        themeSize(switchThumbSize)
+        themeSize(switchSmallThumbSize)
+        themeLength(sliderThumbSize)
+        themeLength(sliderThickness)
+    }
+}

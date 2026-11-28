@@ -109,7 +109,11 @@ private class LiquidGlassMaterialTest {
                                     pixels[((48L * 240L + 100L) * 4L + 1L)].toUByte().toInt()
                                 )
                                 assertTrue(
-                                    pixels[((48L * 240L + 102L) * 4L + 1L)].toUByte().toInt() < 255
+                                    pixels[((48L * 240L + 102L) * 4L)].toUByte().toInt() > 0
+                                )
+                                assertEquals(
+                                    0,
+                                    pixels[((48L * 240L + 100L) * 4L)].toUByte().toInt()
                                 )
                             }
                             assertTrue(

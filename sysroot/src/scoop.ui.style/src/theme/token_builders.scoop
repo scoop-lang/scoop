@@ -150,6 +150,8 @@ public class ThemeTokensBuilder internal constructor(initial: ThemeTokens) {
     public var disabledOpacity: Double = initial.disabledOpacity
     public var textField: TextFieldTreatment = initial.textField
     public var glassSurfaces: GlassSurfaces = initial.glassSurfaces
+    public var controlMetrics: ThemeControlMetrics = initial.controlMetrics
+    public var controlThumb: StyleOverride = initial.controlThumb
 
     public fun glassSurfaces(configure: GlassSurfacesBuilder.() -> Unit): Unit {
         glassSurfaces = glassSurfaces.copy(configure)
@@ -182,6 +184,8 @@ public class ThemeTokensBuilder internal constructor(initial: ThemeTokens) {
         effects = effects,
         disabledOpacity = disabledOpacity,
         textField = textField,
-        glassSurfaces = glassSurfaces
+        glassSurfaces = glassSurfaces,
+        controlMetrics = controlMetrics,
+        controlThumb = controlThumb
     )
 }

@@ -632,7 +632,7 @@ Default 保留所选主题部件；Button Outline 保留主题 OutlinedAction �
 
 上述派生颜色描述普通偏好。高对比度下，Button／Badge 的非 Default 变体、Toggle 和 Tabs 使用当前主题的完整语义前景／背景配对，不再对已解析的颜色套固定 alpha 或混入其他配对的文字颜色；稳定状态的启用文字保持至少 7:1、禁用文字至少 4.5:1。Switch 的关闭轨道与 thumb 保持至少 3:1，开启时采用 primary 配对。Slider 的 thumb、Sidebar 的标题和两者默认焦点外观同样采用已解析颜色，默认焦点环至少 2 个逻辑单位，包括文字缩小的情况。减少透明度把这些控件派生的半透明底色和装饰合成到其已知主题表面；完全透明的无填充保持无填充。应用显式的 surface／text／thumb／states 覆盖仍在默认解析之后生效，不修改输入、逻辑焦点、语义或模型。
 
-以 Nova 32 高表面为基准，Xs／Sm／Default／Lg 建议高 24／28／32／36，对应文字字号 12／12.8／14／14，图标尺寸 12／14／16／16，内容间距 4／4／6／6；其他主题按基础建议高和操作字号等比例派生。Icon 四尺寸取对应边长，图标为 12／16／16／16，无文字专用水平留白；正常父约束、内容最小需求及显式局部尺寸仍优先，不能裁掉放大后的字体。默认保留主题圆角，Xs／Sm 使用 medium 圆角；局部 corners 可覆盖。禁用清除交互过渡，但不清除 invalid。
+以 Nova 32 高表面为基准，Xs／Sm／Default／Lg 建议高 24／28／32／36，对应文字字号 12／12.8／14／14，图标尺寸 12／14／16／16，内容间距 4／4／6／6；其他主题按基础建议高和操作字号等比例派生。Icon 四尺寸取对应边长，图标为 12／16／16／16，无文字专用水平留白；正常父约束、内容最小需求及显式局部尺寸仍优先，不能裁掉放大后的字体。各尺寸保留所属主题表面的圆角，并按实际边界归一化；局部 corners 可覆盖。禁用清除交互过渡，但不清除 invalid。
 
 新增 `button(content: (ActionContentStyle) -> View, onClick, configure: ContentButtonBuilder.() -> Unit = {})` 及同名 ChildrenBuilder 成员。ActionContentStyle 是完整不可变值，包含 text: TextStyle、iconSize: Double、spacing: Double、interaction: InteractionVisual、underline: Boolean；回调只在组件 render 中构造内容，接收当前主题、变体、尺寸及局部文字覆盖的结果。它不注入子树 Context，不克隆 View。既有任意 View 与 StyledText 保留自身样式；需要自动适配的图标／Spinner 使用此入口显式消费尺寸和颜色。
 
@@ -1010,7 +1010,7 @@ PopupTriggerSpec 保存 ButtonContent、enabled=true、variant=Outline、size=De
 
 内容以 Portal 呈现，默认非模态、明确初始／恢复焦点；初始 None 选第一个 Tab stop。NonModal／FocusContained 默认 Escape 与外部 CloseAndContinue，Modal 默认 CloseAndConsume，两者默认 includeAnchor=true，避免触发器按下先关再开；完整 dismiss 可覆盖；无效 Modal＋Continue 沿 Portal 报错。关闭请求先经过业务 veto，再提交绑定；拒绝 setter 不伪造关闭。enabled=false 禁用触发器和内容输入，不改变 open。Presence 默认 100ms，按真实定位边做 8 的短位移、0.95 到 1 缩放与淡入淡出；Reduced Motion 即时结束。退出立即停用内容输入，中途重开保留内容与进度；最终移除释放内容。焦点保存、恢复、嵌套关闭及三种模式沿 UI §7.6，不另建键盘或焦点处理器。
 
-默认内容宽 288、padding 与主体 spacing=10、corner=8、popover 配色、foreground 10% 的 1 边框及 floating 阴影；Header 的 title／description 间距 2，title 为 action，description 为 muted body。尺寸按字号缩放并服从父级／视口约束；局部 style 覆盖面板。所有文字槽和自定义正文可组合输入、表单与按钮。验收包含可编辑内容、普通／仅焦点约束／模态、Tab 与 Escape、外部继续／消费、veto／拒绝绑定、最新回调、退出重开／资源释放、锚点翻转与裁剪、RTL、明暗 System／Neutral、Reduced Motion 与窄窗口。
+默认内容宽 288、padding 与主体 spacing=10、主题 medium 圆角、popover 配色、foreground 10% 的 1 边框及 floating 阴影；Header 的 title／description 间距 2，title 为 action，description 为 muted body。尺寸按字号缩放并服从父级／视口约束；局部 style 覆盖面板。所有文字槽和自定义正文可组合输入、表单与按钮。验收包含可编辑内容、普通／仅焦点约束／模态、Tab 与 Escape、外部继续／消费、veto／拒绝绑定、最新回调、退出重开／资源释放、锚点翻转与裁剪、RTL、明暗 System／Neutral、Reduced Motion 与窄窗口。
 
 Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: Paint?=None)` 是普通配置值，尺寸有限且非负，None paint 继承最终面板背景；没有背景时不画继承色箭头。箭头与面板共用进入／退出变换，依据实际翻转后的 OverlayLayout.side 与 anchor 中心定位，在圆角以内钳制；零尺寸或无可用边长时不画。箭头不新增输入或布局锚点，不改变正文实例、Tab 顺序或面板测量尺寸。尺寸按字体密度缩放，局部 paint 可以覆盖继承色。
 
@@ -1020,15 +1020,15 @@ Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: 
 
 未提供 open 时仅持有一份局部短期打开 State；提供时直接读写当前 Binding，不镜像、不提前求值。实际值改变后通知 onOpenChange，拒绝 setter 不合成关闭或回调。包装器只有无激活动作的区域和 anchor，观察子内容的 hover／focus，已有 Button 保留唯一 Press、动作和焦点；不会检查、克隆或改写 View。提示不请求／恢复焦点，正文整棵输入子树停用，不加入 Tab，也不执行自定义正文的按钮动作；面板本身仍可参与悬浮通路。键盘焦点立即打开，鼠标遵守 openDelay；Escape、触发器按下／激活、离开窗口或失焦关闭并取消等待，显式关闭沿 Hover 的离开后再进入规则。关闭不消费原触发器的动作。
 
-默认 inverse 配色取 background.foreground／background.background；前景色先按其 alpha 与不透明 background.background 合成，作为不透明提示底色，避免系统半透明文字色透出后面的控件。12 字号、水平 padding=12、竖直=6、corner=6、自然宽度不超过 maxWidth，正文过长正常换行；自定义正文保留其样式。默认含箭头，100ms 淡入缩放位移，Reduced Motion 无动画。Portal 为 NonModal、focus=None、Escape／外部按下关闭且外部继续处理；退出重开保留正文实例。验收覆盖原触发动作只执行一次、延迟取消、Escape 抑制及重新进入、正文不可交互、拒绝绑定／换绑、定位／箭头翻转、禁用／失焦／卸载和静止停帧。
+默认 inverse 配色取 background.foreground／background.background；前景色先按其 alpha 与不透明 background.background 合成，作为不透明提示底色，避免系统半透明文字色透出后面的控件。12 字号、水平 padding=12、竖直=6、主题 small 圆角、自然宽度不超过 maxWidth，正文过长正常换行；自定义正文保留其样式。默认含箭头，100ms 淡入缩放位移，Reduced Motion 无动画。Portal 为 NonModal、focus=None、Escape／外部按下关闭且外部继续处理；退出重开保留正文实例。验收覆盖原触发动作只执行一次、延迟取消、Escape 抑制及重新进入、正文不可交互、拒绝绑定／换绑、定位／箭头翻转、禁用／失焦／卸载和静止停帧。
 
-TooltipProps／HoverCardProps 及共用 builder 提供 longPress: LongPressOptions=LongPressOptions()，透传公共 Hover 的直接触摸入口。长按显示同一提示／卡片，释放后保持；组外按下、Escape、禁用与窗口失活按原关闭路径收束。Tooltip 在新的触发器接触开始时关闭已有提示，但不消费普通短按。子内容已处理的文本长按、直接拖动或滚动不会同时触发外层提示。
+TooltipProps／HoverCardProps 及共用 builder 提供 longPress: LongPressOptions=LongPressOptions()，透传公共 Hover 的直接触摸入口。长按显示同一提示／卡片，释放后保持；组外按下、Escape、禁用与窗口失活按原关闭路径收束。Tooltip 在新的触发器接触开始时关闭已有提示，但不消费普通短按。子内容已处理的文本长按、直接拖动或滚动不会同时触发外层提示。enabled=false 只停止提示／卡片的打开行为，不把触发内容的输入或辅助功能节点标记为禁用；触发器自己的 enabled 仍独立生效，停用提示时不再提供可展开动作。
 
 ## 30. HoverCard
 
 `hoverCard(trigger: View, content: View, configure: HoverCardBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 HoverCardProps／HoverCard。与 Tooltip 共用可选受控 open、定位、Hover 延迟／通路、回调、字体／主题／样式及生命周期规则；默认 side=Bottom、width=256、openDelay=600ms、closeDelay=300ms、transitDelay=350ms、corridorPadding=6、focus=true、arrow=None，其他默认与 Tooltip 相同，不提供 maxWidth。正文是完整 View，可选择文字、按按钮或编辑；悬浮打开不主动取走焦点，点击进入正文后普通焦点与 Hover 组内保持规则生效。没有模态屏障或自动焦点恢复。
 
-面板默认 popover 配色、10 padding、8 圆角、foreground 10% 的 1 边框及 floating 阴影，100ms 动画与 Popover 相同。触发器可复用已有链接式 Button、头像或组合内容，包装不截取原动作。验收包含鼠标跨间隙进入正文、反向离开与有限通过期限、键盘入口、文字选择／正文动作、Escape、关闭后再次进入、当前回调与绑定、嵌套 Portal、明暗 System／Neutral、RTL 和 Reduced Motion。
+面板默认 popover 配色、10 padding、主题 medium 圆角、foreground 10% 的 1 边框及 floating 阴影，100ms 动画与 Popover 相同。触发器可复用已有链接式 Button、头像或组合内容，包装不截取原动作。验收包含鼠标跨间隙进入正文、反向离开与有限通过期限、键盘入口、文字选择／正文动作、Escape、关闭后再次进入、当前回调与绑定、嵌套 Portal、明暗 System／Neutral、RTL 和 Reduced Motion。
 
 
 ## 31. Dialog 与 AlertDialog
@@ -1039,7 +1039,7 @@ TooltipProps／HoverCardProps 及共用 builder 提供 longPress: LongPressOptio
 
 Dialog 额外配置 width=384、footer: View?=None、showCloseButton=true、close: PopupTriggerSpec?=None、dismiss=OverlayDismiss(escape=true, outsidePress=CloseAndConsume)。默认关闭按钮是右上逻辑 End 的 Ghost／IconSm X，语义名称为 “Close”；Dialog／Sheet／Drawer 共用此默认入口。可通过 close 内容／样式替换或完全隐藏；自定义文字内容沿普通按钮取名，自定义图标可用 close 的 semantics.name 提供本地化名称。关闭按钮调用当前 OverlayHandle.requestClose，统一经过 veto 与受控 setter。Modal 禁止 CloseAndContinue。所有显式尺寸与 viewportPadding 有限且非负。关闭请求、失败帧屏障、嵌套域、初始／循环／恢复焦点和退出重开均沿 Portal 合同；Escape 一次只请求最上层，点击背景不穿透。
 
-默认面板采用 popover 配色、foreground 10% 的 1 边框、12 圆角、16 padding／区域间距，标题 16／500、描述 body／muted 色，header 自定义时替换标题和说明区域；关闭按钮为头部保留空间。footer 在面板底部，默认带顶边框、muted 50% 背景、16 padding 和下方圆角；正文滚动不移动 header／footer。scrollable=true 时复用 ScrollArea 的滚动控制与 ScrollViewport，正文占据可用的有限高度并可借用调用方 ScrollState，关闭不销毁借用状态；false 时正文按自然高度测量，并受可用高度与裁剪约束；切换 scrollable 保留同一正文与滚动 owner。正文的 16 内边距属于滚动内容，视口包含这段留白，不能紧贴子控件外框裁掉焦点环；页脚动作排列及标题排列不额外裁剪各自的布局外框，溢出仍受面板和显式视口约束。焦点环按主题的 outset 向外绘制，不增加控件测量尺寸，也不重复叠加环的 border width。视口过小时各区受有限非负约束，不产生负尺寸。100ms 淡入／缩放 95%→100%，遮罩只淡入不缩放，Reduced Motion 关闭动画。绘制、输入、编辑器光标与选区共用实际面板变换。
+默认面板采用 popover 配色、foreground 10% 的 1 边框、主题 large 圆角、16 padding／区域间距，标题 16／500、描述 body／muted 色，header 自定义时替换标题和说明区域；关闭按钮为头部保留空间。footer 在面板底部，默认带顶边框、muted 50% 背景、16 padding 和下方圆角；正文滚动不移动 header／footer。scrollable=true 时复用 ScrollArea 的滚动控制与 ScrollViewport，正文占据可用的有限高度并可借用调用方 ScrollState，关闭不销毁借用状态；false 时正文按自然高度测量，并受可用高度与裁剪约束；切换 scrollable 保留同一正文与滚动 owner。正文的 16 内边距属于滚动内容，视口包含这段留白，不能紧贴子控件外框裁掉焦点环；页脚动作排列及标题排列不额外裁剪各自的布局外框，溢出仍受面板和显式视口约束。焦点环按主题的 outset 向外绘制，不增加控件测量尺寸，也不重复叠加环的 border width。视口过小时各区受有限非负约束，不产生负尺寸。100ms 淡入／缩放 95%→100%，遮罩只淡入不缩放，Reduced Motion 关闭动画。绘制、输入、编辑器光标与选区共用实际面板变换。
 
 `dialogFooter(configure: ChildrenBuilder.() -> Unit): View` 及 ChildrenBuilder 同名成员构造 DialogFooterProps／DialogFooter；子项为普通 View，保留 key 与输入归属。可用宽度足够时按逻辑顺序靠 End 排列，间距 8；不足以容纳自然宽度时反向纵排、占满可用宽度，符合窄屏取消／确认次序。它不注入或改写按钮动作。
 
@@ -1061,7 +1061,7 @@ SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布
 
 `menu { ... }` 用 MenuBuilder 收集 item／checkboxItem／radioItem／submenu／label／separator／add。radioItem 的领域值与 Binding 使用同一 `T: Equals<T>`，内部只封装读取与选择闭包，不把领域值转换成 Any 或字符串；只在 setter 实际采纳变化后通知 onValueChange。Checkbox 同样通知实际采纳值。所有动作读取当前 Props，禁用项不执行；Action／Radio 回调正常返回后才执行 closeOnSelect，异常沿正常 UI 路径传播。选择、悬浮焦点和 open 各自独立，重排保持 keyed 实例／当前焦点，缺失或禁用项不被错误激活。
 
-共同 MenuOptions 保存 width=192（有限非负逻辑长度）、mode=NonModal、loop=true、enabled=true、fonts／theme／style、transition=Inherit、typeahead=700ms 且默认 Unicode casefold 前缀匹配、submenuHover（open=100ms、close=150ms、transit=350ms、padding=6、focus=false）。面板使用 popover 配色、foreground 10% 的 1 边框、8 圆角、4 padding、floating 阴影和 100ms 淡入缩放位移；根／子菜单都受视口约束并滚动显露候选。行文字为 14／20、400，逻辑两侧 6、上下 4、间距 6、6 圆角；inset 为起侧 28；当前焦点或子菜单打开使用 accent 配色；指针进入／移动请求该行焦点，键盘导航后静止指针所在旧行不保留额外高亮，destructive 使用 destructive 文字及明／暗 10%／20% 填色。Checkbox／Radio 的 16 check 位于逻辑 End；快捷键显示 window 对同一 ShortcutChord 的平台标签，不自行注册动作。图标、快捷键和指示符保留自然宽度，普通标题使用剩余空间并单行省略；快捷键保持单行及平台标签的 LTR 顺序，不因窄菜单换行。Label 为 12／16、500、muted 色。局部样式最终覆盖，字体尺度来自 Theme。
+共同 MenuOptions 保存 width=192（有限非负逻辑长度）、mode=NonModal、loop=true、enabled=true、fonts／theme／style、transition=Inherit、typeahead=700ms 且默认 Unicode casefold 前缀匹配、submenuHover（open=100ms、close=150ms、transit=350ms、padding=6、focus=false）。面板使用 popover 配色、foreground 10% 的 1 边框、主题 medium 圆角、4 padding、floating 阴影和 100ms 淡入缩放位移；根／子菜单都受视口约束并滚动显露候选。行文字为 14／20、400，逻辑两侧 6、上下 4、间距 6、主题 small 圆角；inset 为起侧 28；当前焦点或子菜单打开使用 accent 配色；指针进入／移动请求该行焦点，键盘导航后静止指针所在旧行不保留额外高亮，destructive 使用 destructive 文字及明／暗 10%／20% 填色。Checkbox／Radio 的 16 check 位于逻辑 End；快捷键显示 window 对同一 ShortcutChord 的平台标签，不自行注册动作。图标、快捷键和指示符保留自然宽度，普通标题使用剩余空间并单行省略；快捷键保持单行及平台标签的 LTR 顺序，不因窄菜单换行。Label 为 12／16、500、muted 色。局部样式最终覆盖，字体尺度来自 Theme。
 
 `dropdownMenu(open: Binding<Boolean>, content: MenuContent, configure: DropdownMenuBuilder.() -> Unit = {})` 构造 DropdownMenuProps／DropdownMenu。trigger 使用 PopupTriggerSpec，外部 anchor 可替代内置 trigger；至少有其一。默认 Bottom／Start、gap=4、viewportPadding=8、anchorVisibility=Close；可配置 handle、OverlayFocusOptions、dismiss、onOpenChange／onCloseRequest／onClosed。触发器是唯一 Button，支持 group: GroupPosition? 与 ButtonGroup 连接表面。普通激活／ArrowDown 进入首个有效项，ArrowUp 进入末项；没有有效项时沿 Portal 的默认焦点退路。非模态外部按下关闭并继续，Modal 消费且禁止 CloseAndContinue。拒绝 setter／veto 保持实际状态，外部赋值不伪造通知。
 
@@ -1073,7 +1073,7 @@ SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布
 
 ContextMenuProps 与 ContextMenuBuilder 的 longPress 默认为 LongPressOptions()，通过公共 LongPress 接入 Touch／Pen；可单独关闭或配置延迟、移动容差。成功后以真实接触的窗口逻辑位置打开同一菜单，正文已有焦点保留，无焦点时沿同一包装退路。普通短按仍交给正文，内层文本长按或滚动已接管时不再打开外层菜单；菜单已经打开、触发器禁用或失效时不另建候选。关闭触摸长按不改变右键、Menu 键和 Shift+F10。
 
-`menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {})` 构造 MenubarProps／Menubar；menu(key, trigger, content) 添加 MenubarEntry。外部 None／缺失／禁用 key 保留原值且不打开对应层。trigger 共享横向 roving 导航；关闭时左右只移动焦点，打开时左右／hover 切换菜单，Down／Up 进入首／末项，子菜单方向键优先。切换设置新的菜单 key 并请求聚焦其入口；各根以 OverlayFocusOptions.restoreTarget 指定自己的入口，约束模式阻止提前聚焦时，Escape 后仍恢复当前入口，旧层恢复不得覆盖新意图。hover 切换只响应相应焦点模式允许的背景指针事件。默认横向 2 spacing、含边框的 4 padding、32 高、background 配色、1 border、8 圆角；trigger 为 24 高、6／2 padding、4 圆角的无边框表面，hover／打开使用 muted 配色。宽窄、明暗、RTL 和动态条目变化保留稳定 key。三个入口均有 ChildrenBuilder 真正成员 DSL。
+`menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {})` 构造 MenubarProps／Menubar；menu(key, trigger, content) 添加 MenubarEntry。外部 None／缺失／禁用 key 保留原值且不打开对应层。trigger 共享横向 roving 导航；关闭时左右只移动焦点，打开时左右／hover 切换菜单，Down／Up 进入首／末项，子菜单方向键优先。切换设置新的菜单 key 并请求聚焦其入口；各根以 OverlayFocusOptions.restoreTarget 指定自己的入口，约束模式阻止提前聚焦时，Escape 后仍恢复当前入口，旧层恢复不得覆盖新意图。hover 切换只响应相应焦点模式允许的背景指针事件。默认横向 2 spacing、含边框的 4 padding、32 高、background 配色、1 border、主题 medium 圆角；trigger 为 24 高、6／2 padding、主题 small 圆角的无边框表面，hover／打开使用 muted 配色。宽窄、明暗、RTL 和动态条目变化保留稳定 key。三个入口均有 ChildrenBuilder 真正成员 DSL。
 
 验收覆盖动作／勾选／单选、快捷键标签、重复 key 错误、类型化 DSL、真实 typeahead／roving／Tab 续行、右键及键盘菜单、多根切换、嵌套／悬浮通路、拒绝绑定／veto／最新回调、禁用／零尺寸／重排／卸载、长菜单滚动、主题／RTL、退出重开与静止停帧；Breadcrumb、InputGroup、ButtonGroup 和 Dialog 组合复用同一实现。
 
@@ -1086,7 +1086,7 @@ ContextMenuProps 与 ContextMenuBuilder 的 longPress 默认为 LongPressOptions
 
 触发器的语义 value 独立于名称，来自当前 Choice.label；设置显式 name 或 Field 标签后仍可读取所选值。已知但禁用的选择保留真实标签，未知外部值使用 unavailableText，None 不发布选择值，空标签保留为空字符串。自定义 valueContent 不改变该值，也不因语义查询而构造 View；外部选择及标签更新同步到同一节点，不伪造选择通知。名称依次采用显式 name、实际 labelledBy（包括 FieldTarget 连接的标签）、当前选择文字；无选择且没有标签时才使用 placeholder。仅绑定 FieldTarget 而没有实际标签，不阻止选择文字回退。
 
-默认 SelectPosition.ItemAligned 通过 UI ContentAligned 和 popup 根 LayoutMetrics.overlayAnchor 对齐打开时的可用选中行；无可用选择时退回 Anchored。SelectPosition.Popup 总是侧边定位。两者使用同一个 ScrollViewport、最终绘制及命中几何，不访问内部节点。面板匹配 trigger 宽度，受 maxHeight（默认 320）及视口限制，4 padding、8 圆角、popover 配色、1 ring 和浮层阴影。候选默认 28 高、14 字、6 圆角、逻辑末端 16 勾选标记；分组标签和分隔线沿菜单部件。打开时显露选中行，退出期间重开也按当次选择重新对齐；本次打开首次 Accepted 的局部滚动参考用于后续对齐；用户滚动不使面板跟随上下移动。长列表使用有限候选的普通滚动；溢出时默认显示上下 24 高的滚动按钮，点击或悬停按行滚动，窗口失焦／隐藏／禁用／到达边界／卸载停止计时。
+默认 SelectPosition.ItemAligned 通过 UI ContentAligned 和 popup 根 LayoutMetrics.overlayAnchor 对齐打开时的可用选中行；无可用选择时退回 Anchored。SelectPosition.Popup 总是侧边定位。两者使用同一个 ScrollViewport、最终绘制及命中几何，不访问内部节点。面板匹配 trigger 宽度，受 maxHeight（默认 320）及视口限制，4 padding、主题 medium 圆角、popover 配色、1 ring 和浮层阴影。候选默认 28 高、14 字、主题 small 圆角、逻辑末端 16 勾选标记；分组标签和分隔线沿菜单部件。打开时显露选中行，退出期间重开也按当次选择重新对齐；本次打开首次 Accepted 的局部滚动参考用于后续对齐；用户滚动不使面板跟随上下移动。长列表使用有限候选的普通滚动；溢出时默认显示上下 24 高的滚动按钮，点击或悬停按行滚动，窗口失焦／隐藏／禁用／到达边界／卸载停止计时。
 
 Enter／Space／ArrowDown 打开并聚焦可用选择，否则首项；ArrowUp 在没有可用选择时进入末项。打开后复用 roving 真实焦点及 typeahead，Up／Down／Home／End 跳过禁用项和装饰项，Enter／Space 提交。关闭时字符 typeahead 直接选择匹配项。提交读取最新 Props 和 Binding，通知实际被采纳的变化；setter 拒绝时保持打开，选择成功再请求关闭，关闭 veto 可保留当前面板。Escape／外部按下按 Portal 合同关闭和恢复，Tab／Shift+Tab 在实际 onClosed 后沿原方向继续；退出期间重开清除旧续行。可配置 mode、loop、typeahead、popupFocus、handle、onValueChange／onOpenChange／onCloseRequest／onClosed；外部赋值不伪造用户通知。ItemAligned 缺省无过渡，Popup 缺省 100ms 淡入缩放，显式 transition 与主题减少动画策略继续生效。
 
@@ -1168,7 +1168,7 @@ CarouselProps／CarouselBuilder 的 nativeSwipe 默认 true，使用公共 Swipe
 
 根另有 width／height、viewportGap=96、viewportStyle、snapPoints、snap: Binding<Long>?、initialSnap=0、swipeToClose=true、dragThreshold=4、projectionSeconds=0.15、swipeHandle、controller: DrawerHandle?、parent: DrawerHandle?、onSnapChange(index) 和 onDragCancel(reason)。尺寸、间距、阈值及投影时长有限非负。snapPoints 是垂直方向的 `Array<DrawerSnapPoint>`，Fraction 为面板最大高度的有限比例 `(0,1]`，Length 为有限正逻辑长度；水平方向不接受 snapPoints。保留声明索引，按实际高度夹取显示，重复位置不产生多余键盘步骤。不受控时在本 Drawer 挂载中保留索引；受控索引越界只夹取显示。snap 的可观察来源在 render 中登记依赖，外部状态变化更新索引与实际位置，无需另行替换 Props，即使同时打开／关闭子抽屉也保持一致。外部替换不回放用户通知，只有 setter 实际采纳的变化才通知。
 
-无显式高度及 snapPoints 时，垂直面板按正文自然高度测量，上限为视口高度减 viewportGap；有 snapPoints 时使用该上限或明确 height，按可见高度位移吸附。横向默认宽为可用宽度的 75%、最大 384 密度单位，高度填满。固定高度或横向面板的滚动正文填满头尾之间的剩余空间，页脚位于面板底部；自然高度的垂直面板仍随短正文收缩。窗口缩放、方向／尺寸／吸附配置变化使旧手势失效，按当前模型重新定位，不重建同类型正文。默认 popup 使用 popover 配色、内侧 12 圆角和 1 像素边线；正文仍保留内部 16 留白保护焦点环，滚动位置复用 ScrollState。viewportStyle 只装饰外层视口，popup 外观使用公共 style。
+无显式高度及 snapPoints 时，垂直面板按正文自然高度测量，上限为视口高度减 viewportGap；有 snapPoints 时使用该上限或明确 height，按可见高度位移吸附。横向默认宽为可用宽度的 75%、最大 384 密度单位，高度填满。固定高度或横向面板的滚动正文填满头尾之间的剩余空间，页脚位于面板底部；自然高度的垂直面板仍随短正文收缩。窗口缩放、方向／尺寸／吸附配置变化使旧手势失效，按当前模型重新定位，不重建同类型正文。默认 popup 使用 popover 配色、内侧主题 large 圆角和 1 像素边线；正文仍保留内部 16 留白保护焦点环，滚动位置复用 ScrollState。viewportStyle 只装饰外层视口，popup 外观使用公共 style。
 
 swipeHandle 通过 `swipeHandle { visible=true }` 配置，默认隐藏；可设 only、focus、style 和普通 View content。only=true 要求把手可见。默认握柄为主轴厚 4、交叉轴长 96 的 muted 圆角条，位于面板内侧的 12 单位区域，命中带至少 20；四个方向均有实际布局和命中。把手是独立焦点目标，主轴方向键按物理方向展开／收缩到下一个不同锚点，Home／End 到最小／最大吸附位置；正文编辑器保留自己的按键。Escape 在活动拖动中取消本次手势，其余由 Portal 关闭。
 
@@ -1190,7 +1190,7 @@ Auto 按父级本次可用宽度与 breakpoint 判断窄布局，无界宽度采
 
 SidebarBuilder 提供 header／footer／inset 成员和 content 重载；sidebarTrigger(open) 是 Ghost／IconSm 普通按钮，使用 Lucide panel-left 并随 RTL 翻转，可替换内容／焦点／样式。rail 是 16 宽、非 Tab stop 的侧边点击区域，悬浮显示 2 宽 sidebar border 和横向 resize cursor；点击切换开关，不承担拖动改变宽度。快捷键通过已有 ShortcutScope，在本 Sidebar 及 inset 的逻辑输入域工作；窄布局内容也注册同一动作。尊重 IME、内层消费、禁用、重复键和上层焦点域，不安装全局事件总线。按钮、rail、快捷键只通知 Binding 实际采纳的变化；窄层的快捷键及 Drawer 关闭请求先经 onCloseRequest。独立 sidebarTrigger 与外部直接写 open 一样，按调用方 Binding 的 setter 决定是否采纳，遵循 Portal 的普通规则。调用方可用 shortcut=None 禁用默认组合。
 
-`sidebarGroup(content) { label(...); action(...); collapsed=false }` 用 8 padding，标题高 32、12／500、sidebar 前景 70%，动作是单独真实 View；分组内容保留原样组合。`sidebarMenu { item(key, label, onClick) { ... } }` 提供 SidebarMenuProps／SidebarMenuItemProps；同级显式 key 唯一，稳定重排保留按钮／正文实例。menu 配置 collapsed=false、enabled=true、fonts／theme、style；item 支持 icon=None、content=None、active=false、enabled=true、variant=Default／Outline、size=Default／Sm／Lg、badge=None、action=None、actionOnHover=false、submenu=None、submenuOpen=None、focus、style。submenuOpen 存在时用现有 Collapsible KeepMounted，展开值由应用负责；没有绑定时显示提供的子菜单。普通导航保留 Tab，不加菜单角色或 roving 焦点，动作由当前 onClick 完成。按钮高 32／28／48，字号 14／12／14，水平 8 padding、8 图文间距、16 图标、6 圆角；Icon 折叠按钮 32 方形。icon／badge 接受普通 View 或 ActionContentStyle 内容回调，回调获得当前文字前景色、密度尺寸和交互状态；badge 在按钮内容内布局，action 保持独立。标签单行省略并继承布局方向，action／badge 的实测宽度为正文让位且动作不会触发主按钮。active 使用 sidebar accent 与 500 字重；Outline 增加背景和边框。悬浮显示的 action 在行悬浮或行内焦点时可见；折叠时退出输入。折叠菜单的 Tooltip 使用原标签，普通按钮保持唯一 Press 和焦点。
+`sidebarGroup(content) { label(...); action(...); collapsed=false }` 用 8 padding，标题高 32、12／500、sidebar 前景 70%，动作是单独真实 View；分组内容保留原样组合。`sidebarMenu { item(key, label, onClick) { ... } }` 提供 SidebarMenuProps／SidebarMenuItemProps；同级显式 key 唯一，稳定重排保留按钮／正文实例。menu 配置 collapsed=false、enabled=true、fonts／theme、style；item 支持 icon=None、content=None、active=false、enabled=true、variant=Default／Outline、size=Default／Sm／Lg、badge=None、action=None、actionOnHover=false、submenu=None、submenuOpen=None、focus、style。submenuOpen 存在时用现有 Collapsible KeepMounted，展开值由应用负责；没有绑定时显示提供的子菜单。普通导航保留 Tab，不加菜单角色或 roving 焦点，动作由当前 onClick 完成。按钮高 32／28／48，字号 14／12／14，水平 8 padding、8 图文间距、16 图标、主题 small 圆角；Icon 折叠按钮 32 方形。icon／badge 接受普通 View 或 ActionContentStyle 内容回调，回调获得当前文字前景色、密度尺寸和交互状态；badge 在按钮内容内布局，action 保持独立。标签单行省略并继承布局方向，action／badge 的实测宽度为正文让位且动作不会触发主按钮。active 使用 sidebar accent 与 500 字重；禁用项保留主题已解析的禁用文字色，Outline 增加背景和边框。悬浮显示的 action 在行悬浮或行内焦点时可见；折叠时退出输入。折叠菜单的 Tooltip 使用原标签，普通按钮保持唯一 Press 和焦点。
 
 `sidebarMenuBadge(text)` 提供高／最小宽 20 的 12／500 标签，可通过 color 覆盖文字颜色；`sidebarMenuAction(content, onClick)` 提供 20 方形 Ghost 动作；`sidebarSubmenu(content)` 提供逻辑起边 1 border、两侧 14 外距及内部水平 10／垂直 2 留白，collapsed 可隐藏；`sidebarMenuSkeleton { showIcon=false; collapsed=false; textFraction=0.7 }` 组合已有 Skeleton，行高 32、图标 16、文字高 16，比例明确在 [0,1]，不在 render 随机。`sidebarInput(state)` 沿用 Input，32 高、background 背景及无阴影。各部件有对应 Props／builder、fonts／theme 和必要局部样式，不建立 Provider 或选择镜像。
 

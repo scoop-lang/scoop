@@ -24,6 +24,8 @@ public class ShapeTheme internal constructor(
         return resolveShapePreferences(preferenceBase ?: this, preferences)
     }
 
+    public override fun surfaceFocus(kind: SurfaceKind): OutlineStyle = surfaces.get(kind).focus
+
     private fun surfaceStyle(
         visual: SurfaceVisual,
         options: SurfaceOptions,

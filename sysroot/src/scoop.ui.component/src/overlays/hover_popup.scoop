@@ -94,7 +94,8 @@ private class HoverPopup(private val read: () -> HoverPopupInput, scope: Compone
             corners(
                 Corners
                     .all(
-                        (if (passive) 6.0 else 8.0) * density
+                        (if (passive) theme.tokens.corners.small else theme.tokens.corners.medium) *
+                            density
                     )
             )
             if (!passive) {
@@ -178,11 +179,10 @@ private class HoverPopup(private val read: () -> HoverPopupInput, scope: Compone
                     input
                         .semantics
                         .properties(
-                            enabled = input.hover.enabled,
                             description = candidateCaption(input.content),
                             expanded = if (passive) None else Some(open.value)
                         ),
-                    actions = if (passive)
+                    actions = if (passive || !input.hover.enabled)
                         SemanticActions()
                     else
                         SemanticActions(setExpanded = Some { value -> setExpanded(value) }),

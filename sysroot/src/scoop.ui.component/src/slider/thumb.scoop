@@ -16,7 +16,7 @@ internal class SliderThumbProps(
 internal class SliderThumb(
     private val props: Props<SliderThumbProps>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private var previousSide: Double? = None
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
@@ -35,49 +35,47 @@ internal class SliderThumb(
         area = Some(scope.createArea(focusable = true) { context, event -> notify(context, event) })
         focus = Some(scope.focusTarget(area!!, options().focus))
         semantics?.bindFocus(focus)
-        field =
-            Some(
-                scope.resource {
-                    FieldLink(scope, area!!, focus!!, semantics) { updateSemantics() }
-                }
-            )
+        field = Some(
+            scope.resource { FieldLink(scope, area!!, focus!!, semantics) { updateSemantics() } }
+        )
         painters = Some(scope.resource { ThemePainterCache() })
         motion = Some(InteractionMotion(scope, visual()))
-        scope.resource {
-            area!!.scope.addDefaultAction {
-                context,
-                event -> when (event) {
-                    case Keyboard(val key) -> {
-                        if (area!!.isFocusActive)
-                            props.value.control.key(props.value.index, context, key)
+        scope
+            .resource {
+                area!!
+                    .scope
+                    .addDefaultAction { context, event ->
+                        when (event) {
+                            case Keyboard(val key) -> {
+                                if (area!!.isFocusActive)
+                                    props.value.control.key(props.value.index, context, key)
+                            }
+
+                            else -> {}
+                        }
                     }
-                    else -> {}
-                }
             }
-        }
     }
-    private fun visual(): InteractionVisual =
-        InteractionVisual(
-            props.value.input.props.enabled,
-            area!!.scope.isHovered,
-            props.value.pressed,
-            area!!.isFocusVisible,
-            invalid = props.value.input.props.invalid
-        )
+    private fun visual(): InteractionVisual = InteractionVisual(
+        props.value.input.props.enabled,
+        area!!.scope.isHovered,
+        props.value.pressed,
+        area!!.isFocusVisible,
+        invalid = props.value.input.props.invalid
+    )
     private fun refresh() {
         val input = props.value.input
         val specs = input.theme.tokens.motion
-        motion!!.update(
-            visual(),
-            specs.resolve(input.props.style.transition.resolve(specs.hover)),
-            specs.resolve(input.props.style.transition.resolve(specs.press))
-        )
-        if (scope.isMounted)
-            scope.requestFrame()
+        motion!!
+            .update(
+                visual(),
+                specs.resolve(input.props.style.transition.resolve(specs.hover)),
+                specs.resolve(input.props.style.transition.resolve(specs.press))
+            )
+        if (scope.isMounted) scope.requestFrame()
     }
     private fun notify(context: RoutedEventContext, event: InputEvent) {
-        if (context.phase != RoutedPhase.Notification || !scope.isMounted)
-            return
+        if (context.phase != RoutedPhase.Notification || !scope.isMounted) return
         when (event) {
             case FocusChanged(false) -> props.value.control.lostFocus(props.value.index)
             else -> {}
@@ -95,80 +93,84 @@ internal class SliderThumb(
         slot.focus = focus
         focus!!.options = local.focus
         area!!.scope.enabled = input.props.enabled
-        field!!.update(
-            when (local.labelTarget) {
-                case Some(_) -> local.labelTarget
-                case None -> if (props.value.index == 0L)
-                    input.props.labelTarget
-                else
-                    None
-            },
-            input.props.enabled
-        )
+        field!!
+            .update(
+                when (local.labelTarget) {
+                    case Some(_) -> local.labelTarget
+                    case None -> if (props.value.index == 0L) input.props.labelTarget else None
+                },
+                input.props.enabled
+            )
         updateSemantics()
         refresh()
         painters!!.get(input.theme)
-        val side =
-            input.props.style.thumbSize ?: 12.0 * input.theme.tokens.typography.body.fontSize / 14.0
+        val side = input.props.style.thumbSize ?:
+            input.theme.tokens.controlMetrics.sliderThumbSize *
+            input.theme.tokens.typography.body.fontSize /
+            14.0
         val changed = previousSide != Some(side)
         previousSide = Some(side)
-        return if (changed)
-            UiInvalidation.Layout
-        else
-            UiInvalidation.Scene
+        return if (changed) UiInvalidation.Layout else UiInvalidation.Scene
     }
     private fun updateSemantics() {
         val handle = semantics ?: return
         val current = props.value
         val input = current.input
         val local = options().semantics ?: input.props.semantics
-        handle.bindReference(
-            if (panelPresent(options().semantics) || current.index == 0L)
-                local.reference
-            else
-                None
-        )
+        handle
+            .bindReference(
+                if (panelPresent(options().semantics) || current.index == 0L)
+                    local.reference
+                else
+                    None
+            )
         val bounds = input.props.range.thumbLimits(input.values, current.index)
-        handle.update(
-            local.properties(
-                enabled = input.props.enabled,
-                invalid = input.props.invalid,
-                required = field!!.isRequired(handle),
-                range =
-                    Some(
-                        SemanticValueRange(
-                            bounds.minimum,
-                            bounds.maximum,
-                            input.values[current.index],
-                            input.props.range.step ?: input.props.keyboardStep!!
+        handle
+            .update(
+                local
+                    .properties(
+                        enabled = input.props.enabled,
+                        invalid = input.props.invalid,
+                        required = field!!.isRequired(handle),
+                        range = Some(
+                            SemanticValueRange(
+                                bounds.minimum,
+                                bounds.maximum,
+                                input.values[current.index],
+                                input.props.range.step ?: input.props.keyboardStep!!
+                            )
                         )
                     )
-            ).copy {
-                orientation =
-                    Some(
-                        if (input.props.orientation == Orientation.Horizontal)
-                            SemanticOrientation.Horizontal
-                        else
-                            SemanticOrientation.Vertical
-                    )
-            },
-            SemanticActions(
-                setNumber =
-                    Some { value -> props.value.control.setNumber(props.value.index, value) },
-                increment =
-                    Some { props.value.control.adjust(props.value.index, SliderKey.Step(1.0)) },
-                decrement =
-                    Some { props.value.control.adjust(props.value.index, SliderKey.Step(-1.0)) }
-            ),
-            field!!.relations(handle, local.relations)
-        )
+                    .copy {
+                        orientation = Some(
+                            if (input.props.orientation == Orientation.Horizontal)
+                                SemanticOrientation.Horizontal
+                            else
+                                SemanticOrientation.Vertical
+                        )
+                    },
+                SemanticActions(
+                    setNumber = Some { value ->
+                        props.value.control.setNumber(props.value.index, value)
+                    },
+                    increment = Some {
+                        props.value.control.adjust(props.value.index, SliderKey.Step(1.0))
+                    },
+                    decrement = Some {
+                        props.value.control.adjust(props.value.index, SliderKey.Step(-1.0))
+                    }
+                ),
+                field!!.relations(handle, local.relations)
+            )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
         val input = props.value.input
-        val side =
-            input.props.style.thumbSize ?: 12.0 * input.theme.tokens.typography.body.fontSize / 14.0
+        val side = input.props.style.thumbSize ?:
+            input.theme.tokens.controlMetrics.sliderThumbSize *
+            input.theme.tokens.typography.body.fontSize /
+            14.0
         val size = constraints.constrain(Size(side, side))
         return LayoutResult(LayoutMetrics(size), Unit)
     }
@@ -176,62 +178,48 @@ internal class SliderThumb(
         val input = props.value.input
         val size = context.size
         when (semantics) {
-            case Some(val handle) -> context.semantics(
-                handle,
-                Rect(0.0, 0.0, size.width, size.height)
-            )
+            case Some(val handle) ->
+                context
+                    .semantics(
+                        handle,
+                        Rect(0.0, 0.0, size.width, size.height)
+                    )
             case None -> {}
         }
         val base = motion!!.sample(visual())
-        val ring =
-            base.focusVisible ||
-                (base.hoverProgress ?: 0.0) >
-                0.0 ||
-                (base.pressProgress ?: 0.0) >
-                0.0
-        val sampled =
-            SurfaceVisual(
-                SurfaceKind.Plain,
-                InteractionVisual(
-                    base.enabled,
-                    base.hovered,
-                    base.pressed,
-                    ring,
-                    base.hoverProgress,
-                    base.pressProgress,
-                    base.invalid
-                )
-            )
-        val shape =
-            input.theme.surfaceGeometry(
+        val sampled = SurfaceVisual(SurfaceKind.Plain, base)
+        val shape = input
+            .theme
+            .surfaceGeometry(
                 Rect(0.0, 0.0, size.width, size.height),
                 sampled,
                 sliderThumbOptions(input.theme, input.props.style, base),
                 context.layoutDirection
             )
-        val geometry =
-            SurfaceGeometry(
-                shape.bounds,
-                shape.outline,
-                shape.borderInner,
-                shape.content,
-                shape.ring,
-                shape.style,
-                1.0
-            )
+        val geometry = SurfaceGeometry(
+            shape.bounds,
+            shape.outline,
+            shape.borderInner,
+            shape.content,
+            shape.ring,
+            shape.style,
+            1.0
+        )
 
-        context.draw {
-            paint -> painters!!.get(input.theme).drawSurface(paint.canvas, geometry, sampled)
-        }
+        context
+            .draw { paint ->
+                painters!!.get(input.theme).drawSurface(paint.canvas, geometry, sampled)
+            }
         if (context.size.width > 0.0 && context.size.height > 0.0)
-            context.place(
-                area!!,
-                switchHitBounds(
-                    shape.bounds,
-                    input.props.style.hitInsets ?:
-                        Insets.all(8.0 * input.theme.tokens.typography.body.fontSize / 14.0)
+            context
+                .place(
+                    area!!,
+                    switchHitBounds(
+                        shape.bounds,
+                        input.props.style.hitInsets ?:
+                            Insets.all(8.0 * input.theme.tokens.typography.body.fontSize / 14.0)
+                    )
                 )
-            )
     }
     public override fun onUnmount() {
         val slot = props.value.input.slots[props.value.index]

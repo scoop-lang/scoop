@@ -97,7 +97,7 @@ internal fun actionOptions(
     val dark = theme.tokens.mode == ThemeMode.Dark
     val badge = shape == ActionShape.Badge
     val density = theme.tokens.typography.action.fontSize / 14.0
-    val preset = actionSizeOptions(theme, size, base, density)
+    val preset = actionSizeOptions(size, base, density)
     var normal = Color.Transparent
     var hover = Color.Transparent
     var border = Color.Transparent
@@ -163,7 +163,9 @@ internal fun actionOptions(
     else if (visual.enabled && visual.focusVisible)
         border = when (focus) {
             case Some(val value) -> value.borderColor ?: border
-            case None -> colors.ring
+            case None ->
+                theme.surfaceFocus(actionSurfaceKind(shape, variant, style.kind)).borderColor ?:
+                    border
         }
     val disabled = if (theme.tokens.disabledOpacity >=
         1.0 &&
@@ -183,7 +185,7 @@ internal fun actionOptions(
                 .destructive
                 .background
                 .withAlpha(
-                    if (dark) 0.4 else 0.3
+                    if (dark) 0.35 else 0.3
                 )
         else -> mixThemeColor(hover, colors.background.foreground, 0.08)
     }
@@ -254,7 +256,6 @@ internal fun actionOptions(
 }
 
 private fun actionSizeOptions(
-    theme: Theme,
     size: ButtonSize?,
     base: SurfaceMetrics,
     density: Double
@@ -307,7 +308,6 @@ private fun actionSizeOptions(
                         base.padding.bottom * paddingRatio
                     )
                 )
-            if (ratio < 1.0) style { this.corners(Corners.all(theme.tokens.corners.medium)) }
         }
     }
 }

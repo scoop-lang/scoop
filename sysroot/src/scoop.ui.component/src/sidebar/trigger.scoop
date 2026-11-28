@@ -12,7 +12,7 @@ public class SidebarTriggerProps public constructor(
     public val onOpenChange: (Boolean) -> Unit = {}
 )
 
-public class SidebarTriggerBuilder internal constructor(): ContentButtonBuilder() {
+public class SidebarTriggerBuilder internal constructor() : ContentButtonBuilder() {
     public var content: View? = None
     public var onOpenChange: (Boolean) -> Unit = {}
     init {
@@ -27,13 +27,14 @@ public fun sidebarTrigger(
 ): View {
     val b = SidebarTriggerBuilder();
     b.configure()
-    val content =
-        when (b.content) {
-            case Some(val value) -> ButtonContent.Custom(value)
-            case None -> ButtonContent.Resolved(
-                { appearance -> sidebarIcon(appearance.iconSize, appearance.text.color) }
-            )
-        }
+    val content = when (b.content) {
+        case Some(val value) -> ButtonContent.Custom(value)
+        case None ->
+            ButtonContent
+                .Resolved(
+                    { appearance -> sidebarIcon(appearance.iconSize, appearance.text.color) }
+                )
+    }
     return component(
         SidebarTriggerProps(
             open,
@@ -61,7 +62,7 @@ public fun sidebarTrigger(
 public class SidebarTrigger public constructor(
     private val props: Props<SidebarTriggerProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     public override fun render(): View {
         val input = props.value;
         val b = input.button
@@ -121,7 +122,7 @@ public fun sidebarMenuAction(
 public class SidebarMenuAction public constructor(
     private val props: Props<ButtonProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
@@ -130,29 +131,20 @@ public class SidebarMenuAction public constructor(
         val b = props.value;
         val theme = themes.read(b.theme)
         val d = theme.tokens.typography.body.fontSize / 14.0
-        val style =
-            b.style.copy {
+        val style = b
+            .style
+            .copy {
                 surface {
-                    if (suggestedSize == None)
-                        suggestedSize = Some(Size(20.0 * d, 20.0 * d))
-                    if (minimumSize == None)
-                        minimumSize = Some(Size(0.0, 0.0))
-                    if (padding == None)
-                        padding = Some(Insets())
+                    if (suggestedSize == None) suggestedSize = Some(Size(20.0 * d, 20.0 * d))
+                    if (minimumSize == None) minimumSize = Some(Size(0.0, 0.0))
+                    if (padding == None) padding = Some(Insets())
                     if (focus == None)
-                        focus =
-                            Some(
-                                OutlineStyle(
-                                    componentTint(
-                                        theme,
-                                        theme.tokens.palette.sidebar.ring.withAlpha(1.0),
-                                        0.5,
-                                        theme.tokens.palette.sidebar.background.background
-                                    ),
-                                    componentFocusWidth(theme, 2.0 * d),
-                                    0.0
-                                )
+                        focus = Some(
+                            componentFocusOutline(
+                                theme, color = Some(theme.tokens.palette.sidebar.ring),
+                                background = theme.tokens.palette.sidebar.background.background
                             )
+                        )
                 }
             }
         return component(
@@ -177,45 +169,46 @@ public class SidebarMenuAction public constructor(
 
 private class SidebarIconInput(val size: Double, val color: Color)
 
-internal fun sidebarIcon(size: Double, color: Color): View =
-    element(
-        SidebarIconInput(size, color),
-        { current, mount -> SidebarIcon(current, scope = mount) }
-    )
+internal fun sidebarIcon(size: Double, color: Color): View = element(
+    SidebarIconInput(size, color),
+    { current, mount -> SidebarIcon(current, scope = mount) }
+)
 
 private class SidebarIcon(
     private val props: Props<SidebarIconInput>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private var document: SvgDocument? = None
     public override fun onMount() {
         document = Some(scope.resource { SvgDocument.parse(panelLeft.source) })
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
-    > =
-        LayoutResult(
-            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
-            Unit
-        )
+    > = LayoutResult(
+        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+        Unit
+    )
     public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val rtl = context.layoutDirection == LayoutDirection.Rtl
         val size = context.size
-        context.draw {
-            paint -> paint.canvas.withState {
-                canvas ->
-                canvas.scale(size.width / 24.0, size.height / 24.0)
-                if (rtl) {
-                    canvas.translate(24.0, 0.0);
-                    canvas.scale(-1.0, 1.0)
-                }
-                canvas.drawSvg(
-                    document!!,
-                    Rect(0.0, 0.0, 24.0, 24.0),
-                    SvgDrawOptions(currentColor = Some(input.color))
-                )
+        context
+            .draw { paint ->
+                paint
+                    .canvas
+                    .withState { canvas ->
+                        canvas.scale(size.width / 24.0, size.height / 24.0)
+                        if (rtl) {
+                            canvas.translate(24.0, 0.0);
+                            canvas.scale(-1.0, 1.0)
+                        }
+                        canvas
+                            .drawSvg(
+                                document!!,
+                                Rect(0.0, 0.0, 24.0, 24.0),
+                                SvgDrawOptions(currentColor = Some(input.color))
+                            )
+                    }
             }
-        }
     }
 }

@@ -28,7 +28,11 @@ Theme 是不可变的主题描述／协议实现，提供语义参数和各部�
 
 几何方法只接收有限的逻辑 bounds、尺寸选项和类型化视觉数据，不需要 Canvas，不访问 Application、InputArea、挂载节点或 Context。每类部件返回自己的结果类型，不用名称字典或通用无类型字段。绘制严格消费该结果中的尺寸、轮廓和区域，不能重新估算另一份布局。
 
-首批采用 `Theme.tokens`、`surfaceMetrics／checkboxMetrics／radioMetrics／scrollbarMetrics` 与对应 geometry 方法；各部件的 Options 表达显式尺寸和局部覆盖。几何结果同时保存本次解析的普通 Style／颜色快照，绘图使用这份结果，不重新解析另一套尺寸。InteractionVisual 的可选 hover／press 采样值和选择进度以 0～1 表达，省略时使用对应布尔视觉状态；有限输入收敛到该范围。改变采样值时重新计算普通几何描述，原生轮廓缓存仍只按真实轮廓变化替换。
+首批采用 `Theme.tokens`、`surfaceMetrics／checkboxMetrics／radioMetrics／scrollbarMetrics` 与对应 geometry 方法；各部件的 Options 表达显式尺寸和局部覆盖。`Theme.surfaceFocus(kind: SurfaceKind = Plain): OutlineStyle` 返回该类表面已经解析根偏好的默认焦点描述，供拥有局部填充／边线的复合控件共享；不为读取焦点样式构造临时绘图几何。几何结果同时保存本次解析的普通 Style／颜色快照，绘图使用这份结果，不重新解析另一套尺寸。InteractionVisual 的可选 hover／press 采样值和选择进度以 0～1 表达，省略时使用对应布尔视觉状态；有限输入收敛到该范围。改变采样值时重新计算普通几何描述，原生轮廓缓存仍只按真实轮廓变化替换。
+
+焦点外环保留颜色自身的透明度。局部控件只能按已解析 `OutlineStyle.borderColor` 的明确值替换内边框，不能因出现焦点便无条件改用 palette.ring；validation 继续优先。Slider 的键盘焦点与其他表面使用同一描述，不把 hover／press 当作键盘焦点。局部 OutlineStyle 仍有最高优先级。
+
+`ThemeTokens.controlMetrics: ThemeControlMetrics` 提供现有 Switch 的普通／小尺寸轨道与滑块 Size，以及 Slider 的滑块直径与轨道厚度；数值为有限非负逻辑尺寸，组件按正文缩放一次，局部尺寸仍优先。默认值保持 32×18.4／24×14、16×16／12×12、12／4。`ThemeTokens.controlThumb: StyleOverride` 为这两类实际滑块提供共享的默认外观覆盖，不作用于内容或按钮。组件先解析语义填充，再应用该主题描述，最后应用局部覆盖；高对比度恢复可辨识的语义填充与边线，减少透明度移除默认阴影，二者均保留显式局部覆盖。无需按预设名称分支或向主题注册控件。
 
 五套预设共同使用 `ShapeTheme` 的圆角表面、勾选线段、圆环／圆点和滚动条几何算法，各库显式构造自己的参数。Theme 协议仍允许普通第三方实现独立的几何与 ThemePainter；控件不依赖 ShapeTheme。复用只覆盖这四类已有部件，不引入主题插件、节点注册或自动控件生成。
 
@@ -223,13 +227,17 @@ Material 的输入控件同时遵循 [Text fields 规格](https://m3.material.io
 
 Material Checkbox 使用 18 大小、2 圆角／边宽和 2 宽勾／横线；Radio 使用 20 大小、2 宽圆环和 10 直径圆点。未选中内部透明，普通边框取 on-surface-variant，hover／pressed 取 on-surface；选择后保持 primary 标记，Checkbox 的勾／半选线使用 on-primary。禁用标记使用 38% on-surface，选中 Checkbox 的标记使用 surface，边框不与半透明填充重复合成。两种标记共享 40 大小圆形状态层：未选中 hover 为 8% on-surface、pressed 为 12% primary，选中 hover 为 8% primary、pressed 为 12% on-surface；焦点轮廓跟随该圆形区域。hover／press 使用 100ms，选择变化使用 200ms，均采用 M3 standard easing（0.2, 0, 0, 1）。滚动条保留桌面的 14 宽条带和 32 最小滑块，以 on-surface-variant 中性色表达状态；不冒充 Material Web 未提供的滚动条组件。所有颜色仍从所给 palette 派生，外部配色不改变以上几何与动画。
 
-`scoop.ui.component/examples/shadcn` 的右上角 Style 下拉框只选择 shadcn、macOS、Material、Fluent。配色来源是独立的 Preset／System 设置，提供系统取色适配时默认 System，否则固定 Preset。System 适用于全部四种风格，通过相同的 palette 参数传入当前风格工厂；只在 System 被选中时读取系统颜色。切换风格保留配色来源，切换配色保留风格；二者通过同一个 ThemeSource 发布完整主题，并保留明暗、减少动态、布局方向、页面、编辑内容与业务状态。
+`scoop.ui.component/examples/shadcn` 的右上角 Style 下拉框选择 shadcn、macOS、Material、Fluent、Liquid Glass。配色来源是独立的 Preset／System 设置，提供系统取色适配时默认 System，否则固定 Preset。System 适用于全部五种风格，通过相同的 palette 参数传入当前风格工厂；只在 System 被选中时读取系统颜色。切换风格保留配色来源，切换配色保留风格；二者通过同一个 ThemeSource 发布完整主题，并保留明暗、减少动态、布局方向、页面、编辑内容与业务状态。
 
 ### 5.1 Liquid Glass
 
 `scoop.ui.style.liquidglass.liquidGlassTheme(mode: ThemeMode = Light, palette: ThemePalette? = None, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme` 是独立完整预设，复用公共 ShapeTheme、StylePainter 和玻璃绘制能力。主题描述不持有图形资源、不读取业务状态，不通过其他预设构造不完整的外观再补齐。显式 palette 决定所有语义颜色；configure 最后执行一次。基础主题、外部配色与根交互偏好分别沿第 3.2、6.1 节解析。
 
-默认字体使用系统 UI 字体偏好并回退 Inter／sans-serif，正文和操作字号为 14、相对行高 20／14，caption 为 12／16。普通操作建议高 36、最小交互尺寸 28、水平内缩 14，圆角为 18；输入继续沿控件的尺寸与布局规则。主题提供完整的普通／强调／描边／浮动表面、勾选、单选和滚动条，所有状态色从当前语义配色派生；焦点轮廓与错误边界持续清晰。
+默认字体使用系统 UI 字体偏好并回退 Inter／sans-serif，正文和操作字号为 14、相对行高 20／14，操作字重 500，caption 为 12／16。普通操作建议高 36、最小交互尺寸 28、水平内缩 14，使用胶囊圆角；普通输入使用半径 8 的稳定中性底板，不附带操作按钮投影。焦点使用宽度与外扩均为 3.5 的贴边半透明轮廓；外部配色的 ring 透明度原样保留，高对比度继续使用第 6.1 节规则。错误轮廓宽度与外扩均为 2，与错误边框连续相接，不留下分离的双线。主题提供完整的普通／强调／描边／浮动表面、勾选、单选和滚动条；选择标记无额外深色内边，浮层保留轻薄边缘与柔和阴影。
+
+Switch 默认轨道 38×24、滑块 28×20，小尺寸轨道 30×20、滑块 22×16；滑块约束在实际可用内部区域，RTL 仅镜像位置。Slider 默认滑块直径 16、轨道厚度 6。两者使用明暗模式均可辨识的浅色滑块与轻投影；禁用轨道降低强调程度，根高对比度／减少透明度与明确局部样式仍按公共合同解析。
+
+紧凑菜单、Select 弹层、Popover 与 HoverCard 使用主题 medium 圆角，菜单项／侧栏项使用 small，Dialog／Drawer 使用 large；字体缩放作用一次，贴边 Sheet 保留直角。小号操作按钮继续使用所属表面的圆角并按实际边界归一化，不由组件强行改成另一种圆角。各主题及应用配置通过现有描述改变这些外观。
 
 明暗配色分别提供中性内容底色、足够对比的正文和次要文字、强调与破坏性操作、图表和侧栏颜色。玻璃策略通过既有 GlassSurfaces 表达，默认操作、导航、工具栏、弹层、对话框和通知可使用材质，正文 Content 和输入 Input 保留稳定底色。局部 StyleOverride 的明确背景或 glass 清除仍优先；高对比度和减少透明度恢复实体表面，减少动态停止过渡而不改变内容与语义。独立主题的材质参数不要求应用逐帧构造、关闭资源或读取背景像素。
 

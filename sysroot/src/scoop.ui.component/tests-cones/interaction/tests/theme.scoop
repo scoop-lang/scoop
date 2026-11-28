@@ -11,7 +11,7 @@ internal class TraceTheme(
     val id: Int,
     private val base: Theme,
     private val probe: ControlProbe
-): Theme {
+) : Theme {
     val painters = ArrayList<TracePainter>()
     var surfaces = 0
     var checkboxes = 0
@@ -21,11 +21,9 @@ internal class TraceTheme(
     public override val preferences: ThemePreferences get() = base.preferences
     public override fun withPreferences(preferences: ThemePreferences): Theme {
         val next = base.withPreferences(preferences)
-        return if (next === base)
-            this
-        else
-            TraceTheme(id, next, probe)
+        return if (next === base) this else TraceTheme(id, next, probe)
     }
+    public override fun surfaceFocus(kind: SurfaceKind): OutlineStyle = base.surfaceFocus(kind)
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,
@@ -41,8 +39,7 @@ internal class TraceTheme(
         options: SurfaceOptions,
         direction: LayoutDirection
     ): SurfaceGeometry {
-        if (probe.inScene)
-            surfaces += 1
+        if (probe.inScene) surfaces += 1
         return base.surfaceGeometry(bounds, visual, options, direction)
     }
     public override fun checkboxMetrics(
@@ -55,26 +52,25 @@ internal class TraceTheme(
         options: CheckboxOptions,
         direction: LayoutDirection
     ): CheckboxGeometry {
-        if (probe.inScene)
-            checkboxes += 1
+        if (probe.inScene) checkboxes += 1
         return base.checkboxGeometry(bounds, visual, options, direction)
     }
-    public override fun radioMetrics(options: RadioOptions): RadioMetrics =
-        base.radioMetrics(options)
+    public override fun radioMetrics(options: RadioOptions): RadioMetrics = base
+        .radioMetrics(options)
     public override fun radioGeometry(
         bounds: Rect,
         visual: RadioVisual,
         options: RadioOptions
     ): RadioGeometry = base.radioGeometry(bounds, visual, options)
-    public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics =
-        base.scrollbarMetrics(options)
+    public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics = base
+        .scrollbarMetrics(options)
     public override fun scrollbarGeometry(
         bounds: Rect,
         visual: ScrollbarVisual,
         options: ScrollbarOptions
     ): ScrollbarGeometry = base.scrollbarGeometry(bounds, visual, options)
-    public override fun surfaceTextColor(visual: SurfaceVisual): Color =
-        base.surfaceTextColor(visual)
+    public override fun surfaceTextColor(visual: SurfaceVisual): Color = base
+        .surfaceTextColor(visual)
     public override fun createPainter(): ThemePainter {
         val value = TracePainter(base.createPainter(), this, probe)
         painters.add(value)
@@ -96,7 +92,7 @@ internal class TracePainter(
     private val base: ThemePainter,
     private val theme: TraceTheme,
     private val probe: ControlProbe
-): ThemePainter {
+) : ThemePainter {
     var closes = 0
     public override val isClosed: Boolean get() = base.isClosed
     public override fun drawSurface(

@@ -6,34 +6,35 @@ import scoop.ui.style.*
 /** Opaque text roles leave room for a translucent surface while preserving their contrast. */
 internal fun liquidPalette(mode: ThemeMode): ThemePalette {
     val dark = mode == ThemeMode.Dark
-    val text = liquidColor(if (dark) 0xf1f5fa else 0x19222e)
-    val secondaryText = liquidColor(if (dark) 0xc0cad8 else 0x465364)
-    val canvas = ColorPair(liquidColor(if (dark) 0x101722 else 0xf3f5f9), text)
-    val card = ColorPair(liquidColor(if (dark) 0x192331 else 0xffffff), text)
-    val popover = ColorPair(liquidColor(if (dark) 0x1c2c3f else 0xf8fbff), text)
+    val text = liquidColor(if (dark) 0xededed else 0x262626)
+    val secondaryText = liquidColor(if (dark) 0xb9b9bb else 0x6b6b70)
+    val canvas = ColorPair(liquidColor(if (dark) 0x202020 else 0xf7f7f7), text)
+    val card = ColorPair(liquidColor(if (dark) 0x191919 else 0xffffff), text)
+    val popover = ColorPair(liquidColor(if (dark) 0x303030 else 0xfbfbfb), text)
     val primary = ColorPair(
-        liquidColor(if (dark) 0x6cb5ff else 0x006bcf),
-        liquidColor(if (dark) 0x051f3a else 0xffffff)
+        liquidColor(0x006bd6),
+        Color.White
     )
-    val secondary = ColorPair(liquidColor(if (dark) 0x273746 else 0xe6eef8), text)
-    val accent = ColorPair(liquidColor(if (dark) 0x284567 else 0xd9eaff), text)
+    val secondary = ColorPair(liquidColor(if (dark) 0x383838 else 0xeeeeef), text)
+    val accent = ColorPair(liquidColor(if (dark) 0x454545 else 0xe4e4e6), text)
     val error = ColorPair(
-        liquidColor(if (dark) 0xfff5f3 else 0x870c1f),
+        liquidColor(if (dark) 0xffdbd6 else 0x870c1f),
         liquidColor(if (dark) 0x480711 else 0xffffff)
     )
-    val edge = (if (dark) Color.White else liquidColor(0x365273)).withAlpha(if (dark) 0.22 else 0.2)
+    val edge = (if (dark) Color.White else Color.Black).withAlpha(if (dark) 0.12 else 0.1)
+    val ring = liquidColor(if (dark) 0x1aa9ff else 0x336fff).withAlpha(0.5)
     return ThemePalette(
         background = canvas,
         card = card,
         popover = popover,
         primary = primary,
         secondary = secondary,
-        muted = ColorPair(liquidColor(if (dark) 0x23303f else 0xe9eef4), secondaryText),
+        muted = ColorPair(liquidColor(if (dark) 0x343434 else 0xebebed), secondaryText),
         accent = accent,
         destructive = error,
         border = edge,
-        input = edge.withAlpha(if (dark) 0.4 else 0.34),
-        ring = primary.background,
+        input = edge,
+        ring = ring,
         chart = ChartPalette(
             primary.background,
             liquidColor(if (dark) 0x6dd9ad else 0x09825a),
@@ -41,9 +42,12 @@ internal fun liquidPalette(mode: ThemeMode): ThemePalette {
             liquidColor(if (dark) 0xc5a4ff else 0x7b43c7),
             error.background
         ),
-        sidebar = SidebarPalette(card, primary, accent, edge, primary.background),
-        disabledText = liquidColor(if (dark) 0x8191a6 else 0x6c7a8b),
-        shadow = Color.Black.withAlpha(if (dark) 0.38 else 0.14)
+        sidebar = SidebarPalette(
+            ColorPair(liquidColor(if (dark) 0x272727 else 0xeeeeef), text),
+            primary, accent, edge, ring
+        ),
+        disabledText = liquidColor(if (dark) 0x7c7c80 else 0x9b9b9f),
+        shadow = Color.Black.withAlpha(if (dark) 0.32 else 0.12)
     )
 }
 

@@ -1,0 +1,179 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.liquidglass.liquidGlassTheme
+
+@Test
+private class ControlAppearanceTest {
+    @Test
+    fun `theme control dimensions scale once while local sizes keep precedence`() {
+        val theme = liquidGlassTheme {
+            tokens {
+                controlMetrics = ThemeControlMetrics(
+                    switchSize = Size(50.0, 30.0), sliderThumbSize = 20.0, sliderThickness = 5.0
+                )
+            }
+        }
+            .withPreferences(ThemePreferences(textScaleFactor = 2.0))
+        val input = SwitchProps(state(false).binding())
+        val visual = SurfaceVisual()
+        val inherited = switchOptions(input, theme, visual.interaction, 0.0)
+        assertEquals(Size(100.0, 60.0), theme.surfaceMetrics(visual, inherited).suggestedSize)
+        val local = SwitchProps(
+            state(false).binding(),
+            style = switchStyle { track { suggestedSize = Some(Size(44.0, 26.0)) } }
+        )
+        assertEquals(
+            Size(44.0, 26.0),
+            theme
+                .surfaceMetrics(visual, switchOptions(local, theme, visual.interaction, 0.0))
+                .suggestedSize
+        )
+        val slider = SliderProps(
+            state([0.5]).binding(),
+            RangeSpec(0.0, 1.0),
+            keyboardStep = Some(0.1)
+        )
+        val shape = sliderGeometry(slider, [0.5], theme, Size(200.0, 40.0), LayoutDirection.Ltr)
+        assertEquals(40.0, shape.thumbs[0L].width)
+        assertEquals(10.0, shape.track.height)
+        assertFailsWith<IllegalArgumentException> {
+            ThemeControlMetrics(switchSize = Size(-1.0, 24.0))
+        }
+        assertFailsWith<IllegalArgumentException> { ThemeControlMetrics(sliderThickness = -1.0) }
+    }
+
+    @Test
+    fun `control borders obey the resolved theme outline instead of the accent palette`() {
+        val base = Color(0.2, 0.3, 0.4)
+        val focus = InteractionVisual(focusVisible = true)
+        val local = OutlineStyle(Color(0.4, 0.2, 0.7, 0.4), 4.0, 4.0, Some(Color.Black))
+        for (theme in colorPreferenceThemes(ThemeMode.Light)) {
+            assertEquals(
+                theme.surfaceFocus().borderColor ?: base,
+                controlBorder(theme, surfaceOptions(), focus, base)
+            )
+            assertEquals(
+                Color.Black,
+                controlBorder(theme, surfaceOptions { this.focus = Some(local) }, focus, base)
+            )
+            assertEquals(
+                base,
+                controlBorder(
+                    theme,
+                    surfaceOptions(),
+                    InteractionVisual(enabled = false, focusVisible = true),
+                    base
+                )
+            )
+            val invalid = InteractionVisual(focusVisible = true, invalid = true)
+            assertEquals(
+                theme.tokens.validation.borderColor ?: base,
+                controlBorder(theme, surfaceOptions { this.focus = Some(local) }, invalid, base)
+            )
+        }
+    }
+
+    @Test
+    fun `liquid sliders share keyboard focus without a persistent blue thumb border`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = liquidGlassTheme(mode)
+            val bounds = Rect(8.0, 8.0, 16.0, 16.0)
+            val focus = InteractionVisual(focusVisible = true)
+            val shape = theme
+                .surfaceGeometry(
+                    bounds,
+                    SurfaceVisual(SurfaceKind.Plain, focus),
+                    sliderThumbOptions(theme, sliderStyle(), focus)
+                )
+            assertEquals(theme.surfaceFocus().width, shape.ring!!.border.width)
+            assertEquals(theme.surfaceFocus().color, shape.ring!!.border.color)
+            val border = shape.style.border!!.resolve(LayoutDirection.Ltr).left.color
+            assertTrue(border.red == border.green && border.green == border.blue)
+            val hover = InteractionVisual(hovered = true, hoverProgress = Some(1.0))
+            assertEquals(
+                None,
+                theme
+                    .surfaceGeometry(
+                        bounds,
+                        SurfaceVisual(SurfaceKind.Plain, hover),
+                        sliderThumbOptions(theme, sliderStyle(), hover)
+                    )
+                    .ring
+            )
+            val hovered = theme
+                .surfaceGeometry(
+                    bounds, SurfaceVisual(SurfaceKind.Plain, hover), sliderThumbOptions(
+                        theme,
+                        sliderStyle(),
+                        hover
+                    )
+                )
+            assertNotEquals(shape.style.background!!.color, hovered.style.background!!.color)
+            val local = sliderStyle { thumb { background(Some(Paint(Color(0.8, 0.2, 0.3)))) } }
+            assertEquals(
+                Color(0.8, 0.2, 0.3),
+                theme
+                    .surfaceGeometry(
+                        bounds,
+                        SurfaceVisual(),
+                        sliderThumbOptions(theme, local, InteractionVisual())
+                    )
+                    .style
+                    .background!!
+                    .color
+            )
+        }
+    }
+
+    @Test
+    fun `liquid switch thumb stays elliptical contained and mirrored at every text scale`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark])
+            for (scale in [0.5, 1.0, 2.0]) {
+                val theme = liquidGlassTheme(mode)
+                    .withPreferences(ThemePreferences(textScaleFactor = scale))
+                val input = SwitchProps(state(true).binding())
+                val visual = SurfaceVisual()
+                val options = switchOptions(input, theme, visual.interaction, 1.0)
+                val size = theme.surfaceMetrics(visual, options).suggestedSize
+                val surface = theme
+                    .surfaceGeometry(Rect(0.0, 0.0, size.width, size.height), visual, options)
+                val preferred = theme.tokens.controlMetrics.switchThumbSize
+                val thumb = Size(preferred.width * scale, preferred.height * scale)
+                val left = switchThumbBounds(surface.content, thumb, 0.0, LayoutDirection.Ltr)
+                val right = switchThumbBounds(surface.content, thumb, 1.0, LayoutDirection.Ltr)
+                assertTrue(left.width > left.height)
+                assertTrue(left.x >= 0.0 && left.y >= 0.0)
+                assertTrue(
+                    right.x + right.width <= size.width && right.y + right.height <= size.height
+                )
+                assertEquals(
+                    right,
+                    switchThumbBounds(surface.content, thumb, 0.0, LayoutDirection.Rtl)
+                )
+                assertEquals(
+                    left,
+                    switchThumbBounds(surface.content, thumb, 1.0, LayoutDirection.Rtl)
+                )
+                assertEquals(Color.White, switchThumbStyle(input, theme, 1.0).background!!.color)
+                val disabled = InteractionVisual(enabled = false)
+                val disabledSurface = theme
+                    .surfaceGeometry(
+                        surface.bounds,
+                        SurfaceVisual(SurfaceKind.Plain, disabled),
+                        switchOptions(input, theme, disabled, 1.0)
+                    )
+                assertNotEquals(
+                    surface.style.background!!.color,
+                    disabledSurface.style.background!!.color
+                )
+            }
+        assertEquals(
+            Rect(0.0, 0.0, 3.0, 2.0),
+            switchThumbBounds(Rect(0.0, 0.0, 3.0, 2.0), Size(28.0, 20.0), 1.0, LayoutDirection.Ltr)
+        )
+    }
+}

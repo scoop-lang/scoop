@@ -8,19 +8,15 @@ import scoop.ui.text.*
 import scoop.window.Utf8Selection
 import scoop.window.accessibility.*
 
-internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentScope): Component(
-    scope
-) {
+internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentScope) :
+    Component(
+        scope
+    ) {
     private val related = scope.semantics(SemanticRole.Text)
-    private val checked =
-        binding(
-            get = { probe.checked.value },
-            set =
-                {
-                    next -> if (!probe.reject.value)
-                        probe.checked.value = next
-                }
-        )
+    private val checked = binding(
+        get = { probe.checked.value },
+        set = { next -> if (!probe.reject.value) probe.checked.value = next }
+    )
     init {
         related.update(SemanticProperties(value = Some("Related name"), ignored = true))
         probe.relatedHandle = Some(related)
@@ -30,11 +26,10 @@ internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentSc
         val version = probe.version.value
         val caption = probe.caption.value
         val name = probe.name.value
-        val relations =
-            if (probe.related.value)
-                SemanticRelations(labelledBy = [related.id])
-            else
-                SemanticRelations()
+        val relations = if (probe.related.value)
+            SemanticRelations(labelledBy = [related.id])
+        else
+            SemanticRelations()
         val choicesEnabled = probe.enabled.value
         val isReadOnly = probe.readOnly.value
         val protectInput = probe.protectedText.value
@@ -42,114 +37,114 @@ internal class ControlsRoot(private val probe: ControlsProbe, scope: ComponentSc
         val labelName = probe.labelName.value
         val selectionEnabled = probe.selectionEnabled.value
         val typographySelectable = probe.typographySelectable.value
-        val views =
-            [
+        val views = [
+            tooltip(
                 buttonGroup {
-                    this.button(caption, { probe.clicked = version }) {
-                        semantics =
-                            ComponentSemantics(
+                    this
+                        .button(caption, { probe.clicked = version }) {
+                            semantics = ComponentSemantics(
                                 name = name,
                                 automationId = Some("button"),
                                 relations = relations,
                                 hidden = hidden
                             )
-                    }
+                        }
                 },
-                label("Plain label") {
-                    semantics = ComponentSemantics(name = labelName, automationId = Some("label"))
-                },
-                label(probe.labelText) {
-                    inlines =
-                        [
-                            inlineView(
-                                InlineKey.Text("badge"),
-                                element({ mount -> InlineBox(mount) })
-                            )
-                        ]
-                    semantics = ComponentSemantics(automationId = Some("rich"))
-                },
+                "Save changes"
+            ) { enabled = false },
+            label("Plain label") {
+                semantics = ComponentSemantics(name = labelName, automationId = Some("label"))
+            },
+            label(probe.labelText) {
+                inlines = [
+                    inlineView(
+                        InlineKey.Text("badge"),
+                        element({ mount -> InlineBox(mount) })
+                    )
+                ]
+                semantics = ComponentSemantics(automationId = Some("rich"))
+            },
+            hoverCard(
                 checkbox(checked) {
                     enabled = choicesEnabled
-                    semantics =
-                        ComponentSemantics(name = Some("Choice"), automationId = Some("checkbox"))
+                    semantics = ComponentSemantics(
+                        name = Some("Choice"),
+                        automationId = Some("checkbox")
+                    )
                 },
-                button(
-                    row {
-                        this.label("Outer")
-                        this.button("Inner", { probe.innerClicks += 1 }) {
+                label("Choice details")
+            ) { enabled = false },
+            button(
+                row {
+                    this.label("Outer")
+                    this
+                        .button("Inner", { probe.innerClicks += 1 }) {
                             semantics = ComponentSemantics(automationId = Some("inner"))
                         }
-                    },
-                    { probe.outerClicks += 1 }
-                ) { semantics = ComponentSemantics(automationId = Some("outer")) },
-                inputGroup {
-                    this.input(probe.editor) {
+                },
+                { probe.outerClicks += 1 }
+            ) { semantics = ComponentSemantics(automationId = Some("outer")) },
+            inputGroup {
+                this
+                    .input(probe.editor) {
                         readOnly = isReadOnly
                         protectedText = protectInput
                         description = "Hint"
                         contextMenu { mode = TextContextMenuMode.Disabled }
-                        semantics =
-                            ComponentSemantics(
-                                name = Some("Document"),
-                                automationId = Some("input")
-                            )
+                        semantics = ComponentSemantics(
+                            name = Some("Document"),
+                            automationId = Some("input")
+                        )
                     }
-                },
-                textarea(probe.multiline) {
-                    placeholder = "Not a label"
-                    contextMenu { mode = TextContextMenuMode.Disabled }
-                    semantics = ComponentSemantics(automationId = Some("textarea"))
-                },
-                selectableStyledText(probe.labelText) {
-                    inlines =
-                        [
-                            inlineView(
-                                InlineKey.Text("badge"),
-                                element({ mount -> InlineBox(mount) })
-                            )
-                        ]
-                    options =
-                        SelectableTextOptions(
-                            enabled = selectionEnabled,
-                            contextMenu =
-                                TextContextMenuOptions(mode = TextContextMenuMode.Disabled)
-                        )
-                    semantics =
-                        ComponentSemantics(
-                            name = Some("Read only"),
-                            automationId = Some("selectable")
-                        )
-                    onSelectionChanged =
-                        {
-                            anchor, cursor ->
-                            probe.selectionChanges += 1
-                            probe.selectionHandler = version
-                            probe.selected = Utf8Selection(anchor.byteOffset, cursor.byteOffset)
-                        }
-                },
-                typography("Paragraph") {
-                    selectable = typographySelectable
-                    semantics =
-                        ComponentSemantics(
-                            name = Some("Reading"),
-                            automationId = Some("typography")
-                        )
-                    onSelectionChanged = { _, _ -> probe.typographyChanges += 1 }
-                },
-                contextMenu(
-                    fieldSemanticsView(probe.fields),
-                    menu {
-                        item(ViewKey.Text("inspect-fields"), "Inspect", { probe.outerClicks += 1 })
-                    }
-                ) { enabled = false },
-                scrollArea(label("Scrollable content")) {
-                    state = Some(probe.scrollState)
-                    width = Some(160.0)
-                    height = Some(60.0)
-                    semantics =
-                        ComponentSemantics(name = Some(caption), automationId = Some("scroller"))
+            },
+            textarea(probe.multiline) {
+                placeholder = "Not a label"
+                contextMenu { mode = TextContextMenuMode.Disabled }
+                semantics = ComponentSemantics(automationId = Some("textarea"))
+            },
+            selectableStyledText(probe.labelText) {
+                inlines = [
+                    inlineView(
+                        InlineKey.Text("badge"),
+                        element({ mount -> InlineBox(mount) })
+                    )
+                ]
+                options = SelectableTextOptions(
+                    enabled = selectionEnabled,
+                    contextMenu = TextContextMenuOptions(mode = TextContextMenuMode.Disabled)
+                )
+                semantics = ComponentSemantics(
+                    name = Some("Read only"),
+                    automationId = Some("selectable")
+                )
+                onSelectionChanged = { anchor, cursor ->
+                    probe.selectionChanges += 1
+                    probe.selectionHandler = version
+                    probe.selected = Utf8Selection(anchor.byteOffset, cursor.byteOffset)
                 }
-            ]
+            },
+            typography("Paragraph") {
+                selectable = typographySelectable
+                semantics = ComponentSemantics(
+                    name = Some("Reading"),
+                    automationId = Some("typography")
+                )
+                onSelectionChanged = { _, _ -> probe.typographyChanges += 1 }
+            },
+            contextMenu(
+                fieldSemanticsView(probe.fields),
+                menu { item(ViewKey.Text("inspect-fields"), "Inspect", { probe.outerClicks += 1 }) }
+            ) { enabled = false },
+            scrollArea(label("Scrollable content")) {
+                state = Some(probe.scrollState)
+                width = Some(160.0)
+                height = Some(60.0)
+                semantics = ComponentSemantics(
+                    name = Some(caption),
+                    automationId = Some("scroller")
+                )
+            }
+        ]
         return element({ mount -> ControlsPanel(probe, views.size, mount) }, views)
     }
 }
@@ -158,13 +153,13 @@ private class ControlsPanel(
     private val probe: ControlsProbe,
     private val count: Long,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
         probe.measures += 1
         var y = 0.0
-        for (index in 0L ..< count) {
+        for (index in 0L..<count) {
             val child = context.measureChild(index, Constraints(maxWidth = Some(320.0)))
             context.placeChild(index, Point(0.0, y))
             y += child.size.height + 8.0
@@ -177,13 +172,12 @@ private class ControlsPanel(
     }
 }
 
-private class InlineBox(scope: ComponentScope): Element<Unit>(scope) {
+private class InlineBox(scope: ComponentScope) : Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(LayoutMetrics(constraints.constrain(Size(12.0, 12.0))), Unit)
     public override fun scene(context: SceneContext, layout: Unit) {
-        context.draw {
-            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 12.0, 12.0), Paint(Color.Black))
-        }
+        context
+            .draw { paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 12.0, 12.0), Paint(Color.Black)) }
     }
 }

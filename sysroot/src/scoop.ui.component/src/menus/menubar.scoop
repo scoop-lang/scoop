@@ -151,7 +151,7 @@ public class Menubar public constructor(
                 input.style
             )
             border(Some(Border.all(1.0, theme.tokens.palette.border)))
-            corners(Corners.all(8.0 * density))
+            corners(Corners.all(theme.tokens.corners.medium * density))
         }
             .then(input.style)
         return panelFrame(
@@ -189,7 +189,7 @@ internal fun menubarTriggerStyle(local: ButtonStyle, theme: Theme, opened: Boole
                 style = styleOverride {
                     if (opened) background(Some(Paint(theme.tokens.palette.muted.background)))
                     border(None)
-                    corners(Corners.all(4.0 * density))
+                    corners(Corners.all(theme.tokens.corners.small * density))
                     boxShadows([])
                 }
                     .then(local.surface.style)

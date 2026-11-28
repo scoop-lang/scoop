@@ -23,8 +23,8 @@ public class SwitchStyle internal constructor(
     }
 }
 
-public fun switchStyle(configure: SwitchStyleBuilder.() -> Unit = {}): SwitchStyle =
-    SwitchStyle().copy(configure)
+public fun switchStyle(configure: SwitchStyleBuilder.() -> Unit = {}): SwitchStyle = SwitchStyle()
+    .copy(configure)
 
 public class SwitchStyleBuilder internal constructor(initial: SwitchStyle) {
     public var track: SurfaceOptions = initial.track
@@ -48,8 +48,14 @@ public class SwitchStyleBuilder internal constructor(initial: SwitchStyle) {
     public fun selectionTransition(value: AnimationSpec?): Unit {
         selectionTransition = StyleValue.Set(value)
     }
-    internal fun snapshot(): SwitchStyle =
-        SwitchStyle(track, thumb, states, hitInsets, transition, selectionTransition)
+    internal fun snapshot(): SwitchStyle = SwitchStyle(
+        track,
+        thumb,
+        states,
+        hitInsets,
+        transition,
+        selectionTransition
+    )
 }
 
 internal fun switchOptions(
@@ -60,105 +66,114 @@ internal fun switchOptions(
 ): SurfaceOptions {
     val colors = theme.tokens.palette
     val density = theme.tokens.typography.body.fontSize / 14.0
-    val off =
-        if (theme.tokens.mode == ThemeMode.Dark)
-            componentTint(theme, colors.input, 0.8)
-        else
-            componentBackground(theme, colors.input)
-    val fill = mixThemeColor(off, colors.primary.background, progress)
+    val off = if (theme.tokens.mode == ThemeMode.Dark)
+        componentTint(theme, colors.input, 0.8)
+    else
+        componentBackground(theme, colors.input)
+    val normal = mixThemeColor(off, colors.primary.background, progress)
+    val fill = if (theme.preferences.highContrast)
+        normal
+    else
+        StateColors(
+            normal,
+            mixThemeColor(normal, colors.background.foreground, 0.03),
+            mixThemeColor(normal, colors.background.foreground, 0.08),
+            controlStateColor(theme, normal, false)
+        )
+            .resolve(visual)
     val border = controlBorder(theme, input.style.track, visual, Color.Transparent)
-    val local =
-        styleOverride {
-            this.background(Some(Paint(fill)))
-            this.border(Some(Border.all(density, border)))
-            this.corners(Corners.all(1000.0))
-            this.boxShadows([])
-        }.then(input.style.track.style)
-    return input.style.track.copy {
-        if (this.suggestedSize == None)
-            this.suggestedSize =
-                Some(
-                    if (input.size == SwitchSize.Sm)
-                        Size(24.0 * density, 14.0 * density)
-                    else
-                        Size(32.0 * density, 18.4 * density)
-                )
-        if (this.minimumSize == None)
-            this.minimumSize = Some(Size(0.0, 0.0))
-        if (this.padding == None)
-            this.padding = Some(Insets())
-        this.style = input.style.states.apply(local, visual)
+    val local = styleOverride {
+        this.background(Some(Paint(fill)))
+        this.border(Some(Border.all(density, border)))
+        this.corners(Corners.all(1000.0))
+        this.boxShadows([])
     }
+        .then(input.style.track.style)
+    return input
+        .style
+        .track
+        .copy {
+            if (this.suggestedSize == None) {
+                val metrics = theme.tokens.controlMetrics
+                val size = if (input.size == SwitchSize.Sm)
+                    metrics.switchSmallSize
+                else
+                    metrics.switchSize
+                this.suggestedSize = Some(Size(size.width * density, size.height * density))
+            }
+            if (this.minimumSize == None) this.minimumSize = Some(Size(0.0, 0.0))
+            if (this.padding == None) this.padding = Some(Insets())
+            this.style = input.style.states.apply(local, visual)
+        }
 }
 
-internal fun switchThumbStyle(input: SwitchProps, theme: Theme, progress: Double): Style {
+internal fun switchThumbStyle(
+    input: SwitchProps,
+    theme: Theme,
+    progress: Double,
+    visual: InteractionVisual = InteractionVisual()
+): Style {
     val colors = theme.tokens.palette
     val dark = theme.tokens.mode == ThemeMode.Dark
-    val off =
-        if (theme.preferences.highContrast)
-            colors.background.background
-        else
-            if (dark)
-                colors.background.foreground
-            else
-                colors.background.background
-    val on =
-        if (dark || theme.preferences.highContrast)
-            colors.primary.foreground
-        else
-            colors.background.background
-    return input.style.thumb.resolve(
-        style {
-            this.background = Some(Paint(mixThemeColor(off, on, progress)))
-            this.corners = Corners.all(1000.0)
-        }
-    )
+    val off = if (theme.preferences.highContrast)
+        colors.background.background
+    else if (dark) colors.background.foreground else colors.background.background
+    val on = if (dark || theme.preferences.highContrast)
+        colors.primary.foreground
+    else
+        colors.background.background
+    val fill = mixThemeColor(off, on, progress)
+    return controlThumbOverride(theme, fill, visual)
+        .then(input.style.thumb)
+        .resolve(
+            style {
+                this.background = Some(Paint(fill))
+                this.corners = Corners.all(1000.0)
+            }
+        )
 }
 
 internal fun switchThumbBounds(
     inner: Rect,
-    preferred: Double,
+    preferred: Size,
     progress: Double,
     direction: LayoutDirection
 ): Rect {
-    val side = upperBound(preferred, upperBound(inner.width, inner.height))
-    val position =
-        if (direction == LayoutDirection.Rtl)
-            1.0 - progress
-        else
-            progress
+    val width = upperBound(preferred.width, inner.width)
+    val height = upperBound(preferred.height, inner.height)
+    val position = if (direction == LayoutDirection.Rtl) 1.0 - progress else progress
     return Rect(
-        inner.x + (inner.width - side) * position,
-        inner.y + (inner.height - side) / 2.0,
-        side,
-        side
+        inner.x + (inner.width - width) * position,
+        inner.y + (inner.height - height) / 2.0,
+        width,
+        height
     )
 }
 
-internal fun switchHitBounds(bounds: Rect, insets: Insets): Rect =
-    if (bounds.width == 0.0 || bounds.height == 0.0)
-        bounds
-    else
-        Rect(
-            bounds.x - insets.left,
-            bounds.y - insets.top,
-            bounds.width + insets.left + insets.right,
-            bounds.height + insets.top + insets.bottom
-        )
+internal fun switchHitBounds(bounds: Rect, insets: Insets): Rect = if (bounds.width ==
+    0.0 ||
+    bounds.height ==
+    0.0
+)
+    bounds
+else
+    Rect(
+        bounds.x - insets.left,
+        bounds.y - insets.top,
+        bounds.width + insets.left + insets.right,
+        bounds.height + insets.top + insets.bottom
+    )
 
 /** Local surfaces override their base border, so apply the shared focus/invalid priority here. */
 internal fun controlBorder(
     theme: Theme,
     options: SurfaceOptions,
     visual: InteractionVisual,
-    base: Color
+    base: Color,
+    kind: SurfaceKind = SurfaceKind.Plain
 ): Color {
-    if (visual.invalid)
-        return (options.validation ?: theme.tokens.validation).borderColor ?: base
+    if (visual.invalid) return (options.validation ?: theme.tokens.validation).borderColor ?: base
     if (visual.enabled && visual.focusVisible)
-        return when (options.focus) {
-            case Some(val value) -> value.borderColor ?: base
-            case None -> theme.tokens.palette.ring
-        }
+        return (options.focus ?: theme.surfaceFocus(kind)).borderColor ?: base
     return base
 }

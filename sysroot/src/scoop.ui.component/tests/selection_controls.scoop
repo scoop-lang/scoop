@@ -18,16 +18,13 @@ private class SelectionControlTest {
         val value = state(false)
         val attempts = state(0)
         val accepted = state(true)
-        val original =
-            binding(
-                { value.value },
-                {
-                    next ->
-                    attempts.value += 1
-                    if (accepted.value)
-                        value.value = next
-                }
-            )
+        val original = binding(
+            { value.value },
+            { next ->
+                attempts.value += 1
+                if (accepted.value) value.value = next
+            }
+        )
         val mapped = checkboxStateBinding(original)
         assertEquals(CheckState.Unchecked, mapped.value)
         mapped.value = nextCheckState(mapped.value)
@@ -44,8 +41,8 @@ private class SelectionControlTest {
         val theme = shadcnTheme()
         val visual = InteractionVisual(invalid = true)
         val options = checkboxStyle().options(theme, visual, true)
-        val geometry =
-            theme.checkboxGeometry(
+        val geometry = theme
+            .checkboxGeometry(
                 Rect(0.0, 0.0, 16.0, 16.0),
                 CheckboxVisual(CheckMark.Mixed, visual),
                 options
@@ -67,42 +64,46 @@ private class SelectionControlTest {
                 val options = switchOptions(input, theme, visual.interaction, 0.0)
                 val metrics = theme.surfaceMetrics(visual, options)
                 assertEquals(
-                    if (size == SwitchSize.Sm)
-                        Size(24.0, 14.0)
-                    else
-                        Size(32.0, 18.4),
+                    if (size == SwitchSize.Sm) Size(24.0, 14.0) else Size(32.0, 18.4),
                     metrics.suggestedSize
                 )
                 val width = metrics.suggestedSize.width
                 val height = metrics.suggestedSize.height
                 val geometry = theme.surfaceGeometry(Rect(0.0, 0.0, width, height), visual, options)
-                val side =
-                    if (size == SwitchSize.Sm)
-                        12.0
-                    else
-                        16.0
-                val off = switchThumbBounds(geometry.content, side, 0.0, LayoutDirection.Ltr)
-                val on = switchThumbBounds(geometry.content, side, 1.0, LayoutDirection.Ltr)
+                val side = if (size == SwitchSize.Sm) 12.0 else 16.0
+                val off = switchThumbBounds(
+                    geometry.content,
+                    Size(side, side),
+                    0.0,
+                    LayoutDirection.Ltr
+                )
+                val on = switchThumbBounds(
+                    geometry.content,
+                    Size(side, side),
+                    1.0,
+                    LayoutDirection.Ltr
+                )
                 assertEquals(side, off.width)
                 assertEquals(1.0, off.x)
                 assertEquals(width - 1.0 - side, on.x)
                 assertTrue(abs(off.y - (height - side) / 2.0) < 0.00001)
                 assertEquals(
                     on,
-                    switchThumbBounds(geometry.content, side, 0.0, LayoutDirection.Rtl)
+                    switchThumbBounds(geometry.content, Size(side, side), 0.0, LayoutDirection.Rtl)
                 )
                 assertEquals(
                     off,
-                    switchThumbBounds(geometry.content, side, 1.0, LayoutDirection.Rtl)
+                    switchThumbBounds(geometry.content, Size(side, side), 1.0, LayoutDirection.Rtl)
                 )
                 assertEquals(
                     width / 2.0,
-                    switchThumbBounds(geometry.content, side, 0.5, LayoutDirection.Ltr).x +
+                    switchThumbBounds(geometry.content, Size(side, side), 0.5, LayoutDirection.Ltr)
+                        .x +
                         side /
                         2.0
                 )
-                val selected =
-                    theme.surfaceGeometry(
+                val selected = theme
+                    .surfaceGeometry(
                         geometry.bounds,
                         visual,
                         switchOptions(input, theme, visual.interaction, 1.0)
@@ -111,11 +112,10 @@ private class SelectionControlTest {
                     theme.tokens.palette.primary.background,
                     selected.style.background!!.color
                 )
-                val expectedOff =
-                    if (mode == ThemeMode.Dark)
-                        theme.tokens.palette.input.withAlpha(theme.tokens.palette.input.alpha * 0.8)
-                    else
-                        theme.tokens.palette.input
+                val expectedOff = if (mode == ThemeMode.Dark)
+                    theme.tokens.palette.input.withAlpha(theme.tokens.palette.input.alpha * 0.8)
+                else
+                    theme.tokens.palette.input
                 assertEquals(expectedOff, geometry.style.background!!.color)
                 assertEquals(
                     if (mode == ThemeMode.Dark)
@@ -124,13 +124,12 @@ private class SelectionControlTest {
                         theme.tokens.palette.background.background,
                     switchThumbStyle(input, theme, 1.0).background!!.color
                 )
-                val invalid =
-                    SurfaceVisual(
-                        SurfaceKind.Plain,
-                        InteractionVisual(invalid = true, focusVisible = true, enabled = false)
-                    )
-                val error =
-                    theme.surfaceGeometry(
+                val invalid = SurfaceVisual(
+                    SurfaceKind.Plain,
+                    InteractionVisual(invalid = true, focusVisible = true, enabled = false)
+                )
+                val error = theme
+                    .surfaceGeometry(
                         geometry.bounds,
                         invalid,
                         switchOptions(input, theme, invalid.interaction, 1.0)
@@ -145,11 +144,11 @@ private class SelectionControlTest {
         }
         assertEquals(
             Rect(2.0, 3.0, 0.0, 0.0),
-            switchThumbBounds(Rect(2.0, 3.0, 0.0, 0.0), 16.0, 1.0, LayoutDirection.Rtl)
+            switchThumbBounds(Rect(2.0, 3.0, 0.0, 0.0), Size(16.0, 16.0), 1.0, LayoutDirection.Rtl)
         )
         assertEquals(
             Rect(1.0, 1.0, 3.0, 3.0),
-            switchThumbBounds(Rect(1.0, 1.0, 3.0, 3.0), 16.0, 1.0, LayoutDirection.Ltr)
+            switchThumbBounds(Rect(1.0, 1.0, 3.0, 3.0), Size(16.0, 16.0), 1.0, LayoutDirection.Ltr)
         )
         assertEquals(
             Rect(-12.0, -8.0, 56.0, 30.0),
@@ -172,20 +171,24 @@ private class SelectionControlTest {
                 for (size in [ToggleSize.Sm, ToggleSize.Default, ToggleSize.Lg]) {
                     val visual = InteractionVisual()
                     val shape = ActionShape.Toggle(variant, size, true)
-                    val options =
-                        actionOptions(theme, shape, ButtonVariant.Ghost, buttonStyle(), visual)
+                    val options = actionOptions(
+                        theme,
+                        shape,
+                        ButtonVariant.Ghost,
+                        buttonStyle(),
+                        visual
+                    )
                     val surface = SurfaceVisual(SurfaceKind.Plain, visual)
                     val metrics = theme.surfaceMetrics(surface, options)
-                    val height =
-                        when (size) {
-                            case Sm -> 28.0;
-                            case Default -> 32.0;
-                            case Lg -> 36.0
-                        }
+                    val height = when (size) {
+                        case Sm -> 28.0;
+                        case Default -> 32.0;
+                        case Lg -> 36.0
+                    }
                     assertEquals(Size(height, height), metrics.suggestedSize)
                     assertEquals(Insets(10.0, 0.0, 10.0, 0.0), metrics.padding)
-                    val geometry =
-                        theme.surfaceGeometry(Rect(0.0, 0.0, 60.0, height), surface, options)
+                    val geometry = theme
+                        .surfaceGeometry(Rect(0.0, 0.0, 60.0, height), surface, options)
                     assertEquals(
                         theme.tokens.palette.muted.background,
                         geometry.style.background!!.color
@@ -197,53 +200,54 @@ private class SelectionControlTest {
                             Some(Border.all(1.0, theme.tokens.palette.input)),
                             geometry.style.border
                         )
-                    val focused =
-                        actionOptions(
-                            theme,
-                            shape,
-                            ButtonVariant.Ghost,
-                            buttonStyle(),
-                            InteractionVisual(focusVisible = true)
-                        )
+                    val focused = actionOptions(
+                        theme,
+                        shape,
+                        ButtonVariant.Ghost,
+                        buttonStyle(),
+                        InteractionVisual(focusVisible = true)
+                    )
                     assertEquals(
                         metrics.contentInsets,
                         theme.surfaceMetrics(surface, focused).contentInsets
                     )
-                    val plain =
-                        actionOptions(
-                            theme,
-                            ActionShape.Toggle(variant, size, false),
-                            ButtonVariant.Ghost,
-                            buttonStyle(),
-                            visual
-                        )
+                    val plain = actionOptions(
+                        theme,
+                        ActionShape.Toggle(variant, size, false),
+                        ButtonVariant.Ghost,
+                        buttonStyle(),
+                        visual
+                    )
                     assertEquals(
                         0.0,
-                        theme.surfaceGeometry(
-                            geometry.bounds,
-                            surface,
-                            plain
-                        ).style.background!!.color.alpha
+                        theme
+                            .surfaceGeometry(
+                                geometry.bounds,
+                                surface,
+                                plain
+                            )
+                            .style
+                            .background!!
+                            .color
+                            .alpha
                     )
-                    val appearance =
-                        actionContentStyle(
-                            theme.tokens.typography.action,
-                            shape,
-                            ButtonVariant.Ghost,
-                            visual
-                        )
+                    val appearance = actionContentStyle(
+                        theme.tokens.typography.action,
+                        shape,
+                        ButtonVariant.Ghost,
+                        visual
+                    )
                     assertFalse(appearance.interaction.pressed)
                     assertFalse(appearance.underline)
                 }
             }
-            val local =
-                buttonStyle {
-                    surface { style { this.background(Some(Paint(Color.Black))) } }
-                    states { pressed { this.background(Some(Paint(Color.White))) } }
-                }
+            val local = buttonStyle {
+                surface { style { this.background(Some(Paint(Color.Black))) } }
+                states { pressed { this.background(Some(Paint(Color.White))) } }
+            }
             val interaction = InteractionVisual(pressed = true, invalid = true)
-            val geometry =
-                theme.surfaceGeometry(
+            val geometry = theme
+                .surfaceGeometry(
                     Rect(0.0, 0.0, 40.0, 32.0),
                     SurfaceVisual(SurfaceKind.Plain, interaction),
                     toggleOptions(
@@ -285,14 +289,14 @@ private class SelectionControlTest {
             children.toggle("Bold", value)
             children.toggle(styledText { this.text("Italic") }, value)
             children.toggle(empty(), value)
-            children.toggle(
-                {
-                    _: ActionContentStyle ->
-                    calls.value += 1;
-                    empty()
-                },
-                value
-            )
+            children
+                .toggle(
+                    { _: ActionContentStyle ->
+                        calls.value += 1;
+                        empty()
+                    },
+                    value
+                )
             assertEquals(7L, children.childCount)
             assertEquals(0, calls.value)
             assertSame(value, SwitchBuilder().snapshot(value).checked)

@@ -29,21 +29,21 @@ public fun liquidGlassTheme(
                 lineHeight = Some(16.0 / 12.0)
                 color = colors.muted.foreground
             },
-        body.copy { weight = 600 }
+        body.copy { weight = 500 }
     )
     val effects = themeEffects {
-        raised = [BoxShadow(Point(0.0, 2.0), 3.0, 3.0, colors.shadow)]
+        raised = [BoxShadow(Point(0.0, 1.0), 1.5, 1.5, colors.shadow)]
         floating = [
             BoxShadow(Point(0.0, 8.0), 16.0, 16.0, colors.shadow),
             BoxShadow(Point(0.0, 1.0), 2.0, 2.0, colors.shadow.withAlpha(colors.shadow.alpha * 0.6))
         ]
     }
-    val focus = OutlineStyle(colors.ring, 2.0, 3.0)
+    val focus = OutlineStyle(colors.ring, 3.5, 3.5)
     val tokens = themeTokens(
         colors, fonts,
         ThemeSpacing(4.0, 8.0, 16.0),
         ThemeCorners(8.0, 14.0, 22.0),
-        OutlineStyle(colors.destructive.background, 2.0, 3.0, Some(colors.destructive.background))
+        OutlineStyle(colors.destructive.background, 2.0, 2.0, Some(colors.destructive.background))
     ) {
         this.mode = mode
         this.effects = effects
@@ -59,9 +59,21 @@ public fun liquidGlassTheme(
             )
         }
         glassSurfaces = liquidSurfaces(mode)
+        controlMetrics = ThemeControlMetrics(
+            Size(38.0, 24.0), Size(30.0, 20.0), Size(28.0, 20.0), Size(22.0, 16.0),
+            16.0, 6.0
+        )
+        controlThumb = styleOverride {
+            background(Some(Paint(Color.White)))
+            border(Some(Border.all(0.5, Color.Black.withAlpha(0.06))))
+            boxShadows(effects.raised)
+        }
     }
     val normal = liquidStates(colors.secondary.background, colors.background.foreground, dark)
-    val accent = liquidStates(colors.primary.background, colors.primary.foreground, dark)
+    val accent = liquidStates(
+        colors.primary.background, colors.primary.foreground, false,
+        Some(colors.secondary.background)
+    )
     val text = StateColors(
         colors.background.foreground, colors.background.foreground,
         colors.background.foreground, colors.disabledText
@@ -76,17 +88,25 @@ public fun liquidGlassTheme(
     )
     val metrics = SurfaceMetrics(
         Size(0.0, 36.0), Size(28.0, 28.0), Insets(14.0, 7.0, 14.0, 7.0),
-        Insets.all(0.5), CornerRadii.all(18.0), focus.outset
+        Insets.all(0.5), CornerRadii.all(1000.0), focus.outset
     )
-    val plain = surfacePart(metrics, normal, edge, text, focus) { shadows = effects.raised }
+    val plain = surfacePart(
+        SurfaceMetrics(
+            metrics.suggestedSize, metrics.minimumSize, metrics.padding,
+            metrics.borderInsets, CornerRadii.all(8.0), focus.outset
+        ),
+        StateColors(
+            colors.card.background, colors.card.background, colors.card.background,
+            mixThemeColor(colors.card.background, colors.secondary.background, 0.3)
+        ), edge, text, focus
+    )
     val action = surfacePart(
         metrics, accent, StateColors.solid(Color.Transparent), accentText, focus
-    ) { shadows = effects.raised }
-    val outlined = plain
-        .copy {
-            fill = liquidStates(colors.card.background, colors.background.foreground, dark)
-            border = edge
-        }
+    )
+    val outlined = surfacePart(
+        metrics, liquidStates(colors.card.background, colors.background.foreground, dark),
+        edge, text, focus
+    )
     val elevated = surfacePart(
         SurfaceMetrics(
             Size(96.0, 64.0), Size(0.0, 0.0), Insets.all(16.0),
@@ -96,7 +116,10 @@ public fun liquidGlassTheme(
         StateColors.solid(colors.border),
         StateColors.solid(colors.popover.foreground), focus
     ) { shadows = effects.floating }
-    val marker = markerAppearance(normal, accent, edge, edge, accentText, focus)
+    val marker = markerAppearance(
+        normal, accent, StateColors.solid(Color.Transparent), StateColors.solid(Color.Transparent),
+        accentText, focus
+    )
     return shapeTheme(
         tokens,
         surfaceParts(plain, action, outlined, elevated),
@@ -106,7 +129,7 @@ public fun liquidGlassTheme(
                 CornerRadii.all(6.0), 4.0, 2.0, focus.outset
             ), marker
         ),
-        radioPart(RadioMetrics(Size(18.0, 18.0), Size(18.0, 18.0), 1.0, 4.5, focus.outset), marker),
+        radioPart(RadioMetrics(Size(18.0, 18.0), Size(18.0, 18.0), 1.0, 6.0, focus.outset), marker),
         scrollbarPart(
             ScrollbarMetrics(10.0, 28.0, 0.0, 2.0, 5.0, None),
             StateColors.solid(Color.Transparent),
@@ -121,19 +144,17 @@ public fun liquidGlassTheme(
     )
 }
 
-private fun liquidStates(fill: Color, foreground: Color, dark: Boolean): StateColors {
-    val lightText = foreground.red *
-        0.2126 +
-        foreground.green *
-        0.7152 +
-        foreground.blue *
-        0.0722 >
-        0.5
-    val emphasis = if (lightText) Color.Black else Color.White
+private fun liquidStates(
+    fill: Color,
+    foreground: Color,
+    lighten: Boolean,
+    disabled: Color? = None
+): StateColors {
+    val emphasis = if (lighten) Color.White else Color.Black
     return StateColors(
         fill,
-        mixThemeColor(fill, emphasis, if (dark) 0.08 else 0.04),
-        mixThemeColor(fill, emphasis, if (dark) 0.14 else 0.1),
-        mixThemeColor(fill, foreground, 0.04)
+        mixThemeColor(fill, emphasis, if (lighten) 0.08 else 0.04),
+        mixThemeColor(fill, emphasis, if (lighten) 0.14 else 0.1),
+        disabled ?: mixThemeColor(fill, foreground, 0.04)
     )
 }

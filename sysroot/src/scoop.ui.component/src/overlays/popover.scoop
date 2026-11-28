@@ -95,7 +95,7 @@ public class Popover public constructor(
             styleOverride {
                 glassSurface(theme, SurfaceRole.Popover, palette.popover.background, input.style)
                 border(Some(Border.all(1.0, componentPanelBorder(theme, palette.popover))))
-                corners(Corners.all(8.0 * density))
+                corners(Corners.all(theme.tokens.corners.medium * density))
                 boxShadows(theme.tokens.effects.floating)
             }
                 .then(input.style),

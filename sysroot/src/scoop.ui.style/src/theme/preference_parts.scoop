@@ -58,7 +58,14 @@ internal fun preferenceOutline(
     canvas: Color,
     contrast: Boolean
 ): OutlineStyle {
-    if (!contrast) return value
+    if (!contrast)
+        return OutlineStyle(
+            opaqueThemeColor(value.color, canvas), value.width, value.outset,
+            when (value.borderColor) {
+                case Some(val color) -> Some(opaqueThemeColor(color, canvas))
+                case None -> None
+            }
+        )
     return OutlineStyle(
         contrastThemeColor(value.color, canvas, 3.0),
         themeMax(2.0, value.width),
