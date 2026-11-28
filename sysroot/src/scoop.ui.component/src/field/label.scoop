@@ -24,7 +24,7 @@ public class FieldLabelProps public constructor(
 public class FieldLabel public constructor(
     private val props: Props<FieldLabelProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val themes = ThemeAccess(scope)
     public override fun onMount() {
         themes.mount(props.value.theme)
@@ -32,44 +32,49 @@ public class FieldLabel public constructor(
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.theme)
-        val base =
-            theme.tokens.typography.body.copy {
+        val base = theme
+            .tokens
+            .typography
+            .body
+            .copy {
                 this.lineHeight = Some(1.0)
                 this.weight = 500
                 this.color = theme.tokens.palette.background.foreground
             }
-        val child =
-            when (input.content) {
-                case Custom(val view) -> view
-                case Text(val value) -> {
-                    val content =
-                        when (value) {
-                            case Plain(val value, val local) -> LabelText.Styled(
+        val child = when (input.content) {
+            case Custom(val view) -> view
+
+            case Text(val value) -> {
+                val content = when (value) {
+                    case Plain(val value, val local) ->
+                        LabelText
+                            .Styled(
                                 typographyContent(
                                     TypographyContent.Plain(value),
                                     local?.resolve(base) ?: base,
                                     input.textStyle
                                 )
                             )
-                            case Styled(val value) -> LabelText.Styled(
+                    case Styled(val value) ->
+                        LabelText
+                            .Styled(
                                 typographyContent(
                                     TypographyContent.Styled(value),
                                     base,
                                     input.textStyle
                                 )
                             )
-                        }
-                    component(
-                        LabelProps(content, input.fonts, input.settings, baseStyle = Some(base)),
-                        { current, mount -> Label(current, scope = mount) }
-                    )
                 }
+                component(
+                    LabelProps(content, input.fonts, input.settings, baseStyle = Some(base)),
+                    { current, mount -> Label(current, scope = mount) }
+                )
             }
-        val decorated =
-            frame(child) {
-                this.padding = Some(Insets())
-                this.style = input.style
-            }
+        }
+        val decorated = frame(child) {
+            this.padding = Some(Insets())
+            this.style = input.style
+        }
         return element(
             FieldLabelInkProps(
                 input.target,
@@ -93,7 +98,7 @@ private class FieldLabelInkProps(
 private class FieldLabelInk(
     private val props: Props<FieldLabelInkProps>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private val annotation = scope.resource { FieldAnnotation(scope) }
     private var area: InputArea? = None
     private var press: Press? = None
@@ -107,24 +112,25 @@ private class FieldLabelInk(
     public override fun update(): UiInvalidation {
         val value = props.value
         when (previous) {
-            case Some(val old) -> if (
-                old.target !== value.target || !sameFieldLink(old.connection, value.connection)
-            )
-                press!!.update(PressOptions(false, false)) {}
+            case Some(val old) ->
+                if (old.target !== value.target || !sameFieldLink(old.connection, value.connection))
+                    press!!.update(PressOptions(false, false)) {}
             case None -> {}
         }
         previous = Some(value)
         area!!.scope.enabled = value.enabled
-        press!!.update(PressOptions(value.enabled, false)) {
-            val current = props.value
-            current.connection?.activate(scope, current.target)
-        }
-        annotation.update(
-            Some(value.target),
-            FieldAnnotationKind.Label,
-            value.semantics,
-            value.enabled
-        )
+        press!!
+            .update(PressOptions(value.enabled, false)) {
+                val current = props.value
+                current.connection?.activate(scope, current.target)
+            }
+        annotation
+            .update(
+                Some(value.target),
+                FieldAnnotationKind.Label,
+                value.semantics,
+                value.enabled
+            )
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -138,25 +144,24 @@ private class FieldLabelInk(
         val enabled = props.value.enabled
         annotation.scene(context)
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
-        if (!enabled)
-            context.saveLayer(0.5)
+        if (!enabled) context.saveBackdropLayer(0.5)
         context.children()
-        if (!enabled)
-            context.restore()
+        if (!enabled) context.restore()
     }
 }
 
-private fun sameFieldLink(left: FieldLink?, right: FieldLink?): Boolean =
-    when (left) {
-        case Some(val a) -> when (right) {
+private fun sameFieldLink(left: FieldLink?, right: FieldLink?): Boolean = when (left) {
+    case Some(val a) ->
+        when (right) {
             case Some(val b) -> a === b
             case None -> false
         }
-        case None -> when (right) {
+    case None ->
+        when (right) {
             case Some(_) -> false
             case None -> true
         }
-    }
+}
 
 public class FieldLabelBuilder internal constructor() {
     public var fonts: FontCollection? = None

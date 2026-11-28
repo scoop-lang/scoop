@@ -1,0 +1,206 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.math.min
+import scoop.math.pow
+import scoop.test.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.style.liquidglass.liquidGlassTheme
+
+@Test
+private class GlassSurfaceThemeTest {
+    @Test
+    fun `semantic roles select independent materials and local clearing restores the ordinary fill`() {
+        val material = glassMaterial()
+        val other = material.copy { blurSigma = 2.0 }
+        val builders = ArrayList<GlassSurfacesBuilder>()
+        val policy = glassSurfaces {
+            toolbar = Some(material)
+            popover = Some(other)
+            builders.add(this)
+        }
+        builders[0L].toolbar = None
+        val bounds = Rect(0.0, 0.0, 96.0, 40.0)
+        for (
+            base in [
+                macosTheme(),
+                materialTheme(),
+                fluentTheme(),
+                shadcnTheme(),
+                liquidGlassTheme()
+            ]
+        ) {
+            val theme = base.copy { tokens { glassSurfaces = policy } }
+            val toolbar = SurfaceVisual(SurfaceKind.Elevated, role = SurfaceRole.Toolbar)
+            val plain = base.surfaceGeometry(bounds, toolbar)
+            val glass = theme.surfaceGeometry(bounds, toolbar)
+            assertSame(material, glass.style.glass!!)
+            assertEquals(plain.content, glass.content)
+            assertTrue(glass.style.background!!.color.alpha > 0.0)
+            assertTrue(glass.style.background!!.color.alpha <= 1.0)
+            assertSame(other, theme.tokens.glassSurfaces.get(SurfaceRole.Popover)!!)
+            assertFalse(present(theme.surfaceGeometry(bounds).style.glass))
+            val clear = theme
+                .surfaceGeometry(bounds, toolbar, surfaceOptions { style { glass(None) } })
+            assertFalse(present(clear.style.glass))
+            assertEquals(base.surfaces.elevated.fill.normal, clear.style.background!!.color)
+            val replace = theme
+                .surfaceGeometry(
+                    bounds,
+                    toolbar,
+                    surfaceOptions {
+                        style {
+                            glass(Some(other));
+                            background(Some(Paint(Color.Black)))
+                        }
+                    }
+                )
+            assertSame(other, replace.style.glass!!)
+            assertEquals(Color.Black, replace.style.background!!.color)
+            assertSame(
+                material,
+                theme
+                    .copy { tokens { glassSurfaces { notification = Some(other) } } }
+                    .tokens
+                    .glassSurfaces
+                    .toolbar!!
+            )
+        }
+    }
+
+    @Test
+    fun `opaque preferences disable theme glass and restore the original policy without compounding`() {
+        val material = glassMaterial()
+        val theme = materialTheme { tokens { glassSurfaces { dialog = Some(material) } } }
+        for (
+            preference in [
+                ThemePreferences(highContrast = true),
+                ThemePreferences(reduceTransparency = true)
+            ]
+        ) {
+            val resolved = theme.withPreferences(preference)
+            assertFalse(present(resolved.tokens.glassSurfaces.dialog))
+            assertSame(
+                material,
+                resolved.withPreferences(ThemePreferences()).tokens.glassSurfaces.dialog!!
+            )
+        }
+        assertSame(
+            material,
+            theme
+                .withPreferences(ThemePreferences(reduceMotion = true))
+                .tokens
+                .glassSurfaces
+                .dialog!!
+        )
+    }
+
+    @Test
+    fun `glass state colors remain readable while focus validation and disabled geometry are preserved`() {
+        val material = glassMaterial()
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            for (
+                base in [
+                    macosTheme(mode),
+                    materialTheme(mode),
+                    fluentTheme(mode),
+                    shadcnTheme(mode),
+                    liquidGlassTheme(mode)
+                ]
+            ) {
+                val theme = base
+                    .copy {
+                        tokens {
+                            glassSurfaces {
+                                control = Some(material);
+                                input = Some(material)
+                            }
+                        }
+                    }
+                val canvas = over(
+                    base.tokens.palette.background.background,
+                    if (mode == ThemeMode.Dark) Color.Black else Color.White
+                )
+                for (
+                    interaction in [
+                        InteractionVisual(),
+                        InteractionVisual(hovered = true),
+                        InteractionVisual(pressed = true),
+                        InteractionVisual(focusVisible = true),
+                        InteractionVisual(invalid = true),
+                        InteractionVisual(enabled = false)
+                    ]
+                ) {
+                    for (
+                        kind in [SurfaceKind.Action, SurfaceKind.OutlinedAction, SurfaceKind.Plain]
+                    ) {
+                        val visual = SurfaceVisual(
+                            kind, interaction,
+                            if (kind == SurfaceKind.Plain)
+                                SurfaceRole.Input
+                            else
+                                SurfaceRole.Control
+                        )
+                        val bounds = Rect(0.0, 0.0, 120.0, 40.0)
+                        val original = base.surfaceGeometry(bounds, visual)
+                        val glass = theme.surfaceGeometry(bounds, visual)
+                        assertSame(material, glass.style.glass!!)
+                        assertEquals(original.content, glass.content)
+                        assertEquals(original.opacity, glass.opacity)
+                        assertEquals(original.outline, glass.outline)
+                        assertEquals(original.ring, glass.ring)
+                        val background = over(original.style.background!!.color, canvas)
+                        val text = theme.surfaceTextColor(visual)
+                        val minimum = min(4.5, ratio(over(text, background), background))
+                        for (underlay in [Color.Black, Color.White, Color(0.5, 0.2, 0.8)]) {
+                            val resolved = over(glass.style.background!!.color, underlay)
+                            assertTrue(ratio(over(text, resolved), resolved) + 0.00001 >= minimum)
+                        }
+                    }
+                }
+                val strong = theme.withPreferences(ThemePreferences(highContrast = true))
+                val visual = SurfaceVisual(
+                    SurfaceKind.Action,
+                    InteractionVisual(enabled = false, invalid = true), SurfaceRole.Control
+                )
+                val geometry = strong.surfaceGeometry(Rect(0.0, 0.0, 120.0, 40.0), visual)
+                assertFalse(present(geometry.style.glass))
+                assertEquals(1.0, geometry.opacity)
+                assertEquals(1.0, geometry.style.background!!.color.alpha)
+            }
+        }
+    }
+}
+
+private fun over(color: Color, background: Color): Color = mixThemeColor(
+    background,
+    color.withAlpha(1.0),
+    color.alpha
+)
+
+private fun ratio(first: Color, second: Color): Double {
+    val a = luminanceForGlass(first)
+    val b = luminanceForGlass(second)
+    return if (a > b) (a + 0.05) / (b + 0.05) else (b + 0.05) / (a + 0.05)
+}
+
+private fun luminanceForGlass(value: Color): Double = linearForGlass(value.red) *
+    0.2126 +
+    linearForGlass(value.green) *
+    0.7152 +
+    linearForGlass(value.blue) *
+    0.0722
+
+private fun linearForGlass(value: Double): Double = if (value <= 0.04045)
+    value / 12.92
+else
+    pow((value + 0.055) / 1.055, 2.4)
+
+private fun <T> present(value: T?): Boolean = when (value) {
+    case Some(_) -> true
+    case None -> false
+}

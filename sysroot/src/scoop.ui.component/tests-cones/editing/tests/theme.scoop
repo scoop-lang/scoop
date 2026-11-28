@@ -32,6 +32,7 @@ internal class FieldTheme(private val base: Theme, private val probe: FieldProbe
         val next = base.withPreferences(preferences)
         return if (next === base) this else FieldTheme(next, probe)
     }
+    public override fun surfaceFocus(kind: SurfaceKind): OutlineStyle = base.surfaceFocus(kind)
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,

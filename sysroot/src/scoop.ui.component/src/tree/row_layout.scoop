@@ -151,7 +151,7 @@ internal class TreeRowInk<T>(private val props: Props<TreeRowDrawing<T>>, scope:
             context.place(drawing.owner.area, bounds)
         context.save()
         context.clipRect(bounds)
-        context.saveLayer(reveal.value)
+        context.saveBackdropLayer(reveal.value)
         context.children()
         // Restore the reveal layer and row clip before drawing drag feedback.
         context.restore()

@@ -1,0 +1,189 @@
+package scoop.tests.ui.glass
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.liquidglass.liquidGlassTheme
+import scoop.window.*
+
+@Test
+private class GlassGroupsWindowTest {
+    @Test(useProcess = true)
+    fun `buttons share one backdrop and tabs move and resize one measured indicator`() {
+        val probe = GlassGroupsProbe()
+        probe
+            .use { _ ->
+                val material = glassMaterial {
+                    blurSigma = 0.0
+                    refraction = 0.0
+                    saturation = 1.0
+                    tint = Color(0.0, 1.0, 0.0, 0.5)
+                    highlight = Color.Transparent
+                }
+                context(
+                    ThemeSource(
+                        liquidGlassTheme {
+                            tokens {
+                                glassSurfaces {
+                                    control = Some(material)
+                                    toolbar = Some(material)
+                                    navigation = Some(material)
+                                }
+                            }
+                        }
+                    )
+                ) {
+                    UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                        probe.event(host, active, event)
+                    }
+                        .use { host -> Application().run(host) }
+                }
+            }
+        assertTrue(probe.finished)
+    }
+}
+
+internal class GlassGroupsProbe : Closeable {
+    val selected = state<Int?>(Some(0))
+    val clearFirst = state(false)
+    val serial = state(0)
+    var submitted = -1
+    var center = 0L
+    var bridge = 0L
+    var right = 0L
+    var left = -1L
+    var span = 0L
+    var moved = false
+    var resized = false
+    private var samples = ""
+    var finished = false
+    private var firstLeft = -1L
+    private var firstSpan = 0L
+    private var ui: UiWindow? = None
+    private var deadline: WindowDeadline? = None
+    private var frames: FrameProbe? = None
+    private var idle: FrameSnapshot? = None
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window = active
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop shared glass groups"
+                            size = LogicalSize(300.0, 180.0)
+                            level = WindowLevel.AlwaysOnTop
+                        }
+                    )
+                frames = Some(observeFrames(window))
+                window
+                    .createDeadline { fail(Some(f"shared glass timeout at ${serial.value}")) }
+                    .schedule(MonotonicTimeSource.now() + Duration.seconds(20L))
+                deadline = Some(window.createDeadline { advance(active) })
+                ui = host.attach(window, { mount -> GlassGroupsRoot(this, scope = mount) })
+                ui!!.preferences = uiPreferences {
+                    highContrast = Some(false)
+                    reduceTransparency = Some(false)
+                    reduceMotion = Some(false)
+                    textScaleFactor = Some(1.0)
+                }
+                schedule(650L)
+            }
+
+            case AboutToWait -> {
+                if (serial.value == 1 && submitted == 1) {
+                    samples += f" [${left},${span}]"
+                    if (left > firstLeft + 3L && left < firstLeft + 65L) moved = true
+                    if (span > firstSpan + 3L && span < 104L) resized = true
+                }
+            }
+
+            else -> {}
+        }
+    }
+    private fun schedule(delay: Long) {
+        deadline!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(delay))
+    }
+    private fun advance(active: ActiveApplication) {
+        when (idle) {
+            case Some(val snapshot) -> {
+                assertEquals(snapshot, frames!!.snapshot())
+                finished = true
+                active.requestExit()
+                return
+            }
+
+            case None -> {}
+        }
+        if (submitted != serial.value) {
+            schedule(20L);
+            return
+        }
+        when (serial.value) {
+            case 0 -> {
+                assertCyan(center)
+                assertCyan(bridge)
+                assertCyan(right)
+                assertTrue(
+                    left >= 10L && span in 64L..74L,
+                    Some(f"initial tab left=${left} width=${span}")
+                )
+                firstLeft = left
+                firstSpan = span
+                selected.value = Some(1)
+            }
+
+            case 1 -> {
+                assertTrue(
+                    moved && resized,
+                    Some(f"selection movement=${moved}, reshape=${resized}; pixels:${samples}")
+                )
+                assertTrue(left > firstLeft + 60L && span in 104L..114L)
+                ui!!.preferences = uiPreferences {
+                    highContrast = Some(false)
+                    reduceTransparency = Some(false)
+                    reduceMotion = Some(true)
+                }
+                selected.value = Some(0)
+            }
+
+            case 2 -> {
+                assertEquals(firstLeft, left)
+                assertEquals(firstSpan, span)
+                clearFirst.value = true
+            }
+
+            case 3 -> {
+                assertEquals(16711680L, center)
+                assertEquals(16711680L, bridge)
+                assertCyan(right)
+                val snapshot = frames!!.snapshot()
+                assertFalse(snapshot.required)
+                assertTrue(snapshot.paused)
+                idle = Some(snapshot)
+                schedule(180L)
+                return
+            }
+
+            else -> fail()
+        }
+        serial.value += 1
+        schedule(600L)
+    }
+    private fun assertCyan(value: Long) {
+        assertEquals(0L, value % 256L)
+        assertTrue(
+            value / 256L % 256L in 125L..130L,
+            Some(f"glass was composited more than once: ${value}")
+        )
+        assertTrue(value / 65536L in 125L..130L)
+    }
+    public override fun close() {
+        frames?.close()
+    }
+}

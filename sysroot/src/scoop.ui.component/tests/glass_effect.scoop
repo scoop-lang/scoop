@@ -1,0 +1,115 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicInstant
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+@Test
+private class GlassEffectContainerTest {
+    @Test
+    fun `automatic glass validates its layout without requiring estimated rectangles`() {
+        val material = glassMaterial()
+        val measured = glassEffect(ViewKey.Text("measured"), empty()) { layout { grow = 1.0 } }
+        assertEquals(None, measured.bounds)
+        assertEquals(1.0, measured.layout.grow)
+        for (
+            layout in [
+                GlassEffectLayout.Flex(FlexLayout()),
+                GlassEffectLayout.Wrap(FlexLayout(spacing = 8.0), 12.0)
+            ]
+        ) {
+            val value = GlassEffectContainerProps(material, [measured], layout = layout)
+            assertEquals(1L, value.keys.size)
+            assertEquals(ViewKey.Text("measured"), value.keys[0L])
+            assertFailsWith<IllegalArgumentException> {
+                GlassEffectContainerProps(
+                    material,
+                    [glassEffect(ViewKey.Text("fixed"), Rect(0.0, 0.0, 20.0, 20.0), empty())],
+                    layout = layout
+                )
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GlassEffectContainerProps(material, [measured])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GlassEffectContainerProps(
+                material, [measured],
+                layout = GlassEffectLayout.Wrap(FlexLayout(), -1.0)
+            )
+        }
+    }
+
+    @Test
+    fun `glass items publish snapshots and require distinct stable keys and valid geometry`() {
+        val builders = ArrayList<GlassEffectBuilder>()
+        val item = glassEffect(ViewKey.Text("action"), Rect(-4.0, 8.0, 40.0, 20.0), empty()) {
+            corners = CornerRadii.all(7.0)
+            builders.add(this)
+        }
+        builders[0L].corners = CornerRadii.all(0.0)
+        assertEquals(CornerRadii.all(7.0), item.corners)
+        val material = glassMaterial()
+        val input = GlassEffectContainerProps(material, [item])
+        assertSame(material, input.material)
+        assertEquals(24.0, input.blendRadius)
+        assertFailsWith<IllegalArgumentException> {
+            glassEffect(ViewKey.Position, item.bounds!!, empty())
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GlassEffectContainerProps(material, [item, item])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            glassEffect(ViewKey.Number(1L), Rect(0.0, 0.0, -1.0, 2.0), empty())
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GlassEffectContainerProps(material, opacity = 1.1)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GlassEffectContainerProps(material, blendRadius = -1.0)
+        }
+    }
+
+    @Test
+    fun `shape animation retargets from the presented geometry and snaps when motion is reduced`() {
+        AnimationTimeline()
+            .use { timeline ->
+                val value = timeline.value(1.0)
+                val initial = RoundedOutline(Rect(0.0, 0.0, 40.0, 40.0), CornerRadii.all(20.0))
+                val target = RoundedOutline(Rect(40.0, 20.0, 80.0, 60.0), CornerRadii.all(12.0))
+                val next = RoundedOutline(Rect(-20.0, -10.0, 30.0, 30.0), CornerRadii.all(5.0))
+                GlassShapeMotion(value, initial)
+                    .use { motion ->
+                        val spec = Some(AnimationSpec.Tween(Duration.seconds(1L)))
+                        assertEquals(initial, motion.sample())
+                        timeline
+                            .advanceTo(MonotonicInstant(Duration.ZERO)) {
+                                motion.retarget(target, spec)
+                            }
+                        timeline
+                            .advanceTo(MonotonicInstant(Duration.milliseconds(250L))) {
+                                val current = motion.sample()
+                                assertEquals(Rect(10.0, 5.0, 50.0, 45.0), current.bounds)
+                                assertEquals(CornerRadii.all(18.0), current.radii)
+                                motion.retarget(next, spec)
+                                assertEquals(current, motion.sample())
+                            }
+                        timeline
+                            .advanceTo(MonotonicInstant(Duration.milliseconds(750L))) {
+                                assertEquals(Rect(-5.0, -2.5, 40.0, 37.5), motion.sample().bounds)
+                                motion.retarget(next, None)
+                                assertEquals(next, motion.sample())
+                                assertFalse(timeline.hasFrameWork)
+                                motion.retarget(initial, spec)
+                                assertTrue(timeline.hasFrameWork)
+                            }
+                    }
+                assertEquals(AnimationState.Closed, value.state)
+                assertFalse(timeline.hasWork)
+            }
+    }
+}

@@ -9,7 +9,7 @@ export SCOOP_SYSROOT="$PWD/sysroot"
 target/release/scoop run sysroot/src/scoop.ui.component/examples/glass --release
 ```
 
-[色样](src/swatches.scoop)共享一份 SkSL 程序，各行绑定自己的颜色和相位，再把 Shader 传给 Canvas.drawRect。[工具栏](src/panel.scoop)使用 ImageFilter.blur 和 ImageFilter.runtimeShader。折射程序在局部逻辑坐标中偏移 background 输入，最大位移和声明的采样半径均为 13。StylePainter 依次绘制背景效果、半透明底色、标题和按钮。程序归组件作用域，依赖尺寸的滤镜随布局结果释放。
+[色样](src/swatches.scoop)共享一份 SkSL 程序，各行绑定自己的颜色和相位，再把 Shader 传给 Canvas.drawRect。[工具栏](src/panel.scoop)把公共 `glassMaterial { ... }` 赋给 `Style.glass`。左侧材质使用 blurSigma = 7、refraction = 0；右侧通过 copy 设置 blurSigma = 0、refraction = 13、edgeWidth = 20。StylePainter 按实际圆角生成光学边缘，依次处理背景、绘制半透明底色、标题和按钮。材质是可共享的不可变描述，程序与当前滤镜由 painter 持有，替换和卸载时释放。
 
 GlassOpacity 在 cachedScene 内调用 SceneContext.saveBackdropLayer，并呈现真正处理背景的 GlassPanel 子项。组继承当前背景，退出时按整体透明度在原背景与完整效果之间插值；缓存的组命令仍会读取滚动后的背景。示例的范围提示在面板外保留 24 个逻辑单位，覆盖当前 blur 的 3 倍 sigma 和折射采样半径；改动效果范围时需一起调整。调用方也可省略 bounds 让 graphics 按当前目标安排范围。API 的另一种用法是在 saveBackdropLayer 的 backdrop 参数中传入滤镜，在组进入时先处理背景，再绘制清晰前景。
 

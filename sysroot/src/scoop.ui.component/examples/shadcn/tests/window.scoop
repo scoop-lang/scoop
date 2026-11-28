@@ -246,13 +246,13 @@ internal class GalleryProbe(
             case 6 -> {
                 assertTrue(model.name.isComposing)
                 model.toggleTheme()
-                model.selectStyle(GalleryStyle.Fluent)
+                model.selectStyle(GalleryStyle.LiquidGlass)
                 observeTheme()
                 phase += 1
             }
 
             case 7 -> {
-                assertEquals(GalleryStyle.Fluent, model.style.value)
+                assertEquals(GalleryStyle.LiquidGlass, model.style.value)
                 assertTrue(model.inputFocus.hasFocus)
                 assertTrue(model.name.isComposing)
                 assertEquals(0, galleryText(native!!, "你好", false))

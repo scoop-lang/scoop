@@ -1,0 +1,75 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class GlassReadabilityTest {
+    @Test
+    fun `readable fills bound contrast over black white saturated and intermediate backdrops`() {
+        val backgrounds = [
+            Color.Black,
+            Color.White,
+            Color(1.0, 0.0, 0.0),
+            Color(0.0, 1.0, 0.0),
+            Color(0.0, 0.0, 1.0),
+            Color(0.4, 0.6, 0.5),
+            Color(0.2, 0.2, 0.2),
+            Color(0.5, 0.5, 0.5)
+        ]
+        for (
+            pair in [
+                ColorPair(Color.White, Color.Black),
+                ColorPair(Color.Black, Color.White),
+                ColorPair(Color(0.95, 0.96, 0.98), Color(0.35, 0.35, 0.4)),
+                ColorPair(Color(0.1, 0.25, 0.6), Color.White),
+                ColorPair(Color.White.withAlpha(0.8), Color.Black.withAlpha(0.6))
+            ]
+        ) {
+            val fill = glassSurfaceFill(pair, Color.White)
+            val original = opaqueThemeColor(pair.background, Color.White)
+            val minimum = themeMin(
+                4.5,
+                themeContrast(opaqueThemeColor(pair.foreground, original), original)
+            )
+            assertTrue(fill.alpha > 0.0 && fill.alpha <= 1.0)
+            for (background in backgrounds) {
+                val surface = opaqueThemeColor(fill, background)
+                val foreground = opaqueThemeColor(pair.foreground, surface)
+                assertTrue(
+                    themeContrast(foreground, surface) + 0.00001 >= minimum,
+                    Some("glass lowered the required text contrast")
+                )
+            }
+        }
+        val light = glassSurfaceFill(ColorPair(Color.White, Color.Black), Color.White)
+        assertTrue(light.alpha > 0.4 && light.alpha < 0.6)
+        val dark = glassSurfaceFill(ColorPair(Color.Black, Color.White), Color.Black)
+        assertTrue(dark.alpha > 0.5 && dark.alpha < 0.7)
+        assertEquals(
+            0.0,
+            glassSurfaceFill(ColorPair(Color.White, Color.Transparent), Color.White).alpha
+        )
+    }
+
+    @Test
+    fun `a foreground inside the possible backdrop luminance interval never passes on endpoints alone`() {
+        val foreground = Color(0.46, 0.46, 0.46)
+        val pair = ColorPair(Color.White, foreground)
+        val fill = glassSurfaceFill(pair, Color.White)
+        val surface = opaqueThemeColor(fill, foreground)
+        assertTrue(themeContrast(surface, foreground) >= 4.5)
+        assertTrue(fill.alpha > 0.95)
+    }
+
+    @Test
+    fun `glass readability checks ordinary color and contrast boundaries`() {
+        val pair = ColorPair(Color.White, Color.Black)
+        assertFailsWith<IllegalArgumentException> { glassSurfaceFill(pair, Color.Transparent) }
+        assertFailsWith<IllegalArgumentException> { glassSurfaceFill(pair, Color.White, 0.5) }
+        assertFailsWith<IllegalArgumentException> { glassSurfaceFill(pair, Color.White, 22.0) }
+        assertFailsWith<IllegalArgumentException> {
+            glassSurfaceFill(ColorPair(Color(0.0 / 0.0, 1.0, 1.0), Color.Black), Color.White)
+        }
+    }
+}

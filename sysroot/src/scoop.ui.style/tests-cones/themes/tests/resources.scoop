@@ -30,15 +30,15 @@ private class ThemeResourceTest {
         val restored = cache.get(first)
         assertTrue(restored !== painter)
         assertFalse(restored.isClosed)
-        Thread.start { assertFailsWith<IllegalStateException> { cache.get(first) } }.use {
-            thread -> thread.join()
-        }
-        Thread.start { assertFailsWith<IllegalStateException> { next.close() } }.use {
-            thread -> thread.join()
-        }
-        Thread.start { assertFailsWith<IllegalStateException> { cache.clear() } }.use {
-            thread -> thread.join()
-        }
+        Thread
+            .start { assertFailsWith<IllegalStateException> { cache.get(first) } }
+            .use { thread -> thread.join() }
+        Thread
+            .start { assertFailsWith<IllegalStateException> { next.close() } }
+            .use { thread -> thread.join() }
+        Thread
+            .start { assertFailsWith<IllegalStateException> { cache.clear() } }
+            .use { thread -> thread.join() }
         cache.close()
         cache.close()
         assertTrue(cache.isClosed)
@@ -54,8 +54,8 @@ private class ThemeResourceTest {
         val painter = theme.createPainter()
         val visual = CheckboxVisual(CheckMark.On)
         val bounds = Rect(16.0, 16.0, 24.0, 24.0)
-        val bad =
-            theme.checkboxGeometry(
+        val bad = theme
+            .checkboxGeometry(
                 bounds,
                 visual,
                 checkboxOptions {
@@ -63,26 +63,21 @@ private class ThemeResourceTest {
                 }
             )
         val good = theme.checkboxGeometry(bounds, visual)
-        val result =
-            pixels {
-                canvas ->
-                assertFailsWith<IllegalArgumentException> {
-                    painter.drawCheckbox(canvas, bad, visual)
-                }
-                canvas.withState {
-                    local ->
+        val result = pixels { canvas ->
+            assertFailsWith<IllegalArgumentException> { painter.drawCheckbox(canvas, bad, visual) }
+            canvas
+                .withState { local ->
                     assertFailsWith<IllegalStateException> {
                         painter.drawCheckbox(canvas, good, visual)
                     }
                     painter.drawCheckbox(local, good, visual)
                 }
-                canvas.drawRect(Rect(1.0, 1.0, 4.0, 4.0), Paint(Color.White))
-            }
+            canvas.drawRect(Rect(1.0, 1.0, 4.0, 4.0), Paint(Color.White))
+        }
         pixelColor(result, 128, 2, 2, Color.White)
         assertTrue(channel(result, 128, 20, 20, 3) > 200)
         painter.close()
-        pixels {
-            canvas ->
+        pixels { canvas ->
             assertFailsWith<IllegalStateException> { painter.drawCheckbox(canvas, good, visual) };
             Unit
         }
@@ -108,16 +103,14 @@ private class ThemeResourceTest {
 }
 
 /** A third-party Theme uses the same public protocol and can fail when acquiring its painter. */
-private class FailingTheme(private val base: Theme): Theme {
+private class FailingTheme(private val base: Theme) : Theme {
     public override val tokens: ThemeTokens get() = base.tokens
     public override val preferences: ThemePreferences get() = base.preferences
     public override fun withPreferences(preferences: ThemePreferences): Theme {
         val next = base.withPreferences(preferences)
-        return if (next === base)
-            this
-        else
-            FailingTheme(next)
+        return if (next === base) this else FailingTheme(next)
     }
+    public override fun surfaceFocus(kind: SurfaceKind): OutlineStyle = base.surfaceFocus(kind)
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
         options: SurfaceOptions,
@@ -139,22 +132,23 @@ private class FailingTheme(private val base: Theme): Theme {
         options: CheckboxOptions,
         direction: LayoutDirection
     ): CheckboxGeometry = base.checkboxGeometry(bounds, visual, options, direction)
-    public override fun radioMetrics(options: RadioOptions): RadioMetrics =
-        base.radioMetrics(options)
+    public override fun radioMetrics(options: RadioOptions): RadioMetrics = base
+        .radioMetrics(options)
     public override fun radioGeometry(
         bounds: Rect,
         visual: RadioVisual,
         options: RadioOptions
     ): RadioGeometry = base.radioGeometry(bounds, visual, options)
-    public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics =
-        base.scrollbarMetrics(options)
+    public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics = base
+        .scrollbarMetrics(options)
     public override fun scrollbarGeometry(
         bounds: Rect,
         visual: ScrollbarVisual,
         options: ScrollbarOptions
     ): ScrollbarGeometry = base.scrollbarGeometry(bounds, visual, options)
-    public override fun surfaceTextColor(visual: SurfaceVisual): Color =
-        base.surfaceTextColor(visual)
-    public override fun createPainter(): ThemePainter =
-        throw IllegalStateException(Some("expected painter creation failure"))
+    public override fun surfaceTextColor(visual: SurfaceVisual): Color = base
+        .surfaceTextColor(visual)
+    public override fun createPainter(): ThemePainter = throw IllegalStateException(
+        Some("expected painter creation failure")
+    )
 }

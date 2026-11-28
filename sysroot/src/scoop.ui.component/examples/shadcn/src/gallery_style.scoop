@@ -1,13 +1,14 @@
 package scoop.examples.ui.shadcn
 
 internal enum GalleryStyle : Equals<GalleryStyle> {
-    Shadcn, MacOS, Material, Fluent
+    Shadcn, MacOS, Material, Fluent, LiquidGlass
 
     public override operator fun equals(other: GalleryStyle): Boolean = when ((this, other)) {
         case(Shadcn, Shadcn) -> true
         case(MacOS, MacOS) -> true
         case(Material, Material) -> true
         case(Fluent, Fluent) -> true
+        case(LiquidGlass, LiquidGlass) -> true
         else -> false
     }
 }
@@ -17,6 +18,7 @@ internal fun galleryStyleTitle(style: GalleryStyle): String = when (style) {
     case MacOS -> "macOS"
     case Material -> "Material"
     case Fluent -> "Fluent"
+    case LiquidGlass -> "Liquid Glass"
 }
 
 internal enum GalleryColors {

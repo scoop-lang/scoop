@@ -6,7 +6,7 @@ import scoop.math.max
 import scoop.surface.InputArea
 import scoop.ui.*
 
-internal class ModalTriggerLayout(scope: ComponentScope): Element<Unit>(scope) {
+internal class ModalTriggerLayout(scope: ComponentScope) : Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -27,7 +27,7 @@ internal class ModalSurfaceProps(val input: ModalInput, val density: Double)
 internal class ModalSurface(
     private val props: Props<ModalSurfaceProps>,
     scope: ComponentScope
-): Element<Rect>(scope) {
+) : Element<Rect>(scope) {
     private var area: InputArea? = None
     public override fun onMount() {
         val target = scope.createArea()
@@ -43,70 +43,55 @@ internal class ModalSurface(
     > {
         val input = props.value.input
         val scale = props.value.density
-        val size =
-            Size(
-                constraints.maxWidth ?: constraints.minWidth,
-                constraints.maxHeight ?: constraints.minHeight
-            )
+        val size = Size(
+            constraints.maxWidth ?: constraints.minWidth,
+            constraints.maxHeight ?: constraints.minHeight
+        )
         val padding = input.options.viewportPadding * scale
-        val available =
-            Size(max(0.0, size.width - padding * 2.0), max(0.0, size.height - padding * 2.0))
+        val available = Size(
+            max(0.0, size.width - padding * 2.0),
+            max(0.0, size.height - padding * 2.0)
+        )
         val side = modalPhysicalSide(input.kind, context.layoutDirection)
         val vertical = side == Some(OverlaySide.Left) || side == Some(OverlaySide.Right)
         val sheet = panelPresent(side)
-        val widthHint =
-            when (input.width) {
-                case Some(val value) -> Some(value * scale);
-                case None -> None
-            }
-        val heightHint =
-            when (input.height) {
-                case Some(val value) -> Some(value * scale);
-                case None -> None
-            }
-        val desiredWidth =
-            if (sheet && !vertical)
-                available.width
-            else
-                if (vertical)
-                    widthHint ?: min(384.0 * scale, available.width * 0.75)
-                else
-                    (input.width ?: 384.0) * scale
+        val widthHint = when (input.width) {
+            case Some(val value) -> Some(value * scale);
+            case None -> None
+        }
+        val heightHint = when (input.height) {
+            case Some(val value) -> Some(value * scale);
+            case None -> None
+        }
+        val desiredWidth = if (sheet && !vertical)
+            available.width
+        else if (vertical)
+            widthHint ?: min(384.0 * scale, available.width * 0.75)
+        else
+            (input.width ?: 384.0) * scale
         val width = min(available.width, desiredWidth)
-        val fixedHeight =
-            if (vertical)
-                Some(available.height)
-            else
-                if (sheet)
-                    heightHint
-                else
-                    None
+        val fixedHeight = if (vertical) Some(available.height) else if (sheet) heightHint else None
         val height = min(available.height, fixedHeight ?: available.height)
-        val panel =
-            context.measureChild(
+        val panel = context
+            .measureChild(
                 0L,
                 Constraints(
                     width,
                     Some(width),
-                    if (panelPresent(fixedHeight))
-                        height
-                    else
-                        0.0,
+                    if (panelPresent(fixedHeight)) height else 0.0,
                     Some(height)
                 )
             )
-        val x =
-            when (side) {
-                case Some(OverlaySide.Left) -> min(padding, size.width)
-                case Some(OverlaySide.Right) -> max(0.0, size.width - padding - panel.size.width)
-                else -> max(0.0, (size.width - panel.size.width) / 2.0)
-            }
-        val y =
-            when (side) {
-                case Some(OverlaySide.Top) -> min(padding, size.height)
-                case Some(OverlaySide.Bottom) -> max(0.0, size.height - padding - panel.size.height)
-                else -> max(0.0, (size.height - panel.size.height) / 2.0)
-            }
+        val x = when (side) {
+            case Some(OverlaySide.Left) -> min(padding, size.width)
+            case Some(OverlaySide.Right) -> max(0.0, size.width - padding - panel.size.width)
+            else -> max(0.0, (size.width - panel.size.width) / 2.0)
+        }
+        val y = when (side) {
+            case Some(OverlaySide.Top) -> min(padding, size.height)
+            case Some(OverlaySide.Bottom) -> max(0.0, size.height - padding - panel.size.height)
+            else -> max(0.0, (size.height - panel.size.height) / 2.0)
+        }
         val bounds = Rect(x, y, panel.size.width, panel.size.height)
         context.placeChild(0L, Point(x, y))
         return LayoutResult(LayoutMetrics(size), bounds)
@@ -121,7 +106,7 @@ internal class ModalSurface(
             case None -> {}
         }
         context.restore()
-        context.saveLayer(progress)
+        context.saveBackdropLayer(progress)
         val side = modalPhysicalSide(input.kind, context.layoutDirection)
         val distance = 40.0 * props.value.density * (1.0 - progress)
         when (side) {
@@ -129,6 +114,7 @@ internal class ModalSurface(
             case Some(OverlaySide.Bottom) -> context.translate(0.0, distance)
             case Some(OverlaySide.Left) -> context.translate(-distance, 0.0)
             case Some(OverlaySide.Right) -> context.translate(distance, 0.0)
+
             else -> {
                 val center = Point(bounds.x + bounds.width / 2.0, bounds.y + bounds.height / 2.0)
                 context.translate(center.x, center.y)
@@ -146,20 +132,23 @@ internal class ModalSurface(
 internal fun modalPhysicalSide(kind: ModalKind, direction: LayoutDirection): OverlaySide? =
     when (kind) {
         case Drawer(val props, _) -> Some(drawerPhysicalSide(props.side, direction))
-        case Sheet(val side) -> Some(
-            when (side) {
-                case Top -> OverlaySide.Top
-                case Bottom -> OverlaySide.Bottom
-                case Start -> if (direction == LayoutDirection.Rtl)
-                    OverlaySide.Right
-                else
-                    OverlaySide.Left
-                case End -> if (direction == LayoutDirection.Rtl)
-                    OverlaySide.Left
-                else
-                    OverlaySide.Right
-            }
-        )
+        case Sheet(val side) ->
+            Some(
+                when (side) {
+                    case Top -> OverlaySide.Top
+                    case Bottom -> OverlaySide.Bottom
+                    case Start ->
+                        if (direction == LayoutDirection.Rtl)
+                            OverlaySide.Right
+                        else
+                            OverlaySide.Left
+                    case End ->
+                        if (direction == LayoutDirection.Rtl)
+                            OverlaySide.Left
+                        else
+                            OverlaySide.Right
+                }
+            )
         else -> None
     }
 
@@ -169,7 +158,7 @@ internal class ModalPanelProps(val density: Double, val header: Boolean, val con
 internal class ModalPanel(
     private val props: Props<ModalPanelProps>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -178,52 +167,44 @@ internal class ModalPanel(
         val width = constraints.maxWidth ?: constraints.minWidth
         val maximum = constraints.maxHeight ?: constraints.minHeight
         val inner = max(0.0, width - padding * 2.0)
-        val close =
-            context.measureChild(3L, Constraints(maxWidth = Some(width), maxHeight = Some(maximum)))
-        val footer =
-            context.measureChild(2L, Constraints(width, Some(width), maxHeight = Some(maximum)))
+        val close = context
+            .measureChild(3L, Constraints(maxWidth = Some(width), maxHeight = Some(maximum)))
+        val footer = context
+            .measureChild(2L, Constraints(width, Some(width), maxHeight = Some(maximum)))
         val headerHeight = max(0.0, maximum - footer.size.height - padding * 2.0)
         val headerWidth = max(0.0, inner - close.size.width)
-        val header =
-            context.measureChild(
+        val header = context
+            .measureChild(
                 0L,
                 Constraints(maxWidth = Some(headerWidth), maxHeight = Some(headerHeight))
             )
-        val headerExtent =
-            if (input.header)
-                padding + header.size.height
-            else
-                0.0
+        val headerExtent = if (input.header) padding + header.size.height else 0.0
         val bodyHeight = max(0.0, maximum - headerExtent - footer.size.height)
-        val body =
-            context.measureChild(1L, Constraints(width, Some(width), maxHeight = Some(bodyHeight)))
+        val body = context
+            .measureChild(1L, Constraints(width, Some(width), maxHeight = Some(bodyHeight)))
         val naturalHeight = headerExtent + body.size.height + footer.size.height
-        val size =
-            constraints.constrain(Size(width, max(naturalHeight, close.size.height + padding)))
+        val size = constraints
+            .constrain(Size(width, max(naturalHeight, close.size.height + padding)))
         val rtl = context.layoutDirection == LayoutDirection.Rtl
-        context.placeChild(
-            0L,
-            Point(
-                if (rtl)
-                    width - padding - header.size.width
-                else
-                    padding,
-                min(padding, size.height)
+        context
+            .placeChild(
+                0L,
+                Point(
+                    if (rtl) width - padding - header.size.width else padding,
+                    min(padding, size.height)
+                )
             )
-        )
         context.placeChild(1L, Point(0.0, min(size.height, headerExtent)))
         context.placeChild(2L, Point(0.0, max(0.0, size.height - footer.size.height)))
         val inset = 8.0 * input.density
-        context.placeChild(
-            3L,
-            Point(
-                if (rtl)
-                    min(inset, width)
-                else
-                    max(0.0, width - inset - close.size.width),
-                min(inset, size.height)
+        context
+            .placeChild(
+                3L,
+                Point(
+                    if (rtl) min(inset, width) else max(0.0, width - inset - close.size.width),
+                    min(inset, size.height)
+                )
             )
-        )
         return LayoutResult(LayoutMetrics(size), Unit)
     }
     public override fun scene(context: SceneContext, measured: Unit) {

@@ -180,7 +180,7 @@ internal class TextFieldInk(
             case None -> {}
         }
         val painter = painters.get(value.theme)
-        if (geometry.opacity < 1.0) context.saveLayer(geometry.opacity)
+        if (geometry.opacity < 1.0) context.saveBackdropLayer(geometry.opacity)
         if (value.input.chrome == TextFieldChrome.Framed)
             context
                 .draw { paint ->

@@ -21,43 +21,39 @@ internal fun choiceLayout(
     fitCross: Boolean = true,
     roving: Boolean = true,
     semantics: SemanticsHandle? = None,
-    semanticOptions: ComponentSemantics = ComponentSemantics()
+    semanticOptions: ComponentSemantics = ComponentSemantics(),
+    glass: GroupGlass? = None
 ): View {
     val slots = Array<GroupSlot>(children.size) { _ -> GroupSlot() }
-    val layout =
-        LinearProps(
-            Array<FlexItem>(children.size) {
-                index -> FlexItem(
-                    element(
-                        slots[index],
-                        { current, mount -> GroupSlotInk(current, scope = mount) },
-                        [children[index]],
-                        keys[index]
-                    )
+    val layout = LinearProps(
+        Array<FlexItem>(children.size) { index ->
+            FlexItem(
+                element(
+                    slots[index],
+                    { current, mount -> GroupSlotInk(current, scope = mount) },
+                    [children[index]],
+                    keys[index]
                 )
-            },
-            spacing = spacing,
-            alignment = CrossAlignment.Stretch
-        )
-    val options =
-        NavigationOptions(
-            Array<NavigationItem>(handles.size) { index -> NavigationItem(handles[index]) },
-            if (axis == FlexAxis.Horizontal)
-                NavigationLayout.Horizontal
-            else
-                NavigationLayout.Vertical,
-            loop = loop,
-            roving = roving,
-            preferredTab = preferred,
-            onNavigate = navigate
-        )
+            )
+        },
+        spacing = spacing,
+        alignment = CrossAlignment.Stretch
+    )
+    val options = NavigationOptions(
+        Array<NavigationItem>(handles.size) { index -> NavigationItem(handles[index]) },
+        if (axis == FlexAxis.Horizontal) NavigationLayout.Horizontal else NavigationLayout.Vertical,
+        loop = loop,
+        roving = roving,
+        preferredTab = preferred,
+        onNavigate = navigate
+    )
     return styled(
         element(
             ChoiceNavigationProps(options, enabled, semantics, semanticOptions),
             { current, mount -> ChoiceNavigation(current, scope = mount) },
             [
                 element(
-                    GroupLayoutProps(layout, axis, slots, fitCross),
+                    GroupLayoutProps(layout, axis, slots, fitCross, glass),
                     { current, mount -> GroupLayout(current, scope = mount) },
                     layout.children
                 )
@@ -76,7 +72,7 @@ private class ChoiceNavigationProps(
 private class ChoiceNavigation(
     private val props: Props<ChoiceNavigationProps>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private var navigation: KeyNavigation? = None
     public override fun onMount() {
         navigation = Some(scope.keyNavigation(props.value.navigation))
@@ -86,15 +82,20 @@ private class ChoiceNavigation(
         navigation!!.options = props.value.navigation
         val value = props.value
         value.semantics?.bindReference(value.semanticOptions.reference)
-        value.semantics?.update(
-            value.semanticOptions.properties(enabled = value.enabled).copy {
-                if (value.semantics?.role == Some(SemanticRole.RadioGroup)) {
-                    selectionMode = Some(SemanticSelectionMode.Single)
-                    required = true
-                }
-            },
-            relations = value.semanticOptions.relations
-        )
+        value
+            .semantics
+            ?.update(
+                value
+                    .semanticOptions
+                    .properties(enabled = value.enabled)
+                    .copy {
+                        if (value.semantics?.role == Some(SemanticRole.RadioGroup)) {
+                            selectionMode = Some(SemanticSelectionMode.Single)
+                            required = true
+                        }
+                    },
+                relations = value.semanticOptions.relations
+            )
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -106,10 +107,12 @@ private class ChoiceNavigation(
     }
     public override fun scene(context: SceneContext, measured: Unit) {
         when (val handle = props.value.semantics) {
-            case Some(val value) -> context.semantics(
-                value,
-                Rect(0.0, 0.0, context.size.width, context.size.height)
-            )
+            case Some(val value) ->
+                context
+                    .semantics(
+                        value,
+                        Rect(0.0, 0.0, context.size.width, context.size.height)
+                    )
             case None -> {}
         }
         context.children()

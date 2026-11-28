@@ -43,8 +43,8 @@ internal class ApplicationProbe {
     var kind = Demo.AppSettings
     var completed = 0
     val allFrames = ArrayList<FrameProbe>()
-    private val steps: Int get() =
-        when (kind) {
+    private val steps: Int
+        get() = when (kind) {
             case AppSettings -> 32
             case AppWorkspace -> 43
             case AppData -> 30
@@ -72,6 +72,7 @@ internal class ApplicationProbe {
     private var next = MonotonicTimeSource.now()
     private var timeout = MonotonicTimeSource.now() + Duration.seconds(90L)
     init {
+        model.selectStyle(GalleryStyle.LiquidGlass)
         model.reduced.value = true
         model.refreshTheme()
         for (family in model.source.current.value.tokens.typography.body.families)
@@ -125,27 +126,25 @@ internal class ApplicationProbe {
         if (phase == steps) {
             shown = false
             changed()
-        } else
-            if (phase == steps + 1) {
-                assertFalse(model.appSettings.nameFocus.isAttached)
-                assertFalse(model.appWorkspace.editorFocus.isAttached)
-                assertFalse(model.appData.filterFocus.isAttached)
-                assertFalse(model.appConversation.composerFocus.isAttached)
-                assertFalse(model.appConversation.messages.scroll.isAttached)
-                assertFalse(model.appConversation.messages.running.value)
-                assertFalse(model.appConversation.questions.busy.value)
-                savedDraws = draws
-                val rows = model.appConversation.messages.rows
-                savedLength = rows[rows.size - 1L].text.value.charLength
-                model.appSettings.name.replaceAll("Detached draft")
-            } else {
-                assertEquals(savedDraws, draws)
-                assertFalse(frames!!.snapshot().required)
-                val rows = model.appConversation.messages.rows
-                assertEquals(savedLength, rows[rows.size - 1L].text.value.charLength)
-                if (phase == steps + 6)
-                    native!!.requestDestroy()
-            }
+        } else if (phase == steps + 1) {
+            assertFalse(model.appSettings.nameFocus.isAttached)
+            assertFalse(model.appWorkspace.editorFocus.isAttached)
+            assertFalse(model.appData.filterFocus.isAttached)
+            assertFalse(model.appConversation.composerFocus.isAttached)
+            assertFalse(model.appConversation.messages.scroll.isAttached)
+            assertFalse(model.appConversation.messages.running.value)
+            assertFalse(model.appConversation.questions.busy.value)
+            savedDraws = draws
+            val rows = model.appConversation.messages.rows
+            savedLength = rows[rows.size - 1L].text.value.charLength
+            model.appSettings.name.replaceAll("Detached draft")
+        } else {
+            assertEquals(savedDraws, draws)
+            assertFalse(frames!!.snapshot().required)
+            val rows = model.appConversation.messages.rows
+            assertEquals(savedLength, rows[rows.size - 1L].text.value.charLength)
+            if (phase == steps + 6) native!!.requestDestroy()
+        }
     }
     private fun openWindow(host: UiHost, active: ActiveApplication) {
         model.mode.value = ThemeMode.Light
@@ -158,8 +157,8 @@ internal class ApplicationProbe {
         generation.value = 0
         timeout = MonotonicTimeSource.now() + Duration.seconds(90L)
 
-        val window =
-            active.createWindow(
+        val window = active
+            .createWindow(
                 windowAttributes {
                     this.title = "Scoop application integration"
                     this.size = LogicalSize(1120.0, 820.0)
@@ -177,6 +176,7 @@ internal class ApplicationProbe {
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> openWindow(host, active)
+
             case NewEvents(StartCause.Deadline) -> {
                 val now = MonotonicTimeSource.now()
                 assertTrue(
@@ -189,30 +189,27 @@ internal class ApplicationProbe {
                         }"
                     )
                 )
-                if (
-                    now >=
-                        next &&
-                        native!!.isFocused &&
-                        rendered >=
-                        generation.value &&
-                        !frames!!.snapshot().required
+                if (now >=
+                    next &&
+                    native!!.isFocused &&
+                    rendered >=
+                    generation.value &&
+                    !frames!!.snapshot().required
                 ) {
                     advance()
                     phase += 1
                     next = MonotonicTimeSource.now() + Duration.milliseconds(220L)
-                } else
-                    if (!native!!.isFocused)
-                        native!!.requestFocus()
+                } else if (!native!!.isFocused) native!!.requestFocus()
                 if (phase < steps + 7)
-                    active.setControlFlow(
-                        ControlFlow.WaitUntil(
-                            if (next > now)
-                                next
-                            else
-                                now + Duration.milliseconds(30L)
+                    active
+                        .setControlFlow(
+                            ControlFlow
+                                .WaitUntil(
+                                    if (next > now) next else now + Duration.milliseconds(30L)
+                                )
                         )
-                    )
             }
+
             case Window(_, WindowEvent.Destroyed) -> {
                 assertEquals(steps + 7, phase)
                 println(f"${demoTitle(kind)}: ${phase} phases passed")
@@ -221,15 +218,15 @@ internal class ApplicationProbe {
                     finished = true
                     active.requestExit()
                 } else {
-                    kind =
-                        when (kind) {
-                            case AppSettings -> Demo.AppWorkspace
-                            case AppWorkspace -> Demo.AppData
-                            else -> Demo.AppConversation
-                        }
+                    kind = when (kind) {
+                        case AppSettings -> Demo.AppWorkspace
+                        case AppWorkspace -> Demo.AppData
+                        else -> Demo.AppConversation
+                    }
                     openWindow(host, active)
                 }
             }
+
             else -> {}
         }
     }
@@ -238,15 +235,11 @@ internal class ApplicationProbe {
 private class ApplicationTestScene(
     private val p: ApplicationProbe,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     public override fun render(): View {
         val p = this.p
         val current = p.generation.value
-        val content =
-            if (p.shown)
-                galleryDemo(p.model, p.kind)
-            else
-                empty()
+        val content = if (p.shown) galleryDemo(p.model, p.kind) else empty()
         return direction(
             element(
                 current,
@@ -265,12 +258,12 @@ private class ApplicationTestRoot(
     private val p: ApplicationProbe,
     private val generation: Props<Int>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
-        val size =
-            constraints.constrain(
+        val size = constraints
+            .constrain(
                 Size(constraints.maxWidth ?: 1120.0, constraints.maxHeight ?: 820.0)
             )
         context.measureChild(0L, Constraints.tight(Size(100.0, 32.0)))
@@ -281,15 +274,17 @@ private class ApplicationTestRoot(
     }
     public override fun scene(context: SceneContext, measured: Unit) {
         val current = generation.value
-        context.draw {
-            paint ->
-            paint.canvas.clear(p.model.source.current.value.tokens.palette.background.background)
-            p.draws += 1
-        }
+        context
+            .draw { paint ->
+                paint
+                    .canvas
+                    .clear(p.model.source.current.value.tokens.palette.background.background)
+                p.draws += 1
+            }
         context.children()
-        context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted)
-                p.rendered = current
-        }
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) p.rendered = current
+            }
     }
 }

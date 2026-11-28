@@ -24,18 +24,47 @@ public class ShapeTheme internal constructor(
         return resolveShapePreferences(preferenceBase ?: this, preferences)
     }
 
+    public override fun surfaceFocus(kind: SurfaceKind): OutlineStyle = surfaces.get(kind).focus
+
     private fun surfaceStyle(
         visual: SurfaceVisual,
         options: SurfaceOptions,
         direction: LayoutDirection
     ): Style {
         val part = surfaces.get(visual.kind)
+        val glass = options.style.glass.resolve(tokens.glassSurfaces.get(visual.role))
+        val background = when (options.style.background) {
+            case Set(val value) -> value
+
+            case Inherit -> {
+                val fill = part.fill.resolve(visual.interaction)
+                Some(
+                    Paint(
+                        when (glass) {
+                            case Some(_) ->
+                                glassThemeFill(
+                                    this, fill,
+                                    if (visual.role == SurfaceRole.Input)
+                                        [
+                                            part.foreground.resolve(visual.interaction),
+                                            tokens.palette.muted.foreground
+                                        ]
+                                    else
+                                        [part.foreground.resolve(visual.interaction)]
+                                )
+                            case None -> fill
+                        }
+                    )
+                )
+            }
+        }
         return physicalStyle(
             options
                 .style
                 .resolve(
                     Style(
-                        background = Some(Paint(part.fill.resolve(visual.interaction))),
+                        background = background,
+                        glass = glass,
                         border = Some(
                             themeBorder(
                                 part.metrics.borderInsets,
@@ -64,14 +93,23 @@ public class ShapeTheme internal constructor(
         direction: LayoutDirection
     ): SurfaceMetrics {
         val part = surfaces.get(visual.kind)
-        val style = surfaceStyle(visual, options, direction)
+        val border = when (options.style.border) {
+            case Inherit -> part.metrics.borderInsets
+            case Set(Some(val value)) -> value.resolve(direction).insets
+            case Set(None) -> Insets()
+        }
+        val corners = options
+            .style
+            .corners
+            .resolve(Corners.Physical(part.metrics.corners))
+            .resolve(direction)
         val focus = options.focus ?: part.focus
         val result = SurfaceMetrics(
             options.suggestedSize ?: part.metrics.suggestedSize,
             options.minimumSize ?: part.metrics.minimumSize,
             options.padding ?: part.metrics.padding,
-            physicalEdges(style).insets,
-            style.corners.resolve(direction),
+            border,
+            corners,
             outlineOutset(focus, options.validation ?: tokens.validation)
         )
         themeSize(result.suggestedSize);

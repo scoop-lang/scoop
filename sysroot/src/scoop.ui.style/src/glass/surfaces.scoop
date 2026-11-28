@@ -1,0 +1,65 @@
+package scoop.ui.style
+
+/** Semantic purpose is independent of the surface's shape and color variant. */
+public enum SurfaceRole {
+    Content, Control, Input, Navigation, Toolbar, Popover, Dialog, Notification
+}
+
+/** Opt-in material selection; absent roles retain their ordinary theme surfaces. */
+public class GlassSurfaces internal constructor(
+    public val content: GlassMaterial? = None,
+    public val control: GlassMaterial? = None,
+    public val input: GlassMaterial? = None,
+    public val navigation: GlassMaterial? = None,
+    public val toolbar: GlassMaterial? = None,
+    public val popover: GlassMaterial? = None,
+    public val dialog: GlassMaterial? = None,
+    public val notification: GlassMaterial? = None
+) {
+    public fun get(role: SurfaceRole): GlassMaterial? = when (role) {
+        case Content -> content
+        case Control -> control
+        case Input -> input
+        case Navigation -> navigation
+        case Toolbar -> toolbar
+        case Popover -> popover
+        case Dialog -> dialog
+        case Notification -> notification
+    }
+    public fun copy(configure: GlassSurfacesBuilder.() -> Unit = {}): GlassSurfaces =
+        configureGlassSurfaces(this, configure)
+}
+
+public fun glassSurfaces(configure: GlassSurfacesBuilder.() -> Unit = {}): GlassSurfaces =
+    configureGlassSurfaces(GlassSurfaces(), configure)
+
+internal fun configureGlassSurfaces(
+    initial: GlassSurfaces,
+    configure: GlassSurfacesBuilder.() -> Unit
+): GlassSurfaces {
+    val builder = GlassSurfacesBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class GlassSurfacesBuilder internal constructor(initial: GlassSurfaces) {
+    public var content: GlassMaterial? = initial.content
+    public var control: GlassMaterial? = initial.control
+    public var input: GlassMaterial? = initial.input
+    public var navigation: GlassMaterial? = initial.navigation
+    public var toolbar: GlassMaterial? = initial.toolbar
+    public var popover: GlassMaterial? = initial.popover
+    public var dialog: GlassMaterial? = initial.dialog
+    public var notification: GlassMaterial? = initial.notification
+
+    internal fun snapshot(): GlassSurfaces = GlassSurfaces(
+        content,
+        control,
+        input,
+        navigation,
+        toolbar,
+        popover,
+        dialog,
+        notification
+    )
+}

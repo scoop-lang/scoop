@@ -37,6 +37,7 @@ when = { os = "ios" }
 "scoop:scoop.window" = "0.1.0"
 
 [test-dependencies]
+"scoop:scoop.ui.style.liquidglass" = "0.1.0"
 "scoop:scoop.ui.style.shadcn" = "0.1.0"
 "scoop:scoop.test" = "0.1.0"
 "scoop:scoop.ui.style.macos" = "0.1.0"
@@ -64,4 +65,8 @@ when = { os = "windows" }
 
 [[test.sources]]
 path = "tests/carousel_clock.scoop"
+when = { os = "windows" }
+
+[[test.sources]]
+path = "tests/glass_effect.scoop"
 when = { os = "windows" }

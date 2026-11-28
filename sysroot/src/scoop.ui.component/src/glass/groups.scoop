@@ -1,0 +1,146 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class GroupGlassEntry(
+    val index: Long,
+    val key: ViewKey,
+    val corners: CornerRadii,
+    val fill: Style? = None
+)
+
+internal class GroupGlass(
+    val material: GlassMaterial,
+    val entries: Array<GroupGlassEntry>,
+    val animation: AnimationSpec?,
+    val blendRadius: Double,
+    val movesContent: Boolean = true
+) {
+    val keys = Array<ViewKey>(entries.size) { index -> entries[index].key }
+    fun contains(index: Long): Boolean {
+        for (entry in entries)
+            if (entry.index == index) return true
+        return false
+    }
+}
+
+/** Explicit local materials and shapes continue to own their independent rendering. */
+internal fun shareableGlass(style: ButtonStyle): Boolean {
+    for (
+        local in [
+            style.surface.style,
+            style.states.hovered,
+            style.states.pressed,
+            style.states.focused,
+            style.states.disabled
+        ]
+    ) {
+        when (local.glass) {
+            case Inherit -> {};
+            case Set(_) -> return false
+        }
+        when (local.corners) {
+            case Inherit -> {};
+            case Set(_) -> return false
+        }
+    }
+    return true
+}
+
+internal fun inheritedGlass(local: StyleOverride): Boolean = when (local.glass) {
+    case Inherit -> true
+    case Set(_) -> false
+}
+
+internal fun buttonGroupGlass(props: ButtonGroupProps, theme: Theme): GroupGlass? {
+    if (buttonGroupHasNested(props.entries) || !inheritedGlass(props.style)) return None
+    val material = theme.tokens.glassSurfaces.toolbar ?: return None
+    if (!panelPresent(theme.tokens.glassSurfaces.control)) return None
+    val entries = ArrayList<GroupGlassEntry>()
+    for (index in 0L..<props.entries.size) {
+        val entry = props.entries[index]
+        when (entry.content) {
+            case Button(val value) -> {
+                if (!value.enabled && theme.tokens.disabledOpacity < 1.0) continue
+                if (panelPresent(value.theme) ||
+                    !shareableGlass(value.style) ||
+                    value.variant ==
+                    ButtonVariant.Ghost ||
+                    value.variant ==
+                    ButtonVariant.Link
+                )
+                    continue
+                val shape = ActionShape.Button(value.size)
+                val visual = SurfaceVisual(
+                    actionSurfaceKind(shape, value.variant, value.style.kind),
+                    InteractionVisual(enabled = value.enabled), SurfaceRole.Control
+                )
+                val metrics = theme
+                    .surfaceMetrics(
+                        visual,
+                        actionOptions(theme, shape, value.variant, value.style, visual.interaction)
+                    )
+                entries
+                    .add(GroupGlassEntry(index, groupGlassKey(entry.key, index), metrics.corners))
+            }
+
+            else -> {}
+        }
+    }
+    return Some(
+        GroupGlass(
+            material, entries.toArray(),
+            theme.tokens.motion.resolve(theme.tokens.motion.selection),
+            20.0 * theme.tokens.typography.action.fontSize / 14.0
+        )
+    )
+}
+
+private fun groupGlassKey(key: ViewKey, index: Long): ViewKey = ViewKey
+    .Text(
+        when (key) {
+            case Position -> f"position:${index}"
+            case Text(val text) -> "text:" + text
+            case Number(val number) -> f"number:${number}"
+        }
+    )
+
+internal class GroupButtonInput(val value: ButtonProps, val shared: Boolean)
+
+internal class GroupButton(private val props: Props<GroupButtonInput>, scope: ComponentScope) :
+    Component(scope) {
+    private val button = ButtonControl(
+        { props.value.value }, scope,
+        sharedGlass = { if (props.value.shared) ActionGlass.Group else ActionGlass.Independent }
+    )
+    public override fun onMount() {
+        button.mount()
+    }
+    public override fun render(): View = button.render()
+}
+
+internal enum ActionGlass {
+    Independent, Group, Indicator
+}
+
+internal fun actionGlassGeometry(geometry: SurfaceGeometry, glass: ActionGlass): SurfaceGeometry {
+    if (glass == ActionGlass.Independent) return geometry
+    val indicator = glass == ActionGlass.Indicator
+    val appearance = geometry
+        .style
+        .copy {
+            this.glass = None
+            if (indicator) {
+                background = None
+                border = None
+                boxShadows = []
+            }
+        }
+    return SurfaceGeometry(
+        geometry.bounds, geometry.outline, geometry.borderInner,
+        geometry.content, geometry.ring, appearance, geometry.opacity
+    )
+}

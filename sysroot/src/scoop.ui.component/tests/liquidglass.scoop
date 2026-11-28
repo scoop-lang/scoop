@@ -1,0 +1,109 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.style.*
+import scoop.ui.style.liquidglass.liquidGlassTheme
+
+@Test
+private class LiquidGlassControlsTest {
+    @Test
+    fun `glass actions keep readable state colors and transparent variants do not invent surfaces`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = liquidGlassTheme(mode)
+            val shape = ActionShape.Button(ButtonSize.Default)
+            for (variant in colorPreferenceVariants())
+                for (visual in colorPreferenceStates()) {
+                    val surface = SurfaceVisual(
+                        actionSurfaceKind(shape, variant, SurfaceKind.Action),
+                        visual,
+                        SurfaceRole.Control
+                    )
+                    val geometry = theme
+                        .surfaceGeometry(
+                            Rect(0.0, 0.0, 120.0, 36.0), surface,
+                            actionOptions(theme, shape, variant, buttonStyle(), visual)
+                        )
+                    val hasGlass = panelPresent(geometry.style.glass)
+                    if (variant ==
+                        ButtonVariant.Link ||
+                        (variant == ButtonVariant.Ghost && !activeSurface(visual))
+                    ) {
+                        assertFalse(hasGlass)
+                        assertEquals(0.0, geometry.style.background!!.color.alpha)
+                    } else {
+                        assertTrue(hasGlass)
+                        if (visual.enabled) {
+                            val text = actionTextColor(theme, shape, variant, surface)
+                            val fill = geometry.style.background!!.color
+                            for (
+                                backdrop in [
+                                    Color.Black,
+                                    Color.White,
+                                    Color(1.0, 0.0, 0.0),
+                                    Color(0.0, 1.0, 0.0)
+                                ]
+                            ) {
+                                val background = mixThemeColor(
+                                    backdrop,
+                                    fill.withAlpha(1.0),
+                                    fill.alpha
+                                )
+                                assertColorContrast(text, background, 4.5)
+                            }
+                        }
+                    }
+                    if (visual.enabled && (visual.focusVisible || visual.invalid))
+                        assertTrue(geometry.ring!!.border.width >= 2.0)
+                }
+        }
+    }
+
+    @Test
+    fun `selection and interaction surfaces preserve local overrides and settling samples`() {
+        val theme = liquidGlassTheme()
+        val style = buttonStyle { kind = SurfaceKind.Plain }
+        val bounds = Rect(0.0, 0.0, 100.0, 36.0)
+        for (selected in [false, true]) {
+            val resting = InteractionVisual()
+            val tab = tabOptions(theme, TabsVariant.Default, selected, style, resting)
+            val toggle = toggleOptions(
+                theme,
+                ToggleVariant.Default,
+                ToggleSize.Default,
+                selected,
+                style,
+                resting
+            )
+            for (options in [tab, toggle]) {
+                val geometry = theme.surfaceGeometry(bounds, SurfaceVisual(), options)
+                assertEquals(selected, panelPresent(geometry.style.glass))
+            }
+        }
+        val fading = InteractionVisual(hoverProgress = Some(0.3))
+        val fadingOptions = actionOptions(
+            theme,
+            ActionShape.Button(ButtonSize.Default),
+            ButtonVariant.Ghost,
+            style,
+            fading
+        )
+        assertTrue(
+            panelPresent(theme.surfaceGeometry(bounds, SurfaceVisual(), fadingOptions).style.glass)
+        )
+        val explicit = theme.tokens.glassSurfaces.control!!
+        val local = buttonStyle { surface { style { glass(Some(explicit)) } } }
+        val options = actionOptions(
+            theme,
+            ActionShape.Button(ButtonSize.Default),
+            ButtonVariant.Link,
+            local,
+            InteractionVisual()
+        )
+        assertSame(explicit, theme.surfaceGeometry(bounds, SurfaceVisual(), options).style.glass!!)
+        assertEquals(
+            theme.tokens.palette.muted.foreground,
+            tabTextColor(theme, TabsVariant.Default, false, InteractionVisual())
+        )
+    }
+}

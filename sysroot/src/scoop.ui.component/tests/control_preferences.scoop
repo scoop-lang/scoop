@@ -9,6 +9,7 @@ import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
 import scoop.ui.style.fluent.fluentTheme
 import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.style.liquidglass.liquidGlassTheme
 
 @Test
 private class ControlColorPreferencesTest {
@@ -19,15 +20,15 @@ private class ControlColorPreferencesTest {
         for (mode in [ThemeMode.Light, ThemeMode.Dark])
             for (base in colorPreferenceThemes(mode))
                 for (scale in [0.5, 1.0, 2.0]) {
-                    val theme =
-                        base.withPreferences(
+                    val theme = base
+                        .withPreferences(
                             ThemePreferences(highContrast = true, textScaleFactor = scale)
                         )
                     val canvas = theme.tokens.palette.background.background
                     for (progress in [0.0, 1.0]) {
                         val input = SwitchProps(state(progress == 1.0).binding())
-                        val surface =
-                            theme.surfaceGeometry(
+                        val surface = theme
+                            .surfaceGeometry(
                                 bounds,
                                 SurfaceVisual(SurfaceKind.Plain),
                                 switchOptions(input, theme, InteractionVisual(), progress)
@@ -36,8 +37,8 @@ private class ControlColorPreferencesTest {
                         assertColorContrast(thumb, surface.style.background!!.color, 3.0)
                     }
                     val visual = InteractionVisual(focusVisible = true)
-                    val slider =
-                        theme.surfaceGeometry(
+                    val slider = theme
+                        .surfaceGeometry(
                             bounds,
                             SurfaceVisual(SurfaceKind.Plain, visual),
                             sliderThumbOptions(theme, sliderStyle(), visual)
@@ -64,18 +65,17 @@ private class ControlColorPreferencesTest {
         val bounds = Rect(0.0, 0.0, 100.0, 40.0)
         val focus = InteractionVisual(focusVisible = true)
         val explicit = Color(0.1, 0.2, 0.3, 0.4)
-        val style =
-            switchStyle {
-                track { style { background(Some(Paint(explicit))) } }
-                thumb { background(Some(Paint(explicit))) }
-            }
+        val style = switchStyle {
+            track { style { background(Some(Paint(explicit))) } }
+            thumb { background(Some(Paint(explicit))) }
+        }
         for (mode in [ThemeMode.Light, ThemeMode.Dark])
             for (base in colorPreferenceThemes(mode)) {
                 val theme = base.withPreferences(ThemePreferences(reduceTransparency = true))
                 val input = SwitchProps(state(false).binding())
                 for (progress in [0.0, 0.5, 1.0]) {
-                    val surface =
-                        theme.surfaceGeometry(
+                    val surface = theme
+                        .surfaceGeometry(
                             bounds,
                             SurfaceVisual(SurfaceKind.Plain),
                             switchOptions(input, theme, InteractionVisual(), progress)
@@ -96,8 +96,8 @@ private class ControlColorPreferencesTest {
                 ) {
                     val resolved = base.withPreferences(preferences)
                     val custom = SwitchProps(state(true).binding(), style = style)
-                    val surface =
-                        resolved.surfaceGeometry(
+                    val surface = resolved
+                        .surfaceGeometry(
                             bounds,
                             SurfaceVisual(SurfaceKind.Plain),
                             switchOptions(custom, resolved, InteractionVisual(), 1.0)
@@ -108,21 +108,20 @@ private class ControlColorPreferencesTest {
                         switchThumbStyle(custom, resolved, 1.0).background!!.color
                     )
                     val slider = sliderStyle { thumb { background(Some(Paint(explicit))) } }
-                    val thumb =
-                        resolved.surfaceGeometry(
+                    val thumb = resolved
+                        .surfaceGeometry(
                             bounds,
                             SurfaceVisual(SurfaceKind.Plain, focus),
                             sliderThumbOptions(resolved, slider, focus)
                         )
                     assertEquals(explicit, thumb.style.background!!.color)
                     val outline = OutlineStyle(explicit, 1.0, 0.0)
-                    val localItem =
-                        SidebarMenuItemProps(
-                            ViewKey.Number(2L),
-                            "Local",
-                            {},
-                            style = buttonStyle { surface { this.focus = Some(outline) } }
-                        )
+                    val localItem = SidebarMenuItemProps(
+                        ViewKey.Number(2L),
+                        "Local",
+                        {},
+                        style = buttonStyle { surface { this.focus = Some(outline) } }
+                    )
                     assertEquals(
                         Some(outline),
                         sidebarMenuStyle(resolved, localItem, false).surface.focus
@@ -132,32 +131,31 @@ private class ControlColorPreferencesTest {
     }
 }
 
-internal fun colorPreferenceThemes(mode: ThemeMode): Array<Theme> =
-    [macosTheme(mode), materialTheme(mode), fluentTheme(mode), shadcnTheme(mode)]
+internal fun colorPreferenceThemes(mode: ThemeMode): Array<Theme> = [
+    macosTheme(mode),
+    materialTheme(mode),
+    fluentTheme(mode),
+    shadcnTheme(mode),
+    liquidGlassTheme(mode)
+]
 
 internal fun assertColorContrast(foreground: Color, background: Color, minimum: Double) {
     assertEquals(1.0, foreground.alpha)
     assertEquals(1.0, background.alpha)
     val a = colorPreferenceLuminance(foreground)
     val b = colorPreferenceLuminance(background)
-    val ratio =
-        if (a >= b)
-            (a + 0.05) / (b + 0.05)
-        else
-            (b + 0.05) / (a + 0.05)
+    val ratio = if (a >= b) (a + 0.05) / (b + 0.05) else (b + 0.05) / (a + 0.05)
     assertTrue(ratio >= minimum - 0.000001, Some(f"contrast ${ratio} below ${minimum}"))
 }
 
-private fun colorPreferenceLuminance(color: Color): Double =
-    0.2126 *
-        colorPreferenceLinear(color.red) +
-        0.7152 *
-        colorPreferenceLinear(color.green) +
-        0.0722 *
-        colorPreferenceLinear(color.blue)
+private fun colorPreferenceLuminance(color: Color): Double = 0.2126 *
+    colorPreferenceLinear(color.red) +
+    0.7152 *
+    colorPreferenceLinear(color.green) +
+    0.0722 *
+    colorPreferenceLinear(color.blue)
 
-private fun colorPreferenceLinear(value: Double): Double =
-    if (value <= 0.04045)
-        value / 12.92
-    else
-        pow((value + 0.055) / 1.055, 2.4)
+private fun colorPreferenceLinear(value: Double): Double = if (value <= 0.04045)
+    value / 12.92
+else
+    pow((value + 0.055) / 1.055, 2.4)

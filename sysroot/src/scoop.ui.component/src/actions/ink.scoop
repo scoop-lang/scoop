@@ -25,13 +25,13 @@ internal class ActionInkProps(
     val semanticState: SemanticProperties? = None,
     val semanticActions: SemanticActions? = None,
     val prepareSemantics: (() -> SemanticsHandle?)? = None,
-    val semanticFallbackName: String? = None
+    val semanticFallbackName: String? = None,
+    val glass: ActionGlass = ActionGlass.Independent
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
-internal class ActionInk(private val props: Props<ActionInkProps>, scope: ComponentScope): Element<
-    SurfaceMetrics
->(scope) {
+internal class ActionInk(private val props: Props<ActionInkProps>, scope: ComponentScope) :
+    Element<SurfaceMetrics>(scope) {
     private var currentSemantics: SemanticsHandle? = None
     private var field: FieldLink? = None
     private var motion: InteractionMotion? = None
@@ -47,127 +47,135 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
     }
     public override fun update(): UiInvalidation {
         val value = props.value
-        currentSemantics =
-            when (value.prepareSemantics) {
-                case Some(val prepare) -> prepare()
-                case None -> value.semantics
-            }
+        currentSemantics = when (value.prepareSemantics) {
+            case Some(val prepare) -> prepare()
+            case None -> value.semantics
+        }
         when (value.behavior) {
             case Press(val owner, val action, val focus) -> {
                 val control = owner
-                control.press.update(
-                    PressOptions(value.visual.interaction.enabled && value.actionable),
-                    action
-                )
+                control
+                    .press
+                    .update(
+                        PressOptions(value.visual.interaction.enabled && value.actionable),
+                        action
+                    )
                 control.area.focusable = value.actionable
                 control.area.scope.enabled = value.visual.interaction.enabled
                 control.focus.options = focus
                 if (panelPresent(value.labelTarget) && !panelPresent(field))
-                    field =
-                        Some(
-                            scope.resource {
+                    field = Some(
+                        scope
+                            .resource {
                                 FieldLink(scope, control.area, control.focus, currentSemantics) {
                                     updateSemantics()
                                 }
                             }
-                        )
+                    )
                 field?.update(value.labelTarget, value.visual.interaction.enabled)
             }
+
             case Passive -> {}
         }
         updateSemantics()
         val specs = value.theme.tokens.motion
-        motion!!.update(
-            value.visual.interaction,
-            specs.resolve(value.style.transition.resolve(specs.hover)),
-            specs.resolve(value.style.transition.resolve(specs.press))
-        )
+        motion!!
+            .update(
+                value.visual.interaction,
+                specs.resolve(value.style.transition.resolve(specs.hover)),
+                specs.resolve(value.style.transition.resolve(specs.press))
+            )
         painters!!.get(value.theme)
         val metrics = metrics(value, scope.layoutDirection)
         val icon = isIconAction(value.shape)
-        val changed =
-            previousMetrics !=
-                Some(metrics) ||
-                previousIcon !=
-                icon ||
-                !sameTheme(previousTheme, value.theme)
+        val changed = previousMetrics !=
+            Some(metrics) ||
+            previousIcon !=
+            icon ||
+            !sameTheme(previousTheme, value.theme)
         previousMetrics = Some(metrics)
         previousIcon = icon
         previousTheme = Some(value.theme)
-        return if (changed)
-            UiInvalidation.Layout
-        else
-            UiInvalidation.Scene
+        return if (changed) UiInvalidation.Layout else UiInvalidation.Scene
     }
     private fun updateSemantics() {
         val value = props.value
         val handle = currentSemantics ?: return
-        if (handle.isClosed)
-            return
+        if (handle.isClosed) return
         handle.bindReference(value.semanticOptions.reference)
-        val relations =
-            field?.relations(handle, value.semanticOptions.relations) ?:
-                value.semanticOptions.relations
+        val relations = field?.relations(handle, value.semanticOptions.relations) ?:
+            value.semanticOptions.relations
         when (value.behavior) {
-            case Press(_, val action, _) -> handle.update(
-                value.semanticState?.copy {
-                    required =
-                        value.semanticState!!.required ||
-                            (this @ActionInk.field?.isRequired(handle) ?: false)
-                    if (name == None && relations.labelledBy.size == 0L)
-                        name = value.semanticFallbackName
-                } ?:
-                    value.semanticOptions.properties(
-                        enabled = value.visual.interaction.enabled && value.actionable,
-                        invalid = value.visual.interaction.invalid,
-                        required = this @ActionInk.field?.isRequired(handle) ?: false,
-                        checked =
-                            when (value.shape) {
-                                case Toggle(_, _, val pressed) -> Some(
-                                    if (pressed)
-                                        SemanticChecked.On
-                                    else
-                                        SemanticChecked.Off
-                                )
-                                else -> None
-                            }
-                    ),
-                value.semanticActions ?:
-                    if (!value.actionable)
-                        SemanticActions()
-                    else
-                        when (val toggle = value.semanticToggle) {
-                            case Some(_) -> SemanticActions(toggle = toggle)
-                            case None -> SemanticActions(
-                                invoke =
-                                    Some {
-                                        action();
-                                        SemanticActionResult.Completed
+            case Press(_, val action, _) ->
+                handle
+                    .update(
+                        value
+                            .semanticState
+                            ?.copy {
+                                required = value.semanticState!!.required ||
+                                    (this @ActionInk.field?.isRequired(handle) ?: false)
+                                if (name == None && relations.labelledBy.size == 0L)
+                                    name = value.semanticFallbackName
+                            } ?:
+                            value
+                                .semanticOptions
+                                .properties(
+                                    enabled = value.visual.interaction.enabled && value.actionable,
+                                    invalid = value.visual.interaction.invalid,
+                                    required = this @ActionInk.field?.isRequired(handle) ?: false,
+                                    checked = when (value.shape) {
+                                        case Toggle(_, _, val pressed) ->
+                                            Some(
+                                                if (pressed)
+                                                    SemanticChecked.On
+                                                else
+                                                    SemanticChecked.Off
+                                            )
+                                        else -> None
                                     }
-                            )
-                        },
-                relations
-            )
-            case Passive -> handle.update(
-                value.semanticState ?:
-                    value.semanticOptions.properties(enabled = value.visual.interaction.enabled),
-                relations = value.semanticOptions.relations
-            )
+                                ),
+                        value.semanticActions ?:
+                            if (!value.actionable)
+                                SemanticActions()
+                            else
+                                when (val toggle = value.semanticToggle) {
+                                    case Some(_) -> SemanticActions(toggle = toggle)
+                                    case None ->
+                                        SemanticActions(
+                                            invoke = Some {
+                                                action();
+                                                SemanticActionResult.Completed
+                                            }
+                                        )
+                                },
+                        relations
+                    )
+            case Passive ->
+                handle
+                    .update(
+                        value.semanticState ?:
+                            value
+                                .semanticOptions
+                                .properties(enabled = value.visual.interaction.enabled),
+                        relations = value.semanticOptions.relations
+                    )
         }
     }
     private fun metrics(value: ActionInkProps, direction: LayoutDirection): SurfaceMetrics =
         groupSurfaceMetrics(
-            value.theme.surfaceMetrics(
-                value.visual,
-                actionOptions(
-                    value.theme,
-                    value.shape,
-                    value.variant,
-                    value.style,
-                    value.visual.interaction
+            value
+                .theme
+                .surfaceMetrics(
+                    value.visual,
+                    actionOptions(
+                        value.theme,
+                        value.shape,
+                        value.variant,
+                        value.style,
+                        value.visual.interaction
+                    ),
+                    direction
                 ),
-                direction
-            ),
             value.group,
             groupEndRadius(
                 value.theme,
@@ -180,81 +188,100 @@ internal class ActionInk(private val props: Props<ActionInkProps>, scope: Compon
     > {
         val value = props.value
         val visual = value.visual
-        val options =
-            actionOptions(value.theme, value.shape, value.variant, value.style, visual.interaction)
+        val options = actionOptions(
+            value.theme,
+            value.shape,
+            value.variant,
+            value.style,
+            visual.interaction
+        )
         val metrics = metrics(value, context.layoutDirection)
         val inset = metrics.contentInsets.totals()
         val child = context.measureChild(0L, childConstraints(constraints, inset))
-        var width =
-            lowerBound(
-                child.size.width + inset.width,
-                lowerBound(metrics.minimumSize.width, metrics.suggestedSize.width)
-            )
-        var height =
-            lowerBound(
-                child.size.height + inset.height,
-                lowerBound(metrics.minimumSize.height, metrics.suggestedSize.height)
-            )
+        var width = lowerBound(
+            child.size.width + inset.width,
+            lowerBound(metrics.minimumSize.width, metrics.suggestedSize.width)
+        )
+        var height = lowerBound(
+            child.size.height + inset.height,
+            lowerBound(metrics.minimumSize.height, metrics.suggestedSize.height)
+        )
         if (isIconAction(value.shape)) {
             width = lowerBound(width, height)
             height = width
         }
         val size = constraints.constrain(Size(width, height))
-        val geometry =
-            value.theme.surfaceGeometry(
+        val geometry = value
+            .theme
+            .surfaceGeometry(
                 Rect(0.0, 0.0, size.width, size.height),
                 visual,
                 options,
                 context.layoutDirection
             )
-        val connected =
-            groupSurfaceGeometry(geometry, metrics, value.group, context.layoutDirection)
-        val origin =
-            Point(
-                connected.content.x + (connected.content.width - child.size.width) / 2.0,
-                connected.content.y + (connected.content.height - child.size.height) / 2.0
-            )
+        val connected = groupSurfaceGeometry(
+            geometry,
+            metrics,
+            value.group,
+            context.layoutDirection
+        )
+        val origin = Point(
+            connected.content.x + (connected.content.width - child.size.width) / 2.0,
+            connected.content.y + (connected.content.height - child.size.height) / 2.0
+        )
         context.placeChild(0L, origin)
         return LayoutResult(offsetMetrics(child, size, origin.y), metrics)
     }
     public override fun scene(context: SceneContext, metrics: SurfaceMetrics) {
         val value = props.value
-        val visual = SurfaceVisual(value.visual.kind, motion!!.sample(value.visual.interaction))
-        val options =
-            actionOptions(value.theme, value.shape, value.variant, value.style, visual.interaction)
-        val geometry =
-            groupSurfaceGeometry(
-                value.theme.surfaceGeometry(
+        val visual = SurfaceVisual(
+            value.visual.kind,
+            motion!!.sample(value.visual.interaction),
+            value.visual.role
+        )
+        val options = actionOptions(
+            value.theme,
+            value.shape,
+            value.variant,
+            value.style,
+            visual.interaction
+        )
+        val grouped = groupSurfaceGeometry(
+            value
+                .theme
+                .surfaceGeometry(
                     Rect(0.0, 0.0, context.size.width, context.size.height),
                     visual,
                     options,
                     context.layoutDirection
                 ),
-                metrics,
-                value.group,
-                context.layoutDirection
-            )
+            metrics,
+            value.group,
+            context.layoutDirection
+        )
+        val geometry = actionGlassGeometry(grouped, value.glass)
         val painter = painters!!.get(value.theme)
         when (val handle = currentSemantics) {
             case Some(val semantic) -> context.semantics(semantic, geometry.bounds)
             case None -> {}
         }
-        if (geometry.opacity < 1.0)
-            context.saveLayer(geometry.opacity)
-        context.draw {
-            paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
-        }
+        if (geometry.opacity < 1.0) context.saveBackdropLayer(geometry.opacity)
+        context
+            .draw { paint ->
+                painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
+            }
         when (value.behavior) {
             case Press(val owner, _, _) -> context.place(owner.area, geometry.bounds)
             case Passive -> {}
         }
-        content!!.scene(context, geometry.bounds, geometry.contentStyle) {
-            children -> children.children()
-        }
-        context.draw {
-            paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Foreground)
-        }
-        if (geometry.opacity < 1.0)
-            context.restore()
+        content!!
+            .scene(context, geometry.bounds, geometry.contentStyle) { children ->
+                children.children()
+            }
+        context
+            .draw { paint ->
+                painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Foreground)
+            }
+        if (geometry.opacity < 1.0) context.restore()
     }
 }

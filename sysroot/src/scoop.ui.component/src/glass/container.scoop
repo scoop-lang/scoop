@@ -1,0 +1,142 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class GlassEffectInput(
+    val props: GlassEffectContainerProps,
+    val theme: Theme,
+    val motions: GlassEffectMotions
+)
+
+/** Explicitly owns the shared material; item keys preserve independent component identity. */
+public class GlassEffectContainer public constructor(
+    private val props: Props<GlassEffectContainerProps>,
+    scope: ComponentScope
+) : Component(scope) {
+    private val themes = ThemeAccess(scope)
+    private val motions = GlassEffectMotions()
+    public override fun onMount() {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val children = Array<View>(input.items.size) { index ->
+            val item = input.items[index]
+            element(
+                GlassEffectContentInput(item.key, motions),
+                { current, mount -> GlassEffectContent(current, scope = mount) },
+                [item.content], key = item.key
+            )
+        }
+        return element(
+            GlassEffectInput(input, theme, motions),
+            { current, mount -> GlassEffectLayer(current, scope = mount) }, children
+        )
+    }
+}
+
+private class GlassEffectLayer(private val props: Props<GlassEffectInput>, scope: ComponentScope) :
+    Element<Array<RoundedOutline>>(scope) {
+    private var painter: GlassEffectPainter? = None
+    public override fun onMount() {
+        painter = Some(scope.resource { GlassEffectPainter() })
+        scope.resource { props.value.motions }
+        updateMotion()
+    }
+    private fun updateMotion() {
+        val input = props.value
+        input
+            .motions
+            .update(
+                scope, input.props.items,
+                if (input.theme.preferences.reduceMotion)
+                    None
+                else
+                    input.theme.tokens.motion.resolve(input.props.animation)
+            )
+    }
+    public override fun update(): UiInvalidation {
+        updateMotion()
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Array<RoundedOutline>
+    > {
+        val input = props.value
+        val items = input.props.items
+        when (input.props.layout) {
+            case Absolute -> {}
+            else -> return measureGlassFlow(context, constraints, input, scope)
+        }
+        var width = 0.0
+        var height = 0.0
+        for (index in 0L..<items.size) {
+            val bounds = input.motions.sample(items[index].key).bounds
+            context.measureChild(index, Constraints.tight(bounds.size))
+            context.placeChild(index, bounds.origin)
+            val target = items[index].bounds!!
+            width = lowerBound(width, target.x + target.width)
+            height = lowerBound(height, target.y + target.height)
+        }
+        val size = constraints
+            .constrain(Size(input.props.width ?: width, input.props.height ?: height))
+        return LayoutResult(LayoutMetrics(size), input.motions.outlines(input.props.keys))
+    }
+    public override fun scene(context: SceneContext, measured: Array<RoundedOutline>) {
+        val input = props.value
+        val value = input.props
+        context
+            .withState { local ->
+                if (value.opacity < 1.0) local.saveBackdropLayer(value.opacity)
+                if (input.theme.preferences.highContrast ||
+                    input.theme.preferences.reduceTransparency
+                )
+                    painter!!
+                        .scene(
+                            local,
+                            measured,
+                            input.theme.tokens.palette.card.background,
+                            value.blendRadius
+                        )
+                else
+                    painter!!.scene(local, measured, value.material, value.blendRadius)
+                local.children()
+                if (value.opacity < 1.0) local.restore()
+                Unit
+            }
+    }
+}
+
+private class GlassEffectContentInput(val key: ViewKey, val motions: GlassEffectMotions)
+
+private class GlassEffectContent(
+    private val props: Props<GlassEffectContentInput>,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    private var painter: StylePainter? = None
+    public override fun onMount() {
+        painter = Some(scope.resource { StylePainter() })
+    }
+    public override fun update(): UiInvalidation = UiInvalidation.Layout
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val radii = props.value.motions.sample(props.value.key).radii
+        painter!!
+            .scene(
+                context,
+                style {
+                    corners = Corners.Physical(radii);
+                    clipContent = true
+                }
+            ) { content -> content.children() }
+    }
+}

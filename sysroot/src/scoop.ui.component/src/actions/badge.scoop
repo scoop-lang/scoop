@@ -20,24 +20,28 @@ public class BadgeProps public constructor(
 public class Badge public constructor(
     private val props: Props<BadgeProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     public override fun render(): View {
         val input = props.value
         return when (input.onClick) {
-            case Some(val action) -> component(
-                BadgeActionInput(input, action),
-                { current, mount -> BadgeAction(current, scope = mount) }
-            )
-            case None -> component(
-                input,
-                { current, mount -> BadgeDisplay(current, scope = mount) }
-            )
+            case Some(val action) ->
+                component(
+                    BadgeActionInput(input, action),
+                    { current, mount -> BadgeAction(current, scope = mount) }
+                )
+            case None ->
+                component(
+                    input,
+                    { current, mount -> BadgeDisplay(current, scope = mount) }
+                )
         }
     }
 }
 
-public fun badge(text: String, configure: BadgeBuilder.() -> Unit = {}): View =
-    makeTextBadge(text, configure)
+public fun badge(text: String, configure: BadgeBuilder.() -> Unit = {}): View = makeTextBadge(
+    text,
+    configure
+)
 
 public fun badge(text: StyledText, configure: StyledBadgeBuilder.() -> Unit = {}): View =
     makeStyledBadge(text, configure)
@@ -55,14 +59,13 @@ private class BadgeActionInput(val value: BadgeProps, val action: () -> Unit)
 private class BadgeAction(
     private val props: Props<BadgeActionInput>,
     scope: ComponentScope
-): Component(scope) {
-    private val control =
-        PressControl(
-            scope,
-            PressOptions(props.value.value.enabled),
-            props.value.value.focus,
-            { props.value.action() }
-        )
+) : Component(scope) {
+    private val control = PressControl(
+        scope,
+        PressOptions(props.value.value.enabled),
+        props.value.value.focus,
+        { props.value.action() }
+    )
     private val semantics = createComponentSemantics(scope, SemanticRole.Button)
     init {
         semantics?.bindFocus(Some(control.focus))
@@ -91,9 +94,10 @@ private class BadgeAction(
     }
 }
 
-private class BadgeDisplay(private val props: Props<BadgeProps>, scope: ComponentScope): Component(
-    scope
-) {
+private class BadgeDisplay(private val props: Props<BadgeProps>, scope: ComponentScope) :
+    Component(
+        scope
+    ) {
     private val semantics = createComponentSemantics(scope, SemanticRole.Group)
     init {
         when (semantics) {
@@ -107,15 +111,14 @@ private class BadgeDisplay(private val props: Props<BadgeProps>, scope: Componen
     public override fun onMount() {
         themes.mount(props.value.theme)
     }
-    public override fun render(): View =
-        badgeContent(
-            props.value,
-            themes,
-            text,
-            InteractionState(),
-            ActionBehavior.Passive,
-            semantics
-        )
+    public override fun render(): View = badgeContent(
+        props.value,
+        themes,
+        text,
+        InteractionState(),
+        ActionBehavior.Passive,
+        semantics
+    )
 }
 
 private fun badgeContent(
@@ -128,9 +131,13 @@ private fun badgeContent(
 ): View {
     val theme = themes.read(input.theme)
     val shape = ActionShape.Badge
-    val visual = SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled, input.invalid))
-    val base =
-        text.resolve(
+    val visual = SurfaceVisual(
+        input.style.kind,
+        interaction.asVisual(input.enabled, input.invalid),
+        SurfaceRole.Control
+    )
+    val base = text
+        .resolve(
             theme.tokens.typography.action,
             actionTextColor(theme, shape, input.variant, visual),
             input.style.text,

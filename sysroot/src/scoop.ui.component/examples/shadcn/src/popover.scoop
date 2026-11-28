@@ -23,6 +23,9 @@ internal class PopoverExamplesModel {
     val width = TextEditorState("300px")
     val height = TextEditorState("25px")
     val maxWidth = TextEditorState("100%")
+    val widthLabel = FieldTarget()
+    val maxWidthLabel = FieldTarget()
+    val heightLabel = FieldTarget()
     val edit = FocusHandle()
     val handle = OverlayHandle()
 }
@@ -37,78 +40,60 @@ internal fun popoverExamples(model: PopoverExamplesModel, gallery: GalleryModel)
         row {
             for (mode in [OverlayMode.NonModal, OverlayMode.FocusContained, OverlayMode.Modal]) {
                 button(popoverModeName(mode), { model.mode.value = mode }) {
-                    variant =
-                        if (model.mode.value == mode)
-                            ButtonVariant.Default
-                        else
-                            ButtonVariant.Outline
+                    variant = if (model.mode.value == mode)
+                        ButtonVariant.Default
+                    else
+                        ButtonVariant.Outline
                 }
             }
             spacing = 8.0
         }
         row {
             button(
-                if (model.veto.value)
-                    "Allow close"
-                else
-                    "Veto close",
+                if (model.veto.value) "Allow close" else "Veto close",
                 { model.veto.value = !model.veto.value }
             ) { variant = ButtonVariant.Outline }
             button(
-                if (model.reject.value)
-                    "Accept binding"
-                else
-                    "Reject binding",
+                if (model.reject.value) "Accept binding" else "Reject binding",
                 { model.reject.value = !model.reject.value }
             ) { variant = ButtonVariant.Outline }
             button(
-                if (model.enabled.value)
-                    "Disable"
-                else
-                    "Enable",
+                if (model.enabled.value) "Disable" else "Enable",
                 { model.enabled.value = !model.enabled.value }
             ) { variant = ButtonVariant.Outline }
             spacing = 8.0
         }
         row {
             button(
-                if (gallery.reduced.value)
-                    "Motion: Reduced"
-                else
-                    "Motion: Full",
+                if (gallery.reduced.value) "Motion: Reduced" else "Motion: Full",
                 { gallery.toggleMotion() }
             ) { variant = ButtonVariant.Outline }
             button(
                 "Cycle side",
                 {
-                    model.side.value =
-                        when (model.side.value) {
-                            case Bottom -> OverlaySide.End
-                            case End -> OverlaySide.Top
-                            case Top -> OverlaySide.Start
-                            else -> OverlaySide.Bottom
-                        }
+                    model.side.value = when (model.side.value) {
+                        case Bottom -> OverlaySide.End
+                        case End -> OverlaySide.Top
+                        case Top -> OverlaySide.Start
+                        else -> OverlaySide.Bottom
+                    }
                 }
             ) { variant = ButtonVariant.Ghost }
             button(
                 "Cycle alignment",
                 {
-                    model.alignment.value =
-                        when (model.alignment.value) {
-                            case Start -> OverlayAlignment.Center
-                            case Center -> OverlayAlignment.End
-                            case End -> OverlayAlignment.Start
-                        }
+                    model.alignment.value = when (model.alignment.value) {
+                        case Start -> OverlayAlignment.Center
+                        case Center -> OverlayAlignment.End
+                        case End -> OverlayAlignment.Start
+                    }
                 }
             ) { variant = ButtonVariant.Ghost }
             spacing = 8.0
         }
         row {
             button(
-                if (model.arrow.value)
-                    "Hide arrow"
-                else
-                    "Show arrow",
+                if (model.arrow.value) "Hide arrow" else "Show arrow",
                 { model.arrow.value = !model.arrow.value }
             ) { variant = ButtonVariant.Outline }
         }
@@ -116,25 +101,26 @@ internal fun popoverExamples(model: PopoverExamplesModel, gallery: GalleryModel)
             popover(
                 binding(
                     { model.open.value },
-                    {
-                        next -> if (!model.reject.value)
-                            model.open.value = next
-                    }
+                    { next -> if (!model.reject.value) model.open.value = next }
                 ),
                 makeColumn {
-                    typography("Width", TypographyRole.Small)
-                    add(makeInput(model.width) { focus = FocusOptions(Some(model.edit)) })
-                    typography("Max. width", TypographyRole.Small)
-                    add(makeInput(model.maxWidth))
-                    typography("Height", TypographyRole.Small)
-                    add(makeInput(model.height))
+                    fieldLabel("Width", model.widthLabel)
+                    add(
+                        makeInput(model.width) {
+                            focus = FocusOptions(Some(model.edit))
+                            labelTarget = Some(model.widthLabel)
+                        }
+                    )
+                    fieldLabel("Max. width", model.maxWidthLabel)
+                    add(makeInput(model.maxWidth) { labelTarget = Some(model.maxWidthLabel) })
+                    fieldLabel("Height", model.heightLabel)
+                    add(makeInput(model.height) { labelTarget = Some(model.heightLabel) })
                     button(
                         "Save dimensions",
                         {
-                            model.saved.value =
-                                f"${model.width.text} × ${model.height.text}, max ${
-                                    model.maxWidth.text
-                                }"
+                            model.saved.value = f"${model.width.text} × ${model.height.text}, max ${
+                                model.maxWidth.text
+                            }"
                         }
                     )
                     popover(
@@ -170,11 +156,7 @@ internal fun popoverExamples(model: PopoverExamplesModel, gallery: GalleryModel)
                 side = model.side.value;
                 alignment = model.alignment.value
                 enabled = model.enabled.value
-                arrow =
-                    if (model.arrow.value)
-                        Some(PopupArrow())
-                    else
-                        None
+                arrow = if (model.arrow.value) Some(PopupArrow()) else None
                 focus = OverlayFocusOptions(Some(model.edit))
                 handle = Some(model.handle)
                 onOpenChange = { _ -> model.changes.value += 1 }
@@ -196,9 +178,8 @@ internal fun popoverExamples(model: PopoverExamplesModel, gallery: GalleryModel)
         alignment = CrossAlignment.Start
     }
 
-private fun popoverModeName(mode: OverlayMode): String =
-    when (mode) {
-        case NonModal -> "Non-modal"
-        case FocusContained -> "Contain focus"
-        case Modal -> "Modal"
-    }
+private fun popoverModeName(mode: OverlayMode): String = when (mode) {
+    case NonModal -> "Non-modal"
+    case FocusContained -> "Contain focus"
+    case Modal -> "Modal"
+}

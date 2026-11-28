@@ -228,6 +228,46 @@ Button／Badge、Toggle 和 Tabs 的默认状态配色在高对比度下保留�
 
 主题 painter、字体、段落和滤镜归 Element 的 ComponentScope 所有，应用无需为每个控件添加 use。主题和效果没有自己的时钟，控件动画只使用 Surface Animatable；静止时不安排更新或绘制。
 
+主题的 `tokens { glassSurfaces { ... } }` 按表面用途选择公共 GlassMaterial。操作按钮、Toggle 和 Badge 使用 control，文本输入与输入组使用 input，Tab／Sidebar 使用 navigation，Menubar 使用 toolbar，Card 使用 content，弹出菜单／Select／Popover／Tooltip／HoverCard／NavigationMenu 使用 popover，Dialog／Sheet／Drawer 使用 dialog，Toast 使用 notification。每项默认 None，局部 `style { glass(None) }` 显式关闭并恢复普通默认填充；其余显式颜色和效果覆盖仍生效。
+
+自定义工具栏可用 `frame(content) { surface = Some(SurfaceKind.Elevated); surfaceRole = SurfaceRole.Toolbar }`。surfaceRole 与 SurfaceKind 独立；未启用 surface 的 Frame 仍是普通布局包装。低层 `styled(content) { style { glass = Some(material) } }` 可直接使用材质；原生滤镜归 StylePainter 管理，不需要由应用逐项关闭。材质参数与完整示例见 [style README](../scoop.ui.style/README.md)。
+
+`glassEffectContainer(material) { ... }` 显式建立融合组。默认 Absolute 布局下，每个 item 提供稳定 key、物理局部 Rect 和普通 View；邻近轮廓形成连续的液态连接，内容、输入和语义仍属于各自子项。宽高默认包住目标表面的右／下范围，也可显式设置；blendRadius 默认 24，0 关闭平滑连接。声明顺序是绘制顺序，重排保留相同 key 的实例。
+
+```scoop
+glassEffectContainer(material) {
+    width = Some(240.0)
+    height = Some(64.0)
+    blendRadius = 28.0
+    item(ViewKey.Text("back"), Rect(0.0, 0.0, 64.0, 56.0), backAction) {
+        corners = CornerRadii.all(28.0)
+    }
+    item(ViewKey.Text("search"), Rect(searchX, 0.0, 156.0, 56.0), searchAction) {
+        corners = CornerRadii.all(28.0)
+    }
+}
+```
+
+使用 `GlassEffectLayout.Flex(FlexLayout(...))` 或 `GlassEffectLayout.Wrap(FlexLayout(...), lineSpacing)` 可让真实内容决定表面尺寸和位置；这两种模式省略 item 的 Rect，使用普通 Flex 的间距、对齐、padding、RTL 和 item.layout，Wrap 还支持换行。显式宽高先进入布局约束，文字缩放和窄窗会重新测量，应用无需估算标签宽度。
+
+```scoop
+glassEffectContainer(material) {
+    layout = GlassEffectLayout.Wrap(FlexLayout(spacing = 8.0), 8.0)
+    item(ViewKey.Text("back"), backAction)
+    item(ViewKey.Text("search"), searchAction) {
+        corners = CornerRadii.all(24.0)
+    }
+}
+```
+
+更新同一 key 的位置、尺寸或四角会从当前显示形状开始过渡，默认 Tween 300ms，可设置 animation 或用 None 立即更新。首帧直接呈现完整布局，后续新增表面从中心展开；移除立即关闭内容、输入和语义，只保留收拢中的材质轮廓，退场中重现的 key 从当前轮廓接续。布局与材质使用同一帧采样，连接区域本身不可点击。前景按各自圆角裁剪；给带外部焦点环的内容预留内边距，例如 `frame(action) { padding = Some(Insets.all(4.0)) }`。opacity 统一作用于背景处理和前景，保持实时下层。高对比度／减少透明度使用主题 card 的实体底色；减少动画立即收束形变，也遵守基础主题的 MotionPreference.Reduced。静止、隐藏及卸载不保留帧需求。独立描述可用 glassEffect 工厂加 add，或直接构造 GlassEffectContainerProps 挂载 GlassEffectContainer。
+
+启用 Toolbar 与 Control 玻璃用途后，ButtonGroup 的默认按钮自动共享一次材质合成，实际测量和按压会驱动轮廓与内容形变；按钮颜色、边界、焦点和独立语义仍保留。显式材质、清除、圆角、独立主题及透明变体保留自己的绘制方式。启用 Navigation 玻璃用途后，默认 Tabs 使用在真实标签之间移动的选中底板，标签及键盘导航保持原位；Line 变体继续使用线形指示器。减少透明度、高对比度和局部覆盖沿既有优先级生效。
+
+主题默认玻璃底色会按当前正文、占位和说明文字计算可读性染色，避免复杂明暗底图降低文字对比度。染色强度以 4.5:1 与原主题配对对比度的较小值为目标，必要时可回到实体底色；整体禁用透明度仍表达原有禁用状态。Hover、pressed、focus 和 invalid 保留当前主题的状态色与轮廓，带内容的淡化组统一继承下层。显式 background／text 覆盖及直接 GlassEffectContainer 内容由应用配对；可用 `glassSurfaceFill(ColorPair(background, foreground), opaqueCanvas)` 求出材质之后的可读性填充。根偏好热更新不重建控件或语义节点，高对比度／减少透明度恢复实体表面，文字缩放仍按真实内容布局。
+
+[Gallery 的 Liquid Glass 页](examples/shadcn/README.md) 可组合切换三种材质、八类用途、融合／形变／重排、滚动下层、状态与偏好。页面和 UIKit／桌面宿主使用同一组公开 API。
+
 Row／Column 使用 Flex 的主轴分配和交叉轴对齐。Flex 可以在本次测量选择方向、间距和内缩。下面的工具栏随自己的父容器宽度切换方向。只在宽布局显示的子项保留挂载，窄布局会跳过它及相邻间距。
 
 ```kotlin

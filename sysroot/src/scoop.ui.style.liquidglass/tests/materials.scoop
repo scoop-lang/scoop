@@ -1,0 +1,134 @@
+package scoop.ui.style.liquidglass
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.style.*
+
+@Test
+private class LiquidGlassMaterialTest {
+    @Test
+    fun `surface policy distinguishes stable content compact actions bars and floating surfaces`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = liquidGlassTheme(mode)
+            val surfaces = theme.tokens.glassSurfaces
+            for (role in [SurfaceRole.Content, SurfaceRole.Input])
+                assertNoMaterial(surfaces.get(role))
+            assertSame(surfaces.navigation!!, surfaces.toolbar!!)
+            assertSame(surfaces.popover!!, surfaces.dialog!!)
+            assertSame(surfaces.popover!!, surfaces.notification!!)
+            assertTrue(surfaces.control!!.blurSigma < surfaces.toolbar!!.blurSigma)
+            assertTrue(surfaces.toolbar!!.blurSigma < surfaces.popover!!.blurSigma)
+            assertTrue(
+                surfaces.control!!.edgeWidth < theme.surfaceMetrics().minimumSize.height / 2.0
+            )
+            assertTrue(surfaces.control!!.refraction < surfaces.control!!.edgeWidth)
+            val changed = theme.copy { tokens { glassSurfaces { toolbar = None } } }
+            assertNoMaterial(changed.tokens.glassSurfaces.toolbar)
+            assertSame(surfaces.control!!, changed.tokens.glassSurfaces.control!!)
+            assertSame(surfaces.popover!!, changed.tokens.glassSurfaces.popover!!)
+            assertSame(surfaces.toolbar!!, theme.tokens.glassSurfaces.toolbar!!)
+        }
+    }
+
+    @Test
+    fun `local clearing restores solid color and root preferences restore the original policy`() {
+        val theme = liquidGlassTheme()
+        val visual = SurfaceVisual(SurfaceKind.OutlinedAction, role = SurfaceRole.Control)
+        val bounds = Rect(0.0, 0.0, 100.0, 36.0)
+        val normal = theme.surfaceGeometry(bounds, visual)
+        assertSame(theme.tokens.glassSurfaces.control!!, normal.style.glass!!)
+        assertTrue(normal.style.background!!.color.alpha < 0.95)
+        val clear = theme
+            .surfaceGeometry(
+                bounds, visual,
+                surfaceOptions { style { glass(None) } }
+            )
+        assertNoMaterial(clear.style.glass)
+        assertEquals(theme.surfaces.outlinedAction.fill.normal, clear.style.background!!.color)
+        assertEquals(normal.bounds, clear.bounds)
+        assertEquals(normal.content, clear.content)
+        for (
+            preferences in [
+                ThemePreferences(highContrast = true),
+                ThemePreferences(reduceTransparency = true)
+            ]
+        ) {
+            val resolved = theme.withPreferences(preferences)
+            for (
+                role in [
+                    SurfaceRole.Control,
+                    SurfaceRole.Navigation,
+                    SurfaceRole.Toolbar,
+                    SurfaceRole.Popover,
+                    SurfaceRole.Dialog,
+                    SurfaceRole.Notification
+                ]
+            )
+                assertNoMaterial(resolved.tokens.glassSurfaces.get(role))
+            assertNoMaterial(resolved.surfaceGeometry(bounds, visual).style.glass)
+            val restored = resolved.withPreferences(ThemePreferences())
+            assertSame(
+                theme.tokens.glassSurfaces.control!!,
+                restored.tokens.glassSurfaces.control!!
+            )
+        }
+    }
+
+    @Test
+    fun `default readable surfaces retain a visible current backdrop at retina scale`() {
+        RasterSurface(240, 120)
+            .use { surface ->
+                for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+                    val theme = liquidGlassTheme(mode)
+                    theme
+                        .createPainter()
+                        .use { painter ->
+                            val visual = SurfaceVisual(
+                                SurfaceKind.OutlinedAction,
+                                role = SurfaceRole.Control
+                            )
+                            val geometry = theme
+                                .surfaceGeometry(Rect(10.0, 10.0, 100.0, 36.0), visual)
+                            val channels = ArrayList<Int>()
+                            for (backdrop in [Color.Black, Color.White]) {
+                                surface
+                                    .draw { canvas ->
+                                        canvas.clear(backdrop)
+                                        canvas.scale(2.0, 2.0)
+                                        painter.drawSurface(canvas, geometry, visual)
+                                        canvas
+                                            .drawRect(
+                                                Rect(50.0, 20.0, 1.0, 10.0),
+                                                Paint(Color(0.0, 1.0, 0.0))
+                                            )
+                                    }
+                                val pixels = surface.readPixels()
+                                channels.add(pixels[((40L * 240L + 80L) * 4L)].toUByte().toInt())
+                                assertEquals(
+                                    255,
+                                    pixels[((48L * 240L + 100L) * 4L + 1L)].toUByte().toInt()
+                                )
+                                assertTrue(
+                                    pixels[((48L * 240L + 102L) * 4L)].toUByte().toInt() > 0
+                                )
+                                assertEquals(
+                                    0,
+                                    pixels[((48L * 240L + 100L) * 4L)].toUByte().toInt()
+                                )
+                            }
+                            assertTrue(
+                                channels[1L] - channels[0L] >= 20,
+                                Some("glass became an opaque surface")
+                            )
+                        }
+                }
+            }
+    }
+}
+
+private fun assertNoMaterial(material: GlassMaterial?) {
+    when (material) {
+        case None -> {}
+        case Some(_) -> fail(Some("surface unexpectedly uses glass"))
+    }
+}

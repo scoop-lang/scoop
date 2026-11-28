@@ -1,0 +1,58 @@
+package scoop.ui.style.liquidglass
+
+import scoop.graphics.Color
+import scoop.ui.style.*
+
+/** Opaque text roles leave room for a translucent surface while preserving their contrast. */
+internal fun liquidPalette(mode: ThemeMode): ThemePalette {
+    val dark = mode == ThemeMode.Dark
+    val text = liquidColor(if (dark) 0xededed else 0x262626)
+    val secondaryText = liquidColor(if (dark) 0xb9b9bb else 0x6b6b70)
+    val canvas = ColorPair(liquidColor(if (dark) 0x202020 else 0xf7f7f7), text)
+    val card = ColorPair(liquidColor(if (dark) 0x191919 else 0xffffff), text)
+    val popover = ColorPair(liquidColor(if (dark) 0x303030 else 0xfbfbfb), text)
+    val primary = ColorPair(
+        liquidColor(0x006bd6),
+        Color.White
+    )
+    val secondary = ColorPair(liquidColor(if (dark) 0x383838 else 0xeeeeef), text)
+    val accent = ColorPair(liquidColor(if (dark) 0x454545 else 0xe4e4e6), text)
+    val error = ColorPair(
+        liquidColor(if (dark) 0xffdbd6 else 0x870c1f),
+        liquidColor(if (dark) 0x480711 else 0xffffff)
+    )
+    val edge = (if (dark) Color.White else Color.Black).withAlpha(if (dark) 0.12 else 0.1)
+    val ring = liquidColor(if (dark) 0x1aa9ff else 0x336fff).withAlpha(0.5)
+    return ThemePalette(
+        background = canvas,
+        card = card,
+        popover = popover,
+        primary = primary,
+        secondary = secondary,
+        muted = ColorPair(liquidColor(if (dark) 0x343434 else 0xebebed), secondaryText),
+        accent = accent,
+        destructive = error,
+        border = edge,
+        input = edge,
+        ring = ring,
+        chart = ChartPalette(
+            primary.background,
+            liquidColor(if (dark) 0x6dd9ad else 0x09825a),
+            liquidColor(if (dark) 0xffca7a else 0xa75d0c),
+            liquidColor(if (dark) 0xc5a4ff else 0x7b43c7),
+            error.background
+        ),
+        sidebar = SidebarPalette(
+            ColorPair(liquidColor(if (dark) 0x272727 else 0xeeeeef), text),
+            primary, accent, edge, ring
+        ),
+        disabledText = liquidColor(if (dark) 0x7c7c80 else 0x9b9b9f),
+        shadow = Color.Black.withAlpha(if (dark) 0.32 else 0.12)
+    )
+}
+
+private fun liquidColor(value: Int): Color = Color(
+    (value / 65536 % 256).toDouble() / 255.0,
+    (value / 256 % 256).toDouble() / 255.0,
+    (value % 256).toDouble() / 255.0
+)

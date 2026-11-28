@@ -7,23 +7,6 @@ import scoop.math.min
 import scoop.ui.*
 import scoop.ui.style.*
 
-internal val lensSource = """
-uniform shader background;
-uniform float2 size;
-half4 main(float2 p) {
-    float radius = min(20.0, min(size.x, size.y) * 0.5);
-    float2 halfSize = size * 0.5;
-    float2 q = p - halfSize;
-    float2 nearEdge = q - clamp(q, -halfSize + radius, halfSize - radius);
-    float distance = length(nearEdge);
-    float2 normal = nearEdge / max(distance, 0.001);
-    float rim = smoothstep(0.0, radius, distance);
-    half4 sampleColor = background.eval(p - normal * (13.0 * rim));
-    float glint = 0.24 * rim * rim * max(0.0, dot(normal, float2(-0.6, -0.8)));
-    return half4(mix(sampleColor.rgb, half3(sampleColor.a), glint), sampleColor.a);
-}
-"""
-
 /** A cacheable scene group; child glass samples the current background on every replay. */
 internal class GlassOpacity(private val opacity: Props<Double>, scope: ComponentScope) :
     Element<Unit>(scope) {
@@ -50,10 +33,10 @@ internal class GlassOpacity(private val opacity: Props<Double>, scope: Component
 
 internal class GlassPanel(
     private val name: String,
-    private val program: ShaderProgram?,
+    private val material: GlassMaterial,
     private val enabled: Props<Boolean>,
     scope: ComponentScope
-) : Element<ImageFilter>(scope) {
+) : Element<Unit>(scope) {
     private val painter = scope.resource { StylePainter() }
     private val label = scope.resource { lettering(scope, name, 17.0, 650) }
     private val surface = style {
@@ -64,7 +47,7 @@ internal class GlassPanel(
     }
 
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        ImageFilter
+        Unit
     > {
         val size = constraints.constrain(Size(272.0, 68.0))
         val button = context
@@ -81,20 +64,14 @@ internal class GlassPanel(
                     (size.height - button.size.height) * 0.5
                 )
             )
-        val filter = when (program) {
-            case None -> ImageFilter.blur(7.0, 7.0)
-            case Some(val lens) ->
-                ImageFilter
-                    .runtimeShader(lens, "background", 13.0) {
-                        setFloats("size", [size.width.toFloat(), size.height.toFloat()])
-                    }
-        }
-        return LayoutResult(LayoutMetrics(size), filter, { filter.close() })
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
 
-    public override fun scene(context: SceneContext, layout: ImageFilter) {
+    public override fun scene(context: SceneContext, layout: Unit) {
+        val selected = if (enabled.value) Some(material) else None
+        val appearance = surface.copy { glass = selected }
         painter
-            .scene(context, surface, if (enabled.value) Some(layout) else None) { local ->
+            .scene(context, appearance) { local ->
                 if (local.size.width >= 174.0) {
                     local.draw { paint -> paint.canvas.drawText(label, Point(17.0, 22.0)) }
                 }

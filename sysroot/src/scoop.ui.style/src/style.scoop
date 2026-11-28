@@ -19,10 +19,13 @@ public class Style internal constructor(
     public val corners: Corners = Corners.all(0.0),
     public val boxShadows: Array<BoxShadow> = [],
     public val contentEffects: Array<ContentEffect> = [],
-    public val clipContent: Boolean = false
+    public val clipContent: Boolean = false,
+    public val glass: GlassMaterial? = None
 ) {
-    public fun copy(configure: StyleBuilder.() -> Unit = {}): Style =
-        configureStyle(this, configure)
+    public fun copy(configure: StyleBuilder.() -> Unit = {}): Style = configureStyle(
+        this,
+        configure
+    )
 }
 
 /** Inherit is distinct from explicitly setting an optional property to None. */
@@ -36,40 +39,39 @@ public class StyleOverride internal constructor(
     public val corners: StyleValue<Corners> = StyleValue.Inherit,
     public val boxShadows: StyleValue<Array<BoxShadow>> = StyleValue.Inherit,
     public val contentEffects: StyleValue<Array<ContentEffect>> = StyleValue.Inherit,
-    public val clipContent: StyleValue<Boolean> = StyleValue.Inherit
+    public val clipContent: StyleValue<Boolean> = StyleValue.Inherit,
+    public val glass: StyleValue<GlassMaterial?> = StyleValue.Inherit
 ) {
     public fun copy(configure: StyleOverrideBuilder.() -> Unit = {}): StyleOverride =
         configureStyleOverride(this, configure)
 
-    public fun then(next: StyleOverride): StyleOverride =
-        StyleOverride(
-            background.then(next.background),
-            border.then(next.border),
-            corners.then(next.corners),
-            boxShadows.then(next.boxShadows),
-            contentEffects.then(next.contentEffects),
-            clipContent.then(next.clipContent)
-        )
+    public fun then(next: StyleOverride): StyleOverride = StyleOverride(
+        background.then(next.background),
+        border.then(next.border),
+        corners.then(next.corners),
+        boxShadows.then(next.boxShadows),
+        contentEffects.then(next.contentEffects),
+        clipContent.then(next.clipContent),
+        glass.then(next.glass)
+    )
 
-    public fun resolve(inherited: Style): Style =
-        Style(
-            background.resolve(inherited.background),
-            border.resolve(inherited.border),
-            corners.resolve(inherited.corners),
-            boxShadows.resolve(inherited.boxShadows),
-            contentEffects.resolve(inherited.contentEffects),
-            clipContent.resolve(inherited.clipContent)
-        )
+    public fun resolve(inherited: Style): Style = Style(
+        background.resolve(inherited.background),
+        border.resolve(inherited.border),
+        corners.resolve(inherited.corners),
+        boxShadows.resolve(inherited.boxShadows),
+        contentEffects.resolve(inherited.contentEffects),
+        clipContent.resolve(inherited.clipContent),
+        glass.resolve(inherited.glass)
+    )
 }
 
-public fun <T> StyleValue<T>.then(next: StyleValue<T>): StyleValue<T> =
-    when (next) {
-        case Inherit -> this;
-        case Set(_) -> next
-    }
+public fun <T> StyleValue<T>.then(next: StyleValue<T>): StyleValue<T> = when (next) {
+    case Inherit -> this;
+    case Set(_) -> next
+}
 
-public fun <T> StyleValue<T>.resolve(inherited: T): T =
-    when (this) {
-        case Inherit -> inherited
-        case Set(val value) -> value
-    }
+public fun <T> StyleValue<T>.resolve(inherited: T): T = when (this) {
+    case Inherit -> inherited
+    case Set(val value) -> value
+}

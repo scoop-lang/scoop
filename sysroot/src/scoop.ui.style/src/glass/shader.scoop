@@ -1,0 +1,106 @@
+package scoop.ui.style
+
+internal val glassOutlineSource = """
+float glassEllipse(float2 corner, float2 radius) {
+    float k0 = length(corner / radius);
+    float k1 = length(corner / (radius * radius));
+    return k0 * (k0 - 1) / max(k1, 0.0001);
+}
+
+float glassDistance(float2 p, float4 box, float4 top, float4 bottom) {
+    float2 q = box.xy + top.xy - p;
+    if (top.x > 0 && top.y > 0 && q.x > 0 && q.y > 0)
+        return glassEllipse(q, top.xy);
+    q = float2(p.x - box.x - box.z + top.z, box.y + top.w - p.y);
+    if (top.z > 0 && top.w > 0 && q.x > 0 && q.y > 0)
+        return glassEllipse(q, top.zw);
+    q = p - box.xy - box.zw + bottom.zw;
+    if (bottom.z > 0 && bottom.w > 0 && q.x > 0 && q.y > 0)
+        return glassEllipse(q, bottom.zw);
+    q = float2(box.x + bottom.x - p.x, p.y - box.y - box.w + bottom.y);
+    if (bottom.x > 0 && bottom.y > 0 && q.x > 0 && q.y > 0)
+        return glassEllipse(q, bottom.xy);
+    q = abs(p - box.xy - box.zw * 0.5) - box.zw * 0.5;
+    return length(max(q, 0)) + min(max(q.x, q.y), 0);
+}
+"""
+
+internal val glassGradientSource = """
+float2 glassGradient(float2 p) {
+    return float2(
+        distanceToGlass(p + float2(0.25, 0)) - distanceToGlass(p - float2(0.25, 0)),
+        distanceToGlass(p + float2(0, 0.25)) - distanceToGlass(p - float2(0, 0.25))) * 2;
+}
+"""
+
+internal val glassOpticsSource = """
+uniform shader background;
+uniform float refraction;
+uniform float edgeWidth;
+uniform float saturation;
+layout(color) uniform half4 tint;
+layout(color) uniform half4 highlight;
+
+half4 main(float2 p) {
+    float d = distanceToGlass(p);
+    float rim = edgeWidth > 0 ? clamp(1 + d / edgeWidth, 0, 1) : 0;
+    float2 gradient = glassGradient(p);
+    float2 normal = gradient / max(length(gradient), 0.0001);
+    half4 sampleColor = background.eval(p - normal * (refraction * rim * rim));
+    half luminance = dot(sampleColor.rgb, half3(0.2126, 0.7152, 0.0722));
+    sampleColor.rgb = clamp(mix(half3(luminance), sampleColor.rgb, saturation), 0, sampleColor.a);
+    sampleColor = sampleColor * (1 - tint.a) + half4(tint.rgb * tint.a, tint.a);
+    float glint = rim * rim * max(0, dot(normal, float2(-0.6, -0.8))) * highlight.a;
+    sampleColor.rgb = mix(sampleColor.rgb, highlight.rgb * sampleColor.a, glint);
+    return sampleColor;
+}
+"""
+
+internal val glassShaderSource = glassOutlineSource +
+    """
+uniform float4 bounds;
+uniform float4 topRadii;
+uniform float4 bottomRadii;
+float distanceToGlass(float2 p) {
+    return glassDistance(p, bounds, topRadii, bottomRadii);
+}
+""" +
+    glassGradientSource +
+    glassOpticsSource
+
+internal fun glassGroupSource(count: Long): String = glassOutlineSource +
+    """
+uniform float4 bounds[""" +
+    count.toString() +
+    """];
+uniform float4 topRadii[""" +
+    count.toString() +
+    """];
+uniform float4 bottomRadii[""" +
+    count.toString() +
+    """];
+uniform float blendRadius;
+float distanceToGlass(float2 p) {
+    float d = glassDistance(p, bounds[0], topRadii[0], bottomRadii[0]);
+    for (int i = 1; i < """ +
+    count.toString() +
+    """; ++i) {
+        float next = glassDistance(p, bounds[i], topRadii[i], bottomRadii[i]);
+        float h = blendRadius > 0 ? max(blendRadius - abs(d - next), 0) / blendRadius : 0;
+        d = min(d, next) - blendRadius * h * h * 0.25;
+    }
+    return d;
+}
+""" +
+    glassGradientSource
+
+internal val glassMaskSource = """
+uniform float4 pixelInverse;
+layout(color) uniform half4 fill;
+half4 main(float2 p) {
+    float2 gradient = glassGradient(p);
+    float2 pixelGradient = float2(dot(pixelInverse.xy, gradient), dot(pixelInverse.zw, gradient));
+    float coverage = clamp(0.5 - distanceToGlass(p) / max(length(pixelGradient), 0.0001), 0, 1);
+    return half4(fill.rgb * fill.a, fill.a) * coverage;
+}
+"""

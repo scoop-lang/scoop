@@ -1,8 +1,10 @@
 # Scoop UI Gallery
 
-真实原生窗口，使用同一套 `scoop.ui.component`，右上角 Style 下拉框可选择 shadcn、macOS、Material、Fluent 的完整主题。示例目录保留 `shadcn` 名称。导航分为 Applications 和 Components，包含 65 项组件的独立页面，以及四个可操作的应用组合。
+真实原生窗口，使用同一套 `scoop.ui.component`，右上角 Style 下拉框可选择 shadcn、macOS、Material、Fluent、Liquid Glass 五套完整主题。示例目录保留 `shadcn` 名称。导航分为 Applications 和 Components，包含 66 项组件与材质的独立页面，以及四个可操作的应用组合。
 
 目录和详情共用一棵挂载树。页面通过 Flex 的 layoutFor／itemFor 读取父容器逻辑宽度，达到 720 时并排显示，较窄时按当前导航位置显示目录或详情。目录的每组按钮用最小列宽 152 的 FlexGrid 自动分列，详情的 Frame 将正文宽度限制在 960。窗口拖动、旋转和分屏只改变子项的测量与放置，显式返回目录结束当前详情页面。实现见 [Gallery 布局](src/gallery.scoop)。
+
+**Liquid Glass** 页提供 Frosted／Clear／Liquid 三种共享材质。滚动彩色底图或点击 Scroll colors，可观察固定表面处理当帧下层；Separate／Connect 与 Stretch／Round 更新稳定 key 的实际位置、尺寸和圆角，Reverse order 保留两项独立计数。Opacity、禁用和错误状态可组合操作。默认沿用当前 Style 的玻璃用途；Theme defaults 恢复默认，Custom material 或首次修改用途进入自定义。八个用途开关通过 ThemeTokens.glassSurfaces 应用于整个 Gallery，输入草稿和弹层使用真实控件。Liquid Glass 默认将玻璃用于操作、导航、工具栏和浮动层，正文与输入保留稳定底色。页面中的高对比度、减少透明度和文字缩放修改当前 UiWindow.preferences，System preferences 恢复跟随系统；Motion 与顶部设置共用主题策略。实体回退保留内容和操作。Measured layouts 使用真实标签测量和 Wrap 展示窄宽、长文字及增删项；同页的 ButtonGroup 与 Tabs 使用当前主题的共享材质和选中底板。实现见 [材质与策略模型](src/glass/model.scoop)、[页面](src/glass/page.scoop)和[背景与融合](src/glass/preview.scoop)。桌面入口与 UIKit 的 GalleryScene.bind 绑定借用的 UI 根，不修改系统设置。
 
 - **Settings app**：资料与偏好表单，组合中文输入、邮件与验证码校验、生日选择、勾选／开关／单选和存储滑块；固定操作区提交时会显露并聚焦错误字段。
 - **Workspace app**：侧栏、文档／预览页签和可调面板，配合 File 菜单、命令搜索、重命名 Dialog、嵌套 Sheet 和活动 Drawer；窗口变窄后使用移动侧栏，草稿随应用模型保留。
@@ -29,7 +31,7 @@ SCOOP_SYSROOT="$PWD/sysroot" target/release/scoop run sysroot/src/scoop.ui.compo
 
 ### 在 iPhone 和 iPad 上运行
 
-iOS 使用同一份页面、模型和四套主题。可用宽度小于 720 点时先显示可搜索的目录；点条目后全宽展示内容，点 **Examples** 返回之前的滚动位置。**Appearance** 可切换样式、明暗、文字方向和动画。宽屏同时显示目录和示例。Settings、Workspace、Data、Conversation 都可直接从 Applications 打开。
+iOS 使用同一份页面、模型和五套主题。可用宽度小于 720 点时先显示可搜索的目录；点条目后全宽展示内容，点 **Examples** 返回之前的滚动位置。**Appearance** 可切换样式、明暗、文字方向和动画。宽屏同时显示目录和示例。Settings、Workspace、Data、Conversation 都可直接从 Applications 打开。
 
 在装有 Xcode、arm64 模拟器、GN 和仓库 LLVM 工具链的 Mac 上，从仓库根目录执行以下命令。将 `SCOOP_LLD` 指向该工具链的 `bin/lld`。本地基础库、图形库和原生依赖放入开发 sysroot。已有对应库时可直接构建示例。[开发工具链准备](../../../../../scripts/README.md)
 
@@ -49,7 +51,7 @@ xcrun simctl launch "$SIMULATOR_UDID" dev.scoop.gallery
 
 真机开发运行还需用相同的 `prepare_ios_ui.py` 命令准备 `aarch64-apple-ios`，再运行 `python3 "$demo/build_framework.py" --sdk both --linker "$SCOOP_LLD"`。在 Xcode 的 Signing & Capabilities 选择自己的开发团队和可用的 Bundle ID，然后选中已配对的 iPhone 或 iPad 运行。两个切片的最低系统版本为 iOS 17。
 
-如需复验本地拆包，在准备命令后加 `--package-dir tmp/ios-ui/packages`。已有库时可加 `--package-only`。基础包包含 runtime、异步定时和文字后端，GUI 包包含 Skia、窗口、组件及四套样式。模拟器和设备分别制包。
+如需复验本地拆包，在准备命令后加 `--package-dir tmp/ios-ui/packages`。已有库时可加 `--package-only`。基础包包含 runtime、异步定时和文字后端，GUI 包包含 Skia、窗口、组件及五套样式。模拟器和设备分别制包。
 
 本期在 iPhone 模拟器逐页打开并返回了全部 69 页，用系统拼音填写并保存了 Settings，也用 VoiceOver 朗读目录并双击进入页面。iPad 模拟器验证了 Workspace 草稿、付款删除和撤销、Conversation 流式回复和离页取消，以及与「照片」并排时的窄窗导航。iPhone 13 Pro Max 上用同一工程的开发签名版验证了触摸导航、后台恢复、系统拼音保存，以及旁白的朗读顺序、双击、三指滚动和编辑。[分设备验收记录](../../../../../docs/ui/IOS-PORT.md#本期交付记录)
 
@@ -57,9 +59,13 @@ Gallery 的 macOS 入口在附着窗口前调用 `configureFpsReportingFromEnvir
 
 顶部切换明暗、LTR／RTL 和 Reduce motion／Full motion，右上角 Style 下拉框选择整套视觉风格；导航支持搜索应用和控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。Style 支持方向键、Enter 和文字搜索，切换后保留当前页面、文字、业务状态、方向、明暗及动态偏好；组件继续通过同一 ThemeSource 更新。iOS 的已验收操作见上节。
 
-Style 始终提供 `shadcn`、`macOS`、`Material` 和 `Fluent`。其左侧的 `Colors: Preset／System` 独立选择配色来源：Preset 使用当前风格的预设配色，System 把系统强调色、背景、文字及分隔线应用于任意风格，同时保留该风格的字体、尺寸、轮廓及动效。切换 Style 保留配色来源，切换 Colors 保留 Style。macOS 默认 shadcn + System；只有启用 System 时，切换明暗或重新聚焦窗口才读取系统颜色。其他平台固定 Preset，系统取色适配只在 macOS 提供。
+Style 始终提供 `shadcn`、`macOS`、`Material`、`Fluent` 和 `Liquid Glass`。其左侧的 `Colors: Preset／System` 独立选择配色来源：Preset 使用当前风格的预设配色，System 把系统强调色、背景、文字及分隔线应用于任意风格，同时保留该风格的字体、尺寸、轮廓及动效。切换 Style 保留配色来源，切换 Colors 保留 Style。macOS 默认 shadcn + System；只有启用 System 时，切换明暗或重新聚焦窗口才读取系统颜色。其他平台固定 Preset，系统取色适配只在 macOS 提供。
 
 窗口测试遵守每进程一个 Application 的合同，须串行、按单个用例启动；`--list` 可列出名称，再以 `scoop test sysroot/src/scoop.ui.component/examples/shadcn --release --filter 'real gallery retains'` 等命令分别运行。普通模型测试可按容器筛选，例如 `--filter GalleryStyleTest` 验证样式切换和状态保持。
+
+Liquid Glass 的定向验证可分别筛选 `GalleryGlassModelTest`、`GlassGalleryWindowTest`、`LiquidGlassPagesTest` 和 `ApplicationWindowTest`，覆盖继承／覆盖模型、35 阶段材质与交互会话、全部 70 页的明亮宽窗／暗色窄窗 RTL，以及四个应用的实际编辑和弹层操作。原生会话还验证偏好、隐藏、卸载与静止停帧。结果和平台限制见[独立主题验收记录](../../../../../docs/ui/liquid-glass/STYLE.md)。
+
+性能复验使用 `--filter GlassGalleryPerformanceTest`。同一 release 原生窗口按顺序运行实体回退滚动、玻璃滚动、融合形变、多用途玻璃、全局 Liquid Glass 和反复打开的玻璃弹层；每项预热 24 帧后采集 120 帧，报告场景绘制 CPU 时间、实际提交间隔、首帧与超过 33.3 ms 的帧数，最后断言动画停止后不再请求帧。`scene_ms` 不包含 GPU 完成时间；首帧单独保留，不混入稳定段均值。做版本对照时保持窗口、显示器、负载和 release 编译选项相同，串行交替运行两个版本，避免同时编译或运行其他绘图测试；测试不把本机的绝对耗时设为跨机器的通过门槛。加 `SCOOP_SURFACE_FPS=1` 可同时记录呈现帧率。
 
 Badge 页面可以切换禁用、撤销动作和替换回调。Spinner 页面中的滚动面板用于观察离屏停帧与滚回恢复；切页、隐藏窗口、停止和减少动态均不会留下持续渲染。自定义 Button／Badge 内容通过 ActionContentStyle 消费解析后的文字、图标尺寸、颜色与间距。
 

@@ -18,12 +18,11 @@ private class ComponentSemanticsTest {
     @Test(useProcess = true)
     fun `built-in controls expose actual actions and preserve semantics through composition`() {
         val probe = ControlsProbe()
-        val theme = ThemeSource(shadcnTheme())
+        val theme = glassAccessibilityTheme()
         try {
             context(theme) {
-                UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                    host -> Application().run(host)
-                }
+                UiHost { host, active, event -> probe.event(host, active, event) }
+                    .use { host -> Application().run(host) }
             }
             assertTrue(probe.finished)
             assertEquals(7, probe.clicked)
@@ -35,7 +34,7 @@ private class ComponentSemanticsTest {
     }
 }
 
-internal class ControlsProbe: Closeable {
+internal class ControlsProbe : Closeable {
     val fields = FieldSemanticsProbe()
     val scrollState = ScrollState()
     val caption = state("Save")
@@ -53,12 +52,11 @@ internal class ControlsProbe: Closeable {
     val typographySelectable = state(true)
     val editor = TextEditorState("A😀é")
     val multiline = TextEditorState("One\nTwo")
-    val labelText =
-        styledText {
-            text("A")
-            inlineObject(InlineKey.Text("badge"), "😀图")
-            text("Z")
-        }
+    val labelText = styledText {
+        text("A")
+        inlineObject(InlineKey.Text("badge"), "😀图")
+        text("Z")
+    }
     var measures = 0
     var scenes = 0
     var clicked = -1
@@ -92,11 +90,12 @@ internal class ControlsProbe: Closeable {
         when (event) {
             case Resumed -> {
                 active = Some(application)
-                application.setControlFlow(
-                    ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
-                )
-                val native =
-                    application.createWindow(
+                application
+                    .setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.now() + Duration.seconds(20L))
+                    )
+                val native = application
+                    .createWindow(
                         windowAttributes {
                             title = "Scoop built-in semantic controls"
                             requestActivation = false
@@ -109,10 +108,9 @@ internal class ControlsProbe: Closeable {
                 {
                     val lease = native.acquireNativeWindow()
                     try {
-                        val view =
-                            when (lease.handle) {
-                                case AppKit(_, val pointer) -> pointer
-                            }
+                        val view = when (lease.handle) {
+                            case AppKit(_, val pointer) -> pointer
+                        }
                         tree = Some(NativeNode(nativeRoot(view)!!))
                     } finally {
                         lease.close()
@@ -129,11 +127,13 @@ internal class ControlsProbe: Closeable {
                 inner = Some(find("inner"))
                 selectable = Some(find("selectable"))
                 typography = Some(find("typography"))
-                calls =
-                    Some(NativeCalls(application.proxy()) { tag, result -> completed(tag, result) })
+                calls = Some(
+                    NativeCalls(application.proxy()) { tag, result -> completed(tag, result) }
+                )
                 native.setVisible(false)
                 initial()
             }
+
             case NewEvents(StartCause.Deadline) -> fail(Some("component semantics timed out"))
             else -> {}
         }
@@ -183,9 +183,18 @@ internal class ControlsProbe: Closeable {
         when (tag) {
             case 0 -> {
                 assertEquals(1, result)
+                assertTrue(
+                    button!!.flag(1),
+                    Some("disabled Tooltip must preserve its enabled button")
+                )
+                assertTrue(
+                    checkbox!!.flag(1),
+                    Some("disabled HoverCard must preserve its enabled control")
+                )
                 assertEquals(7, clicked)
                 calls!!.post(checkbox!!, 1)
             }
+
             case 1 -> {
                 assertEquals(1, result)
                 assertEquals(CheckState.Checked, checked.value)
@@ -196,6 +205,7 @@ internal class ControlsProbe: Closeable {
                     calls!!.post(checkbox!!, 2)
                 }
             }
+
             case 2 -> {
                 assertEquals(0, result)
                 assertEquals(CheckState.Checked, checked.value)
@@ -203,17 +213,20 @@ internal class ControlsProbe: Closeable {
                 reject.value = true
                 afterUpdate { calls!!.post(checkbox!!, 3) }
             }
+
             case 3 -> {
                 assertEquals(0, result)
                 assertEquals(1L, checkbox!!.numericValue)
                 calls!!.post(inner!!, 4)
             }
+
             case 4 -> {
                 assertEquals(1, result)
                 assertEquals(1, innerClicks)
                 assertEquals(0, outerClicks)
                 calls!!.post(outer!!, 5)
             }
+
             case 5 -> {
                 assertEquals(1, result)
                 name.value = Some("")
@@ -237,6 +250,7 @@ internal class ControlsProbe: Closeable {
                     }
                 }
             }
+
             case 6 -> {
                 assertEquals(1, result)
                 assertEquals("D😀", editor.text)
@@ -248,11 +262,13 @@ internal class ControlsProbe: Closeable {
                     calls!!.post(input!!, 7, 4, selectionStart = 1L, selectionLength = 2L)
                 }
             }
+
             case 7 -> {
                 assertEquals(Utf8Selection(1L, 5L), editor.selection)
                 assertTrue(input!!.selection(1L, 2L))
                 calls!!.post(input!!, 8, 5, "Q")
             }
+
             case 8 -> {
                 assertEquals("AQé", editor.text)
                 assertTrue(input!!.text(1, Some("AQé")))
@@ -263,6 +279,7 @@ internal class ControlsProbe: Closeable {
                     calls!!.post(input!!, 9, 1, "Rejected")
                 }
             }
+
             case 9 -> {
                 assertEquals("AQé", editor.text)
                 readOnly.value = false
@@ -274,11 +291,13 @@ internal class ControlsProbe: Closeable {
                     calls!!.post(input!!, 10, 1, "Secret")
                 }
             }
+
             case 10 -> {
                 assertEquals("Secret", editor.text)
                 assertTrue(input!!.text(1, None))
                 calls!!.post(textarea!!, 11, 1, "New\nLines")
             }
+
             case 11 -> {
                 assertEquals("New\nLines", multiline.text)
                 assertTrue(textarea!!.text(1, Some("New\nLines")))
@@ -288,11 +307,13 @@ internal class ControlsProbe: Closeable {
                     calls!!.post(button!!, 12)
                 }
             }
+
             case 12 -> {
                 assertEquals(0, result)
                 assertEquals(7, clicked)
                 calls!!.post(selectable!!, 13, 4, selectionStart = 1L, selectionLength = 2L)
             }
+
             case 13 -> {
                 assertEquals(1, selectionChanges)
                 assertEquals(7, selectionHandler)
@@ -301,6 +322,7 @@ internal class ControlsProbe: Closeable {
                 assertTrue(selectable!!.text(4, Some("😀图")))
                 calls!!.post(selectable!!, 14, 5, "Forbidden")
             }
+
             case 14 -> {
                 assertTrue(selectable!!.text(1, Some("A😀图Z")))
                 assertEquals(1, selectionChanges)
@@ -310,11 +332,13 @@ internal class ControlsProbe: Closeable {
                     calls!!.post(selectable!!, 15, 4, selectionStart = 0L, selectionLength = 1L)
                 }
             }
+
             case 15 -> {
                 assertTrue(selectable!!.selection(1L, 3L))
                 assertEquals(1, selectionChanges)
                 calls!!.post(typography!!, 16, 4, selectionStart = 0L, selectionLength = 4L)
             }
+
             case 16 -> {
                 assertEquals(1, typographyChanges)
                 assertTrue(typography!!.text(4, Some("Para")))
@@ -328,23 +352,27 @@ internal class ControlsProbe: Closeable {
                     calls!!.post(typography!!, 17, 4, selectionStart = 4L, selectionLength = 5L)
                 }
             }
+
             case 17 -> {
                 assertEquals(1, typographyChanges)
-                fields.run({ identifier -> find(identifier) }, { action -> afterUpdate(action) }) {
-                    ui!!.close()
-                    fields.checkRetired()
-                    assertFalse(input!!.flag(0))
-                    assertFalse(checkbox!!.flag(0))
-                    assertFalse(scroller!!.flag(0))
-                    calls!!.post(outer!!, 18)
-                }
+                fields
+                    .run({ identifier -> find(identifier) }, { action -> afterUpdate(action) }) {
+                        ui!!.close()
+                        fields.checkRetired()
+                        assertFalse(input!!.flag(0))
+                        assertFalse(checkbox!!.flag(0))
+                        assertFalse(scroller!!.flag(0))
+                        calls!!.post(outer!!, 18)
+                    }
             }
+
             case 18 -> {
                 assertEquals(0, result)
                 finished = true
                 window!!.requestDestroy()
                 active!!.requestExit()
             }
+
             else -> fail(Some("unexpected component semantic action"))
         }
     }

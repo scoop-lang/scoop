@@ -3,8 +3,10 @@ package scoop.ui.style
 import scoop.graphics.*
 
 /** Configures one immutable description without creating drawing or UI resources. */
-public fun style(configure: StyleBuilder.() -> Unit = {}): Style =
-    configureStyle(Style(), configure)
+public fun style(configure: StyleBuilder.() -> Unit = {}): Style = configureStyle(
+    Style(),
+    configure
+)
 
 internal fun configureStyle(initial: Style, configure: StyleBuilder.() -> Unit): Style {
     val builder = StyleBuilder(initial)
@@ -20,16 +22,17 @@ public class StyleBuilder internal constructor(initial: Style) {
     public var boxShadows: Array<BoxShadow> = initial.boxShadows
     public var contentEffects: Array<ContentEffect> = initial.contentEffects
     public var clipContent: Boolean = initial.clipContent
+    public var glass: GlassMaterial? = initial.glass
 
-    internal fun snapshot(): Style =
-        Style(
-            background = background,
-            border = border,
-            corners = corners,
-            boxShadows = boxShadows,
-            contentEffects = contentEffects,
-            clipContent = clipContent
-        )
+    internal fun snapshot(): Style = Style(
+        background = background,
+        border = border,
+        corners = corners,
+        boxShadows = boxShadows,
+        contentEffects = contentEffects,
+        clipContent = clipContent,
+        glass = glass
+    )
 }
 
 /** Configures one immutable description without creating drawing or UI resources. */
@@ -53,6 +56,7 @@ public class StyleOverrideBuilder internal constructor(initial: StyleOverride) {
     public var boxShadows: StyleValue<Array<BoxShadow>> = initial.boxShadows
     public var contentEffects: StyleValue<Array<ContentEffect>> = initial.contentEffects
     public var clipContent: StyleValue<Boolean> = initial.clipContent
+    public var glass: StyleValue<GlassMaterial?> = initial.glass
 
     public fun background(value: Paint?): Unit {
         this.background = StyleValue.Set(value)
@@ -78,13 +82,17 @@ public class StyleOverrideBuilder internal constructor(initial: StyleOverride) {
         this.clipContent = StyleValue.Set(value)
     }
 
-    internal fun snapshot(): StyleOverride =
-        StyleOverride(
-            background = background,
-            border = border,
-            corners = corners,
-            boxShadows = boxShadows,
-            contentEffects = contentEffects,
-            clipContent = clipContent
-        )
+    public fun glass(value: GlassMaterial?): Unit {
+        this.glass = StyleValue.Set(value)
+    }
+
+    internal fun snapshot(): StyleOverride = StyleOverride(
+        background = background,
+        border = border,
+        corners = corners,
+        boxShadows = boxShadows,
+        contentEffects = contentEffects,
+        clipContent = clipContent,
+        glass = glass
+    )
 }

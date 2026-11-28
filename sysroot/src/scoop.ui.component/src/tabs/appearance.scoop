@@ -16,10 +16,8 @@ internal fun tabTextColor(
         colors.disabledText
     else if (selected || (visual.enabled && (visual.hovered || visual.pressed)))
         colors.background.foreground
-    else if (theme.tokens.mode == ThemeMode.Dark)
-        colors.muted.foreground
     else
-        colors.background.foreground.withAlpha(colors.background.foreground.alpha * 0.6)
+        colors.muted.foreground
     val fill = tabFill(theme, variant, selected, visual)
     return componentBackground(
         theme, foreground,
@@ -99,7 +97,14 @@ internal fun tabOptions(
     val filled = selected && variant == TabsVariant.Default
     val fill = tabFill(theme, variant, selected, visual)
     val local = styleOverride {
-        this.background(Some(Paint(fill)))
+        glassSurface(
+            theme,
+            SurfaceRole.Navigation,
+            fill,
+            style.states.apply(style.surface.style, visual),
+            [tabTextColor(theme, variant, selected, visual)],
+            hasSurface = filled || activeSurface(visual)
+        )
         this
             .border(
                 Some(

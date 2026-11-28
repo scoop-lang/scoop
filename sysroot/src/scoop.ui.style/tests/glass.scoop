@@ -1,0 +1,199 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.LayoutDirection
+
+internal fun clearGlass(): GlassMaterial = glassMaterial {
+    blurSigma = 0.0
+    refraction = 0.0
+    saturation = 1.0
+    tint = Color.Transparent
+    highlight = Color.Transparent
+}
+
+@Test
+private class GlassMaterialTest {
+    @Test
+    fun `material builders snapshot values and style overrides can inherit replace or clear`() {
+        val builders = ArrayList<GlassMaterialBuilder>()
+        val material = glassMaterial {
+            blurSigma = 3.0
+            refraction = 5.0
+            builders.add(this)
+        }
+        builders[0L].blurSigma = 20.0
+        assertEquals(3.0, material.blurSigma)
+        val replacement = material.copy { refraction = 9.0 }
+        assertEquals(5.0, material.refraction)
+        val inherited = style { glass = Some(material) }
+        assertSame(material, styleOverride().resolve(inherited).glass!!)
+        val override = styleOverride { glass(Some(replacement)) }
+        assertSame(replacement, override.resolve(inherited).glass!!)
+        when (override.then(styleOverride { glass(None) }).resolve(inherited).glass) {
+            case None -> {}
+            case Some(_) -> fail(Some("explicit clearing retained the material"))
+        }
+        assertSame(material, physicalStyle(inherited, LayoutDirection.Rtl).glass!!)
+    }
+
+    @Test
+    fun `material caches replace resources only after successful preparation`() {
+        GlassFilterCache()
+            .use { cache ->
+                val material = clearGlass()
+                val outline = RoundedOutline(Rect(8.0, 4.0, 32.0, 24.0), CornerRadii.all(4.0))
+                val first = cache.update(Some(material), outline)!!
+                assertSame(first, cache.update(Some(material.copy()), outline)!!)
+                val next = cache.update(Some(material.copy { refraction = 2.0 }), outline)!!
+                assertTrue(first.isClosed)
+                assertFailsWith<IllegalArgumentException> {
+                    cache.update(Some(material.copy { blurSigma = -1.0 }), outline)
+                }
+                assertFalse(next.isClosed)
+                when (cache.update(Some(material), outline, false)) {
+                    case Some(_) -> fail(Some("invisible glass prepared a drawing"))
+                    case None -> {}
+                }
+                assertFalse(next.isClosed)
+                val visible = cache.update(Some(material), outline)!!
+                assertTrue(next.isClosed)
+                cache.update(None, outline)
+                assertTrue(visible.isClosed)
+                assertTrue(next.isClosed)
+            }
+    }
+
+    @Test
+    fun `Raster glass processes current pixels while keeping foreground and clip boundaries sharp`() {
+        RasterSurface(128, 96)
+            .use { surface ->
+                verifyGlassPixels { scene ->
+                    surface
+                        .draw { canvas ->
+                            canvas.scale(2.0, 2.0)
+                            scene(canvas)
+                        }
+                    surface.readPixels()
+                }
+            }
+    }
+
+    @Test
+    fun `recorded glass retains native inputs after the painter closes and rejects conflicting sources`() {
+        RasterSurface(64, 32)
+            .use { surface ->
+                val painter = StylePainter()
+                val material = style { glass = Some(clearGlass()) }
+                val bounds = Rect(0.0, 0.0, 64.0, 32.0)
+                val drawing = surface
+                    .draw { canvas ->
+                        assertFailsWith<IllegalArgumentException> {
+                            ImageFilter
+                                .blur(2.0, 2.0)
+                                .use { filter ->
+                                    painter.paint(canvas, bounds, material, Some(filter)) { _ -> }
+                                }
+                        }
+                        canvas
+                            .recordDrawing(bounds) { record ->
+                                painter.paint(record, bounds, material) { _ -> }
+                            }
+                    }
+                painter.close()
+                drawing
+                    .use { replay ->
+                        assertFalse(replay.canRasterizeTiles)
+                        surface
+                            .draw { canvas ->
+                                canvas.clear(Color(0.0, 1.0, 0.0, 0.5))
+                                canvas.drawDrawing(replay)
+                            }
+                        val pixels = surface.readPixels()
+                        assertEquals(255, channel(pixels, 64, 20, 16, 1))
+                        assertEquals(128, channel(pixels, 64, 20, 16, 3))
+                    }
+            }
+    }
+}
+
+/** The same pixel assertions run on Raster and each platform's real GPU target at 2x DPI. */
+internal fun verifyGlassPixels(render: ((Canvas) -> Unit) -> Array<Byte>) {
+    StylePainter()
+        .use { painter ->
+            val material = clearGlass()
+            val bounds = Rect(8.0, 4.0, 32.0, 24.0)
+            val decoration = style {
+                corners = Corners.all(8.0);
+                glass = Some(material)
+            }
+            for (color in [Color(1.0, 0.0, 0.0, 0.5), Color(0.0, 0.0, 1.0, 0.5)]) {
+                val pixels = render { canvas ->
+                    canvas.clear(color)
+                    painter.paint(canvas, bounds, decoration) { _ -> }
+                }
+                val component = if (color.red == 1.0) 0 else 2
+                assertEquals(255, channel(pixels, 128, 48, 24, component))
+                assertEquals(128, channel(pixels, 128, 48, 24, 3))
+            }
+            val frosted = decoration.copy { glass = Some(material.copy { blurSigma = 3.0 }) }
+            val pixels = render { canvas ->
+                canvas.clear(Color(1.0, 0.0, 0.0))
+                canvas.drawRect(Rect(24.0, 0.0, 40.0, 48.0), Paint(Color(0.0, 0.0, 1.0)))
+                painter
+                    .paint(canvas, bounds, frosted) { foreground ->
+                        foreground.drawRect(Rect(16.0, 14.0, 1.0, 4.0), Paint(Color(0.0, 1.0, 0.0)))
+                    }
+            }
+            assertTrue(channel(pixels, 128, 47, 24, 0) in 50..205)
+            assertTrue(channel(pixels, 128, 47, 24, 2) in 50..205)
+            assertEquals(255, channel(pixels, 128, 32, 30, 1))
+            assertEquals(0, channel(pixels, 128, 34, 30, 1))
+            assertEquals(255, channel(pixels, 128, 18, 10, 0))
+
+            val lens = decoration
+                .copy {
+                    glass = Some(
+                        material
+                            .copy {
+                                refraction = 8.0;
+                                edgeWidth = 12.0
+                            }
+                    )
+                }
+            val bent = render { canvas ->
+                canvas.clear(Color.Black)
+                canvas.drawRect(Rect(0.0, 10.0, 64.0, 3.0), Paint(Color(0.0, 1.0, 0.0)))
+                painter.paint(canvas, bounds, lens) { _ -> }
+            }
+            assertTrue(channel(bent, 128, 48, 12, 1) > 200)
+            assertEquals(0, channel(bent, 128, 8, 12, 1))
+            val tinted = decoration
+                .copy { glass = Some(material.copy { tint = Color(1.0, 0.0, 0.0, 0.5) }) }
+            val clipped = render { canvas ->
+                canvas.clear(Color(0.0, 0.0, 1.0))
+                canvas
+                    .withState { local ->
+                        local.clipRect(Rect(0.0, 0.0, 4.0, 48.0))
+                        painter
+                            .paint(local, bounds, frosted) { foreground ->
+                                foreground
+                                    .drawRect(
+                                        Rect(0.0, 40.0, 4.0, 4.0),
+                                        Paint(Color(0.0, 1.0, 0.0))
+                                    )
+                            }
+                    }
+                canvas
+                    .withState { local ->
+                        local.translate(-8.0, -4.0)
+                        local.clipRect(Rect(8.0, 4.0, 16.0, 16.0))
+                        painter.paint(local, bounds, tinted) { _ -> }
+                    }
+            }
+            assertTrue(channel(clipped, 128, 20, 20, 0) in 126..130)
+            assertTrue(channel(clipped, 128, 20, 20, 2) in 126..130)
+            assertEquals(255, channel(clipped, 128, 40, 20, 2))
+            assertEquals(255, channel(clipped, 128, 4, 84, 1))
+        }
+}

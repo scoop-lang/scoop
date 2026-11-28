@@ -149,6 +149,13 @@ public class ThemeTokensBuilder internal constructor(initial: ThemeTokens) {
     public var effects: ThemeEffects = initial.effects
     public var disabledOpacity: Double = initial.disabledOpacity
     public var textField: TextFieldTreatment = initial.textField
+    public var glassSurfaces: GlassSurfaces = initial.glassSurfaces
+    public var controlMetrics: ThemeControlMetrics = initial.controlMetrics
+    public var controlThumb: StyleOverride = initial.controlThumb
+
+    public fun glassSurfaces(configure: GlassSurfacesBuilder.() -> Unit): Unit {
+        glassSurfaces = glassSurfaces.copy(configure)
+    }
 
     public fun palette(configure: ThemePaletteBuilder.() -> Unit): Unit {
         palette = palette.copy(configure)
@@ -176,6 +183,9 @@ public class ThemeTokensBuilder internal constructor(initial: ThemeTokens) {
         validation = validation,
         effects = effects,
         disabledOpacity = disabledOpacity,
-        textField = textField
+        textField = textField,
+        glassSurfaces = glassSurfaces,
+        controlMetrics = controlMetrics,
+        controlThumb = controlThumb
     )
 }

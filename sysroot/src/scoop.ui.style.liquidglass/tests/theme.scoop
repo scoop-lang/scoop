@@ -1,0 +1,136 @@
+package scoop.ui.style.liquidglass
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.style.*
+
+@Test
+private class LiquidGlassThemeTest {
+    @Test
+    fun `complete light and dark themes draw every public part with one painter`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = liquidGlassTheme(mode)
+            assertEquals(mode, theme.tokens.mode)
+            assertEquals(14.0, theme.tokens.typography.body.fontSize)
+            assertEquals(36.0, theme.surfaceMetrics().suggestedSize.height)
+            assertTrue(theme.tokens.palette.background.foreground.alpha == 1.0)
+            for (
+                preferences in [
+                    ThemePreferences(),
+                    ThemePreferences(highContrast = true),
+                    ThemePreferences(
+                        reduceTransparency = true,
+                        reduceMotion = true,
+                        textScaleFactor = 1.5
+                    )
+                ]
+            ) {
+                val resolved = theme.withPreferences(preferences)
+                assertEquals(
+                    14.0 * preferences.textScaleFactor,
+                    resolved.tokens.typography.body.fontSize
+                )
+                assertEquals(
+                    theme.tokens.typography.body.fontSize,
+                    resolved.withPreferences(ThemePreferences()).tokens.typography.body.fontSize
+                )
+                RasterSurface(240, 180)
+                    .use { surface ->
+                        surface
+                            .draw { canvas ->
+                                canvas.clear(theme.tokens.palette.background.background)
+                                resolved
+                                    .createPainter()
+                                    .use { painter ->
+                                        for (
+                                            kind in [
+                                                SurfaceKind.Plain,
+                                                SurfaceKind.Action,
+                                                SurfaceKind.OutlinedAction,
+                                                SurfaceKind.Elevated
+                                            ]
+                                        ) {
+                                            val visual = SurfaceVisual(
+                                                kind,
+                                                role = SurfaceRole.Control
+                                            )
+                                            painter
+                                                .drawSurface(
+                                                    canvas,
+                                                    resolved
+                                                        .surfaceGeometry(
+                                                            Rect(10.0, 10.0, 160.0, 40.0),
+                                                            visual
+                                                        ),
+                                                    visual
+                                                )
+                                        }
+                                        val checkbox = CheckboxVisual(CheckMark.Mixed)
+                                        painter
+                                            .drawCheckbox(
+                                                canvas,
+                                                resolved
+                                                    .checkboxGeometry(
+                                                        Rect(10.0, 70.0, 18.0, 18.0),
+                                                        checkbox
+                                                    ),
+                                                checkbox
+                                            )
+                                        val radio = RadioVisual(true)
+                                        painter
+                                            .drawRadio(
+                                                canvas,
+                                                resolved
+                                                    .radioGeometry(
+                                                        Rect(42.0, 70.0, 18.0, 18.0),
+                                                        radio
+                                                    ),
+                                                radio
+                                            )
+                                        val scrollbar = ScrollbarVisual()
+                                        painter
+                                            .drawScrollbar(
+                                                canvas,
+                                                resolved
+                                                    .scrollbarGeometry(
+                                                        Rect(200.0, 10.0, 10.0, 140.0),
+                                                        scrollbar
+                                                    ),
+                                                scrollbar
+                                            )
+                                    }
+                            }
+                    }
+            }
+        }
+    }
+
+    @Test
+    fun `configuration is a snapshot and preserves the supplied semantic palette`() {
+        val palette = liquidGlassTheme()
+            .tokens
+            .palette
+            .copy { primary = ColorPair(Color(0.2, 0.45, 0.3), Color.White) }
+        val captured = ArrayList<ShapeThemeBuilder>()
+        val theme = liquidGlassTheme(palette = Some(palette)) {
+            captured.add(this)
+            tokens { spacing = ThemeSpacing(5.0, 10.0, 20.0) }
+        }
+        captured[0L].tokens { spacing = ThemeSpacing(1.0, 2.0, 3.0) }
+        assertTrue(theme.tokens.palette === palette)
+        assertEquals(ThemeSpacing(5.0, 10.0, 20.0), theme.tokens.spacing)
+        val visual = SurfaceVisual(SurfaceKind.Action)
+        assertEquals(palette.primary.foreground, theme.surfaceTextColor(visual))
+        assertEquals(palette.primary.background, theme.surfaces.action.fill.normal)
+        val larger = theme.withPreferences(ThemePreferences(textScaleFactor = 1.5))
+        assertEquals(
+            21.0,
+            larger
+                .withPreferences(ThemePreferences(textScaleFactor = 1.5))
+                .tokens
+                .typography
+                .body
+                .fontSize
+        )
+    }
+}

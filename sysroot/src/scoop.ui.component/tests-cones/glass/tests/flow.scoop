@@ -1,0 +1,193 @@
+package scoop.tests.ui.glass
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.liquidglass.liquidGlassTheme
+import scoop.window.*
+
+@Test
+private class GlassFlowWindowTest {
+    @Test(useProcess = true)
+    fun `measured glass follows text RTL wrapping keyed changes and accessibility motion`() {
+        val probe = GlassFlowProbe()
+        probe
+            .use { _ ->
+                context(ThemeSource(liquidGlassTheme())) {
+                    UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                        probe.event(host, active, event)
+                    }
+                        .use { host -> Application().run(host) }
+                }
+            }
+        assertTrue(probe.finished)
+        assertEquals(1, probe.records[0L].mounts)
+        assertEquals(1, probe.records[1L].mounts)
+        assertEquals(2, probe.records[2L].mounts)
+        for (record in probe.records)
+            assertEquals(record.mounts, record.unmounts)
+    }
+}
+
+internal class GlassFlowRecord {
+    var area: InputArea? = None
+    var mounts = 0
+    var unmounts = 0
+    var firstSize: Size? = None
+}
+
+internal class GlassFlowProbe : Closeable {
+    val records = [GlassFlowRecord(), GlassFlowRecord(), GlassFlowRecord()]
+    val version = state(0)
+    val width = state(160.0)
+    val rtl = state(false)
+    val reverse = state(false)
+    val third = state(true)
+    var submitted = -1
+    var finished = false
+    var observedMovement = false
+    var firstBounds: Rect? = None
+    private var ui: UiWindow? = None
+    private var deadline: WindowDeadline? = None
+    private var frames: FrameProbe? = None
+    private var idle: FrameSnapshot? = None
+    private var thirdWidth = 0.0
+    private var removed: InputArea? = None
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window = active
+                    .createWindow(
+                        windowAttributes {
+                            title = "Scoop measured liquid glass"
+                            size = LogicalSize(240.0, 340.0)
+                            level = WindowLevel.AlwaysOnTop
+                        }
+                    )
+                frames = Some(observeFrames(window))
+                window
+                    .createDeadline { fail(Some(f"glass flow timeout at ${version.value}")) }
+                    .schedule(MonotonicTimeSource.now() + Duration.seconds(25L))
+                deadline = Some(window.createDeadline { advance(active) })
+                ui = host.attach(window, { mount -> GlassFlowRoot(this, scope = mount) })
+                ui!!.preferences = uiPreferences {
+                    reduceMotion = Some(false)
+                    reduceTransparency = Some(false)
+                    highContrast = Some(false)
+                    textScaleFactor = Some(1.0)
+                }
+                schedule(650L)
+            }
+
+            case AboutToWait -> {
+                if (version.value == 1 && submitted == 1) {
+                    val bounds = records[0L].area!!.visibleBounds!!
+                    if (bounds.x > firstBounds!!.x && frames!!.snapshot().required)
+                        observedMovement = true
+                }
+            }
+
+            else -> {}
+        }
+    }
+    private fun schedule(milliseconds: Long) {
+        deadline!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(milliseconds))
+    }
+    private fun advance(active: ActiveApplication) {
+        when (idle) {
+            case Some(val snapshot) -> {
+                assertEquals(snapshot, frames!!.snapshot())
+                finished = true
+                active.requestExit()
+                return
+            }
+
+            case None -> {}
+        }
+        if (submitted != version.value) {
+            schedule(20L);
+            return
+        }
+        val first = records[0L].area!!.visibleBounds!!
+        val second = records[1L].area!!.visibleBounds!!
+        when (version.value) {
+            case 0 -> {
+                assertTrue(second.width > first.width)
+                assertTrue(records[2L].area!!.visibleBounds!!.y > first.y)
+                firstBounds = Some(first)
+                rtl.value = true
+            }
+
+            case 1 -> {
+                assertTrue(observedMovement)
+                assertTrue(first.x > second.x)
+                assertEquals(firstBounds!!.size, first.size)
+                ui!!.preferences = uiPreferences {
+                    reduceMotion = Some(false)
+                    textScaleFactor = Some(1.5)
+                }
+            }
+
+            case 2 -> {
+                assertTrue(first.height > firstBounds!!.height)
+                width.value = 96.0
+            }
+
+            case 3 -> {
+                for (record in records) {
+                    val bounds = record.area!!.visibleBounds!!
+                    assertTrue(bounds.x + bounds.width <= 96.0)
+                    assertEquals(1, record.mounts)
+                }
+                reverse.value = true
+            }
+
+            case 4 -> {
+                assertTrue(records[2L].area!!.visibleBounds!!.y < first.y)
+                thirdWidth = records[2L].area!!.visibleBounds!!.width
+                removed = records[2L].area
+                third.value = false
+            }
+
+            case 5 -> {
+                assertTrue(removed!!.isClosed)
+                assertTrue(frames!!.snapshot().required)
+                third.value = true
+            }
+
+            case 6 -> {
+                assertEquals(2, records[2L].mounts)
+                assertTrue(records[2L].firstSize!!.width > thirdWidth * 0.3)
+                assertTrue(removed!!.isClosed)
+                third.value = false
+                ui!!.preferences = uiPreferences {
+                    reduceMotion = Some(true)
+                    textScaleFactor = Some(1.5)
+                }
+            }
+
+            case 7 -> {
+                assertTrue(records[2L].area!!.isClosed)
+                val snapshot = frames!!.snapshot()
+                assertFalse(snapshot.required)
+                assertTrue(snapshot.paused)
+                idle = Some(snapshot)
+                schedule(180L)
+                return
+            }
+
+            else -> fail()
+        }
+        version.value += 1
+        schedule(if (version.value == 5) 120L else 600L)
+    }
+    public override fun close() {
+        frames?.close()
+    }
+}

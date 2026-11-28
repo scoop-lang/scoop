@@ -22,8 +22,7 @@ public fun contrastThemeColors(pair: ColorPair, canvas: Color, minimum: Double =
     return preferencePair(pair, opaqueThemeColor(canvas, Color.White), true, minimum)
 }
 
-private fun finiteContrastColor(value: Color): Boolean =
-    value.red.isFinite() &&
-        value.green.isFinite() &&
-        value.blue.isFinite() &&
-        value.alpha.isFinite()
+internal fun finiteContrastColor(value: Color): Boolean = value.red.isFinite() &&
+    value.green.isFinite() &&
+    value.blue.isFinite() &&
+    value.alpha.isFinite()

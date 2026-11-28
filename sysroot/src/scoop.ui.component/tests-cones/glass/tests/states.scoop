@@ -1,0 +1,173 @@
+package scoop.tests.ui.glass
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class GlassControlStateTest {
+    @Test(useProcess = true)
+    fun `disabled controls interpolate the filtered backdrop once with the complete foreground`() {
+        val probe = GlassControlProbe()
+        context(probe.theme) {
+            UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                when (event) {
+                    case Resumed -> {
+                        val window = active
+                            .createWindow(
+                                windowAttributes {
+                                    title = "Scoop disabled glass composition"
+                                    size = LogicalSize(140.0, 72.0)
+                                    level = WindowLevel.AlwaysOnTop
+                                }
+                            )
+                        window
+                            .createDeadline { fail(Some("glass control state timeout")) }
+                            .schedule(MonotonicTimeSource.now() + Duration.seconds(15L))
+                        host.attach(window, { mount -> GlassControlRoot(probe, scope = mount) })
+                    }
+
+                    case AboutToWait -> probe.advance(active)
+                    else -> {}
+                }
+            }
+                .use { host -> Application().run(host) }
+        }
+        assertTrue(probe.finished)
+    }
+}
+
+private class GlassControlProbe {
+    val mode = state(0)
+    val theme = ThemeSource(
+        shadcnTheme {
+            tokens {
+                glassSurfaces {
+                    control = Some(
+                        glassMaterial {
+                            blurSigma = 6.0;
+                            refraction = 0.0;
+                            saturation = 1.0
+                            tint = Color.Transparent;
+                            highlight = Color.Transparent
+                        }
+                    )
+                }
+            }
+        }
+    )
+    var submitted = -1
+    var pixels: Array<Long> = []
+    var finished = false
+    private val samples = ArrayList<Array<Long>>()
+    fun advance(active: ActiveApplication) {
+        if (finished || submitted != mode.value) return
+        samples.add(pixels)
+        if (mode.value < 2) {
+            mode.value += 1;
+            return
+        }
+        for (index in 0L..<pixels.size) {
+            assertTrue(abs(samples[0L][index] % 256L - samples[2L][index] % 256L) > 25L)
+            for (divisor in [1L, 256L, 65536L]) {
+                val enabled = samples[0L][index] / divisor % 256L
+                val disabled = samples[1L][index] / divisor % 256L
+                val original = samples[2L][index] / divisor % 256L
+                assertTrue(
+                    abs(disabled - (enabled + original) / 2L) <= 3L,
+                    Some("disabled glass lost or repeatedly composited its backdrop")
+                )
+            }
+        }
+        finished = true
+        active.requestExit()
+    }
+}
+
+private class GlassControlRoot(private val probe: GlassControlProbe, scope: ComponentScope) :
+    Component(scope) {
+    public override fun render(): View {
+        val mode = probe.mode.value
+        val action = button("", {}) {
+            enabled = mode != 1
+            style {
+                transition(None)
+                surface {
+                    style {
+                        background(Some(Paint(Color.Transparent)))
+                        border(None)
+                        corners(Corners.all(0.0))
+                        if (mode == 2) glass(None)
+                    }
+                }
+            }
+        }
+        return element(
+            mode,
+            { current, mount -> GlassControlScene(current, probe, scope = mount) },
+            [action]
+        )
+    }
+}
+
+private class GlassControlScene(
+    private val props: Props<Int>,
+    private val probe: GlassControlProbe,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun update(): UiInvalidation = UiInvalidation.Layout
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        context.measureChild(0L, Constraints.tight(Size(100.0, 48.0)))
+        context.placeChild(0L, Point(20.0, 12.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(140.0, 72.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val mode = props.value
+        context
+            .draw { paint ->
+                for (index in 0..<14)
+                    paint
+                        .canvas
+                        .drawRect(
+                            Rect(index.toDouble() * 10.0, 0.0, 10.0, 72.0),
+                            Paint(
+                                if (index % 2 == 0) Color(1.0, 0.0, 0.0) else Color(0.0, 0.0, 1.0)
+                            )
+                        )
+            }
+        context.children()
+        val samples = MutableArray<Long>(2L) { _ -> -1L }
+        context
+            .draw { paint ->
+                @Unsafe {
+                    paint
+                        .canvas
+                        .withSkiaCanvas { native ->
+                            @Unsafe {
+                                samples[0L] = readNativePixel(native, 45.0, 22.0)
+                                samples[1L] = readNativePixel(native, 55.0, 22.0)
+                            }
+                        }
+                }
+            }
+        context
+            .onFrameComplete { frame ->
+                if (frame.submission == FrameSubmission.Accepted) {
+                    probe.pixels = samples.toArray()
+                    probe.submitted = mode
+                }
+            }
+    }
+}

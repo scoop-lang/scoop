@@ -30,8 +30,8 @@ public class SliderStyle internal constructor(
     }
 }
 
-public fun sliderStyle(configure: SliderStyleBuilder.() -> Unit = {}): SliderStyle =
-    SliderStyle().copy(configure)
+public fun sliderStyle(configure: SliderStyleBuilder.() -> Unit = {}): SliderStyle = SliderStyle()
+    .copy(configure)
 
 public class SliderStyleBuilder internal constructor(initial: SliderStyle) {
     public var length: Double? = initial.length
@@ -58,22 +58,21 @@ public class SliderStyleBuilder internal constructor(initial: SliderStyle) {
     public fun transition(value: AnimationSpec?) {
         transition = StyleValue.Set(value)
     }
-    internal fun snapshot(): SliderStyle =
-        SliderStyle(
-            length,
-            thickness,
-            thumbSize,
-            hitInsets,
-            track,
-            range,
-            thumb,
-            states,
-            transition
-        )
+    internal fun snapshot(): SliderStyle = SliderStyle(
+        length,
+        thickness,
+        thumbSize,
+        hitInsets,
+        track,
+        range,
+        thumb,
+        states,
+        transition
+    )
 }
 
-internal fun sliderPartStyle(color: Color, local: StyleOverride): Style =
-    local.resolve(
+internal fun sliderPartStyle(color: Color, local: StyleOverride): Style = local
+    .resolve(
         style {
             this.background = Some(Paint(color))
             this.corners = Corners.all(1000.0)
@@ -86,46 +85,37 @@ internal fun sliderThumbOptions(
     visual: InteractionVisual
 ): SurfaceOptions {
     val density = theme.tokens.typography.body.fontSize / 14.0
-    val amount =
-        if (visual.focusVisible)
-            1.0
-        else
-            lowerBound(visual.hoverProgress ?: 0.0, visual.pressProgress ?: 0.0)
-    val base =
-        styleOverride {
-            this.background(
+    val fill = if (theme.preferences.highContrast)
+        theme.tokens.palette.background.background
+    else
+        Color.White
+    val base = styleOverride {
+        this
+            .background(
                 Some(
-                    Paint(
-                        if (theme.preferences.highContrast)
-                            theme.tokens.palette.background.background
-                        else
-                            Color.White
-                    )
+                    Paint(fill)
                 )
             )
-            this.border(
+        this
+            .border(
                 Some(
-                    Border.all(
-                        density,
-                        if (visual.invalid)
-                            theme.tokens.validation.borderColor ?: theme.tokens.validation.color
-                        else
-                            theme.tokens.palette.ring
-                    )
+                    Border
+                        .all(
+                            density,
+                            if (visual.invalid)
+                                theme.tokens.validation.borderColor ?: theme.tokens.validation.color
+                            else
+                                theme.tokens.palette.ring
+                        )
                 )
             )
-            this.corners(Corners.all(1000.0))
-        }.then(local.thumb)
+        this.corners(Corners.all(1000.0))
+    }
+        .then(controlThumbOverride(theme, fill, visual))
+        .then(local.thumb)
     return surfaceOptions {
         this.style = local.states.apply(base, visual)
         this.padding = Some(Insets())
-        this.focus =
-            Some(
-                OutlineStyle(
-                    componentTint(theme, theme.tokens.palette.ring, 0.5 * amount),
-                    componentFocusWidth(theme, 3.0 * density),
-                    0.0
-                )
-            )
+        this.focus = Some(componentFocusOutline(theme))
     }
 }

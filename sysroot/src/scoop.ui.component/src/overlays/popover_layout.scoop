@@ -5,9 +5,8 @@ import scoop.surface.InputArea
 import scoop.ui.*
 
 /** The portal is a zero-sized sibling of the persistent trigger. */
-internal class PopoverLayout(private val anchor: LayoutAnchor, scope: ComponentScope): Element<
-    Unit
->(scope) {
+internal class PopoverLayout(private val anchor: LayoutAnchor, scope: ComponentScope) :
+    Element<Unit>(scope) {
     public override fun onMount() {
         scope.layoutAnchor(anchor)
     }
@@ -37,7 +36,7 @@ internal class PopupMotionProps(
 internal class PopupMotion(
     private val props: Props<PopupMotionProps>,
     scope: ComponentScope
-): Element<Unit>(scope) {
+) : Element<Unit>(scope) {
     private var area: InputArea? = None
     private var arrow: Path? = None
     public override fun onMount() {
@@ -63,14 +62,13 @@ internal class PopupMotion(
         val size = context.size
         val offset = props.value.distance * (1.0 - progress)
         val side = layout.side ?: OverlaySide.Bottom
-        val pivot =
-            when (side) {
-                case Top -> Point(size.width / 2.0, size.height)
-                case Bottom -> Point(size.width / 2.0, 0.0)
-                case Left -> Point(size.width, size.height / 2.0)
-                else -> Point(0.0, size.height / 2.0)
-            }
-        context.saveLayer(progress)
+        val pivot = when (side) {
+            case Top -> Point(size.width / 2.0, size.height)
+            case Bottom -> Point(size.width / 2.0, 0.0)
+            case Left -> Point(size.width, size.height / 2.0)
+            else -> Point(0.0, size.height / 2.0)
+        }
+        context.saveBackdropLayer(progress)
         when (side) {
             case Top -> context.translate(0.0, offset)
             case Bottom -> context.translate(0.0, -offset)

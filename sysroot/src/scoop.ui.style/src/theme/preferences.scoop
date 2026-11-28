@@ -82,7 +82,10 @@ internal fun resolveShapePreferences(base: ShapeTheme, preferences: ThemePrefere
             this.palette = palette
             this.typography = typography
             this.motion = motion
-            if (colors) this.effects = themeEffects()
+            if (colors) {
+                this.effects = themeEffects()
+                this.glassSurfaces = glassSurfaces()
+            }
             if (preferences.highContrast) {
                 this.disabledOpacity = 1.0
                 this.validation = preferenceOutline(base.tokens.validation, background, true)

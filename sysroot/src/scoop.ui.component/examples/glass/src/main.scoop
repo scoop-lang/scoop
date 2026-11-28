@@ -28,7 +28,20 @@ internal class GlassModel {
 internal class GlassGallery(private val model: GlassModel, scope: ComponentScope) :
     Component(scope) {
     private val pattern = scope.resource { ShaderProgram.compile(patternSource) }
-    private val lens = scope.resource { ShaderProgram.compile(lensSource) }
+    private val frosted = glassMaterial {
+        blurSigma = 7.0
+        refraction = 0.0
+        saturation = 1.0
+        tint = Color.Transparent
+        highlight = Color.Transparent
+    }
+    private val lens = frosted
+        .copy {
+            blurSigma = 0.0
+            refraction = 13.0
+            edgeWidth = 20.0
+            highlight = Color.White.withAlpha(0.24)
+        }
 
     public override fun render(): View {
         val scroll = model.scroll
@@ -52,14 +65,14 @@ internal class GlassGallery(private val model: GlassModel, scope: ComponentScope
             { mount -> GalleryLayout(mount) },
             [
                 list,
-                panel("Gaussian blur", None, model.frosted),
-                panel("Refraction", Some(lens), model.refracted),
+                panel("Gaussian blur", frosted, model.frosted),
+                panel("Refraction", lens, model.refracted),
                 fade
             ]
         )
     }
 
-    private fun panel(name: String, program: ShaderProgram?, enabled: State<Boolean>): View {
+    private fun panel(name: String, material: GlassMaterial, enabled: State<Boolean>): View {
         val active = enabled.value
         val action = button(if (active) "On" else "Off", { enabled.value = !enabled.value }) {
             size = ButtonSize.Sm
@@ -68,7 +81,7 @@ internal class GlassGallery(private val model: GlassModel, scope: ComponentScope
         }
         val content = element(
             active,
-            { props, mount -> GlassPanel(name, program, props, mount) },
+            { props, mount -> GlassPanel(name, material, props, mount) },
             [action]
         )
         return cachedScene(element(model.opacity.value, ::GlassOpacity, [content]))

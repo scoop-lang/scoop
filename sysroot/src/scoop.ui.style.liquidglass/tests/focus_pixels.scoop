@@ -1,0 +1,133 @@
+package scoop.ui.style.liquidglass
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.style.*
+
+@Test
+private class LiquidFocusPixelsTest {
+    @Test
+    fun `input focus is a continuous soft outer band without a blue inner edge`() {
+        val theme = liquidGlassTheme()
+        val bounds = Rect(20.0, 20.0, 100.0, 36.0)
+        val visual = SurfaceVisual(
+            SurfaceKind.Plain, InteractionVisual(focusVisible = true), SurfaceRole.Input
+        )
+        val geometry = theme.surfaceGeometry(bounds, visual)
+        for (scale in [1, 2]) {
+            val width = 140 * scale
+            RasterSurface(width, 80 * scale)
+                .use { surface ->
+                    theme
+                        .createPainter()
+                        .use { painter ->
+                            surface
+                                .draw { canvas ->
+                                    canvas.clear(Color.White)
+                                    canvas.scale(scale.toDouble(), scale.toDouble())
+                                    painter.drawSurface(canvas, geometry, visual)
+                                }
+                        }
+                    val pixels = surface.readPixels()
+                    var band = 0
+                    for (y in 0..<20 * scale) {
+                        val index = ((y * width + 70 * scale) * 4).toLong()
+                        val red = pixels[index].toUByte().toInt()
+                        val blue = pixels[index + 2L].toUByte().toInt()
+                        if (blue - red > 24) {
+                            band += 1
+                            assertTrue(red > 80, Some("focus ring became an opaque saturated line"))
+                        }
+                    }
+                    assertTrue(
+                        band >= 3 * scale && band <= 4 * scale,
+                        Some("focus band must occupy 3–4 logical pixels at either display scale")
+                    )
+                    for (y in 20 * scale..<28 * scale) {
+                        val index = ((y * width + 70 * scale) * 4).toLong()
+                        assertTrue(
+                            pixels[index + 2L].toUByte().toInt() -
+                                pixels[index].toUByte().toInt() <=
+                                3,
+                            Some("focus leaked into the input border or neutral fill")
+                        )
+                    }
+                }
+        }
+    }
+
+    @Test
+    fun `invalid inputs have one continuous error edge in either appearance and display scale`() {
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = liquidGlassTheme(mode)
+            val visual = SurfaceVisual(
+                SurfaceKind.Plain,
+                InteractionVisual(focusVisible = true, invalid = true),
+                SurfaceRole.Input
+            )
+            val geometry = theme.surfaceGeometry(Rect(20.0, 20.0, 100.0, 36.0), visual)
+            for (scale in [1, 2]) {
+                val width = 140 * scale
+                RasterSurface(width, 80 * scale)
+                    .use { surface ->
+                        theme
+                            .createPainter()
+                            .use { painter ->
+                                surface
+                                    .draw { canvas ->
+                                        canvas.clear(theme.tokens.palette.background.background)
+                                        canvas.scale(scale.toDouble(), scale.toDouble())
+                                        painter.drawSurface(canvas, geometry, visual)
+                                    }
+                            }
+                        val pixels = surface.readPixels()
+                        for (y in 18 * scale..<20 * scale + 1) {
+                            val index = ((y * width + 70 * scale) * 4).toLong()
+                            val red = pixels[index].toUByte().toInt()
+                            val green = pixels[index + 1L].toUByte().toInt()
+                            assertTrue(
+                                red - green > 8,
+                                Some("a neutral slit separated the error outline from its border")
+                            )
+                        }
+                    }
+            }
+        }
+    }
+
+    @Test
+    fun `external focus alpha and validation survive neutral input treatment`() {
+        val palette = liquidGlassTheme().tokens.palette.copy { ring = Color(0.1, 0.7, 0.3, 0.3) }
+        val theme = liquidGlassTheme(palette = Some(palette))
+        val bounds = Rect(10.0, 10.0, 160.0, 36.0)
+        val normal = SurfaceVisual(SurfaceKind.Plain, role = SurfaceRole.Input)
+        val focus = SurfaceVisual(
+            SurfaceKind.Plain,
+            InteractionVisual(focusVisible = true),
+            SurfaceRole.Input
+        )
+        val a = theme.surfaceGeometry(bounds, normal)
+        val b = theme.surfaceGeometry(bounds, focus)
+        assertEquals(a.content, b.content)
+        assertEquals(a.style.border, b.style.border)
+        assertEquals(0, b.style.boxShadows.size)
+        assertEquals(palette.ring, b.ring!!.border.color)
+        val invalid = SurfaceVisual(
+            SurfaceKind.Plain,
+            InteractionVisual(focusVisible = true, invalid = true)
+        )
+        assertEquals(
+            theme.tokens.validation.color,
+            theme.surfaceGeometry(bounds, invalid).ring!!.border.color
+        )
+        for (
+            preferences in [
+                ThemePreferences(highContrast = true),
+                ThemePreferences(reduceTransparency = true)
+            ]
+        ) {
+            val resolved = theme.withPreferences(preferences)
+            assertEquals(1.0, resolved.surfaceGeometry(bounds, focus).ring!!.border.color.alpha)
+        }
+    }
+}

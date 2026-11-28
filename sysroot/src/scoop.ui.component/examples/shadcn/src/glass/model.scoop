@@ -1,0 +1,169 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal enum GalleryGlassMaterial {
+    Frosted, Clear, Liquid
+}
+
+internal fun glassMaterialTitle(value: GalleryGlassMaterial): String = when (value) {
+    case Frosted -> "Frosted"
+    case Clear -> "Clear"
+    case Liquid -> "Liquid"
+}
+
+internal val galleryGlassRoles = [
+    SurfaceRole.Control,
+    SurfaceRole.Input,
+    SurfaceRole.Content,
+    SurfaceRole.Navigation,
+    SurfaceRole.Toolbar,
+    SurfaceRole.Popover,
+    SurfaceRole.Dialog,
+    SurfaceRole.Notification
+]
+
+internal fun glassRoleTitle(value: SurfaceRole): String = when (value) {
+    case Control -> "Controls"
+    case Input -> "Inputs"
+    case Content -> "Cards"
+    case Navigation -> "Navigation"
+    case Toolbar -> "Toolbars"
+    case Popover -> "Popovers"
+    case Dialog -> "Dialogs"
+    case Notification -> "Notifications"
+}
+
+internal class GlassExamplesModel {
+    val preset = state(GalleryGlassMaterial.Liquid)
+    val roles = state<Array<SurfaceRole>>([])
+    val useThemeDefaults = state(true)
+    private val defaults = state(glassSurfaces())
+    val flowNarrow = state(false)
+    val flowExtra = state(true)
+    val flowLong = state(false)
+    val flowActions = state(0)
+    val flowTab = state<Int?>(Some(0))
+    val connected = state(true)
+    val stretched = state(false)
+    val reversed = state(false)
+    val opacity = state(1.0)
+    val enabled = state(true)
+    val invalid = state(false)
+    val likes = state(0)
+    val saves = state(0)
+    val draft = TextEditorState("A clear idea")
+    val popup = state(false)
+    val scroll = ScrollState()
+    val likeFocus = FocusHandle()
+    val draftFocus = FocusHandle()
+    val preferences = state(uiPreferences())
+    val attached = state(false)
+    private var window: UiWindow? = None
+
+    private val frosted = glassMaterial {
+        blurSigma = 12.0
+        refraction = 0.0
+        saturation = 1.15
+        highlight = Color.White.withAlpha(0.28)
+    }
+    private val clear = frosted
+        .copy {
+            blurSigma = 0.0
+            refraction = 14.0
+            edgeWidth = 24.0
+            highlight = Color.White.withAlpha(0.5)
+        }
+    private val liquid = clear
+        .copy {
+            blurSigma = 3.0;
+            refraction = 10.0
+        }
+
+    fun material(mode: ThemeMode): GlassMaterial {
+        val base = when (preset.value) {
+            case Frosted -> frosted
+            case Clear -> clear
+            case Liquid -> liquid
+        }
+        return base
+            .copy {
+                tint = if (mode == ThemeMode.Dark)
+                    Color(0.04, 0.06, 0.1, 0.18)
+                else
+                    Color.White.withAlpha(0.12)
+            }
+    }
+
+    fun uses(role: SurfaceRole): Boolean {
+        if (useThemeDefaults.value)
+            return when (defaults.value.get(role)) {
+                case Some(_) -> true
+                case None -> false
+            }
+        for (selected in roles.value)
+            if (selected == role) return true
+        return false
+    }
+
+    fun customize() {
+        if (!useThemeDefaults.value) return
+        val selected = ArrayList<SurfaceRole>()
+        for (role in galleryGlassRoles)
+            if (uses(role)) selected.add(role)
+        roles.value = selected.toArray()
+        useThemeDefaults.value = false
+    }
+
+    fun toggleRole(role: SurfaceRole) {
+        customize()
+        val selected = uses(role)
+        val next = ArrayList<SurfaceRole>()
+        for (value in roles.value)
+            if (value != role) next.add(value)
+        if (!selected) next.add(role)
+        roles.value = next.toArray()
+    }
+
+    fun surfaces(inherited: GlassSurfaces, material: GlassMaterial): GlassSurfaces {
+        defaults.value = inherited
+        if (useThemeDefaults.value) return inherited
+        val selected = roles.value
+        return glassSurfaces {
+            for (role in selected)
+                when (role) {
+                    case Control -> control = Some(material)
+                    case Input -> input = Some(material)
+                    case Content -> content = Some(material)
+                    case Navigation -> navigation = Some(material)
+                    case Toolbar -> toolbar = Some(material)
+                    case Popover -> popover = Some(material)
+                    case Dialog -> dialog = Some(material)
+                    case Notification -> notification = Some(material)
+                }
+        }
+    }
+
+    fun bind(root: UiWindow?) {
+        window = root
+        attached.value = when (root) {
+            case Some(val value) -> {
+                value.preferences = preferences.value;
+                true
+            }
+
+            case None -> false
+        }
+    }
+
+    fun updatePreferences(value: UiPreferences) {
+        preferences.value = value
+        when (window) {
+            case Some(val root) -> if (!root.isClosed) root.preferences = value
+            case None -> {}
+        }
+    }
+}

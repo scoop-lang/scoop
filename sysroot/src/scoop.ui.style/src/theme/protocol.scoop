@@ -10,6 +10,8 @@ public interface Theme {
     public val preferences: ThemePreferences
     /** Resolves all theme data from its base; repeated application must not compound text scale. */
     public fun withPreferences(preferences: ThemePreferences): Theme
+    /** The effective default outline for controls that supply their own fill or border. */
+    public fun surfaceFocus(kind: SurfaceKind = SurfaceKind.Plain): OutlineStyle
     public fun surfaceMetrics(
         visual: SurfaceVisual = SurfaceVisual(),
         options: SurfaceOptions = surfaceOptions(),
@@ -48,7 +50,7 @@ public interface Theme {
 }
 
 /** A reusable owner-thread resource. Each call synchronously borrows the ordinary Canvas. */
-public interface ThemePainter: Closeable {
+public interface ThemePainter : Closeable {
     public val isClosed: Boolean
     public fun drawSurface(
         canvas: Canvas,

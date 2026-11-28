@@ -1,0 +1,171 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.window.*
+import scoop.window.asyncio.runWithAsyncio
+
+@Test
+private class LiquidGlassPagesTest {
+    @Test(useProcess = true)
+    fun `all gallery pages submit in liquid glass light and narrow dark RTL and release their work`() {
+        val probe = LiquidPagesProbe()
+        context(probe.model.source) {
+            UiHost(onRootError = { _, failure -> throw failure }) { host, active, event ->
+                probe.event(host, active, event)
+            }
+                .use { host -> Application().runWithAsyncio(host) }
+        }
+        assertEquals(140, probe.completed)
+        assertFalse(probe.frames!!.snapshot().attached)
+    }
+}
+
+private class LiquidPagesProbe {
+    val model = GalleryModel()
+    val step = state(0)
+    val entries = model.entries()
+    var completed = 0
+    var frames: FrameProbe? = None
+    private var window: Window? = None
+    private var timer: WindowDeadline? = None
+    private var waiting = true
+    private var idle: FrameSnapshot? = None
+    init {
+        model.selectStyle(GalleryStyle.LiquidGlass)
+        model.selected.value = entries[0L]
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native = active
+                    .createWindow(
+                        windowAttributes {
+                            title = "Liquid Glass gallery pages"
+                            size = LogicalSize(1120.0, 860.0)
+                            level = WindowLevel.AlwaysOnTop
+                            requestActivation = false
+                        }
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                timer = Some(native.createDeadline { advance() })
+                native
+                    .createDeadline {
+                        fail(
+                            Some(
+                                f"gallery page timeout at ${step.value}: ${
+                                    demoTitle(model.selected.value)
+                                }"
+                            )
+                        )
+                    }
+                    .schedule(MonotonicTimeSource.now() + Duration.seconds(90L))
+                val root = host.attach(native, { mount -> LiquidPagesScene(this, mount) })!!
+                root.preferences = uiPreferences {
+                    reduceMotion = Some(false)
+                    highContrast = Some(false)
+                    reduceTransparency = Some(false)
+                    textScaleFactor = Some(1.0)
+                    caretBlinkInterval = Some(Duration.milliseconds(0L))
+                }
+            }
+
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> {}
+        }
+    }
+    fun presented(value: Int) {
+        if (value != step.value || !waiting) return
+        waiting = false
+        timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(180L))
+    }
+    private fun advance() {
+        if (step.value < 140) {
+            completed += 1
+            step.value += 1
+            waiting = true
+            if (step.value == 140) return
+            if (step.value == 70) {
+                model.toggleTheme()
+                model.toggleDirection()
+                window!!.requestSize(LogicalSize(600.0, 860.0))
+            }
+            model.selected.value = entries[(step.value % 70).toLong()]
+            return
+        }
+        val current = frames!!.snapshot()
+        assertTrue(current.paused)
+        assertFalse(current.required)
+        when (idle) {
+            case None -> {
+                idle = Some(current)
+                timer!!.schedule(MonotonicTimeSource.now() + Duration.milliseconds(180L))
+            }
+
+            case Some(val before) -> {
+                assertEquals(before.callbacks, current.callbacks)
+                assertEquals(before.presentations, current.presentations)
+                window!!.requestDestroy()
+            }
+        }
+    }
+}
+
+private class LiquidPagesScene(private val probe: LiquidPagesProbe, scope: ComponentScope) :
+    Component(scope) {
+    public override fun render(): View {
+        val value = probe.step.value
+        return element(
+            value, { current, mount -> LiquidPagesObserver(probe, current, mount) },
+            [
+                if (value < 140)
+                    direction(
+                        scrollArea(
+                            frame(galleryDemo(probe.model, probe.model.selected.value)) {
+                                maxWidth = Some(960.0)
+                                padding = Some(Insets.all(6.0))
+                            }
+                        ), probe.model.direction.value
+                    )
+                else
+                    empty()
+            ]
+        )
+    }
+}
+
+private class LiquidPagesObserver(
+    private val probe: LiquidPagesProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+) : Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val metrics = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(metrics, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val value = props.value
+        context
+            .draw { paint ->
+                paint
+                    .canvas
+                    .clear(probe.model.source.current.value.tokens.palette.background.background)
+            }
+        context.children()
+        context
+            .onFrameComplete { result ->
+                if (result.submission == FrameSubmission.Accepted) probe.presented(value)
+            }
+    }
+}

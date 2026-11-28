@@ -11,10 +11,10 @@ private class TabRelations(val key: ViewKey) {
     val panel = SemanticsReference()
 }
 
-public class Tabs<T: Equals<T>> public constructor(
+public class Tabs<T : Equals<T>> public constructor(
     private val props: Props<TabsProps<T>>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val handles = ChoiceHandles()
     private val themes = ThemeAccess(scope)
     private var links: Array<TabRelations> = []
@@ -22,18 +22,14 @@ public class Tabs<T: Equals<T>> public constructor(
         themes.mount(props.value.theme)
     }
     private fun select(key: ViewKey) {
-        if (selectTab(props.value, key))
-            props.value.onValueChange(props.value.selected.value)
+        if (selectTab(props.value, key)) props.value.onValueChange(props.value.selected.value)
     }
     private fun selectSemantically(key: ViewKey): SemanticActionResult {
         val input = props.value
-        if (!input.enabled)
-            return SemanticActionResult.Rejected
+        if (!input.enabled) return SemanticActionResult.Rejected
         for (entry in input.entries) {
-            if (entry.choice.key != key)
-                continue
-            if (!entry.choice.enabled)
-                return SemanticActionResult.Rejected
+            if (entry.choice.key != key) continue
+            if (!entry.choice.enabled) return SemanticActionResult.Rejected
             select(key)
             return if (props.value.selected.value == Some(entry.choice.value))
                 SemanticActionResult.Completed
@@ -48,48 +44,44 @@ public class Tabs<T: Equals<T>> public constructor(
         val density = theme.tokens.typography.action.fontSize / 14.0
         val keys = Array<ViewKey>(input.entries.size) { index -> input.entries[index].choice.key }
         val previous = links
-        links =
-            Array<TabRelations>(keys.size) {
-                index ->
-                var found: TabRelations? = None
-                for (entry in previous)
-                    if (entry.key == keys[index])
-                        found = Some(entry)
-                found ?: TabRelations(keys[index])
-            }
+        links = Array<TabRelations>(keys.size) { index ->
+            var found: TabRelations? = None
+            for (entry in previous)
+                if (entry.key == keys[index]) found = Some(entry)
+            found ?: TabRelations(keys[index])
+        }
         val links = this.links
-        val focus =
-            handles.resolve(
+        val focus = handles
+            .resolve(
                 keys,
                 Array<FocusOptions>(keys.size) { index -> input.entries[index].focus }
             )
         val selected = tabsIndex(input.entries, input.selected.value)
-        val headings =
-            Array<View>(keys.size) {
-                index ->
-                val entry = input.entries[index]
-                val key = entry.choice.key
-                val configured =
-                    entry.trigger ?:
-                        ButtonContent.Label(
-                            LabelProps(
-                                LabelText.Plain(entry.choice.label, None),
-                                input.fonts,
-                                Some(
-                                    paragraphStyle {
-                                        this.maxLines = Some(1L)
-                                        this.alignment =
-                                            if (input.axis == FlexAxis.Horizontal)
-                                                TextAlignment.Center
-                                            else
-                                                TextAlignment.Start
-                                    }
-                                )
+        val glass = tabsGlass(input, theme, selected)
+        val headings = Array<View>(keys.size) { index ->
+            val entry = input.entries[index]
+            val key = entry.choice.key
+            val configured = entry.trigger ?:
+                ButtonContent
+                    .Label(
+                        LabelProps(
+                            LabelText.Plain(entry.choice.label, None),
+                            input.fonts,
+                            Some(
+                                paragraphStyle {
+                                    this.maxLines = Some(1L)
+                                    this.alignment = if (input.axis == FlexAxis.Horizontal)
+                                        TextAlignment.Center
+                                    else
+                                        TextAlignment.Start
+                                }
                             )
                         )
-                val content =
-                    when (configured) {
-                        case Label(val label) -> ButtonContent.Label(
+                    )
+            val content = when (configured) {
+                case Label(val label) ->
+                    ButtonContent
+                        .Label(
                             LabelProps(
                                 label.text,
                                 when (label.fonts) {
@@ -104,100 +96,91 @@ public class Tabs<T: Equals<T>> public constructor(
                                 label.semantics
                             )
                         )
-                        else -> configured
-                    }
-                component(
-                    TabControlProps(
-                        content,
-                        selected == Some(index),
-                        input.enabled && entry.choice.enabled,
-                        input.variant,
-                        input.axis,
-                        entry.triggerStyle ?: buttonStyle { this.kind = SurfaceKind.Plain },
-                        choiceFocus(entry.focus, focus[index]),
-                        theme,
-                        { select(key) },
-                        { selectSemantically(key) },
-                        entry.semantics.copy {
+                else -> configured
+            }
+            component(
+                TabControlProps(
+                    content,
+                    selected == Some(index),
+                    input.enabled && entry.choice.enabled,
+                    input.variant,
+                    input.axis,
+                    entry.triggerStyle ?: buttonStyle { this.kind = SurfaceKind.Plain },
+                    choiceFocus(entry.focus, focus[index]),
+                    theme,
+                    { select(key) },
+                    { selectSemantically(key) },
+                    entry
+                        .semantics
+                        .copy {
                             if (name == None && relations.labelledBy.size == 0L)
                                 name = Some(entry.choice.label)
                             reference = Some(entry.semantics.reference ?: links[index].trigger)
                             relations = semanticControls(relations, links[index].panel.id)
-                        }
-                    ),
-                    { current, mount -> TabControl(current, scope = mount) }
-                )
-            }
-        val header =
-            panelFrame(
-                choiceLayout(
-                    headings,
-                    keys,
-                    focus,
-                    input.axis,
-                    if (input.variant == TabsVariant.Line)
-                        4.0 * density
+                        },
+                    if (glass?.contains(index) ?: false)
+                        ActionGlass.Indicator
                     else
-                        0.0,
-                    input.loop,
-                    input.enabled,
-                    styleOverride(),
-                    when (selected) {
-                        case Some(val index) -> Some(focus[index]);
-                        case None -> None
-                    },
-                    {
-                        handle -> if (props.value.activation == TabActivation.Auto)
-                            for (index in 0L ..< focus.size)
-                                if (focus[index] === handle)
-                                    select(keys[index])
-                    }
+                        ActionGlass.Independent
                 ),
-                padding = Insets.all(3.0 * density),
-                visual = tabsListStyle(theme, input.variant).then(input.listStyle)
+                { current, mount -> TabControl(current, scope = mount) }
             )
-        val panels =
-            Array<View>(keys.size) {
-                index ->
-                val entry = input.entries[index]
-                val active = selected == Some(index)
-                element(
-                    DisclosureBodyProps(
-                        None,
-                        active,
-                        active,
-                        input.enabled && entry.choice.enabled
-                    ),
-                    { current, mount -> DisclosureBody(current, scope = mount) },
-                    if (
-                        active ||
-                            (entry.retention ?: input.retention) ==
-                            ContentRetention.KeepMounted
-                    )
-                        [
-                            semanticContent(
-                                panelFrame(entry.content, visual = entry.panelStyle),
-                                SemanticRole.Group,
-                                SemanticProperties(hidden = !active),
-                                relations =
-                                    SemanticRelations(
-                                        labelledBy =
-                                            semanticIds(
-                                                (
-                                                    entry.semantics.reference ?:
-                                                        links[index].trigger
-                                                ).id
-                                            )
-                                    ),
-                                mergeLabels = false,
-                                reference = Some(links[index].panel)
-                            )
-                        ]
-                    else
-                        [],
-                    keys[index]
-                )
-            }
+        }
+        val header = panelFrame(
+            choiceLayout(
+                headings,
+                keys,
+                focus,
+                input.axis,
+                if (input.variant == TabsVariant.Line) 4.0 * density else 0.0,
+                input.loop,
+                input.enabled,
+                styleOverride(),
+                when (selected) {
+                    case Some(val index) -> Some(focus[index]);
+                    case None -> None
+                },
+                { handle ->
+                    if (props.value.activation == TabActivation.Auto)
+                        for (index in 0L..<focus.size)
+                            if (focus[index] === handle) select(keys[index])
+                },
+                glass = glass
+            ),
+            padding = Insets.all(3.0 * density),
+            visual = tabsListStyle(theme, input.variant).then(input.listStyle)
+        )
+        val panels = Array<View>(keys.size) { index ->
+            val entry = input.entries[index]
+            val active = selected == Some(index)
+            element(
+                DisclosureBodyProps(
+                    None,
+                    active,
+                    active,
+                    input.enabled && entry.choice.enabled
+                ),
+                { current, mount -> DisclosureBody(current, scope = mount) },
+                if (active || (entry.retention ?: input.retention) == ContentRetention.KeepMounted)
+                    [
+                        semanticContent(
+                            panelFrame(entry.content, visual = entry.panelStyle),
+                            SemanticRole.Group,
+                            SemanticProperties(hidden = !active),
+                            relations = SemanticRelations(
+                                labelledBy = semanticIds(
+                                    (entry.semantics.reference ?: links[index].trigger).id
+                                )
+                            ),
+                            mergeLabels = false,
+                            reference = Some(links[index].panel)
+                        )
+                    ]
+                else
+                    [],
+                keys[index]
+            )
+        }
         return semanticContent(
             panelFrame(
                 element(
@@ -215,9 +198,10 @@ public class Tabs<T: Equals<T>> public constructor(
                 visual = input.style
             ),
             SemanticRole.TabGroup,
-            input.semantics.properties(enabled = input.enabled, required = true).copy {
-                selectionMode = Some(SemanticSelectionMode.Single)
-            },
+            input
+                .semantics
+                .properties(enabled = input.enabled, required = true)
+                .copy { selectionMode = Some(SemanticSelectionMode.Single) },
             relations = input.semantics.relations,
             mergeLabels = false,
             reference = input.semantics.reference
@@ -225,20 +209,32 @@ public class Tabs<T: Equals<T>> public constructor(
     }
 }
 
-private fun tabsListStyle(theme: Theme, variant: TabsVariant): StyleOverride =
-    styleOverride {
-        this.background(
+private fun tabsListStyle(theme: Theme, variant: TabsVariant): StyleOverride = styleOverride {
+    this
+        .background(
             if (variant == TabsVariant.Default)
-                Some(Paint(theme.tokens.palette.muted.background))
+                Some(
+                    Paint(
+                        if (panelPresent(theme.tokens.glassSurfaces.navigation))
+                            readableGlassFill(
+                                theme, theme.tokens.palette.muted.background,
+                                [
+                                    theme.tokens.palette.muted.foreground,
+                                    theme.tokens.palette.background.foreground
+                                ]
+                            )
+                        else
+                            theme.tokens.palette.muted.background
+                    )
+                )
             else
                 None
         )
-        this.corners(
-            Corners.all(
-                if (variant == TabsVariant.Default)
-                    theme.tokens.corners.large
-                else
-                    0.0
-            )
+    this
+        .corners(
+            Corners
+                .all(
+                    if (variant == TabsVariant.Default) theme.tokens.corners.large else 0.0
+                )
         )
-    }
+}

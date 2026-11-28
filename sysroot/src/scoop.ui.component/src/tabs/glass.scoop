@@ -1,0 +1,47 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.style as baseStyle
+
+/** One stable indicator identity moves between the measured labels. */
+internal fun <T : Equals<T>> tabsGlass(
+    input: TabsProps<T>,
+    theme: Theme,
+    selected: Long?
+): GroupGlass? {
+    if (input.variant != TabsVariant.Default || !inheritedGlass(input.listStyle)) return None
+    val material = theme.tokens.glassSurfaces.navigation ?: return None
+    val entries = ArrayList<GroupGlassEntry>()
+    when (selected) {
+        case Some(val index) -> {
+            val entry = input.entries[index]
+            if (!(input.enabled && entry.choice.enabled) && theme.tokens.disabledOpacity < 1.0)
+                return None
+            val style = entry.triggerStyle ?: buttonStyle { kind = SurfaceKind.Plain }
+            if (!shareableGlass(style)) return None
+            val visual = InteractionVisual(enabled = input.enabled && entry.choice.enabled)
+            val options = tabOptions(theme, input.variant, true, style, visual)
+            val metrics = theme
+                .surfaceMetrics(
+                    SurfaceVisual(style.kind, visual, SurfaceRole.Navigation), options
+                )
+            entries
+                .add(
+                    GroupGlassEntry(
+                        index, ViewKey.Text("selection"), metrics.corners,
+                        Some(options.style.resolve(baseStyle()))
+                    )
+                )
+        }
+
+        case None -> {}
+    }
+    return Some(
+        GroupGlass(
+            material, entries.toArray(),
+            theme.tokens.motion.resolve(theme.tokens.motion.selection), 0.0, movesContent = false
+        )
+    )
+}

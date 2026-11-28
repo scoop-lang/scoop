@@ -35,11 +35,51 @@ sigma 是 Gaussian 标准差，sigma 和 offset 使用局部逻辑单位。根 D
 
 完全自绘 Element 在 onMount 中保存 `scope.resource { StylePainter() }`，在 scene 中调用 `painter.scene(context, style) { content -> ... }`；回调使用 SceneContext，可调用 children 或提交 draw 块。也提供显式 Rect，以及独立的 paint(Canvas, Rect, Style, direction = LayoutDirection.Ltr, content) 入口，供离屏使用。原生滤镜／轮廓由 painter 缓存并及时替换关闭，组件卸载或窗口关闭由 scope 清理。回调内不能重入或提前关闭同一 painter，另一个 painter 可以正常嵌套。
 
+玻璃可直接用资源无关的材质描述，多个组件共享同一个值，由各自的 StylePainter 缓存当前滤镜：
+
+```scoop
+val glass = glassMaterial {
+    blurSigma = 8.0
+    refraction = 8.0
+    edgeWidth = 16.0
+    saturation = 1.1
+    tint = Color.White.withAlpha(0.16)
+    highlight = Color.White.withAlpha(0.36)
+}
+val panel = style {
+    this.glass = Some(glass)
+    corners = Corners.all(20.0)
+}
+val frost = glass.copy { refraction = 0.0 }
+```
+
+材质先模糊当前下层，再沿圆角边缘折射、调整饱和度、染色并加反光，内容保持清晰。长度使用局部逻辑单位；`refraction` 也是声明的每轴最大采样位移，`edgeWidth` 控制向内的光学边缘宽度。颜色遵守预乘 alpha 合成，反光保留背景 alpha。`styleOverride { glass(None) }` 显式清除继承材质；空 override 继续继承。Style.glass 与显式 backdrop 滤镜不能同时提供。描述本身不需要 close，不持有背景像素；静止材质不会请求后续帧。[玻璃示例](../scoop.ui.component/examples/glass/README.md)展示独立模糊、折射与整组透明度。
+
+主题可以按用途选择玻璃，各项默认关闭：
+
+```scoop
+val theme = materialTheme {
+    tokens {
+        glassSurfaces {
+            toolbar = Some(glass)
+            popover = Some(frost)
+            dialog = Some(glass)
+        }
+    }
+}
+```
+
+`SurfaceRole` 的 Content／Control／Input／Navigation／Toolbar／Popover／Dialog／Notification 与 SurfaceKind 的颜色和形状分类独立。`SurfaceVisual(..., role = SurfaceRole.Toolbar)` 把用途传给主题，第三方组件可用 `theme.tokens.glassSurfaces.get(role)` 读取相同策略。GlassSurfaces 支持 glassSurfaces 工厂、copy 与嵌套配置；不同用途之间不自动继承。主题先解析局部 glass 覆盖再生成默认填充，`glass(None)` 同时恢复原默认底色；显式 background 覆盖仍最后生效。高对比度与减少透明度偏好关闭主题材质，恢复偏好后从基础主题恢复原策略。
+
+`GlassEffectPainter.scene(context, outlines, material, blendRadius)` 把多个物理 RoundedOutline 绘成连续的共享材质；paint 提供相同 Canvas 入口。blendRadius 默认为 24，0 保留普通并集；表面靠近时形成平滑连接，重叠部分只处理一次下层。遮罩、折射和高光沿同一融合轮廓计算，子内容随后清晰绘制。传入 Color 替代 material 的重载以相同形状绘制实体底色，适用于减少透明度。painter 是需注册到 scope 的 Closeable，只保留当前形状和光学资源，不改变输入几何。组件层的 [GlassEffectContainer](../scoop.ui.component/README.md) 同时处理 keyed 内容、形变动画、布局、裁剪与主题偏好。
+
+主题默认玻璃填充按实际前景计算可读性，普通控件维持状态颜色与边界。自绘内容可用 `glassSurfaceFill(ColorPair(background, foreground), opaqueCanvas, minimum = 4.5)` 得到放在材质之后的背景 Paint 颜色。它在保持文字颜色的前提下，为任意 sRGB 底图求出足够的染色 alpha；目标为 minimum 与原配对对比度的较小值，必要时返回实体色。调用不读取屏幕，也不创建资源。直接材质的内容颜色、显式 background 覆盖仍由应用负责配对；高对比度／减少透明度关闭默认玻璃，恢复偏好后恢复原策略。
+
 `styleOverride { ... }` 只替换明确指定的属性：StyleValue.Inherit 继承本轮输入，StyleValue.Set(None) 可以清除可空背景或边框；`border(None)` 等同名设置方法把同一槽写为 Set(value)。赋入 StyleValue.Inherit 恢复继承。`existing.copy { ... }` 保留未改的配置，发布后修改 builder 不改变结果。字体、段落和混排仍使用 graphics.text 的 TextStyle／SpanStyle／ParagraphStyle。
 
 没有独立效果时钟，也没有子树像素缓存。真实帧每次绘制当帧内容，仅复用当前滤镜与几何。参数动画在 Element 的 update／输入中设置 Surface Animatable，在 paint 中读取采样值；完成、暂停、取消或隐藏后按 Surface 规则停帧。
 
-Theme 提供普通 tokens 与各部件的 metrics／geometry，ThemePainter 消费同一份几何和视觉数据。基础能力包括表面、Checkbox 三态标记、Radio 标记，以及带轨道／滑块／可选端部按钮的 Scrollbar；这些入口只需要 Canvas，不依赖窗口、输入区域或挂载。四套风格是独立普通 Cone：
+Theme 提供普通 tokens 与各部件的 metrics／geometry，ThemePainter 消费同一份几何和视觉数据。基础能力包括表面、Checkbox 三态标记、Radio 标记，以及带轨道／滑块／可选端部按钮的 Scrollbar；这些入口只需要 Canvas，不依赖窗口、输入区域或挂载。五套风格是独立普通 Cone：
 
 | Cone | 工厂 | 参数 |
 | --- | --- | --- |
@@ -47,6 +87,7 @@ Theme 提供普通 tokens 与各部件的 metrics／geometry，ThemePainter 消�
 | scoop.ui.style.material | materialTheme | mode，ShapeThemeBuilder 配置块 |
 | scoop.ui.style.fluent | fluentTheme | mode，ShapeThemeBuilder 配置块 |
 | scoop.ui.style.shadcn | shadcnTheme | mode，ShapeThemeBuilder 配置块 |
+| scoop.ui.style.liquidglass | liquidGlassTheme | mode，palette，ShapeThemeBuilder 配置块 |
 
 预设返回实现 Theme 的 ShapeTheme，支持接收者配置与 copy。配置块在完整数据上同步执行一次，嵌套块保留当前字段，完整赋值替换：
 
@@ -88,6 +129,10 @@ val geometry = theme.checkboxGeometry(bounds, options = changed)
 ```
 
 `theme.tokens` 提供 palette、typography、spacing、corners、effects 和 motion。文字覆盖用 SpanStyle.resolve；外框与内容效果继续使用本库 Style。Theme 不持有 native 资源；ThemePainterCache 保留当前 painter，换主题时先创建再替换，及时关闭旧资源。绘图中的临时 Canvas 不能保存，颜色和动画采样不会创建独立时钟。
+
+`theme.surfaceFocus(kind = SurfaceKind.Plain)` 返回已经解析根偏好的表面焦点描述。自绘复合控件使用它共享焦点宽度、外扩和半透明颜色；仅在 `borderColor` 明确指定时替换内边框。第三方 Theme 实现这一纯描述入口，包装主题直接转交 base。不要再次将 ring 乘以固定透明度或将悬停当作键盘焦点。
+
+Switch 与 Slider 的主题尺寸通过 `tokens { controlMetrics = ThemeControlMetrics(...) }` 配置。字段为 `switchSize`、`switchSmallSize`、`switchThumbSize`、`switchSmallThumbSize`、`sliderThumbSize`、`sliderThickness`；Size 和标量均使用逻辑单位，控件按正文缩放一次。滑块默认外观可用 `controlThumb = styleOverride { background(Some(Paint(Color.White))); boxShadows(...) }` 配置；组件的局部 style 最后覆盖。高对比度恢复语义填充与边线，减少透明度移除主题滑块投影，均保留显式局部设置。
 
 可编辑正文使用 `tokens.typography.input`，`themeTypography` 初始取 body，可通过 `typography { input { ... } }` 独立配置；文字缩放同时作用于该角色。`tokens.textField` 为 `TextFieldTreatment.Standard` 或 `Outlined`，前者使用外置标签，后者使用带缺口的浮动标签，由 Input／Textarea 消费普通描述并保留同一编辑宿主。Material 默认选用 Outlined。
 

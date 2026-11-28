@@ -1,0 +1,136 @@
+package scoop.examples.ui.shadcn
+
+import scoop.test.*
+import scoop.ui.style.*
+
+@Test
+private class GalleryGlassModelTest {
+    @Test
+    fun `liquid glass is searchable without replacing the selected page or its draft`() {
+        val model = GalleryModel()
+        assertEquals(70L, model.entries().size)
+        model.selected.value = Demo.Input
+        model.glass.draft.replaceAll("保留的草稿")
+        model.query.replaceAll("lIqUiD")
+        assertEquals(1L, model.entries().size)
+        assertEquals(Some(Demo.LiquidGlass), model.current(model.entries()))
+        assertEquals(Demo.Input, model.selected.value)
+        model.query.replaceAll("")
+        assertEquals(Some(Demo.Input), model.current(model.entries()))
+        assertEquals("保留的草稿", model.glass.draft.text)
+    }
+
+    @Test
+    fun `theme defaults remain inherited until a deliberate surface override and can be restored`() {
+        val gallery = GalleryModel()
+        val glass = gallery.glass
+        gallery.selectStyle(GalleryStyle.LiquidGlass)
+        assertTrue(glass.useThemeDefaults.value)
+        assertTrue(glass.uses(SurfaceRole.Control))
+        assertFalse(glass.uses(SurfaceRole.Input))
+        val defaults = gallery.source.current.value.tokens.glassSurfaces
+        assertTrue(defaults.popover!!.blurSigma > defaults.control!!.blurSigma)
+        glass.toggleRole(SurfaceRole.Input)
+        gallery.refreshTheme()
+        assertFalse(glass.useThemeDefaults.value)
+        assertTrue(glass.uses(SurfaceRole.Control))
+        assertTrue(glass.uses(SurfaceRole.Input))
+        assertTrue(glass.uses(SurfaceRole.Dialog))
+        assertFalse(glass.uses(SurfaceRole.Content))
+        gallery.selectStyle(GalleryStyle.Shadcn)
+        assertTrue(glass.uses(SurfaceRole.Input))
+        assertEquals(
+            glass.material(ThemeMode.Light).blurSigma,
+            gallery.source.current.value.tokens.glassSurfaces.input!!.blurSigma
+        )
+        glass.useThemeDefaults.value = true
+        gallery.refreshTheme()
+        for (role in galleryGlassRoles)
+            assertFalse(glass.uses(role))
+        gallery.selectStyle(GalleryStyle.LiquidGlass)
+        for (role in galleryGlassRoles) {
+            if (glass.uses(role)) glass.toggleRole(role)
+        }
+        gallery.refreshTheme()
+        for (role in galleryGlassRoles) {
+            assertFalse(glass.uses(role))
+            when (gallery.source.current.value.tokens.glassSurfaces.get(role)) {
+                case Some(_) -> fail(Some("an explicit empty policy must remain solid"))
+                case None -> {}
+            }
+        }
+        glass.useThemeDefaults.value = true
+        gallery.refreshTheme()
+        assertTrue(glass.uses(SurfaceRole.Control))
+        assertEquals(
+            defaults.control!!.blurSigma,
+            gallery.source.current.value.tokens.glassSurfaces.control!!.blurSigma
+        )
+        assertEquals(
+            defaults.popover!!.blurSigma,
+            gallery.source.current.value.tokens.glassSurfaces.popover!!.blurSigma
+        )
+    }
+
+    @Test
+    fun `glass choices survive complete theme replacement and remain independent of accessibility resolution`() {
+        val gallery = GalleryModel()
+        val model = gallery.glass
+        val editor = model.draft
+        val focus = model.likeFocus
+        model.likes.value = 3
+        model.connected.value = false
+        model.draft.replaceAll("Same idea")
+        for (role in galleryGlassRoles)
+            model.toggleRole(role)
+        for (
+            preset in [
+                GalleryGlassMaterial.Frosted,
+                GalleryGlassMaterial.Clear,
+                GalleryGlassMaterial.Liquid
+            ]
+        ) {
+            model.preset.value = preset
+            for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+                if (gallery.mode.value != mode) gallery.toggleTheme()
+                for (style in gallery.styles()) {
+                    gallery.selectStyle(style)
+                    gallery.refreshTheme()
+                    val theme = gallery.source.current.value
+                    val material = theme.tokens.glassSurfaces.control!!
+                    assertEquals(model.material(mode).refraction, material.refraction)
+                    assertEquals(model.material(mode).blurSigma, material.blurSigma)
+                    for (role in galleryGlassRoles) {
+                        assertTrue(theme.tokens.glassSurfaces.get(role)!! === material)
+                        val solid = theme
+                            .withPreferences(ThemePreferences(reduceTransparency = true))
+                        when (solid.tokens.glassSurfaces.get(role)) {
+                            case Some(_) -> fail(Some("a resolved solid theme reintroduced glass"))
+                            case None -> {}
+                        }
+                        assertTrue(
+                            solid
+                                .withPreferences(ThemePreferences())
+                                .tokens
+                                .glassSurfaces
+                                .get(role)!! ===
+                                material
+                        )
+                    }
+                }
+            }
+        }
+        model.toggleRole(SurfaceRole.Input)
+        gallery.refreshTheme()
+        when (gallery.source.current.value.tokens.glassSurfaces.input) {
+            case Some(_) -> fail(Some("the input selection was not cleared"))
+            case None -> {}
+        }
+        assertTrue(model.uses(SurfaceRole.Toolbar))
+        assertTrue(editor === model.draft)
+        assertTrue(focus === model.likeFocus)
+        assertEquals("Same idea", model.draft.text)
+        assertEquals(3, model.likes.value)
+        assertFalse(model.connected.value)
+    }
+}

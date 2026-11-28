@@ -1,0 +1,8 @@
+package scoop.tests.ui.component.accessibility
+
+import scoop.ui.style.*
+import scoop.ui.style.liquidglass.liquidGlassTheme
+
+internal fun glassAccessibilityTheme(): ThemeSource {
+    return ThemeSource(liquidGlassTheme())
+}

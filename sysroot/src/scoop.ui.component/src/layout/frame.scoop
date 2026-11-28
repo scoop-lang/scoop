@@ -15,7 +15,8 @@ public class FrameProps public constructor(
     public val theme: ThemeSource? = None,
     public val logicalPadding: LogicalInsets? = None,
     public val maxWidth: Double? = None,
-    public val maxHeight: Double? = None
+    public val maxHeight: Double? = None,
+    public val surfaceRole: SurfaceRole = SurfaceRole.Content
 ) {
     init {
         when (width) {
@@ -36,7 +37,7 @@ public class FrameProps public constructor(
 public class Frame public constructor(
     private val props: Props<FrameProps>,
     scope: ComponentScope
-): Component(scope) {
+) : Component(scope) {
     private val themes = ThemeAccess(scope)
     public override fun onMount() {
         when (props.value.surface) {
@@ -46,11 +47,10 @@ public class Frame public constructor(
     }
     public override fun render(): View {
         val value = props.value
-        val theme =
-            when (value.surface) {
-                case Some(_) -> Some(themes.read(value.theme));
-                case None -> None
-            }
+        val theme = when (value.surface) {
+            case Some(_) -> Some(themes.read(value.theme));
+            case None -> None
+        }
         return element(
             FrameInput(value, theme),
             { current, mount -> FrameInk(current, scope = mount) },
@@ -59,8 +59,10 @@ public class Frame public constructor(
     }
 }
 
-public fun frame(content: View, configure: FrameBuilder.() -> Unit = {}): View =
-    makeFrame(content, configure)
+public fun frame(content: View, configure: FrameBuilder.() -> Unit = {}): View = makeFrame(
+    content,
+    configure
+)
 
 private class FrameInput(val value: FrameProps, val theme: Theme?)
 
@@ -77,27 +79,30 @@ private struct FrameLayoutInputs(
 
 private fun frameOptions(input: FrameInput, direction: LayoutDirection): SurfaceOptions =
     surfaceOptions {
-        this.padding =
-            when (input.value.logicalPadding) {
-                case Some(val value) -> Some(value.resolve(direction))
-                case None -> input.value.padding
-            }
+        this.padding = when (input.value.logicalPadding) {
+            case Some(val value) -> Some(value.resolve(direction))
+            case None -> input.value.padding
+        }
         this.style = input.value.style
     }
 
 private fun frameLayoutInputs(input: FrameInput, direction: LayoutDirection): FrameLayoutInputs {
     val options = frameOptions(input, direction)
-    val metrics =
-        when (input.theme) {
-            case Some(val theme) -> Some(
-                theme.surfaceMetrics(
-                    SurfaceVisual(input.value.surface ?: SurfaceKind.Plain),
-                    options,
-                    direction
-                )
+    val metrics = when (input.theme) {
+        case Some(val theme) ->
+            Some(
+                theme
+                    .surfaceMetrics(
+                        SurfaceVisual(
+                            input.value.surface ?: SurfaceKind.Plain,
+                            role = input.value.surfaceRole
+                        ),
+                        options,
+                        direction
+                    )
             )
-            case None -> None
-        }
+        case None -> None
+    }
     return FrameLayoutInputs(
         input.value.width,
         input.value.height,
@@ -110,9 +115,10 @@ private fun frameLayoutInputs(input: FrameInput, direction: LayoutDirection): Fr
     )
 }
 
-private class FrameInk(private val props: Props<FrameInput>, scope: ComponentScope): Element<Unit>(
-    scope
-) {
+private class FrameInk(private val props: Props<FrameInput>, scope: ComponentScope) :
+    Element<Unit>(
+        scope
+    ) {
     private var painters: ThemePainterCache? = None
     private var style: StylePainter? = None
     private var previous: FrameLayoutInputs? = None
@@ -128,18 +134,14 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
             case None -> painters!!.clear()
         }
         val next = frameLayoutInputs(input, scope.layoutDirection)
-        val themeChanged =
-            when (input.theme) {
-                case Some(val theme) -> !sameTheme(previousTheme, theme)
-                case None -> panelPresent(previousTheme)
-            }
+        val themeChanged = when (input.theme) {
+            case Some(val theme) -> !sameTheme(previousTheme, theme)
+            case None -> panelPresent(previousTheme)
+        }
         val changed = previous != Some(next) || themeChanged
         previous = Some(next)
         previousTheme = input.theme
-        return if (changed)
-            UiInvalidation.Layout
-        else
-            UiInvalidation.Scene
+        return if (changed) UiInvalidation.Layout else UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -148,8 +150,8 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
         val value = input.value
         val metrics = frameLayoutInputs(input, context.layoutDirection)
         val total = metrics.insets.totals()
-        val child =
-            context.measureChild(
+        val child = context
+            .measureChild(
                 0L,
                 frameChildConstraints(
                     constraints,
@@ -162,8 +164,8 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
             )
         val natural = Size(child.size.width + total.width, child.size.height + total.height)
         validSize(natural)
-        val size =
-            constraints.constrain(
+        val size = constraints
+            .constrain(
                 Size(
                     frameExtent(
                         value.width ?:
@@ -184,21 +186,24 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
                 )
             )
         val bounds = Rect(0.0, 0.0, size.width, size.height)
-        val content =
-            when (input.theme) {
-                case Some(val theme) -> theme.surfaceGeometry(
-                    bounds,
-                    SurfaceVisual(value.surface ?: SurfaceKind.Plain),
-                    frameOptions(input, context.layoutDirection),
-                    context.layoutDirection
-                ).content
-                case None -> Rect(
+        val content = when (input.theme) {
+            case Some(val theme) ->
+                theme
+                    .surfaceGeometry(
+                        bounds,
+                        SurfaceVisual(value.surface ?: SurfaceKind.Plain, role = value.surfaceRole),
+                        frameOptions(input, context.layoutDirection),
+                        context.layoutDirection
+                    )
+                    .content
+            case None ->
+                Rect(
                     metrics.insets.left,
                     metrics.insets.top,
                     lowerBound(size.width - total.width, 0.0),
                     lowerBound(size.height - total.height, 0.0)
                 )
-            }
+        }
         val origin = alignedOrigin(content, child.size, value.alignment, context.layoutDirection)
         context.placeChild(0L, origin)
         return LayoutResult(offsetMetrics(child, size, origin.y), Unit)
@@ -206,42 +211,51 @@ private class FrameInk(private val props: Props<FrameInput>, scope: ComponentSco
     public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         when (input.theme) {
-            case None -> style!!.scene(context, input.value.style.resolve(style())) {
-                content -> content.children()
-            }
+            case None ->
+                style!!
+                    .scene(context, input.value.style.resolve(style())) { content ->
+                        content.children()
+                    }
+
             case Some(val theme) -> {
-                val visual = SurfaceVisual(input.value.surface ?: SurfaceKind.Plain)
-                val geometry =
-                    theme.surfaceGeometry(
+                val visual = SurfaceVisual(
+                    input.value.surface ?: SurfaceKind.Plain,
+                    role = input.value.surfaceRole
+                )
+                val geometry = theme
+                    .surfaceGeometry(
                         Rect(0.0, 0.0, context.size.width, context.size.height),
                         visual,
                         frameOptions(input, context.layoutDirection),
                         context.layoutDirection
                     )
                 val painter = painters!!.get(theme)
-                if (geometry.opacity < 1.0)
-                    context.saveLayer(geometry.opacity)
-                context.draw {
-                    paint -> painter.drawSurface(
-                        paint.canvas,
-                        geometry,
-                        visual,
-                        SurfaceLayer.Background
-                    )
-                }
-                style!!.scene(context, geometry.bounds, geometry.contentStyle) {
-                    content -> content.children()
-                }
-                context.draw {
-                    paint -> painter.drawSurface(
-                        paint.canvas,
-                        geometry,
-                        visual,
-                        SurfaceLayer.Foreground
-                    )
-                }
-                if (geometry.opacity < 1.0)
-                    context.restore()
+                if (geometry.opacity < 1.0) context.saveBackdropLayer(geometry.opacity)
+                context
+                    .draw { paint ->
+                        painter
+                            .drawSurface(
+                                paint.canvas,
+                                geometry,
+                                visual,
+                                SurfaceLayer.Background
+                            )
+                    }
+                style!!
+                    .scene(context, geometry.bounds, geometry.contentStyle) { content ->
+                        content.children()
+                    }
+                context
+                    .draw { paint ->
+                        painter
+                            .drawSurface(
+                                paint.canvas,
+                                geometry,
+                                visual,
+                                SurfaceLayer.Foreground
+                            )
+                    }
+                if (geometry.opacity < 1.0) context.restore()
             }
         }
     }

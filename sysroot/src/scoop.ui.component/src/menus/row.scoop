@@ -25,9 +25,10 @@ internal class MenuRowProps(
     val selection: Boolean = false
 )
 
-internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentScope): Component(
-    scope
-) {
+internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentScope) :
+    Component(
+        scope
+    ) {
     private val anchor = LayoutAnchor()
     private val link = HoverPopupLink()
     private val submenu = OverlayHandle()
@@ -35,31 +36,26 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
     private val candidates = MenuFocus()
     private val keyboard = state(false)
     private val highlighted = state(false)
-    private val open =
-        binding({ props.value.open.value }, { value -> props.value.open.value = value })
-    private val portalOpen =
-        binding(
-            { open.value },
-            {
-                value -> if (value)
-                    open.value = true
-                else
-                    link.dismiss { open.value = false }
-            }
-        )
+    private val open = binding(
+        { props.value.open.value },
+        { value -> props.value.open.value = value }
+    )
+    private val portalOpen = binding(
+        { open.value },
+        { value -> if (value) open.value = true else link.dismiss { open.value = false } }
+    )
     private fun enter() {
-        if (!(menuItem(props.value.entry)?.enabled ?: false) || !props.value.options.enabled)
-            return
+        if (!(menuItem(props.value.entry)?.enabled ?: false) || !props.value.options.enabled) return
         keyboard.value = true
         open.value = true
         candidates.edge(false)?.requestFocus(FocusOrigin.Keyboard)
     }
     private fun activate() {
         val input = props.value
-        if (!input.options.enabled)
-            return
+        if (!input.options.enabled) return
         when (input.entry) {
             case Submenu(_, _) -> enter()
+
             else -> {
                 activateSemantically()
             }
@@ -77,19 +73,19 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                 else
                     SemanticActionResult.Rejected
             }
+
             else -> return SemanticActionResult.Unsupported
         }
     }
     private fun activateSemantically(): SemanticActionResult {
         val input = props.value
-        if (!input.options.enabled)
-            return SemanticActionResult.Rejected
+        if (!input.options.enabled) return SemanticActionResult.Rejected
         when (input.entry) {
             case Submenu(_, _) -> return setExpanded(true)
+
             else -> {
                 val outcome = activateMenu(input.entry)
-                if (outcome.close)
-                    input.chain.close()
+                if (outcome.close) input.chain.close()
                 return outcome.result
             }
         }
@@ -99,45 +95,42 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
         val theme = input.theme
         val density = theme.tokens.typography.body.fontSize / 14.0
         when (input.entry) {
-            case Label(_, val content, val inset) -> return menuFrame(
-                panelCaption(
-                    content,
-                    theme.tokens.typography.body.copy {
-                        fontSize = 12.0 * density
-                        lineHeight = Some(16.0 / 12.0)
-                        weight = 500
-                        color =
-                            componentForeground(
-                                theme,
-                                theme.tokens.palette.muted.foreground,
-                                theme.tokens.palette.popover.background
-                            )
-                    },
-                    input.options.fonts
-                )
-            ) {
-                logicalPadding =
-                    Some(
+            case Label(_, val content, val inset) ->
+                return menuFrame(
+                    panelCaption(
+                        content,
+                        theme
+                            .tokens
+                            .typography
+                            .body
+                            .copy {
+                                fontSize = 12.0 * density
+                                lineHeight = Some(16.0 / 12.0)
+                                weight = 500
+                                color = componentForeground(
+                                    theme,
+                                    theme.tokens.palette.muted.foreground,
+                                    theme.tokens.palette.popover.background
+                                )
+                            },
+                        input.options.fonts
+                    )
+                ) {
+                    logicalPadding = Some(
                         LogicalInsets(
-                            (
-                                if (inset)
-                                    28.0
-                                else
-                                    6.0
-                            ) *
-                                density,
+                            (if (inset) 28.0 else 6.0) * density,
                             4.0 * density,
                             6.0 * density,
                             4.0 * density
                         )
                     )
-                alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
-            }
-            case Separator(_) -> return panelFrame(
-                separator {
-                    thickness = 1.0
-                    color =
-                        Some(
+                    alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+                }
+            case Separator(_) ->
+                return panelFrame(
+                    separator {
+                        thickness = 1.0
+                        color = Some(
                             componentForeground(
                                 theme,
                                 theme.tokens.palette.border,
@@ -145,9 +138,9 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                                 3.0
                             )
                         )
-                },
-                Insets(0.0, 4.0 * density, 0.0, 4.0 * density)
-            )
+                    },
+                    Insets(0.0, 4.0 * density, 0.0, 4.0 * density)
+                )
             else -> {}
         }
         val item = menuItem(input.entry)!!
@@ -155,34 +148,35 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
         val active = enabled && (highlighted.value || input.open.value)
         val colors = menuRowColors(theme, item.destructive, active, enabled)
         val color = colors.foreground
-        val base =
-            theme.tokens.typography.body.copy {
+        val base = theme
+            .tokens
+            .typography
+            .body
+            .copy {
                 fontSize = 14.0 * density;
                 lineHeight = Some(20.0 / 14.0);
                 weight = 400;
                 this.color = color
             }
         val text = item.style.text?.resolve(base) ?: base
-        val isSub =
-            when (input.entry) {
-                case Submenu(_, _) -> true;
-                else -> false
-            }
+        val isSub = when (input.entry) {
+            case Submenu(_, _) -> true;
+            else -> false
+        }
         val checked = menuChecked(input.entry)
-        val indicator =
-            when (input.entry) {
-                case Checkbox(_, _, _, _) -> true
-                case Radio(_, _, _, _) -> true
-                else -> false
-            }
+        val indicator = when (input.entry) {
+            case Checkbox(_, _, _, _) -> true
+            case Radio(_, _, _, _) -> true
+            else -> false
+        }
         val native = Some(scope.nativeWindow)
-        val child =
-            menuRow {
-                when (item.icon) {
-                    case Some(val icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 }
-                    case None -> {}
-                }
-                this.item(
+        val child = menuRow {
+            when (item.icon) {
+                case Some(val icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 }
+                case None -> {}
+            }
+            this
+                .item(
                     panelSlot(
                         item.content ?:
                             menuLabel(
@@ -192,176 +186,169 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                                 }
                             ) {
                                 fonts = input.options.fonts
-                                settings =
-                                    Some(
-                                        paragraphStyle {
-                                            maxLines = Some(1L);
-                                            ellipsis = "…"
-                                        }
-                                    )
+                                settings = Some(
+                                    paragraphStyle {
+                                        maxLines = Some(1L);
+                                        ellipsis = "…"
+                                    }
+                                )
                             },
                         1L
                     )
                 ) { grow = 1.0 }
-                when (item.shortcut) {
-                    case Some(val chord) -> when (native) {
-                        case Some(val value) -> this.item(
-                            panelSlot(
-                                menuDirection(
-                                    menuLabel(
-                                        styledText {
-                                            style =
-                                                text.copy {
-                                                    fontSize = 12.0 * density
-                                                    this.color =
-                                                        if (active || !enabled)
-                                                            text.color
-                                                        else
-                                                            componentForeground(
-                                                                theme,
-                                                                theme.tokens.palette.muted.foreground,
-                                                                if (colors.background.alpha == 0.0)
-                                                                    theme.tokens.palette.popover.background
-                                                                else
-                                                                    colors.background
+            when (item.shortcut) {
+                case Some(val chord) ->
+                    when (native) {
+                        case Some(val value) ->
+                            this
+                                .item(
+                                    panelSlot(
+                                        menuDirection(
+                                            menuLabel(
+                                                styledText {
+                                                    style = text
+                                                        .copy {
+                                                            fontSize = 12.0 * density
+                                                            this.color = if (active || !enabled)
+                                                                text.color
+                                                            else
+                                                                componentForeground(
+                                                                    theme,
+                                                                    theme
+                                                                        .tokens
+                                                                        .palette
+                                                                        .muted
+                                                                        .foreground,
+                                                                    if (colors.background.alpha ==
+                                                                        0.0
+                                                                    )
+                                                                        theme
+                                                                            .tokens
+                                                                            .palette
+                                                                            .popover
+                                                                            .background
+                                                                    else
+                                                                        colors.background
+                                                                )
+                                                        }
+                                                    this
+                                                        .text(
+                                                            shortcutCaption(
+                                                                value.shortcutLabel(chord)
                                                             )
+                                                        )
                                                 }
-                                            this.text(shortcutCaption(value.shortcutLabel(chord)))
-                                        }
-                                    ) {
-                                        fonts = input.options.fonts
-                                        settings = Some(paragraphStyle { maxLines = Some(1L) })
-                                    },
-                                    LayoutDirection.Ltr
-                                ),
-                                2L
-                            )
-                        ) { shrink = 0.0 }
+                                            ) {
+                                                fonts = input.options.fonts
+                                                settings = Some(
+                                                    paragraphStyle { maxLines = Some(1L) }
+                                                )
+                                            },
+                                            LayoutDirection.Ltr
+                                        ),
+                                        2L
+                                    )
+                                ) { shrink = 0.0 }
                         case None -> {}
                     }
-                    case None -> {}
-                }
-                if (isSub)
-                    this.item(
+                case None -> {}
+            }
+            if (isSub)
+                this
+                    .item(
                         panelSlot(
                             navigationIcon(NavigationGlyph.End, 16.0 * density, text.color),
                             3L
                         )
                     ) { shrink = 0.0 }
-                else
-                    if (indicator)
-                        this.item(
-                            panelSlot(
-                                element(
-                                    MenuCheckProps(checked, 16.0 * density, text.color),
-                                    { current, mount -> MenuCheck(current, scope = mount) }
-                                ),
-                                3L
-                            )
-                        ) { shrink = 0.0 }
-                spacing =
-                    (
-                        if (input.selection)
-                            8.0
-                        else
-                            6.0
-                    ) *
-                        density
-                if (input.selection)
-                    logicalPadding = Some(LogicalInsets(end = 2.0 * density))
-                alignment = CrossAlignment.Center
-                if (item.inset && item.style.surface.padding == None)
-                    logicalPadding = Some(LogicalInsets(start = 22.0 * density))
-            }
-        val semantics =
-            item.semantics.copy {
-                if (name == None && relations.labelledBy.size == 0L)
-                    name = Some(item.label)
+            else if (indicator)
+                this
+                    .item(
+                        panelSlot(
+                            element(
+                                MenuCheckProps(checked, 16.0 * density, text.color),
+                                { current, mount -> MenuCheck(current, scope = mount) }
+                            ),
+                            3L
+                        )
+                    ) { shrink = 0.0 }
+            spacing = (if (input.selection) 8.0 else 6.0) * density
+            if (input.selection) logicalPadding = Some(LogicalInsets(end = 2.0 * density))
+            alignment = CrossAlignment.Center
+            if (item.inset && item.style.surface.padding == None)
+                logicalPadding = Some(LogicalInsets(start = 22.0 * density))
+        }
+        val semantics = item
+            .semantics
+            .copy {
+                if (name == None && relations.labelledBy.size == 0L) name = Some(item.label)
                 if (isSub)
                     relations = semanticControls(relations, this @MenuRow.submenuSemantics.id)
             }
-        val action =
-            semanticButton(
-                ButtonProps(
-                    ButtonContent.Custom(child),
-                    { activate() },
+        val action = semanticButton(
+            ButtonProps(
+                ButtonContent.Custom(child),
+                { activate() },
+                enabled = enabled,
+                focus = choiceFocus(item.focus, input.focus!!),
+                variant = ButtonVariant.Ghost,
+                style = menuRowStyle(item.style, theme, item.destructive, active, enabled),
+                theme = input.options.theme,
+                semantics = semantics
+            ),
+            SemanticRole.MenuItem,
+            semantics
+                .properties(
                     enabled = enabled,
-                    focus = choiceFocus(item.focus, input.focus!!),
-                    variant = ButtonVariant.Ghost,
-                    style = menuRowStyle(item.style, theme, item.destructive, active, enabled),
-                    theme = input.options.theme,
-                    semantics = semantics
+                    checked = if (indicator)
+                        Some(
+                            if (checked) SemanticChecked.On else SemanticChecked.Off
+                        )
+                    else
+                        None,
+                    expanded = if (isSub) Some(open.value) else None
                 ),
-                SemanticRole.MenuItem,
-                semantics.properties(
-                    enabled = enabled,
-                    checked =
-                        if (indicator)
-                            Some(
-                                if (checked)
-                                    SemanticChecked.On
-                                else
-                                    SemanticChecked.Off
-                            )
-                        else
-                            None,
-                    expanded =
-                        if (isSub)
-                            Some(open.value)
-                        else
-                            None
-                ),
-                SemanticActions(
-                    invoke = Some { activateSemantically() },
-                    toggle =
-                        if (indicator)
-                            Some { activateSemantically() }
-                        else
-                            None,
-                    setExpanded =
-                        if (isSub)
-                            Some { value -> setExpanded(value) }
-                        else
-                            None
-                )
+            SemanticActions(
+                invoke = Some { activateSemantically() },
+                toggle = if (indicator) Some { activateSemantically() } else None,
+                setExpanded = if (isSub) Some { value -> setExpanded(value) } else None
             )
-        val popup =
-            when (input.entry) {
-                case Submenu(_, val content) -> component(
+        )
+        val popup = when (input.entry) {
+            case Submenu(_, val content) ->
+                component(
                     MenuPopupProps(
                         portalOpen,
                         content,
                         input.options,
-                        OverlayPlacement.Anchored(
-                            anchor,
-                            OverlaySide.End,
-                            OverlayAlignment.Start,
-                            0.0,
-                            8.0
-                        ),
+                        OverlayPlacement
+                            .Anchored(
+                                anchor,
+                                OverlaySide.End,
+                                OverlayAlignment.Start,
+                                0.0,
+                                8.0
+                            ),
                         submenu,
                         candidates,
                         input.chain,
                         takeFocus = keyboard.value,
                         link = Some(link),
-                        onClosed =
-                            {
-                                _ ->
-                                keyboard.value = false
-                                link.dismiss()
-                            },
-                        semantics =
-                            Some(
-                                ComponentSemantics(
-                                    name = Some(item.label),
-                                    reference = Some(submenuSemantics)
-                                )
+                        onClosed = { _ ->
+                            keyboard.value = false
+                            link.dismiss()
+                        },
+                        semantics = Some(
+                            ComponentSemantics(
+                                name = Some(item.label),
+                                reference = Some(submenuSemantics)
                             )
+                        )
                     ),
                     { current, mount -> MenuPopup(current, scope = mount) }
                 )
-                else -> empty()
-            }
+            else -> empty()
+        }
         val hover = input.options.submenuHover
         return element(
             MenuRowLayoutProps(
@@ -378,10 +365,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentS
                     input.options.enabled && item.enabled && isSub && hover.enabled,
                     hover.longPress
                 ),
-                {
-                    value -> if (highlighted.value != value)
-                        highlighted.value = value
-                },
+                { value -> if (highlighted.value != value) highlighted.value = value },
                 { enter() },
                 isSub,
                 { keyboard.value = false }
@@ -412,30 +396,24 @@ internal fun menuRowColors(
                 4.5
             )
         )
-    val fill =
-        if (!active)
-            Color.Transparent
-        else
-            if (destructive)
-                colors.destructive.background.withAlpha(
-                    if (theme.tokens.mode == ThemeMode.Dark)
-                        0.2
-                    else
-                        0.1
-                )
-            else
-                colors.accent.background
+    val fill = if (!active)
+        Color.Transparent
+    else if (destructive)
+        colors
+            .destructive
+            .background
+            .withAlpha(
+                if (theme.tokens.mode == ThemeMode.Dark) 0.2 else 0.1
+            )
+    else
+        colors.accent.background
     return componentSurfaceColors(
         theme,
         ColorPair(
             fill,
             if (destructive)
                 colors.destructive.background
-            else
-                if (active)
-                    colors.accent.foreground
-                else
-                    colors.popover.foreground
+            else if (active) colors.accent.foreground else colors.popover.foreground
         ),
         colors.popover.background
     )
@@ -450,57 +428,58 @@ internal fun menuRowStyle(
 ): ButtonStyle {
     val density = theme.tokens.typography.body.fontSize / 14.0
     val fill = menuRowColors(theme, destructive, active, enabled).background
-    return local.copy {
-        surface {
-            if (suggestedSize == None)
-                suggestedSize = Some(Size(0.0, 28.0 * density))
-            if (minimumSize == None)
-                minimumSize = Some(Size(0.0, 0.0))
-            if (padding == None)
-                padding = Some(Insets(6.0 * density, 4.0 * density, 6.0 * density, 4.0 * density))
-            if (focus == None)
-                focus = Some(OutlineStyle(Color.Transparent, 0.0, 0.0))
-            style =
-                styleOverride {
+    return local
+        .copy {
+            surface {
+                if (suggestedSize == None) suggestedSize = Some(Size(0.0, 28.0 * density))
+                if (minimumSize == None) minimumSize = Some(Size(0.0, 0.0))
+                if (padding == None)
+                    padding = Some(
+                        Insets(6.0 * density, 4.0 * density, 6.0 * density, 4.0 * density)
+                    )
+                if (focus == None) focus = Some(OutlineStyle(Color.Transparent, 0.0, 0.0))
+                style = styleOverride {
                     background(Some(Paint(fill)));
                     border(None)
-                    corners(Corners.all(6.0 * density));
+                    corners(Corners.all(theme.tokens.corners.small * density));
                     boxShadows([])
-                }.then(local.surface.style)
+                }
+                    .then(local.surface.style)
+            }
         }
-    }
 }
 
 internal class MenuCheckProps(val checked: Boolean, val size: Double, val color: Color)
 
-internal class MenuCheck(private val props: Props<MenuCheckProps>, scope: ComponentScope): Element<
-    Unit
->(scope) {
+internal class MenuCheck(private val props: Props<MenuCheckProps>, scope: ComponentScope) :
+    Element<Unit>(scope) {
     private var glyph: SvgDocument? = None
     public override fun onMount() {
         glyph = Some(scope.resource { SvgDocument.parse(checkIcon.source) })
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
-    > =
-        LayoutResult(
-            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
-            Unit
-        )
+    > = LayoutResult(
+        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+        Unit
+    )
     public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val size = context.size
         if (input.checked)
-            context.draw {
-                paint -> paint.canvas.withState {
-                    canvas ->
-                    canvas.scale(size.width / 24.0, size.height / 24.0)
-                    canvas.drawSvg(
-                        glyph!!,
-                        Rect(0.0, 0.0, 24.0, 24.0),
-                        SvgDrawOptions(currentColor = Some(input.color))
-                    )
+            context
+                .draw { paint ->
+                    paint
+                        .canvas
+                        .withState { canvas ->
+                            canvas.scale(size.width / 24.0, size.height / 24.0)
+                            canvas
+                                .drawSvg(
+                                    glyph!!,
+                                    Rect(0.0, 0.0, 24.0, 24.0),
+                                    SvgDrawOptions(currentColor = Some(input.color))
+                                )
+                        }
                 }
-            }
     }
 }

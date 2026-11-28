@@ -30,7 +30,9 @@ internal fun textFieldOptions(
     }
     if (!input.options.multiline || surface.padding != None) return surface
     val density = theme.tokens.typography.body.fontSize / 14.0
-    val padding = theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Plain, visual), surface).padding
+    val padding = theme
+        .surfaceMetrics(SurfaceVisual(SurfaceKind.Plain, visual, SurfaceRole.Input), surface)
+        .padding
     return surface
         .copy {
             this.padding = Some(

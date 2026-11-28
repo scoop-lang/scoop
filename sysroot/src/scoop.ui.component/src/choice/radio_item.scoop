@@ -25,14 +25,13 @@ internal class RadioItemProps(
 internal class RadioItem(
     private val props: Props<RadioItemProps>,
     scope: ComponentScope
-): Component(scope) {
-    private val control =
-        PressControl(
-            scope,
-            PressOptions(props.value.enabled, false),
-            props.value.focus,
-            { props.value.activate() }
-        )
+) : Component(scope) {
+    private val control = PressControl(
+        scope,
+        PressOptions(props.value.enabled, false),
+        props.value.focus,
+        { props.value.activate() }
+    )
     private val text = ActionTextStyle()
     private val semantics = createComponentSemantics(scope, SemanticRole.RadioButton)
     init {
@@ -42,6 +41,7 @@ internal class RadioItem(
                 handle.mergeLabels = true
                 scope.routeSemanticsChildren(Some(handle))
             }
+
             case None -> {}
         }
     }
@@ -50,42 +50,40 @@ internal class RadioItem(
         val input = props.value
         val interaction = control.press.interaction
         val visual = interaction.asVisual(input.enabled, input.invalid)
-        val base =
-            text.resolve(
+        val base = text
+            .resolve(
                 input.theme.tokens.typography.body,
                 input.theme.tokens.palette.background.foreground,
                 None,
                 lineHeight = Some(20.0 / 14.0)
             )
-        val indicator =
-            element(
-                RadioIndicatorProps(input.theme, input.marker, RadioVisual(input.selected, visual)),
-                { current, mount -> RadioIndicator(current, scope = mount) }
-            )
-        val content =
-            when (input.content) {
-                case Some(val render) -> render(
+        val indicator = element(
+            RadioIndicatorProps(input.theme, input.marker, RadioVisual(input.selected, visual)),
+            { current, mount -> RadioIndicator(current, scope = mount) }
+        )
+        val content = when (input.content) {
+            case Some(val render) ->
+                render(
                     RadioItemContent(indicator, input.selected, input.enabled, input.invalid, base)
                 )
-                case None -> {
-                    val label =
-                        component(
-                            LabelProps(
-                                LabelText.Plain(input.label, None),
-                                input.fonts,
-                                baseStyle = Some(base)
-                            ),
-                            { current, mount -> Label(current, scope = mount) }
-                        )
-                    val layout =
-                        LinearProps(
-                            [FlexItem(indicator, FlexItemOptions(shrink = 0.0)), FlexItem(label)],
-                            spacing = 8.0,
-                            alignment = CrossAlignment.Center
-                        )
-                    component(layout, { current, mount -> Row(current, scope = mount) })
-                }
+
+            case None -> {
+                val label = component(
+                    LabelProps(
+                        LabelText.Plain(input.label, None),
+                        input.fonts,
+                        baseStyle = Some(base)
+                    ),
+                    { current, mount -> Label(current, scope = mount) }
+                )
+                val layout = LinearProps(
+                    [FlexItem(indicator, FlexItemOptions(shrink = 0.0)), FlexItem(label)],
+                    spacing = 8.0,
+                    alignment = CrossAlignment.Center
+                )
+                component(layout, { current, mount -> Row(current, scope = mount) })
             }
+        }
         return element(
             RadioInkProps(input, control, semantics),
             { current, mount -> RadioInk(current, scope = mount) },
@@ -100,20 +98,19 @@ private class RadioInkProps(
     val semantics: SemanticsHandle?
 )
 
-private class RadioInk(private val props: Props<RadioInkProps>, scope: ComponentScope): Element<
-    Unit
->(scope) {
+private class RadioInk(private val props: Props<RadioInkProps>, scope: ComponentScope) :
+    Element<Unit>(scope) {
     private var field: FieldLink? = None
     public override fun onMount() {
         val control = props.value.control
-        field =
-            Some(
-                scope.resource {
+        field = Some(
+            scope
+                .resource {
                     FieldLink(scope, control.area, control.focus, props.value.semantics) {
                         updateSemantics()
                     }
                 }
-            )
+        )
     }
     public override fun update(): UiInvalidation {
         val input = props.value.input
@@ -128,26 +125,24 @@ private class RadioInk(private val props: Props<RadioInkProps>, scope: Component
     private fun updateSemantics() {
         val value = props.value
         val handle = value.semantics ?: return
-        if (handle.isClosed)
-            return
+        if (handle.isClosed) return
         val input = value.input
         handle.bindReference(input.semantics.reference)
-        handle.update(
-            input.semantics.properties(
-                enabled = input.enabled,
-                invalid = input.invalid,
-                required = field!!.isRequired(handle),
-                checked =
-                    Some(
-                        if (input.selected)
-                            SemanticChecked.On
-                        else
-                            SemanticChecked.Off
-                    )
-            ),
-            SemanticActions(invoke = Some(input.select)),
-            field!!.relations(handle, input.semantics.relations)
-        )
+        handle
+            .update(
+                input
+                    .semantics
+                    .properties(
+                        enabled = input.enabled,
+                        invalid = input.invalid,
+                        required = field!!.isRequired(handle),
+                        checked = Some(
+                            if (input.selected) SemanticChecked.On else SemanticChecked.Off
+                        )
+                    ),
+                SemanticActions(invoke = Some(input.select)),
+                field!!.relations(handle, input.semantics.relations)
+            )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -155,10 +150,11 @@ private class RadioInk(private val props: Props<RadioInkProps>, scope: Component
         val child = context.measureChild(0L, constraints)
         val width = constraints.maxWidth ?: child.size.width
         val size = constraints.constrain(Size(width, child.size.height))
-        context.placeChild(
-            0L,
-            Point(logicalX(0.0, child.size.width, size.width, context.layoutDirection), 0.0)
-        )
+        context
+            .placeChild(
+                0L,
+                Point(logicalX(0.0, child.size.width, size.width, context.layoutDirection), 0.0)
+            )
         return LayoutResult(
             LayoutMetrics(size, child.alphabeticBaseline, child.ideographicBaseline),
             Unit
@@ -167,20 +163,21 @@ private class RadioInk(private val props: Props<RadioInkProps>, scope: Component
     public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value.input
         when (val handle = props.value.semantics) {
-            case Some(val value) -> context.semantics(
-                value,
-                Rect(0.0, 0.0, context.size.width, context.size.height)
-            )
+            case Some(val value) ->
+                context
+                    .semantics(
+                        value,
+                        Rect(0.0, 0.0, context.size.width, context.size.height)
+                    )
             case None -> {}
         }
-        if (!input.enabled)
-            context.saveLayer(input.theme.tokens.disabledOpacity)
+        if (!input.enabled) context.saveBackdropLayer(input.theme.tokens.disabledOpacity)
         context.children()
-        if (!input.enabled)
-            context.restore()
-        context.place(
-            props.value.control.area,
-            Rect(0.0, 0.0, context.size.width, context.size.height)
-        )
+        if (!input.enabled) context.restore()
+        context
+            .place(
+                props.value.control.area,
+                Rect(0.0, 0.0, context.size.width, context.size.height)
+            )
     }
 }
