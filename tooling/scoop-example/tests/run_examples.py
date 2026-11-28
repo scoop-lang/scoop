@@ -20,7 +20,7 @@ EXPECTED = {
     "start/hello": "Hello, Scoop!\n",
     "start/single-file": '{"name":"Ada","scores":[7,9]}\nAda: 9\nno note\n',
     "start/cone": "Hello, Ada!\nHello, Lin!\n",
-    "language/overview": "point=(3, 4)\npoint missing\nAda\nguest\n3\n",
+    "language/overview": "point=(3, 4)\nx=3\npoint missing\nAda\nguest\n3\n",
     "language/option": "Hello, Ada!\nHello, guest!\n3\n84\npresent, scalars=0\nfallback\n",
     "language/struct": "original=(3, 4)\nmoved=(8, 4)\ntrue\n",
     "language/enum": "Found: Ada\nNo matching name\n",

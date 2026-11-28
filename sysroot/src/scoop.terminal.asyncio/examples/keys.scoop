@@ -14,7 +14,7 @@ fun main() {
             terminal -> terminal.withRawMode suspend {
                 terminal.execute(Print("Press keys; Escape exits.\r\n"))
                 while (true) {
-                    when (val event = terminal.read()) {
+                    when (terminal.read()) {
                         case Event.Key(val key) -> when (key.code) {
                             case KeyCode.Esc -> break
                             case KeyCode.Char(val character) -> terminal.execute(

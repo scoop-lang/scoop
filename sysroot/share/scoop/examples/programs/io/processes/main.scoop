@@ -51,7 +51,7 @@ fun main(args: Array<String>): Int {
         command(Path.fromString(args[1L] + ".missing")).spawn().use { it.wait() }
         eprintln("the deliberately missing executable unexpectedly exists")
         return 1
-    } catch (error: PlatformException) {
+    } catch (_error: PlatformException) {
         println("spawn failed before a child was created")
     }
     return 0

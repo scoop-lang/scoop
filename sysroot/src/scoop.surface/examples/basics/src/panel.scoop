@@ -176,7 +176,7 @@ internal class DemoPanel(
                     surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Default)
             }
             case Pointer(
-                InputPointerEvent.Button(val pointer, MouseButton.Left, ElementState.Pressed, _)
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
             ) -> {
                 if (area.requestFocus())
                     editor.choose(

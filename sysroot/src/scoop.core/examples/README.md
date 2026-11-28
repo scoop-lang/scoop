@@ -4,7 +4,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| [values.scoop](values.scoop) | struct、带载荷 enum、嵌套模式匹配、Option、安全访问和默认值 |
+| [values.scoop](values.scoop) | struct、带载荷 enum、嵌套模式匹配、用 `_` 忽略解构项、Option、安全访问和默认值 |
 | [collections.scoop](collections.scoop) | ArrayList、数组快照、Unicode 标量/字节长度、StringBuilder |
 
 ```sh

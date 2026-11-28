@@ -6,7 +6,7 @@ internal struct TextReport(val lines: Long, val scalars: Long, val utf8Bytes: Lo
 
 internal fun inspectText(text: String): TextReport {
     var lines = 0L
-    for (line in text.lineSequence())
+    for (_ in text.lineSequence())
         lines += 1L
     if (text.byteLength == 0L)
         lines = 0L

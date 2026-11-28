@@ -14,7 +14,7 @@ internal class DesktopApplication(
 ): ApplicationComponent(scope) {
     val desktop = scope.desktopController(demo.notificationLaunch)
     val notifications =
-        when (val center = desktop.notifications) {
+        when (desktop.notifications) {
             case Some(val value) -> Some(scope.notificationController(value))
             case None -> None
         }

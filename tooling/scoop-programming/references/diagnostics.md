@@ -12,6 +12,8 @@
 
 编译与构建诊断使用固定规则编号：`E` 是错误，`W` 是警告，`N` 是说明，`H` 是修改建议，`ICE` 表示编译器内部合同失败。被 deny 的警告仍保留 W 编号。先看主错误，再展开递归 `notes` 中的候选、原因和建议；附加原因沿用对应 E 编号，不按英文文案判断错误种类。
 
+`W0801` 标在未读取的那次写入上。比如 `var n = 1; n = 2; println(n)` 会标出声明处的 `n`，因为打印读到的是 `2`。只想执行右侧调用时可以写 `val _ = operation()`。需要保留名字供后续引用时，可以用 `_result`。
+
 缺少名称或扩展时，先看 `H0401` 建议中的 `available with import`。编译 JSON 的 note 带 `importPath` 标识符数组，LSP 诊断的 data.imports 提供同一组路径；它们来自当前 Cone/直接依赖的真实可见声明。可用 `scoop-lsp query code-actions 文件 --line 行 --column 列 --format json` 取得相应插入。路径可能含需反引号引用的标识符，优先审阅工具生成的编辑，不把标识符数组直接用点拼成源码。无提示不等于 API 不存在，继续查 `scoop api search/show` 和依赖/可见性。
 
 例如 `fun optional(value: String?): String? = value` 与 `assertEquals(Some("x"), optional("x"))` 的问题在 optional 的实参。应明确实际意图并修为 `optional(Some("x"))`，保持原断言。编译器会尽量保留这个内层错误；候选仍可能依赖期望类型，因此复杂调用需要按上面的步骤缩小，不能仅凭外层错误文字推断语言限制。

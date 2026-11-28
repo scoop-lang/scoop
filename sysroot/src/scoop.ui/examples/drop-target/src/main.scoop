@@ -20,7 +20,7 @@ private class DropDemo(scope: ComponentScope): Component(scope) {
     private val editor = TextEditorState("Drop text or a URL here, or type and paste normally.")
     public override fun render(): View {
         val message =
-            when (val value = received) {
+            when (received) {
                 case Some(DragContent.Text(val text)) -> "Text: " + text
                 case Some(DragContent.Url(val url)) -> "URL: " + url
                 case Some(DragContent.Files(val paths)) -> "Files: " + paths.size.toString()
@@ -155,13 +155,13 @@ private class DropDrawing(private val props: Props<DropView>, scope: ComponentSc
     }
 
     private fun textContent(): String =
-        when (val value = props.value.received) {
+        when (props.value.received) {
             case Some(DragContent.Text(val text)) -> text
             case Some(DragContent.Url(val url)) -> url
             else -> "Scoop text — 中文 é 😀"
         }
     private fun urlContent(): String =
-        when (val value = props.value.received) {
+        when (props.value.received) {
             case Some(DragContent.Url(val url)) -> url
             else -> "https://example.com/"
         }
